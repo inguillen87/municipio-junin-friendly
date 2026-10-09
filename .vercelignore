@@ -319,3 +319,4 @@ local-agents/
 # Reviewed source contracts required by declared-date build regression tests.
 !scripts/migrations/144-final-grh-source-revision.sql
 !scripts/migrations/145-own-declared-liquidation-date.sql
+!scripts/migrations/146-own-consolidated-annulment.sql

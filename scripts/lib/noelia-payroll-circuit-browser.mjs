@@ -50,7 +50,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return result;
   }
   async function confirmPartial({detail}){
-   await fresh('/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('.own-liquidation')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await fresh('/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('[data-liq-status]')?.closest('.own-liquidation').getAttribute('aria-busy')==='false',{},{timeout:30000});
    await page.locator('[data-liq-run-id="'+detail.id+'"]').waitFor();await lidle();await page.locator('[data-liq-run-id="'+detail.id+'"]').click();await lidle();await l('command').selectOption('confirm');await l('kind').selectOption('all');
    check((await l('review-summary').innerText()).includes('1 legajos afectados')&&await l('review-rows').locator('tr').count()===1,'actual confirmation of partial recalculation affects its one original contract');await l('reason').fill('Confirmación exclusivamente sintética del recálculo individual');await l('confirm').check();
    return commitAndRecover({kind:'liquidation',send:l('send'),recover:l('recover'),idle:lidle,verify:r=>{assert.equal(r.body.runId,detail.id);assert.equal(r.affected.length,1);assert.equal(r.body.command,'confirm');}});
@@ -87,7 +87,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await page.setViewportSize({width:1440,height:1100});return original.receipt;
   }
   async function decide({detail,command,selection}){
-   await page.goto(origin+'/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('.own-liquidation')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await page.goto(origin+'/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('[data-liq-status]')?.closest('.own-liquidation').getAttribute('aria-busy')==='false',{},{timeout:30000});
    await page.locator('[data-liq-run-id="'+detail.id+'"]').waitFor();await lidle();if(await l('next-decision').isVisible()){await l('next-decision').click();await lidle();}const before=writes.length;await page.locator('[data-liq-run-id="'+detail.id+'"]').click();await lidle();
    check(writes.length===before,'opening saved calculation and reviewing scope never registers a decision');
    if(!await l('search').isVisible())await page.getByText('Revisar conceptos y versiones del cálculo',{exact:true}).click();await l('search').fill('a/3501');check(await l('rows').locator('tr').count()===6,'actual result search retains all six concepts for the opaque employee number regardless of case');
@@ -101,7 +101,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    else await l('review-search').fill('A/3501');
    const selected=ownLiquidationReview(detail,selection,command);check((await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'explicit selected decision shows its own affected count');for(const amount of Object.values(selected.totals))assert.ok((await l('review-totals').innerText()).includes(formatOwnRunDecimal(amount)));
    await l('reason').fill('Decisión exclusivamente sintética del circuito completo');await l('confirm').check();
-   for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'decision review fits '+width+'px');check(await l('review-search').evaluate(e=>e.getBoundingClientRect().height>=44),'review search accessible at '+width+'px');await page.locator('.own-liquidation').screenshot({path:path.join(output,'decision-'+command+'-'+width+'.png')});}
+   for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'decision review fits '+width+'px');check(await l('review-search').evaluate(e=>e.getBoundingClientRect().height>=44),'review search accessible at '+width+'px');await page.locator('.own-liquidation').filter({has:l('status')}).screenshot({path:path.join(output,'decision-'+command+'-'+width+'.png')});}
    await page.setViewportSize({width:1440,height:1100});drop=true;await l('send').click();await lidle();const original=writes.at(-1);assert.equal(original.kind,'liquidation');assert.deepEqual(original.receipt.body.selection,selection);check(await l('recover').isVisible()&&!await l('next-decision').isVisible(),'uncertain committed decision preserves original body and key');
    await l('kind').evaluate(el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));});await l('command').evaluate(el=>{el.value='cancel';el.dispatchEvent(new Event('change',{bubbles:true}));});
    check((await l('review-summary').innerText()).startsWith(command==='confirm'?'Confirmar':'Anular')&&(await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'DOM changes cannot replace the scope review of a pending decision');
