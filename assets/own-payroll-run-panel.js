@@ -4,10 +4,11 @@ import {createEmployeePicker} from './employee-picker.js';
 import {mountPositionCapture} from './position-capture-panel.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
+import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 
-import {ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
+import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
@@ -179,10 +180,17 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   async function acceptPreparation(context,valid){
     await session(OWN_RUN_PREPARE);if(!valid())return;
     if(access.key!==context.accessKey||!boot.canCalculate||attempt&&attempt.key!==knownSavedKey)throw Error('Hay un intento pendiente o cambió el acceso. Recuperalo antes de preparar otro cálculo.');
-    const receipt=await verifiedOwnLiquidationReceipt((await request('/api/internal-own-payroll-liquidation?resource=attempt&key='+encodeURIComponent(context.key))).data);
-    const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);
-    if(!valid())return;const preparation=ownLiquidationNextPreparation(detail,receipt);
-    if(preparation.runId!==context.runId||preparation.receiptKey!==context.key)throw Error('El comprobante no corresponde a la anulación elegida.');
+    let preparation;
+    if(context.kind==='consolidated'){
+      const receipt=await verifiedOwnAnnulReceipt((await request('/api/internal-own-payroll-annulment?resource=attempt&key='+encodeURIComponent(context.key))).data);
+      const detail=await verifiedOwnAnnulDetail((await request('/api/internal-own-payroll-annulment?resource=detail&period='+encodeURIComponent(receipt.body.period)+'&liquidationType='+encodeURIComponent(receipt.body.liquidationType))).data);
+      if(!valid())return;if(receipt.key!==context.key)throw Error('El comprobante pertenece a otro intento.');preparation=ownAnnulNextPreparation(detail,receipt,context.liquidationDate);
+    }else{
+      const receipt=await verifiedOwnLiquidationReceipt((await request('/api/internal-own-payroll-liquidation?resource=attempt&key='+encodeURIComponent(context.key))).data);
+      const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);
+      if(!valid())return;preparation=ownLiquidationNextPreparation(detail,receipt);
+      if(preparation.runId!==context.runId||preparation.receiptKey!==context.key)throw Error('El comprobante no corresponde a la anulación elegida.');
+    }
     if(['departments','agreements'].includes(preparation.selection.kind)&&preparation.selection.values.some(code=>!catalog.catalog.items.some(item=>item.kind===(preparation.selection.kind==='departments'?'sectors':'agreements')&&item.code===code)))throw Error('El encuadre cambió. Revisá el alcance antes de otra preparación.');
     attempt=null;knownSavedKey=null;current=null;notFound=false;individual.clear();$('result').hidden=true;for(const key of ['totals','rows','trace'])$(key).replaceChildren();
     $('date').value=preparation.liquidationDate??'';$('period').value=preparation.period;$('type').value=preparation.liquidationType;$('kind').value=preparation.selection.kind;
@@ -237,5 +245,5 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   document.getElementById('logoutButton')?.addEventListener('click',()=>suspend('Sesión cerrada. Se retiraron los datos.'));
   const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(current||attempt?OWN_RUN_NOMINAL:OWN_RUN_READ);if(valid())controls();});},60000);
   window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capability);},{once:true});
-  controls();return {refresh,queuePreparation(context){if(busy||attempt&&attempt.key!==knownSavedKey||!salaryUuid(context?.runId)||!salaryUuid(context?.key)||typeof context?.accessKey!=='string'||!context.accessKey)return false;queuedPreparation=Object.freeze({...context});return true;}};
+  controls();return {refresh,queuePreparation(context){if(busy||attempt&&attempt.key!==knownSavedKey||!(context?.kind==='consolidated'?(context.liquidationDate===null||ownRunDate(context.liquidationDate)):salaryUuid(context?.runId))||!salaryUuid(context?.key)||typeof context?.accessKey!=='string'||!context.accessKey)return false;queuedPreparation=Object.freeze({...context});return true;}};
 }

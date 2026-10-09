@@ -5,6 +5,7 @@ import {mountSourceReports} from './payroll-source-reports.js';
 import {mountOwnPayrollRun} from './own-payroll-run-panel.js';
 import {mountOwnPayrollProgram} from './own-payroll-program-panel.js';
 import {mountOwnPayrollLiquidation} from './own-payroll-liquidation-panel.js';
+import {mountOwnPayrollAnnulment} from './own-payroll-annulment-panel.js';
 import {mountOwnPayrollClose} from './own-payroll-close-panel.js';
 import {mountOwnPayrollReports} from './own-payroll-report-panel.js';
 import {mountOwnPayrollReceipts} from './own-payroll-receipt-panel.js';
@@ -16,6 +17,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  let workspace,calculationPanel,decisionsPanel;
  const calculation=document.createElement('div');calculationPanel=mountOwnPayrollRun(calculation,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true)});
  const decisions=document.createElement('div');decisionsPanel=mountOwnPayrollLiquidation(decisions,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
+ const annulment=document.createElement('div');mountOwnPayrollAnnulment(annulment,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
  const close=document.createElement('div');mountOwnPayrollClose(close);
  const receipts=document.createElement('div');mountOwnPayrollReceipts(receipts);
  const program=document.createElement('div');mountOwnPayrollProgram(program);
@@ -24,6 +26,6 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const migration=document.createElement('div');migration.innerHTML='<header class="rc-panel-head"><h2>Migración y controles externos</h2><p>Herramientas del circuito anterior. Para generar reportes con los datos ya incorporados, usá la pestaña Reportes.</p></header>';
  for(const [id,title]of [['sourcePreviewTitle','Analizar fuente mensual externa'],['postCloseTitle','Comparar extractos externos 701 / 703'],['controlImportTitle','Fuentes agregadas y revisión'],['artReportTitle','Control ART desde archivo de transición'],['bankDiagnosticTitle','Validar formato bancario'],['healthDiagnosticTitle','Validar formatos de salud'],['monthlyClosePrecheckTitle','Comparar paquete mensual externo']]){const n=pick(id);if(n)migration.append(toolDetails(n,title))}
  const workspaceHost=document.createElement('div');workspaceHost.id='payrollTaskWorkspace';const footer=host.querySelector(':scope > footer');host.insertBefore(workspaceHost,footer);const publicationNotice=host.querySelector(':scope > .notice');
- workspace=taskWorkspace({host:workspaceHost,initial:'resumen',groups:[{id:'resumen',label:'Resumen',nodes:[publicationNotice,pick('runsTitle'),pick('reconciliationTitle')]},{id:'calculo',label:'Calcular',nodes:[calculation]},{id:'decisiones',label:'Confirmar y anular',nodes:[decisions]},{id:'cierre',label:'Cerrar liquidación',nodes:[close]},{id:'reportes',label:'Reportes',nodes:[report]},{id:'recibos',label:'Recibos propios',nodes:[receipts]},{id:'comparar',label:'Comparar liquidaciones',nodes:[comparison]},{id:'correcciones',label:'Correcciones',nodes:[pick('reprocessingTitle')]},{id:'historial',label:'Historial',nodes:[pick('historyTitle'),pick('auditTitle')]},{id:'parametros',label:'Parámetros',nodes:[parameters,advancedFormula]},{id:'reglas',label:'Reglas de cálculo',nodes:[program]},{id:'migracion',label:'Migración y controles',nodes:[migration]}],aliases:{'postCloseTitle':'migracion','sourcePreviewTitle':'migracion','artReportTitle':'migracion'}});
+ workspace=taskWorkspace({host:workspaceHost,initial:'resumen',groups:[{id:'resumen',label:'Resumen',nodes:[publicationNotice,pick('runsTitle'),pick('reconciliationTitle')]},{id:'calculo',label:'Calcular',nodes:[calculation]},{id:'decisiones',label:'Confirmar y anular',nodes:[decisions]},{id:'anulacion',label:'Anular período',nodes:[annulment]},{id:'cierre',label:'Cerrar liquidación',nodes:[close]},{id:'reportes',label:'Reportes',nodes:[report]},{id:'recibos',label:'Recibos propios',nodes:[receipts]},{id:'comparar',label:'Comparar liquidaciones',nodes:[comparison]},{id:'correcciones',label:'Correcciones',nodes:[pick('reprocessingTitle')]},{id:'historial',label:'Historial',nodes:[pick('historyTitle'),pick('auditTitle')]},{id:'parametros',label:'Parámetros',nodes:[parameters,advancedFormula]},{id:'reglas',label:'Reglas de cálculo',nodes:[program]},{id:'migracion',label:'Migración y controles',nodes:[migration]}],aliases:{'postCloseTitle':'migracion','sourcePreviewTitle':'migracion','artReportTitle':'migracion'}});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
