@@ -10,6 +10,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
+import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -48,6 +49,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <p data-own-scope>Elegí expresamente el alcance.</p>
     <label class="own-run-confirm"><input type="checkbox" data-own-confirm>Revisé el período, la fecha, el tipo y todo el alcance. El resultado quedará pendiente de confirmación y cierre.</label>
   </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div></form>
+  <div class="own-run-actions"><button class="button" type="button" data-own-source-review-button hidden disabled>Revisar incidencias de la captura</button></div>
+  <section data-own-source-report hidden aria-labelledby="ownSourceReportTitle"><h3 id="ownSourceReportTitle" tabindex="-1">Novedades que necesitan revisión</h3><p data-own-source-summary></p><p>Revisión de las novedades y sus fuentes declaradas en las reglas capturadas. No certifica los importes, las unidades ni la homologación salarial. Corregir una fuente no cambia esta captura: el intento conserva su contenido original.</p>
+    <div class="own-run-actions"><button class="button" type="button" data-own-source-download disabled>Descargar incidencias sin datos personales CSV</button></div>
+    <label for="ownSourceSearch">Buscar legajo, concepto o convenio en las incidencias<input id="ownSourceSearch" type="search" maxlength="100" autocomplete="off" data-own-source-search></label><p data-own-source-range></p>
+    <div class="own-run-scroll" tabindex="0" role="region" aria-label="Incidencias completas de las novedades capturadas"><table><caption>Incidencias por registro · búsqueda y página no limitan la descarga</caption><thead><tr><th>Legajo</th><th>Convenio</th><th>Concepto</th><th>Origen y fila</th><th>Estado</th><th>Acción sugerida</th></tr></thead><tbody data-own-source-rows></tbody></table></div>
+    <nav class="own-run-actions" aria-label="Páginas de incidencias"><button class="button" type="button" data-own-source-prev>Anterior</button><span data-own-source-page></span><button class="button" type="button" data-own-source-next>Siguiente</button></nav>
+  </section>
   <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p></div><button class="button" type="button" data-own-download disabled>Descargar detalle completo CSV</button></header>
     <p class="own-run-notice">Importes del cálculo guardado. Consultá el resumen individual para verificar su estado actual. Este cálculo no es un recibo ni una orden de pago.</p>
     <button class="button" type="button" data-own-review disabled>Revisar confirmación y anulación</button>
@@ -62,6 +70,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
+  let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
   const canPrepare=()=>can(OWN_RUN_PREPARE)&&boot?.canCalculate===true;
@@ -79,12 +88,19 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('new').hidden=!current?.saved;$('new').disabled=busy||!canPrepare();
     $('revise').hidden=!attempt||!notFound;$('revise').disabled=busy||!canPrepare();
     $('download').disabled=busy||!current?.saved||!can(OWN_RUN_NOMINAL);
+    $('source-review-button').hidden=!current;$('source-review-button').disabled=busy||!current||!can(OWN_RUN_NOMINAL);
+    $('source-download').disabled=busy||!sourceReview||!can(OWN_RUN_NOMINAL);
+    $('source-search').disabled=busy||!sourceReview||!can(OWN_RUN_NOMINAL);
+    const sourceView=sourceReview?ownSourceReviewRows(sourceReview,$('source-search').value,sourcePage):null;
+    $('source-prev').disabled=busy||!sourceView||!can(OWN_RUN_NOMINAL)||sourceView.page<=1;
+    $('source-next').disabled=busy||!sourceView||!can(OWN_RUN_NOMINAL)||sourceView.page>=sourceView.pages;
     $('review').disabled=busy||!current?.saved||!can(OWN_RUN_NOMINAL)||typeof onReview!=='function';
     for(const button of $('totals').querySelectorAll('[data-own-individual-open]'))button.disabled=busy||!can(OWN_RUN_NOMINAL);
     for(const button of $('history').querySelectorAll('button'))button.disabled=busy||!can(OWN_RUN_NOMINAL)||!!attempt&&!current?.saved;
     host.setAttribute('aria-busy',String(busy));
   }
   function clearViews(){
+    clearSourceReview();
     individual.clear();
     positionCapture.clear();
     picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;
@@ -141,6 +157,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }
   function showCapture(value){
+    clearSourceReview();
     positionCapture.setCapture(value.saved?value:null);
     current=value;notFound=false;
     if(!attempt||attempt.key!==value.key)attempt=ownRunWorkspaceAttempt(value.key,value.body,access.key);
@@ -157,6 +174,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh(){return perform(async valid=>{
+    clearSourceReview();
     individual.clear();
     await session(OWN_RUN_READ);
     if(!valid())return;
@@ -225,9 +243,26 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     a.href=url;a.download='calculo-propio-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
     status('Se descargó el detalle completo del cálculo guardado. La búsqueda y la página no lo recortaron.','success');
   });}
+  function clearSourceReview(){sourceReview=null;sourcePage=1;$('source-report').hidden=true;for(const key of ['source-summary','source-range','source-page','source-rows'])$(key).replaceChildren();$('source-search').value='';}
+  function renderSourceReview(){if(!sourceReview)return;const view=ownSourceReviewRows(sourceReview,$('source-search').value,sourcePage);sourcePage=view.page;
+    $('source-summary').textContent=sourceReview.total+' novedades del alcance capturado · '+sourceReview.affected+' registros con incidencias. '+(sourceReview.affected?'Revisá cada acción sugerida.':'Sin observaciones en esta revisión de novedades; no equivale a un cálculo validado.');
+    $('source-rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr'),labels=['Legajo','Convenio','Concepto','Origen y fila','Estado','Acción sugerida'];[r.employeeNumber,r.agreementCode,r.conceptCode,(r.origin==='monthly'?'Mensual · lote '+r.group+' · fila '+r.rowOrdinal:'Fija · sin fila de archivo'),r.issues.map(i=>OWN_SOURCE_ISSUES[i][0]).join(' · '),r.issues.map(i=>OWN_SOURCE_ISSUES[i][1]).join(' ')].forEach((text,i)=>{const cell=node('td',text);cell.dataset.label=labels[i];tr.append(cell);});return tr;}));
+    $('source-range').textContent=view.filtered+' registros de la búsqueda · '+view.total+' registros con incidencias en la captura completa. La descarga incluye todas las incidencias, sin legajos ni importes.';$('source-page').textContent='Página '+view.page+' de '+view.pages;controls();
+  }
+  async function reviewSources(downloadCsv=false){if(!current||!can(OWN_RUN_NOMINAL)||downloadCsv&&!sourceReview)return;const original=current;clearSourceReview();return perform(async valid=>{
+    await session(OWN_RUN_NOMINAL);if(!valid())return;
+    const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
+    const reviewed=await ownRunSourceReview(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
+    if(downloadCsv){const csv=await ownSourceReviewCsv(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
+      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=node('a');a.href=url;a.download='incidencias-novedades-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+    }
+    sourceReview=reviewed;$('source-report').hidden=false;renderSourceReview();$('source-report').querySelector('h3').focus();status(downloadCsv?'Se descargaron todas las incidencias sin datos personales. El intento de cálculo conserva su cuerpo y clave originales.':'Se revisaron todas las novedades de la captura. Consultar esta revisión no inicia otro cálculo.');
+  });}
   $('form').addEventListener('submit',event=>{event.preventDefault();send();});
   $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
+  $('source-review-button').addEventListener('click',()=>reviewSources());$('source-download').addEventListener('click',()=>reviewSources(true));
+  $('source-search').addEventListener('input',()=>{sourcePage=1;renderSourceReview();});$('source-prev').addEventListener('click',()=>{sourcePage--;renderSourceReview();});$('source-next').addEventListener('click',()=>{sourcePage++;renderSourceReview();});
   $('review').addEventListener('click',()=>{if(busy||!current?.saved||!can(OWN_RUN_NOMINAL))return;if(onReview?.({runId:current.id,resultSha256:current.saved.resultSha256,accessKey:access.key,contractId:individual.selected})!==true)status('Hay una decisión pendiente en Confirmar y anular. Consultala antes de cambiar de corrida.','warning');});
   $('picker').addEventListener('click',()=>picker.open({multiple:true,maximum:500,excluded:chosen.map(e=>e.legajo),onUse:items=>{chosen.push(...items);$('confirm').checked=false;renderChosen();controls();}}));
   $('new').addEventListener('click',()=>{if(!canPrepare()||busy||!current?.saved)return;attempt=null;clearViews();refresh();});
