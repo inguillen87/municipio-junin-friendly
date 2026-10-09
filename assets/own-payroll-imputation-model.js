@@ -3,7 +3,7 @@ import {ownCloseReceipt, verifiedOwnCloseReceipt, OWN_CLOSE_TOTAL_KEYS} from './
 import {ownRunCommand} from './own-payroll-run-model.js';
 import {ownRunDate} from './own-payroll-run-date.js';
 import {ownClosedJurisdiction} from './own-payroll-jurisdiction-model.js';
-import {accountingDefinition, accountingHash, accountingMappingKey, accountingAssignmentKey, ACCOUNTING_MAPPING_FIELDS} from './own-payroll-accounting-model.js';
+import {accountingDefinition, accountingHash, accountingMappingKey, accountingAssignmentKey, accountingMappingFields} from './own-payroll-accounting-model.js';
 import {decimal, rational, exactAdd, quantize} from './own-payroll-exact.js';
 
 export const IMPUTATION_SOURCE_VERSION='own-payroll-imputation-source.v1';
@@ -103,7 +103,7 @@ export function calculateImputation(source){
   if(assignment)row.assignmentKey=accountingAssignmentKey(assignment);
   row.state=c.revision===0?'configuration_required':codes.length?'needs_review':'allocated';
   if(row.state==='allocated'){
-   row.destination={...Object.fromEntries(ACCOUNTING_MAPPING_FIELDS.map(k=>[k,mapping[k]])),institutionalReference:assignment.institutionalReference,functionReference:assignment.functionReference,institutionRuleReference:assignment.ruleReference};
+   row.destination={...Object.fromEntries(accountingMappingFields(mapping).map(k=>[k,mapping[k]])),institutionalReference:assignment.institutionalReference,functionReference:assignment.functionReference,institutionRuleReference:assignment.ruleReference};
    const key=salarySerialized(row.destination),group=destinations.get(key)??{destination:structuredClone(row.destination),ordinals:[],amounts:[],precision:0};
    group.ordinals.push(row.ordinal);group.amounts.push(row.amount);group.precision=Math.max(group.precision,row.amount.split('.')[1]?.length??0);destinations.set(key,group);
   }

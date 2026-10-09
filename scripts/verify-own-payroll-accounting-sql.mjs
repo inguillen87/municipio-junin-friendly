@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { buildNativeSalaryQa } from './verify-native-salary-sql.mjs';
 import { syntheticAccountingDefinition } from '../tests/fixtures/own-payroll-accounting-synthetic.js';
 import { buildOwnAccountingInstallation } from './lib/own-accounting-installation.mjs';
+import { buildOwnAccountingBankInstallation } from './lib/own-accounting-bank-installation.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const q = v => "'" + String(v).replaceAll("'", "''") + "'", j = v => q(JSON.stringify(v)) + '::jsonb';
 export function buildOwnAccountingQa({ serverMajor }) {
@@ -15,6 +16,7 @@ export function buildOwnAccountingQa({ serverMajor }) {
  const helpers = fs.readFileSync(path.join(root, 'scripts/migrations/122-own-payroll-programs.sql'), 'utf8').replaceAll('\r\n', '\n');
  const relocate = s => s.replaceAll('public.', schema + '.').replaceAll(schema + '.digest(', 'public.digest(').replaceAll("'public'::regnamespace", q(schema) + '::regnamespace').replaceAll("s.nspname='public'","s.nspname="+q(schema)).replace(/SET search_path\s*=\s*pg_catalog,public,pg_temp/g, 'SET search_path=pg_catalog,' + schema + ',public,pg_temp').replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
  const installation = buildOwnAccountingInstallation({ read: f => fs.readFileSync(path.join(root,f),'utf8'), sourceCommit: 'a'.repeat(40) });
+ const bankInstallation = buildOwnAccountingBankInstallation({ read: f => fs.readFileSync(path.join(root,f),'utf8'), sourceCommit: 'a'.repeat(40) });
  const statements = []; let count = 0;
  const exec = s => statements.push(s), ok = (s, label) => { exec('PERFORM qa_assert((' + s + '),' + q(label) + ');checks:=checks+1;'); count++; };
  const write = (actor = 'maker', body = 'ac_body', key = 'gen_random_uuid()') => 'own_accounting_command_v1(' + actor + ',' + body + ',' + key + ')';
@@ -81,6 +83,23 @@ export function buildOwnAccountingQa({ serverMajor }) {
  exec('ac_key:=gen_random_uuid();ac_receipt:=' + write('maker', 'ac_body', 'ac_key') + ';ac_id:=(ac_receipt->>\'proposalId\')::uuid;');
  ok("ac_receipt->>'status'='pending' AND ac_receipt->'body'=ac_body AND own_accounting_bootstrap_v1(maker)#>>'{configuration,revision}'='0'", 'whole proposal conserves all distinct fields without approving configuration');
  ok(write('maker','ac_body','ac_key') + "-'replayed'=ac_receipt-'replayed' AND own_accounting_attempt_v1(maker,ac_key)->>'replayed'='true'", 'replay and recovery retain original body/key');
+ // Upgrade after an older request is durably pending. The original request,
+ // idempotency key, prior definition and receipt must survive unchanged.
+ exec('EXECUTE '+q(relocate(bankInstallation.installation.slice(0,-1).join(';\n')))+';EXECUTE '+q(relocate(bankInstallation.proof))+' INTO ac_install_proof;EXECUTE '+q(relocate(bankInstallation.durableVerification.slice(0,-1).join(';\n')))+';EXECUTE '+q(relocate(bankInstallation.durableProof))+' INTO ac_durable_proof;');
+ ok("ac_install_proof->>'beforeFingerprint'=ac_install_proof->>'preservationSha256' AND ac_install_proof-'beforeFingerprint'=ac_durable_proof AND ac_install_proof->>'eventRows'='1' AND ac_install_proof->>'replacedFunctions'='1'", 'bank validator upgrade preserves every existing row and object, including old pending proposal');
+ ok(write('maker','ac_body','ac_key') + "-'replayed'=ac_receipt-'replayed' AND own_accounting_attempt_v1(maker,ac_key)->'body'=ac_body", 'old pending request replays byte-identically after SQL150');
+ ok('qa_rejects('+q(relocate(bankInstallation.migration.join(';\n')))+",'ACCOUNTING_BANK_ALREADY_INSTALLED')", 'second SQL150 install refuses to repeat upgrade');
+ exec("ac_bank_definition:=jsonb_set(ac_definition,'{mappings,0}',ac_definition#>'{mappings,0}'||jsonb_build_object('bankDestinationVersion','own-accounting-bank-destination.v1','bankConceptReference','BANK-CONCEPT-QA','bankMovementReference','BANK-MOVEMENT-QA','netCreditorKind','none','netCreditorReference',NULL,'indicatesNet',false));");
+ ok("own_accounting_definition_v1(ac_bank_definition,ac_sources)=ac_bank_definition", 'new bank concept, movement, None net creditor and false flag survive independently of accounts');
+ for(const [kind,reference] of [['not_informed',null],['none',null],['reference','0'],['reference','000123']]) for(const indicatesNet of [null,false,true]){
+  const definition="jsonb_set(ac_bank_definition,'{mappings,0}',ac_bank_definition#>'{mappings,0}'||"+j({netCreditorKind:kind,netCreditorReference:reference,indicatesNet})+')';
+  ok('own_accounting_definition_v1('+definition+',ac_sources)='+definition,'typed net creditor '+kind+' / flag '+indicatesNet+' / reference '+reference);
+ }
+ for(const [field,value] of [['bankDestinationVersion','unknown'],['bankConceptReference',' '],['bankMovementReference','<script>'],['netCreditorKind','unknown'],['netCreditorKind',{toString:'none'}],['netCreditorReference','INCOMPATIBLE'],['indicatesNet','false'],['indicatesNet',0]]){
+  ok('qa_rejects(format('+q("SELECT own_accounting_definition_v1(%L::jsonb,%L::jsonb)")+",jsonb_set(ac_bank_definition,'{mappings,0,"+field+"}',"+j(value)+"),ac_sources),'ACCOUNTING_INPUT_INVALID')",'reject malformed bank declaration '+field+' '+JSON.stringify(value));
+ }
+ ok("qa_rejects(format('SELECT own_accounting_definition_v1(%L::jsonb,%L::jsonb)',jsonb_set(ac_bank_definition,'{mappings,0}',(ac_bank_definition#>'{mappings,0}')-'indicatesNet'),ac_sources),'ACCOUNTING_INPUT_INVALID')", 'partial new row never becomes a legacy row');
+ ok("qa_rejects(format('SELECT own_accounting_definition_v1(%L::jsonb,%L::jsonb,%L::jsonb)',ac_bank_definition,ac_sources,ac_definition),'ACCOUNTING_HISTORY_REQUIRED')", 'upgrading fields cannot rewrite an older mapping in place');
  reject("ac_body||jsonb_build_object('reason','Different synthetic reason')", 'IDEMPOTENCY_REUSE', 'same key cannot change body', 'maker', 'ac_key');
  ok("qa_rejects(format('SELECT own_accounting_attempt_v1(%L::jsonb,%L::uuid)',checker,ac_key),'ACCOUNTING_NOT_FOUND')", 'another reviewer cannot retrieve preparer attempt');
  exec("ac_detail:=own_accounting_detail_v1(checker,ac_id);ac_review:=ac_body||jsonb_build_object('command','approve','scopeVersion',native_salary_scope_v1(native_salary_context_v1(checker)),'proposalId',ac_id,'proposalSha256',ac_receipt->>'requestSha256','definition',NULL,'reason','Independent review of every synthetic accounting destination','reviewConfirmed',true);");
@@ -115,7 +134,7 @@ export function buildOwnAccountingQa({ serverMajor }) {
  exec("INSERT INTO capabilities VALUES((maker->>'membershipId')::uuid,'payroll.parameter.prepare');");
  for (const sql of ['UPDATE own_payroll_accounting_event SET body=body','DELETE FROM own_payroll_accounting_event','TRUNCATE own_payroll_accounting_event CASCADE']) ok('qa_rejects(' + q(sql) + ",'ACCOUNTING_IMMUTABLE')", 'immutable history ' + sql.split(' ')[0]);
  ok('(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY id)::text) FROM employment_contract ec)=ac_before', 'existing own/imported contracts remain byte-identical');
- const block = `DECLARE ac_before text;ac_install_proof jsonb;ac_durable_proof jsonb;ac_class jsonb;ac_class_body jsonb;ac_class_receipt jsonb;ac_boot jsonb;ac_sources jsonb;ac_definition jsonb;ac_body jsonb;ac_review jsonb;ac_detail jsonb;ac_receipt jsonb;ac_approval jsonb;ac_key uuid;ac_review_key uuid;ac_id uuid;ac_n integer;BEGIN ${statements.join('\n')} END;`;
+ const block = `DECLARE ac_before text;ac_install_proof jsonb;ac_durable_proof jsonb;ac_class jsonb;ac_class_body jsonb;ac_class_receipt jsonb;ac_boot jsonb;ac_sources jsonb;ac_definition jsonb;ac_bank_definition jsonb;ac_body jsonb;ac_review jsonb;ac_detail jsonb;ac_receipt jsonb;ac_approval jsonb;ac_key uuid;ac_review_key uuid;ac_id uuid;ac_n integer;BEGIN ${statements.join('\n')} END;`;
  const anchor = "RAISE EXCEPTION USING ERRCODE='P1121',MESSAGE='RESTORE_SALARY_FIXTURES';"; assert.equal(base.sql.split(anchor).length, 2);
  const report = { ...base.report, ownAccountingChecksPassed: count, checksPassed: base.report.checksPassed + count, migration147Sha256: createHash('sha256').update(source).digest('hex'), limitations: [...base.report.limitations, '147 persists only synthetic configuration: no productive install, municipal accounting, payment or human acceptance.'] };
  return { ...base, report, sql: base.sql.replace("current_database()<>'native_employment_lifecycle_qa'", "current_database()<>'own_payroll_accounting_qa'").replace(anchor, () => block + '\n' + anchor).replace('checks<>' + base.report.checksPassed, 'checks<>' + report.checksPassed).replace(j(base.report), () => j(report)) };

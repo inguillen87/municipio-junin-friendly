@@ -6,6 +6,16 @@ export const ACCOUNTING_MAX_BYTES = 8 * 1024 * 1024;
 export const ACCOUNTING_LIMITS = Object.freeze({ mappings: 2000, assignments: 10000, proposals: 500, revisions: 1000 });
 export const ACCOUNTING_NATURES = Object.freeze({ remuneration: 'Haber remunerativo', non_remuneration: 'Haber no remunerativo', deduction: 'Retención', employer_contribution: 'Contribución patronal' });
 export const ACCOUNTING_MAPPING_FIELDS = Object.freeze(['fiscalYear', 'jurisdictionCode', 'agreementCode', 'departmentCode', 'conceptCode', 'nature', 'budgetItemReference', 'supplierReference', 'creditorReference', 'accountingAccountReference', 'bankAccountReference', 'bankReference', 'validFrom', 'validUntil', 'ruleReference']);
+export const ACCOUNTING_BANK_DESTINATION_VERSION = 'own-accounting-bank-destination.v1';
+export const ACCOUNTING_NET_CREDITORS = Object.freeze({ not_informed: 'No informado', none: 'Ninguno', reference: 'Acreedor declarado' });
+export const ACCOUNTING_BANK_FIELDS = Object.freeze(['bankConceptReference', 'bankMovementReference', 'netCreditorKind', 'netCreditorReference', 'indicatesNet']);
+const bankMappingFields = Object.freeze([...ACCOUNTING_MAPPING_FIELDS, 'bankDestinationVersion', ...ACCOUNTING_BANK_FIELDS]);
+export const accountingMappingFields = r => Object.hasOwn(r, 'bankDestinationVersion') ? bankMappingFields : ACCOUNTING_MAPPING_FIELDS;
+// A view of an older record is unknown, never an inferred bank instruction.
+// Do not insert this projection into its conserved definition or request hash.
+export function accountingBankDestination(r) {
+  return r.bankDestinationVersion === ACCOUNTING_BANK_DESTINATION_VERSION ? Object.fromEntries(ACCOUNTING_BANK_FIELDS.map(k => [k, r[k]])) : { bankConceptReference: null, bankMovementReference: null, netCreditorKind: 'not_informed', netCreditorReference: null, indicatesNet: null };
+}
 export const ACCOUNTING_ASSIGNMENT_FIELDS = Object.freeze(['contractId', 'conceptCode', 'institutionalReference', 'functionReference', 'validFrom', 'validUntil', 'ruleReference']);
 const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
@@ -28,10 +38,15 @@ export function accountingDefinition(value) {
   need(value.mappings.length <= ACCOUNTING_LIMITS.mappings && value.assignments.length <= ACCOUNTING_LIMITS.assignments, 'El conjunto supera su capacidad. No se recortaron asociaciones.', 'LIMIT');
   need(value.mappings.length + value.assignments.length > 0, 'Agregá al menos una asociación; una lista vacía no retira el historial.');
   const mappings = value.mappings.map(r => {
-    need(salaryExact(r, ACCOUNTING_MAPPING_FIELDS) && typeof r.fiscalYear === 'string' && /^(19|20)[0-9]{2}$/.test(r.fiscalYear) && ['42', '55'].includes(r.jurisdictionCode) && [r.agreementCode, r.departmentCode, r.conceptCode].every(code) && Object.hasOwn(ACCOUNTING_NATURES, r.nature), 'Revisá año, jurisdicción, convenio, repartición, concepto y naturaleza.');
+    need(r && salaryExact(r, accountingMappingFields(r)) && typeof r.fiscalYear === 'string' && /^(19|20)[0-9]{2}$/.test(r.fiscalYear) && ['42', '55'].includes(r.jurisdictionCode) && [r.agreementCode, r.departmentCode, r.conceptCode].every(code) && Object.hasOwn(ACCOUNTING_NATURES, r.nature), 'Revisá año, jurisdicción, convenio, repartición, concepto y naturaleza.');
     dates(r); need(r.validUntil !== null && r.validFrom.slice(0, 4) === r.fiscalYear && r.validUntil.slice(0, 4) === r.fiscalYear, 'La matriz anual necesita fechas explícitas dentro del año elegido.');
     need(text(r.budgetItemReference, 1, 80) && text(r.ruleReference, 3, 180), 'Informá la partida y el documento que respalda la asociación.');
     for (const field of ['supplierReference', 'creditorReference', 'accountingAccountReference', 'bankAccountReference', 'bankReference']) need(r[field] === null || text(r[field], 1, 80), 'Conservá cada referencia por separado; vacío significa no informado.');
+    if (Object.hasOwn(r, 'bankDestinationVersion')) {
+      need(r.bankDestinationVersion === ACCOUNTING_BANK_DESTINATION_VERSION && typeof r.netCreditorKind === 'string' && Object.hasOwn(ACCOUNTING_NET_CREDITORS, r.netCreditorKind) && (r.indicatesNet === null || typeof r.indicatesNet === 'boolean'), 'Revisá la declaración de acreedor de neto e Indica neto; no informado es distinto de ninguno y de No.');
+      for (const field of ['bankConceptReference', 'bankMovementReference']) need(r[field] === null || text(r[field], 1, 80), 'Conservá el concepto y movimiento bancarios por separado de las cuentas.');
+      need(r.netCreditorKind === 'reference' ? text(r.netCreditorReference, 1, 80) : r.netCreditorReference === null, 'Informá el acreedor de neto sólo cuando declarás una referencia.');
+    }
     return { ...r };
   }).sort((a, b) => ordered(accountingMappingKey(a), accountingMappingKey(b)));
   noOverlap(mappings, r => accountingMappingKey(r).slice(0, -11));

@@ -1,5 +1,5 @@
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized,SalaryInputError} from './native-salary-catalog-model.js';
-import {accountingHash} from './own-payroll-accounting-model.js';
+import {accountingHash, accountingBankDestination, ACCOUNTING_NET_CREDITORS, ACCOUNTING_BANK_DESTINATION_VERSION} from './own-payroll-accounting-model.js';
 import {verifiedImputation} from './own-payroll-imputation-model.js';
 import {ownRunWorkspaceAccess,OWN_RUN_NOMINAL,OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 
@@ -49,11 +49,15 @@ export async function approvedImputationCsv(value){
  const d=await imputationDetail(value),p=d.proposal,a=d.allocation,s=d.source.group.snapshot;
  need(p.status==='approved'&&d.sourceCurrent,'Abrí una imputación aprobada vigente. Una propuesta pendiente, rechazada o reemplazada no habilita esta descarga.','EXPORT_UNAVAILABLE');
  const headers=['Período','Tipo de liquidación','Año presupuestario','Revisión aprobada','Fila del grupo completo','Estado del concepto','Legajo','Fecha de liquidación','Jurisdicción','Convenio','Repartición','Concepto','Naturaleza','Unidad','Importe o valor exacto (texto)','Partida','Institución','Función','Proveedor','Acreedor','Cuenta contable','Cuenta bancaria','Banco','Vigencia del destino desde','Vigencia del destino hasta','Documento del destino','Documento institucional','Huella del cierre','Huella de la distribución','Legajos del grupo','Legajos de la población original','Alcance del grupo'];
+ const bankColumns=a.rows.some(r=>r.destination?.bankDestinationVersion===ACCOUNTING_BANK_DESTINATION_VERSION);
+ if(bankColumns)headers.push('Concepto bancario','Movimiento bancario','Acreedor de neto · declaración','Acreedor de neto · referencia','Indica neto');
  const quote=v=>'"'+v.replaceAll('"','""')+'"';
  const cell=v=>quote(v===null?'':typeof v==='number'?String(v):"'"+v);
  const lines=[headers.map(quote).join(';')];
  for(const r of a.rows){const dest=r.destination;
-  lines.push([s.period,OWN_RUN_TYPES[s.liquidationType],a.fiscalYear,p.decision.revision,r.ordinal,r.state==='auxiliary'?'Auxiliar · sin movimiento monetario':'Imputado',r.employeeNumber,r.liquidationDate,r.jurisdictionCode,r.agreementCode,r.departmentCode,r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,...['budgetItemReference','institutionalReference','functionReference','supplierReference','creditorReference','accountingAccountReference','bankAccountReference','bankReference','validFrom','validUntil','ruleReference','institutionRuleReference'].map(k=>dest?.[k]??null),a.snapshotSha256,d.allocationSha256,s.employeeCount,s.populationCount,s.populationComplete?'Población completa':'Grupo parcial'].map(cell).join(';'));
+  const values=[s.period,OWN_RUN_TYPES[s.liquidationType],a.fiscalYear,p.decision.revision,r.ordinal,r.state==='auxiliary'?'Auxiliar · sin movimiento monetario':'Imputado',r.employeeNumber,r.liquidationDate,r.jurisdictionCode,r.agreementCode,r.departmentCode,r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,...['budgetItemReference','institutionalReference','functionReference','supplierReference','creditorReference','accountingAccountReference','bankAccountReference','bankReference','validFrom','validUntil','ruleReference','institutionRuleReference'].map(k=>dest?.[k]??null),a.snapshotSha256,d.allocationSha256,s.employeeCount,s.populationCount,s.populationComplete?'Población completa':'Grupo parcial'];
+  if(bankColumns){const b=dest?accountingBankDestination(dest):null;values.push(b?.bankConceptReference??null,b?.bankMovementReference??null,b?ACCOUNTING_NET_CREDITORS[b.netCreditorKind]:null,b?.netCreditorReference??null,b?b.indicatesNet===null?'No informado':b.indicatesNet?'Sí':'No':null);}
+  lines.push(values.map(cell).join(';'));
  }
  return lines.join('\r\n')+'\r\n';
 }
