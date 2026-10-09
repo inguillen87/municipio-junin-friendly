@@ -1,9 +1,16 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
 import {buildOwnAccountingBankInstallation} from '../scripts/lib/own-accounting-bank-installation.mjs';
 import {assertOwnAccountingBankDurability,SQL150_SHA256} from '../scripts/lib/own-accounting-bank-installation.mjs';
 import {prepareOwnAccountingBankInstallation} from '../scripts/prepare-own-accounting-bank-installation.mjs';
 import {executeOwnAccountingBankInstallation} from '../scripts/install-own-accounting-bank.mjs';
 const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8'),sourceCommit='a'.repeat(40);
+
+test('el paquete Vercel incluye las fuentes del upgrade y mantiene fuera respaldos, datos privados y handoff',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+ const included=f=>{let keep=true;for(const rule of rules){const allow=rule.startsWith('!'),p=allow?rule.slice(1):rule;if(p.endsWith('/')?f.startsWith(p):path.matchesGlob(f,p)||!p.includes('/')&&path.matchesGlob(path.basename(f),p))keep=allow;}return keep;};
+ const b=prepareOwnAccountingBankInstallation({read:f=>{assert.ok(included(f),'Fuente excluida del build: '+f);return read(f);},sourceCommit});assert.equal(b.sourceHashes['scripts/migrations/150-own-accounting-bank-destinations.sql'],SQL150_SHA256);
+ for(const f of ['.handoff/sync-current.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/result.json','source.sql.gz','source.sql','nominal.txt','transcripts_audios.json'])assert.equal(included(f),false,'Fuente privada incluida: '+f);
+});
 test('SQL150 revisable reemplaza exactamente un validador y conserva todos los otros objetos, filas y permisos',()=>{
  const b=buildOwnAccountingBankInstallation({read,sourceCommit});assert.equal(b.connects,false);assert.equal(b.executesSql,false);assert.equal(b.migration.length,2);
  assert.deepEqual({...b.oldPin,sha256:null},{...b.newPin,sha256:null});assert.notEqual(b.oldPin.sha256,b.newPin.sha256);assert.equal(b.currentPins.length,13);
