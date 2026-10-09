@@ -9,9 +9,11 @@ import { buildNativeSalaryQa } from './verify-native-salary-sql.mjs';
 import { program, definitions } from '../tests/fixtures/own-payroll-program-synthetic.js';
 import { programFingerprint } from '../lib/internal-own-payroll-program.js';
 import { command } from '../tests/fixtures/own-payroll-program-synthetic.js';
+import {exactProgram} from '../tests/fixtures/own-payroll-exact-program-synthetic.js';
+import {buildExactProgramPrecisionInstallation} from './lib/exact-program-precision-installation.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const q = v => "'" + String(v).replaceAll("'", "''") + "'", j = v => q(JSON.stringify(v)) + '::jsonb';
-export function buildOwnProgramQa({ serverMajor, withMonthlySource = false }) {
+export function buildOwnProgramQa({ serverMajor, withMonthlySource = false, exactPrecision = false }) {
   const base = buildNativeSalaryQa({ serverMajor, withMonthlySource }), { schema, ids } = base;
   const migration = fs.readFileSync(path.join(root, 'scripts/migrations/122-own-payroll-programs.sql'), 'utf8').replaceAll('\r\n', '\n');
   const relocate = s => s.replaceAll('public.', schema + '.').replaceAll(schema + '.digest(', 'public.digest(').replaceAll("'public'::regnamespace", q(schema) + '::regnamespace').replace(/SET search_path\s*=\s*pg_catalog,public,pg_temp/g, 'SET search_path=pg_catalog,' + schema + ',public,pg_temp');
@@ -86,14 +88,42 @@ export function buildOwnProgramQa({ serverMajor, withMonthlySource = false }) {
   for (const sql of ['UPDATE own_payroll_program_event SET body=body', 'DELETE FROM own_payroll_program_event', 'TRUNCATE own_payroll_program_event CASCADE']) reject(sql, 'OWN_PROGRAM_IMMUTABLE', 'immutable history ' + sql.split(' ')[0]);
   reject(migration, 'OWN_PROGRAM_ALREADY_INSTALLED', 'reinstallation refuses before modifying any object');
   ok('(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY id)::text) FROM employment_contract ec)=program_contracts_before', 'all prior canonical employees retained exactly');
+  if(exactPrecision){
+    const batch=buildExactProgramPrecisionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit:'a'.repeat(40)});
+    exec("program_contracts_before:=(SELECT native_salary_serialized_v1(jsonb_agg(to_jsonb(e) ORDER BY id)) FROM own_payroll_program_event e);");
+    exec('EXECUTE '+q(relocate(batch.changed))+';');
+    ok("(SELECT native_salary_serialized_v1(jsonb_agg(to_jsonb(e) ORDER BY id)) FROM own_payroll_program_event e)=program_contracts_before",'precision installation changes no historical event, receipt or body');
+    exec('program_receipt:=own_program_attempt_v1(maker,program_key);program_body:=program_receipt->\'body\';program_receipt:='+write('maker','program_body','program_key')+';');
+    ok("program_receipt->>'replayed'='true' AND program_receipt->'body'=program_body",'legacy rounded request replays its exact original body before the new precision guard');
+    exec("program_boot:=own_program_bootstrap_v1(maker);program_body:=program_body||jsonb_build_object('scopeVersion',program_boot->>'scopeVersion','baseVersion',program_boot#>>'{program,version}','salaryVersion',program_boot#>>'{salaryCatalog,version}','program',program_boot#>'{program,definition}');");
+    rejected("jsonb_set(program_body,'{program,rules,0,ruleReference}','\"Historical rounding reintroduced as changed QA content\"')",'PRECISION_REQUIRED','changing a legacy rounded rule requires an exact policy');
+    // Closing old definitions is allowed without rewriting their historic math.
+    exec("program_body:=jsonb_set(program_body,'{program,rules}',(SELECT jsonb_agg(r||jsonb_build_object('validUntil','2026-12') ORDER BY r->>'agreementCode',r->>'code',r->>'validFrom') FROM jsonb_array_elements(program_body#>'{program,rules}') r));program_receipt:="+write()+";program_review:=program_review||jsonb_build_object('command','approve','scopeVersion',own_program_bootstrap_v1(checker)->>'scopeVersion','baseVersion',program_body->>'baseVersion','salaryVersion',program_body->>'salaryVersion','proposalId',program_receipt->>'proposalId','proposalSha256',program_receipt->>'requestSha256');program_approval:="+write('checker','program_review')+';');
+    ok("program_approval->>'status'='approved' AND (SELECT bool_and(r#>>'{rounding,mode}'<>'exact') FROM jsonb_array_elements(own_program_bootstrap_v1(maker)#>'{program,definition,rules}') r)",'independent approval closes old rules retaining their original policies');
+    exec("program_boot:=own_program_bootstrap_v1(maker);program_body:=program_body||jsonb_build_object('baseVersion',program_boot#>>'{program,version}','program',program_boot#>'{program,definition}');");
+    rejected("jsonb_set(program_body,'{program,rules,0,validUntil}','null')",'PRECISION_REQUIRED','extending a historic rounded rule is new content, not preservation');
+    const exact=exactProgram();exact.rules.forEach(r=>r.validFrom='2027-01');
+    exec("program_body:=program_body||jsonb_build_object('program',own_program_definition_v1("+j(exact)+"||jsonb_build_object('rules',(program_boot#>'{program,definition,rules}')||"+j(exact.rules)+"),program_boot#>'{salaryCatalog,items}'));");
+    const newIndex=1; // normalized order: concept100 old row, then its new row
+    for(const mode of ['half_up','half_even','toward_zero','floor','ceiling'])rejected(`jsonb_set(program_body,'{program,rules,${newIndex},rounding,mode}',${j(mode)})`,'PRECISION_REQUIRED','new final policy rejected: '+mode);
+    const branch={op:'choose',condition:{op:'compare',operator:'eq',left:{op:'literal',value:'1',unit:'coefficient'},right:{op:'literal',value:'1',unit:'coefficient'}},then:{op:'input',unit:'money',key:'base'},else:{op:'round',value:{op:'literal',unit:'money',value:'100.015'},rounding:{precision:2,mode:'half_up'}}};
+    rejected(`jsonb_set(program_body,'{program,rules,${newIndex},expression}',${j(branch)})`,'PRECISION_REQUIRED','SQL examines unchosen conditional branches without evaluating an expression');
+    rejected("jsonb_set(program_body,'{program,rules,3,expression,left,stage}','\"rounded\"')",'PRECISION_REQUIRED','new downstream rule cannot take the rounded upstream value');
+    exec('program_key:=gen_random_uuid();program_receipt:='+write('maker','program_body','program_key')+';');
+    ok("program_receipt->>'status'='pending' AND program_receipt->'body'=program_body",'complete exact proposal preserves old rows and every exact new row');
+    exec("program_review:=program_review||jsonb_build_object('baseVersion',program_body->>'baseVersion','proposalId',program_receipt->>'proposalId','proposalSha256',program_receipt->>'requestSha256');program_approval:="+write('checker','program_review')+';');
+    ok("program_approval->>'status'='approved' AND own_program_bootstrap_v1(maker)#>'{program,definition}'=program_body->'program'",'independent approval publishes the entire synthetic exact program');
+    exec('program_receipt:='+write('maker','program_body','program_key')+';');
+    ok("program_receipt->>'replayed'='true' AND program_receipt->'body'=program_body",'exact request remains replayable after its independent approval');
+  }
   const block = `DECLARE program_boot jsonb;program_body jsonb;program_receipt jsonb;program_approval jsonb;program_review jsonb;program_stale jsonb;program_key uuid;program_review_key uuid;program_id uuid;program_contracts_before text;BEGIN ${statements.join('\n')} END;`;
   const anchor = "RAISE EXCEPTION USING ERRCODE='P1121',MESSAGE='RESTORE_SALARY_FIXTURES';"; assert.equal(base.sql.split(anchor).length, 2);
   const report = { ...base.report, ownProgramChecksPassed: count, checksPassed: base.report.checksPassed + count, migration122Sha256: createHash('sha256').update(migration).digest('hex'), limitations: [...base.report.limitations, '122 validates and approves synthetic own programs. No productive installation, payroll calculation/posting or municipal normative approval.'] };
   assert.ok(base.sql.includes("current_database()<>'native_employment_lifecycle_qa'"));
-  return { ...base, report, sql: base.sql.replace("current_database()<>'native_employment_lifecycle_qa'", "current_database()<>'own_payroll_program_qa'").replace(anchor, () => block + '\n' + anchor).replace('checks<>' + base.report.checksPassed, 'checks<>' + report.checksPassed).replace(j(base.report), () => j(report)) };
+  return { ...base, report, sql: base.sql.replace("current_database()<>'native_employment_lifecycle_qa'", exactPrecision ? "current_database()<>'own_payroll_run_qa'" : "current_database()<>'own_payroll_program_qa'").replace(anchor, () => block + '\n' + anchor).replace('checks<>' + base.report.checksPassed, 'checks<>' + report.checksPassed).replace(j(base.report), () => j(report)) };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
-  const args = {}; for (const a of process.argv.slice(2)) { if (a === '--ci') { args.ci = true; continue; } const m = /^--(expected-major|write-sql)=(.+)$/.exec(a); assert.ok(m); assert.equal(args[m[1]], undefined); args[m[1]] = m[2]; }
-  assert.equal(args.ci, true); assert.ok(args['write-sql']); const qa = buildOwnProgramQa({ serverMajor: args['expected-major'] }), target = path.resolve(args['write-sql']);
+  const args = {}; for (const a of process.argv.slice(2)) { if (a === '--ci') { args.ci = true; continue; } if(a==='--exact-precision'){args.exactPrecision=true;continue;} const m = /^--(expected-major|write-sql)=(.+)$/.exec(a); assert.ok(m); assert.equal(args[m[1]], undefined); args[m[1]] = m[2]; }
+  assert.equal(args.ci, true); assert.ok(args['write-sql']); const qa = buildOwnProgramQa({ serverMajor: args['expected-major'],exactPrecision:args.exactPrecision===true }), target = path.resolve(args['write-sql']);
   assert.ok(!fs.existsSync(target)); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, qa.sql, { flag: 'wx' }); console.log(JSON.stringify({ generated: true, databaseExecuted: false, checksPlanned: qa.report.checksPassed, ownProgramChecksPlanned: qa.report.ownProgramChecksPassed }));
 } catch (e) { console.error(JSON.stringify({ ok: false, message: e.message })); process.exitCode = 1; }

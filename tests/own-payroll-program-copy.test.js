@@ -12,7 +12,13 @@ test('copia varios convenios con fórmula, naturaleza, unidad, etapas y redondeo
   assert.deepEqual(draft,before);assert.equal(plan.program.rules.length,3);assert.equal(plan.program.totalsPrecision,2);
   for(const r of plan.program.rules.filter(r=>r.agreementCode!=='1')) {assert.deepEqual(r.expression,draft.rules[0].expression);assert.deepEqual(r.rounding,draft.rules[0].rounding);assert.equal(r.nature,'deduction');assert.equal(r.validFrom,'2026-10');assert.equal(r.ruleReference,intent.ruleReference);}
   assert.ok(Object.isFrozen(plan.program.rules[2].expression));assert.deepEqual(applyProgramCopy(boot,draft,plan),plan.program);
-  const body=prepareProgramWorkspace(boot,applyProgramCopy(boot,draft,plan),'Propuesta sintética de varios convenios');assert.equal(body.reviewConfirmed,false);assert.equal(body.command,'propose');
+  assert.throws(()=>prepareProgramWorkspace(boot,applyProgramCopy(boot,draft,plan),'Propuesta sintética de varios convenios'),e=>e.code==='PROGRAM_PRECISION_REQUIRED');
+  assert.deepEqual(draft,before,'la copia histórica no se transforma para sortear el control de reglas nuevas');
+});
+test('copia exacta expresamente preparada permite revisión sin redondear la fracción',()=>{
+ const f=copyFixture();f.draft.rules[0].rounding={precision:3,mode:'exact'};const plan=prepareProgramCopy(f.boot,f.draft,f.intent);
+ const body=prepareProgramWorkspace(f.boot,applyProgramCopy(f.boot,f.draft,plan),'Propuesta sintética exacta de varios convenios');
+ assert.equal(body.reviewConfirmed,false);assert.equal(body.command,'propose');assert.ok(body.program.rules.every(r=>r.expression.value==='17.125'&&r.rounding.mode==='exact'));
 });
 test('cierre expresamente elegido conserva todas las claves anteriores y empieza una versión nueva',()=>{
   const f=copyFixture();f.draft.rules.push({...structuredClone(f.draft.rules[0]),agreementCode:'2'});f.boot.program.definition=structuredClone(f.draft);f.intent.targets=['2'];f.intent.mode='replace';

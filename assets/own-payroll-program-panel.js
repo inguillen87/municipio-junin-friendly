@@ -100,7 +100,11 @@ export function mountOwnPayrollProgram(container){
  function rounding(parent,value,key){
   const group=node('div');group.className='own-program-grid';
   field(group,'Decimales',value.precision,Object.fromEntries(Array.from({length:9},(_,i)=>[String(i),String(i)])),v=>value.precision=v===''?null:Number(v),{key:key+'-precision'});
-  field(group,'Criterio de redondeo',value.mode,PROGRAM_ROUNDING,v=>value.mode=v,{key:key+'-rounding'});parent.append(group);
+  const options={exact:PROGRAM_ROUNDING.exact};
+  if(value.mode&&value.mode!=='exact')options[value.mode]=`Criterio histórico: ${PROGRAM_ROUNDING[value.mode]}`;
+  const control=field(group,'Tratamiento de la precisión',value.mode,options,v=>value.mode=v,{key:key+'-rounding'});
+  for(const option of control.options)if(option.value&&option.value!=='exact')option.disabled=true;
+  parent.append(group);parent.append(node('p','Las reglas nuevas conservan el valor exacto. Si la precisión elegida no alcanza, el cálculo se detiene sin redondear ni truncar.'));
  }
  function renderExpression(rule){
   const area=node('div');area.className='own-program-expression';const size=expressionSize(rule.expression);area.append(node('p',`Fórmula: ${size.nodes} operaciones. Las unidades y conversiones se declaran expresamente.`));
@@ -117,7 +121,7 @@ export function mountOwnPayrollProgram(container){
    if(['input','literal','convert'].includes(value.op))field(group,'Unidad',value.unit,PROGRAM_UNITS,v=>value.unit=v,{key:key+'-unit'});
    if(value.op==='input')field(group,'Identificador de la entrada',value.key,null,v=>value.key=v,{key:key+'-key',max:64});
    if(value.op==='literal')field(group,'Valor explícito',value.value,null,v=>value.value=v.replace(',','.'),{key:key+'-value',type:'decimal',max:106});
-   if(value.op==='concept'){field(group,'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9});field(group,'Etapa del valor',value.stage,{exact:'Antes del redondeo',rounded:'Después del redondeo'},v=>value.stage=v,{key:key+'-stage'});}
+   if(value.op==='concept'){field(group,'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9});const stages={exact:'Resultado exacto, antes del redondeo'};if(value.stage==='rounded')stages.rounded='Etapa histórica: después del redondeo';const control=field(group,'Etapa del valor',value.stage,stages,v=>value.stage=v,{key:key+'-stage'});for(const option of control.options)if(option.value==='rounded')option.disabled=true;}
    if(value.op==='compare')field(group,'Comparación',value.operator,PROGRAM_COMPARE,v=>value.operator=v,{key:key+'-operator'});
    if(value.op==='convert'){field(group,'Factor exacto',value.factor,null,v=>value.factor=v.replace(',','.'),{key:key+'-factor',type:'decimal',max:106});field(group,'Respaldo de la conversión',value.conversionReference,null,v=>value.conversionReference=v,{key:key+'-reference'});}
    card.append(group);if(value.op==='round')rounding(card,value.rounding,key);area.append(card);
@@ -269,7 +273,7 @@ export function mountOwnPayrollProgram(container){
   });
  });
  $('review-decision').addEventListener('click',()=>{if(attempt||busy)return;try{showPrepared(decideProgramWorkspace(boot,$('proposal-select').value,$('decision').value,$('decision-reason').value,true));}catch(e){invalidate();status(e.message,'warning');}});
- $('add-rule').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.rules.length>=1000){status('El programa alcanzó su capacidad. No se omitieron reglas.','warning');return;}draft.rules.push({agreementCode:'',code:'',nature:'',unit:'',validFrom:'',validUntil:null,liquidationTypes:[],ruleReference:'',rounding:{precision:null,mode:''},expression:{op:'literal',unit:'',value:''}});ruleIndex=draft.rules.length-1;invalidate();selectors();renderRule();});
+ $('add-rule').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.rules.length>=1000){status('El programa alcanzó su capacidad. No se omitieron reglas.','warning');return;}draft.rules.push({agreementCode:'',code:'',nature:'',unit:'',validFrom:'',validUntil:null,liquidationTypes:[],ruleReference:'',rounding:{precision:null,mode:'exact'},expression:{op:'literal',unit:'',value:''}});ruleIndex=draft.rules.length-1;invalidate();selectors();renderRule();});
  $('add-binding').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.bindings.length>=1000){status('El programa alcanzó su capacidad. No se omitieron entradas.','warning');return;}draft.bindings.push({agreementCode:'',key:'',unit:'',sourceKind:'',sourceCode:'',onMissing:'',combine:'',ruleReference:''});bindingIndex=draft.bindings.length-1;invalidate();selectors();renderBinding();});
  $('rule-select').addEventListener('change',()=>{ruleIndex=Number($('rule-select').value);renderRule();});$('binding-select').addEventListener('change',()=>{bindingIndex=Number($('binding-select').value);renderBinding();});
  for(const [key,value] of [['edit-tab','edit'],['review-tab','review']])$(key).addEventListener('click',()=>{if(attempt)return;tab=value;invalidate();$('form').hidden=tab!=='edit';$('proposals').hidden=tab!=='review';controls();});
