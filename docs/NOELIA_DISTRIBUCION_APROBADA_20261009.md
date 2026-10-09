@@ -6,7 +6,7 @@ En **Nómina → Imputación propia**, una distribución aprobada y vigente pued
 2. Elegir una propuesta aprobada y abrir su revisión completa.
 3. Comprobar su estado y pulsar **Descargar distribución aprobada · CSV**.
 
-El archivo contiene legajos e importes; corresponde al circuito municipal autorizado. Omite nombres, DNI, UUID, identidades de los revisores y los motivos libres de las decisiones. Incluye las huellas del cierre y de la distribución para identificar el conjunto original. Los auxiliares figuran como valores sin movimiento monetario, con sus destinos vacíos. Una referencia ausente queda vacía; un cero explícito permanece como tal.
+El archivo contiene legajos e importes; corresponde al circuito municipal autorizado. Omite nombres, DNI, UUID, identidades de los revisores y los motivos libres de las decisiones. Incluye las huellas del cierre y de la distribución para identificar el conjunto original, sus cantidades de legajos y si el grupo cubre la población completa o sólo una parte. Un cierre parcial se descarga entero y queda identificado como tal. Los auxiliares figuran como valores sin movimiento monetario, con sus destinos vacíos. Una referencia ausente queda vacía; un cero explícito permanece como tal.
 
 Los campos de texto, códigos e importes llevan un marcador literal de texto para evitar fórmulas de planilla y conservar ceros iniciales y toda la precisión original. Se usan punto decimal, separador punto y coma, comillas escapadas, UTF-8 y líneas CRLF. Es una copia para control; no constituye un formato bancario, fiscal o de intercambio contable.
 

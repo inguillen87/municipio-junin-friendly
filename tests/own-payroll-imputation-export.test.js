@@ -23,7 +23,7 @@ async function approved(count=31,modify=null){
 
 test('distribución aprobada exporta cada concepto de todas las páginas, con ordinal y destino originales',async()=>{
  const d=await approved(),before=structuredClone(d),rows=readCsv(await approvedImputationCsv(d));
- assert.ok(d.allocation.rows.length>25);assert.equal(rows.length,d.source.group.snapshot.conceptCount+1);assert.equal(rows[0].length,29);
+ assert.ok(d.allocation.rows.length>25);assert.equal(rows.length,d.source.group.snapshot.conceptCount+1);assert.equal(rows[0].length,32);
  for(const [i,r]of d.allocation.rows.entries()){
   const values=rows[i+1];assert.equal(values.length,rows[0].length);assert.equal(values[4],String(i+1));assert.equal(values[6],"'"+r.employeeNumber);assert.equal(values[11],"'"+r.conceptCode);assert.equal(values[14],"'"+r.amount);assert.equal(values[15],r.destination?"'"+r.destination.budgetItemReference:'');assert.equal(values[27],"'"+d.source.group.snapshotSha256);assert.equal(values[28],"'"+d.allocationSha256);
  }
@@ -42,7 +42,7 @@ test('conserva centavos grandes y negativos, códigos con ceros y auxiliares fra
 test('neutraliza referencias con fórmulas y separadores sin perder su texto ni agregar columnas',async()=>{
  const injected=['=HYPERLINK("https://fixture.invalid";"a")','+SUM(1;2)','-123','@SUM(1)','000012345678901234567890'];
  const d=await approved(31,s=>{for(const m of s.configuration.definition.mappings){[m.supplierReference,m.creditorReference,m.accountingAccountReference,m.bankAccountReference,m.bankReference]=injected;}});
- const rows=readCsv(await approvedImputationCsv(d));for(const row of rows.slice(1).filter(r=>r[5]==="'Imputado")){assert.equal(row.length,29);assert.deepEqual(row.slice(18,23),injected.map(v=>"'"+v));}
+ const rows=readCsv(await approvedImputationCsv(d));for(const row of rows.slice(1).filter(r=>r[5]==="'Imputado")){assert.equal(row.length,32);assert.deepEqual(row.slice(18,23),injected.map(v=>"'"+v));}
 });
 test('una referencia nula queda vacía y un cero explícito se conserva, sin inventar un destino auxiliar',async()=>{
  const d=await approved(31,s=>{for(const m of s.configuration.definition.mappings){m.supplierReference=null;m.creditorReference='0';}}),rows=readCsv(await approvedImputationCsv(d));
@@ -60,4 +60,8 @@ test('cierre reabierto, configuración cambiada o revisión reemplazada impiden 
 });
 test('rechaza una distribución recortada o un importe alterado aunque la decisión diga aprobada',async()=>{
  for(const modify of [d=>d.allocation.rows.pop(),d=>d.allocation.rows[0].amount='0.00',d=>d.source.group.snapshot.concepts.pop(),d=>d.proposal.decision.revision=2]){const d=await approved();modify(d);await assert.rejects(approvedImputationCsv(d));}
+});
+test('un grupo parcial conserva todas sus filas y declara sus cantidades sin presentarse como nómina completa',async()=>{
+ const d=await approved(31,s=>{s.group.snapshot.populationCount=869;s.group.snapshot.populationComplete=false;}),rows=readCsv(await approvedImputationCsv(d));
+ assert.equal(rows.length,d.allocation.conceptCount+1);for(const r of rows.slice(1))assert.deepEqual(r.slice(29),['31','869',"'Grupo parcial"]);
 });
