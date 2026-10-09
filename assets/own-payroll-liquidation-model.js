@@ -57,6 +57,27 @@ export function ownLiquidationReview(detail,selection,command){
  const aggregate=Object.fromEntries(['gross','deduction','net'].map(key=>[key,quantize(rows.reduce((sum,row)=>exactAdd(sum,decimal(row[key])),decimal('0')),{precision:saved.input.totalsPrecision,mode:'exact'}).amount]));
  return {rows,count:selected.count,allowed:selected.allowed,complete:true,totals:aggregate};
 }
+// Read the complete verified saved result. Search and pagination never define
+// an individual's concepts; annulled values remain historical, never zeroed.
+export function ownLiquidationIndividual(detail,contractId){
+ ownLiquidationDetail(detail);if(!salaryUuid(contractId))fail();
+ const decision=detail.employees.find(e=>e.contractId===contractId),saved=detail.capture.saved;
+ const person=saved.input.employees.find(e=>e.contractId===contractId),totals=saved.result.employeeTotals.find(e=>e.contractId===contractId);
+ if(!decision||!person||!totals)fail();
+ return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows:saved.result.rows.filter(r=>r.contractId===contractId),complete:true,paymentExecuted:false});
+}
+// This supplies a preparation context only. The target must reread the receipt,
+// detail, session and catalogs before offering a separate voluntary calculation.
+export function ownLiquidationNextPreparation(detail,receipt){
+ ownLiquidationDetail(detail);ownLiquidationReceipt(receipt);
+ if(receipt.body.command!=='annul'||receipt.runId!==detail.id||receipt.resultSha256!==detail.capture.saved.resultSha256)fail();
+ for(const affected of receipt.affected){const current=detail.employees.find(e=>e.contractId===affected.contractId);if(!current||current.state!=='annulled'||current.version!==affected.version||current.liquidationVersion!==affected.liquidationVersion)fail();}
+ const selected=ownLiquidationSelection(detail,receipt.body.selection,'annul');
+ if(salarySerialized(selected.rows.map(e=>e.contractId).sort())!==salarySerialized(receipt.affected.map(e=>e.contractId).sort()))fail();
+ // "All" in the decision means all of that run, possibly a partial run.
+ // Carry the exact affected contracts, never widen it to the whole municipality.
+ return structuredClone({period:detail.capture.body.period,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values:receipt.affected.map(e=>e.contractId).sort()},sourceSelection:receipt.body.selection,affected:receipt.affected.map(e=>({contractId:e.contractId,employeeNumber:detail.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber})),runId:detail.id,receiptKey:receipt.key});
+}
 export function ownLiquidationReceipt(v,attempt=null){
  exact(v,['version','id','key','body','bodySha256','runId','resultSha256','affected','recordedAt','replayed']);
  const body=ownLiquidationCommand(v.body);if(v.version!=='own-liquidation-receipt.v1'||!salaryUuid(v.id)||!salaryKey(v.key)||!salaryHash(v.bodySha256)||v.runId!==body.runId||v.resultSha256!==body.resultSha256||!date(v.recordedAt)||typeof v.replayed!=='boolean'||!Array.isArray(v.affected)||!v.affected.length||v.affected.length>10000)fail();
@@ -64,4 +85,9 @@ export function ownLiquidationReceipt(v,attempt=null){
  if(body.selection.kind==='contracts'&&salarySerialized([...ids].sort())!==salarySerialized(body.selection.values))fail();
  if(attempt?.expectedContracts&&salarySerialized([...ids].sort())!==salarySerialized([...attempt.expectedContracts].sort()))fail();
  if(attempt&&(v.key!==attempt.key||salarySerialized(body)!==salarySerialized(attempt.body)))fail();return v;
+}
+export async function verifiedOwnLiquidationReceipt(v,attempt=null){
+ ownLiquidationReceipt(v,attempt);
+ const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(v.body))))].map(b=>b.toString(16).padStart(2,'0')).join('');
+ if(digest!==v.bodySha256)fail();return v;
 }

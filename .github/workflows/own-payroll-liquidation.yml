@@ -2,9 +2,9 @@ name: Own payroll liquidation decisions
 on:
   push:
     branches: ['master', 'codex/own-liquidation-decisions-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
 permissions:
   contents: read
 jobs:
@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
       - run: mkdir -p verification
       - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
-      - run: node --test tests/own-payroll-liquidation*.test.js tests/own-payroll-run*.test.js
+      - run: node --test tests/own-payroll-liquidation*.test.js tests/own-payroll-run*.test.js tests/own-payroll-individual*.test.js
       - name: Confirm, annul, recalculate, scoped decisions and real SQL revocation
         run: node scripts/verify-own-payroll-liquidation.mjs --major=${{ matrix.major }} --output=verification/own-liquidation-sql.json
       - name: Exact installation COMMIT and independent preservation

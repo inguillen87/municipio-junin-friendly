@@ -1,0 +1,15 @@
+.own-individual {border:1px solid #bccfc8;border-radius:12px;background:#f6faf8;padding:20px;margin:20px 0;min-width:0;overflow-wrap:anywhere}
+.own-individual[hidden] {display:none!important}
+.own-individual header {display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.own-individual h4 {font-size:20px;margin:0 0 12px;color:#123247}
+.own-individual h5 {font-size:16px;margin:0}
+.own-individual-notice {background:#fbf3df;border-left:4px solid #885a18;padding:12px}
+.own-individual dl {display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:12px}
+.own-individual dd {text-align:right;font:inherit!important;font-variant-numeric:tabular-nums}
+.own-individual ol {list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.own-individual li {background:#fff;border:1px solid #d7dfdc;border-radius:10px;padding:16px;min-width:0}
+.own-individual li p {margin:8px 0}
+.own-individual-amount {font-weight:800;font-variant-numeric:tabular-nums}
+.own-individual :focus-visible {outline:3px solid #315f82;outline-offset:3px}
+.own-individual button,.own-individual summary {min-height:44px}
+@media(max-width:700px){.own-individual{padding:12px}.own-individual header{flex-direction:column}.own-individual header button{width:100%}.own-individual ol{grid-template-columns:1fr}.own-individual dl{grid-template-columns:1fr!important}.own-individual dd{text-align:left}}
