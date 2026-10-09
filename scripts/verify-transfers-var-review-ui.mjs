@@ -116,6 +116,19 @@ try {
   await $('export-observations').dispatchEvent('click');
   await load(syntheticVarFile([syntheticVarRecord()]));
   ok(downloads.length === priorDownloads && !await $('result').isVisible(), 'Revoked access refuses both review and download even with a dispatched click');
+  for (const malformed of ['empty-array','permission-array','object','missing']) {
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready', {detail:{tenantCapabilities:new Set(['payroll.read'])}})));
+    await load(syntheticVarFile([syntheticVarRecord()]));
+    ok(await $('result').isVisible(), 'Real Set capability event restores voluntary review before malformed '+malformed);
+    await page.evaluate(kind => {
+      const capabilities = kind === 'empty-array' ? [] : kind === 'permission-array' ? ['payroll.read'] : kind === 'object' ? {has:'payroll.read'} : undefined;
+      document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready', {detail:{tenantCapabilities:capabilities}}));
+    }, malformed);
+    ok(!await $('result').isVisible() && await $('file').inputValue() === '' && await $('export-observations').isDisabled() && errors.length === 0, 'Malformed '+malformed+' capability event retires source and review without exceptions');
+    await $('export-observations').dispatchEvent('click');
+    await load(syntheticVarFile([syntheticVarRecord()]));
+    ok(downloads.length === priorDownloads && !await $('result').isVisible(), 'Malformed '+malformed+' capability event cannot authorize review or download');
+  }
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready', {detail:{tenantCapabilities:new Set(['payroll.read'])}})));
   await load(syntheticVarFile([syntheticVarRecord()]));
   await page.evaluate(() => document.documentElement.setAttribute('data-mc-capability-state', 'denied'));

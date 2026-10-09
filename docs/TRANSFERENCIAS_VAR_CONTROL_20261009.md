@@ -6,6 +6,8 @@ Nómina → Archivos bancarios → Transferencias varias permite revisar el TXT 
 
 El diseño de 167 posiciones fue contrastado con la muestra municipal y la definición del reporte original. Esta evidencia identifica los campos observados; falta validar el servicio bancario receptor para habilitar un generador oficial de este formato.
 
+La planilla Excel de control de los bancarizados se obtiene en Nómina → Salida bancaria, desde una emisión propia aprobada y vigente. Conserva apellido y nombre, legajo, repartición original, cuenta y neto exacto, además del resumen por repartición y banco. El CSV de incidencias de esta revisión conserva sólo observaciones no nominales; no sustituye esa planilla ni acredita un TXT bancario presentado.
+
 | Posiciones, inclusive | Campo observado | Control |
 |---|---|---|
 | 1–22 | CBU | Exactamente 22 dígitos. No certifica titularidad ni cuenta habilitada. |

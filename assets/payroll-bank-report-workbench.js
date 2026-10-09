@@ -276,7 +276,7 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     if (nodes.reconciliation && diagnostic.reconciliation) {
       const result = diagnostic.reconciliation;
       nodes.reconciliation.textContent = result.reconciled
-        ? 'Totales declarados conciliados: 0 centavos y 0 registros de diferencia'
+        ? 'Conciliado entre totales declarados: 0 centavos y 0 registros de diferencia'
         : `Diferencia: ${result.bankMinusPayrollCents} centavos y ${result.bankMinusPayrollRecords} registros`;
       nodes.reconciliation.dataset.state = result.reconciled ? 'ok' : 'warning';
     }
@@ -397,7 +397,8 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     setStatus('El acceso cambió. Se retiraron el archivo y la revisión.', '');
   }
   doc.addEventListener?.('municontrol:capabilities-ready', (event) => {
-    state.revoked = !event.detail?.tenantCapabilities?.has('payroll.read');
+    const capabilities = event.detail?.tenantCapabilities;
+    state.revoked = !(capabilities instanceof Set && capabilities.has('payroll.read'));
     retireAccess();
   });
   if (typeof MutationObserver !== 'undefined' && doc.documentElement) {
