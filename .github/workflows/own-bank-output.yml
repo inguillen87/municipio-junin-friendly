@@ -1,0 +1,52 @@
+name: Own bank output
+on:
+  pull_request:
+    paths: ['assets/own-bank-output*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'tests/own-bank-output*', 'tests/fixtures/own-bank-output*', '.github/workflows/own-bank-output.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-bank-output*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'tests/own-bank-output*', 'tests/fixtures/own-bank-output*', '.github/workflows/own-bank-output.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-bank-output-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  bank-output:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Prepare disposable synthetic database
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Own complete payroll to bank instruction, actual SQL/HTTP/browser and final revocation
+        run: node scripts/verify-own-bank-output-ui.mjs --transport=ci --major=${{ matrix.pg }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/bank-output-ci-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-bank-output-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/bank-output-ci-*
+          retention-days: 5

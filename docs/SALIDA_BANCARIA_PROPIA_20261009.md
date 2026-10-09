@@ -1,0 +1,15 @@
+# Salida bancaria propia
+
+En Nómina → Salida bancaria (`/nomina#banco`), el operador consulta una emisión conservada, declara su perfil BNA y revisa todas las filas. El TXT requiere emisión aprobada, cierres vigentes, registro propio coincidente y cuentas de una revisión aprobada. No usa el lector bancario GRH ni un respaldo mensual.
+
+REP-03 del módulo 2 exige separar J42/J55. Cada descarga expresa contiene todos los recibos de la jurisdicción elegida, y muestra su cantidad y la de la otra jurisdicción. Se prepara el segundo TXT por separado, con su perfil y número de envío declarados. La revisión y el CSV conservan toda la emisión. La jurisdicción proviene de cada participación original del cierre v2, cotejada por huella, contrato, corrida, versión y neto; no del padrón actual. Un cierre v1 o un dato no informado bloquea la separación completa, con observaciones visibles. No se modifica un cierre anterior ni se asigna una jurisdicción por inferencia.
+
+El [instructivo oficial BNA GT](https://www.bna.com.ar/Downloads/InstructivoDisenoDeArchivoPagosGT.pdf), consultado el 09/10/2026, define cabecera, detalles y fin de archivo de 200 posiciones, importes individuales de diez dígitos con dos decimales y total de quince. Se generan bytes ASCII compatibles con ANSI, rellenos y CRLF final. El detalle emplea CUIL, clase fiscal 1/tipo02 y el tratamiento de préstamos expresamente declarado (0000/0003).
+
+No se infieren calendario bancario, convenio, secuencia diaria, moneda ni clase de haberes a partir del tipo de liquidación. La moneda es una declaración de esta exportación: las capturas salariales existentes no contienen un código monetario. No se convierten netos. Una fecha de pago ya declarada en la emisión debe coincidir. Los netos se convierten mecánicamente a centavos con enteros exactos; cualquier fracción no nula por debajo del centavo bloquea el TXT.
+
+Cada recibo conserva su propio detalle. Los CBU repetidos se señalan y bloquean el TXT hasta una decisión expresa del operador que confirme pagos separados aceptables para el banco. No se consolidan contratos ni se omiten netos cero, negativos, cuentas ausentes, monedas distintas o filas fuera de capacidad. Las búsquedas y páginas sólo afectan la presentación. El CSV de control conserva todas las observaciones, datos literales y referencias al registro, cierre, corrida, emisión, revisión bancaria y perfil completo. Es privado; protege texto frente a fórmulas de planillas y conserva identificadores largos y ceros.
+
+Cambios de perfil, jurisdicción, emisión o período invalidan la revisión. Ocultar página, cambiar tarea, cerrar sesión o retirar permisos elimina datos y confirmación. Antes de cada descarga se vuelven a consultar emisión, todos sus cierres originales, cuentas y sesión; un cambio elimina los bytes. Se reutilizan permisos y APIs publicados, sin otra tabla, migración, guardado o almacenamiento del navegador.
+
+Generar y descargar no acredita presentación, firma, aceptación bancaria o pago. La revisión con el convenio municipal real y las demás salidas fiscales/bancarias siguen siendo requisitos de M2. El objetivo completo de MuniControl permanece pendiente.
