@@ -1,0 +1,13 @@
+# M7 · consultar un legajo y continuar después de anular
+
+En Calcular y en Confirmar y anular, **Ver resumen** consulta el estado actual del contrato y muestra todos sus conceptos, remunerativos, no remunerativos, bruto, retenciones, neto y aportes patronales. Conserva exactamente los decimales del cálculo guardado. Búsqueda y página no recortan ese resumen. El resultado anulado/cancelado se identifica como histórico; sus valores no se borran ni se presentan como un nuevo neto vigente de cero.
+
+**Revisar confirmación y anulación** abre la misma corrida y, si estaba consultado un legajo, lo selecciona para la revisión. No registra una decisión. El operador elige la acción, el motivo y la confirmación expresa del alcance; se mantienen las autoridades y la separación de revisión existentes.
+
+Después de una anulación con comprobante verificado, **Preparar nueva liquidación del alcance anulado** vuelve a consultar sesión, comprobante, estado y catálogos. Traslada período, tipo y los contratos exactos afectados. Todos dentro de una corrida parcial conserva ese conjunto parcial; nunca se amplía automáticamente a toda la población capturada. La preparación requiere otra revisión antes del cálculo y consulta nuevamente programa y novedades aprobados al enviarse.
+
+Si hay un cálculo o decisión pendiente de comprobar, esa navegación no reemplaza su cuerpo o clave. Se conserva la recuperación original sin duplicación. La consulta, el resumen y preparar el contexto no ejecutan cálculo, aprobación o pago. Los contextos nuevos y vistas nominales se retiran al cambiar de tarea, ocultar la página, retirar permisos o cerrar; no se guardan en almacenamiento del navegador. Los intentos originales inciertos conservan únicamente su mecanismo de recuperación existente.
+
+No se agrega API, tabla, permiso, cálculo o migración. El resumen es para revisión, sin emisión institucional, firma ni pago. La fecha declarada persistida y la decisión consolidada de varias corridas por período/tipo quedan como evolución posterior de los contratos; este incremento no las sustituye ni cierra M7. La homologación municipal, adopción del padrón real y aceptación operativa se verifican aparte.
+
+Cobertura: unitarias de contrato/resultado completo, 869 afectados, valores grandes con ocho decimales, historial, comprobantes ajenos y alcance parcial; navegador del producto construido con handlers HTTP y PostgreSQL17/18 sintéticos, confirmación/anulación, nueva preparación, respuesta perdida, preservación del intento, recuperación, revisión y revocación. Se mantienen los controles anteriores y los datos de autenticación/IAM de QA son fixtures declarados.
