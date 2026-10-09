@@ -6,9 +6,10 @@ import {salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {PROGRAM_OPERATIONS,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,programWorkspaceChanges,describeProgramExpression,expressionSize,changeExpressionOperation,programWorkspaceAccess} from '../assets/own-payroll-program-workspace-model.js';
 import {ownProgramStructure} from '../assets/own-payroll-program-model.js';
 import {lit,fact,ref,binary,rule} from './fixtures/own-payroll-synthetic.js';
+import {exactProgram} from './fixtures/own-payroll-exact-program-synthetic.js';
 const sha=v=>createHash('sha256').update(salarySerialized(v)).digest('hex');
 test('la preparación conserva el conjunto, sus versiones y cada fuente sin aprobar ni calcular',()=>{
- const boot=bootstrap(),body=prepareProgramWorkspace(boot,program(),'Fundamento sintético completo');assert.deepEqual(body.program,program());assert.equal(body.salaryVersion,boot.salaryCatalog.version);assert.equal(body.reviewConfirmed,false);assert.equal(body.proposalId,null);
+ const boot=bootstrap(),body=prepareProgramWorkspace(boot,exactProgram(),'Fundamento sintético completo');assert.deepEqual(body.program,exactProgram());assert.equal(body.salaryVersion,boot.salaryCatalog.version);assert.equal(body.reviewConfirmed,false);assert.equal(body.proposalId,null);
  const view=programWorkspaceChanges(null,body.program);assert.equal(view.rows.length,8);assert.equal(view.rows.filter(r=>r.kind==='rules').length,6);assert.equal(view.changed,9);
 });
 test('revisión completa de más de una página conserva también cada regla sin cambios',()=>{

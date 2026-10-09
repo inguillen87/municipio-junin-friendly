@@ -1,11 +1,12 @@
 import {ownProgramBootstrap,ownProgramStructure,ownProgramDefinition,ownProgramHistory,ownProgramCommand,ownProgramReceipt,ownProgramRuleKey} from './own-payroll-program-model.js';
 import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
+import {requireExactProgramChanges} from './own-payroll-program-precision.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
 export const PROGRAM_SOURCES=Object.freeze({parameter:'Valor del concepto aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
-export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Redondear en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
+export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
 export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq:'Igual',ne:'Distinto',ge:'Mayor o igual',gt:'Mayor que'});
 export const PROGRAM_READ=Object.freeze(['workforce.employee.read','payroll.parameter.read']);
 const require=(v,message)=>{if(!v)throw Error(message);};
@@ -24,7 +25,7 @@ export function prepareProgramWorkspace(bootstrap,definition,reason){
  const boot=ownProgramBootstrap(bootstrap);
  require(boot.permissions.canPropose,'Tu cuenta no permite preparar reglas.');
  require(boot.salaryCatalog.revision>0,'Primero debe aprobarse el catálogo de conceptos y valores.');
- const program=ownProgramDefinition(definition,boot.salaryCatalog.items);ownProgramHistory(boot.program.definition,program);
+ const program=ownProgramDefinition(definition,boot.salaryCatalog.items);ownProgramHistory(boot.program.definition,program);requireExactProgramChanges(boot.program.definition,program);
  return ownProgramCommand({command:'propose',scopeVersion:boot.scopeVersion,baseVersion:boot.program.version,salaryVersion:boot.salaryCatalog.version,proposalId:null,proposalSha256:null,program,reason,reviewConfirmed:false});
 }
 export function decideProgramWorkspace(bootstrap,proposalId,command,reason,reviewConfirmed){
@@ -51,9 +52,9 @@ export function changeExpressionOperation(previous,op){
  const leaf=()=>({op:'literal',unit:'',value:''});
  if(op==='input')return {op,unit:previous?.unit??'',key:previous?.key??''};
  if(op==='literal')return {op,unit:previous?.unit??'',value:typeof previous?.value==='string'?previous.value:''};
- if(op==='concept')return {op,code:previous?.code??'',stage:previous?.stage??''};
+ if(op==='concept')return {op,code:previous?.code??'',stage:previous?.stage??'exact'};
  if(op==='choose')return {op,condition:previous?.condition??{op:'compare',operator:'',left:leaf(),right:leaf()},then:previous?.then??leaf(),else:previous?.else??leaf()};
- if(op==='round')return {op,value:previous?.value&&typeof previous.value==='object'?previous.value:leaf(),rounding:previous?.rounding??{precision:null,mode:''}};
+ if(op==='round')return {op,value:previous?.value&&typeof previous.value==='object'?previous.value:leaf(),rounding:previous?.rounding??{precision:null,mode:'exact'}};
  if(op==='convert')return {op,value:previous?.value&&typeof previous.value==='object'?previous.value:leaf(),unit:previous?.unit??'',factor:previous?.factor??'',conversionReference:previous?.conversionReference??''};
  return {op,...(op==='compare'?{operator:previous?.operator??''}:{}),left:previous?.left??leaf(),right:previous?.right??leaf()};
 }

@@ -15,10 +15,12 @@ import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
 import {PROGRAM_READ,PROGRAM_CAPS} from '../lib/internal-own-payroll-program.js';
 import {RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
-import {program as syntheticProgram} from '../tests/fixtures/own-payroll-program-synthetic.js';
+import {exactProgram as syntheticProgram} from '../tests/fixtures/own-payroll-exact-program-synthetic.js';
+import {program as historicalProgram,command as syntheticCommand} from '../tests/fixtures/own-payroll-program-synthetic.js';
 import {ownProgramRuleKey} from '../assets/own-payroll-program-model.js';
 import {prepareProgramCopies} from '../assets/own-payroll-program-copy-model.js';
 import {buildOwnReferenceScaleInstallation} from './lib/own-payroll-reference-scale-sql.mjs';
+import {buildExactProgramPrecisionInstallation} from './lib/exact-program-precision-installation.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const a of process.argv.slice(2)){if(a==='--ci'||a==='--built'||a==='--reference-scales'||a==='--multi-copy'){args[a.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(a);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.ok(!(args['reference-scales']&&args['multi-copy']),'each variant has its own complete isolated fixture');
@@ -45,6 +47,8 @@ const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(ac
 }})};
 try{
  const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
+ const precision=buildExactProgramPrecisionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit:'a'.repeat(40)});
+ await db.run(precision.changed.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replace('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${qa.schema},public,pg_temp`)+"; SELECT '{}'::jsonb");
  let referenceInstallation=null;
  if(args['reference-scales']){
   const batch=buildOwnReferenceScaleInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8'),sourceCommit:'a'.repeat(40)});
@@ -93,13 +97,17 @@ try{
   res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'image/svg+xml'}).end(fs.readFileSync(file));
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
- browser=await chromium.launch({headless:true,...(args.browser==='chromium'?{}:{channel:args.browser})});
+ browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:args.browser==='chromium'?{}:{channel:args.browser})});
  const makerContext=await browser.newContext({viewport:{width:1440,height:1000}}),page=await makerContext.newPage();diagnosticPage=page;page.on('pageerror',e=>errors.push(e.message));
  const select=key=>page.locator('[data-program-'+key+']'),settled=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden,{},{timeout:20000});
  await page.goto(origin+'/nomina-control.html#reglas');await settled();check(posts===0,'opening actual rules task never saves or calculates');
  check(await page.locator('.own-program h2').innerText()==='Reglas de cálculo','actual product task is visible');
  check(await select('rule-select').locator('option').count()===0&&await select('binding-select').locator('option').count()===0,'first installation starts without inventing an approved program');
  const fixture=syntheticProgram();
+ const exactBoot=await db.run('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)');
+ const unsafe=syntheticCommand({program:historicalProgram(),scopeVersion:exactBoot.scopeVersion,baseVersion:exactBoot.program.version,salaryVersion:exactBoot.salaryCatalog.version});
+ await assert.rejects(db.run('SELECT own_program_command_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb,'+q(JSON.stringify(unsafe))+'::jsonb,gen_random_uuid())'),/OWN_PROGRAM_PRECISION_REQUIRED/);checks++;
+ check((await db.run('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)')).proposals.length===0,'direct non-exact command cannot bypass the editor or leave a partial proposal');
  if(args['reference-scales']){
   Object.assign(fixture.bindings.find(b=>b.key==='base'),{sourceKind:'scale_reference',sourceCode:'8900',sourceAgreementCode:'4',sourceCategoryCode:'13'});
   const definition=p=>'SELECT own_program_definition_v1('+q(JSON.stringify(p))+'::jsonb,own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)#>\'{salaryCatalog,items}\')';
@@ -128,9 +136,11 @@ try{
   if(value.op==='round'){await input('precision').selectOption(String(value.rounding.precision));await input('rounding').selectOption(value.rounding.mode);}
   for(const child of ['left','right','value','condition','then','else'])if(value[child]&&typeof value[child]==='object')await fillExpression(value[child],[...steps,child]);
  }
- for(const rule of fixture.rules){await select('add-rule').click();for(const [field,key,dropdown] of [['agreementCode','agreementCode',false],['code','code',false],['nature','nature',true],['unit','unit',true],['validFrom','validFrom',false],['ruleReference','ruleReference',false]]){const input=page.locator('[data-program-field="'+field+'"]');if(dropdown)await input.selectOption(rule[key]);else await input.fill(rule[key]);}
+ for(const rule of fixture.rules){await select('add-rule').click();check(await page.locator('[data-program-field="result-rounding"]').inputValue()==='exact','new rule starts exact without inventing its decimal precision');for(const [field,key,dropdown] of [['agreementCode','agreementCode',false],['code','code',false],['nature','nature',true],['unit','unit',true],['validFrom','validFrom',false],['ruleReference','ruleReference',false]]){const input=page.locator('[data-program-field="'+field+'"]');if(dropdown)await input.selectOption(rule[key]);else await input.fill(rule[key]);}
   for(const type of rule.liquidationTypes)await page.locator('[data-program-type="'+type+'"]').check();await page.locator('[data-program-field="result-precision"]').selectOption(String(rule.rounding.precision));await page.locator('[data-program-field="result-rounding"]').selectOption(rule.rounding.mode);await fillExpression(rule.expression);
  }
+ for(const width of [390,320]){await page.setViewportSize({width,height:900});check(await page.locator('.own-program').evaluate(el=>el.getBoundingClientRect().width<=innerWidth),'complete editor fits mobile '+width);check(await page.locator('[data-program-field="result-rounding"]').evaluate(el=>el.getBoundingClientRect().height>=44&&el.getBoundingClientRect().right<=innerWidth),'exact precision control is accessible on mobile '+width);}
+ await page.setViewportSize({width:1440,height:1000});
  await select('precision').selectOption(String(fixture.totalsPrecision));await select('reason').fill('Primer programa sintético completo, sin norma municipal');await select('prepare').click();
  check(await select('impact-table').locator('tbody tr').count()===8,'first complete program is authored through actual forms and formula operations');
  await select('confirm').check();unregisteredSend=true;await select('send').click();await page.waitForFunction(()=>document.querySelector('.own-program').getAttribute('aria-busy')==='false');await select('recover').click();await select('revise').waitFor({state:'visible'});check(await select('fields').evaluate(el=>el.disabled),'a confirmed absent attempt remains locked until explicit review');await select('revise').click();await settled();
@@ -184,7 +194,7 @@ try{
  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
  await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
  const result=await db.run("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
- const expected110=args['reference-scales']?'26.18':'13.01';
+ const expected110=args['reference-scales']?'26.17550000':'13.01300000';
  check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount===expected110,'actual own run uses the approved UI coefficient and exact reference scale when declared');
  check(result.programVersion===beforeCalculation.program.version&&result.requestProgramVersion===beforeCalculation.program.version,'saved own run is linked to the exact newly approved program');
  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await settled();hold=true;await select('refresh').click();

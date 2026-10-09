@@ -1,0 +1,60 @@
+name: Exact program precision
+on:
+  pull_request:
+    paths: ['assets/own-payroll-program*.js', 'lib/internal-own-payroll-program.js', 'scripts/*exact-program-precision*', 'scripts/lib/exact-program-precision-installation.mjs', 'scripts/verify-own-payroll-program*.mjs', 'tests/own-payroll-program*.js', 'tests/fixtures/own-payroll-exact-program-synthetic.js', '.github/workflows/exact-program-precision.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-payroll-program*.js', 'lib/internal-own-payroll-program.js', 'scripts/*exact-program-precision*', 'scripts/lib/exact-program-precision-installation.mjs', 'scripts/verify-own-payroll-program*.mjs', 'tests/own-payroll-program*.js', 'tests/fixtures/own-payroll-exact-program-synthetic.js', '.github/workflows/exact-program-precision.yml']
+permissions:
+  contents: read
+concurrency:
+  group: exact-program-precision-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare disposable PostgreSQL prerequisites with the original runtime restrictions
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Original regressions plus exact rules, history and retries
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          node scripts/verify-own-payroll-program-sql.mjs --ci --exact-precision --expected-major=${{ matrix.pg }} --write-sql=verification/exact-program-precision-pg${{ matrix.pg }}.sql
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -f verification/exact-program-precision-pg${{ matrix.pg }}.sql
+      - name: Actual editor, independent approval, calculation and mobile views
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/exact-program-precision-ui-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exact-program-precision-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/exact-program-precision*
+          retention-days: 5
