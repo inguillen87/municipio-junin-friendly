@@ -1,4 +1,5 @@
 import {OWN_RUN_TYPES,OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {ownRunDateLabel} from './own-payroll-run-date.js';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const states={calculated:'Pendiente de confirmación',confirmed:'Confirmada',annulled:'Histórico anulado',cancelled:'Preparación cancelada'};
 export function mountOwnPayrollIndividual(host,{id,canUse,returnFocus}){
@@ -12,7 +13,7 @@ export function mountOwnPayrollIndividual(host,{id,canUse,returnFocus}){
   clear();if(!canUse())return;selected=value.contractId;opener=trigger;
   const header=node('header'),title=node('h4','Resumen individual · Legajo '+value.employeeNumber);title.id=id+'Title';title.tabIndex=-1;
   const button=node('button','Cerrar resumen');button.type='button';button.className='button';button.dataset.individualClose='';button.addEventListener('click',close);header.append(title,button);
-  const status=node('p',value.period+' · '+OWN_RUN_TYPES[value.liquidationType]+' · '+states[value.state]+(value.liquidationVersion===null?'':' · versión '+value.liquidationVersion));status.dataset.individualState='';
+  const status=node('p',value.period+' · '+OWN_RUN_TYPES[value.liquidationType]+' · '+ownRunDateLabel(value.liquidationDate)+' · '+states[value.state]+(value.liquidationVersion===null?'':' · versión '+value.liquidationVersion));status.dataset.individualState='';
   const notice=node('p',value.state==='annulled'?'Estos importes se conservan como histórico. Esta versión está anulada y no tiene un neto vigente.':value.state==='cancelled'?'Se conserva el cálculo cancelado como histórico. No es una liquidación vigente.':value.state==='confirmed'?'Resultado de la versión confirmada. No acredita contabilización, firma ni pago.':'Resultado calculado pendiente de confirmación y cierre. No es un recibo emitido ni una orden de pago.');notice.className='own-individual-notice';
   const totals=node('dl');totals.dataset.individualTotals='';
   const netLabel=value.state==='annulled'||value.state==='cancelled'?'Neto histórico':value.state==='confirmed'?'Neto de esta versión':'Neto calculado';

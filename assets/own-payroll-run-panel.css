@@ -9,7 +9,10 @@
 .own-run-status[data-state=success] {border-color:#176f64; background:#eaf5f1}
 .own-run fieldset {border:1px solid var(--own-line); border-radius:12px; padding:20px; min-width:0; margin:16px 0}
 .own-run legend {padding:0 8px; font-weight:800}
-.own-run-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.own-run-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px}
+.own-run-date {display:grid; gap:8px; align-content:start; margin-bottom:16px}
+.own-run-date label {margin-bottom:0}
+.own-run-date small {font-size:14px; line-height:1.5; color:#53646e}
 .own-run label {display:grid; gap:8px; margin-bottom:16px; font-weight:700}
 .own-run input:not([type=checkbox]),.own-run select {box-sizing:border-box; border:1px solid #b9c7c3; border-radius:8px; padding:12px; font:inherit; width:100%; min-height:44px; background:#fff; color:inherit}
 .own-run input:focus-visible,.own-run select:focus-visible,.own-run button:focus-visible,.own-run-scroll:focus-visible {outline:3px solid #315f82; outline-offset:3px}
@@ -34,3 +37,5 @@
 .own-run summary {cursor:pointer; min-height:44px; padding:12px 0}
 .own-run [data-own-history]>article {display:flex; justify-content:space-between; align-items:center; gap:16px; border-bottom:1px solid var(--own-line); padding:12px 0}
 @media(max-width:700px){.own-run{padding:16px; border-radius:12px}.own-run-head,.own-run [data-own-history]>article{flex-direction:column}.own-run-grid{grid-template-columns:1fr}.own-run-actions>.button,.own-run-head>.button{width:100%}.own-run fieldset{padding:12px}.own-run dl{grid-template-columns:1fr}.own-run-chips>span{width:100%; justify-content:space-between}}
+
+@media(min-width:701px) and (max-width:1100px){.own-run-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

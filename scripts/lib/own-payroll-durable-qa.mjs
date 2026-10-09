@@ -7,10 +7,11 @@ import { createHash } from 'node:crypto';
 import { buildNativeEmploymentCatalogQa } from '../verify-native-employment-catalog-sql.mjs';
 import { nativeMonthlyQaInstallation } from './native-monthly-qa-installation.mjs';
 import { splitPostgresStatements } from './sql-statements.mjs';
+import {declaredDateCapture,declaredDateReceipt} from './own-payroll-run-date-installation.mjs';
 import { definitions, command } from '../../tests/fixtures/own-payroll-program-synthetic.js';
 export const qaLiteral = v => "'" + String(v).replaceAll("'", "''") + "'";
 const q = qaLiteral, j = v => q(JSON.stringify(v)) + '::jsonb';
-export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true,installOwnPayroll=true}={}) {
+export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true,installOwnPayroll=true,declaredDate=false}={}) {
   assert.equal(typeof seedProgram,'boolean');
   assert.equal(typeof installOwnPayroll,'boolean');assert.ok(installOwnPayroll||!seedProgram,'Cannot seed an uninstalled program');
   const base = buildNativeEmploymentCatalogQa({ serverMajor }), { schema, ids, qaFoundation } = base;
@@ -50,6 +51,7 @@ export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true,installOw
     ${install('112-native-salary-definitions.sql')}
     ${installOwnPayroll?install('122-own-payroll-programs.sql'):''}
     ${installOwnPayroll?install('123-own-payroll-runs.sql'):''}
+    ${installOwnPayroll&&declaredDate?splitPostgresStatements(read('123-own-payroll-runs.sql')).filter(s=>/^CREATE FUNCTION public\.own_run_(?:capture|receipt)_v1\(/.test(s)).map(s=>'EXECUTE '+q(relocate(s.includes('own_run_capture_v1(')?declaredDateCapture(s):declaredDateReceipt(s)))+';').join('\n')+'\n'+install('145-own-declared-liquidation-date.sql'):''}
     INSERT INTO capabilities SELECT ${q(ids.maker)}::uuid,c FROM unnest(ARRAY['payroll.parameter.read','payroll.parameter.prepare','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare']) c;
     INSERT INTO capabilities SELECT ${q(ids.checker)}::uuid,c FROM unnest(ARRAY['payroll.parameter.read','payroll.parameter.approve']) c;
     boot:=native_employment_catalog_bootstrap_v1(maker);

@@ -30,7 +30,7 @@ export function createOwnPayrollPsqlQa({ executable, port, major, schema, pins, 
   }
   return { args, prefix, connections, run,
     query: async (query, values) => {
-      assert.match(query, /^SELECT public\.own_run_(?:bootstrap|attempt|capture|complete)_v1\([\s\S]+\) AS result$/);
+      assert.match(query, /^SELECT public\.own_run_(?:(?:bootstrap|attempt|capture|complete)_v1|bootstrap_v2)\([\s\S]+\) AS result$/);
       const rendered = query.replaceAll('public.own_run_', schema + '.own_run_').replace(/\$(\d+)/g, (_, n) => { assert.ok(Number(n) >= 1 && Number(n) <= values.length); return qaLiteral(values[Number(n) - 1]); });
       return [{ result: await run(rendered, true) }];
     },

@@ -21,6 +21,9 @@ import {splitPostgresStatements} from './lib/sql-statements.mjs';
 import {verifyComparisonUi} from './lib/position-comparison-ui-qa.mjs';
 import {noeliaCircuitOptions} from './lib/noelia-circuit-runtime.mjs';
 import {verifyOwnCloseDetail} from './lib/own-close-detail-circuit-qa.mjs';
+import {buildOwnRunDateInstallation,declaredDateCapture,declaredDateReceipt} from './lib/own-payroll-run-date-installation.mjs';
+import {ownInstallationFunctionPin} from './lib/own-payroll-installation.mjs';
+import {pinsCheck} from './lib/native-leave-installation.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,browser=false,positions=false,jurisdictions=false,transport='local'}){
  browser=browser===true?'chrome':browser===false?'none':browser;assert.ok(['none','chrome','chromium'].includes(browser));assert.equal(typeof positions,'boolean');assert.equal(typeof jurisdictions,'boolean');assert.match(sourceCommit,/^[a-f0-9]{40}$/);if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA,'QA_CI_SOURCE_CHANGED');
@@ -89,6 +92,21 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
    const pendingInstalled=JSON.parse(run(pendingSql)),pendingDurable=JSON.parse(run(tx(pendingBatch.verification)));
    const {mode:pendingMode,...pendingInstallationProof}=pendingInstalled,{mode:verificationMode,...durableProof}=pendingDurable;assert.equal(pendingMode,'first');assert.equal(verificationMode,'verify');assert.deepEqual(pendingInstallationProof,durableProof);ok(true,'inactive-history schema evolution preserves the earlier real 29-employee payroll circuit before all further operations');
    fs.writeFileSync(path.join(destination,'inactive-jurisdiction-proof.json'),JSON.stringify({installed:pendingInstalled,durable:pendingDurable},null,2));
+  }
+  // Add the reviewed date protocol to this older synthetic circuit only after
+  // all of its original upgrade/rollback assertions. Production composition is
+  // independently tested against the complete current declarations chain.
+  if(browser!=='none'){
+   const date=buildOwnRunDateInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit}),capture=jurisdictions?date.beforeDefinitions[0]:batch.capture,datedCapture=declaredDateCapture(capture),receipt=date.beforeDefinitions[1],datedReceipt=declaredDateReceipt(receipt),previous=pendingBatch??b;
+   const pin=(s,runtime=false)=>({...ownInstallationFunctionPin(s),runtime}),beforePins=[pin(capture,true),pin(receipt),date.bootstrapPin];
+   run(tx([qa.normalized(pinsCheck(beforePins,'QA_DATE_BEFORE_CHANGED')),pinsCheck([previous.readyPin],'QA_DATE_READY_CHANGED')]));
+   const sourceBody=await db.run(`SELECT to_jsonb(prosrc) FROM pg_proc WHERE oid=${qaLiteral(previous.readyPin.signature)}::regprocedure`),template=date.beforeDefinitions[2],asIndex=template.indexOf(' AS $operator$');assert.ok(asIndex>0);
+   const beforeReady=qa.normalized(template.slice(0,asIndex))+' AS $operator$'+sourceBody+'$operator$',capturePin=pin(datedCapture,true),receiptPin=pin(datedReceipt);
+   assert.equal(beforeReady.split(beforePins[0].sha256).length>1,true,'reviewed previous readiness must pin the original capture');
+   let ready=beforeReady.replaceAll(beforePins[0].sha256,capturePin.sha256);ready=ready.replace(' BEGIN ',()=> ' BEGIN EXECUTE '+qaLiteral(qa.normalized(pinsCheck([receiptPin,date.newPin],'QA_DATE_PROTOCOL_CHANGED')))+'; ');
+   const readyPin={...ownInstallationFunctionPin(ready.replace('CREATE FUNCTION '+qa.schema+'.','CREATE FUNCTION public.')),signature:previous.readyPin.signature,runtime:false};
+   run(tx([qa.normalized(datedCapture),qa.normalized(datedReceipt),...date.migration.slice(2,-1).map(qa.normalized),ready.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '),qa.normalized(pinsCheck([capturePin,receiptPin,date.newPin,date.bootstrapPin],'QA_DATE_AFTER_CHANGED')),pinsCheck([readyPin],'QA_DATE_READY_CHANGED')]));
+   assert.deepEqual(await api('run',{resource:'attempt',key:oldKey}),{...old,replayed:true});const v1=await api('run',{resource:'bootstrap'}),v2=await api('run',{resource:'bootstrap',contractVersion:'2'});ok(v1.version==='own-payroll-bootstrap.v1'&&v2.runs.find(r=>r.key===oldKey).liquidationDate===null,'actual date protocol preserves the earlier body/key/result and never invents a historical date');
   }
   const list=await api('novelty',{resource:'bootstrap'});ok(list.subjects.length===29,'bulk includes all adopted and originally native contracts');ok(['A/3501','901','0901'].every(n=>list.subjects.some(s=>s.legajo===n)),'opaque and zero-prefixed source identifiers remain distinct');
   const selectorBefore=proof(),pickerQuery=search=>({resource:'employees',view:'novelty-selector',status:'administrative_active',includeFacets:'0',limit:'20',page:'1',search}),opaque=await api('directory',pickerQuery('A/3501')),numeric=await api('directory',pickerQuery('901'));

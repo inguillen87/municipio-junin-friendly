@@ -64,7 +64,7 @@ export function ownLiquidationIndividual(detail,contractId){
  const decision=detail.employees.find(e=>e.contractId===contractId),saved=detail.capture.saved;
  const person=saved.input.employees.find(e=>e.contractId===contractId),totals=saved.result.employeeTotals.find(e=>e.contractId===contractId);
  if(!decision||!person||!totals)fail();
- return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows:saved.result.rows.filter(r=>r.contractId===contractId),complete:true,paymentExecuted:false});
+ return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows:saved.result.rows.filter(r=>r.contractId===contractId),complete:true,paymentExecuted:false});
 }
 // This supplies a preparation context only. The target must reread the receipt,
 // detail, session and catalogs before offering a separate voluntary calculation.
@@ -76,7 +76,7 @@ export function ownLiquidationNextPreparation(detail,receipt){
  if(salarySerialized(selected.rows.map(e=>e.contractId).sort())!==salarySerialized(receipt.affected.map(e=>e.contractId).sort()))fail();
  // "All" in the decision means all of that run, possibly a partial run.
  // Carry the exact affected contracts, never widen it to the whole municipality.
- return structuredClone({period:detail.capture.body.period,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values:receipt.affected.map(e=>e.contractId).sort()},sourceSelection:receipt.body.selection,affected:receipt.affected.map(e=>({contractId:e.contractId,employeeNumber:detail.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber})),runId:detail.id,receiptKey:receipt.key});
+ return structuredClone({period:detail.capture.body.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values:receipt.affected.map(e=>e.contractId).sort()},sourceSelection:receipt.body.selection,affected:receipt.affected.map(e=>({contractId:e.contractId,employeeNumber:detail.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber})),runId:detail.id,receiptKey:receipt.key});
 }
 export function ownLiquidationReceipt(v,attempt=null){
  exact(v,['version','id','key','body','bodySha256','runId','resultSha256','affected','recordedAt','replayed']);

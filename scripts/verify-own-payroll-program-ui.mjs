@@ -26,7 +26,7 @@ for(const a of process.argv.slice(2)){if(a==='--ci'||a==='--built'||a==='--refer
 assert.ok(!(args['reference-scales']&&args['multi-copy']),'each variant has its own complete isolated fixture');
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
 const pageRoot=args.built?path.join(root,'public'):root,output=path.resolve(args.output),prefix=output.replace(/\.json$/,'');assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const qa=buildOwnPayrollDurableQa(major,{seedProgram:false}),executable=args.psql??'psql',db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
+const qa=buildOwnPayrollDurableQa(major,{seedProgram:false,declaredDate:true}),executable=args.psql??'psql',db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 let installed=false,server,browser,diagnosticPage,held=null,hold=false,lose=false,unregisteredSend=false,expired=false,changedSession=false,checks=0,posts=0,bootRequests=0;
 const writes=[],errors=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;},env={};let report;
@@ -192,7 +192,7 @@ try{
  await reviewer.setViewportSize({width:320,height:760});check(await reviewer.locator('.own-program').evaluate(el=>el.getBoundingClientRect().width<=innerWidth),'complete review fits 320px');await reviewer.screenshot({path:prefix+'-mobile-320.png',fullPage:true});
  // The next actual product task must use the program just approved in this UI.
  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
- await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
+ await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-period-end]').click();await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
  const result=await db.run("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
  const expected110=args['reference-scales']?'26.17550000':'13.01300000';
  check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount===expected110,'actual own run uses the approved UI coefficient and exact reference scale when declared');
