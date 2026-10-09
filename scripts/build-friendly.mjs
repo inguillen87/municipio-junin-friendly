@@ -307,6 +307,7 @@ const shellFiles = [
   'assets/payroll-art-report-workbench.js',
   'assets/payroll-bank-fixed-width-profiles.js',
   'assets/payroll-bank-report-workbench.js',
+  'assets/payroll-transfers-var-review.js',
   'assets/payroll-health-fixed-width.js',
   'assets/payroll-health-fixed-width-workbench.js',
   'assets/payroll-schooling-report.js',
