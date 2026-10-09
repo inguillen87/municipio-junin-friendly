@@ -31,6 +31,7 @@ database/
 !scripts/migrations/002-canonical-integration.sql
 !scripts/migrations/144-final-grh-source-revision.sql
 !scripts/migrations/147-own-payroll-accounting-mappings.sql
+!scripts/migrations/148-own-payroll-imputation.sql
 !scripts/migrations/003-action-center.sql
 !scripts/migrations/004-tenant-iam-control-plane.sql
 !scripts/migrations/006-tenant-action-authority.sql
