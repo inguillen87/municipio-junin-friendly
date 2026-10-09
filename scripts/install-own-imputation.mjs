@@ -1,0 +1,31 @@
+// Reviewed SQL148 installation only. No municipal configuration or business commands.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
+import {prepareOwnImputationInstallation} from './prepare-own-imputation-installation.mjs';
+import {ownReleaseClient} from './lib/own-payroll-release-target.mjs';
+import {assertOwnImputationDurability} from './lib/own-imputation-installation.mjs';
+export async function executeOwnImputationInstallation({batch,major,client,record}){
+ const target=batch.targets.find(t=>t.major===major);assert.ok(target);const {sql,target:actual}=await client(major);
+ for(const k of ['major','projectId','branchId','endpointId','database','role','host'])assert.equal(actual[k],target[k],'IMPUTATION_DESTINATION_DRIFT');
+ const tx=(s,readOnly)=>sql.transaction(s.map(s=>sql.query(s)),{isolationLevel:'RepeatableRead',readOnly});
+ await tx(target.preflight,true);
+ // Trial returns a proof and rolls back all technical additions. A second
+ // preflight confirms their absence. Never retry an uncertain installation COMMIT.
+ const trial=(await tx([...target.installation,'ROLLBACK'],false)).at(-2)?.[0]?.proof;
+ assert.ok(trial);assertOwnImputationDurability({installed:trial,durable:((({beforeFingerprint,...v})=>v)(trial)),sourceCommit:batch.sourceCommit});
+ await tx(target.preflight,true);
+ const installed=(await tx(target.installation,false)).at(-1)?.[0]?.proof;assert.ok(installed);
+ const result={installed:true,durabilityVerified:false,trialRolledBack:true,target:actual,installedProof:installed,businessOperations:0,nominalRowsReturned:0};record(result);
+ const durable=(await tx(target.durableVerification,true)).at(-1)?.[0]?.proof;assert.ok(durable);
+ Object.assign(result,{durabilityVerified:true,durableProof:durable,validation:assertOwnImputationDurability({installed,durable,sourceCommit:batch.sourceCommit})});record(result);return result;
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ let stage='arguments';try{
+  const args={};for(const a of process.argv.slice(2)){const m=/^--(major|review|output)=(.+)$/.exec(a);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}assert.ok([17,18].includes(Number(args.major)));
+  const root=path.resolve(import.meta.dirname,'..'),review=path.resolve(args.review),output=path.resolve(args.output);for(const p of[review,output])assert.ok(p.startsWith(path.join(root,'verification')+path.sep));assert.ok(!fs.existsSync(output));
+  const git=(...a)=>execFileSync('git',a,{cwd:root,encoding:'utf8'}).trimEnd();stage='source';const sourceCommit=git('rev-parse','HEAD');assert.equal(git('diff','--name-only'),'');assert.equal(git('diff','--cached','--name-only'),'');
+  const batch=JSON.parse(fs.readFileSync(review,'utf8'));assert.equal(batch.sourceCommit,sourceCommit);const read=f=>{const s=git('show',sourceCommit+':'+f)+'\n';assert.equal(fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n?/g,'\n'),s);return s;};assert.deepEqual(batch,prepareOwnImputationInstallation({read,sourceCommit}));
+  stage='installation';let wrote=false;const result=await executeOwnImputationInstallation({batch,major:Number(args.major),client:ownReleaseClient,record:r=>{fs.writeFileSync(output,JSON.stringify(r,null,2)+'\n',{flag:wrote?'w':'wx'});wrote=true;}});
+  console.log(JSON.stringify({installed:result.installed,durabilityVerified:result.durabilityVerified,major:Number(args.major),sourceCommit,businessOperations:0,nominalRowsReturned:0}));
+ }catch(e){console.error(JSON.stringify({ok:false,stage,code:typeof e.code==='string'?e.code:'IMPUTATION_INSTALL_FAILED',automaticRetry:false}));process.exitCode=1;}
+}
