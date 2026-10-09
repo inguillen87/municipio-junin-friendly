@@ -1,10 +1,10 @@
 name: Own payroll complete imputation
 on:
   pull_request:
-    paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
+    paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/migrations/150-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
+    paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/migrations/150-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
 permissions:
   contents: read
 concurrency:
@@ -55,6 +55,10 @@ jobs:
         env:
           PGPASSWORD: synthetic_ci_only
         run: node scripts/verify-own-payroll-imputation-ui.mjs --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/imputation-ci-ui-pg${{ matrix.pg }}.json
+      - name: Bank declarations, legacy mappings, exact complete control and mobile review
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-imputation-ui.mjs --built --bank-destinations --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/imputation-ci-bank-ui-pg${{ matrix.pg }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

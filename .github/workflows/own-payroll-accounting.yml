@@ -1,10 +1,10 @@
 name: Own payroll accounting associations
 on:
   pull_request:
-    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting-installation.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
+    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/migrations/150-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting*.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting-installation.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
+    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/migrations/150-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting*.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
 permissions:
   contents: read
 concurrency:
@@ -54,6 +54,10 @@ jobs:
         env:
           PGPASSWORD: synthetic_ci_only
         run: node scripts/verify-own-payroll-accounting-ui.mjs --ci --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/accounting-ci-ui-pg${{ matrix.pg }}.json
+      - name: Exact bank validator upgrade, old pending request and independent durability
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-accounting-bank-installation.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/accounting-ci-bank-installation-pg${{ matrix.pg }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
