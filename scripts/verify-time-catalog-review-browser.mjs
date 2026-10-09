@@ -21,7 +21,7 @@ for (let n = 1; n <= 33; n++) {
   const r = record(command({kind, payload: p})); r.id = id(n); records.set(r.id, r); payloads.set(r.id,p);
 }
 const caps = role => ['time.catalog.read', ...(role === 'proposer' ? ['time.catalog.propose'] : role === 'approver' ? ['time.catalog.approve', 'time.catalog.audit.read'] : []),...(nominalAllowed?['workforce.employee.read']:[])];
-let role = 'proposer', allowed = true, dropNext = false, invalidList = false, scope = 'b'.repeat(64), paused = null, nominalAllowed = false, afterWrite = null;
+let role = 'proposer', allowed = true, dropNext = false, invalidList = false, scope = 'b'.repeat(64), paused = null, nominalAllowed = false, afterWrite = null, nextSummaryGate = null;
 const principal = () => ({...initialPrincipal, tenant: {...initialPrincipal.tenant, effectiveCapabilities: caps(role)}});
 const sqlPrincipal = () => ({roleKey: 'QA_' + role.toUpperCase(), authorityVersion: 1, capabilities: caps(role).filter(c=>c.startsWith('time.catalog.')), areaScopes: [], scopeVersion: scope,assignmentReadAllowed:nominalAllowed});
 const sql = {async query(query, values) {
@@ -52,6 +52,7 @@ const sql = {async query(query, values) {
     const assignment=r.kind==='assignment'&&nominalAllowed?{target:{contractId:p.spec.employmentContractId,legajo:String(900000+targetNumber),name:'Contrato sintético '+targetNumber},shift:records.get(p.spec.shiftEntryId),calendar:records.get(p.spec.calendarEntryId),ruleProfile:records.get(p.spec.ruleProfileEntryId)}:null;
     return [{result: sqlText({principal: sqlPrincipal(), record:r,editPayload:own?p:null,assignment,allowedCommands:r.kind==='assignment'&&!nominalAllowed?[]:own?['update_draft','submit']:r.status==='submitted'&&role==='approver'?['approve','reject']:r.status==='approved'&&role==='approver'?['retire']:[],timeline: [], auditAvailable: role === 'approver', timelineLimit: 100})}];
   }
+  if(nextSummaryGate){const gate=nextSummaryGate;nextSummaryGate=null;gate.started();await gate.wait;}
   const all = [...records.values()], count = kind => all.filter(r => r.kind === kind&&r.status==='approved').length;
   return [{result: sqlText({principal: sqlPrincipal(), summary: {calendar: count('calendar'), shift: count('shift'), ruleProfile: count('rule_profile'), assignment: count('assignment'), submitted: all.filter(r => r.status === 'submitted').length}, ...flags})}];
 }};
@@ -93,7 +94,10 @@ const server = http.createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); origin = `http://127.0.0.1:${server.address().port}`;
 handler = createTimeCatalogHandler({env: {INTERNAL_APP_ORIGIN: origin}, sessionFor: () => session, getSql: async () => sql,
   requireAccess: async (_req, res) => { if (!allowed) { res.status(403).json({ok: false, code: 'TIME_CATALOG_FORBIDDEN', error: 'Acceso retirado.'}); return null; } return {mode: 'managed', principal: principal()}; }});
-const reportDir = path.resolve('verification'); fs.mkdirSync(reportDir, {recursive: true});
+const verificationRoot=path.resolve('verification');
+const reportDir = path.resolve(process.env.TIME_CATALOG_QA_REPORT_DIR??verificationRoot);
+assert.ok(reportDir===verificationRoot||reportDir.startsWith(verificationRoot+path.sep),'QA reports must stay inside this worktree verification directory');
+fs.mkdirSync(reportDir, {recursive: true});
 const browser = await chromium.launch({headless: true, ...(process.env.TIME_CATALOG_QA_HEADLESS_EXECUTABLE ? {executablePath: process.env.TIME_CATALOG_QA_HEADLESS_EXECUTABLE} : {})});
 try {
   const context = await browser.newContext({viewport: {width: 1440, height: 1000}, locale: 'es-AR', timezoneId: 'UTC'}), page = await context.newPage();
@@ -229,8 +233,19 @@ try {
   checks.push('paginated native directory selection and approved dependency selection produce an identifiable minimal assignment');
   await page.locator('#reason').fill('Asignación sintética completa para revisión.');await page.locator('#send').click();await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.startsWith('Operación registrada'));
   role='approver';await load();await filter('assignment');await page.locator('#records button').last().click();await page.locator('#detail').waitFor({state:'visible'});
-  await page.locator('#reason').fill('Contrato y revisiones sintéticas contrastados.');await page.locator('#approval').check();await page.locator('#send').click();await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.startsWith('Operación registrada'));
+  let releaseSummary,summaryStarted;
+  const summaryWait=new Promise(resolve=>{releaseSummary=resolve;}),summaryRequest=new Promise(resolve=>{summaryStarted=resolve;});
+  afterWrite=()=>{nextSummaryGate={wait:summaryWait,started:summaryStarted};};
+  try{
+   await page.locator('#reason').fill('Contrato y revisiones sintéticas contrastados.');await page.locator('#approval').check();await page.locator('#send').click();await summaryRequest;
+   assert.equal([...records.values()].find(r=>r.reference?.code==='qa-browser-assignment').status,'approved');
+   assert.equal(await page.locator('#countAssignments').innerText(),'0');
+   assert.equal(await page.locator('#send').isDisabled(),true);
+   assert.equal((await page.locator('#detailMessage').innerText()).startsWith('Operación registrada'),false,'final completion signal must wait for the refreshed summary');
+  }finally{releaseSummary();}
+  await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.startsWith('Operación registrada'));
   assert.equal([...records.values()].find(r=>r.reference?.code==='qa-browser-assignment').status,'approved');assert.equal(await page.locator('#countAssignments').innerText(),'1');
+  checks.push('final confirmation waits for a held post-commit summary response; the original approved count assertion remains unchanged');
   checks.push('separate reviewer can approve the visible verified target, refreshing approved global counts');
   await page.locator('#readCurrent').click();await page.locator('#configuration').getByText(/Legajo 900021/).waitFor({state:'visible'});
   nominalAllowed=false;scope='e'.repeat(64);await page.locator('#readCurrent').click();await page.locator('#workspace').waitFor({state:'hidden'});assert.equal(await page.locator('#configuration').innerText(),'');

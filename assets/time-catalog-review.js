@@ -219,10 +219,11 @@ async function sendPending() {
     const attempt = model.attempt(); model.bootstrap(await request({resource: 'bootstrap'})); model.attempt();
     const outcome = model.confirm(await request(null, attempt)); if(bulkAttempt){bulkAttempt=null;nodes.bulkResults.replaceChildren(make('p','Se recuperó el comprobante del envío original. Las asignaciones restantes requieren una nueva revisión; no se enviaron automáticamente.'));} renderDetail();
     notice('');
-    notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Operación registrada. No genera cálculos ni liquidaciones.', false, true);
+    notice('La operación tiene comprobante. Actualizando catálogo y contadores…', false, true);
     // A historical replay can be older than current state. Do not enable a new
     // decision based on that receipt; obtain a fresh detail first.
     nodes.decision.hidden = true; model.bootstrap(await request({resource:'bootstrap'})); renderSummary(); await readList();
+    if(generation===model.generation&&!document.hidden)notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Operación registrada. No genera cálculos ni liquidaciones.', false, true);
   } catch (e) {
     if (!(e instanceof StaleRead)) {
       if (!model.scope) wipe(e.message);
