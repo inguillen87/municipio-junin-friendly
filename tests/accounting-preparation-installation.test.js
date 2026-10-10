@@ -32,6 +32,13 @@ test('preparación fija las dos bases existentes y conserva destino, sólo lectu
     assert.match(t.installation.join('\n'),/ACCOUNTING_ACCESS_PRIOR_STATE_CHANGED/);
   }
 });
+test('despliegue conserva los archivos SQL revisados necesarios para verificar la corrección',()=>{
+  const ignore=read('.vercelignore').split(/\r?\n/);
+  for(const file of ['148-own-payroll-imputation.sql','152-own-payroll-journal.sql','153-own-payroll-reconciliation.sql','154-accounting-preparation-access.sql']){
+    const included=ignore.lastIndexOf('!scripts/migrations/'+file);
+    assert.ok(included>ignore.indexOf('scripts/migrations/'),'La entrada de build necesita '+file);
+  }
+});
 test('verificación durable exige mismo lote, conservación completa y cero cambios de roles o negocio',()=>{
   const b=buildAccountingPreparationInstallation({read,sourceCommit}),installed={version:b.version,sourceCommit,migrationSha256:Object.values(b.sourceHashes)[0],changedFunctions:15,newTables:0,roleAssignmentsAdded:0,businessWrites:0,nominalRowsReturned:0,preservationSha256:'b'.repeat(64),beforeFingerprint:'b'.repeat(64)}, {beforeFingerprint,...durable}=installed;
   const verify=(i=installed,d=durable)=>assertAccountingPreparationDurability({installed:i,durable:d,sourceCommit,migrationSha256:Object.values(b.sourceHashes)[0]});
