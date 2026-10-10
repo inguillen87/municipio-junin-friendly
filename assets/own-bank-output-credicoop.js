@@ -25,18 +25,19 @@ export async function prepareCredicoopOutput(batch,accounts,value,closes){
   if(source.rows.some(r=>r.issues.includes('IDENTITY_CHANGED')))issues.push('IDENTITY_CHANGED');
   if(source.rows.some(r=>r.jurisdiction.code===null))issues.push('JURISDICTION_MISSING');
   if(source.rows.some(r=>!r.account))issues.push('ACCOUNT_DESTINATION_UNKNOWN');
+  if(source.rows.some(r=>r.account?.paymentChannelVersion&&r.account.paymentChannel===null))issues.push('PAYMENT_CHANNEL_UNKNOWN');
   // Routing uses the approved CBU institution code, never a bank-label alias,
   // a presumed account type, or a digit extracted from a different bank design.
   if(source.rows.some(r=>r.account?.cbu.startsWith('191')&&!r.account.accountType))issues.push('ACCOUNT_TYPE_UNKNOWN');
   const rows=source.rows.map(r=>{
     const bank=r.account?.cbu.startsWith('191')??false,ownJurisdiction=r.jurisdiction.code===profile.jurisdictionCode;
-    const selected=bank&&ownJurisdiction&&(profile.accountType==='all'||r.account.accountType===profile.accountType);
+    const selected=bank&&ownJurisdiction&&(!r.account.paymentChannelVersion||r.account.paymentChannel==='bank_payroll')&&(profile.accountType==='all'||r.account.accountType===profile.accountType);
     const codes=r.issues.filter(c=>c!=='REPEATED_DESTINATION');
     const parts=bank?/^(\d{3})-(\d{6})-(\d)$/.exec(r.account.accountNumber??''):null;
     const accountParts=parts&&BigInt(parts[2])>0n?{branch:parts[1],number:parts[2],verifier:parts[3]}:null;
     if(bank&&!accountParts)codes.push('ACCOUNT_LAYOUT');
     if(selected&&r.cents!==null&&BigInt(r.cents)>999999999999999n)codes.push('CREDICOOP_AMOUNT_OVERFLOW');
-    const selectionReason=selected?'Incluido':!r.account?'Destino no informado':!bank?'Otra entidad bancaria':!ownJurisdiction?'Otra jurisdicción':'Otro tipo de cuenta';
+    const selectionReason=selected?'Incluido':!r.account?'Destino no informado':r.account.paymentChannelVersion&&r.account.paymentChannel===null?'Canal de acreditación pendiente':r.account.paymentChannel==='credicoop_transfers'?'Otro canal declarado: Transferencias varias':!bank?'Otra entidad bancaria':!ownJurisdiction?'Otra jurisdicción':'Otro tipo de cuenta';
     return {...r,selected,selectionReason,accountParts,issues:codes};
   });
   const destinations=new Map();
@@ -47,7 +48,7 @@ export async function prepareCredicoopOutput(batch,accounts,value,closes){
   const selected=rows.filter(r=>r.selected);
   if(!selected.length)issues.push('EMPTY_SELECTION');
   const ready=issues.length===0&&selected.every(r=>r.issues.length===0);
-  const review={version:'own-credicoop-output.v1',layoutVersion:CREDICOOP_PROFILE,kind:'credicoop',source,receiptId:source.receiptId,receiptSha256:source.receiptSha256,receiptReviewId:source.receiptReviewId,receiptDecision:structuredClone({preparedAt:batch.preparedAt,preparedBy:batch.preparedBy,review:batch.review}),profile,rows,issues:[...new Set(issues)],period:source.period,types:source.types,selection:source.selection,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:rows.filter(r=>r.jurisdiction.code!==null&&r.jurisdiction.code!==profile.jurisdictionCode).length,otherBankCount:rows.filter(r=>r.account&&!r.account.cbu.startsWith('191')).length,otherAccountTypeCount:rows.filter(r=>r.account?.cbu.startsWith('191')&&r.jurisdiction.code===profile.jurisdictionCode&&!r.selected).length,repeatedDestinationCount:repeated.length,ready,totalCents:ready?selected.reduce((n,r)=>n+BigInt(r.cents),0n).toString():null,bankSubmitted:false,paymentExecuted:false};
+  const review={version:'own-credicoop-output.v1',layoutVersion:CREDICOOP_PROFILE,kind:'credicoop',source,receiptId:source.receiptId,receiptSha256:source.receiptSha256,receiptReviewId:source.receiptReviewId,receiptDecision:structuredClone({preparedAt:batch.preparedAt,preparedBy:batch.preparedBy,review:batch.review}),profile,rows,issues:[...new Set(issues)],period:source.period,types:source.types,selection:source.selection,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:rows.filter(r=>r.jurisdiction.code!==null&&r.jurisdiction.code!==profile.jurisdictionCode).length,otherBankCount:rows.filter(r=>r.account&&!r.account.cbu.startsWith('191')).length,otherChannelCount:rows.filter(r=>r.account?.paymentChannel==='credicoop_transfers').length,otherAccountTypeCount:rows.filter(r=>r.account?.cbu.startsWith('191')&&r.jurisdiction.code===profile.jurisdictionCode&&profile.accountType!=='all'&&r.account.accountType!==profile.accountType).length,repeatedDestinationCount:repeated.length,ready,totalCents:ready?selected.reduce((n,r)=>n+BigInt(r.cents),0n).toString():null,bankSubmitted:false,paymentExecuted:false};
   review.fingerprint=await bankAccountsHash(review);freeze(review);reviews.add(review);return review;
 }
 export const sameCredicoopOutput=(a,b)=>reviews.has(a)&&reviews.has(b)&&a.fingerprint===b.fingerprint&&salarySerialized(a.profile)===salarySerialized(b.profile);
