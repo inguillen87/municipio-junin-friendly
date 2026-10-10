@@ -5,6 +5,7 @@ import {
   reconcileBankControlTotals,
   validateObservedBankFile,
 } from './payroll-bank-fixed-width-profiles.js';
+import {reviewTransfersVarFile, transfersVarObservationsCsv, TRANSFERS_VAR_PROFILE, TRANSFERS_VAR_FIELDS} from './payroll-transfers-var-review.js';
 
 export const PAYROLL_BANK_WORKBENCH_PROFILES = Object.freeze([
   Object.freeze({
@@ -92,6 +93,17 @@ export async function buildPayrollBankDiagnostic(input, options = {}) {
   const reconciliation = reconciliationInput
     ? reconcileBankControlTotals(reconciliationInput)
     : null;
+  const fieldReview = input.profileId === TRANSFERS_VAR_PROFILE
+    ? await reviewTransfersVarFile(input.bytes, {cryptoImpl: options.cryptoImpl || globalThis.crypto}) : null;
+  if(fieldReview && fieldReview.sha256!==validation.sha256)fail('BANK_SOURCE_CHANGED','El archivo cambió durante la revisión. Elegilo y revisalo nuevamente.');
+  const fieldReconciliation = fieldReview?.matchesObservedFields && reconciliationInput
+    ? Object.freeze({
+      fileMinusDeclaredCents: (BigInt(fieldReview.totalCents) - BigInt(reconciliationInput.declaredBankNetCents)).toString(),
+      fileMinusApprovedPayrollCents: (BigInt(fieldReview.totalCents) - BigInt(reconciliationInput.approvedPayrollNetCents)).toString(),
+      reconciled: reconciliation.reconciled
+        && fieldReview.totalCents === reconciliationInput.declaredBankNetCents
+        && fieldReview.totalCents === reconciliationInput.approvedPayrollNetCents,
+    }) : null;
 
   return Object.freeze({
     profileId: validation.profileId,
@@ -107,6 +119,8 @@ export async function buildPayrollBankDiagnostic(input, options = {}) {
       truncated: validation.diagnostics.truncated,
     }),
     reconciliation,
+    fieldReview,
+    fieldReconciliation,
     generationAllowed: false,
     officialSubmissionAllowed: false,
     blockedReason: 'field_layout_not_homologated',
@@ -124,6 +138,7 @@ function messageFor(error) {
       'Completá cantidad de liquidación y ambos totales en centavos, sin puntos ni comas.',
     BANK_CRYPTO_UNAVAILABLE: 'El navegador no dispone de identificación criptográfica.',
     BANK_CRYPTO_FAILED: 'No se pudo calcular la huella del archivo.',
+    BANK_SOURCE_CHANGED: 'El archivo cambió durante la revisión. Elegilo y revisalo nuevamente.',
   };
   return error instanceof PayrollBankProfileError
     ? messages[error.code] || 'El archivo no cumple el perfil estructural seleccionado.'
@@ -153,11 +168,22 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     issues: root.querySelector('[data-bank-diagnostic-issues]'),
     reconciliation: root.querySelector('[data-bank-diagnostic-reconciliation]'),
     blocked: root.querySelector('[data-bank-diagnostic-blocked]'),
+    fields: root.querySelector('[data-bank-diagnostic-fields]'),
+    fieldSummary: root.querySelector('[data-bank-diagnostic-field-summary]'),
+    fieldRows: root.querySelector('[data-bank-diagnostic-field-rows]'),
+    fieldReconciliation: root.querySelector('[data-bank-diagnostic-field-reconciliation]'),
+    exportObservations: root.querySelector('[data-bank-diagnostic-export-observations]'),
   };
   if (!nodes.form || !nodes.profile || !nodes.scope || !nodes.file || !nodes.status || !nodes.result) {
     return null;
   }
-  const state = { busy: false, diagnostic: null };
+  const state = { busy: false, diagnostic: null, epoch: 0, revoked: false };
+
+  function accessRetired() {
+    return state.revoked || doc.visibilityState === 'hidden'
+      || doc.documentElement?.getAttribute('data-mc-capability-state') === 'denied'
+      || Boolean(root.closest?.('[data-mc-capability-denied="true"]'));
+  }
 
   function setStatus(message, kind = '') {
     nodes.status.textContent = message;
@@ -168,6 +194,8 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     state.busy = value;
     root.setAttribute('aria-busy', String(value));
     root.querySelectorAll('button, input, select').forEach((node) => { node.disabled = value; });
+    if(nodes.reset)nodes.reset.disabled=false;
+    if(nodes.exportObservations)nodes.exportObservations.disabled=value||!state.diagnostic?.fieldReview;
   }
 
   function addOption(select, value, label) {
@@ -199,10 +227,23 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
   }
 
   function clearResult() {
+    state.epoch++;
     state.diagnostic = null;
     nodes.result.hidden = true;
     nodes.issues?.replaceChildren();
-    if (nodes.reconciliation) nodes.reconciliation.textContent = 'No informada';
+    if (nodes.reconciliation) {
+      nodes.reconciliation.textContent = 'No informada';
+      delete nodes.reconciliation.dataset.state;
+    }
+    for (const node of [nodes.structure, nodes.bytes, nodes.records, nodes.fingerprint]) {
+      if (node) node.textContent = '—';
+    }
+    if(nodes.fields)nodes.fields.hidden=true;
+    if(nodes.fieldRows)nodes.fieldRows.replaceChildren();
+    if(nodes.fieldSummary)nodes.fieldSummary.textContent='';
+    if(nodes.fieldReconciliation)nodes.fieldReconciliation.textContent='';
+    if(nodes.exportObservations)nodes.exportObservations.disabled=true;
+    setBusy(false);
   }
 
   function render(diagnostic) {
@@ -235,23 +276,53 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     if (nodes.reconciliation && diagnostic.reconciliation) {
       const result = diagnostic.reconciliation;
       nodes.reconciliation.textContent = result.reconciled
-        ? 'Conciliado: 0 centavos y 0 registros de diferencia'
+        ? 'Conciliado entre totales declarados: 0 centavos y 0 registros de diferencia'
         : `Diferencia: ${result.bankMinusPayrollCents} centavos y ${result.bankMinusPayrollRecords} registros`;
       nodes.reconciliation.dataset.state = result.reconciled ? 'ok' : 'warning';
     }
     if (nodes.blocked) nodes.blocked.textContent = PAYROLL_BANK_BLOCKED_NOTICE;
+    const fieldReview=diagnostic.fieldReview;
+    if(nodes.fields)nodes.fields.hidden=!fieldReview;
+    if(fieldReview){
+      if(nodes.fieldSummary)nodes.fieldSummary.textContent=fieldReview.matchesObservedFields
+        ? `Campos observados completos, incluido VAR. Período ${fieldReview.period}; total leído exactamente: ${fieldReview.totalCents} centavos. No certifica titularidad, neto aprobado ni aceptación bancaria.`
+        : `${fieldReview.observations.length} observaciones de la revisión completa. No se informa un total parcial. Descargá las filas y acciones para corregir el archivo.`;
+      if(nodes.fieldRows){
+        nodes.fieldRows.replaceChildren();
+        for(const r of fieldReview.observations.slice(0,25)){
+          const item=doc.createElement('li');item.textContent=`${r.rowNumber===null?'Global':'Fila '+r.rowNumber}: ${r.field}. ${r.action}`;nodes.fieldRows.append(item);
+        }
+        if(fieldReview.observations.length>25){const item=doc.createElement('li');item.textContent='Se muestran las primeras 25 observaciones. La descarga incluye todas.';nodes.fieldRows.append(item);}
+        if(!fieldReview.observations.length){const item=doc.createElement('li');item.textContent='Revisión completa sin observaciones de campos.';nodes.fieldRows.append(item);}
+      }
+      if (nodes.fieldReconciliation) {
+        const comparison = diagnostic.fieldReconciliation;
+        nodes.fieldReconciliation.textContent = comparison
+          ? comparison.reconciled
+            ? 'El total leído del TXT coincide exactamente con ambos totales declarados. No verifica la aprobación de la liquidación.'
+            : `El TXT difiere en ${comparison.fileMinusDeclaredCents} centavos del total bancario declarado y en ${comparison.fileMinusApprovedPayrollCents} centavos del neto de liquidación declarado.`
+          : 'Sin conciliación contra el total leído: completá los tres controles declarados y corregí todas las observaciones del archivo.';
+        nodes.fieldReconciliation.dataset.state = comparison ? comparison.reconciled ? 'ok' : 'error' : 'warning';
+      }
+      if(nodes.blocked)nodes.blocked.textContent='Diseño 167 contrastado con la muestra municipal y su definición guardada. La generación y presentación bancaria siguen bloqueadas hasta identificar y validar el servicio receptor.';
+    }
+    const complete=diagnostic.structureMatches&&(!fieldReview||fieldReview.matchesObservedFields);
+    const reconciled = (!diagnostic.reconciliation || diagnostic.reconciliation.reconciled)
+      && (!diagnostic.fieldReconciliation || diagnostic.fieldReconciliation.reconciled);
     setStatus(
-      diagnostic.structureMatches
+      complete && reconciled
         ? 'Diagnóstico local finalizado. La coincidencia estructural no acredita aceptación bancaria.'
-        : 'Diagnóstico local finalizado con diferencias estructurales.',
-      diagnostic.structureMatches ? 'ok' : 'error',
+        : 'Diagnóstico local finalizado con diferencias de estructura, campos o conciliación.',
+      complete && reconciled ? 'ok' : 'error',
     );
   }
 
   async function submit(event) {
     event?.preventDefault?.();
+    if (accessRetired()) return;
     if (state.busy) return;
     clearResult();
+    const epoch=state.epoch;
     const file = nodes.file.files?.[0];
     if (!file || file.size < 1 || file.size > PAYROLL_BANK_MAX_FILE_BYTES) {
       setStatus('Seleccioná un archivo de entre 1 byte y 4 MiB.', 'error');
@@ -259,8 +330,10 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
     }
     setBusy(true);
     setStatus('Analizando estructura y calculando huella en este navegador…', 'warning');
+    let bytes;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      bytes = new Uint8Array(await file.arrayBuffer());
+      if(epoch!==state.epoch || accessRetired())return;
       const diagnostic = await buildPayrollBankDiagnostic({
         profileId: nodes.profile.value,
         scope: nodes.scope.value,
@@ -271,12 +344,14 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
           declaredBankNetCents: nodes.bankCents?.value,
         },
       }, { cryptoImpl });
+      if(epoch!==state.epoch || accessRetired())return;
       state.diagnostic = diagnostic;
       render(diagnostic);
     } catch (error) {
-      setStatus(messageFor(error), 'error');
+      if(epoch===state.epoch)setStatus(messageFor(error), 'error');
     } finally {
-      setBusy(false);
+      bytes?.fill(0);
+      if(epoch===state.epoch)setBusy(false);
     }
   }
 
@@ -296,9 +371,44 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
         ? 'ready'
         : file ? 'error' : '';
     }
+    setStatus(file ? 'Archivo seleccionado. Presioná Validar archivo bancario para revisarlo.' : 'Elegí un archivo para iniciar la revisión.', '');
   });
+  for (const node of [nodes.scope,nodes.payrollRows,nodes.payrollCents,nodes.bankCents]) node?.addEventListener('input', () => {
+    clearResult();
+    setStatus('Los controles cambiaron. Volvé a validar el archivo antes de descargar.', '');
+  });
+  nodes.exportObservations?.addEventListener('click',()=>{
+    if(state.busy||!state.diagnostic?.fieldReview||accessRetired())return;
+    const artifact=transfersVarObservationsCsv(state.diagnostic.fieldReview);
+    if(options.download){options.download(artifact);return;}
+    const url=URL.createObjectURL(new Blob([artifact.bytes],{type:'text/csv;charset=utf-8'})),link=doc.createElement('a');
+    link.href=url;link.download=artifact.filename;link.click();URL.revokeObjectURL(url);
+  });
+  doc.addEventListener?.('visibilitychange',()=>{
+    if(doc.visibilityState!=='hidden')return;
+    clearResult();setBusy(false);nodes.file.value='';
+    if(nodes.fileState)nodes.fileState.textContent='El archivo se retiró al ocultar la pantalla.';
+    setStatus('La revisión se retiró al ocultar la pantalla. Elegí el archivo y revisalo nuevamente.','');
+  });
+  function retireAccess() {
+    clearResult();
+    nodes.file.value = '';
+    if (nodes.fileState) nodes.fileState.textContent = 'Archivo y revisión retirados por cambio de acceso.';
+    setStatus('El acceso cambió. Se retiraron el archivo y la revisión.', '');
+  }
+  doc.addEventListener?.('municontrol:capabilities-ready', (event) => {
+    const capabilities = event.detail?.tenantCapabilities;
+    state.revoked = !(capabilities instanceof Set && capabilities.has('payroll.read'));
+    retireAccess();
+  });
+  if (typeof MutationObserver !== 'undefined' && doc.documentElement) {
+    new MutationObserver(() => {
+      if (doc.documentElement.getAttribute('data-mc-capability-state') === 'denied') retireAccess();
+    }).observe(doc.documentElement, {attributes: true, attributeFilter: ['data-mc-capability-state']});
+  }
   nodes.form.addEventListener('submit', submit);
   nodes.reset?.addEventListener('click', () => {
+    clearResult();setBusy(false);
     nodes.form.reset();
     populateProfiles();
     populateScopes();
@@ -313,6 +423,8 @@ export function createPayrollBankReportWorkbench(root, options = {}) {
   populateProfiles();
   populateScopes();
   if (nodes.blocked) nodes.blocked.textContent = PAYROLL_BANK_BLOCKED_NOTICE;
+  const layout=root.querySelector('[data-bank-diagnostic-layout]');
+  if(layout)for(const field of TRANSFERS_VAR_FIELDS){const item=doc.createElement('li');item.textContent=`${field.label}: posiciones ${field.first}–${field.last}`;layout.append(item);}
   setStatus('Elegí un perfil y un archivo para iniciar el diagnóstico local.', '');
 
   return Object.freeze({

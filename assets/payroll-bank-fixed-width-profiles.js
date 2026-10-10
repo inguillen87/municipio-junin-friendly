@@ -181,7 +181,7 @@ function isPrintableByte(byte, encodingConstraint) {
   return false;
 }
 
-function scanObservedRecords(bytes, profile) {
+function scanObservedRecords(bytes, profile, diagnosticLimit = PAYROLL_BANK_MAX_ROW_DIAGNOSTICS) {
   const issueCounts = new Map();
   const rowIssues = new Map();
   let diagnosticsTruncated = false;
@@ -191,7 +191,7 @@ function scanObservedRecords(bytes, profile) {
     issueCounts.set(code, (issueCounts.get(code) || 0) + 1);
     if (rowNumber === null) return;
     if (!rowIssues.has(rowNumber)) {
-      if (rowIssues.size >= PAYROLL_BANK_MAX_ROW_DIAGNOSTICS) {
+      if (rowIssues.size >= diagnosticLimit) {
         diagnosticsTruncated = true;
         return;
       }
@@ -279,6 +279,16 @@ function scanObservedRecords(bytes, profile) {
  * not proof of account ownership, monetary totals, bank acceptance or submission.
  */
 export async function validateObservedBankFile(input, { cryptoImpl = globalThis.crypto } = {}) {
+  return validateFile(input, cryptoImpl, PAYROLL_BANK_MAX_ROW_DIAGNOSTICS);
+}
+
+// Complete, bounded diagnostics for a voluntary correction report. The original
+// structural API keeps its existing 200-row presentation limit.
+export async function validateObservedBankFileComplete(input, { cryptoImpl = globalThis.crypto } = {}) {
+  return validateFile(input, cryptoImpl, PAYROLL_BANK_MAX_RECORDS);
+}
+
+async function validateFile(input, cryptoImpl, diagnosticLimit) {
   if (!hasExactKeys(input, new Set(['profileId', 'scope', 'bytes']))) {
     fail('BANK_VALIDATION_INPUT_INVALID', 'La solicitud de validacion no cumple el contrato');
   }
@@ -289,7 +299,7 @@ export async function validateObservedBankFile(input, { cryptoImpl = globalThis.
   const bytes = canonicalBytes(input.bytes);
   const [sha256, inspection] = await Promise.all([
     sha256Bytes(bytes, cryptoImpl),
-    Promise.resolve(scanObservedRecords(bytes, profile)),
+    Promise.resolve(scanObservedRecords(bytes, profile, diagnosticLimit)),
   ]);
   const structureMatches = inspection.issueCount === 0;
 
