@@ -71,6 +71,8 @@ jobs:
         run: node scripts/verify-registry-original-facts.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/registry-original-facts-ci
       - name: Explicit original-facts acknowledgement, full review, mobile and unchanged recovery
         run: node scripts/verify-registry-original-facts-browser.mjs --output-prefix=verification/registry-original-facts-browser-ci
+      - name: Parameter audit identity with historical contracts, unchanged shared context and actual SQL HTTP mobile UI
+        run: node scripts/verify-salary-administrative-identity.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-administrative-ci
       - name: Review all 869 active rows, download observations and recover the same voluntary attempt
         run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/active-adoption-browser-ci --active=true
       - name: Independently decide and consult the final-cut result through actual SQL and HTTP
@@ -81,6 +83,11 @@ jobs:
         with:
           name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}
           path: |
+            verification/salary-administrative-ci/result.json
+            verification/salary-administrative-ci/browser-proof.json
+            verification/salary-administrative-ci/partial-checks.json
+            verification/salary-administrative-ci/failure.txt
+            verification/salary-administrative-ci/*.png
             verification/noelia-circuit-ci/result.json
             verification/noelia-circuit-ci/*-proof.json
             verification/noelia-circuit-ci/*-browser.json

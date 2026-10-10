@@ -1,0 +1,33 @@
+// Built product UI, actual handlers and real loopback SQL; synthetic auth only.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
+export async function verifySalaryAdministrativeBrowser({handlers,env,actor,output,check,revoke,restore,browserName='chrome'}){
+ assert.ok(['chrome','chromium'].includes(browserName));const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4359',errors=[],posts=[];
+ const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
+ const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});env.INTERNAL_APP_ORIGIN=origin;
+ try{
+  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
+  await context.route('**/*',async route=>{
+   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
+   const kind=u.pathname==='/api/internal-native-salary'?'salary':u.pathname==='/api/internal-own-payroll-program'?'program':null;
+   if(kind){let status=200,payload;const headers={};await handlers[kind]({method:req.method(),url:u.pathname+u.search,query:Object.fromEntries(u.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});if(req.method()==='POST')posts.push(kind);return route.fulfill({status,headers,json:payload});}
+   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:actor.actorSessionId,email:actor.actorEmail,role:'municipality_admin'},access:{context:'tenant',tenant:{id:actor.tenantId,roleKey:'MUNICIPIO_ADMIN_OPERATIVO'},tenantCapabilities:caps,platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
+   if(u.pathname==='/api/internal-payroll-parameters')return route.fulfill({json:{ok:true,flags:{grhMutation:false,payrollCalculated:false,payrollPosted:false,currentCatalogVerified:false,proposalApproved:false},principal:{tenantId:actor.tenantId,membershipId:actor.membershipId,certifiedBindingId:actor.bindingId,employmentLinked:false,capabilities:caps},proposals:[],total:0}});
+   if(u.pathname==='/api/internal-data')return route.fulfill({json:{ok:true,status:'ready',sourcePolicy:{label:'QA SINTÉTICA'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:[]}});
+   if(u.pathname.startsWith('/api/'))return route.fulfill({status:403,json:{ok:false,error:'API fuera de esta prueba sintética.'}});
+   const file=path.resolve(root,u.pathname==='/nomina'?'nomina-control.html':'.'+u.pathname);if(req.method()!=='GET'||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
+   return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
+  });
+  const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+  const salary=page.locator('[data-native-salary]'),program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});
+  const loadSalary=async()=>{await page.goto(origin+'/nomina#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();await salary.getByRole('button',{name:'Consultar maestro propio'}).click();await salary.getByText('definiciones propias',{exact:false}).waitFor();};
+  await loadSalary();check(await salary.getByRole('button',{name:'Preparar nueva versión'}).isEnabled(),'built React master allows the historical verified administrative author to prepare');
+  await salary.getByRole('button',{name:'Preparar nueva versión'}).click();await salary.getByLabel('Motivo de la versión').fill('Borrador exclusivamente sintético; no se envía ni modifica el maestro');check(await salary.getByLabel('Motivo de la versión').inputValue()==='Borrador exclusivamente sintético; no se envía ni modifica el maestro','enabled master preserves editable work without issuing a write');
+  for(const width of [390,320]){await page.setViewportSize({width,height:900});await page.screenshot({path:path.join(output,'salary-mobile-'+width+'.png'),fullPage:true});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'master remains readable at '+width+'px without body overflow');}
+  await page.setViewportSize({width:1440,height:1000});await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await program.locator('[data-program-content]').waitFor({state:'visible'});check(await program.locator('[data-program-prepare]').isEnabled(),'built program panel enables existing administrative preparation after actual SQL authentication');
+  await page.screenshot({path:path.join(output,'program-desktop.png'),fullPage:true});
+  await revoke();await program.locator('[data-program-refresh]').click();await page.waitForFunction(()=>document.querySelector('[data-program-fields]')?.disabled===true);check(await program.locator('[data-program-prepare]').isDisabled(),'revocation is reflected by the built program panel and blocks preparation');await restore();
+  await loadSalary();await revoke();const [revokedResponse]=await Promise.all([page.waitForResponse(r=>new URL(r.url()).pathname==='/api/internal-native-salary'),salary.getByRole('button',{name:'Consultar maestro propio'}).click()]);assert.equal((await revokedResponse.json()).data.permissions.canPropose,false);await page.waitForFunction(()=>{const root=document.querySelector('[data-native-salary]');return ![...(root?.querySelectorAll('button')??[])].some(b=>b.textContent==='Preparar nueva versión');});check(await salary.getByRole('button',{name:'Preparar nueva versión'}).count()===0,'revocation removes preparation from the built salary master');await restore();
+  assert.deepEqual(posts,[]);check(true,'browser navigation, drafts and permission refresh generate no write request');assert.deepEqual(errors,[]);check(true,'both built panels complete this browser path without JavaScript errors');
+  fs.writeFileSync(path.join(output,'browser-proof.json'),JSON.stringify({ok:true,browser:browserName,actualSql:true,syntheticAuth:true,posts:0,errors},null,2)+'\n');
+ }finally{await browser.close();}
+}
