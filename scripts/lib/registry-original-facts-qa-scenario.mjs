@@ -8,14 +8,21 @@ import {adoptionPreparationPayload} from '../../assets/employment-adoption-prepa
 import {originalRegistryFactsCounts} from '../../assets/employment-adoption-original-facts.js';
 import {registryPendingRaw} from '../../tests/fixtures/registry-original-facts-synthetic.js';
 import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
+import {buildOwnRunDateInstallation} from './own-payroll-run-date-installation.mjs';
+import {relocateOwnRunDateInstallation} from './own-payroll-run-date-qa.mjs';
 export async function registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved}){
- const b=relocateRegistryOriginalFacts(buildRegistryOriginalFactsInstallation(options),qa,declaredBatch),input={revisionId:qa.revision,packageSha256:qa.packageSha};
- run(tx(b.installation,'ROLLBACK'));run(tx(declaredBatch.verification));ok(true,'registry rehearsal rolls back functions without changing the published declaration circuit');
- run(tx([qa.normalized(b.newDefinitions[0]),...b.installation]),'REGISTRY_PARTIAL_STATE');run(tx(declaredBatch.verification));ok(true,'partial registry state is rejected and fully rolled back');
+ const date=relocateOwnRunDateInstallation(buildOwnRunDateInstallation(options),qa,declaredBatch.readyDefinition,declaredBatch);
+ run(tx(date.installation));run(tx(date.durableVerification));ok(true,'registry baseline includes the published declared liquidation date protocol');
+ const datedPrior={...declaredBatch,readyPin:date.readyPin,readyDefinition:date.readyDefinition,verification:[declaredBatch.verification[0],declaredBatch.verification[1].replaceAll(declaredBatch.readyPin.sha256,date.readyPin.sha256)+';'+date.durableVerification[0],...declaredBatch.verification.slice(2)]};
+ const b=relocateRegistryOriginalFacts(buildRegistryOriginalFactsInstallation(options),qa,datedPrior),input={revisionId:qa.revision,packageSha256:qa.packageSha};
+ run(tx(b.installation,'ROLLBACK'));run(tx(datedPrior.verification));ok(true,'registry rehearsal rolls back functions without changing the published declaration and date circuits');
+ run(tx([qa.normalized(b.newDefinitions[0]),...b.installation]),'REGISTRY_PARTIAL_STATE');run(tx(datedPrior.verification));ok(true,'partial registry state is rejected and fully rolled back');
  const late=b.installation.map((s,i)=>i===3?`DO $$BEGIN EXECUTE ${q(qa.normalized(b.newDefinitions[0]))};RAISE EXCEPTION 'QA_REGISTRY_LATE_FAILURE';END$$`:s);
- run(tx(late),'QA_REGISTRY_LATE_FAILURE');run(tx(declaredBatch.verification));ok(true,'late registry failure cannot leave a partial installation');
+ run(tx(late),'QA_REGISTRY_LATE_FAILURE');run(tx(datedPrior.verification));ok(true,'late registry failure cannot leave a partial installation');
  const installed=JSON.parse(run(tx(b.installation))),durable=JSON.parse(run(tx(b.verification)));assert.equal(installed.mode,'first');assert.deepEqual({...durable,mode:'first'},installed);ok(true,'durable registry installation preserves all prior rows, functions and permissions');
  const repeat=JSON.parse(run(tx(b.installation)));assert.equal(repeat.mode,'repeat');assert.deepEqual({...repeat,mode:'first'},installed);ok(true,'registry repetition performs no new operation');
+ const changedDate=qa.normalized(b.date.migration.find(s=>s.includes('CREATE FUNCTION public.own_run_bootstrap_v2('))).replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION ').replace(/AS (\$[\w]*\$)/,'AS $1\n -- QA changed date protocol pin\n');
+ run(tx([changedDate,...b.verification.slice(1)]),'REGISTRY_DATE_PROTOCOL_METADATA');run(tx(b.verification));ok(true,'registry retains declared liquidation date guards and rejects changed date protocol metadata');
  run(tx([`GRANT EXECUTE ON FUNCTION ${qa.schema}.employment_adoption_registry_eligible_v1(jsonb) TO municontrol_actions_runtime_app`,...b.verification.slice(1)]),'REGISTRY_NEW_METADATA');run(tx(b.verification));ok(true,'runtime access to the private eligibility predicate is rejected');
  const recovered=await adoptionPreparationOperation(db,principal,session,'attempt',{key});assert.equal(recovered.bodySha256,saved.bodySha256);const replay=await adoptionPreparationOperation(db,principal,session,'propose',{key,body});assert.equal(replay.receipt.replayed,true);ok(true,'earlier proposal body and key remain unchanged and recoverable after registry upgrade');
  const original=await adoptionPreparationOperation(db,principal,session,'registry-bootstrap',input);assert.equal(original.version,'employment-adoption-preparation.v6');assert.equal(original.canPrepare,true);assert.deepEqual(originalRegistryFactsCounts(original.review.rows),{total:869,pending:14,startDate:14,classification:2,jurisdiction:1});assert.equal(original.review.source.operationalCohort.archivedTotal,1583);ok(true,'actual SQL and application transport preserve the complete original active review and overlapping missing facts');

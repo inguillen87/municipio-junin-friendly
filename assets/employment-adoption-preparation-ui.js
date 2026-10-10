@@ -165,7 +165,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   if(busy||!live()||!review)return;const {token,signal}=start('Consultando condiciones y propuestas del padrón completo…');
   try{const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
    if(f.value.review.snapshot!==(prepared?.review??review).snapshot){bootstrap=null;$('form').hidden=true;say('El padrón cambió. Volvé a Revisar padrón completo antes de preparar una propuesta.');return;}
-   paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
+   paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?registryMode?'Revisá los antecedentes pendientes, su conservación, el documento y el motivo antes de guardar la propuesta completa.':'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
   }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
  async function send(recover=false,retry=false){

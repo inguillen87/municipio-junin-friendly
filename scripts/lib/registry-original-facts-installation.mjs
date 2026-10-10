@@ -2,6 +2,7 @@
 // No source import, identity resolution, adoption or payroll operation is executed.
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 import {buildActiveSourceDeclarationsInstallation} from './active-source-declarations-installation.mjs';
+import {buildOwnRunDateInstallation} from './own-payroll-run-date-installation.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck,preservationSnapshot} from './native-leave-installation.mjs';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",V6='employment-adoption-input.v6',policy='preserve-original-pending.v1';
@@ -26,8 +27,10 @@ export function registryOriginalFactsDefinitions(){
  return[eligible,bootstrap];
 }
 export function buildRegistryOriginalFactsInstallation(options){
- const previous=buildActiveSourceDeclarationsInstallation(options),beforeDefinitions=previous.afterDefinitions;
- const beforePins=previous.afterPins,pin=d=>({...ownInstallationFunctionPin(d),runtime:beforePins.find(p=>p.name===ownInstallationFunctionPin(d).name)?.runtime??false});
+ const previous=buildActiveSourceDeclarationsInstallation(options),date=buildOwnRunDateInstallation(options);
+ const datedReady=date.migration.at(-1).replace('CREATE OR REPLACE FUNCTION public.','CREATE FUNCTION public.');
+ const beforeDefinitions=[...previous.afterDefinitions.slice(0,-1),datedReady];
+ const beforePins=previous.afterPins.map(p=>p.name==='municipal_adoption_ready_v1'?{...ownInstallationFunctionPin(datedReady),runtime:false}:p),pin=d=>({...ownInstallationFunctionPin(d),runtime:beforePins.find(p=>p.name===ownInstallationFunctionPin(d).name)?.runtime??false});
  const afterDefinitions=beforeDefinitions.slice(0,-1).map((s,index)=>{
   // Extend only explicit version lists. Old version equality branches stay intact.
   let v=s.replaceAll("'employment-adoption-input.v4','employment-adoption-input.v5'","'employment-adoption-input.v4','employment-adoption-input.v5','"+V6+"'");
@@ -57,7 +60,8 @@ export function buildRegistryOriginalFactsInstallation(options){
  const newDefinitions=registryOriginalFactsDefinitions(),newPins=newDefinitions.map((d,n)=>({...ownInstallationFunctionPin(d),runtime:n===1}));
  const changedPins=afterDefinitions.map(pin),replacePins=s=>beforePins.slice(0,-1).reduce((v,p,n)=>v.replaceAll(p.sha256,changedPins[n].sha256),s);
  let ready=replacePins(beforeDefinitions.at(-1));ready=once(ready,' BEGIN ',' BEGIN EXECUTE '+q(pinsCheck(newPins,'REGISTRY_NEW_METADATA'))+';');afterDefinitions.push(ready);
- const afterPins=afterDefinitions.map(pin),beforeCheck=previous.afterCheck,afterCheck=replacePins(beforeCheck).replaceAll(beforePins.at(-1).sha256,afterPins.at(-1).sha256)+';'+pinsCheck(newPins,'REGISTRY_NEW_METADATA');
+ const datePins=[...date.afterPins.filter(p=>p.name!=='municipal_adoption_ready_v1'),date.newPin,date.bootstrapPin];
+ const afterPins=afterDefinitions.map(pin),beforeCheck=previous.afterCheck.replaceAll(previous.afterPins.at(-1).sha256,beforePins.at(-1).sha256)+';'+pinsCheck(datePins,'REGISTRY_DATE_PROTOCOL_METADATA'),afterCheck=replacePins(beforeCheck).replaceAll(beforePins.at(-1).sha256,afterPins.at(-1).sha256)+';'+pinsCheck(newPins,'REGISTRY_NEW_METADATA');
  beforePins.forEach((p,n)=>assert.deepEqual({...p,sha256:null},{...afterPins[n],sha256:null}));
  const prefix='municontrol_registry_original.',condition=`s.nspname='public' AND p.proname IN(${newPins.map(p=>q(p.name)).join(',')})`;
  const state=`DO $state$ DECLARE n integer;BEGIN IF current_setting('transaction_isolation')<>'repeatable read' THEN RAISE EXCEPTION 'REGISTRY_ISOLATION_REQUIRED';END IF;PERFORM pg_advisory_xact_lock(132160);SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${condition};IF n=0 THEN PERFORM set_config('${prefix}mode','first',true);ELSIF n=2 THEN PERFORM set_config('${prefix}mode','repeat',true);ELSE RAISE EXCEPTION 'REGISTRY_PARTIAL_STATE';END IF;END $state$`;
@@ -66,7 +70,7 @@ export function buildRegistryOriginalFactsInstallation(options){
  const apply=`DO $apply$ BEGIN IF current_setting('${prefix}mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
  const snapshot=slot=>{let s=preservationSnapshot(slot).replaceAll("p.oid IS DISTINCT FROM to_regclass('public.native_leave_event')",'true').replace("NOT(s.nspname='public' AND p.proname LIKE 'native_leave_%')",`NOT(${condition})`).replaceAll('municontrol_sql111.',prefix);return once(s,'to_jsonb(p)::text',`(CASE WHEN p.oid IN(${beforePins.map(p=>'to_regprocedure('+q(p.signature)+')').join(',')}) THEN to_jsonb(p)-'prosrc' ELSE to_jsonb(p) END)::text`);};
  const before=snapshot('before'),after=snapshot('after'),audit=`DO $audit$ BEGIN IF current_setting('${prefix}before')::jsonb IS DISTINCT FROM current_setting('${prefix}after')::jsonb THEN RAISE EXCEPTION 'REGISTRY_PRIOR_STATE_CHANGED';END IF;END $audit$`,runtime='DO $runtime$ BEGIN PERFORM public.municipal_adoption_ready_v1();END $runtime$';
- const sourceHashes={...previous.sourceHashes,'scripts/lib/registry-original-facts-installation.mjs':createHash('sha256').update(options.read('scripts/lib/registry-original-facts-installation.mjs').replace(/\r\n?/g,'\n')).digest('hex')};
+ const sourceHashes={...previous.sourceHashes,...date.sourceHashes,...Object.fromEntries(['scripts/lib/registry-original-facts-installation.mjs','scripts/lib/own-payroll-run-date-installation.mjs'].map(f=>[f,createHash('sha256').update(options.read(f).replace(/\r\n?/g,'\n')).digest('hex')]))};
  const proof=`SELECT jsonb_build_object('version','registry-original-facts-installation.v1','sourceCommit',${q(options.sourceCommit)},'sourceHashes',${q(JSON.stringify(sourceHashes))}::jsonb,'newFunctions',2,'adaptedFunctions',7,'newTables',0,'businessOperations',0,'nominalRowsReturned',0,'mode',coalesce(current_setting('${prefix}mode',true),'verify'),'priorFingerprint',encode(public.digest(current_setting('${prefix}after')::jsonb::text,'sha256'),'hex')) AS proof`;
- return{previous,beforeDefinitions,afterDefinitions,newDefinitions,beforePins,afterPins,newPins,sourceHashes,beforeCheck,afterCheck,state,initial,before,after,migration,apply,audit,runtime,proof,installation:[state,initial,before,apply,afterCheck,runtime,after,audit,proof],verification:['SET TRANSACTION READ ONLY',afterCheck,runtime,after,proof]};
+ return{previous,date,datePins,beforeDefinitions,afterDefinitions,newDefinitions,beforePins,afterPins,newPins,sourceHashes,beforeCheck,afterCheck,state,initial,before,after,migration,apply,audit,runtime,proof,installation:[state,initial,before,apply,afterCheck,runtime,after,audit,proof],verification:['SET TRANSACTION READ ONLY',afterCheck,runtime,after,proof]};
 }
