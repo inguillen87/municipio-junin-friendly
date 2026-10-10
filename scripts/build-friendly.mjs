@@ -160,6 +160,7 @@ const shellFiles = [
   'assets/own-payroll-receipt-planilla-panel.js',
   'assets/own-payroll-receipt-planilla-panel.css',
   'assets/own-payroll-report-variables.js',
+  'assets/own-payroll-report-legajo.js',
   'assets/own-payroll-report-statement.js',
   'assets/own-payroll-jurisdiction-model.js',
   'assets/own-payroll-report-panel.js',
