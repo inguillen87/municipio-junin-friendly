@@ -1,16 +1,15 @@
 import {useState} from 'react';
-import {SALARY_NATURES,SALARY_UNITS,salaryRowKey,salarySerialized} from '../../assets/native-salary-catalog-model.js';
+import {salaryRowKey,salarySerialized} from '../../assets/native-salary-catalog-model.js';
 import {salaryCopyPlan} from '../../assets/native-salary-copy-model.js';
+import Definition,{salaryDefinitionTitle as title} from './NativeSalaryDefinition.jsx';
 
 const PAGE=20,clone=value=>structuredClone(value),natural=new Intl.Collator('es',{numeric:true});
-const title=row=>`${row.kind==='scale'?'Escala':'Concepto'} ${row.code} · convenio ${row.agreementCode}${row.categoryCode?' · clase '+row.categoryCode:''} · desde ${row.validFrom}`;
-function Definition({row}){return row?<dl className="sc-values"><dt>Descripción</dt><dd>{row.label}</dd><dt>Naturaleza / unidad</dt><dd>{SALARY_NATURES[row.nature]??'Escala'} · {SALARY_UNITS[row.unit]} · {row.precision} decimales</dd><dt>Valor declarado</dt><dd>{row.value===null?'No informado; no se presume cero':row.value}</dd><dt>Vigencia</dt><dd>{row.validFrom} a {row.validUntil??'sin fin informado'} · {row.active?'Habilitada':'Desactivada'}</dd><dt>Respaldo</dt><dd>{row.ruleReference}</dd><dt>Dependencias</dt><dd>{row.dependencies.length?row.dependencies.join(' · '):'Sin dependencias declaradas'}</dd></dl>:<p>No existe esa definición en el destino.</p>;}
 function Comparison({item}){return <details><summary>{title(item.target)} · {({new:'Nueva definición',reuse:'Existente idéntica; se conserva',different:'Definición diferente; requiere revisión individual',missing_scale:'Falta escala revisada en destino',missing_class:'Falta clase inequívoca en destino',overlap:'Vigencia superpuesta'})[item.disposition]}</summary><h5>Origen</h5><Definition row={item.source}/><h5>Existente en destino</h5><Definition row={item.existing}/>{item.overlapping?.map(row=><div key={salaryRowKey(row)}><h5>Intervalo existente</h5><Definition row={row}/></div>)}<h5>Propuesto para destino</h5><Definition row={item.target}/></details>;}
 
 export default function NativeSalaryCopy({items,classification,disabled,individualEditing,onApply,onNotice}){
  const [source,setSource]=useState(''),[targets,setTargets]=useState([]),[selection,setSelection]=useState([]),[query,setQuery]=useState(''),[page,setPage]=useState(0),[review,setReview]=useState(null),[conflicts,setConflicts]=useState(null),[confirmed,setConfirmed]=useState(false);
- const agreements=classification.filter(row=>row.kind==='agreements'),sources=[...new Set(items.filter(row=>row.kind==='concept'&&row.active).map(row=>row.agreementCode))].sort(natural.compare);
- const filtered=items.filter(row=>row.kind==='concept'&&row.active&&row.agreementCode===source&&[row.code,row.label,row.validFrom].join(' ').toLowerCase().includes(query.toLowerCase())).sort((a,b)=>natural.compare(a.code,b.code)||a.validFrom.localeCompare(b.validFrom));
+ const agreements=classification.filter(row=>row.kind==='agreements'),sources=[...new Set(items.filter(row=>['concept','auxiliary'].includes(row.kind)&&row.active).map(row=>row.agreementCode))].sort(natural.compare);
+ const filtered=items.filter(row=>['concept','auxiliary'].includes(row.kind)&&row.active&&row.agreementCode===source&&[row.code,row.label,row.validFrom].join(' ').toLowerCase().includes(query.toLowerCase())).sort((a,b)=>natural.compare(a.code,b.code)||a.validFrom.localeCompare(b.validFrom));
  const last=Math.max(0,Math.ceil(filtered.length/PAGE)-1),currentPage=Math.min(page,last),visible=filtered.slice(currentPage*PAGE,(currentPage+1)*PAGE),selected=new Set(selection.map(row=>row.key));
  const clearReview=()=>{setReview(null);setConflicts(null);setConfirmed(false);};
  const plan=()=>salaryCopyPlan(items,selection,targets,classification);

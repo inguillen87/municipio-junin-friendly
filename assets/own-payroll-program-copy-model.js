@@ -1,4 +1,4 @@
-import { ownProgramBootstrap, ownProgramDefinition, ownProgramHistory, ownProgramRuleKey } from './own-payroll-program-model.js';
+import { ownProgramBootstrap, ownProgramDefinition, ownProgramHistory, ownProgramRuleKey, ownProgramNamespaced } from './own-payroll-program-model.js';
 import { salaryExact, salarySerialized } from './native-salary-catalog-model.js';
 import { expressionChildren } from './own-payroll-program-workspace-model.js';
 import { OWN_PAYROLL_LIMITS } from './own-payroll-engine.js';
@@ -32,7 +32,7 @@ function prepareCopy(bootstrap,draft,intent,multiple) {
     || !intent.targets.every(v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v)) || new Set(intent.targets).size !== intent.targets.length
     || !month(intent.validFrom) || !(intent.validUntil === null || month(intent.validUntil) && intent.validUntil >= intent.validFrom)
     || !reference(intent.ruleReference) || !['add', 'replace'].includes(intent.mode)) fail('Elegí una regla, convenios distintos, vigencia, respaldo y tratamiento del historial explícitos.');
-  const selected=sourceKeys.map(key=>base.rules.find(r=>ownProgramRuleKey(r)===key));
+  const selected=sourceKeys.map(key=>base.rules.find(r=>ownProgramRuleKey(r,base.namespaceVersion)===key));
   if(selected.some(r=>!r)) fail('Una regla de origen cambió. Revisá de nuevo el programa completo.');
   if(selected.some(r=>intent.targets.includes(r.agreementCode))) fail('Un convenio de origen no puede ser también un destino.');
   if(base.rules.length+selected.length*intent.targets.length>OWN_PAYROLL_LIMITS.rules)
@@ -46,6 +46,7 @@ function prepareCopy(bootstrap,draft,intent,multiple) {
     for(const target of [...intent.targets].sort()) {
       try {
         const overlapping = candidate.rules.filter(r => r.agreementCode === target && r.code === source.code
+          && (!ownProgramNamespaced(base) || (r.nature === 'auxiliary') === (source.nature === 'auxiliary'))
           && r.validFrom <= (intent.validUntil ?? '9999-12') && (r.validUntil ?? '9999-12') >= intent.validFrom
           && r.liquidationTypes.some(t => source.liquidationTypes.includes(t)));
         if(intent.mode === 'add' && overlapping.length) fail('Ya existe una regla en esa vigencia y tipo. Elegí cerrar la anterior o revisá las fechas.');

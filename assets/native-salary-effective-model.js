@@ -2,7 +2,7 @@ import {SalaryInputError,salaryDiff,salaryItems,salaryRowKey} from './native-sal
 import {salaryBulkSelection} from './native-salary-bulk-model.js';
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('EFFECTIVE_INPUT_INVALID',message);};
 const month=value=>typeof value==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(value);
-const description=row=>`${row.kind==='scale'?'Escala':'Concepto'} ${row.code} · convenio ${row.agreementCode} · desde ${row.validFrom}`;
+const description=row=>`${row.kind==='scale'?'Escala':row.kind==='auxiliary'?'Auxiliar':'Concepto'} ${row.code} · convenio ${row.agreementCode} · desde ${row.validFrom}`;
 
 // Split declared monthly intervals and relink definition metadata only.
 // Values, units and rules of dependent definitions are copied unchanged;

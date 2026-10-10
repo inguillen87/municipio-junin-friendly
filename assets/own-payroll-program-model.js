@@ -1,11 +1,13 @@
 import { salaryItems, salaryExact, salaryHash, salaryUuid, salaryKey, salarySerialized } from './native-salary-catalog-model.js';
-import { validateOwnPayrollRulePeriods } from './own-payroll-engine.js';
+import { validateOwnPayrollRulePeriods, OWN_PAYROLL_NAMESPACE_VERSION, ownPayrollRuleIdentity } from './own-payroll-engine.js';
 import { payrollRequire as require } from './own-payroll-exact.js';
 export const OWN_PROGRAM_VERSION = 'own-payroll-program.v1';
 export const OWN_PROGRAM_MAX_BYTES = 4 * 1024 * 1024;
 const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
-export const ownProgramRuleKey = r => [r.agreementCode, r.code, r.validFrom, r.liquidationTypes.join(',')].join(':');
+export const ownProgramRuleKey = (r, namespaceVersion = null) => [r.agreementCode, ownPayrollRuleIdentity(r, namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION), r.validFrom, r.liquidationTypes.join(',')].join(':');
+export const ownProgramNamespaced = p => p?.namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION;
+export const ownProgramFields = p => [...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), 'rules', 'bindings', 'totalsPrecision'];
 const bindingKey = b => b.agreementCode + ':' + b.key;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function inputNodes(n) { if (n.op === 'input') return [n]; return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
@@ -19,36 +21,38 @@ function coverage(rows, rule, predicate) {
   return false;
 }
 export function ownProgramStructure(raw) {
-  require(salaryExact(raw, ['rules', 'bindings', 'totalsPrecision']), 'PROGRAM_INVALID', 'El programa debe declarar reglas, entradas y precisión de totales.');
-  const rules = validateOwnPayrollRulePeriods(raw.rules);
+  require(salaryExact(raw, ownProgramFields(raw)), 'PROGRAM_INVALID', 'El programa debe declarar reglas, entradas, precisión y, cuando corresponda, referencias separadas de auxiliares.');
+  const namespaced = ownProgramNamespaced(raw), rules = validateOwnPayrollRulePeriods(raw.rules, { namespaced });
   require(Number.isInteger(raw.totalsPrecision) && raw.totalsPrecision >= 0 && raw.totalsPrecision <= 8 && Array.isArray(raw.bindings) && raw.bindings.length <= 1000, 'PROGRAM_INVALID', 'Revisá la precisión de totales y las entradas del programa.');
   const bindings = raw.bindings.map(b => {
     const fields = ['agreementCode', 'key', 'unit', 'sourceKind', 'sourceCode', 'onMissing', 'combine', 'ruleReference'];
     if (b?.sourceKind === 'scale_reference') fields.push('sourceAgreementCode', 'sourceCategoryCode');
-    require(salaryExact(b, fields) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && ['money', 'hours', 'minutes', 'percent', 'units', 'coefficient'].includes(b.unit) && ['parameter', 'scale', 'scale_reference', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && code(b.sourceCode) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180) && (b.sourceKind !== 'scale_reference' || code(b.sourceAgreementCode) && code(b.sourceCategoryCode)), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos. La escala de referencia necesita su convenio y clase.');
-    require(!['parameter', 'scale', 'scale_reference'].includes(b.sourceKind) || b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'Un parámetro o escala debe ser único e informado; no se suma ni se supone cero.');
+    require(salaryExact(b, fields) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && ['money', 'hours', 'minutes', 'percent', 'units', 'coefficient'].includes(b.unit) && [...(namespaced ? ['auxiliary_parameter'] : []), 'parameter', 'scale', 'scale_reference', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && code(b.sourceCode) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180) && (b.sourceKind !== 'scale_reference' || code(b.sourceAgreementCode) && code(b.sourceCategoryCode)), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos. La escala de referencia necesita su convenio y clase.');
+    require(!['parameter', 'auxiliary_parameter', 'scale', 'scale_reference'].includes(b.sourceKind) || b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'Un parámetro o escala debe ser único e informado; no se suma ni se supone cero.');
     require(!['scale', 'scale_reference', 'monthly_amount', 'fixed_amount'].includes(b.sourceKind) || b.unit === 'money', 'BINDING_INVALID', 'Los importes y escalas se expresan en dinero.'); return { ...b };
   }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.key, b.key));
   require(new Set(bindings.map(bindingKey)).size === bindings.length, 'BINDING_DUPLICATE', 'Hay entradas repetidas en un convenio.');
-  return { rules, bindings, totalsPrecision: raw.totalsPrecision };
+  return { ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), rules, bindings, totalsPrecision: raw.totalsPrecision };
 }
 export function ownProgramDefinition(raw, catalogItems) {
-  const { rules, bindings, totalsPrecision } = ownProgramStructure(raw), catalog = salaryItems(catalogItems);
+  const program = ownProgramStructure(raw), { rules, bindings } = program, namespaced = ownProgramNamespaced(program), catalog = salaryItems(catalogItems);
   const byBinding = new Map(bindings.map(b => [bindingKey(b), b])), used = new Set();
   for (const r of rules) {
-    require(coverage(catalog, r, d => d.active && d.kind === 'concept' && d.agreementCode === r.agreementCode && d.code === r.code && d.nature === r.nature && (r.nature !== 'auxiliary' || d.unit === r.unit)), 'DEFINITION_MISSING', 'Una regla no tiene definición aprobada compatible durante toda su vigencia.');
+    require(coverage(catalog, r, d => d.active && d.kind === (namespaced && r.nature === 'auxiliary' ? 'auxiliary' : 'concept') && d.agreementCode === r.agreementCode && d.code === r.code && d.nature === r.nature && (r.nature !== 'auxiliary' || d.unit === r.unit)), 'DEFINITION_MISSING', 'Una regla no tiene definición aprobada compatible durante toda su vigencia. Conceptos y auxiliares nuevos se revisan por separado.');
     for (const n of inputNodes(r.expression)) {
       const id = r.agreementCode + ':' + n.key, b = byBinding.get(id); used.add(id);
       require(b && b.unit === n.unit, 'BINDING_MISSING', 'Falta una entrada con unidad compatible para la regla.');
-      require(coverage(catalog, r, d => d.active && d.agreementCode === (b.sourceKind === 'scale_reference' ? b.sourceAgreementCode : b.agreementCode) && d.code === b.sourceCode && d.kind === (['scale', 'scale_reference'].includes(b.sourceKind) ? 'scale' : 'concept') && (b.sourceKind !== 'scale_reference' || d.categoryCode === b.sourceCategoryCode) && (['monthly_amount', 'fixed_amount', 'scale', 'scale_reference'].includes(b.sourceKind) || d.unit === b.unit) && (b.sourceKind !== 'parameter' || d.value !== null)), 'SOURCE_DEFINITION_MISSING', 'La fuente declarada no cubre toda la vigencia o tiene un valor ausente.');
+      require(coverage(catalog, r, d => d.active && d.agreementCode === (b.sourceKind === 'scale_reference' ? b.sourceAgreementCode : b.agreementCode) && d.code === b.sourceCode && d.kind === (['scale', 'scale_reference'].includes(b.sourceKind) ? 'scale' : b.sourceKind === 'auxiliary_parameter' ? 'auxiliary' : 'concept') && (!namespaced || d.kind !== 'concept' || d.nature !== 'auxiliary') && (b.sourceKind !== 'scale_reference' || d.categoryCode === b.sourceCategoryCode) && (['monthly_amount', 'fixed_amount', 'scale', 'scale_reference'].includes(b.sourceKind) || d.unit === b.unit) && (!['parameter', 'auxiliary_parameter'].includes(b.sourceKind) || d.value !== null)), 'SOURCE_DEFINITION_MISSING', 'La fuente declarada no cubre toda la vigencia o tiene un valor ausente.');
     }
   }
   require(bindings.every(b => used.has(bindingKey(b))), 'BINDING_UNUSED', 'Hay una entrada sin uso que debe revisarse, no descartarse.');
-  return { rules, bindings, totalsPrecision };
+  return program;
 }
 export function ownProgramHistory(before, after) {
-  if (!before) return; const keys = new Set(after.rules.map(ownProgramRuleKey));
-  require(before.rules.every(r => keys.has(ownProgramRuleKey(r))), 'PROGRAM_HISTORY_REQUIRED', 'Conservá las reglas anteriores; cerrá su vigencia en lugar de retirarlas.');
+  if (!before) return;
+  require(!ownProgramNamespaced(before) || ownProgramNamespaced(after), 'PROGRAM_HISTORY_REQUIRED', 'Un programa con auxiliares separados no puede volver a referencias ambiguas.');
+  const version = after.namespaceVersion, keys = new Set(after.rules.map(r => ownProgramRuleKey(r, version)));
+  require(before.rules.every(r => keys.has(ownProgramRuleKey(r, version))), 'PROGRAM_HISTORY_REQUIRED', 'Conservá las reglas anteriores; cerrá su vigencia en lugar de retirarlas.');
 }
 export function ownProgramCommand(raw, catalogItems = null) {
   require(salaryExact(raw, ['command', 'scopeVersion', 'baseVersion', 'salaryVersion', 'proposalId', 'proposalSha256', 'program', 'reason', 'reviewConfirmed']) && ['propose', 'approve', 'reject'].includes(raw.command) && [raw.scopeVersion, raw.baseVersion, raw.salaryVersion].every(salaryHash) && text(raw.reason, 10, 1000) && typeof raw.reviewConfirmed === 'boolean', 'PROGRAM_INVALID', 'Revisá operación, versiones y fundamento del programa.');
@@ -57,7 +61,7 @@ export function ownProgramCommand(raw, catalogItems = null) {
     // Structural checks precede the authoritative catalog read. Linking happens
     // again against the exact approved catalog returned by the SQL facade.
     const program = catalogItems ? ownProgramDefinition(raw.program, catalogItems) : ownProgramStructure(raw.program);
-    require(salaryExact(program, ['rules', 'bindings', 'totalsPrecision']), 'PROGRAM_INVALID', 'El programa tiene campos omitidos o no admitidos.'); return { ...raw, program };
+    require(salaryExact(program, ownProgramFields(program)), 'PROGRAM_INVALID', 'El programa tiene campos omitidos o no admitidos.'); return { ...raw, program };
   }
   require(salaryUuid(raw.proposalId) && salaryHash(raw.proposalSha256) && raw.program === null && raw.reviewConfirmed === true, 'PROGRAM_INVALID', 'Revisá la propuesta completa y confirmá la decisión.'); return { ...raw };
 }

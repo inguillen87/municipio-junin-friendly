@@ -42,6 +42,7 @@ export function ownRunWorkspaceResult(capture) {
   ownRunCapture(capture);
   const saved=capture.saved;if(!saved)return null;
   const {input,result}=saved, people=new Map(input.employees.map(e=>[e.contractId,e]));
+  if(input.version!==(capture.payload.programState.program.definition.namespaceVersion==='own-payroll-namespaces.v2'?'own-payroll-input.v2':'own-payroll-input.v1'))fail('La versión de referencias no corresponde al programa original.');
   const expected=input.employees.filter(e=>input.selection.kind==='all'||input.selection.values.includes(input.selection.kind==='contracts'?e.contractId:input.selection.kind==='agreements'?e.agreementCode:e.departmentCode));
   const expectedIds=new Set(expected.map(e=>e.contractId)), totalIds=new Set(), rowKeys=new Set();
   if(result.employeeCount!==expected.length || !Number.isFinite(Date.parse(saved.recordedAt))) fail('El resultado no contiene el alcance completo.');
@@ -51,8 +52,8 @@ export function ownRunWorkspaceResult(capture) {
     for(const key of ['remuneration','non_remuneration','deduction','employer_contribution','gross','net'])formatOwnRunDecimal(t[key]);
   }
   for(const r of result.rows){
-    const employee=people.get(r.contractId), key=r.contractId+':'+r.conceptCode;
-    const rule=input.rules.find(rule=>rule.code===r.conceptCode&&rule.agreementCode===r.agreementCode&&rule.validFrom<=input.period&&(rule.validUntil===null||rule.validUntil>=input.period)&&rule.liquidationTypes.includes(input.liquidationType));
+    const employee=people.get(r.contractId), namespaced=input.version==='own-payroll-input.v2', key=r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+    const rule=input.rules.find(rule=>rule.code===r.conceptCode&&(!namespaced||(rule.nature==='auxiliary')===(r.nature==='auxiliary'))&&rule.agreementCode===r.agreementCode&&rule.validFrom<=input.period&&(rule.validUntil===null||rule.validUntil>=input.period)&&rule.liquidationTypes.includes(input.liquidationType));
     if(!employee||!expectedIds.has(r.contractId)||rowKeys.has(key)||r.employeeNumber!==employee.employeeNumber||r.departmentCode!==employee.departmentCode
       ||r.agreementCode!==employee.agreementCode||!rule||r.nature!==rule.nature||r.unit!==rule.unit||r.ruleReference!==rule.ruleReference
       ||salarySerialized(r.rounding)!==salarySerialized(rule.rounding))fail('Hay un concepto sin correspondencia con las fuentes guardadas.');

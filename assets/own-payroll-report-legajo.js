@@ -11,10 +11,10 @@ const totals=[['remuneration','Remunerativo'],['non_remuneration','No remunerati
 export function ownLegajoReportRows(bundle,selected,maximum=250000){
  const originals=ownReportVariableSources(bundle,bundle.captures,maximum),catalogs=new Map(),concepts=new Map();
  for(const [id,{capture,rows,people}]of originals.runs){
-  const catalog=new Map(),period=capture.body.period;
+  const catalog=new Map(),period=capture.body.period,namespaced=capture.saved.input.version==='own-payroll-input.v2';
   for(const d of capture.payload.programState.salaryCatalog.items){
-   if(d.kind!=='concept'||!d.active||d.validFrom>period||d.validUntil!==null&&d.validUntil<period)continue;
-   const key=salarySerialized([d.agreementCode,d.code]);
+   if(!['concept',...(namespaced?['auxiliary']:[])].includes(d.kind)||namespaced&&d.kind==='concept'&&d.nature==='auxiliary'||!d.active||d.validFrom>period||d.validUntil!==null&&d.validUntil<period)continue;
+   const key=salarySerialized([d.agreementCode,d.code,...(namespaced?[d.kind]:[])]);
    need(!catalog.has(key),'Hay dos descripciones vigentes de un concepto en la captura original.');catalog.set(key,d);
   }
   // Validate the entire captured census before applying display or selection
@@ -22,7 +22,7 @@ export function ownLegajoReportRows(bundle,selected,maximum=250000){
   for(const [contractId,items]of rows){
    const person=people.get(contractId);
    for(const r of items){
-    const d=catalog.get(salarySerialized([person.agreementCode,r.conceptCode]));
+    const d=catalog.get(salarySerialized([person.agreementCode,r.conceptCode,...(namespaced?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
     need(d&&d.nature===r.nature,'Falta la descripción y naturaleza originales de un concepto. No se usó el catálogo actual.');
    }
   }
@@ -34,7 +34,7 @@ export function ownLegajoReportRows(bundle,selected,maximum=250000){
   const period=item.period+' / '+OWN_RUN_TYPES[item.type],context=e.employeeNumber+' / '+e.agreementCode+' / '+e.departmentCode;
   const version=String(e.liquidationVersion)+' / '+(capture.body.liquidationDate??'Fecha no declarada');
   for(const r of concepts.get(e.runId).get(e.contractId)){
-   const d=catalogs.get(e.runId).get(salarySerialized([e.agreementCode,r.conceptCode]));
+   const d=catalogs.get(e.runId).get(salarySerialized([e.agreementCode,r.conceptCode,...(capture.saved.input.version==='own-payroll-input.v2'?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
    need(d&&d.nature===r.nature,'Falta la descripción y naturaleza originales de un concepto. No se usó el catálogo actual.');
    const row=[period,context,r.conceptCode+' / '+d.label+' / '+OWN_RUN_NATURES[r.nature]+' / '+OWN_VARIABLE_UNITS[r.unit],'','','','','',version];
    row[buckets[r.nature]]=r.amount;result.push(row);
