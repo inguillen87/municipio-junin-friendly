@@ -4,7 +4,8 @@ import {verifiedImputation} from './own-payroll-imputation-model.js';
 import {ownRunWorkspaceAccess,OWN_RUN_NOMINAL,OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 
 export const IMPUTATION_VERSION='own-payroll-imputation.v1';
-export const IMPUTATION_READ=Object.freeze([...OWN_RUN_NOMINAL,'payroll.calculation.approve']);
+// Reading closed accounting sources does not confirm or annul a liquidation.
+export const IMPUTATION_READ=Object.freeze([...OWN_RUN_NOMINAL]);
 export const IMPUTATION_CAPS=Object.freeze({propose:['payroll.parameter.prepare'],approve:['payroll.parameter.approve'],reject:['payroll.parameter.approve']});
 export const IMPUTATION_MAX_BYTES=32768;
 export const imputationAccess=ownRunWorkspaceAccess;

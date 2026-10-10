@@ -1,10 +1,10 @@
 name: Own payroll documentary reconciliation
 on:
   pull_request:
-    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
+    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/154-*', 'scripts/*accounting-preparation*', 'scripts/lib/accounting-preparation-access.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'assets/own-payroll-imputation-workspace-model.js', 'tests/accounting-preparation*', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
+    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/154-*', 'scripts/*accounting-preparation*', 'scripts/lib/accounting-preparation-access.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'assets/own-payroll-imputation-workspace-model.js', 'tests/accounting-preparation*', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
 permissions:
   contents: read
 concurrency:
@@ -55,6 +55,14 @@ jobs:
         env:
           PGPASSWORD: synthetic_ci_only
         run: node scripts/verify-own-payroll-reconciliation-ui.mjs --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/reconciliation-ci-ui-pg${{ matrix.pg }}.json
+      - name: Preparation and review profiles without salary approval; forward correction and conservation
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-accounting-preparation-access.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/reconciliation-ci-preparation-access-pg${{ matrix.pg }}.json
+      - name: Full built browser circuit with separate preparation and review profiles
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-reconciliation-ui.mjs --built --preparation-access --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/reconciliation-ci-preparation-ui-pg${{ matrix.pg }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
