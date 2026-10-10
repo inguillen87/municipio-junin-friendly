@@ -1,0 +1,59 @@
+name: Own payroll profile access
+on:
+  pull_request:
+    paths: ['contracts/own-payroll-profile-capabilities.v1.json', 'scripts/migrations/155-*', 'scripts/*own-payroll-profile*', 'scripts/lib/own-payroll-profile*', 'tests/own-payroll-profile*', '.vercelignore', '.github/workflows/own-payroll-profile-access.yml']
+  push:
+    branches: ['master']
+    paths: ['contracts/own-payroll-profile-capabilities.v1.json', 'scripts/migrations/155-*', 'scripts/*own-payroll-profile*', 'scripts/lib/own-payroll-profile*', 'tests/own-payroll-profile*', '.vercelignore', '.github/workflows/own-payroll-profile-access.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-payroll-profile-access-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  profiles:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated synthetic database and restricted runtime
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          mkdir -p verification
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Exact profile matrix, rollback, conservation, durable repeat and actual IAM
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-profile-capabilities.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/profile-ci-sql-pg${{ matrix.pg }}.json
+      - name: Built accounting panels with actual profile grants and revoked nominal read
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-profile-ui.mjs --built --major=${{ matrix.pg }} --psql=psql --output=verification/profile-ci-ui-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-payroll-profile-access-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/profile-ci*
+          retention-days: 5
