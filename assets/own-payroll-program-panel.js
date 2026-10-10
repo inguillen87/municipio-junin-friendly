@@ -293,7 +293,7 @@ export function mountOwnPayrollProgram(container){
  $('precision').addEventListener('change',()=>{if(draft&&!attempt){draft.totalsPrecision=$('precision').value===''?null:Number($('precision').value);invalidate();}});
  for(const key of ['reason','decision-reason','decision'])$(key).addEventListener(key==='decision'?'change':'input',invalidate);
  $('proposal-select').addEventListener('change',()=>{invalidate();$('decision').value='';$('decision-reason').value='';renderProposal();});$('confirm').addEventListener('change',controls);
- $('pending-link').addEventListener('click',()=>{if(busy||attempt||!can(PROGRAM_READ))return;tab='review';$('form').hidden=true;$('proposals').hidden=false;renderProposal();$('proposal-select').focus();});
+ $('pending-link').addEventListener('click',()=>{if(busy||attempt||!can(PROGRAM_READ))return;tab='review';$('form').hidden=true;$('proposals').hidden=false;const selected=boot.proposals.find(p=>p.id===$('proposal-select').value);if(selected?.status!=='pending')$('proposal-select').value=boot.proposals.find(p=>p.status==='pending')?.id??'';renderProposal();$('proposal-select').focus();});
  $('form').addEventListener('submit',e=>e.preventDefault());$('refresh').addEventListener('click',refresh);$('send').addEventListener('click',send);$('recover').addEventListener('click',recover);
  $('new').addEventListener('click',()=>{if(!receipt||busy)return;attempt=null;clearViews();refresh();});
  $('revise').addEventListener('click',()=>{if(!notFound||busy)return;const previous=attempt.body;attempt=null;clearViews();if(previous.command==='propose'){draft=clone(previous.program);$('reason').value=previous.reason;}refresh();});

@@ -54,7 +54,7 @@ try{
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const panel=page.locator('.own-program'),$=key=>panel.locator('[data-program-'+key+']');
  const preparationDisabled=async()=>await $('fields').getAttribute('disabled')!==null&&await $('add-rule').isDisabled()&&await $('add-binding').isDisabled();
- async function load(value){boot=value;denied=false;malformed=false;await page.goto(origin+'/nomina?case='+checks.length+'#reglas');await $('content').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');}
+ async function load(value){boot=value;denied=false;malformed=false;await page.goto(origin+'/nomina?case='+checks.length+'#reglas');await $('content').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');await page.waitForFunction(()=>document.querySelector('link[data-own-program-style]')?.sheet&&getComputedStyle(document.querySelector('[data-program-catalog-link]')).minHeight==='44px');}
  async function refresh(){await $('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');}
  await load(bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}}));
  check(await $('guidance-title').innerText()==='Primero: aprobar el maestro salarial propio','initial prerequisite identifies the missing approval');
@@ -79,9 +79,10 @@ try{
  await load(bootstrap({program:approved()}));
  check(await $('guidance-title').innerText()==='Programa y maestro vinculados','same-version status stops short of payroll eligibility');
  const proposals=Array.from({length:71},(_,i)=>proposal(i));proposals[70].salaryVersion=hash('f');
- await load(bootstrap({proposals,permissions:{canPropose:true,canReview:true}}));
+ const decided={...proposal(72),status:'approved',canReview:false,decision:{command:'approve',reason:'Decisión sintética completa QA',actorLabel:'Otra persona QA',recordedAt:'2026-10-10T13:00:00Z',revision:1}};
+ await load(bootstrap({proposals:[decided,...proposals],permissions:{canPropose:true,canReview:true}}));
  check((await $('pending-summary').innerText()).includes('71 propuestas pendientes')&&(await $('pending-summary').innerText()).includes('69 compatibles'),'all proposals counted with independence and versions');
- await $('pending-link').click();check(await $('proposals').isVisible()&&await $('proposal-select').locator('option').count()===71,'shortcut opens complete existing review');
+ await $('pending-link').click();check(await $('proposals').isVisible()&&await $('proposal-select').locator('option').count()===72&&await $('proposal-select').inputValue()===proposals[0].id,'shortcut opens a pending proposal and keeps complete decision history');
  await page.getByRole('tab',{name:'Resumen',exact:true}).click();check(await $('content').isHidden(),'changing task withdraws the verified guidance');
  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await $('content').waitFor({state:'visible'});
  // A held read cannot restore the view after revocation.

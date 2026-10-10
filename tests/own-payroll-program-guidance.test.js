@@ -27,7 +27,8 @@ test('misma versión describe sólo el vínculo, sin afirmar elegibilidad ni ace
 });
 test('cuenta todas las pendientes y distingue autoaprobación, base y catálogo obsoletos',()=>{
  const proposals=Array.from({length:71},(_,i)=>pending(i));proposals[3].canReview=false;proposals[50].baseVersion=hash('e');proposals[70].salaryVersion=hash('f');
- const boot=bootstrap({proposals,permissions:{canPropose:true,canReview:true}}),v=programWorkspaceGuidance(boot);
+ const decided=pending(72,{status:'rejected',canReview:false,decision:{command:'reject',reason:'Rechazo sintético completo QA',actorLabel:'Otra persona QA',recordedAt:'2026-10-10T13:00:00Z',revision:0}});
+ const boot=bootstrap({proposals:[decided,...proposals],permissions:{canPropose:true,canReview:true}}),v=programWorkspaceGuidance(boot);
  assert.equal(v.pendingCount,71);assert.equal(v.reviewableCount,68);boot.permissions.canReview=false;assert.equal(programWorkspaceGuidance(boot).reviewableCount,0);
 });
 test('una respuesta incompleta o inválida no produce orientación ni cantidades supuestas',()=>{
