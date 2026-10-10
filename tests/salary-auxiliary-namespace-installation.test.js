@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {buildSalaryAuxiliaryNamespaceInstallation} from '../scripts/lib/salary-auxiliary-namespace-installation.mjs';
+import {NOELIA_CI_PASSWORD} from '../scripts/lib/noelia-circuit-runtime.mjs';
 const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const build=()=>buildSalaryAuxiliaryNamespaceInstallation({read,sourceCommit:'c'.repeat(40)});
 
@@ -33,4 +34,10 @@ test('installation enforces repeatable read, exact repeat validation and fail-cl
  assert.match(b.statements[1],/ELSE EXECUTE/);assert.match(b.afterCheck,/AUXILIARY_NAMESPACE_FUNCTION_CHANGED/);assert.match(b.proof,/'newTables',0/);assert.match(b.proof,/'businessWrites',0/);
  assert.throws(()=>buildSalaryAuxiliaryNamespaceInstallation({read:f=>read(f)+'\n-- drift',sourceCommit:'c'.repeat(40)}));
  assert.throws(()=>buildSalaryAuxiliaryNamespaceInstallation({read,sourceCommit:'not-a-commit'}));
+});
+test('CI service and prerequisite steps match the existing fixed synthetic runtime destination',()=>{
+ const workflow=read('.github/workflows/salary-auxiliary-namespace.yml');
+ assert.equal(workflow.match(/(?:POSTGRES_PASSWORD|PGPASSWORD): ([^\r\n]+)/g).length,3);
+ for(const match of workflow.matchAll(/(?:POSTGRES_PASSWORD|PGPASSWORD): ([^\r\n]+)/g))assert.equal(match[1],NOELIA_CI_PASSWORD);
+ assert.match(workflow,/--transport=ci/);assert.match(workflow,/--browser=chromium/);assert.match(workflow,/NOLOGIN NOSUPERUSER NOBYPASSRLS/);
 });

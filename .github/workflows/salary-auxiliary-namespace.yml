@@ -22,11 +22,11 @@ jobs:
       postgres:
         image: postgres:${{ matrix.pg }}
         env:
-          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
           POSTGRES_DB: own_payroll_run_qa
         ports: ['554${{ matrix.pg }}:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,11 +40,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Prepare disposable PostgreSQL with the original runtime restrictions
         env:
-          PGPASSWORD: synthetic_ci_only
+          PGPASSWORD: noelia-circuit-synthetic-qa
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
       - name: Actual approval, calculation, close, receipts, history and mobile UI
         env:
-          PGPASSWORD: synthetic_ci_only
+          PGPASSWORD: noelia-circuit-synthetic-qa
         run: node scripts/verify-salary-auxiliary-namespace.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-auxiliary-namespace-pg${{ matrix.pg }}
       - uses: actions/upload-artifact@v4
         if: always()
