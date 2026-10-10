@@ -20,7 +20,7 @@ const session={email:principal.user.email,id:uid(3),version:2,releaseSha:'d'.rep
 const approved=()=>({version:hash('b'),revision:1,definition:exactProgram(),salaryVersion:hash('c'),proposalId:uid(80),approvalId:uid(81)});
 const proposal=i=>({id:uid(100+i),requestSha256:hash('d'),baseVersion:hash('b'),salaryVersion:hash('c'),salaryItems:definitions(),baseDefinition:null,definition:exactProgram(),reason:'Propuesta sintética completa QA',createdAt:'2026-10-10T12:00:00Z',authorLabel:'Operador sintético QA',canReview:i!==1,status:'pending',decision:null});
 let boot=bootstrap(),denied=false,malformed=false,held=null,holdReady=null,hold=false,lose=false,receipt=null,posts=0,reads=0;
-const writes=[],errors=[],checks=[];
+const writes=[],errors=[],checks=[],layoutMeasurements=[];
 const sha=v=>createHash('sha256').update(salarySerialized(v)).digest('hex');
 const handler=createOwnProgramHandler({env:{INTERNAL_APP_ORIGIN:origin},requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{
  if(query.includes('bootstrap')){reads++;return[{result:boot}];}
@@ -62,8 +62,19 @@ try{
  check(await $('preparation-access').innerText()!=='','preparation authority is explained separately');
  for(const width of [1440,390,320]){
   await page.setViewportSize({width,height:900});
+  // The enclosing task enters with a translation. Measure its final layout,
+  // including loaded fonts, without disabling motion or lowering the target.
+  await page.evaluate(async()=>{
+   await document.fonts.ready;
+   const target=document.querySelector('[data-program-catalog-link]');
+   const ancestors=new Set();for(let el=target;el;el=el.parentElement)ancestors.add(el);
+   await Promise.all(document.getAnimations().filter(a=>ancestors.has(a.effect?.target)).map(a=>a.finished.catch(()=>{})));
+   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  });
+  const target=await $('catalog-link').evaluate(e=>({height:e.getBoundingClientRect().height,minHeight:getComputedStyle(e).minHeight}));
+  layoutMeasurements.push({width,...target});
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'page fits '+width);
-  check(await $('catalog-link').evaluate(e=>e.getBoundingClientRect().height>=44),'action target accessible at '+width);
+  check(target.height>=44&&parseFloat(target.minHeight)>=44,'action target accessible at '+width);
   await page.screenshot({path:output.replace(/\.json$/,'')+'-'+width+'.png',fullPage:true});
  }
  await $('catalog-link').focus();await page.keyboard.press('Enter');
@@ -101,6 +112,6 @@ try{
  await $('recover').click();await $('receipt').waitFor({state:'visible'});check(writes.length===1&&JSON.stringify(writes[0])===JSON.stringify(original),'receipt recovery keeps original body and key');
  check(await page.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'no private browser storage');
  check(errors.length===0,'no page errors');
- report={passed:true,checks:checks.length,labels:checks,builtProductPage:true,realReadHandler:true,sqlResponsesSynthetic:true,posts,reads,productiveWrites:0,externalRequests:0,mobileWidths:[390,320],acceptanceCertified:false};
-}catch(e){process.exitCode=1;report={passed:false,message:e.message,checks:checks.length,labels:checks,errors,posts};if(page)await page.screenshot({path:output.replace(/\.json$/,'')+'-failure.png',fullPage:true}).catch(()=>{});}
+ report={passed:true,checks:checks.length,labels:checks,layoutMeasurements,builtProductPage:true,realReadHandler:true,sqlResponsesSynthetic:true,posts,reads,productiveWrites:0,externalRequests:0,mobileWidths:[390,320],acceptanceCertified:false};
+}catch(e){process.exitCode=1;report={passed:false,message:e.message,checks:checks.length,labels:checks,layoutMeasurements,errors,posts};if(page)await page.screenshot({path:output.replace(/\.json$/,'')+'-failure.png',fullPage:true}).catch(()=>{});}
 finally{held?.();await browser?.close();fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));}
