@@ -5,14 +5,16 @@ import {decimal,exactEvidence} from './own-payroll-exact.js';
 
 const need=(v,message)=>{if(!v)throw Error(message);};
 export const OWN_VARIABLE_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
-const origins={parameter:'Parámetro',scale:'Escala',scale_reference:'Escala de referencia',monthly_quantity:'Cantidad mensual',monthly_amount:'Importe mensual',fixed_quantity:'Cantidad fija',fixed_amount:'Importe fijo'};
-const operations=new Set(['literal','input','concept','round','convert','choose','compare','add','subtract','multiply','divide','min','max']);
+const origins={parameter:'Parámetro',auxiliary_parameter:'Parámetro auxiliar',scale:'Escala',scale_reference:'Escala de referencia',monthly_quantity:'Cantidad mensual',monthly_amount:'Importe mensual',fixed_quantity:'Cantidad fija',fixed_amount:'Importe fijo'};
+const operations=new Set(['literal','input','concept','auxiliary','round','convert','choose','compare','add','subtract','multiply','divide','min','max']);
 const same=(a,b)=>salarySerialized(a)===salarySerialized(b);
 
 // Executed references include only the branch actually evaluated. A static
 // dependency or a supplied input is not proof that a concept used the input.
-function usage(rows,inputs){
- const concepts=new Map(rows.map(r=>[r.conceptCode,r])),direct=new Map(),links=new Map(),memo=new Map(),visiting=new Set();
+function usage(rows,inputs,namespaced){
+ const rowKey=r=>(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+ const concepts=new Map(rows.map(r=>[rowKey(r),r])),direct=new Map(),links=new Map(),memo=new Map(),visiting=new Set();
+ need(concepts.size===rows.length,'Hay conceptos o auxiliares repetidos en la captura original.');
  for(const row of rows){
   need(Array.isArray(row.trace)&&row.trace.length>0&&row.trace.length<=256,'Falta la traza original completa de un concepto.');
   const keys=new Set(),references=new Set();
@@ -21,12 +23,13 @@ function usage(rows,inputs){
    if(t.operation==='input'){
     const input=inputs.get(t.reference);
     need(input&&input.value!==null&&t.stage===null&&same(t.result,exactEvidence(decimal(input.value))),'Una variable usada no coincide con su valor original.');keys.add(t.reference);
-   }else if(t.operation==='concept'){
+   }else if(t.operation==='concept'||namespaced&&t.operation==='auxiliary'){
+    need(!namespaced||typeof t.reference==='string'&&t.reference.startsWith(t.operation+':'),'La traza mezcla referencias de concepto y auxiliar.');
     const referenced=concepts.get(t.reference);
     need(referenced&&['exact','rounded'].includes(t.stage)&&same(t.result,t.stage==='exact'?referenced.exactValue:exactEvidence(decimal(referenced.amount))),'Falta un concepto original referenciado por la traza.');references.add(t.reference);
    }else need(t.reference===null&&t.stage===null,'La traza contiene una referencia ambigua.');
   }
-  need(same(row.trace.at(-1).result,row.exactValue),'La traza no corresponde al resultado original del concepto.');direct.set(row.conceptCode,keys);links.set(row.conceptCode,references);
+  need(same(row.trace.at(-1).result,row.exactValue),'La traza no corresponde al resultado original del concepto.');direct.set(rowKey(row),keys);links.set(rowKey(row),references);
  }
  const used=code=>{
   if(memo.has(code))return memo.get(code);
@@ -35,7 +38,7 @@ function usage(rows,inputs){
   visiting.delete(code);memo.set(code,keys);return keys;
  };
  for(const code of concepts.keys())used(code);
- return {direct,all:memo};
+ return {direct,all:memo,rowKey};
 }
 
 export function ownReportVariableSources(bundle,captures,maximum=250000){
@@ -55,14 +58,14 @@ export function ownReportVariableSources(bundle,captures,maximum=250000){
   need(saved.input.period===item.period&&saved.input.liquidationType===item.type&&capture.body.period===item.period&&capture.body.liquidationType===item.type&&saved.inputSha256===e.inputSha256&&saved.resultSha256===e.resultSha256&&person&&['employeeNumber','agreementCode','departmentCode'].every(k=>person[k]===e[k])&&saved.input.totalsPrecision===e.precision&&same(run.totals.get(e.contractId),e.totals),'Las variables no corresponden a la liquidación cerrada original.');
   const closed=item.source.snapshot.concepts.filter(r=>r.contractId===e.contractId);
   need(concepts&&same(concepts,closed),'Los conceptos de la captura no coinciden con su cierre original.');
-  const inputs=new Map(person.inputs.map(i=>[i.key,i])),uses=usage(concepts,inputs),variables=[];
+  const inputs=new Map(person.inputs.map(i=>[i.key,i])),namespaced=saved.input.version==='own-payroll-input.v2',uses=usage(concepts,inputs,namespaced),variables=[];
   for(const input of person.inputs){
    const bindings=capture.payload.programState.program.definition.bindings.filter(b=>b.agreementCode===person.agreementCode&&b.key===input.key);
    need(bindings.length===1&&bindings[0].unit===input.unit,'Falta la definición original de una variable capturada.');const binding=bindings[0];
    const category=capture.payload.population.employees.find(p=>p.contractId===e.contractId)?.categoryCode;
-   const descriptions=capture.payload.programState.salaryCatalog.items.filter(d=>d.active&&d.code===binding.sourceCode&&d.agreementCode===(binding.sourceAgreementCode??person.agreementCode)&&d.kind===(['scale','scale_reference'].includes(binding.sourceKind)?'scale':'concept')&&d.validFrom<=item.period&&(d.validUntil===null||d.validUntil>=item.period)&&(!['scale','scale_reference'].includes(binding.sourceKind)||d.categoryCode===(binding.sourceCategoryCode??category)));
+   const descriptions=capture.payload.programState.salaryCatalog.items.filter(d=>d.active&&d.code===binding.sourceCode&&d.agreementCode===(binding.sourceAgreementCode??person.agreementCode)&&d.kind===(['scale','scale_reference'].includes(binding.sourceKind)?'scale':binding.sourceKind==='auxiliary_parameter'?'auxiliary':'concept')&&(!namespaced||d.kind!=='concept'||d.nature!=='auxiliary')&&d.validFrom<=item.period&&(d.validUntil===null||d.validUntil>=item.period)&&(!['scale','scale_reference'].includes(binding.sourceKind)||d.categoryCode===(binding.sourceCategoryCode??category)));
    need(descriptions.length===1,'Falta una descripción única de la fuente original de la variable.');
-   const occurrences=concepts.filter(r=>uses.all.get(r.conceptCode).has(input.key)).map(r=>({concept:r.conceptCode,kind:uses.direct.get(r.conceptCode).has(input.key)?'Uso directo':'Uso por concepto referenciado'}));
+   const occurrences=concepts.filter(r=>uses.all.get(uses.rowKey(r)).has(input.key)).map(r=>({concept:namespaced?(r.nature==='auxiliary'?'Auxiliar ':'Concepto ')+r.conceptCode:r.conceptCode,kind:uses.direct.get(uses.rowKey(r)).has(input.key)?'Uso directo':'Uso por concepto referenciado'}));
    variables.push({input,label:descriptions[0].label,origin:origins[binding.sourceKind]+' '+binding.sourceCode,occurrences});
    variableCount++;rowCount+=Math.max(1,occurrences.length);
   }

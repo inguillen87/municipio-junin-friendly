@@ -4,9 +4,9 @@ import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {requireExactProgramChanges} from './own-payroll-program-precision.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
-export const PROGRAM_SOURCES=Object.freeze({parameter:'Valor del concepto aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
+export const PROGRAM_SOURCES=Object.freeze({parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
-export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
+export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',auxiliary:'Usar un auxiliar calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
 export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq:'Igual',ne:'Distinto',ge:'Mayor o igual',gt:'Mayor que'});
 export const PROGRAM_READ=Object.freeze(['workforce.employee.read','payroll.parameter.read']);
 const require=(v,message)=>{if(!v)throw Error(message);};
@@ -68,7 +68,7 @@ export function changeExpressionOperation(previous,op){
  const leaf=()=>({op:'literal',unit:'',value:''});
  if(op==='input')return {op,unit:previous?.unit??'',key:previous?.key??''};
  if(op==='literal')return {op,unit:previous?.unit??'',value:typeof previous?.value==='string'?previous.value:''};
- if(op==='concept')return {op,code:previous?.code??'',stage:previous?.stage??'exact'};
+ if(['concept','auxiliary'].includes(op))return {op,code:previous?.code??'',stage:previous?.stage??'exact'};
  if(op==='choose')return {op,condition:previous?.condition??{op:'compare',operator:'',left:leaf(),right:leaf()},then:previous?.then??leaf(),else:previous?.else??leaf()};
  if(op==='round')return {op,value:previous?.value&&typeof previous.value==='object'?previous.value:leaf(),rounding:previous?.rounding??{precision:null,mode:'exact'}};
  if(op==='convert')return {op,value:previous?.value&&typeof previous.value==='object'?previous.value:leaf(),unit:previous?.unit??'',factor:previous?.factor??'',conversionReference:previous?.conversionReference??''};
@@ -79,7 +79,7 @@ export function describeProgramExpression(node){
  const show=n=>{
   if(n.op==='input')return `Entrada ${n.key} (${PROGRAM_UNITS[n.unit]??'unidad pendiente'})`;
   if(n.op==='literal')return `${n.value} (${PROGRAM_UNITS[n.unit]??'unidad pendiente'})`;
-  if(n.op==='concept')return `Concepto ${n.code}, ${n.stage==='exact'?'antes':'después'} del redondeo`;
+  if(['concept','auxiliary'].includes(n.op))return `${n.op==='auxiliary'?'Auxiliar':'Concepto'} ${n.code}, ${n.stage==='exact'?'antes':'después'} del redondeo`;
   if(n.op==='round')return `Redondear [${show(n.value)}] a ${n.rounding.precision} decimales, ${PROGRAM_ROUNDING[n.rounding.mode]}`;
   if(n.op==='convert')return `Convertir [${show(n.value)}] a ${PROGRAM_UNITS[n.unit]}, factor ${n.factor}; respaldo: ${n.conversionReference}`;
   if(n.op==='choose')return `Si [${show(n.condition)}], usar [${show(n.then)}]; en otro caso [${show(n.else)}]`;
@@ -88,9 +88,9 @@ export function describeProgramExpression(node){
 }
 export function programWorkspaceChanges(before,after){
  const next=ownProgramStructure(after),prior=before?ownProgramStructure(before):{rules:[],bindings:[],totalsPrecision:null},rows=[];
- for(const [kind,key] of [['rules',ownProgramRuleKey],['bindings',b=>b.agreementCode+':'+b.key]]){
+ for(const [kind,key] of [['rules',r=>ownProgramRuleKey(r,next.namespaceVersion)],['bindings',b=>b.agreementCode+':'+b.key]]){
   const old=new Map(prior[kind].map(v=>[key(v),v])),fresh=new Map(next[kind].map(v=>[key(v),v]));
   for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind,key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
  }
- return {rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},changed:rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)};
+ return {rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},changed:rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
 }

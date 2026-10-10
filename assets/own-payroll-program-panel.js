@@ -1,4 +1,5 @@
-import {ownProgramBootstrap,ownProgramRuleKey,OWN_PROGRAM_MAX_BYTES} from './own-payroll-program-model.js';
+import {ownProgramBootstrap,ownProgramRuleKey,ownProgramNamespaced,OWN_PROGRAM_MAX_BYTES} from './own-payroll-program-model.js';
+import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-payroll-program-copy-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
@@ -19,6 +20,7 @@ export function mountOwnPayrollProgram(container){
  <p data-program-status role="status" aria-live="polite">Abrí Reglas de cálculo para verificar el acceso.</p>
  <div data-program-content hidden><section class="own-program-guidance" data-program-guidance aria-label="Próximo paso para las reglas"><h3 data-program-guidance-title></h3><p data-program-guidance-description></p><p data-program-preparation-access></p><p data-program-pending-summary></p><div class="own-program-actions"><a data-program-catalog-link href="/nomina#parametros">Abrir maestro salarial propio</a><button type="button" data-program-pending-link hidden>Consultar propuestas pendientes</button></div><p>Esta consulta no certifica los importes ni la aptitud para liquidar. Las decisiones requieren revisión independiente.</p></section><p data-program-current></p><details><summary>Consultar conceptos y valores aprobados</summary><div data-program-catalog></div></details><div class="own-program-tabs" role="group" aria-label="Tarea de reglas"><button type="button" data-program-edit-tab>Preparar reglas</button><button type="button" data-program-review-tab>Revisar propuestas</button></div>
  <form data-program-form><fieldset data-program-fields><legend>1. Preparar el programa completo</legend><p>Las reglas anteriores se conservan. Cada cambio requiere vigencia, fuentes, redondeo y respaldo expresos.</p>
+ <label class="own-program-check"><input type="checkbox" data-program-namespaces>Separar códigos de conceptos y auxiliares</label><p>Al separar, cada fórmula indica si usa un concepto o un auxiliar. Revisá todas las referencias del programa. Los cálculos y envíos anteriores conservan su versión.</p>
  <label>Decimales de los totales<select data-program-precision><option value="">Elegir precisión</option>${Array.from({length:9},(_,i)=>`<option value="${i}">${i}</option>`).join('')}</select></label>
  <details data-program-copy><summary>Copiar fórmulas a varios convenios</summary><p>Elegí reglas propias y destinos. La copia conserva fórmula, unidades, tipos y redondeo; cada destino necesita sus definiciones y dependencias compatibles.</p>
  <label class="own-program-check"><input type="checkbox" data-program-copy-multiple>Seleccionar varias fórmulas para una actualización conjunta</label>
@@ -41,6 +43,7 @@ export function mountOwnPayrollProgram(container){
  <div class="own-program-actions"><button type="button" data-program-send hidden>Registrar propuesta</button><button type="button" data-program-recover hidden>Consultar el mismo intento</button><button type="button" data-program-new hidden>Nueva preparación</button><button type="button" data-program-revise hidden>Revisar intento no registrado</button></div><p data-program-receipt hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-program-'+key+']');
  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null;
+ const ruleKey=r=>ownProgramRuleKey(r,draft?.namespaceVersion);
  const copySelection=new Set();let copySourcePage=1;
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
@@ -113,7 +116,7 @@ export function mountOwnPayrollProgram(container){
   const labels={left:'Primer valor',right:'Segundo valor',value:'Valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple'};
   function walk(value,path,level){
    const card=node('fieldset');card.className='own-program-expression-node';card.style.setProperty('--program-depth',String(Math.min(level,6)));card.append(node('legend',path.length?path.map(p=>labels[p]).join(' · '):'Resultado de la fórmula'));
-   const op=node('select');op.setAttribute('aria-label','Operación '+(path.join(' ')||'principal'));op.dataset.programExpressionPath=path.join('.');op.append(...Object.entries(PROGRAM_OPERATIONS).map(([v,t])=>new Option(t,v)));op.value=value.op;
+   const op=node('select');op.setAttribute('aria-label','Operación '+(path.join(' ')||'principal'));op.dataset.programExpressionPath=path.join('.');op.append(...Object.entries(PROGRAM_OPERATIONS).filter(([operation])=>operation!=='auxiliary'||ownProgramNamespaced(draft)).map(([v,t])=>new Option(t,v)));op.value=value.op;
    op.addEventListener('change',()=>{if(attempt)return;const replacement=changeExpressionOperation(value,op.value),candidate=clone(rule.expression);let target=candidate;
     if(!path.length){try{expressionSize(replacement);rule.expression=replacement;}catch(e){status(e.message,'warning');op.value=value.op;return;}}
     else{for(const p of path.slice(0,-1))target=target[p];target[path.at(-1)]=replacement;try{expressionSize(candidate);rule.expression=candidate;}catch(e){status(e.message,'warning');op.value=value.op;return;}}
@@ -123,7 +126,7 @@ export function mountOwnPayrollProgram(container){
    if(['input','literal','convert'].includes(value.op))field(group,'Unidad',value.unit,PROGRAM_UNITS,v=>value.unit=v,{key:key+'-unit'});
    if(value.op==='input')field(group,'Identificador de la entrada',value.key,null,v=>value.key=v,{key:key+'-key',max:64});
    if(value.op==='literal')field(group,'Valor explícito',value.value,null,v=>value.value=v.replace(',','.'),{key:key+'-value',type:'decimal',max:106});
-   if(value.op==='concept'){field(group,'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9});const stages={exact:'Resultado exacto, antes del redondeo'};if(value.stage==='rounded')stages.rounded='Etapa histórica: después del redondeo';const control=field(group,'Etapa del valor',value.stage,stages,v=>value.stage=v,{key:key+'-stage'});for(const option of control.options)if(option.value==='rounded')option.disabled=true;}
+   if(['concept','auxiliary'].includes(value.op)){field(group,value.op==='auxiliary'?'Código del auxiliar':'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9});const stages={exact:'Resultado exacto, antes del redondeo'};if(value.stage==='rounded')stages.rounded='Etapa histórica: después del redondeo';const control=field(group,'Etapa del valor',value.stage,stages,v=>value.stage=v,{key:key+'-stage'});for(const option of control.options)if(option.value==='rounded')option.disabled=true;}
    if(value.op==='compare')field(group,'Comparación',value.operator,PROGRAM_COMPARE,v=>value.operator=v,{key:key+'-operator'});
    if(value.op==='convert'){field(group,'Factor exacto',value.factor,null,v=>value.factor=v.replace(',','.'),{key:key+'-factor',type:'decimal',max:106});field(group,'Respaldo de la conversión',value.conversionReference,null,v=>value.conversionReference=v,{key:key+'-reference'});}
    card.append(group);if(value.op==='round')rounding(card,value.rounding,key);area.append(card);
@@ -132,20 +135,20 @@ export function mountOwnPayrollProgram(container){
  }
  function selectors(){
   renderCopyChoices();
-  $('rule-select').replaceChildren(...draft.rules.map((r,i)=>new Option(`${i+1}. Concepto ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'}`,String(i))));
+  $('rule-select').replaceChildren(...draft.rules.map((r,i)=>new Option(`${i+1}. ${r.nature==='auxiliary'?'Auxiliar':'Concepto'} ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'}`,String(i))));
   $('binding-select').replaceChildren(...draft.bindings.map((b,i)=>new Option(`${i+1}. ${b.key||'Entrada por definir'} · convenio ${b.agreementCode||'por definir'}`,String(i))));
   ruleIndex=Math.max(0,Math.min(ruleIndex,draft.rules.length-1));bindingIndex=Math.max(0,Math.min(bindingIndex,draft.bindings.length-1));$('rule-select').value=String(ruleIndex);$('binding-select').value=String(bindingIndex);
  }
  function renderCopyChoices(){
   const selected=$('copy-source').value;
-  $('copy-source').replaceChildren(new Option('Elegir regla…',''),...draft.rules.map(r=>new Option(`Concepto ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`,ownProgramRuleKey(r))));
-  if(draft.rules.some(r=>ownProgramRuleKey(r)===selected))$('copy-source').value=selected;
+  $('copy-source').replaceChildren(new Option('Elegir regla…',''),...draft.rules.map(r=>new Option(`${r.nature==='auxiliary'?'Auxiliar':'Concepto'} ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`,ruleKey(r))));
+  if(draft.rules.some(r=>ruleKey(r)===selected))$('copy-source').value=selected;
   renderCopySources();
   renderCopyTargets();
  }
- function copyFilteredSources(){const query=$('copy-search').value.trim().toLocaleLowerCase('es');return (draft?.rules??[]).filter(r=>`Concepto ${r.code} convenio ${r.agreementCode} ${r.validFrom} ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(' ')}`.toLocaleLowerCase('es').includes(query));}
+ function copyFilteredSources(){const query=$('copy-search').value.trim().toLocaleLowerCase('es');return (draft?.rules??[]).filter(r=>`${r.nature==='auxiliary'?'Auxiliar':'Concepto'} ${r.code} convenio ${r.agreementCode} ${r.validFrom} ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(' ')}`.toLocaleLowerCase('es').includes(query));}
  function copySelectionStatus(rows=copyFilteredSources()){
-  const keys=new Set((draft?.rules??[]).map(ownProgramRuleKey)),missing=[...copySelection].filter(key=>!keys.has(key)).length;
+  const keys=new Set((draft?.rules??[]).map(ruleKey)),missing=[...copySelection].filter(key=>!keys.has(key)).length;
   $('copy-selection').textContent=`${copySelection.size} fórmulas seleccionadas en todo el programa · ${rows.length} coincidencias${missing?` · ${missing} cambiaron: limpiá y revisá la selección`:''}. La búsqueda y la página no reducen la copia.`;
  }
  function renderCopySources(){
@@ -155,15 +158,15 @@ export function mountOwnPayrollProgram(container){
   $('copy-page').textContent=`Página ${copySourcePage} de ${pages}`;$('copy-prev').disabled=copySourcePage<=1;$('copy-next').disabled=copySourcePage>=pages;
   $('copy-sources').replaceChildren(node('legend','Fórmulas de origen'));
   for(const r of rows.slice((copySourcePage-1)*25,copySourcePage*25)){
-   const key=ownProgramRuleKey(r),label=node('label',`Concepto ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`),input=node('input');input.type='checkbox';input.value=key;input.dataset.programCopyRule=key;input.checked=copySelection.has(key);label.className='own-program-check';label.prepend(input);
+   const key=ruleKey(r),label=node('label',`${r.nature==='auxiliary'?'Auxiliar':'Concepto'} ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`),input=node('input');input.type='checkbox';input.value=key;input.dataset.programCopyRule=key;input.checked=copySelection.has(key);label.className='own-program-check';label.prepend(input);
    input.addEventListener('change',()=>{if(attempt||busy)return;if(input.checked)copySelection.add(key);else copySelection.delete(key);invalidate();copySelectionStatus();renderCopyTargets();});$('copy-sources').append(label);
   }
  }
  function renderCopyTargets(){
   const selected=new Set([...$('copy-targets').querySelectorAll('input:checked')].map(i=>i.value));
-  const sources=draft?.rules.filter(r=>$('copy-multiple').checked?copySelection.has(ownProgramRuleKey(r)):ownProgramRuleKey(r)===$('copy-source').value)??[],origins=new Set(sources.map(r=>r.agreementCode));
+  const sources=draft?.rules.filter(r=>$('copy-multiple').checked?copySelection.has(ruleKey(r)):ruleKey(r)===$('copy-source').value)??[],origins=new Set(sources.map(r=>r.agreementCode));
   $('copy-targets').replaceChildren(node('legend','Convenios de destino'));
-  for(const agreement of [...new Set(boot?.salaryCatalog.items.filter(i=>i.active&&i.kind==='concept').map(i=>i.agreementCode)??[])].sort()){
+  for(const agreement of [...new Set(boot?.salaryCatalog.items.filter(i=>i.active&&['concept','auxiliary'].includes(i.kind)).map(i=>i.agreementCode)??[])].sort()){
    if(origins.has(agreement)&&!selected.has(agreement))continue;
    const label=node('label',`Convenio ${agreement}${origins.has(agreement)?' · también es origen: retiralo de los destinos o revisá las fórmulas elegidas':''}`),input=node('input');input.type='checkbox';input.value=agreement;input.dataset.programCopyTarget=agreement;input.checked=selected.has(agreement);input.addEventListener('change',invalidate);label.className='own-program-check';label.prepend(input);$('copy-targets').append(label);
   }
@@ -183,7 +186,7 @@ export function mountOwnPayrollProgram(container){
  function renderBinding(){
   $('binding-editor').replaceChildren();const b=draft?.bindings[bindingIndex];if(!b)return;const group=node('div');group.className='own-program-grid';
   field(group,'Código de convenio',b.agreementCode,null,v=>{b.agreementCode=v;selectors();},{key:'binding-agreement',max:9});field(group,'Identificador utilizado en la fórmula',b.key,null,v=>{b.key=v;selectors();},{key:'binding-key',max:64});
-  field(group,'Fuente del valor',b.sourceKind,PROGRAM_SOURCES,v=>{b.sourceKind=v;if(v==='scale_reference'){b.sourceAgreementCode='';b.sourceCategoryCode='';b.sourceCode='';}else{delete b.sourceAgreementCode;delete b.sourceCategoryCode;}renderBinding();},{key:'binding-source'});
+  field(group,'Fuente del valor',b.sourceKind,Object.fromEntries(Object.entries(PROGRAM_SOURCES).filter(([kind])=>kind!=='auxiliary_parameter'||ownProgramNamespaced(draft))),v=>{b.sourceKind=v;if(v==='scale_reference'){b.sourceAgreementCode='';b.sourceCategoryCode='';b.sourceCode='';}else{delete b.sourceAgreementCode;delete b.sourceCategoryCode;}renderBinding();},{key:'binding-source'});
   if(b.sourceKind==='scale_reference'){
    const scales=boot.salaryCatalog.items.filter(i=>i.active&&i.kind==='scale');
    const choices=(rows,key,current,label)=>{const out=Object.fromEntries(rows.map(i=>[i[key],label(i)]));if(current&&!out[current])out[current]=current+' · sin escala aprobada en esta consulta';return out;};
@@ -204,7 +207,7 @@ export function mountOwnPayrollProgram(container){
   return `Convenio ${row.agreementCode}; concepto ${row.code}; ${OWN_RUN_NATURES[row.nature]}; ${PROGRAM_UNITS[row.unit]}; desde ${row.validFrom} hasta ${row.validUntil??'sin término'}; ${row.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}; ${row.rounding.precision} decimales (${PROGRAM_ROUNDING[row.rounding.mode]}); respaldo: ${row.ruleReference}\n${describeProgramExpression(row.expression)}`;
  }
  function comparison(parent,before,after){
-  const diff=programWorkspaceChanges(before,after);parent.replaceChildren();parent.append(node('p',`Conjunto completo: ${after.rules.length} reglas, ${after.bindings.length} entradas; ${diff.changed} cambios. Precisión de totales: ${diff.totalsPrecision.before??'sin programa'} → ${diff.totalsPrecision.after}.`));
+  const diff=programWorkspaceChanges(before,after);parent.replaceChildren();parent.append(node('p',`Referencias: ${diff.namespaceVersion.before?'conceptos y auxiliares separados':'formato anterior'} → ${diff.namespaceVersion.after?'conceptos y auxiliares separados':'formato anterior'}.`));parent.append(node('p',`Conjunto completo: ${after.rules.length} reglas, ${after.bindings.length} entradas; ${diff.changed} cambios. Precisión de totales: ${diff.totalsPrecision.before??'sin programa'} → ${diff.totalsPrecision.after}.`));
   const scroll=node('div');scroll.className='own-program-table';scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Programa completo antes y después');const table=node('table');table.append(node('caption','Todas las reglas y entradas; la decisión abarca el conjunto completo'));
   const head=node('thead'),hr=node('tr');for(const label of ['Elemento','Cambio','Antes','Después']){const th=node('th',label);th.scope='col';hr.append(th);}head.append(hr);table.append(head);const body=node('tbody');
   const labels={added:'Nuevo',removed:'Retirado',modified:'Modificado',unchanged:'Conservado'};
@@ -234,10 +237,10 @@ export function mountOwnPayrollProgram(container){
   $('pending-link').hidden=guidance.pendingCount===0;
   $('catalog').replaceChildren();const catalog=node('div');catalog.className='own-program-table';catalog.tabIndex=0;catalog.setAttribute('role','region');catalog.setAttribute('aria-label','Catálogo aprobado completo');const table=node('table');table.append(node('caption',`Catálogo completo: ${boot.salaryCatalog.items.length} definiciones. Los valores ausentes no equivalen a cero.`));
   const head=node('thead'),row=node('tr');for(const title of ['Convenio','Código y definición','Unidad y valor','Vigencia','Respaldo']){const th=node('th',title);th.scope='col';row.append(th);}head.append(row);table.append(head);const body=node('tbody');
-  for(const item of boot.salaryCatalog.items){const tr=node('tr');tr.append(node('td',item.agreementCode),node('td',`${item.code} · ${item.label}${item.categoryCode===null?'':' · clase '+item.categoryCode}\n${item.kind==='scale'?'Escala':'Concepto'} · ${item.active?'Activo':'Inactivo'}`),node('td',`${PROGRAM_UNITS[item.unit]} · ${item.value===null?'Sin valor':item.value}`),node('td',`${item.validFrom} a ${item.validUntil??'sin término'}`),node('td',item.ruleReference));body.append(tr);}table.append(body);catalog.append(table);$('catalog').append(catalog);
+  for(const item of boot.salaryCatalog.items){const tr=node('tr');tr.append(node('td',item.agreementCode),node('td',`${item.code} · ${item.label}${item.categoryCode===null?'':' · clase '+item.categoryCode}\n${item.kind==='scale'?'Escala':item.kind==='auxiliary'?'Auxiliar':'Concepto'} · ${item.active?'Activo':'Inactivo'}`),node('td',`${PROGRAM_UNITS[item.unit]} · ${item.value===null?'Sin valor':item.value}`),node('td',`${item.validFrom} a ${item.validUntil??'sin término'}`),node('td',item.ruleReference));body.append(tr);}table.append(body);catalog.append(table);$('catalog').append(catalog);
   if(!draft){draft=clone(boot.program.definition??{rules:[],bindings:[],totalsPrecision:null});historicalRules=new WeakSet(boot.program.definition?draft.rules:[]);}
-  const priorKeys=new Set(boot.program.definition?.rules.map(ownProgramRuleKey)??[]);for(const rule of draft.rules)if(priorKeys.has(ownProgramRuleKey(rule)))historicalRules.add(rule);
-  $('precision').value=draft.totalsPrecision===null?'':String(draft.totalsPrecision);selectors();renderRule();renderBinding();
+  const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);for(const rule of draft.rules)if(priorKeys.has(ruleKey(rule)))historicalRules.add(rule);
+  $('namespaces').checked=ownProgramNamespaced(draft);$('namespaces').disabled=ownProgramNamespaced(boot.program.definition);$('precision').value=draft.totalsPrecision===null?'':String(draft.totalsPrecision);selectors();renderRule();renderBinding();
   const selected=$('proposal-select').value;$('proposal-select').replaceChildren(...boot.proposals.map((p,i)=>new Option(`${i+1}. ${stateLabels[p.status]} · ${date(p.createdAt)} · ${p.authorLabel}`,p.id)));if(boot.proposals.some(p=>p.id===selected))$('proposal-select').value=selected;
   $('form').hidden=tab!=='edit';$('proposals').hidden=tab!=='review';renderProposal();controls();
  }
@@ -261,7 +264,7 @@ export function mountOwnPayrollProgram(container){
  $('copy-multiple').addEventListener('change',()=>{invalidate();renderCopySources();renderCopyTargets();});
  $('copy-search').addEventListener('input',()=>{copySourcePage=1;renderCopySources();});
  for(const [key,step] of [['copy-prev',-1],['copy-next',1]])$(key).addEventListener('click',()=>{copySourcePage+=step;renderCopySources();});
- $('copy-select-filtered').addEventListener('click',()=>{if(attempt||busy)return;for(const r of copyFilteredSources())copySelection.add(ownProgramRuleKey(r));invalidate();renderCopySources();renderCopyTargets();});
+ $('copy-select-filtered').addEventListener('click',()=>{if(attempt||busy)return;for(const r of copyFilteredSources())copySelection.add(ruleKey(r));invalidate();renderCopySources();renderCopyTargets();});
  $('copy-clear-selection').addEventListener('click',()=>{if(attempt||busy)return;copySelection.clear();invalidate();renderCopySources();renderCopyTargets();});
  for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).addEventListener(key==='copy-reference'?'input':'change',invalidate);
  $('copy-confirm').addEventListener('change',controls);
@@ -281,7 +284,7 @@ export function mountOwnPayrollProgram(container){
   const reviewed=copyPlan;perform(async valid=>{await session(capsFor('propose'));if(!valid())return;
    const latest=ownProgramBootstrap((await request(endpoint+'?resource=bootstrap')).data);if(!valid())return;
    const next=applyProgramCopy(latest,draft,reviewed);invalidate();draft=next;boot=latest;
-   const priorKeys=new Set(boot.program.definition?.rules.map(ownProgramRuleKey)??[]);historicalRules=new WeakSet(draft.rules.filter(r=>priorKeys.has(ownProgramRuleKey(r))));selectors();renderRule();renderBinding();
+   const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);historicalRules=new WeakSet(draft.rules.filter(r=>priorKeys.has(ruleKey(r))));selectors();renderRule();renderBinding();
    status('Copia aplicada al borrador completo. Revisá el programa y su fundamento antes de registrar una propuesta.','success');
   });
  });
@@ -290,6 +293,7 @@ export function mountOwnPayrollProgram(container){
  $('add-binding').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.bindings.length>=1000){status('El programa alcanzó su capacidad. No se omitieron entradas.','warning');return;}draft.bindings.push({agreementCode:'',key:'',unit:'',sourceKind:'',sourceCode:'',onMissing:'',combine:'',ruleReference:''});bindingIndex=draft.bindings.length-1;invalidate();selectors();renderBinding();});
  $('rule-select').addEventListener('change',()=>{ruleIndex=Number($('rule-select').value);renderRule();});$('binding-select').addEventListener('change',()=>{bindingIndex=Number($('binding-select').value);renderBinding();});
  for(const [key,value] of [['edit-tab','edit'],['review-tab','review']])$(key).addEventListener('click',()=>{if(attempt)return;tab=value;invalidate();$('form').hidden=tab!=='edit';$('proposals').hidden=tab!=='review';controls();});
+ $('namespaces').addEventListener('change',()=>{if(!draft||attempt||busy)return;if($('namespaces').checked)draft.namespaceVersion=OWN_PAYROLL_NAMESPACE_VERSION;else delete draft.namespaceVersion;copySelection.clear();invalidate();selectors();renderRule();renderBinding();});
  $('precision').addEventListener('change',()=>{if(draft&&!attempt){draft.totalsPrecision=$('precision').value===''?null:Number($('precision').value);invalidate();}});
  for(const key of ['reason','decision-reason','decision'])$(key).addEventListener(key==='decision'?'change':'input',invalidate);
  $('proposal-select').addEventListener('change',()=>{invalidate();$('decision').value='';$('decision-reason').value='';renderProposal();});$('confirm').addEventListener('change',controls);

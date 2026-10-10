@@ -2,9 +2,9 @@ import {useId,useState} from 'react';
 import {SALARY_UNITS,salaryRowKey,salarySerialized} from '../../assets/native-salary-catalog-model.js';
 import {salaryBulkPlan} from '../../assets/native-salary-bulk-model.js';
 import {salaryEffectivePlan} from '../../assets/native-salary-effective-model.js';
+import {salaryDefinitionTitle as label} from './NativeSalaryDefinition.jsx';
 
 const PAGE=20,clone=value=>JSON.parse(JSON.stringify(value));
-const label=row=>`${row.kind==='scale'?'Escala':'Concepto'} ${row.code} · convenio ${row.agreementCode}${row.categoryCode?' · clase '+row.categoryCode:''} · desde ${row.validFrom}`;
 const exactValue=value=>value===null?'No informado':value;
 const natural=new Intl.Collator('es',{numeric:true});
 
@@ -24,7 +24,7 @@ export default function NativeSalaryBulk({items,disabled,individualEditing=false
   <label>Cómo aplicar la actualización<select aria-label="Cómo aplicar la actualización" value={operation} onChange={event=>edit(setOperation,event.target.value,true)}><option value="current">Corregir la vigencia seleccionada</option><option value="effective">Iniciar vigencia desde otro mes</option></select></label>
   {operation==='effective'&&<label>Mes inicial de la nueva vigencia<input type="month" min="1900-01" max="2099-12" value={startMonth} onChange={event=>edit(setStartMonth,event.target.value,true)}/></label>}
   <label>Buscar para selección múltiple<input type="search" maxLength={160} value={query} onChange={event=>edit(setQuery,event.target.value,true)}/></label>
-  <label>Tipo de definición<select aria-label="Tipo de definición" value={kind} onChange={event=>edit(setKind,event.target.value,true)}><option value="all">Conceptos y escalas</option><option value="concept">Conceptos</option><option value="scale">Escalas</option></select></label>
+  <label>Tipo de definición<select aria-label="Tipo de definición" value={kind} onChange={event=>edit(setKind,event.target.value,true)}><option value="all">Conceptos, auxiliares y escalas</option><option value="auxiliary">Auxiliares</option><option value="concept">Conceptos</option><option value="scale">Escalas</option></select></label>
   <label>Unidad de las filas<select aria-label="Unidad de las filas" value={unit} onChange={event=>edit(setUnit,event.target.value,true)}><option value="">Elegí unidad; se filtra la lista</option>{Object.entries(SALARY_UNITS).map(([key,text])=><option key={key} value={key}>{text}</option>)}</select></label>
   <label>Precisión de las filas<select aria-label="Precisión de las filas" value={precision} onChange={event=>edit(setPrecision,event.target.value,true)}><option value="">Elegí precisión; se filtra la lista</option>{Array.from({length:9},(_,number)=><option key={number} value={number}>{number} decimales</option>)}</select></label>
   <label>Cómo informar el valor<select aria-label="Cómo informar el valor" value={valueState} onChange={event=>edit(setValueState,event.target.value)}><option value="declared">Declarar valor exacto</option><option value="unknown">Dejar como no informado</option></select></label>

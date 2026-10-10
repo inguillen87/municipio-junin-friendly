@@ -10,7 +10,7 @@ const difference=(a,b)=>quantize(exactSubtract(decimal(b),decimal(a)),{precision
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const sourceProof=c=>[c.id,c.key,c.bodySha256,c.algorithmSha256,c.payloadSha256,c.createdAt,c.saved.inputSha256,c.saved.resultSha256,c.saved.recordedAt];
-const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
+const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(input.version!=='own-payroll-input.v2'||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
 
 function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAfter=null){
  const present=!!before&&!!after,compatible=present&&before.nature===after.nature&&before.unit===after.unit,reasons=[];
@@ -36,7 +36,8 @@ export function ownComparison(base,target,details=null){
  if(details){need(Array.isArray(details)&&details.length===2,'Falta el ámbito autorizado de ambas liquidaciones.');for(const [i,d]of details.entries()){ownLiquidationDetail(d);need(salarySerialized(d.capture)===salarySerialized(i===0?base:target),'La consulta autorizada no corresponde a su cálculo.');}need(details[0].scopeVersion===details[1].scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');}
  else need(base.body.scopeVersion===target.body.scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');
  for(const [capture,value]of [[base,b],[target,t]])need(value.input.period===capture.body.period&&value.input.liquidationType===capture.body.liquidationType&&salarySerialized(value.input.selection)===salarySerialized(capture.body.selection),'El resultado no corresponde al período, tipo y alcance de su captura.');
- const people=new Set([...b.result.employeeTotals,...t.result.employeeTotals].map(e=>e.contractId)),before=new Map(b.result.rows.map(r=>[r.contractId+':'+r.conceptCode,r])),after=new Map(t.result.rows.map(r=>[r.contractId+':'+r.conceptCode,r])),keys=new Set([...before.keys(),...after.keys()]);
+ const namespaced=[b.input.version,t.input.version].includes('own-payroll-input.v2'),rowKey=r=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+ const people=new Set([...b.result.employeeTotals,...t.result.employeeTotals].map(e=>e.contractId)),before=new Map(b.result.rows.map(r=>[rowKey(r),r])),after=new Map(t.result.rows.map(r=>[rowKey(r),r])),keys=new Set([...before.keys(),...after.keys()]);
  need(keys.size<=OWN_COMPARISON_MAX_ROWS&&people.size*4<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
  const baseTotals=new Map(b.result.employeeTotals.map(e=>[e.contractId,e])),targetTotals=new Map(t.result.employeeTotals.map(e=>[e.contractId,e])),totals=[];
  const rows=[...keys].map(key=>{const a=before.get(key),z=after.get(key),r=a??z;return {contractId:r.contractId,...pair(a,z,baseTotals.has(r.contractId)?b.people.get(r.contractId):null,targetTotals.has(r.contractId)?t.people.get(r.contractId):null,r.conceptCode,a?structuredClone(ruleFor(b.input,a)):null,z?structuredClone(ruleFor(t.input,z)):null)};});
