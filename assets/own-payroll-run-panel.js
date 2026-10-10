@@ -6,7 +6,7 @@ import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
-import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
@@ -272,7 +272,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('confirm').addEventListener('change',controls);$('search').addEventListener('input',()=>{page=1;renderRows();});$('prev').addEventListener('click',()=>{page--;renderRows();});$('next').addEventListener('click',()=>{page++;renderRows();});
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};
   const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Actualizá para verificar el acceso y recuperar el intento.');else controls();};
-  const capability=event=>{const caps=new Set(event.detail?.tenantCapabilities??[]);if(!access)return;
+  const capability=event=>{const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
     if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
     else{queuedPreparation=null;access.caps=new Set([...access.caps].filter(c=>caps.has(c)));$('confirm').checked=false;controls();}
   };

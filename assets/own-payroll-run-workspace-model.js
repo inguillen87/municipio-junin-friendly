@@ -10,6 +10,7 @@ export const OWN_RUN_TYPES = Object.freeze({monthly:'Mensual',first_fortnight:'P
 export const OWN_RUN_NATURES = Object.freeze({remuneration:'Remunerativo',non_remuneration:'No remunerativo',deduction:'Retención',employer_contribution:'Aporte patronal',auxiliary:'Auxiliar'});
 const fail = message => { throw Error(message); };
 export const hasOwnRunAccess = (caps, required) => required.every(c => caps?.has(c));
+export function ownRunEventCapabilities(value){const items=value instanceof Set?[...value]:Array.isArray(value)?value:null;return new Set(items&&items.every(v=>typeof v==='string')?items:[]);}
 export function ownRunWorkspaceAccess(payload, now = Date.now()) {
   const {user,access,expiresAt} = payload ?? {};
   if(payload?.ok !== true || payload.authenticated !== true || payload.sessionVersion !== 2 || access?.context !== 'tenant'
