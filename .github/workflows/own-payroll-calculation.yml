@@ -40,6 +40,8 @@ jobs:
       - run: npm ci
       - run: node --test tests/own-payroll-reference-scale.test.js tests/own-payroll-program-workspace.test.js tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-installation.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
       - run: mkdir -p verification
+      - name: Program prerequisite model
+        run: node --test tests/own-payroll-program-guidance.test.js
       - name: Compare with independent PostgreSQL numeric
         run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
         env:
@@ -81,6 +83,8 @@ jobs:
         run: node scripts/verify-own-payroll-durable.mjs --ci --major=${{ matrix.major }} --browser=chromium --output=verification/own-durable.json
       - name: Build the actual public package
         run: node scripts/build-friendly.mjs
+      - name: Verify program prerequisites, complete pending counts, mobile and recovery
+        run: node scripts/verify-own-payroll-program-guidance-ui.mjs --output=verification/own-program-guidance-ui.json
       - name: Verify complete native formula copy, history, mobile, revocation and exact retry
         run: node scripts/verify-own-payroll-program-copy-browser.mjs --browser=chromium --output=verification/own-program-copy-browser.json
       - name: Verify one complete native novelty batch, independent approval and selected own calculation
