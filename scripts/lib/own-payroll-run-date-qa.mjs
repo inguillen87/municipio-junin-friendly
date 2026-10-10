@@ -15,5 +15,5 @@ export function relocateOwnRunDateInstallation(batch,qa,beforeReady,previous){
  const initial=`DO $initial$ BEGIN IF current_setting('municontrol_run_date.mode')='first' THEN EXECUTE ${q(before)};ELSE EXECUTE ${q(after)};END IF;END $initial$`;
  const migration=batch.migration.map((s,i)=>i===batch.migration.length-1?ready.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '):n(s));
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_run_date.mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
- return {...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
+ return {...batch,readyPin,readyDefinition:ready,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
 }

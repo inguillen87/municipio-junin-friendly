@@ -1,4 +1,5 @@
 import {sourceDeclarations,DECLARED_ADOPTION_INPUT_VERSION} from './employment-source-declarations.js';
+import {REGISTRY_ADOPTION_INPUT_VERSION,REGISTRY_SOURCE_FACTS_POLICY} from './employment-adoption-original-facts.js';
 // Ownership-adoption wire contract. No identity lookup, source parsing or writes.
 export const ADOPTION_VERSION = 'employment-adoption.v1';
 export const ADOPTION_PENDING_INPUT_VERSION = 'employment-adoption-input.v2';
@@ -26,23 +27,24 @@ function text(value, min, max) {
   return result;
 }
 export function adoptionProposalInput(value) {
-  const declared=value?.version===DECLARED_ADOPTION_INPUT_VERSION,active=declared||value?.version===ADOPTION_ACTIVE_INPUT_VERSION,final=active||value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
-  if (!exact(value, ['sourceContextVersion', 'selectionVersion', 'catalogVersion', 'rows', 'legalReference', 'reason',...(pending?['version']:[]),...(final?['finalSource']:[]),...(active?['cohort']:[]),...(declared?['declarations']:[])])
+  const registry=value?.version===REGISTRY_ADOPTION_INPUT_VERSION,declared=value?.version===DECLARED_ADOPTION_INPUT_VERSION,active=registry||declared||value?.version===ADOPTION_ACTIVE_INPUT_VERSION,final=active||value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
+  if (!exact(value, ['sourceContextVersion', 'selectionVersion', 'catalogVersion', 'rows', 'legalReference', 'reason',...(pending?['version']:[]),...(final?['finalSource']:[]),...(active?['cohort']:[]),...(declared?['declarations']:[]),...(registry?['sourceFactsPolicy']:[])])
     || ![value.sourceContextVersion, value.selectionVersion, value.catalogVersion].every(sha) || !Array.isArray(value.rows)) fail();
   if(final&&(!exact(value.finalSource,['revisionId','packageSha256'])||!adoptionUuid(value.finalSource.revisionId)||!sha(value.finalSource.packageSha256)))fail();
   if(active&&value.cohort!==ADOPTION_ACTIVE_COHORT)fail();
+  if(registry&&value.sourceFactsPolicy!==REGISTRY_SOURCE_FACTS_POLICY)fail();
   if (value.rows.length < 1 || value.rows.length > ADOPTION_MAX_ROWS) fail('LIMIT', 'La selección completa requiere entre uno y diez mil contratos. No se omitieron filas.');
   const seen = new Set(), rows = [];
   for (const row of value.rows) {
     if (!exact(row, ['contractId', 'contractVersion', 'jurisdictionCode']) || !adoptionUuid(row.contractId)
-      || !sha(row.contractVersion) || !['42', '55',...(pending&&!active?[null]:[])].includes(row.jurisdictionCode)) fail();
+      || !sha(row.contractVersion) || !['42', '55',...(registry||pending&&!active?[null]:[])].includes(row.jurisdictionCode)) fail();
     const identity = row.contractId.toLowerCase();
     if (seen.has(identity)) fail('DUPLICATE', 'Un contrato aparece más de una vez. Revisá la selección completa.');
     seen.add(identity);
     rows.push({contractId: row.contractId, contractVersion: row.contractVersion, jurisdictionCode: row.jurisdictionCode});
   }
   let declarations;if(declared){try{declarations=sourceDeclarations(value.declarations);}catch{fail();}if(declarations.some(d=>!seen.has(d.contractId.toLowerCase())))fail();}
-  return freeze({...(pending?{version:declared?DECLARED_ADOPTION_INPUT_VERSION:active?ADOPTION_ACTIVE_INPUT_VERSION:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),...(active?{cohort:ADOPTION_ACTIVE_COHORT}:{}),...(declared?{declarations}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
+  return freeze({...(pending?{version:registry?REGISTRY_ADOPTION_INPUT_VERSION:declared?DECLARED_ADOPTION_INPUT_VERSION:active?ADOPTION_ACTIVE_INPUT_VERSION:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),...(active?{cohort:ADOPTION_ACTIVE_COHORT}:{}),...(declared?{declarations}:{}),...(registry?{sourceFactsPolicy:REGISTRY_SOURCE_FACTS_POLICY}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
     catalogVersion: value.catalogVersion, rows, legalReference: text(value.legalReference, 3, 180), reason: text(value.reason, 10, 1000)});
 }
 export function adoptionReviewInput(value) {

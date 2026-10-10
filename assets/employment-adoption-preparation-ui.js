@@ -1,5 +1,6 @@
 import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt,adoptionInactiveJurisdictionPending,ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION} from './employment-adoption-preparation-model.js';
 import {verifySourceDeclarations} from './employment-source-declarations.js';
+import {originalRegistryFactsAllowed,originalRegistryFactsCounts} from './employment-adoption-original-facts.js';
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 
 const API='/api/internal-employment-adoption';
@@ -10,7 +11,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <p>La propuesta conserva todos los contratos del alcance elegido: personal activo o fuente histórica completa. El alcance y sus cantidades se muestran antes de guardar. Guardarla no adopta contratos ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción.</p>
  <button type="button" class="button" data-ap-load>Consultar condiciones y propuestas</button><p role="status" aria-live="polite" data-ap-status>La consulta es voluntaria. No se guarda nada al abrir este apartado.</p>
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
- <form data-ap-form hidden><p data-ap-counts></p><section data-ap-facts hidden><h5>Completar los datos faltantes del personal activo</h5><p>Declaralos según el antecedente municipal. El respaldo original se conserva. Revisar estas declaraciones no guarda una propuesta ni adopta contratos.</p><div data-ap-facts-rows></div><button type="button" class="button" data-ap-preview>Revisar declaraciones sin guardar</button><p data-ap-facts-status role="status" aria-live="polite"></p></section>
+ <form data-ap-form hidden><p data-ap-counts></p><label data-ap-policy-label hidden>Datos pendientes del padrón activo<select data-ap-policy><option value="complete">Completar con antecedentes municipales</option><option value="original">Incorporar conservando los datos originales</option></select></label><p data-ap-original-status role="status" aria-live="polite" hidden></p><label class="ap-confirm" data-ap-original-ack-label hidden><input type="checkbox" data-ap-original-ack>Confirmo que los datos pendientes se conservarán y deberán completarse antes de calcular los haberes que los requieran</label><section data-ap-facts hidden><h5>Completar los datos faltantes del personal activo</h5><p>Declaralos según el antecedente municipal. El respaldo original se conserva. Revisar estas declaraciones no guarda una propuesta ni adopta contratos.</p><div data-ap-facts-rows></div><button type="button" class="button" data-ap-preview>Revisar declaraciones sin guardar</button><p data-ap-facts-status role="status" aria-live="polite"></p></section>
  <label>Jurisdicción para los contratos que no la tienen declarada<select data-ap-jurisdiction required><option value="">Elegí según el respaldo municipal</option><option value="42">Jurisdicción 42</option><option value="55">Jurisdicción 55</option></select></label>
  <p data-ap-jurisdiction-help>La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.</p>
  <p data-ap-jurisdiction-counts role="status" aria-live="polite"></p>
@@ -27,12 +28,13 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>Este registro conserva la preparación original y no muestra las decisiones posteriores. Consultá la bandeja de revisión para conocer su resultado.</p><ol data-ap-attempts></ol></section></section>`;
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
- let jurisdictionPage=1;const jurisdictions=new Map(),facts=new Map();let prepared=null,previewInput=null;
+ let jurisdictionPage=1;const jurisdictions=new Map(),facts=new Map();let prepared=null,previewInput=null,registryMode=false;
+ const registryEligible=()=>Boolean(review?.source.finalRevision&&review?.source.operationalCohort&&!review.source.municipalDeclarations&&review.rows.every(originalRegistryFactsAllowed));
  const gapFields=r=>[["startDate","Fecha de ingreso","START_DATE_MISSING"],["agreementCode","Convenio","CLASSIFICATION_MISSING"],["categoryCode","Categoría","CLASSIFICATION_MISSING"],["jurisdictionCode","Jurisdicción","JURISDICTION_MISSING_ACTIVE"]].filter(([k,,issue])=>r[k]===null&&r.sourceIssues?.includes(issue));
  const gapRows=()=>review?.source.operationalCohort?review.rows.filter(r=>gapFields(r).length):[];
  const clearFacts=()=>{facts.clear();prepared=null;previewInput=null;$("facts-rows").replaceChildren();$("facts").hidden=true;$("facts-status").textContent="";};
  const supportsPending=()=>[ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION].includes(bootstrap?.version);
- const code=row=>row.jurisdictionCode??prepared?.review.rows[row.rowNumber-1]?.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
+ const code=row=>registryMode?row.jurisdictionCode:row.jurisdictionCode??prepared?.review.rows[row.rowNumber-1]?.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
  const jurisdictionRows=()=>review?review.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('jurisdiction-search').value.toLocaleLowerCase('es')))):[];
  function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0,inactivePending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:supportsPending()&&value===null&&adoptionInactiveJurisdictionPending(r,review.today)?'inactivePending':'pending']++;}return counts;}
  function clearJurisdictions(){jurisdictions.clear();jurisdictionPage=1;$('jurisdiction-search').value='';$('jurisdiction-rows').replaceChildren();$('jurisdiction-panel').hidden=true;$('jurisdiction-open').setAttribute('aria-expanded','false');$('jurisdiction-counts').textContent='';$('jurisdiction-page').textContent='';}
@@ -64,8 +66,16 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('open').disabled=busy||!readAllowed||document.hidden||!review||!isLive?.();
   $('load').disabled=!enabled||!review;
   for(const n of $('form').querySelectorAll('input,textarea,select,button'))n.disabled=!enabled||!prepareAllowed||!bootstrap?.canPrepare||!!pending;
-  const counts=jurisdictionCounts();$('jurisdiction').required=counts.pending>0;
-  $('send').disabled||=!$('confirm').checked||counts.pending>0||gapRows().length>0&&!prepared;
+  const counts=jurisdictionCounts();$('jurisdiction').required=!registryMode&&counts.pending>0;
+  $('original-ack').required=registryMode;
+  $('send').disabled||=!$('confirm').checked||registryMode&&!$('original-ack').checked||!registryMode&&(counts.pending>0||gapRows().length>0&&!prepared);
+  $('policy').value=registryMode?'original':'complete';$('policy-label').hidden=!registryEligible();
+  for(const k of ['jurisdiction','jurisdiction-help','jurisdiction-counts','jurisdiction-open']){const n=$(k);(k==='jurisdiction'?n.closest('label'):n).hidden=registryMode;}
+  if(registryMode){
+   $('jurisdiction-panel').hidden=true;$('jurisdiction').disabled=true;$('facts').hidden=true;
+   for(const n of host.querySelectorAll('[data-ap-facts] input,[data-ap-facts] textarea,[data-ap-facts] select,[data-ap-facts] button,[data-ap-jurisdiction-panel] select'))n.disabled=true;
+  }
+  $('original-status').hidden=!registryMode;$('original-ack-label').hidden=!registryMode;
   $('jurisdiction-prev').disabled||=jurisdictionPage<=1;
   $('jurisdiction-next').disabled||=jurisdictionPage*25>=jurisdictionRows().length;
   $('pending').hidden=!pending||!live();$('recover').disabled=!enabled||!pending;
@@ -73,7 +83,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   host.setAttribute('aria-busy',String(busy));
  }
  function withdraw(text='Consultá nuevamente las condiciones del padrón.'){
-  epoch++;controller?.abort();bootstrap=null;busy=false;retryReady=false;
+  epoch++;controller?.abort();bootstrap=null;busy=false;retryReady=false;registryMode=false;$('original-ack').checked=false;
   $('form').hidden=true;$('history').hidden=true;$('attempts').replaceChildren();$('counts').textContent='';
   for(const key of ['reference','reason','jurisdiction'])$(key).value='';clearJurisdictions();clearFacts();$('confirm').checked=false;say(text);controls();
  }
@@ -92,7 +102,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  }
  async function fresh(signal,historyOnly=false){
   const selected=!historyOnly&&review?.source.finalRevision;
-  const query=selected?'?'+new URLSearchParams({resource:review.source.operationalCohort?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
+  const query=selected?'?'+new URLSearchParams({resource:registryMode?'registry-bootstrap':review.source.operationalCohort?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
   const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(prepared&&!historyOnly?API:API+query,signal,prepared&&!historyOnly?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview-declarations',payload:previewInput})}:{}));
   return{...access,value,scope:adoptionReviewScope(value.review.scope)};
  }
@@ -139,6 +149,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('form').hidden=!bootstrap.canPrepare||!prepareAllowed||!bootstrap.review.total||!!pending;
   const cohort=bootstrap.review.source.operationalCohort;
   $('counts').textContent=cohort?`Se prepararán los ${bootstrap.review.total} contratos activos del corte completo. ${cohort.archivedTotal} inactivos quedan como antecedentes y no se incorporan al circuito diario. La búsqueda no reduce la propuesta.`:`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} tienen jurisdicción pendiente. La búsqueda no reduce la propuesta.`;
+  if(registryMode){const c=originalRegistryFactsCounts(bootstrap.review.rows);$('original-status').textContent=`Se conservan los datos originales de los ${c.total} activos. ${c.pending} contratos tienen antecedentes pendientes: ${c.startDate} fechas de ingreso, ${c.classification} encuadres y ${c.jurisdiction} jurisdicciones. Las cantidades se superponen. Esta incorporación requiere revisión independiente y no autoriza calcular haberes con datos faltantes.`;}
   $('jurisdiction-help').textContent=supportsPending()?'La elección general se aplica a los contratos pendientes que requieren declaración. Los inactivos con fecha de finalización anterior a hoy pueden conservar su jurisdicción pendiente; esto no habilita su liquidación. Podés declarar excepciones por contrato. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.':'La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.';
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
    const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
@@ -154,7 +165,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   if(busy||!live()||!review)return;const {token,signal}=start('Consultando condiciones y propuestas del padrón completo…');
   try{const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
    if(f.value.review.snapshot!==(prepared?.review??review).snapshot){bootstrap=null;$('form').hidden=true;say('El padrón cambió. Volvé a Revisar padrón completo antes de preparar una propuesta.');return;}
-   paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
+   paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?registryMode?'Revisá los antecedentes pendientes, su conservación, el documento y el motivo antes de guardar la propuesta completa.':'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
   }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
  async function send(recover=false,retry=false){
@@ -167,7 +178,8 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
     if(pending)return;
     if(f.value.review.snapshot!==(prepared?.review??review).snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion||f.value.version!==bootstrap?.version){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón, el catálogo o las condiciones de preparación. Volvé a revisar antes de guardar.');}
     const working=prepared?.review??review,declaration={snapshot:working.snapshot,rows:review.rows.map(r=>({contractId:r.contractId,jurisdictionCode:code(r)}))};
-    const body=await adoptionPreparationPayload(working,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value,{allowInactivePending:supportsPending()});
+    if(registryMode&&!$('original-ack').checked)throw issue('Confirmá la conservación de los antecedentes pendientes antes de guardar.');
+    const body=await adoptionPreparationPayload(working,bootstrap.catalogVersion,registryMode?null:declaration,$('reference').value,$('reason').value,{allowInactivePending:supportsPending(),preserveOriginalFacts:registryMode});
     if(!current(token))return;
     pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
    }
@@ -180,7 +192,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    // attempt through the ordinary scoped history, without rebuilding that cut.
    const confirmed=await fresh(signal,true);if(!current(token))return;sameScope(confirmed,attempt);
    if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
-   pending=null;retryReady=false;clearFacts();clearJurisdictions();for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;paint(confirmed);
+   pending=null;retryReady=false;registryMode=false;$('original-ack').checked=false;clearFacts();clearJurisdictions();for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;paint(confirmed);
    if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}
    say(`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados al prepararla. Requiere una decisión independiente en la bandeja de revisión.`);
   }catch(e){
@@ -190,6 +202,12 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   }finally{if(token===epoch){busy=false;controls();}}
  }
  $('preview').addEventListener('click',previewFacts);
+ $('policy').addEventListener('change',async()=>{
+  if(busy||pending||!live()||!prepareAllowed||!registryEligible()){$('policy').value=registryMode?'original':'complete';return;}
+  if(jurisdictions.size||$('jurisdiction').value||prepared||[...facts.values()].some(d=>d.reference||d.reason||Object.values(d.values).some(Boolean))){$('policy').value=registryMode?'original':'complete';say('Se conservan las declaraciones que ingresaste. Para cambiar el tratamiento, retiralas expresamente o iniciá otra revisión.');return;}
+  registryMode=$('policy').value==='original';bootstrap=null;$('confirm').checked=false;$('original-ack').checked=false;await load();
+ });
+ $('original-ack').addEventListener('change',controls);
  $('load').addEventListener('click',load);$('form').addEventListener('submit',event=>{event.preventDefault();if($('confirm').checked&&!pending&&bootstrap?.canPrepare)send();});
  $('recover').addEventListener('click',()=>send(true));$('retry').addEventListener('click',()=>{if(retryReady&&pending)send(false,true);});
  $('confirm').addEventListener('change',controls);for(const key of ['jurisdiction','reference','reason'])$(key).addEventListener('input',()=>{$('confirm').checked=false;if(key==='jurisdiction')paintJurisdictions();controls();});
@@ -203,5 +221,5 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)withdraw('Datos retirados al ocultar la pantalla. Consultá el mismo intento si quedó pendiente.');});
  window.addEventListener('pagehide',()=>withdraw());document.getElementById('logoutButton')?.addEventListener('click',()=>{readAllowed=false;withdraw('Sesión cerrada. Recuperá cualquier intento con su acceso original.');});
  window.addEventListener('beforeunload',event=>{if(pending){event.preventDefault();event.returnValue='';}});
- controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;clearJurisdictions();$('jurisdiction').value='';clearFacts();$('confirm').checked=false;}controls();},invalidate(){review=null;withdraw();}};
+ controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;registryMode=false;$('original-ack').checked=false;$('form').hidden=true;$('history').hidden=true;clearJurisdictions();$('jurisdiction').value='';clearFacts();$('confirm').checked=false;}controls();},invalidate(){review=null;withdraw();}};
 }

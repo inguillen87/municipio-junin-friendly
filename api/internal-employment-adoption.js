@@ -21,7 +21,7 @@ export function createEmploymentAdoptionHandler(deps={}){
     if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')adoptionFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,ADOPTION_PREPARATION_MAX_BYTES);
    }else if(q.resource==='bootstrap'&&Object.keys(q).length===1)operation='bootstrap';
    else if(q.resource==='final-sources'&&Object.keys(q).length===1)operation='final-sources';
-   else if(['final-bootstrap','final-active-bootstrap'].includes(q.resource)&&Object.keys(q).sort().join('|')==='packageSha256|resource|revisionId'){operation=q.resource;input={revisionId:q.revisionId,packageSha256:q.packageSha256};}
+   else if(['final-bootstrap','final-active-bootstrap','registry-bootstrap'].includes(q.resource)&&Object.keys(q).sort().join('|')==='packageSha256|resource|revisionId'){operation=q.resource;input={revisionId:q.revisionId,packageSha256:q.packageSha256};}
    else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input.key=q.key;}
    else adoptionFail('QUERY_INVALID',400,'Consulta inválida.');
    const access=await authorize(req,res,{env,requiredCapabilities:['workforce.employee.read'],capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
