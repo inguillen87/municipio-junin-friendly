@@ -33,6 +33,7 @@ database/
 !scripts/migrations/147-own-payroll-accounting-mappings.sql
 !scripts/migrations/148-own-payroll-imputation.sql
 !scripts/migrations/152-own-payroll-journal.sql
+!scripts/migrations/153-own-payroll-reconciliation.sql
 !scripts/migrations/149-own-bank-accounts.sql
 !scripts/migrations/150-own-accounting-bank-destinations.sql
 !scripts/migrations/151-own-bank-payment-channel.sql
