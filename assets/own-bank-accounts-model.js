@@ -5,6 +5,9 @@ export const BANK_ACCOUNTS_VERSION = 'own-bank-accounts.v1';
 export const BANK_ACCOUNTS_MAX_BYTES = 8 * 1024 * 1024;
 export const BANK_ACCOUNTS_LIMITS = Object.freeze({ accounts: 10000, contracts: 10000, proposals: 500, revisions: 1000 });
 export const BANK_ACCOUNT_FIELDS = Object.freeze(['id', 'contractId', 'bankLabel', 'cbu', 'accountType', 'accountNumber', 'currency', 'validFrom', 'validUntil', 'status', 'documentReference']);
+export const BANK_PAYMENT_CHANNEL_VERSION = 'own-bank-payment-channel.v1';
+export const BANK_PAYMENT_CHANNELS = Object.freeze({bank_payroll:'Acreditación bancaria de haberes',credicoop_transfers:'Transferencias varias · Credicoop'});
+export const BANK_ACCOUNT_CHANNEL_FIELDS = Object.freeze([...BANK_ACCOUNT_FIELDS,'paymentChannelVersion','paymentChannel']);
 const need = (v, message, code = 'INPUT_INVALID') => { if (!v) throw new SalaryInputError('BANK_ACCOUNTS_' + code, message); };
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 const ordered = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -18,13 +21,23 @@ export function bankAccountCbu(v) {
   return check(v.slice(0, 7), [7, 1, 3, 9, 7, 1, 3]) === Number(v[7]) && check(v.slice(8, 21), [3, 9, 7, 1, 3, 9, 7, 1, 3, 9, 7, 1, 3]) === Number(v[21]);
 }
 export const bankAccountKey = r => r.id.toLowerCase();
+// A declared payment channel is independent of the recipient bank, CBU and
+// account type. Old revisions remain byte-identical and acquire no default.
+export function bankAccountChannel(r) {
+  const declared=Object.hasOwn(r,'paymentChannelVersion')||Object.hasOwn(r,'paymentChannel');
+  if(!declared)return {};
+  need(r.paymentChannelVersion===BANK_PAYMENT_CHANNEL_VERSION&&(r.paymentChannel===null||typeof r.paymentChannel==='string'&&Object.hasOwn(BANK_PAYMENT_CHANNELS,r.paymentChannel)), 'Elegí un canal de acreditación válido o dejalo sin declarar.');
+  need(r.paymentChannel!=='credicoop_transfers'||r.accountType==='CA','Transferencias varias requiere caja de ahorro declarada; no se deduce del CBU.');
+  return {paymentChannelVersion:r.paymentChannelVersion,paymentChannel:r.paymentChannel};
+}
 export function bankAccountsDefinition(v) {
   need(salaryExact(v, ['accounts']) && Array.isArray(v.accounts), 'Revisá el conjunto completo de cuentas.');
   need(v.accounts.length <= BANK_ACCOUNTS_LIMITS.accounts, 'El conjunto supera su capacidad; no se recortaron cuentas.', 'LIMIT');
   need(v.accounts.length > 0, 'Agregá una cuenta. Retirar una cuenta conserva su registro y las versiones anteriores.');
   const seen = new Set();
   const accounts = v.accounts.map(r => {
-    need(salaryExact(r, BANK_ACCOUNT_FIELDS) && [r.id, r.contractId].every(salaryUuid) && !seen.has(bankAccountKey(r)), 'Elegí un contrato propio y una referencia de cuenta única.');
+    need((salaryExact(r, BANK_ACCOUNT_FIELDS)||salaryExact(r,BANK_ACCOUNT_CHANNEL_FIELDS)) && [r.id, r.contractId].every(salaryUuid) && !seen.has(bankAccountKey(r)), 'Elegí un contrato propio y una referencia de cuenta única.');
+    bankAccountChannel(r);
     seen.add(bankAccountKey(r));
     need(text(r.bankLabel, 1, 160) && bankAccountCbu(r.cbu) && (r.accountType === null || ['CA', 'CC'].includes(r.accountType)) && (r.accountNumber === null || text(r.accountNumber, 1, 40)) && ['ARS', 'USD'].includes(r.currency) && ['enabled', 'withdrawn'].includes(r.status) && text(r.documentReference, 3, 180), 'Revisá banco, CBU, moneda, estado y constancia. Un dato no informado queda vacío; no se deduce del CBU.');
     need(civilDay(r.validFrom) && (r.validUntil === null || civilDay(r.validUntil) && r.validUntil >= r.validFrom), 'Informá fechas civiles válidas; el fin no puede ser anterior al inicio.');

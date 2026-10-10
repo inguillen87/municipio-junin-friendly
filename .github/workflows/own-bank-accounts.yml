@@ -1,10 +1,10 @@
 name: Own bank accounts
 on:
   pull_request:
-    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
 permissions:
   contents: read
 concurrency:
@@ -54,6 +54,10 @@ jobs:
         env:
           PGPASSWORD: synthetic_ci_only
         run: node scripts/verify-own-bank-accounts-ui.mjs --ci --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/bank-accounts-ci-ui-pg${{ matrix.pg }}.json
+      - name: Declared payment channel upgrade preserves pending requests and private metadata
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-bank-payment-channel.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/bank-accounts-ci-channel-pg${{ matrix.pg }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
