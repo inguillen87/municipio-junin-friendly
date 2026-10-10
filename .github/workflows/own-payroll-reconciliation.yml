@@ -1,0 +1,63 @@
+name: Own payroll documentary reconciliation
+on:
+  pull_request:
+    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-payroll-reconciliation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-reconciliation.js', 'lib/internal-own-payroll-reconciliation.js', 'scripts/migrations/153-*', 'scripts/migrations/152-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-reconciliation*', 'scripts/*own-reconciliation*', 'scripts/lib/own-reconciliation-installation.mjs', 'scripts/lib/own-payroll-reconciliation-qa.mjs', 'tests/own-payroll-reconciliation*', 'tests/fixtures/own-payroll-reconciliation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-reconciliation.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-payroll-reconciliation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  reconciliation:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated synthetic database and restricted runtime
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          mkdir -p verification
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Exact installation, rollback, conservation, metadata and independent durability
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-reconciliation-installation.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/reconciliation-ci-installation-pg${{ matrix.pg }}.json
+      - name: Complete own accounting journal, exact documentary differences and independent review
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-reconciliation.mjs --major=${{ matrix.pg }} --psql=psql --output=verification/reconciliation-ci-sql-pg${{ matrix.pg }}.json
+      - name: Built UI, actual HTTP/SQL, full incidents, lost response, revocation and mobile access
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-reconciliation-ui.mjs --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/reconciliation-ci-ui-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-payroll-reconciliation-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/reconciliation-ci*
+          retention-days: 5
