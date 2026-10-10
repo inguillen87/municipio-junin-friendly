@@ -18,11 +18,11 @@ export function salaryItems(raw,{allowEmpty=false}={}){
  const keys=['active','agreementCode','categoryCode','code','dependencies','kind','label','nature','precision','ruleReference','unit','validFrom','validUntil','value'];
  const rows=raw.map(r=>{
   ok(salaryExact(r,keys),'La fila contiene campos no admitidos.');
-  ok(['concept','scale'].includes(r.kind)&&code(r.code)&&code(r.agreementCode)&&text(r.label,1,160),'Completá tipo, código, convenio y descripción.');
+  ok(['concept','auxiliary','scale'].includes(r.kind)&&code(r.code)&&code(r.agreementCode)&&text(r.label,1,160),'Completá tipo, código, convenio y descripción.');
   ok(typeof r.active==='boolean'&&Number.isInteger(r.precision)&&r.precision>=0&&r.precision<=8&&Object.hasOwn(SALARY_UNITS,r.unit),'Indicá unidad y precisión explícitas (0 a 8 decimales).');
   ok(month(r.validFrom)&&(r.validUntil===null||month(r.validUntil)&&r.validUntil>=r.validFrom),'Revisá la vigencia, sin inferirla del documento.');
   ok(text(r.ruleReference,3,180),'Identificá el documento que respalda esta definición.');
-  ok(r.kind==='concept'?r.categoryCode===null&&Object.hasOwn(SALARY_NATURES,r.nature):code(r.categoryCode)&&r.nature===null&&r.unit==='money'&&r.value!==null,'La escala necesita clase e importe; el concepto necesita naturaleza.');
+  ok(r.kind==='concept'?r.categoryCode===null&&Object.hasOwn(SALARY_NATURES,r.nature):r.kind==='auxiliary'?r.categoryCode===null&&r.nature==='auxiliary':code(r.categoryCode)&&r.nature===null&&r.unit==='money'&&r.value!==null,'La escala necesita clase e importe; el concepto necesita naturaleza; el auxiliar tiene su propio código y naturaleza auxiliar.');
   ok(r.value===null||typeof r.value==='string'&&/^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,8})?$/.test(r.value)&&!/^\-0(?:\.0+)?$/.test(r.value)&&(r.value.split('.')[1]?.length??0)===r.precision,'Conservá el valor decimal exacto, con la precisión declarada. Vacío significa no informado; cero es un valor.');
   ok(Array.isArray(r.dependencies)&&r.dependencies.length<=50&&r.dependencies.every((d,i)=>text(d,1,120)&&(i===0||d>r.dependencies[i-1])),'Las dependencias deben estar ordenadas y no repetidas.');
   ok(r.kind!=='scale'||r.dependencies.length===0,'Una escala registra un valor; no evalúa dependencias.');

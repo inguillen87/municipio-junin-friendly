@@ -92,7 +92,7 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
  // Recheck the complete census and original concept totals before deriving a view.
  const b=ownReportBundle(bundle.query,bundle.details,bundle.sources),f=ownReportFilters(filters),ids=ownReportContracts(contracts),statistics=ownStatisticsSelection(statisticsSelection),population=selected(b,f,ids),chosen=ownJurisdictionSelect(view==='statistics'?statisticsSelected(b,population,statistics):population,jurisdiction);
  need(['payroll','summary','concepts','legajo','statistics','sources','variables','variable_usage','variable_sources','statement'].includes(view)&&['concept','department','agreement','agreement_department','jurisdiction'].includes(grouping),'Elegí un informe y una agrupación disponibles.');
- const jurisdictionColumns=b.sources.some(s=>s.snapshot.version==='own-close-snapshot.v2'),jurisdictionCell=(source,e)=>jurisdictionColumns?[ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version))]:[];
+ const jurisdictionColumns=b.sources.some(s=>['own-close-snapshot.v2','own-close-snapshot.v3'].includes(s.snapshot.version)),jurisdictionCell=(source,e)=>jurisdictionColumns?[ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version))]:[];
  const text=label=>({label,type:'text',width:24}),integer=label=>({label,type:'integer',width:20});let columns,rows,title,payrollStatement;const variableMetadata=[];
  if(view==='legajo'){
   title='Liquidaciones propias por legajo';

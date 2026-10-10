@@ -1,0 +1,54 @@
+name: Salary auxiliary namespace
+on:
+  pull_request:
+    paths: ['assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
+permissions:
+  contents: read
+concurrency:
+  group: salary-auxiliary-namespace-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare disposable PostgreSQL with the original runtime restrictions
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Actual approval, calculation, close, receipts, history and mobile UI
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-salary-auxiliary-namespace.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-auxiliary-namespace-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: salary-auxiliary-namespace-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/salary-auxiliary-namespace-pg${{ matrix.pg }}
+          retention-days: 5

@@ -17,7 +17,7 @@ export function salaryCopyPlan(raw,selections,targetAgreements,classification){
  for(const selection of selections){
   requireInput(salaryExact(selection,['key','before'])&&selection.before&&selection.key===salaryRowKey(selection.before)&&!selected.has(selection.key),'Una selección está repetida o no pudo verificarse.');
   const row=byKey.get(selection.key);requireInput(row&&salarySerialized(row)===salarySerialized(selection.before),'Cambió una definición seleccionada. Volvé a seleccionarla en el borrador actual.');
-  requireInput(row.kind==='concept'&&row.active,'Sólo se preparan conceptos y auxiliares habilitados. Las escalas se revisan individualmente.');
+  requireInput(['concept','auxiliary'].includes(row.kind)&&row.active,'Sólo se preparan conceptos y auxiliares habilitados. Las escalas se revisan individualmente.');
   sourceAgreement??=row.agreementCode;requireInput(row.agreementCode===sourceAgreement,'La selección debe pertenecer a un único convenio de origen.');selected.set(selection.key,row);
  }
  requireInput(!targetAgreements.includes(sourceAgreement),'El convenio de origen no puede ser también destino.');
@@ -25,7 +25,7 @@ export function salaryCopyPlan(raw,selections,targetAgreements,classification){
  const sources=new Map();function include(row){const key=salaryRowKey(row);if(sources.has(key))return;sources.set(key,row);for(const dependency of row.dependencies)include(byKey.get(dependency));}
  for(const row of selected.values())include(row);
  const targets=[...targetAgreements].sort((a,b)=>a<b?-1:a>b?1:0),sourceRows=[...sources.values()].sort((a,b)=>salaryRowKey(a).localeCompare(salaryRowKey(b)));
- let newCount=0;for(const target of targets)for(const row of sourceRows)if(row.kind==='concept'&&!byKey.has(salaryRowKey({...row,agreementCode:target})))newCount++;
+ let newCount=0;for(const target of targets)for(const row of sourceRows)if(row.kind!=='scale'&&!byKey.has(salaryRowKey({...row,agreementCode:target})))newCount++;
  requireInput(current.length+newCount<=1000,'El conjunto completo excede 1.000 definiciones. No se recorta ni se divide la preparación.');
  const comparisons=[],conflicts=[],additions=[];
  for(const target of targets)for(const source of sourceRows){

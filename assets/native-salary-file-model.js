@@ -2,7 +2,7 @@ import {SalaryInputError,salaryDiff,salaryItems,salarySerialized} from './native
 
 export const SALARY_FILE_MAX_BYTES=2*1024*1024;
 export const SALARY_FILE_HEADER=Object.freeze(['tipo','convenio','clase','codigo','descripcion','naturaleza','unidad','decimales','valor','desde','hasta','respaldo','dependencias','activo']);
-const kinds={concepto:'concept',escala:'scale'},natures={remunerativo:'remuneration',no_remunerativo:'non_remuneration',retencion:'deduction',contribucion_patronal:'employer_contribution',auxiliar:'auxiliary'},units={pesos:'money',horas:'hours',minutos:'minutes',porcentaje:'percent',unidades:'units',coeficiente:'coefficient'};
+const kinds={concepto:'concept',auxiliar:'auxiliary',escala:'scale'},natures={remunerativo:'remuneration',no_remunerativo:'non_remuneration',retencion:'deduction',contribucion_patronal:'employer_contribution',auxiliar:'auxiliary'},units={pesos:'money',horas:'hours',minutos:'minutes',porcentaje:'percent',unidades:'units',coeficiente:'coefficient'};
 const fail=message=>{throw new SalaryInputError('FILE_INPUT_INVALID',message);};
 const reverse=(map,value)=>Object.keys(map).find(k=>map[k]===value);
 // Nonempty cells are exported as literal text, including codes and exact decimals.
