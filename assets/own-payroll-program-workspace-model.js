@@ -11,6 +11,22 @@ export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq
 export const PROGRAM_READ=Object.freeze(['workforce.employee.read','payroll.parameter.read']);
 const require=(v,message)=>{if(!v)throw Error(message);};
 export const programWorkspaceAccess=ownRunWorkspaceAccess;
+// Only the verified bootstrap can describe these prerequisites. This is not
+// payroll eligibility, formula homologation, or permission to calculate.
+export function programWorkspaceGuidance(value){
+ const boot=ownProgramBootstrap(value),catalogApproved=boot.salaryCatalog.revision>0,programApproved=boot.program.revision>0;
+ const catalogMatches=programApproved&&boot.program.salaryVersion===boot.salaryCatalog.version;
+ const pending=boot.proposals.filter(p=>p.status==='pending');
+ return {
+  state:!catalogApproved?'catalog_required':!programApproved?'program_required':!catalogMatches?'catalog_changed':'linked',
+  canPrepare:catalogApproved&&boot.permissions.canPropose,
+  preparationAllowed:boot.permissions.canPropose,
+  reviewAllowed:boot.permissions.canReview,
+  pendingCount:pending.length,
+  reviewableCount:pending.filter(p=>boot.permissions.canReview&&p.canReview&&p.baseVersion===boot.program.version&&p.salaryVersion===boot.salaryCatalog.version).length,
+  catalogRevision:boot.salaryCatalog.revision,programRevision:boot.program.revision,
+ };
+}
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 export function programWorkspaceAttempt(key,body,accessKey){
  require(salaryKey(key)&&typeof accessKey==='string'&&accessKey,'No se pudo identificar el intento de reglas.');

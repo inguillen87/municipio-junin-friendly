@@ -2,7 +2,7 @@ import {ownProgramBootstrap,ownProgramRuleKey,OWN_PROGRAM_MAX_BYTES} from './own
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-payroll-program-copy-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
-import {PROGRAM_READ,PROGRAM_UNITS,PROGRAM_SOURCES,PROGRAM_ROUNDING,PROGRAM_OPERATIONS,PROGRAM_COMPARE,programWorkspaceAccess,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,expressionChildren,expressionSize,changeExpressionOperation,describeProgramExpression,programWorkspaceChanges} from './own-payroll-program-workspace-model.js';
+import {PROGRAM_READ,PROGRAM_UNITS,PROGRAM_SOURCES,PROGRAM_ROUNDING,PROGRAM_OPERATIONS,PROGRAM_COMPARE,programWorkspaceAccess,programWorkspaceGuidance,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,expressionChildren,expressionSize,changeExpressionOperation,describeProgramExpression,programWorkspaceChanges} from './own-payroll-program-workspace-model.js';
 
 const endpoint='/api/internal-own-payroll-program',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const capsFor=command=>[...PROGRAM_READ,command==='propose'?'payroll.parameter.prepare':'payroll.parameter.approve'];
@@ -17,7 +17,7 @@ export function mountOwnPayrollProgram(container){
  host.innerHTML=`<header><p class="own-program-eyebrow">PARÁMETROS · CÁLCULO PROPIO</p><h2>Reglas de cálculo</h2><p>Prepará las reglas por concepto y sus fuentes. Otra persona revisa el conjunto antes de aprobarlo.</p></header>
  <div class="own-program-actions"><button type="button" data-program-refresh>Actualizar consulta</button><button type="button" data-program-login hidden>Ingresar de nuevo</button></div>
  <p data-program-status role="status" aria-live="polite">Abrí Reglas de cálculo para verificar el acceso.</p>
- <div data-program-content hidden><p data-program-current></p><details><summary>Consultar conceptos y valores aprobados</summary><div data-program-catalog></div></details><div class="own-program-tabs" role="group" aria-label="Tarea de reglas"><button type="button" data-program-edit-tab>Preparar reglas</button><button type="button" data-program-review-tab>Revisar propuestas</button></div>
+ <div data-program-content hidden><section class="own-program-guidance" data-program-guidance aria-label="Próximo paso para las reglas"><h3 data-program-guidance-title></h3><p data-program-guidance-description></p><p data-program-preparation-access></p><p data-program-pending-summary></p><div class="own-program-actions"><a data-program-catalog-link href="/nomina#parametros">Abrir maestro salarial propio</a><button type="button" data-program-pending-link hidden>Consultar propuestas pendientes</button></div><p>Esta consulta no certifica los importes ni la aptitud para liquidar. Las decisiones requieren revisión independiente.</p></section><p data-program-current></p><details><summary>Consultar conceptos y valores aprobados</summary><div data-program-catalog></div></details><div class="own-program-tabs" role="group" aria-label="Tarea de reglas"><button type="button" data-program-edit-tab>Preparar reglas</button><button type="button" data-program-review-tab>Revisar propuestas</button></div>
  <form data-program-form><fieldset data-program-fields><legend>1. Preparar el programa completo</legend><p>Las reglas anteriores se conservan. Cada cambio requiere vigencia, fuentes, redondeo y respaldo expresos.</p>
  <label>Decimales de los totales<select data-program-precision><option value="">Elegir precisión</option>${Array.from({length:9},(_,i)=>`<option value="${i}">${i}</option>`).join('')}</select></label>
  <details data-program-copy><summary>Copiar fórmulas a varios convenios</summary><p>Elegí reglas propias y destinos. La copia conserva fórmula, unidades, tipos y redondeo; cada destino necesita sus definiciones y dependencias compatibles.</p>
@@ -46,11 +46,13 @@ export function mountOwnPayrollProgram(container){
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
  const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
  function controls(){
-  $('refresh').disabled=busy||!live();$('fields').disabled=busy||!!attempt||!can(capsFor('propose'))||!boot?.permissions.canPropose;
+  $('refresh').disabled=busy||!live();$('fields').disabled=busy||!!attempt||!can(capsFor('propose'))||!boot?.permissions.canPropose||!(boot?.salaryCatalog.revision>0);
   const proposal=boot?.proposals.find(p=>p.id===$('proposal-select').value);
   $('decision-fields').disabled=busy||!!attempt||!can(capsFor('approve'))||!proposal?.canReview||proposal.status!=='pending';
   $('edit-tab').disabled=busy||!!attempt||!can(PROGRAM_READ);$('review-tab').disabled=busy||!!attempt||!can(PROGRAM_READ);
   $('proposal-select').disabled=busy||!!attempt||!can(PROGRAM_READ);
+  $('pending-link').disabled=busy||!!attempt||!can(PROGRAM_READ);
+  $('catalog-link').hidden=busy||!!attempt;
   $('confirm').disabled=busy||!!attempt||!prepared;$('send').hidden=!prepared&&!attempt||!!receipt;
   $('send').disabled=busy||!can(capsFor(attempt?.body.command??prepared?.command))||!attempt&&!$('confirm').checked;
   $('send').textContent=attempt?'Reintentar el mismo envío':prepared?.command==='approve'?'Aprobar programa':prepared?.command==='reject'?'Rechazar propuesta':'Registrar propuesta';
@@ -66,7 +68,7 @@ export function mountOwnPayrollProgram(container){
   clearCopy();$('copy').open=false;for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).value='';$('copy-source').replaceChildren();$('copy-targets').replaceChildren(node('legend','Convenios de destino'));
   copySelection.clear();copySourcePage=1;$('copy-multiple').checked=false;$('copy-search').value='';$('copy-single').hidden=false;$('copy-sources-panel').hidden=true;$('copy-sources').replaceChildren();$('copy-selection').textContent='';$('copy-page').textContent='';
   boot=null;draft=null;historicalRules=new WeakSet();prepared=null;receipt=null;notFound=false;$('content').hidden=true;$('receipt').hidden=true;$('receipt').textContent='';$('current').textContent='';
-  for(const key of ['rule-editor','binding-editor','impact-table','proposal-detail','rule-select','binding-select','proposal-select','catalog'])$(key).replaceChildren();
+  for(const key of ['rule-editor','binding-editor','impact-table','proposal-detail','rule-select','binding-select','proposal-select','catalog','guidance-title','guidance-description','preparation-access','pending-summary'])$(key).replaceChildren();
   for(const key of ['reason','decision-reason','decision','precision'])$(key).value='';$('confirm').checked=false;$('impact').hidden=true;$('send-box').hidden=true;
  }
  function suspend(message){seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message,'warning');controls();}
@@ -219,6 +221,17 @@ export function mountOwnPayrollProgram(container){
  }
  function renderBoot(value){
   boot=ownProgramBootstrap(value);$('content').hidden=false;$('current').textContent=`Programa aprobado: revisión ${boot.program.revision}. Catálogo salarial: revisión ${boot.salaryCatalog.revision}.`;
+  const guidance=programWorkspaceGuidance(boot),messages={
+   catalog_required:['Primero: aprobar el maestro salarial propio','Todavía no hay una revisión aprobada de conceptos y escalas. Prepará el maestro con sus vigencias y respaldo; otra persona debe revisarlo antes de preparar reglas.'],
+   program_required:['Siguiente paso: preparar y revisar las reglas','El maestro salarial tiene una revisión aprobada. Todavía no hay un programa propio aprobado. Prepará las fórmulas, entradas, unidades y vigencias para su revisión independiente.'],
+   catalog_changed:['Revisar las reglas con el maestro actualizado','El programa aprobado utiliza otra revisión del maestro salarial. Revisá todas las reglas y fuentes con el maestro actual y enviá una nueva propuesta. El programa anterior conserva su historial.'],
+   linked:['Programa y maestro vinculados','El programa aprobado conserva la misma revisión del maestro consultado. Los cálculos requieren además su población, novedades, fuentes y decisiones verificadas.'],
+  };
+  [$('guidance-title').textContent,$('guidance-description').textContent]=messages[guidance.state];
+  $('guidance').dataset.state=guidance.state;
+  $('preparation-access').textContent=guidance.preparationAllowed?'Tu cuenta tiene habilitada la preparación; las propuestas no aprueban las reglas.':'Esta cuenta puede consultar. La preparación requiere permiso y un vínculo municipal verificado. No se habilita desde esta pantalla.';
+  $('pending-summary').textContent=guidance.pendingCount?`${guidance.pendingCount} propuestas pendientes en la consulta completa · ${guidance.reviewableCount} compatibles y habilitadas para tu revisión. Las demás pueden necesitar otra persona o fuentes actualizadas.`:'No hay propuestas de reglas pendientes en la consulta completa.';
+  $('pending-link').hidden=guidance.pendingCount===0;
   $('catalog').replaceChildren();const catalog=node('div');catalog.className='own-program-table';catalog.tabIndex=0;catalog.setAttribute('role','region');catalog.setAttribute('aria-label','Catálogo aprobado completo');const table=node('table');table.append(node('caption',`Catálogo completo: ${boot.salaryCatalog.items.length} definiciones. Los valores ausentes no equivalen a cero.`));
   const head=node('thead'),row=node('tr');for(const title of ['Convenio','Código y definición','Unidad y valor','Vigencia','Respaldo']){const th=node('th',title);th.scope='col';row.append(th);}head.append(row);table.append(head);const body=node('tbody');
   for(const item of boot.salaryCatalog.items){const tr=node('tr');tr.append(node('td',item.agreementCode),node('td',`${item.code} · ${item.label}${item.categoryCode===null?'':' · clase '+item.categoryCode}\n${item.kind==='scale'?'Escala':'Concepto'} · ${item.active?'Activo':'Inactivo'}`),node('td',`${PROGRAM_UNITS[item.unit]} · ${item.value===null?'Sin valor':item.value}`),node('td',`${item.validFrom} a ${item.validUntil??'sin término'}`),node('td',item.ruleReference));body.append(tr);}table.append(body);catalog.append(table);$('catalog').append(catalog);
@@ -280,6 +293,7 @@ export function mountOwnPayrollProgram(container){
  $('precision').addEventListener('change',()=>{if(draft&&!attempt){draft.totalsPrecision=$('precision').value===''?null:Number($('precision').value);invalidate();}});
  for(const key of ['reason','decision-reason','decision'])$(key).addEventListener(key==='decision'?'change':'input',invalidate);
  $('proposal-select').addEventListener('change',()=>{invalidate();$('decision').value='';$('decision-reason').value='';renderProposal();});$('confirm').addEventListener('change',controls);
+ $('pending-link').addEventListener('click',()=>{if(busy||attempt||!can(PROGRAM_READ))return;tab='review';$('form').hidden=true;$('proposals').hidden=false;const selected=boot.proposals.find(p=>p.id===$('proposal-select').value);if(selected?.status!=='pending')$('proposal-select').value=boot.proposals.find(p=>p.status==='pending')?.id??'';renderProposal();$('proposal-select').focus();});
  $('form').addEventListener('submit',e=>e.preventDefault());$('refresh').addEventListener('click',refresh);$('send').addEventListener('click',send);$('recover').addEventListener('click',recover);
  $('new').addEventListener('click',()=>{if(!receipt||busy)return;attempt=null;clearViews();refresh();});
  $('revise').addEventListener('click',()=>{if(!notFound||busy)return;const previous=attempt.body;attempt=null;clearViews();if(previous.command==='propose'){draft=clone(previous.program);$('reason').value=previous.reason;}refresh();});
