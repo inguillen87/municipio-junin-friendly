@@ -14,6 +14,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
   'assets/employment-adoption-contract.js',
+  'assets/employment-adoption-original-facts.js',
   'assets/employment-source-declarations.js',
   'assets/employment-adoption-changes-ui.js',
   'assets/employment-adoption-preparation-model.js',

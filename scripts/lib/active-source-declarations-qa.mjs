@@ -15,5 +15,5 @@ export function relocateActiveSourceDeclarations(batch,qa,previous){
  const initial=`DO $initial$ BEGIN IF current_setting('municontrol_source_declarations.mode')='first' THEN EXECUTE ${q(before)};ELSE EXECUTE ${q(after)};END IF;END $initial$`;
  const defs=[...batch.newDefinitions.map(n),...batch.afterDefinitions.slice(0,-1).map(d=>n(d.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '))),ready.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '),...batch.migration.slice(-2).map(n)];
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_source_declarations.mode')='first' THEN ${defs.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
- return{...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),verification:batch.verification.map((s,i)=>i===1?after:n(s))};
+ return{...batch,readyPin,readyDefinition:ready,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),verification:batch.verification.map((s,i)=>i===1?after:n(s))};
 }
