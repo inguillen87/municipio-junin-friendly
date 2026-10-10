@@ -1,0 +1,15 @@
+# M4 — libro de asientos de nómina propia
+
+Nómina → Asientos de nómina toma una imputación propia aprobada vigente y conserva todos sus conceptos y destinos. La cuenta principal proviene de la asociación contable aprobada. El operador declara fecha, Debe o Haber, cuenta de contrapartida y documento de respaldo para cada destino. Una aplicación por naturaleza incluye todas las páginas, exige una declaración expresa y permite revisar cada par antes del envío. Buscar o paginar sólo cambia la vista.
+
+Una propuesta no registra el asiento. Otra persona habilitada, distinta por membresía, identidad y correo, revisa el conjunto completo y decide registrarlo o rechazarlo. Registrar asigna un número dentro del año, municipio y vínculo del libro. Los importes vienen de la imputación aprobada: se conserva su escala decimal, el cero explícito y el signo; un importe negativo invierte ambos lados del par. Un auxiliar sigue siendo auxiliar y no genera movimiento monetario. No se calculan haberes ni se ejecutan pagos.
+
+No se puede contabilizar dos veces a los mismos contratos, período y tipo mientras exista una propuesta pendiente o un asiento registrado sin reversión. El control también alcanza otra revisión de imputación o un cierre posterior del mismo período. Reabrir el cierre o cambiar la configuración retira la posibilidad de registrar una propuesta pendiente. Su rechazo conserva el historial sin asignar número.
+
+Revertir requiere abrir un original registrado, declarar fecha igual o posterior y fundamento, preparar otro asiento y obtener revisión independiente. El nuevo asiento conserva todos los renglones e invierte Debe y Haber. Puede pertenecer al año siguiente. El original permanece intacto y conserva su número, fecha, importes y referencia a la reversión. Una reversión no puede revertirse con este circuito; tampoco se modifica el original por cambiar su fuente después del registro.
+
+El CSV voluntario contiene todos los renglones del asiento registrado o revertido, referencias e importes exactos como texto literal seguro. La pantalla relee el estado y la sesión antes y después de preparar los bytes. No guarda la vista en almacenamiento del navegador. Ocultar la página, cambiar de tarea, cuenta o permisos retira los datos visibles. Un envío pendiente conserva su cuerpo y clave; su recuperación sólo consulta el intento original.
+
+SQL152 crea una tabla vacía inmutable y trece funciones, con cinco fachadas autorizadas para el rol técnico existente. No reemplaza funciones anteriores, asigna roles humanos, adopta empleados, ejecuta el ingreso operacional bloqueado ni llama a GRH. La instalación conserva todas las filas, funciones y permisos anteriores y requiere ensayo con rollback y lectura durable independiente.
+
+Esta fase es el libro contable de nómina. La conciliación con documentos externos, el circuito de pago y la aceptación municipal requieren sus fases posteriores. Los escenarios de prueba usan empleados creados sólo en MuniControl y datos exclusivamente sintéticos; no certifican una contabilización municipal real.
