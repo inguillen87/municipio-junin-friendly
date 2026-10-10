@@ -31,13 +31,13 @@ export async function prepareCredicoopOutput(batch,accounts,value,closes){
   if(source.rows.some(r=>r.account?.cbu.startsWith('191')&&!r.account.accountType))issues.push('ACCOUNT_TYPE_UNKNOWN');
   const rows=source.rows.map(r=>{
     const bank=r.account?.cbu.startsWith('191')??false,ownJurisdiction=r.jurisdiction.code===profile.jurisdictionCode;
-    const selected=bank&&ownJurisdiction&&r.account.paymentChannel!=='credicoop_transfers'&&(profile.accountType==='all'||r.account.accountType===profile.accountType);
+    const selected=bank&&ownJurisdiction&&(!r.account.paymentChannelVersion||r.account.paymentChannel==='bank_payroll')&&(profile.accountType==='all'||r.account.accountType===profile.accountType);
     const codes=r.issues.filter(c=>c!=='REPEATED_DESTINATION');
     const parts=bank?/^(\d{3})-(\d{6})-(\d)$/.exec(r.account.accountNumber??''):null;
     const accountParts=parts&&BigInt(parts[2])>0n?{branch:parts[1],number:parts[2],verifier:parts[3]}:null;
     if(bank&&!accountParts)codes.push('ACCOUNT_LAYOUT');
     if(selected&&r.cents!==null&&BigInt(r.cents)>999999999999999n)codes.push('CREDICOOP_AMOUNT_OVERFLOW');
-    const selectionReason=selected?'Incluido':!r.account?'Destino no informado':r.account.paymentChannel==='credicoop_transfers'?'Otro canal declarado: Transferencias varias':!bank?'Otra entidad bancaria':!ownJurisdiction?'Otra jurisdicción':'Otro tipo de cuenta';
+    const selectionReason=selected?'Incluido':!r.account?'Destino no informado':r.account.paymentChannelVersion&&r.account.paymentChannel===null?'Canal de acreditación pendiente':r.account.paymentChannel==='credicoop_transfers'?'Otro canal declarado: Transferencias varias':!bank?'Otra entidad bancaria':!ownJurisdiction?'Otra jurisdicción':'Otro tipo de cuenta';
     return {...r,selected,selectionReason,accountParts,issues:codes};
   });
   const destinations=new Map();

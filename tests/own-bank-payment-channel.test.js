@@ -42,6 +42,7 @@ test('a declared Transferencias varias destination is never silently included in
 test('new explicit pending channel blocks the full TXT even if its row is outside the bank or jurisdiction',async()=>{
  const f=bankOutputFixture(35);extend(f.accounts.configuration.definition.accounts[34],null);
  const r=await prepareBankOutput(f.batch,f.accounts,f.profile,f.closes);assert.equal(bankOutputPage(r,'no existe').filtered,0);assert.ok(r.issues.includes('PAYMENT_CHANNEL_UNKNOWN'));assert.equal(r.ready,false);assert.throws(()=>createBankOutputTxt(r));
+ assert.equal(r.rows[34].selected,false);assert.match(r.rows[34].selectionReason,/Canal de acreditación pendiente/);
  const c=await credicoop(f);assert.ok(c.issues.includes('PAYMENT_CHANNEL_UNKNOWN'));assert.throws(()=>createCredicoopTxt(c));
  assert.equal(bankControlTables(await control(f)).detail.length,36);
 });
