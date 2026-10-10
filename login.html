@@ -268,6 +268,10 @@
       if (error && error.code === 'IDENTITY_MFA_INVALID') return 'El código de la aplicación autenticadora no es válido. Si querés usar correo, solicitá un código nuevo desde el botón superior.';
       if (error && error.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED') return 'El acceso venció. Volvé a ingresar para generar una verificación nueva.';
       if (error && ['IDENTITY_DELIVERY_UNAVAILABLE', 'IDENTITY_EMAIL_MFA_UNAVAILABLE', 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE'].includes(error.code)) return 'No se pudo enviar el código por correo. Podés usar la aplicación autenticadora o un código de recuperación.';
+      if (error && error.code === 'IDENTITY_TIMEOUT') return 'El servicio de acceso tardó demasiado en responder. Volvé a intentar dentro de unos minutos.';
+      if (error && error.name === 'TypeError') return 'No se pudo conectar con el servicio de acceso. Revisá tu conexión y volvé a intentar.';
+      if (error && error.code === 'IDENTITY_ORIGIN_FORBIDDEN') return 'El acceso no está habilitado desde esta dirección. Abrí el enlace institucional de MuniControl e intentá nuevamente.';
+      if (error && (['IDENTITY_GATEWAY_NOT_CONFIGURED', 'IDENTITY_ORIGIN_NOT_CONFIGURED', 'IDENTITY_GATEWAY_UNAVAILABLE', 'IDENTITY_ACCESS_UNAVAILABLE'].includes(error.code) || (error.status >= 500 && error.status <= 599))) return 'El servicio de acceso no está disponible en esta página. Volvé a intentar más tarde. Si continúa, avisá al administrador.';
       return 'No se pudo validar el acceso. Revisá los datos e intentá nuevamente.';
     }
 
@@ -784,9 +788,10 @@
         return;
       } catch (error) {
         document.getElementById('passInput').value = '';
-        showError(identityError(error));
+        var loginErrorMessage = identityError(error);
+        showError(loginErrorMessage);
         btnLabel.textContent = 'Ingresar al portal interno';
-        setLoading(false, 'No se pudo validar el acceso.');
+        setLoading(false, loginErrorMessage);
         document.getElementById('passInput').focus();
       }
     }
