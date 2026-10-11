@@ -13,6 +13,11 @@ import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/own-f931-contract.js',
+  'assets/own-f931-preparation-model.js',
+  'assets/own-f931-preparation-client.js',
+  'assets/own-f931-preparation-panel.js',
+  'assets/own-f931-preparation-panel.css',
   'assets/own-period-participation-model.js',
   'assets/own-art-days-model.js',
   'assets/own-art-days-panel.js',
