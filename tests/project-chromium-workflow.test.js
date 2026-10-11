@@ -9,7 +9,7 @@ const workflows=[
  ['.github/workflows/own-art.yml',5],
  ['.github/workflows/payroll-fixed-novelties-release.yml',10],
  ['.github/workflows/own-fiscal-facts.yml',2],
- ['.github/workflows/own-f931-preparation.yml',2],
+ ['.github/workflows/own-f931-preparation.yml',3],
 ];
 for(const [file,expected] of workflows)test(file+': the native QA preload is scoped to explicit verifier steps',()=>{
  const text=read(file);assert.doesNotMatch(text,/GITHUB_ENV/);
