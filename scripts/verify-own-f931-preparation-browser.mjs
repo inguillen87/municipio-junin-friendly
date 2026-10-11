@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {OWN_CLOSE_NOMINAL} from '../assets/own-payroll-close-model.js';
 import {reportFixture} from '../tests/fixtures/own-payroll-report-synthetic.js';
+import {fiscalFactsHash} from '../assets/own-fiscal-facts-model.js';
 const root=fs.realpathSync(new URL('../public',import.meta.url)),output=path.resolve(process.env.OWN_F931_QA_OUTPUT??'verification/own-f931-browser-20261011');
 assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));fs.mkdirSync(output,{recursive:true});
 const origin='http://127.0.0.1:4373',checks=[],errors=[],writes=[],downloads=[];
@@ -18,6 +19,10 @@ async function inspect(viewport,label){
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(req.method()!=='GET')writes.push({method:req.method(),path:u.pathname});
   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic-user',email:'f931-qa@example.invalid'},access:{context:'tenant',tenant:{id:'10000000-0000-4000-8000-000000009991',roleKey:'QA'},tenantCapabilities:allowed?OWN_CLOSE_NOMINAL:[],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
+  if(u.pathname==='/api/internal-own-fiscal-facts'){
+   if(!allowed)return route.fulfill({status:403,json:{ok:false,error:'Synthetic access revoked'}});
+   assert.equal(u.searchParams.get('resource'),'census');return route.fulfill({json:{ok:true,data:{version:'own-fiscal-census.v1',period:u.searchParams.get('period'),scopeVersion:'b'.repeat(64),stateVersion:await fiscalFactsHash([]),rows:[],complete:true,payrollCalculated:false,payrollPosted:false}}});
+  }
   if(u.pathname==='/api/internal-own-payroll-close'){
    if(!allowed)return route.fulfill({status:403,json:{ok:false,error:'Synthetic access revoked'}});
    const q=u.searchParams,data=q.get('resource')==='detail'?structuredClone(fixture.details[0]):structuredClone(fixture.receipts[0]);
