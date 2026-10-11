@@ -5,10 +5,11 @@ import { spawn } from 'node:child_process';
 
 // One finite diagnostic experiment. It never replaces the normal browser gate
 // and preserves every failure; no retry-until-success or excluded case.
-const root = path.resolve('verification/payroll-formula-transport');
+const root = path.resolve('verification/payroll-formula-transport/native-call-experiment');
+const caseCount = 16;
 fs.mkdirSync(root, { recursive: true });
 const cases = [];
-for (let index = 0; index < 8; index++) {
+for (let index = 0; index < caseCount; index++) {
   const output = path.join(root, 'case-' + index);
   fs.mkdirSync(output, { recursive: false });
   const log = fs.openSync(path.join(output, 'original-verifier.log'), 'wx');
@@ -23,5 +24,5 @@ for (let index = 0; index < 8; index++) {
   fs.writeFileSync(path.join(root, 'finite-diagnostic.json'), JSON.stringify({ syntheticOnly: true, releaseGate: false, cases }, null, 2) + '\n');
   console.log(JSON.stringify(cases.at(-1)));
 }
-assert.equal(cases.length, 8);
-assert.deepEqual(cases.filter(value => value.exitCode !== 0), [], 'All eight original browser verifications must pass; failures remain preserved');
+assert.equal(cases.length, caseCount);
+assert.deepEqual(cases.filter(value => value.exitCode !== 0), [], 'All sixteen original browser verifications must pass; failures remain preserved');

@@ -505,6 +505,7 @@ async function inspect(viewport, label) {
   transportObservation.attach(page, 'page');
   if (process.env.MUNICONTROL_TRANSPORT_CDP === '1') {
     await transportObservation.attachCdp(await context.newCDPSession(page));
+    await transportObservation.observeCancellationCalls(page);
   }
   const issues = [];
   page.on('console', (message) => { if (message.type() === 'error') issues.push(`console: ${message.text()}`); });

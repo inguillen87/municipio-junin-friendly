@@ -61,3 +61,16 @@ test('CDP observations retain lifecycle without routes or confidential payloads'
   assert.deepEqual(events.map(value => value.event), ['cdp:request', 'cdp:response', 'cdp:finished']);
   assert.doesNotMatch(JSON.stringify(events), /NEVER_LOG|secret|authorization|set-cookie|postData|127\.0\.0\.1/);
 });
+
+test('native call observations accept only known operations and source line numbers', async () => {
+  const events = [], observe = createPayrollTransportObservation(value => events.push(value));
+  let binding, init;
+  const page = { exposeBinding: async (_name, callback) => { binding = callback; }, addInitScript: async callback => { init = callback; } };
+  await observe.observeCancellationCalls(page);
+  assert.equal(typeof init, 'function');
+  binding({}, { event: 'controller:abort', line: 171, headers: 'NEVER_LOG', bytes: 'NEVER_LOG', error: 'NEVER_LOG' });
+  assert.equal(events[0].event, 'controller:abort'); assert.equal(events[0].line, 171);
+  assert.doesNotMatch(JSON.stringify(events), /NEVER_LOG|headers|bytes|error/);
+  assert.throws(() => binding({}, { event: 'NEVER_LOG', line: 171 }));
+  assert.throws(() => binding({}, { event: 'reader:cancel', line: 'NEVER_LOG' }));
+});

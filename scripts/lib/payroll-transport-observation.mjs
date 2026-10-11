@@ -73,7 +73,33 @@ export function createPayrollTransportObservation(write) {
     // network emulation, additional application requests or target switches.
     await session.send('Network.enable');
   }
-  return Object.freeze({ attach, server, selected, attachCdp });
+  async function observeCancellationCalls(page) {
+    await page.exposeBinding('__mcSyntheticTransportCall', (_source, value) => {
+      if (!value || !['controller:abort', 'reader:cancel', 'reader:release'].includes(value.event)
+          || !Number.isSafeInteger(value.line) || value.line < 1 || value.line > 10000) throw Error('Invalid synthetic call observation');
+      emit(value.event, { source: 'grh-source-preview.js', line: value.line });
+    });
+    await page.addInitScript(() => {
+      function observe(prototype, key, event) {
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, key);
+        if (!descriptor || typeof descriptor.value !== 'function') throw Error('Native transport API unavailable');
+        const original = descriptor.value;
+        Object.defineProperty(prototype, key, { ...descriptor, value: function (...args) {
+          const frame = String(new Error().stack || '').split('\n').find(value => /\/assets\/grh-source-preview\.js:\d+:\d+/.test(value));
+          if (frame) {
+            const match = frame.match(/\/assets\/grh-source-preview\.js:(\d+):\d+/);
+            void window.__mcSyntheticTransportCall({ event, line: Number(match[1]) });
+          }
+          // Preserve receiver, arguments, return identity and native semantics.
+          return Reflect.apply(original, this, args);
+        } });
+      }
+      observe(AbortController.prototype, 'abort', 'controller:abort');
+      observe(ReadableStreamDefaultReader.prototype, 'cancel', 'reader:cancel');
+      observe(ReadableStreamDefaultReader.prototype, 'releaseLock', 'reader:release');
+    });
+  }
+  return Object.freeze({ attach, server, selected, attachCdp, observeCancellationCalls });
 }
 
 export function payrollTransportObservationFile(root = process.cwd()) {
