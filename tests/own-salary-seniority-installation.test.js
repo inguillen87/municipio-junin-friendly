@@ -1,9 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import { buildOwnSalarySeniorityInstallation, assertOwnSalarySeniorityDurability, SQL156_SHA256 } from '../scripts/lib/own-salary-seniority-installation.mjs';
 import { ownInstallationFunctionPin } from '../scripts/lib/own-payroll-installation.mjs';
 const sourceCommit='a'.repeat(40),read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+
+test('deployment package contains every exact installation source and keeps private and blocked sources excluded',()=>{
+ const rules=read('.vercelignore').split('\n').map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const negate=rule.startsWith('!'),pattern=negate?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=negate;}return keep;};
+ const b=buildOwnSalarySeniorityInstallation({sourceCommit,read:file=>{assert.ok(included(file),'Excluded installation source: '+file);return read(file);}});
+ assert.equal(b.sourceHashes['scripts/migrations/156-own-salary-seniority.sql'],SQL156_SHA256);
+ for(const file of['.handoff/sync-current.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/source.json','backup.sql.gz','scripts/migrations/114-native-payroll-resolver.sql','scripts/migrations/115-native-payroll-evaluator.sql','scripts/migrations/111-budget-historical-positions.sql'])assert.equal(included(file),false,file);
+ for(const file of['api/internal-own-salary-seniority.js','assets/own-salary-seniority-model.js','assets/own-salary-seniority-panel.js','assets/own-salary-seniority-panel.css'])assert.ok(included(file),file);
+ for(const file of['assets/own-salary-seniority-model.js','assets/own-salary-seniority-panel.js','assets/own-salary-seniority-panel.css'])assert.ok(read('scripts/build-friendly.mjs').includes("'"+file+"'"),file);
+});
 test('batch pins the published current bodies and grants only four guarded new facades',()=>{
  const b=buildOwnSalarySeniorityInstallation({read,sourceCommit});
  assert.equal(b.sourceHashes['scripts/migrations/156-own-salary-seniority.sql'],SQL156_SHA256);
