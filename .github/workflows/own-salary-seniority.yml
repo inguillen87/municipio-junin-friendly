@@ -1,10 +1,10 @@
 name: Own salary seniority
 on:
   pull_request:
-    paths: ['api/internal-own-salary-seniority.js', 'assets/own-salary-seniority*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-salary-seniority.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-salary-seniority*', 'scripts/lib/salary-auxiliary-namespace-browser.mjs', 'scripts/migrations/156-own-salary-seniority.sql', 'tests/own-salary-seniority*', 'tests/fixtures/own-salary-seniority-synthetic.js', '.github/workflows/own-salary-seniority.yml']
+    paths: ['scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'lib/own-period-read-recovery.js', 'tests/own-period-read-recovery.test.js', 'scripts/lib/own-period-read-contention-qa.mjs', 'api/internal-own-salary-seniority.js', 'assets/own-salary-seniority*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-salary-seniority.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-salary-seniority*', 'scripts/lib/salary-auxiliary-namespace-browser.mjs', 'scripts/migrations/156-own-salary-seniority.sql', 'tests/own-salary-seniority*', 'tests/fixtures/own-salary-seniority-synthetic.js', '.github/workflows/own-salary-seniority.yml']
   push:
     branches: ['master']
-    paths: ['api/internal-own-salary-seniority.js', 'assets/own-salary-seniority*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-salary-seniority.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-salary-seniority*', 'scripts/lib/salary-auxiliary-namespace-browser.mjs', 'scripts/migrations/156-own-salary-seniority.sql', 'tests/own-salary-seniority*', 'tests/fixtures/own-salary-seniority-synthetic.js', '.github/workflows/own-salary-seniority.yml']
+    paths: ['scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'lib/own-period-read-recovery.js', 'tests/own-period-read-recovery.test.js', 'scripts/lib/own-period-read-contention-qa.mjs', 'api/internal-own-salary-seniority.js', 'assets/own-salary-seniority*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-salary-seniority.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-salary-seniority*', 'scripts/lib/salary-auxiliary-namespace-browser.mjs', 'scripts/migrations/156-own-salary-seniority.sql', 'tests/own-salary-seniority*', 'tests/fixtures/own-salary-seniority-synthetic.js', '.github/workflows/own-salary-seniority.yml']
 permissions:
   contents: read
 concurrency:
@@ -38,6 +38,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Prepare disposable PostgreSQL with the original runtime restrictions
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
@@ -45,10 +46,18 @@ jobs:
       - name: Actual declaration, independent review, exact capture, payroll and mobile UI
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-salary-seniority.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-salary-seniority-pg${{ matrix.pg }}
+      - name: Native fragmented EOF and unchanged rejection guards
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-source-preview-fragmented-transport.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: own-salary-seniority-pg${{ matrix.pg }}-${{ github.run_id }}
-          path: verification/own-salary-seniority-pg${{ matrix.pg }}
+          path: |
+            verification/own-salary-seniority-pg${{ matrix.pg }}
+            verification/release-chromium-157.0.8098.0/installation.json
+            verification/payroll-formula-transport/fragmented-regression
           retention-days: 5
