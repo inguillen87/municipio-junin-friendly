@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildOwnSalarySeniorityInstallation, assertOwnSalarySeniorityDurability, SQL156_SHA256 } from '../scripts/lib/own-salary-seniority-installation.mjs';
 import { ownInstallationFunctionPin } from '../scripts/lib/own-payroll-installation.mjs';
+import { splitPostgresStatements } from '../scripts/lib/sql-statements.mjs';
 const sourceCommit='a'.repeat(40),read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
 
 test('deployment package contains every exact installation source and keeps private and blocked sources excluded',()=>{
@@ -24,6 +25,9 @@ test('batch pins the published current bodies and grants only four guarded new f
  assert.match(b.before,/CASE WHEN p.oid IN\(/);assert.match(b.conservation,/IS DISTINCT FROM/);
  assert.match(b.afterCheck,/SENIORITY_TABLE_SECURITY/);assert.match(b.afterCheck,/SENIORITY_IMMUTABLE_GUARD/);
  assert.ok(b.connects===false&&b.executesSql===false);
+ for(const statement of[...b.statements,...b.verification])assert.equal(splitPostgresStatements(statement).length,1,'Each prepared transaction element must be one complete statement');
+ assert.deepEqual(splitPostgresStatements(b.statements.join(';\n')),b.statements);
+ assert.deepEqual(splitPostgresStatements(b.verification.join(';\n')),b.verification);
 });
 test('unreviewed migration, missing source anchor and ambiguous commit fail before a batch exists',()=>{
  assert.throws(()=>buildOwnSalarySeniorityInstallation({sourceCommit,read:f=>read(f)+(f.endsWith('156-own-salary-seniority.sql')?'\n-- changed':'')}),/REVIEWED_SOURCE_CHANGED/);
