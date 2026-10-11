@@ -8,6 +8,6 @@ Cada tarjeta describe una corrida y cuántos legajos contiene. Un legajo puede f
 
 La lectura limitada permite consultar metadatos sin habilitar resultados nominales. Ocultar la página, salir de la tarea, cerrar sesión, vencer la sesión o retirar el acceso elimina la vista. Una respuesta tardía no vuelve a mostrarla. Los fallos conservan los filtros para consultar de nuevo; no hay almacenamiento de la vista en el navegador.
 
-Los accesos a preparación, cálculo, cierre, planillas y recibos abren las tareas existentes, con sus controles de autoridad. La advertencia sobre cierre y publicación continúa visible. Las corridas incorporadas desde respaldos conservan sus elementos y quedan identificadas en un desplegable separado dentro de Resumen.
+Los accesos a preparación, cálculo, cierre, planillas y recibos abren las tareas existentes, con sus controles de autoridad. La advertencia sobre cierre y publicación continúa visible. Las tarjetas de meses del respaldo conservan sus elementos visibles, después del resumen propio, bajo el título Resumen del respaldo incorporado. Su conciliación detallada queda identificada en un desplegable separado.
 
 Las pruebas usan la página compilada, el handler real y respuestas SQL sintéticas. Cubren varias páginas, filtros completos, fuentes vacías o incompletas, revocación, cambio de ámbito, respuesta tardía, lectura limitada, preservación de una decisión pendiente y móvil de 390/320 píxeles. Implementación, pruebas, publicación y aceptación municipal se acreditan por separado.
