@@ -24,12 +24,12 @@ export async function verifyParticipationCommandGuard(h){
  const handler=createOwnPeriodParticipationHandler({...deps,getSql:()=>adapter}),invoke=async({query,body,key,expected=200})=>{const res={setHeader(){},status(v){this.statusCode=v;return this;},json(v){this.value=v;return this;}},posted=!!body;await handler({method:posted?'POST':'GET',url:'/api/qa-participation-guard'+(posted?'':'?'+new URLSearchParams(query)),query:query??{},headers:posted?{origin:deps.env.INTERNAL_APP_ORIGIN,'content-type':'application/json','idempotency-key':key}:{},...(posted?{body:JSON.stringify({operation:'command',payload:body})}:{})},res);assert.equal(res.statusCode,expected,JSON.stringify(res.value));return res.value.data??res.value;};
  const contractId=h.participation.people[1].contractId,observations=[],active=new Set();let sequence=20;
  const prepare=async()=>{const b=await invoke({query:{resource:'bootstrap',contractId,period}});return{key:randomUUID(),body:{command:'propose',contractId,period,scopeVersion:b.scopeVersion,baseVersion:b.configuration.version,sourceVersion:b.source.version,proposalId:null,proposalSha256:null,definition:{recognizedUnits:String(++sequence),baseUnits:'100',asOfDate:period+'-01',documentReference:'Constancia exclusivamente sintética QA'},reason:'Espera exclusivamente sintética QA',reviewConfirmed:false}};};
- const holder=async({table='native_employee_registration',persistent=false,delay=150,mutation=''})=>{
+ const holder=async({table='native_employee_registration',persistent=false,delay=150,persistentDelay=1600,mutation=''})=>{
   const child=spawn(db.executable,db.args,{env:{...db.environment,PGAPPNAME:'mc-command-wait-controlled'},windowsHide:true,stdio:['pipe','pipe','pipe']});active.add(child);let output='',error='',timer;
   const done=new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>{active.delete(child);code===0?resolve():reject(Error(error));});});done.catch(()=>{});child.stderr.on('data',b=>error+=b.toString());
   const ready=new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('QA holder not ready')),10000);child.stdout.on('data',b=>{output+=b.toString();if(output.includes('MC_COMMAND_HOLDER_READY')){clearTimeout(timer);resolve();}});child.once('error',reject);});
   const relation=qa.schema+'.'+table,wait=`DO $observe$ DECLARE deadline timestamptz:=clock_timestamp()+interval '3 seconds';BEGIN LOOP EXIT WHEN EXISTS(SELECT 1 FROM pg_locks WHERE relation=${q(relation)}::regclass AND mode='ShareLock' AND NOT granted AND pid<>pg_backend_pid());IF clock_timestamp()>deadline THEN RAISE EXCEPTION 'QA_EXPECTED_SHARE_WAITER';END IF;PERFORM pg_sleep(0.01);END LOOP;END $observe$;SELECT 'MC_COMMAND_SHARE_WAITER_OBSERVED';SELECT pg_sleep(${delay/1000});`;
-  child.stdin.end(`BEGIN;SET LOCAL statement_timeout='10s';SET LOCAL idle_in_transaction_session_timeout='15s';LOCK TABLE ${relation} IN SHARE UPDATE EXCLUSIVE MODE;SELECT 'MC_COMMAND_HOLDER_READY';${persistent?'SELECT pg_sleep(1.6);':wait}${mutation}COMMIT;\n`);await ready;return{done,observed:()=>output.includes('MC_COMMAND_SHARE_WAITER_OBSERVED')};
+  child.stdin.end(`BEGIN;SET LOCAL statement_timeout='10s';SET LOCAL idle_in_transaction_session_timeout='15s';LOCK TABLE ${relation} IN SHARE UPDATE EXCLUSIVE MODE;SELECT 'MC_COMMAND_HOLDER_READY';${persistent?'SELECT pg_sleep('+persistentDelay/1000+');':wait}${mutation}COMMIT;\n`);await ready;return{done,observed:()=>output.includes('MC_COMMAND_SHARE_WAITER_OBSERVED')};
  };
  try{
   for(const table of['native_employee_registration','employment_contract','person_identity']){
@@ -38,6 +38,18 @@ export async function verifyParticipationCommandGuard(h){
   }
   for(const smaller of[false,true]){
    const attempt=await prepare(),before=await rows(),held=await holder({persistent:true}),calls=commandCalls;callerTimeout=smaller?'100ms':null;const started=Date.now();let elapsed;try{const result=await invoke({...attempt,expected:409});elapsed=Date.now()-started;assert.equal(result.code,'PARTICIPATION_BUSY');assert.ok(elapsed>=(smaller?75:850)&&elapsed<(smaller?600:1500),'caller lock limit preserved');}finally{callerTimeout=null;await held.done;}assert.equal(commandCalls-calls,1);assert.deepEqual(await rows(),before);const missing=await invoke({query:{resource:'attempt',key:attempt.key},expected:404});assert.equal(missing.code,'PARTICIPATION_NOT_FOUND');observations.push({persistent:true,smallerCallerLimit:smaller,elapsedMs:elapsed,commandCalls:1,status:409,eventsAdded:0});ok(true,'SQL161 '+(smaller?'smaller caller timeout':'one-second upper bound')+': persistent holder refuses a single command and leaves no attempt or record');
+  }
+  for(const smaller of[false,true]){
+   const attempt=await prepare(),before=await rows(),first=await holder({delay:smaller?40:650}),second=await holder({table:'employment_contract',persistent:true}),calls=commandCalls;
+   callerTimeout=smaller?'100ms':null;let elapsed;
+   try{
+    const started=Date.now(),result=await invoke({...attempt,expected:409});elapsed=Date.now()-started;
+    assert.equal(result.code,'PARTICIPATION_BUSY');assert.ok(elapsed>=(smaller?75:850)&&elapsed<(smaller?600:1300),'one deadline must bound consecutive acquisitions');
+   }finally{callerTimeout=null;await Promise.all([first.done,second.done]);}
+   assert.equal(first.observed(),true);assert.equal(commandCalls-calls,1);assert.deepEqual(await rows(),before);
+   const missing=await invoke({query:{resource:'attempt',key:attempt.key},expected:404});assert.equal(missing.code,'PARTICIPATION_NOT_FOUND');
+   observations.push({consecutive:true,tables:['native_employee_registration','employment_contract'],firstWaitObserved:true,firstHoldAfterWaitMs:smaller?40:650,secondHoldMs:1600,smallerCallerLimit:smaller,budgetMs:smaller?100:1000,elapsedMs:elapsed,commandCalls:1,status:409,eventsAdded:0});
+   ok(true,'SQL161 '+(smaller?'smaller caller deadline':'shared one-second deadline')+': consecutive real table waits refuse the only command without an attempt or record');
   }
   const session=await db.run('SELECT jsonb_build_object(\'expiresAt\',expires_at::text,\'lastSeenAt\',last_seen_at::text) FROM tenant_identity_session WHERE id='+q(qa.actors.maker.actorSessionId)+'::uuid');
   for(const mode of['expiry','idle']){

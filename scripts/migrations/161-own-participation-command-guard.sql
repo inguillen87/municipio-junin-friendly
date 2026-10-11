@@ -8,17 +8,22 @@ BEGIN
  target:=(body->>'contractId')::uuid;period_value:=body->>'period';
  FOREACH field IN ARRAY ARRAY['scopeVersion','baseVersion','sourceVersion'] LOOP IF jsonb_typeof(body->field) IS DISTINCT FROM 'string' OR body->>field!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'PARTICIPATION_INPUT_INVALID';END IF;END LOOP;
  IF NOT public.action_center_context_has_capability(ctx,CASE cmd WHEN 'propose' THEN 'payroll.parameter.prepare' ELSE 'payroll.parameter.approve' END) OR ctx->>'actorPersonId' IS NULL OR NOT coalesce((ctx->>'parameterActorVerified')::boolean,false) THEN RAISE EXCEPTION 'PARTICIPATION_FORBIDDEN';END IF;
- -- Acquire the same SHARE locks once, with a bounded wait for brief contention.
+ -- Acquire the same SHARE locks once, sharing a single deadline across all waits.
  -- The original advisory and NOWAIT guard remains unchanged and runs below.
- DECLARE previous_timeout text:=current_setting('lock_timeout');limit_ms bigint;fresh jsonb;
+ DECLARE previous_timeout text:=current_setting('lock_timeout');limit_ms bigint;remaining_ms bigint;lock_deadline timestamptz;locked_relation text;fresh jsonb;
  BEGIN
   PERFORM public.native_salary_lock_v1(ctx);
   IF NOT pg_try_advisory_xact_lock(hashtextextended('own-participation:v1:'||(ctx->>'tenantId')||':'||(ctx->>'sourceBindingId'),0)) THEN RAISE EXCEPTION 'PARTICIPATION_BUSY';END IF;
   SELECT setting::bigint INTO STRICT limit_ms FROM pg_catalog.pg_settings WHERE name='lock_timeout';
   IF limit_ms<=0 OR limit_ms>1000 THEN limit_ms:=1000;END IF;
-  PERFORM set_config('lock_timeout',limit_ms::text||'ms',true);
+  lock_deadline:=clock_timestamp()+limit_ms*interval '1 millisecond';
   BEGIN
-   LOCK TABLE public.native_employee_registration,public.employment_contract,public.person_identity IN SHARE MODE;
+   FOREACH locked_relation IN ARRAY ARRAY['native_employee_registration','employment_contract','person_identity'] LOOP
+    remaining_ms:=floor(EXTRACT(EPOCH FROM(lock_deadline-clock_timestamp()))*1000)::bigint;
+    IF remaining_ms<=0 THEN RAISE lock_not_available;END IF;
+    PERFORM set_config('lock_timeout',remaining_ms::text||'ms',true);
+    EXECUTE format('LOCK TABLE public.%I IN SHARE MODE',locked_relation);
+   END LOOP;
   EXCEPTION WHEN lock_not_available THEN
    PERFORM set_config('lock_timeout',previous_timeout,true);RAISE EXCEPTION 'PARTICIPATION_BUSY';
   END;

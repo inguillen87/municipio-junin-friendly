@@ -18,7 +18,11 @@ test('incoming payload, exact fingerprints, independent decisions and original N
  assert.equal(batch.original.split(anchor)[1],batch.replacement.split(anchor)[1]);
  assert.ok(batch.replacement.startsWith(batch.original.split(anchor)[0]));
  const lock=b=>b.migration.find(s=>s.startsWith('CREATE FUNCTION public.own_participation_lock_v1('));assert.equal(lock(old),lock(next));assert.match(lock(next),/IN SHARE MODE NOWAIT/);
- assert.match(batch.replacement,/IN SHARE MODE;/);assert.match(batch.replacement,/limit_ms>1000/);assert.match(batch.replacement,/limit_ms::text\|\|'ms',true/);
+ assert.match(batch.replacement,/LOCK TABLE public\.%I IN SHARE MODE/);assert.match(batch.replacement,/limit_ms>1000/);
+ assert.match(batch.replacement,/lock_deadline:=clock_timestamp\(\)\+limit_ms\*interval '1 millisecond'/);
+ assert.match(batch.replacement,/FOREACH locked_relation IN ARRAY ARRAY\['native_employee_registration','employment_contract','person_identity'\]/);
+ assert.match(batch.replacement,/lock_deadline-clock_timestamp\(\)/);assert.match(batch.replacement,/remaining_ms<=0 THEN RAISE lock_not_available/);
+ assert.match(batch.replacement,/remaining_ms::text\|\|'ms',true/);
  assert.equal((batch.replacement.match(/set_config\('lock_timeout',previous_timeout,true\)/g)||[]).length,2);
  assert.match(batch.replacement,/expires_at>clock_timestamp\(\)/);assert.match(batch.replacement,/last_seen_at>clock_timestamp\(\)-interval '1 hour'/);
  assert.match(batch.replacement,/fresh:=public.native_salary_administrative_context_v1\(p\)/);

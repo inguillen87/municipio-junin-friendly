@@ -11,7 +11,7 @@ import { pinsCheck, preservationSnapshot } from './native-leave-installation.mjs
 import { SALARY_ADMINISTRATIVE_CONTEXT } from './salary-administrative-identity-installation.mjs';
 const q = v => "'" + String(v).replaceAll("'", "''") + "'";
 export const SQL157_SHA256 = '06b5fdcce0c55e5b768d43af0491f1498728bf762febffe81cb6df9763d96548';
-export const SQL161_SHA256 = '0600849949612821b832b813321798dc42fd11697ed445405a6504530c06d324';
+export const SQL161_SHA256 = 'dae369f64cb565ff298a105112fdbe7ff8c147fdfadda9999009fc49431bc87a';
 const hash = v => createHash('sha256').update(v).digest('hex');
 const once = (s, a, b) => { assert.equal(s.split(a).length, 2, 'PARTICIPATION_SOURCE_ANCHOR_CHANGED: ' + a.slice(0, 75)); return s.replace(a, () => b); };
 const get = (rows, name) => { const found = rows.filter(s => new RegExp('^CREATE (?:OR REPLACE )?FUNCTION public\\.' + name + '\\(').test(s)); assert.equal(found.length, 1, name); return found[0]; };

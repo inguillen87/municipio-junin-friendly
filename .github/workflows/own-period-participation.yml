@@ -52,10 +52,10 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-source-preview-fragmented-transport.mjs
-      - name: Bounded command wait, durable upgrade, expiry and withdrawn authority
+      - name: Shared wait deadline, durable upgrade, expiry and withdrawn authority
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
-        run: node scripts/verify-own-participation-command-guard.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --output=verification/participation-command-guard-pg${{ matrix.pg }} --browser=none
+        run: node --import ./scripts/lib/project-chromium.mjs scripts/verify-own-participation-command-guard.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --output=verification/participation-command-guard-pg${{ matrix.pg }} --browser=chromium
       - uses: actions/upload-artifact@v4
         if: always()
         with:
