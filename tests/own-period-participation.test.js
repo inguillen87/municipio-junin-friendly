@@ -102,3 +102,11 @@ test('copying a fractional rule carries both exact quantity sources and its docu
  assert.ok(plan.program.periodParticipation.treatments.every(t=>t.treatment==='fraction'&&t.reference==='Tratamiento exclusivamente sintético para copiar'));
  assert.equal(f.draft.periodParticipation.treatments.length,1);
 });
+import { independentParticipationReference } from '../scripts/lib/period-participation-qa-reference.mjs';
+
+test('QA reference matches prior monetary scope instead of the first random UUID with an unrelated monthly addition',()=>{
+ const input=(contractId,addition)=>({contractId,inputs:[{key:'base',unit:'money',value:'100.10'},{key:'addition',unit:'money',value:addition},{key:'recognizedYears',unit:'units',value:'0.00000000'}]});
+ const previous={saved:{input:{employees:[input('unrelated','20.25'),input('matching','0.00000000')]},result:{employeeTotals:[{contractId:'unrelated',net:'243.56'},{contractId:'matching',net:'223.92'}],rows:[{contractId:'matching',conceptCode:'88',nature:'remuneration',amount:'7.29'},{contractId:'matching',conceptCode:'95',nature:'remuneration',amount:'107.40'}]}}};
+ assert.deepEqual(independentParticipationReference(previous,input('new','0.00000000')),{baselineId:'matching',expectedFull:'223.92',expectedThird:'147.46',selectedCents:'11469'});
+ assert.throws(()=>independentParticipationReference(previous,input('new','1.00')),/same complete monetary inputs/);
+});

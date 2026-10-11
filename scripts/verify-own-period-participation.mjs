@@ -15,6 +15,7 @@ import { emptyOwnReceiptParams } from '../assets/own-payroll-receipt-model.js';
 import { createOwnReceiptPdf } from '../assets/own-payroll-receipt-pdf.js';
 import { prepareOwnPlanilla } from '../assets/own-payroll-receipt-planilla-model.js';
 import { employeeDraft } from '../assets/native-employee-contract.js';
+import { independentParticipationReference } from './lib/period-participation-qa-reference.mjs';
 const j=v=>q(JSON.stringify(v))+'::jsonb';
 const cuil=dni=>{const b='20'+dni,rem=11-[5,4,3,2,7,6,5,4,3,2].reduce((a,w,i)=>a+w*Number(b[i]),0)%11;return b+(rem===11?'0':rem===10?'9':String(rem));};
 export async function verifyOwnPeriodParticipation(options) {
@@ -96,14 +97,10 @@ export async function verifyOwnPeriodParticipation(options) {
   ok(true,'unknown participation on the last page blocks the whole result and preserves its exact capture');
   await approve(await prepare(people.at(-1),'1'));
   const run=await api('run',{body,expected:201});assert.equal(run.saved.result.employeeCount,count);assert.equal(run.payload.periodParticipation.records.length,count);assert.equal(run.payload.employmentFacts.records.length,count);
-  const byContract=new Map(run.saved.result.employeeTotals.map(r=>[r.contractId,r]));const expectedFull=h.seniority.finalRun.saved.result.employeeTotals[0].net;
-  const cents=value=>BigInt(value.replace('.','')),money=value=>(value/100n)+'.'+String(value%100n).padStart(2,'0');
-  const baselineId=h.seniority.finalRun.saved.result.employeeTotals[0].contractId,baselineRows=h.seniority.finalRun.saved.result.rows.filter(r=>r.contractId===baselineId);
-  const component=code=>baselineRows.find(r=>r.conceptCode===code&&r.nature==='remuneration');
-  const selectedCents=cents(component('88').amount)+cents(component('95').amount);assert.equal(selectedCents%3n,0n);
+  const byContract=new Map(run.saved.result.employeeTotals.map(r=>[r.contractId,r]));
+  const {expectedFull,expectedThird}=independentParticipationReference(h.seniority.finalRun,run.saved.input.employees.find(e=>e.contractId===people[0].contractId));
   // Only the explicitly selected 88 sources and their dependent 95 change.
   // Prior independent rules retain their declared formulas and exact amounts.
-  const expectedThird=money(cents(expectedFull)-selectedCents*2n/3n);
   assert.equal(byContract.get(people[0].contractId).net,expectedFull);for(const e of people.slice(1))assert.equal(byContract.get(e.contractId).net,expectedThird);
   ok(true,'complete SQL capture plus existing rational engine computes one-third exactly and avoids double proration of a dependent total');
   const frozen=structuredClone(run.payload),resultHash=run.saved.resultSha256;
