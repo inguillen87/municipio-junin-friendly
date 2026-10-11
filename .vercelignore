@@ -336,3 +336,6 @@ local-agents/
 # Reviewed ART source contracts required by build regression tests; no SQL execution.
 !scripts/migrations/158-own-art-days.sql
 !scripts/migrations/159-own-art-report.sql
+
+# Reviewed fiscal source contract required by build regression tests; no SQL execution.
+!scripts/migrations/160-own-fiscal-facts.sql

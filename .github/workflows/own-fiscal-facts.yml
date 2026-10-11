@@ -1,0 +1,54 @@
+name: Own documented fiscal facts
+on:
+  pull_request:
+    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', '.github/workflows/own-fiscal-facts.yml']
+  push:
+    branches: ['master']
+    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', '.github/workflows/own-fiscal-facts.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-fiscal-facts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare disposable PostgreSQL under original runtime restrictions
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Native employee, closed payroll, independent fiscal facts, recovery and full mobile F931
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: node scripts/verify-own-fiscal-facts.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-fiscal-facts-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-fiscal-facts-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/own-fiscal-facts-pg${{ matrix.pg }}
+          retention-days: 5
