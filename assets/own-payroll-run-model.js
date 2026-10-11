@@ -1,3 +1,5 @@
+import { participationCapture } from './own-period-participation-model.js';
+import { ownProgramParticipation } from './own-period-participation-program.js';
 import { salaryExact, salaryHash, salaryUuid, salaryKey, salarySerialized } from './native-salary-catalog-model.js';
 import { normalizeOwnPayrollInput } from './own-payroll-engine.js';
 import { payrollRequire as require } from './own-payroll-exact.js';
@@ -32,7 +34,8 @@ export function ownRunCapture(v, attempt = null) {
   require(salaryExact(v, ['version', 'id', 'key', 'body', 'bodySha256', 'algorithmSha256', 'payload', 'payloadSha256', 'createdAt', 'replayed', 'saved']) && v.version === (v.body?.version===OWN_RUN_COMMAND_VERSION?OWN_RUN_DATED_VERSION:OWN_RUN_VERSION) && salaryUuid(v.id) && salaryKey(v.key) && [v.bodySha256, v.algorithmSha256, v.payloadSha256].every(salaryHash) && typeof v.createdAt === 'string' && typeof v.replayed === 'boolean', 'RUN_CONTRACT_INVALID', 'No se pudo verificar la captura de la corrida.');
   ownRunCommand(v.body);
   const hasSeniority = ownProgramSeniority(v.payload?.programState?.program?.definition);
-  require(salaryExact(v.payload, ['programState', 'population', 'monthly', 'fixed', 'period', 'liquidationType', 'selection', 'sourceInventory', ...(hasSeniority ? ['employmentFacts'] : [])]) && v.payload.period === v.body.period && v.payload.liquidationType === v.body.liquidationType && salarySerialized(v.payload.selection) === salarySerialized(v.body.selection) && v.payload.programState?.program?.version === v.body.programVersion, 'RUN_CONTRACT_INVALID', 'La captura no coincide con el alcance elegido.');
+  require(salaryExact(v.payload, ['programState', 'population', 'monthly', 'fixed', 'period', 'liquidationType', 'selection', 'sourceInventory', ...(hasSeniority ? ['employmentFacts'] : []), ...(ownProgramParticipation(v.payload.programState?.program?.definition) ? ['periodParticipation'] : [])]) && v.payload.period === v.body.period && v.payload.liquidationType === v.body.liquidationType && salarySerialized(v.payload.selection) === salarySerialized(v.body.selection) && v.payload.programState?.program?.version === v.body.programVersion, 'RUN_CONTRACT_INVALID', 'La captura no coincide con el alcance elegido.');
+  if (ownProgramParticipation(v.payload.programState?.program?.definition)) participationCapture(v.payload.periodParticipation, v.payload.population?.employees ?? [], v.body.period);
   if (hasSeniority) seniorityCapture(v.payload.employmentFacts, v.payload.population?.employees ?? [], v.body.period);
   if (attempt) require(v.key === attempt.key && salarySerialized(v.body) === salarySerialized(attempt.body), 'RUN_CONTRACT_INVALID', 'La captura cambió el cuerpo o la clave originales.');
   if (v.saved !== null) ownRunSaved(v.saved, v.id, v.algorithmSha256);

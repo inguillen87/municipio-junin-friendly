@@ -201,6 +201,7 @@ export async function verifyOwnSalarySeniority(options) {
   await api('seniority', { query: { resource: 'attempt', key: first.key }, expected: 403 });
   await sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id=' + q(qa.actors.maker.membershipId) + '::uuid');
   ok(true, 'revocation immediately removes preparation and original attempt access without changing records');
+  if(options.continuation) return options.continuation({...h,seniority:{people,finalRun,prepare,approve,installed,durable,repeated}});
   return { version: 'own-salary-seniority-qa.v1', employeeCount: count, newTables: 1, newFunctions: 12, adaptedFunctions: 4, installed,durable,repeated,syntheticOnly: true, productiveBusinessWrites: 0, seniorityRows: await db.run('SELECT to_jsonb(count(*)) FROM own_seniority_event') };
  } });
 }
