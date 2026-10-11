@@ -5,6 +5,7 @@ import { schoolCertificateHttp } from './internal-family-certificates.js';
 import { schoolCertificateSafeError } from '../lib/internal-family-certificates.js';
 import { readRawPrivateJson } from '../lib/private-json-body.js';
 import { employeeContext } from '../lib/internal-native-employees.js';
+import { ownPeriodReadScopeKey, recoverOwnPeriodRead } from '../lib/own-period-read-recovery.js';
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
 import { fiscalFactsCommand, FISCAL_FACTS_MAX_BYTES } from '../assets/own-fiscal-facts-model.js';
 import { FISCAL_FACTS_READ, FISCAL_FACTS_CAPS, fiscalFactsFail, fiscalFactsError, fiscalFactsOperation } from '../lib/internal-own-fiscal-facts.js';
@@ -31,10 +32,10 @@ export function createOwnPeriodFiscalFactsHandler(deps = {}) {
    else if (q.resource === 'detail' && Object.keys(q).sort().join('|') === 'id|resource') { operation = 'detail'; input = { id: q.id }; }
    else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
    else fiscalFactsFail('QUERY_INVALID', 400, 'Consulta inválida.');
-   const access = await authorize(req, res, { env, requiredCapabilities: FISCAL_FACTS_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
+   let access = await authorize(req, res, { env, requiredCapabilities: FISCAL_FACTS_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
    if (!access) return;
    if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, FISCAL_FACTS_READ)) fiscalFactsFail('FORBIDDEN', 403, 'La membresía no permite consultar datos fiscales.');
-   const session = sessionFor(access, env); employeeContext(access.principal, session);
+   let session = sessionFor(access, env); employeeContext(access.principal, session);
    if (method === 'POST') {
     const body = await readRawPrivateJson(req, { maxBytes: FISCAL_FACTS_MAX_BYTES, maxDepth: 8, timeoutMs: 10000, declaredLength: schoolCertificateHttp.header(req, 'content-length'), fail: kind => {
      if (kind === 'large') fiscalFactsFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
@@ -46,7 +47,16 @@ export function createOwnPeriodFiscalFactsHandler(deps = {}) {
     if (!principalHasCapabilities(access.principal, FISCAL_FACTS_CAPS[command.command])) fiscalFactsFail('FORBIDDEN', 403, 'La membresía no permite esta operación.');
     operation = 'command'; input = { body: command, key: schoolCertificateHttp.header(req, 'idempotency-key') };
    }
-   const data = await fiscalFactsOperation(await getSql(env), access.principal, session, operation, input);
+   const sql = await getSql(env), read = () => fiscalFactsOperation(sql, access.principal, session, operation, input), scope = method === 'GET' ? ownPeriodReadScopeKey(access.principal, session) : null;
+   const data = method === 'GET' ? await recoverOwnPeriodRead({ method, operation, busyCode: 'FISCAL_FACTS_BUSY', read, reauthorize: async () => {
+    const next = await authorize(req, res, { env, requiredCapabilities: FISCAL_FACTS_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
+    if (!next) return false;
+    if (next.mode !== 'managed' || next.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(next.principal, FISCAL_FACTS_READ)) fiscalFactsFail('FORBIDDEN', 403, 'La membresía no permite consultar datos fiscales.');
+    const nextSession = sessionFor(next, env);
+    if (ownPeriodReadScopeKey(next.principal, nextSession) !== scope) fiscalFactsFail('SCOPE_CHANGED', 409, 'Cambió la cuenta, la sesión o el ámbito municipal. Volvé a abrir la consulta.');
+    access = next; session = nextSession; return true;
+   } }) : await read();
+   if (data === null) return;
    if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
    return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ ok: true, data });
   } catch (e) {

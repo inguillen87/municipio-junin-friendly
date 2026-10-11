@@ -8,6 +8,7 @@ import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {createOwnPeriodFiscalFactsHandler} from '../api/internal-own-fiscal-facts.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
 import {FISCAL_FACT_FIELDS} from '../assets/own-fiscal-facts-model.js';
+import {verifyOwnPeriodReadContention} from './lib/own-period-read-contention-qa.mjs';
 import {loadOwnF931Preparation} from '../assets/own-f931-preparation-client.js';
 import {prepareOwnF931,ownF931Proof,ownF931PreparationCsv,ownF931VisibleContracts} from '../assets/own-f931-preparation-model.js';
 const j=v=>q(JSON.stringify(v))+'::jsonb';
@@ -25,6 +26,7 @@ export async function verifyOwnFiscalFacts(options){
   const batch=buildOwnFiscalFactsInstallation(h.options),installation=await install(batch,'municontrol_fiscal_facts',assertOwnFiscalFactsDurability);
   ok(true,'SQL160 adds one empty immutable table and five facades; all prior data, functions and ACLs survive COMMIT, independent readback and repeat verification');
   await assert.rejects(()=>sql('GRANT SELECT ON '+qa.schema+'.own_fiscal_facts_event TO municontrol_actions_runtime_app;'+installation.n(batch.afterCheck)),/FISCAL_FACTS_TABLE_SECURITY/);assert.deepEqual(await sql(batch.verification.map(installation.n).join(';\n')),installation.durable);ok(true,'SQL160 table privilege drift fails and rolls back without widening application access');
+  await verifyOwnPeriodReadContention(h);
   const fiscalAdapter={query:async(query,values)=>{if(!query.startsWith('SELECT public.own_fiscal_facts_'))return adapter.query(query,values);assert.match(query,/^SELECT public\.own_fiscal_facts_(?:bootstrap|detail|attempt|command|census)_v1\([\s\S]+\) AS result$/);return [{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,k)=>{assert.ok(Number(k)>0&&Number(k)<=values.length);return q(values[Number(k)-1]);}),true)}];}};
   handlers.fiscalFacts=createOwnPeriodFiscalFactsHandler({...deps,getSql:()=>fiscalAdapter});
   const query=contractId=>({resource:'bootstrap',contractId,period}),census=()=>api('fiscalFacts',{query:{resource:'census',period}});
