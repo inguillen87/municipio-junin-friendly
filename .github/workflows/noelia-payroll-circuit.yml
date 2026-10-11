@@ -77,12 +77,20 @@ jobs:
         run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/active-adoption-browser-ci --active=true
       - name: Independently decide and consult the final-cut result through actual SQL and HTTP
         run: node scripts/verify-municipal-adoption-operator-browser.mjs --transport=ci --final-cut=true --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-operator-ci
+      - name: Project QA browser for the read-only payroll summary
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete own payroll summary, original result and mobile access recovery
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-payroll-summary-ui.mjs --output=verification/own-payroll-summary-ci
       - name: Preserve synthetic evidence even when a check fails
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}
           path: |
+            verification/own-payroll-summary-ci
+            verification/release-chromium-157.0.8098.0/installation.json
             verification/salary-administrative-ci/result.json
             verification/salary-administrative-ci/browser-proof.json
             verification/salary-administrative-ci/partial-checks.json
