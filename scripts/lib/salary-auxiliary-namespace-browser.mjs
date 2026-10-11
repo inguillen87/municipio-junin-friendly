@@ -3,7 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 export async function verifySalaryAuxiliaryBrowser({handlers,env,actor,output,check,revoke,restore,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4359',errors=[],posts=[];
  const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
- const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});env.INTERNAL_APP_ORIGIN=origin;
+ const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});env.INTERNAL_APP_ORIGIN=origin;let currentPage;
  try{
   const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
@@ -17,7 +17,7 @@ export async function verifySalaryAuxiliaryBrowser({handlers,env,actor,output,ch
    const file=path.resolve(root,u.pathname==='/nomina'?'nomina-control.html':'.'+u.pathname);if(req.method()!=='GET'||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
    return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
   });
-  const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+  const page=await context.newPage();currentPage=page;page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
   const salary=page.locator('[data-native-salary]'),program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});
   const loadSalary=async()=>{await page.goto(origin+'/nomina#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();await salary.getByRole('button',{name:'Consultar maestro propio'}).click();await salary.getByText('definiciones propias',{exact:false}).waitFor();};
   await loadSalary();check(await salary.getByRole('button',{name:'Preparar nueva versión'}).isEnabled(),'built React master allows the historical verified administrative author to prepare');
@@ -34,5 +34,5 @@ export async function verifySalaryAuxiliaryBrowser({handlers,env,actor,output,ch
   await loadSalary();await revoke();const [revokedResponse]=await Promise.all([page.waitForResponse(r=>new URL(r.url()).pathname==='/api/internal-native-salary'),salary.getByRole('button',{name:'Consultar maestro propio'}).click()]);assert.equal((await revokedResponse.json()).data.permissions.canPropose,false);await page.waitForFunction(()=>{const root=document.querySelector('[data-native-salary]');return ![...(root?.querySelectorAll('button')??[])].some(b=>b.textContent==='Preparar nueva versión');});check(await salary.getByRole('button',{name:'Preparar nueva versión'}).count()===0,'revocation removes preparation from the built salary master');await restore();
   assert.deepEqual(posts,[]);check(true,'browser navigation, drafts and permission refresh generate no write request');assert.deepEqual(errors,[]);check(true,'both built panels complete this browser path without JavaScript errors');
   fs.writeFileSync(path.join(output,'browser-proof.json'),JSON.stringify({ok:true,browser:browserName,actualSql:true,syntheticAuth:true,posts:0,errors},null,2)+'\n');
- }finally{await browser.close();}
+ }catch(e){if(currentPage&&!currentPage.isClosed()){await currentPage.screenshot({path:path.join(output,'auxiliary-browser-failure.png'),fullPage:true});fs.writeFileSync(path.join(output,'auxiliary-browser-failure.json'),JSON.stringify({url:currentPage.url(),body:(await currentPage.locator('body').innerText()).slice(0,5000),errors,posts},null,2)+'\n');}throw e;}finally{await browser.close();}
 }
