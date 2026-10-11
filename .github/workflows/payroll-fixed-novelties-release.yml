@@ -3,6 +3,7 @@ on:
   pull_request:
     branches: ['master']
     paths:
+      - 'assets/own-art-*'
       - 'lib/private-json-body.js'
       - 'api/internal-family-certificates.js'
       - 'api/internal-employment-catalog.js'
@@ -62,6 +63,7 @@ on:
   push:
     branches: ['codex/noelia-fixed-novelties-20260921', 'internal-noelia-native-fixed-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:
+      - 'assets/own-art-*'
       - 'lib/private-json-body.js'
       - 'api/internal-family-certificates.js'
       - 'api/internal-employment-catalog.js'
