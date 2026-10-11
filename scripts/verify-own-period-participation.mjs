@@ -19,6 +19,7 @@ import { independentParticipationReference } from './lib/period-participation-qa
 const j=v=>q(JSON.stringify(v))+'::jsonb';
 const cuil=dni=>{const b='20'+dni,rem=11-[5,4,3,2,7,6,5,4,3,2].reduce((a,w,i)=>a+w*Number(b[i]),0)%11;return b+(rem===11?'0':rem===10?'9':String(rem));};
 export async function verifyOwnPeriodParticipation(options) {
+ assert.ok(options.syntheticEmployeeSexCode===undefined||['F','M','X'].includes(options.syntheticEmployeeSexCode));
  return verifyOwnSalarySeniority({...options,continuation:async h=>{
   const {qa,db,sql,relocate,adapter,deps,handlers,api,ok,setActor,period,oldBody}=h;
   const count=Math.max(37,h.count);
@@ -49,7 +50,7 @@ export async function verifyOwnPeriodParticipation(options) {
   assert.ok(firstCategory);
   for(let i=0;i<count;i++) {
    const dni=String(98010000+i),startDate=i===0?'2026-09-01':period+'-05';
-   const draft=employeeDraft({legajo:String(30000+i),fullName:'PARCIAL EXCLUSIVAMENTE SINTETICO QA '+i,dni,cuil:cuil(dni),birthDate:'1990-01-01',sexCode:'',startDate,agreementCode:'1',categoryCode:firstCategory.code,organizationId:hireBoot.catalog.items.find(x=>x.kind==='organizations').code,sectorCode:hireBoot.catalog.items.find(x=>x.kind==='sectors').code,jobTitle:'Agente exclusivamente sintético QA',legalReference:'Alta exclusivamente sintética QA',jurisdictionCode:i%2?'55':'42'});
+   const draft=employeeDraft({legajo:String(30000+i),fullName:'PARCIAL EXCLUSIVAMENTE SINTETICO QA '+i,dni,cuil:cuil(dni),birthDate:'1990-01-01',sexCode:options.syntheticEmployeeSexCode??'',startDate,agreementCode:'1',categoryCode:firstCategory.code,organizationId:hireBoot.catalog.items.find(x=>x.kind==='organizations').code,sectorCode:hireBoot.catalog.items.find(x=>x.kind==='sectors').code,jobTitle:'Agente exclusivamente sintético QA',legalReference:'Alta exclusivamente sintética QA',jurisdictionCode:i%2?'55':'42'});
    const hire=await db.run('SELECT native_employee_create_v1('+j(qa.actors.maker)+','+j(draft)+','+q(hireBoot.catalog.version)+','+q(randomUUID())+'::uuid)',true);
    assert.equal(hire.origin,'MUNICONTROL');people.push({contractId:hire.contractId,employeeNumber:hire.legajo});
    await h.seniority.approve(await h.seniority.prepare(people.at(-1),'0'));
@@ -141,6 +142,7 @@ export async function verifyOwnPeriodParticipation(options) {
   await sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');
   assert.equal((await api('participation',{query:query(people[0].contractId)})).permissions.canPropose,false);await api('participation',{query:{resource:'attempt',key:first.key},expected:403});
   await sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');ok(true,'revocation removes preparation and attempt access immediately without modifying facts');
+  if(options.continuation)return options.continuation({...h,participation:{people,run,closed,prepare,approve,installed,durable,repeated}});
   return {version:'own-period-participation-qa.v1',employeeCount:count,newTables:1,newFunctions:16,adaptedFunctions:6,installed,durable,repeated,syntheticOnly:true,productiveBusinessWrites:0};
  }});
 }

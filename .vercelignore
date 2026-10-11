@@ -332,3 +332,7 @@ local-agents/
 !scripts/migrations/146-own-consolidated-annulment.sql
 
 !scripts/migrations/157-own-period-participation.sql
+
+# Reviewed ART source contracts required by build regression tests; no SQL execution.
+!scripts/migrations/158-own-art-days.sql
+!scripts/migrations/159-own-art-report.sql
