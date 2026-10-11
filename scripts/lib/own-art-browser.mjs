@@ -31,9 +31,9 @@ export async function verifyOwnArtBrowser({handlers,env,actors,setActor,people,p
    return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
   });
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));page.on('download',d=>downloads.push(d));
-  const r=k=>page.locator('.own-art [data-art-'+k+']'),d=k=>page.locator('.own-art-days [data-art-days-'+k+']');
+  const r=k=>page.locator('.own-art [data-own-art-'+k+']'),d=k=>page.locator('.own-art-days [data-art-days-'+k+']');
   const idle=selector=>page.waitForFunction(s=>document.querySelector(s)?.getAttribute('aria-busy')==='false',selector);
-  const fresh=async task=>{await page.goto('about:blank');await page.goto(origin+'/nomina#'+task);const control=task==='art'?'[data-art-consult]':'[data-art-days-picker]';await page.locator(control).waitFor({state:'visible'});await page.waitForFunction(s=>document.querySelector(s)?.disabled===false,control);await idle(task==='art'?'.own-art':'.own-art-days');};
+  const fresh=async task=>{await page.goto('about:blank');await page.goto(origin+'/nomina#'+task);const control=task==='art'?'[data-own-art-consult]':'[data-art-days-picker]';await page.locator(control).waitFor({state:'visible'});await page.waitForFunction(s=>document.querySelector(s)?.disabled===false,control);await idle(task==='art'?'.own-art':'.own-art-days');};
   const consult=async()=>{await r('period').fill(period);await r('consult').click();await idle('.own-art');await r('view').waitFor({state:'visible'});};
   const select=async p=>{await d('picker').click();const picker=page.locator('#salaryArtDaysPicker');await picker.getByLabel('Nombre, apellido o legajo').fill(p.employeeNumber);await picker.getByRole('button',{name:'Buscar',exact:true}).click();await picker.locator('input[value="'+p.contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();await d('period').fill(period);await d('refresh').click();await idle('.own-art-days');await d('content').waitFor({state:'visible'});};
   await fresh('art');await consult();
