@@ -1,10 +1,10 @@
 name: Own ART closed payroll
 on:
   pull_request:
-    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'scripts/install-patched-chromium-diagnostic.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'scripts/lib/project-chromium.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/diagnostic-patched-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
+    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'scripts/install-patched-chromium-diagnostic.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'scripts/lib/project-chromium.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/diagnostic-patched-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
   push:
     branches: ['master']
-    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'scripts/install-patched-chromium-diagnostic.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'scripts/lib/project-chromium.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/diagnostic-patched-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
+    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'scripts/install-patched-chromium-diagnostic.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'scripts/lib/project-chromium.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/diagnostic-patched-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
 permissions:
   contents: read
 concurrency:
@@ -39,11 +39,13 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
-      - name: Use the exact verified project browser for the remaining QA steps
-        run: echo 'NODE_OPTIONS=--import ./scripts/lib/project-chromium.mjs' >> "$GITHUB_ENV"
       - name: Complete and rejected native delivery regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-source-preview-fragmented-transport.mjs
       - name: Existing ART migration and formula workbench regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-payroll-formula-lab-browser.mjs
       - name: Prepare disposable PostgreSQL with the original runtime restrictions
         env:
@@ -51,6 +53,7 @@ jobs:
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
       - name: Own hire, exact calculation, independent close, documented days and full mobile ART
         env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: node scripts/verify-own-art.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-art-pg${{ matrix.pg }}
       - uses: actions/upload-artifact@v4
@@ -63,7 +66,9 @@ jobs:
         if: always()
         with:
           name: formula-transport-pg${{ matrix.pg }}-${{ github.run_id }}
-          path: verification/payroll-formula-transport
+          path: |
+            verification/payroll-formula-transport
+            verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5
   transport-observation:
     runs-on: ubuntu-latest
@@ -80,15 +85,17 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
-      - name: Use the exact verified project browser for the remaining QA steps
-        run: echo 'NODE_OPTIONS=--import ./scripts/lib/project-chromium.mjs' >> "$GITHUB_ENV"
       - name: Finite synthetic observation, retaining every original failure
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-payroll-transport-observation.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: formula-transport-finite-${{ github.run_id }}
-          path: verification/payroll-formula-transport
+          path: |
+            verification/payroll-formula-transport
+            verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5
   transport-reduction:
     runs-on: ubuntu-latest
@@ -105,15 +112,17 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
-      - name: Use the exact verified project browser for the remaining QA steps
-        run: echo 'NODE_OPTIONS=--import ./scripts/lib/project-chromium.mjs' >> "$GITHUB_ENV"
       - name: Reduced synthetic reader, object lifetime and HTTP framing matrix
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-source-preview-transport-matrix.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: formula-transport-reduced-${{ github.run_id }}
-          path: verification/payroll-formula-transport/reduced-matrix
+          path: |
+            verification/payroll-formula-transport/reduced-matrix
+            verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5
   patched-transport-comparison:
     runs-on: ubuntu-latest
