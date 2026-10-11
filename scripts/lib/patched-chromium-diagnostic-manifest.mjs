@@ -1,6 +1,7 @@
 // Public Google Chrome for Testing build whose declared source revision
 // contains upstream fix 62473ad0f747e245e514c93e741bb8e168a2a207.
-// Diagnostic only: no rolling channel, global installation or app dependency.
+// Exact native fix verified by the original Windows/Ubuntu regression.
+// No rolling channel, global installation or application dependency.
 export const patchedChromiumDiagnostic = Object.freeze({
   version: '157.0.8098.0', sourceRevision: 'b4fa1b3baec04505d5a58e8cd1e7927b03cec74b',
   upstreamFix: '62473ad0f747e245e514c93e741bb8e168a2a207', sdkVersion: '1.63.0',
