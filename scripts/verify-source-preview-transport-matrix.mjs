@@ -6,7 +6,8 @@ import { chromium } from 'playwright';
 
 // Finite, synthetic investigation. This does not replace a release
 // gate or edit the published reader. There is no routing or interception.
-const out = 'verification/payroll-formula-transport/reduced-matrix';
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && /^--output=verification\/payroll-formula-transport\/[a-z0-9-]+$/.test(process.argv[2])), 'Unsupported synthetic observation option');
+const out = process.argv[2]?.slice('--output='.length) || 'verification/payroll-formula-transport/reduced-matrix';
 fs.mkdirSync('verification/payroll-formula-transport', { recursive: true });
 fs.mkdirSync(out, { recursive: false });
 const source = fs.readFileSync('assets/grh-source-preview.js');
