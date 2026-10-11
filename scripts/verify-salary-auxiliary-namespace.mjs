@@ -15,7 +15,8 @@ import {salaryItems} from '../assets/native-salary-catalog-model.js';import {own
 import {ownCloseReceipt} from '../assets/own-payroll-close-model.js';import {ownReceiptSnapshot,emptyOwnReceiptParams} from '../assets/own-payroll-receipt-model.js';import {createOwnReceiptPdf} from '../assets/own-payroll-receipt-pdf.js';
 import {prepareOwnPlanilla} from '../assets/own-payroll-receipt-planilla-model.js';
 const root=fs.realpathSync(new URL('..',import.meta.url)),j=v=>q(JSON.stringify(v))+'::jsonb';
-export async function verifySalaryAuxiliaryNamespace({major,transport='local',sourceCommit,output,browser='none'}){
+export async function verifySalaryAuxiliaryNamespace({major,transport='local',sourceCommit,output,browser='none',continuation}){
+ assert.ok(continuation===undefined||typeof continuation==='function');
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok(['none','chrome','chromium'].includes(browser));
  if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
  const destination=path.resolve(root,output);assert.ok(destination.startsWith(root+path.sep+'verification'+path.sep)&&!fs.existsSync(destination));fs.mkdirSync(destination);
@@ -81,7 +82,10 @@ export async function verifySalaryAuxiliaryNamespace({major,transport='local',so
   const snapshotProof=await mutationProof();await reject(()=>sql('GRANT EXECUTE ON FUNCTION '+qa.schema+'.own_program_node_v2(jsonb,integer) TO municontrol_actions_runtime_app;'+n(batch.afterCheck)),'AUXILIARY_NAMESPACE_FUNCTION_CHANGED','unexpected direct runtime grant fails verification and rolls back');assert.deepEqual(await mutationProof(),snapshotProof);
   current=qa.actors.maker;await sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(current.membershipId)+'::uuid');const revoked=await api('program');ok(!revoked.permissions.canPropose,'revoking the existing identity link disables preparation immediately');await sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(current.membershipId)+'::uuid');
   if(browser!=='none'){const {verifySalaryAuxiliaryBrowser}=await import('./lib/salary-auxiliary-namespace-browser.mjs');await verifySalaryAuxiliaryBrowser({handlers,env,actor:{...current,bindingId:qa.ids.binding},output:destination,check:ok,browserName:browser,revoke:()=>sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(current.membershipId)+'::uuid'),restore:()=>sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(current.membershipId)+'::uuid')});}
-  report={ok:true,major,sourceCommit,checksPassed:checks.length,checks,syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,employeeCount:count};
+  // An optional new-feature continuation runs only after every original check.
+  // The original regression assertions, failure recording and cleanup stay intact.
+  const continuationResult=continuation?await continuation({options,qa,db,relocate,sql,adapter,deps,env,handlers,api,ok,setActor:value=>{current=value;},period,oldBody,oldKey,old,calculated,closed,count,destination}):null;
+  report={ok:true,major,sourceCommit,checksPassed:checks.length,checks,syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,employeeCount:count,...(continuationResult?{continuation:continuationResult}:{})};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack+'\n');fs.writeFileSync(path.join(destination,'partial-checks.json'),JSON.stringify({checksPassed:checks.length,checks},null,2));}
  finally{if(seeded)try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');}catch(e){failure??=e;}}
  if(failure)throw failure;fs.writeFileSync(path.join(destination,'result.json'),JSON.stringify(report,null,2)+'\n');return report;
