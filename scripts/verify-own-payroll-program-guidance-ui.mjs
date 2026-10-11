@@ -103,12 +103,31 @@ try{
  check(await $('guidance-title').innerText()==='','revocation clears content before a late response');
  denied=true;await refresh();check(await $('content').isHidden(),'fresh rejected access does not recreate guidance');
  await load(bootstrap());malformed=true;await refresh();check((await $('status').innerText()).includes('No se pudo verificar'),'invalid bootstrap is rejected');malformed=false;
+ // Complete approved-code coverage through the existing handler; no writes.
+ const coverage=panel.locator('[data-program-coverage]'),c=key=>coverage.locator('[data-coverage-'+key+']');
+ const many=bootstrap({program:approved()});const first=definitions().find(r=>r.code==='100');many.salaryCatalog.items.push(...Array.from({length:71},(_,i)=>({...first,code:String(4000+i),label:'=HYPERLINK("https://example.invalid")',ruleReference:'Nombre privado ficticio 12345678'})));
+ async function coverageReview(){await c('period').fill('2026-10');await c('type').selectOption('monthly');await c('review').click();await c('result').waitFor({state:'visible'});}
+ await load(many);await coverage.locator('summary').focus();await page.keyboard.press('Enter');check(await coverage.evaluate(e=>e.open),'keyboard opens the complete-code cotejo');await coverageReview();
+ check((await c('summary').innerText()).includes('78 definiciones')&&await c('table').locator('tbody tr').count()===25,'coverage uses all approved definitions and paginates only the view');
+ for(let i=0;i<3;i++)await c('next').click();check((await c('table').innerText()).includes('4070'),'last-page code remains reachable');
+ await c('search').fill('4070');check(await c('table').locator('tbody tr').count()===1,'search filters the visible coverage only');
+ const downloading=page.waitForEvent('download');await c('download').click();const download=await downloading,csv=fs.readFileSync(await download.path(),'utf8');
+ check(csv.split('\r\n').length===80&&csv.includes('"4000"')&&csv.includes('"4070"'),'filtered last-page download retains all 78 definitions');
+ const downloadingAgain=page.waitForEvent('download');await c('download').click();const downloadedAgain=await downloadingAgain;check(fs.readFileSync(await downloadedAgain.path(),'utf8')===csv,'a second voluntary download preserves the same complete snapshot');
+ check(!['HYPERLINK','12345678',hash('c'),uid(80)].some(v=>csv.includes(v)),'CSV excludes free text, private labels and identities');
+ for(const width of[1440,390,320]){await page.setViewportSize({width,height:900});await page.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})));});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'coverage fits '+width);check(await c('download').evaluate(e=>e.getBoundingClientRect().height>=44),'coverage download is accessible at '+width);if(width<640){check(await coverage.locator('.own-coverage-cards').isVisible()&&(await coverage.locator('.own-coverage-cards').innerText()).includes('Definir el tratamiento municipal'),'mobile displays status and action without horizontal scrolling at '+width);}await coverage.screenshot({path:output.replace(/\.json$/,'')+'-coverage-'+width+'.png'});}
+ await c('period').fill('2026-11');await c('type').selectOption('supplementary');check(await c('result').isHidden()&&await c('download').isDisabled(),'period or type changes invalidate the full download');
+ await coverageReview();malformed=true;await refresh();check(await c('result').isHidden()&&await c('review').isDisabled(),'a rejected refresh cannot reuse prior coverage');malformed=false;
+ await load(many);await coverage.locator('summary').click();await coverageReview();await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));check(await c('result').isHidden()&&await c('period').inputValue()===''&&await c('table').innerText()==='','revocation clears source, scope, rows and download');
+ await load(many);await coverage.locator('summary').click();await coverageReview();await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});check(await c('result').isHidden()&&await c('download').isDisabled(),'hiding the page withdraws approved-code coverage');await page.evaluate(()=>Object.defineProperty(document,'hidden',{configurable:true,value:false}));
+ await load(many);await coverage.locator('summary').click();await coverageReview();const coverageHeld=new Promise(resolve=>{holdReady=resolve;});hold=true;await $('refresh').click();await coverageHeld;await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));held();held=null;await $('content').waitFor({state:'hidden'});check(await c('review').isDisabled()&&await c('table').innerText()==='','a late bootstrap cannot restore coverage after revocation');
  // Real handler, synthetic lost acknowledgment: added navigation must not
  // unlock a second operation or modify the stored body/key.
  await load(bootstrap({program:approved()}));await $('reason').fill('Revisión sintética de fuentes completas QA');await $('prepare').click();await $('confirm').check();lose=true;await $('send').click();
  await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
  const original=structuredClone(writes[0]);check(posts===1&&writes.length===1,'only explicitly submitted synthetic command writes');
  check(await $('catalog-link').isHidden()&&await $('pending-link').isDisabled(),'uncertain attempt prevents guidance navigation from opening another operation');
+ check(await c('review').isDisabled()&&await c('download').isDisabled(),'coverage cannot reopen or export during an uncertain command');
  await $('recover').click();await $('receipt').waitFor({state:'visible'});check(writes.length===1&&JSON.stringify(writes[0])===JSON.stringify(original),'receipt recovery keeps original body and key');
  check(await page.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'no private browser storage');
  check(errors.length===0,'no page errors');

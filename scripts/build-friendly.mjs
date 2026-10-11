@@ -14,6 +14,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
   'assets/own-period-participation-model.js',
+  'assets/own-program-coverage-model.js',
+  'assets/own-program-coverage-panel.js',
   'assets/own-period-participation-program.js',
   'assets/own-period-participation-panel.js',
   'assets/own-period-participation-panel.css',

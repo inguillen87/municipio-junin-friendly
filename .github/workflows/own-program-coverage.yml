@@ -1,0 +1,32 @@
+name: Complete approved program code coverage
+on:
+  pull_request:
+    paths: ['assets/own-program-coverage*.js', 'assets/own-payroll-program-panel.*', 'assets/own-payroll-program-model.js', 'assets/own-payroll-run-workspace-model.js', 'assets/native-salary-catalog-model.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'tests/own-program-coverage.test.js', 'tests/fixtures/own-payroll-program-synthetic.js', 'scripts/verify-own-payroll-program-guidance-ui.mjs', 'scripts/build-friendly.mjs', '.github/workflows/own-program-coverage.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-program-coverage*.js', 'assets/own-payroll-program-panel.*', 'assets/own-payroll-program-model.js', 'assets/own-payroll-run-workspace-model.js', 'assets/native-salary-catalog-model.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'tests/own-program-coverage.test.js', 'tests/fixtures/own-payroll-program-synthetic.js', 'scripts/verify-own-payroll-program-guidance-ui.mjs', 'scripts/build-friendly.mjs', '.github/workflows/own-program-coverage.yml']
+permissions:
+  contents: read
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Built page, existing API handler, full CSV, mobile and retained uncertain command
+        run: node scripts/verify-own-payroll-program-guidance-ui.mjs --output=verification/program-coverage-ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: program-coverage-${{ github.run_id }}
+          path: verification/program-coverage-ci*
+          retention-days: 5
