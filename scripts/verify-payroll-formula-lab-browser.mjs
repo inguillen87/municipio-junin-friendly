@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { payrollTransportObservationFile } from './lib/payroll-transport-observation.mjs';
 
 // Keep CI's bundled Chromium default. Local Windows QA can use the already
 // installed Chrome without installing or changing shared browser packages.
@@ -15,6 +16,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'p
 const screenshots = [];
 const downloads = [];
 const previewRequests = [];
+const { file: transportObservationFile, observation: transportObservation } = payrollTransportObservationFile();
 const payrollRunId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const secondPayrollRunId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const reprocessingCaseId = '11111111-1111-4111-8111-111111111111';
@@ -362,6 +364,7 @@ function safeFile(requestPath) {
 }
 
 const server = http.createServer((request, response) => {
+  transportObservation.server(request, response);
   const url = new URL(request.url, 'http://127.0.0.1');
   if (request.method === 'GET' && url.pathname === '/api/internal-auth') {
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -479,6 +482,7 @@ const baseUrl = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch(browserOptions);
 
 async function requireCompletedResponse(response, label) {
+  transportObservation.selected(response);
   let timer;
   try {
     const completion = await Promise.race([
@@ -497,6 +501,12 @@ async function inspect(viewport, label) {
   console.log(`Payroll browser QA: starting ${label}`);
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
+  transportObservation.attach(context, 'context');
+  transportObservation.attach(page, 'page');
+  if (process.env.MUNICONTROL_TRANSPORT_CDP === '1') {
+    await transportObservation.attachCdp(await context.newCDPSession(page));
+    await transportObservation.observeCancellationCalls(page);
+  }
   const issues = [];
   page.on('console', (message) => { if (message.type() === 'error') issues.push(`console: ${message.text()}`); });
   page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
@@ -1164,6 +1174,7 @@ try {
   console.error('Payroll formula browser QA failed:', error);
   throw error;
 } finally {
+  console.log(`Synthetic transport observations: ${transportObservationFile}`);
   await browser.close();
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));

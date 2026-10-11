@@ -1,10 +1,10 @@
 name: Own documented fiscal facts
 on:
   pull_request:
-    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', '.github/workflows/own-fiscal-facts.yml']
+    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'scripts/lib/qa-lock-observation.mjs', 'tests/qa-lock-observation.test.js', 'scripts/verify-own-salary-seniority.mjs', '.github/workflows/own-fiscal-facts.yml']
   push:
     branches: ['master']
-    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', '.github/workflows/own-fiscal-facts.yml']
+    paths: ['api/internal-own-fiscal-facts.js', 'assets/own-fiscal-facts*', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'lib/internal-own-fiscal-facts.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-fiscal-facts.mjs', 'scripts/lib/own-fiscal-facts*', 'scripts/migrations/160-own-fiscal-facts.sql', 'tests/own-fiscal-facts*', 'tests/fixtures/own-fiscal-facts*', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', 'scripts/lib/qa-lock-observation.mjs', 'tests/qa-lock-observation.test.js', 'scripts/verify-own-salary-seniority.mjs', '.github/workflows/own-fiscal-facts.yml']
 permissions:
   contents: read
 concurrency:
@@ -38,17 +38,33 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete and rejected native delivery regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-source-preview-fragmented-transport.mjs
       - name: Prepare disposable PostgreSQL under original runtime restrictions
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Observe maintenance in the disposable PostgreSQL service
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: |
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'ALTER SYSTEM SET log_autovacuum_min_duration=0'
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()'
       - name: Native employee, closed payroll, independent fiscal facts, recovery and full mobile F931
         env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+          MC_QA_LOCK_OBSERVATION: '1'
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: node scripts/verify-own-fiscal-facts.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-fiscal-facts-pg${{ matrix.pg }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: own-fiscal-facts-pg${{ matrix.pg }}-${{ github.run_id }}
-          path: verification/own-fiscal-facts-pg${{ matrix.pg }}
+          path: |
+            verification/own-fiscal-facts-pg${{ matrix.pg }}
+            verification/payroll-formula-transport/fragmented-regression
+            verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5

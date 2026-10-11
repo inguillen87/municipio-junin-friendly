@@ -22,6 +22,12 @@ on:
       - 'tests/native-employee*'
       - 'scripts/verify-native-employee-browser.mjs'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
+      - 'scripts/install-project-chromium.mjs'
+      - 'scripts/lib/project-chromium.mjs'
+      - 'scripts/lib/patched-chromium-diagnostic-manifest.mjs'
+      - 'scripts/verify-source-preview-fragmented-transport.mjs'
+      - 'docs/QA_CHROMIUM_VERIFIED_20261011.md'
+      - 'tests/project-chromium-workflow.test.js'
       - 'api/internal-payroll-fixed-novelties.js'
       - 'api/internal-payroll-fixed-groups.js'
       - 'api/internal-payroll-fixed-correction-groups.js'
@@ -138,6 +144,12 @@ on:
       - 'tests/fixtures/payroll-fixed-novelties-synthetic.js'
       - 'tests/fixtures/native-employee-installed-067.json'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
+      - 'scripts/install-project-chromium.mjs'
+      - 'scripts/lib/project-chromium.mjs'
+      - 'scripts/lib/patched-chromium-diagnostic-manifest.mjs'
+      - 'scripts/verify-source-preview-fragmented-transport.mjs'
+      - 'docs/QA_CHROMIUM_VERIFIED_20261011.md'
+      - 'tests/project-chromium-workflow.test.js'
 permissions:
   contents: read
 concurrency:
@@ -156,21 +168,47 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete and rejected native delivery regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-source-preview-fragmented-transport.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-payroll-fixed-groups-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-payroll-fixed-correction-groups-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-payroll-fixed-review-groups-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-payroll-formula-lab-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-grh-source-preview-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-native-employee-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - run: node scripts/verify-native-roster-browser.mjs
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
       - name: Existing monthly novelty regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-novelty-sheet-057.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: fixed-novelties-browser
-          path: verification/
+          path: |
+            verification/
+            !verification/release-chromium-157.0.8098.0/browser.zip
+            !verification/release-chromium-157.0.8098.0/chrome-headless-shell-linux64/**
           retention-days: 5
   sql:
     runs-on: ubuntu-latest

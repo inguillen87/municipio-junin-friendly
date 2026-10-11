@@ -1,10 +1,10 @@
 name: Own F931 preparation
 on:
   pull_request:
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
 permissions:
   contents: read
 concurrency:
@@ -25,11 +25,21 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete and rejected native delivery regression
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-source-preview-fragmented-transport.mjs
       - name: Own complete fiscal preparation with synthetic read fixtures
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-f931-preparation-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: own-f931-preparation-${{ github.run_id }}
-          path: verification/own-f931-browser-20261011
+          path: |
+            verification/own-f931-browser-20261011
+            verification/payroll-formula-transport/fragmented-regression
+            verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5
