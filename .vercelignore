@@ -330,3 +330,5 @@ local-agents/
 !scripts/migrations/144-final-grh-source-revision.sql
 !scripts/migrations/145-own-declared-liquidation-date.sql
 !scripts/migrations/146-own-consolidated-annulment.sql
+
+!scripts/migrations/157-own-period-participation.sql

@@ -1,3 +1,4 @@
+import {ownProgramParticipation,participationRules,participationRuleKey} from './own-period-participation-program.js';
 import { ownProgramBootstrap, ownProgramDefinition, ownProgramHistory, ownProgramRuleKey, ownProgramNamespaced } from './own-payroll-program-model.js';
 import { salaryExact, salarySerialized } from './native-salary-catalog-model.js';
 import { expressionChildren } from './own-payroll-program-workspace-model.js';
@@ -41,7 +42,7 @@ function prepareCopy(bootstrap,draft,intent,multiple) {
   for(const source of selected) {
     const keys = new Set();
     const walk = n => { if(n.op === 'input') keys.add(n.key); for(const key of expressionChildren(n)) walk(n[key]); };
-    walk(source.expression);
+    walk(participationRules(base).find(r=>ownProgramRuleKey(r,base.namespaceVersion)===ownProgramRuleKey(source,base.namespaceVersion)).expression);
     const sources = base.bindings.filter(b => b.agreementCode === source.agreementCode && keys.has(b.key));
     for(const target of [...intent.targets].sort()) {
       try {
@@ -62,7 +63,12 @@ function prepareCopy(bootstrap,draft,intent,multiple) {
           if(prior && salarySerialized(prior) !== salarySerialized(copied)) fail(`La entrada ${binding.key} es diferente. Revisá sus fuentes antes de copiar; no se sobrescribe.`);
           if(!prior) candidate.bindings.push(copied);
         }
-        candidate.rules.push({ ...structuredClone(source), agreementCode: target, validFrom: intent.validFrom, validUntil: intent.validUntil, ruleReference: intent.ruleReference });
+        const copiedRule={ ...structuredClone(source), agreementCode: target, validFrom: intent.validFrom, validUntil: intent.validUntil, ruleReference: intent.ruleReference };
+        candidate.rules.push(copiedRule);
+        if(ownProgramParticipation(base)){
+          const treatment=base.periodParticipation.treatments.find(t=>t.ruleKey===participationRuleKey(source));
+          candidate.periodParticipation.treatments.push({...treatment,ruleKey:participationRuleKey(copiedRule)});
+        }
       } catch(error) { throw Object.assign(Error(`Convenio ${target}: ${error.message}`), { code: error.code }); }
     }
   }
