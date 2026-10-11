@@ -36,7 +36,16 @@ const run=(sql,error)=>{const file=path.join(destination,String(++step).padStart
 const tx=s=>`BEGIN ISOLATION LEVEL REPEATABLE READ;SET LOCAL statement_timeout='180s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${qa.schema},public,pg_temp;DO $$ BEGIN ${qa.pins} END $$;${s.join(';\n')};COMMIT;`;
 const proof=()=>JSON.parse(run(tx(['SET TRANSACTION READ ONLY',preservationSnapshot('after'),"SELECT jsonb_build_object('fingerprint',encode(public.digest(current_setting('municontrol_sql111.after')::jsonb::text,'sha256'),'hex'),'schemas',(SELECT count(*) FROM pg_namespace WHERE nspname LIKE 'mc_qa_%'))"])));
 const identity=a=>({principal:{user:{email:a.actorEmail},tenant:{source:'membership',id:a.tenantId,membershipId:a.membershipId,effectiveCapabilities:qa.caps}},session:{email:a.actorEmail,id:a.actorSessionId,version:a.actorSessionVersion,releaseSha:a.releaseSha}}),maker=identity(qa.actors.maker),checker=identity(qa.actors.checker);
-const calc=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input);
+// Preserve the original failure and inspect only technical locks in this
+// disposable schema. No write retry, extra wait or application lock change.
+const calc=async(op,input)=>{try{return await ownRunOperation(db,maker.principal,maker.session,op,input);}catch(error){
+ if(op==='calculate'){
+  const observation={operation:op,code:error.code,status:error.status,bodySha256:ownRunHash(input.body),key:input.key,syntheticOnly:true,writeRetried:false};
+  try{observation.locks=await db.run(`SELECT coalesce(jsonb_agg(jsonb_build_object('relation',c.relname,'pid',l.pid,'mode',l.mode,'granted',l.granted,'backendType',a.backend_type,'waitEventType',a.wait_event_type) ORDER BY c.relname,l.pid,l.mode),'[]'::jsonb) FROM pg_locks l JOIN pg_class c ON c.oid=l.relation JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_stat_activity a ON a.pid=l.pid WHERE n.nspname=${q(qa.schema)}`);}catch(failure){observation.diagnosticFailure=String(failure.code??failure.message).slice(0,160);}
+  fs.writeFileSync(path.join(destination,'capture-failure-locks.json'),JSON.stringify(observation,null,2)+'\n');
+ }
+ throw error;
+}},liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input);
 // PostgreSQL's synthetic CI autovacuum can briefly own a relation lock. A
 // failed read is safe to repeat with its exact parameters. Never retry writes
 // here, suppress another error, disable maintenance, or alter application SQL.

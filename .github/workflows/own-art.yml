@@ -38,6 +38,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - name: Existing ART migration and formula workbench regression
+        run: node scripts/verify-payroll-formula-lab-browser.mjs
       - name: Prepare disposable PostgreSQL with the original runtime restrictions
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
