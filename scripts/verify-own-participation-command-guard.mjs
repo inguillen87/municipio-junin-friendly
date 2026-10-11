@@ -1,0 +1,3 @@
+import assert from'node:assert/strict';import{verifyOwnFiscalFacts}from'./verify-own-fiscal-facts.mjs';import{verifyParticipationCommandGuard}from'./lib/own-participation-command-guard-qa.mjs';
+const args={};for(const arg of process.argv.slice(2)){const m=/^--(major|transport|source-commit|output|browser)=(.+)$/.exec(arg);assert.ok(m&&!Object.hasOwn(args,m[1]));args[m[1]]=m[2];}
+try{const r=await verifyOwnFiscalFacts({major:Number(args.major),transport:args.transport,sourceCommit:args['source-commit'],output:args.output,browser:args.browser??'chromium',continuation:verifyParticipationCommandGuard});console.log(JSON.stringify({ok:r.ok,major:r.major,checksPassed:r.checksPassed,productiveBusinessWrites:0}));}catch(e){console.error(e.stack);process.exitCode=1;}
