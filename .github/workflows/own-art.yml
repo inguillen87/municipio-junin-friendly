@@ -1,10 +1,10 @@
 name: Own ART closed payroll
 on:
   pull_request:
-    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
+    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
   push:
     branches: ['master']
-    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
+    paths: ['.vercelignore', 'api/internal-own-art*', 'assets/own-art*', 'assets/own-payroll*.js', 'assets/payroll-navigation.js', 'lib/internal-own-art-days.js', 'lib/own-art-response.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-art.mjs', 'scripts/verify-payroll-formula-lab-browser.mjs', 'scripts/verify-payroll-transport-observation.mjs', 'scripts/verify-source-preview-transport-matrix.mjs', 'scripts/lib/payroll-transport-observation.mjs', 'tests/payroll-transport-observation.test.js', 'scripts/verify-own-period-participation.mjs', 'scripts/verify-own-salary-seniority.mjs', 'scripts/verify-salary-auxiliary-namespace.mjs', 'scripts/lib/own-art*', 'scripts/lib/own-period-participation*', 'scripts/lib/own-salary-seniority*', 'scripts/lib/adopted-consumers-installation-pins.mjs', 'scripts/migrations/158-own-art-days.sql', 'scripts/migrations/159-own-art-report.sql', 'tests/own-art*', 'tests/fixtures/own-art*', '.github/workflows/own-art.yml']
 permissions:
   contents: read
 concurrency:
@@ -81,4 +81,26 @@ jobs:
         with:
           name: formula-transport-finite-${{ github.run_id }}
           path: verification/payroll-formula-transport
+          retention-days: 5
+  transport-reduction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Reduced synthetic reader, object lifetime and HTTP framing matrix
+        run: node scripts/verify-source-preview-transport-matrix.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: formula-transport-reduced-${{ github.run_id }}
+          path: verification/payroll-formula-transport/reduced-matrix
           retention-days: 5
