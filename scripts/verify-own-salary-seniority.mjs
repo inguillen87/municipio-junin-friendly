@@ -19,6 +19,7 @@ import { createOwnReceiptPdf } from '../assets/own-payroll-receipt-pdf.js';
 import { prepareOwnPlanilla } from '../assets/own-payroll-receipt-planilla-model.js';
 import { createInternalDataHandler } from '../api/internal-data.js';
 import { adoptSyntheticReceiptContracts } from './lib/adopted-own-payroll-receipt-qa.mjs';
+import { observeOwnQaCommand } from './lib/qa-lock-observation.mjs';
 const j = v => q(JSON.stringify(v)) + '::jsonb';
 
 export async function verifyOwnSalarySeniority(options) {
@@ -46,6 +47,10 @@ export async function verifyOwnSalarySeniority(options) {
    if (!query.startsWith('SELECT public.own_seniority_')) return adapter.query(query, values);
    assert.match(query, /^SELECT public\.own_seniority_(?:bootstrap|detail|attempt|command)_v1\([\s\S]+\) AS result$/);
    const text = query.replaceAll('public.', qa.schema + '.').replace(/\$(\d+)/g, (_, n) => { assert.ok(Number(n) > 0 && Number(n) <= values.length); return q(values[Number(n) - 1]); });
+   if(process.env.MC_QA_LOCK_OBSERVATION==='1'&&query.startsWith('SELECT public.own_seniority_command_v1(')){
+    const observed=await observeOwnQaCommand({db,schema:qa.schema,execute:()=>db.run(text,true),record:v=>fs.appendFileSync(path.join(h.destination,'seniority-lock-observations.ndjson'),JSON.stringify(v)+'\n')});
+    return [{result:observed}];
+   }
    return [{ result: await db.run(text, true) }];
   } };
   handlers.seniority = createOwnSalarySeniorityHandler({ ...deps, getSql: () => seniorityAdapter });
