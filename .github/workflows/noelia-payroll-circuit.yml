@@ -68,6 +68,8 @@ jobs:
       - name: Preview declared facts, preserve all pages and recover the original voluntary attempt
         run: node scripts/verify-active-source-declarations-browser.mjs --output-prefix=verification/active-source-declarations-browser-ci
       - name: Preserve original pending facts while adopting all active contracts and blocking incomplete salary subjects
+        env:
+          MC_QA_LOCK_OBSERVATION: '1'
         run: node scripts/verify-registry-original-facts.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/registry-original-facts-ci
       - name: Explicit original-facts acknowledgement, full review, mobile and unchanged recovery
         run: node scripts/verify-registry-original-facts-browser.mjs --output-prefix=verification/registry-original-facts-browser-ci
@@ -126,6 +128,8 @@ jobs:
             verification/active-source-declarations-browser-ci-*.png
             verification/registry-original-facts-ci/result.json
             verification/registry-original-facts-ci/failure.txt
+            verification/registry-original-facts-ci/adapter-failure.txt
+            verification/registry-original-facts-ci/registry-lock-observations.ndjson
             verification/registry-original-facts-browser-ci-*.json
             verification/registry-original-facts-browser-ci-*.png
             verification/active-adoption-ci/failure.txt
