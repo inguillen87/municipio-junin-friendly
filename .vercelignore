@@ -339,3 +339,6 @@ local-agents/
 
 # Reviewed fiscal source contract required by build regression tests; no SQL execution.
 !scripts/migrations/160-own-fiscal-facts.sql
+!scripts/migrations/161-own-participation-command-guard.sql
+
+!scripts/migrations/162-own-seniority-command-guard.sql

@@ -23,10 +23,12 @@ import {declaredSourceFixture,relocateActiveSourceDeclarations} from './lib/acti
 import {municipalAdoptionOperation} from '../lib/internal-municipal-adoption.js';
 import {readAdoptionHistory} from '../lib/internal-employment-adoption-history.js';
 import {adoptionPreparationPayload} from '../assets/employment-adoption-preparation-model.js';
+import {observeRegistryQaCommand,registryQaLockQuery,verifiedRegistryQaLocks} from './lib/registry-qa-lock-observation.mjs';
+import {splitPostgresStatements} from './lib/sql-statements.mjs';
 
 const root=path.resolve(import.meta.dirname,'..');
 const parse=v=>typeof v==='string'?JSON.parse(v):v;
-export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local'}){
+export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local',registryScenario=registryOriginalFactsQaScenario}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);
  if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
  const destination=path.resolve(output);assert.ok(destination.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(destination));
@@ -39,12 +41,20 @@ export async function verifyRegistryOriginalFacts({major,output,sourceCommit,tra
  const active=relocateActiveAdoption(buildActiveContractAdoptionInstallation(options),qa,final);
  const serialization=relocateActiveAdoptionSerialization(buildActiveAdoptionSerializationInstallation(options),qa,active);
  const batch=relocateFinalIdentityProfiles(buildFinalIdentityProfileInstallation(options),qa,serialization);
- const adapter=createNoeliaCircuitPsqlQa({major,port:55400+major,schema:qa.schema,pins:qa.pins,transport,browser:'none'}),db={...adapter,query:async(sql,values)=>{try{return await adapter.query(sql,values);}catch(e){fs.writeFileSync(path.join(destination,'adapter-failure.txt'),e.stack??String(e));throw e;}}};
+ const adapter=createNoeliaCircuitPsqlQa({major,port:55400+major,schema:qa.schema,pins:qa.pins,transport,browser:'none'}),db={...adapter,query:async(sql,values)=>{try{
+  if(process.env.MC_QA_LOCK_OBSERVATION==='1'&&sql.startsWith('SELECT public.employment_adoption_propose_v1('))return await observeRegistryQaCommand({db:adapter,schema:qa.schema,execute:()=>adapter.query(sql,values),record:v=>fs.appendFileSync(path.join(destination,'registry-lock-observations.ndjson'),JSON.stringify(v)+'\n')});
+  return await adapter.query(sql,values);
+ }catch(e){fs.writeFileSync(path.join(destination,'adapter-failure.txt'),e.stack??String(e));throw e;}}};
  fs.mkdirSync(destination);let step=0,seeded=false,report,failure;const checks=[];
  const ok=(v,label)=>{assert.ok(v,label);checks.push(label);};
- const run=(sql,error)=>{const file=path.join(destination,String(++step).padStart(3,'0')+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});
+ const record=v=>fs.appendFileSync(path.join(destination,'registry-lock-observations.ndjson'),JSON.stringify(v)+'\n');
+ const run=(sql,error)=>{
+  const observed=process.env.MC_QA_LOCK_OBSERVATION==='1'&&splitPostgresStatements(sql).some(s=>s.trimStart().startsWith('SELECT '+qa.schema+'.employment_adoption_propose_v1('));
+  const sample=phase=>record({phase,...verifiedRegistryQaLocks(JSON.parse(run(tx(['SET TRANSACTION READ ONLY',registryQaLockQuery(qa.schema)]))))});
+  if(observed)sample('before_sql_command');
+  const file=path.join(destination,String(++step).padStart(3,'0')+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});
   const r=spawnSync(db.executable,[...db.args,'--no-password','-f',file],{encoding:'utf8',windowsHide:true,env:db.environment,maxBuffer:12*1024*1024});
-  fs.writeFileSync(file+'.log',r.stdout+r.stderr);if(error){assert.equal(r.status,3);assert.ok(r.stderr.includes(error),r.stderr.slice(-2500));return;}
+  fs.writeFileSync(file+'.log',r.stdout+r.stderr);if(observed&&r.status!==0){try{sample(/\bEMPLOYMENT_ADOPTION_BUSY\b/.test(r.stderr)?'after_sql_busy':'after_sql_failure');}catch{try{record({phase:'observation_failed'});}catch{}}}if(error){assert.equal(r.status,3);assert.ok(r.stderr.includes(error),r.stderr.slice(-2500));return;}
   assert.equal(r.status,0,r.stderr.slice(-2500));return r.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);};
  const tx=(sql,end='COMMIT')=>`BEGIN ISOLATION LEVEL REPEATABLE READ;SET LOCAL TIME ZONE 'UTC';SET LOCAL statement_timeout='180s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${qa.schema},public,pg_temp;DO $$ BEGIN ${qa.pins} END $$;${sql.join(';\n')};${end};`;
  const priorProof=()=>JSON.parse(run(tx(['SET TRANSACTION READ ONLY',preservationSnapshot('after'),"SELECT jsonb_build_object('fingerprint',encode(public.digest(current_setting('municontrol_sql111.after')::jsonb::text,'sha256'),'hex'),'schemas',(SELECT count(*) FROM pg_namespace WHERE nspname LIKE 'mc_qa_%'))"])));
@@ -88,7 +98,7 @@ export async function verifyRegistryOriginalFacts({major,output,sourceCommit,tra
   // The installed mode is repeat; prove late failure in a rehearsal after undoing
   // only this schema increment within the same synthetic transaction.
   run(tx(['DROP FUNCTION '+qa.schema+'.employment_adoption_declared_bootstrap_v1(jsonb,uuid,text,text,text,jsonb)','DROP FUNCTION '+qa.schema+'.employment_adoption_declared_source_v1(jsonb,uuid,text,jsonb)',...batch.migration,...declaredBatch.beforeDefinitions.slice(0,-1).map(v=>qa.normalized(v.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '))),...changedReady]),'QA_DECLARATION_LATE_FAILURE');run(tx(declaredBatch.verification));ok(true,'late failed declaration installation is fully rolled back');
-  const registryProof=await registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved});
+  const registryProof=await registryScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved});
   report={version:"registry-original-facts-qa.v1",passed:true,sourceCommit,major,transport,checksPassed:checks.length,checks,...registryProof,syntheticContracts:qa.contractCount,productionWrites:0,municipalAcceptance:false};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack??String(e));}
  finally{if(seeded){assert.equal(Number(await db.run(`SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name=${q(db.applicationName)}`)),0);run(tx([`DROP SCHEMA ${qa.schema} CASCADE`]));assert.deepEqual(priorProof(),prior);if(report){report.syntheticSchemaRemoved=true;report.priorDatabasePreserved=true;report.syntheticConnectionsDrained=true;}}}

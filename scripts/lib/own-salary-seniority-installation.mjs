@@ -10,14 +10,29 @@ import { pinsCheck, preservationSnapshot } from './native-leave-installation.mjs
 import { SALARY_ADMINISTRATIVE_CONTEXT } from './salary-administrative-identity-installation.mjs';
 const q = v => "'" + String(v).replaceAll("'", "''") + "'";
 export const SQL156_SHA256 = 'fa6e85764e585f40d26974143ed79724a7f695e562f688fee39a539f2e9aab9b';
+export const SQL162_SHA256 = 'a9f16a00a593214f58f7867a8b6c2b914fb8c383e5f337818e7dad2d6350f30b';
 const hash = v => createHash('sha256').update(v).digest('hex');
 const once = (s, a, b) => { assert.equal(s.split(a).length, 2, 'SENIORITY_SOURCE_ANCHOR_CHANGED: ' + a.slice(0, 75)); return s.replace(a, () => b); };
 const get = (rows, name) => { const found = rows.filter(s => new RegExp('^CREATE (?:OR REPLACE )?FUNCTION public\\.' + name + '\\(').test(s)); assert.equal(found.length, 1, name); return found[0]; };
 export function buildOwnSalarySenioritySql(options) {
  assert.match(options.sourceCommit, /^[a-f0-9]{40}$/);
  const published = buildSalaryAuxiliaryNamespaceSql(options), dated = buildOwnRunDateInstallation(options);
- const migrationFile = 'scripts/migrations/156-own-salary-seniority.sql', source = options.read(migrationFile).replace(/\r\n?/g, '\n'), migration = splitPostgresStatements(source);
+ const migrationFile = 'scripts/migrations/156-own-salary-seniority.sql', source = options.read(migrationFile).replace(/\r\n?/g, '\n');
+ let migration = splitPostgresStatements(source);
  assert.equal(hash(source), SQL156_SHA256, 'SENIORITY_REVIEWED_SOURCE_CHANGED');
+ assert.ok(options.commandContentionGuard===undefined||typeof options.commandContentionGuard==='boolean');
+ const sourceHashes={[migrationFile]:hash(source)};
+ if(options.commandContentionGuard!==false){
+  const file='scripts/migrations/162-own-seniority-command-guard.sql',text=options.read(file).replace(/\r\n?/g,'\n');
+  assert.equal(hash(text),SQL162_SHA256,'SENIORITY_COMMAND_GUARD_SOURCE_CHANGED');
+  const guarded=splitPostgresStatements(text);assert.equal(guarded.length,1);
+  const declaration=guarded[0].slice(guarded[0].indexOf('CREATE OR REPLACE FUNCTION '));
+  assert.ok(declaration.startsWith('CREATE OR REPLACE FUNCTION public.own_seniority_command_v1('));
+  const original=get(migration,'own_seniority_command_v1'),oldPin=ownInstallationFunctionPin(original),newPin=ownInstallationFunctionPin(declaration);
+  assert.deepEqual({...oldPin,sha256:null},{...newPin,sha256:null});assert.notEqual(oldPin.sha256,newPin.sha256);
+  migration=migration.map(s=>s===original?declaration.replace('CREATE OR REPLACE FUNCTION ','CREATE FUNCTION '):s);
+  sourceHashes[file]=hash(text);
+ }
  const beforeDefinition = get(published.changed, 'own_program_definition_v1'), beforeCommand = get(published.changed, 'own_program_command_v1'), beforeCapture = get(dated.migration, 'own_run_capture_v1'), beforeReady = get(published.changed, 'municipal_adoption_ready_v1');
  let definition = once(beforeDefinition, 'ns boolean:=', "facts boolean:=coalesce(p->>'employmentFactsVersion'='own-salary-seniority.v1',false);ns boolean:=");
  definition = once(definition, "CASE WHEN ns THEN ARRAY['namespaceVersion','rules','bindings','totalsPrecision'] ELSE ARRAY['rules','bindings','totalsPrecision'] END", "(CASE WHEN ns THEN ARRAY['namespaceVersion','rules','bindings','totalsPrecision'] ELSE ARRAY['rules','bindings','totalsPrecision'] END)||CASE WHEN facts THEN ARRAY['employmentFactsVersion'] ELSE ARRAY[]::text[] END");
@@ -48,7 +63,7 @@ export function buildOwnSalarySenioritySql(options) {
  const pin = s => ({ ...ownInstallationFunctionPin(s), runtime: /FUNCTION public\.(own_program_command|own_run_capture)_v1\(/.test(s) });
  const beforePins = before.map(pin), afterPins = changed.map(pin);
  beforePins.forEach((p, n) => assert.deepEqual({ ...p, sha256: null }, { ...afterPins[n], sha256: null }));
- return { sourceCommit: options.sourceCommit, sourceHashes: { [migrationFile]: hash(source) }, migration, before, changed, beforePins, afterPins, newPins, statements: [...migration, ...changed], newTables: 1, adaptedFunctions: 4, connects: false, executesSql: false };
+ return { sourceCommit: options.sourceCommit, sourceHashes, migration, before, changed, beforePins, afterPins, newPins, statements: [...migration, ...changed], newTables: 1, adaptedFunctions: 4, connects: false, executesSql: false };
 }
 
 const table = 'own_seniority_event', prefix = 'municontrol_seniority.';

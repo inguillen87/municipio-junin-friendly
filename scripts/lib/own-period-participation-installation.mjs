@@ -11,14 +11,29 @@ import { pinsCheck, preservationSnapshot } from './native-leave-installation.mjs
 import { SALARY_ADMINISTRATIVE_CONTEXT } from './salary-administrative-identity-installation.mjs';
 const q = v => "'" + String(v).replaceAll("'", "''") + "'";
 export const SQL157_SHA256 = '06b5fdcce0c55e5b768d43af0491f1498728bf762febffe81cb6df9763d96548';
+export const SQL161_SHA256 = 'dae369f64cb565ff298a105112fdbe7ff8c147fdfadda9999009fc49431bc87a';
 const hash = v => createHash('sha256').update(v).digest('hex');
 const once = (s, a, b) => { assert.equal(s.split(a).length, 2, 'PARTICIPATION_SOURCE_ANCHOR_CHANGED: ' + a.slice(0, 75)); return s.replace(a, () => b); };
 const get = (rows, name) => { const found = rows.filter(s => new RegExp('^CREATE (?:OR REPLACE )?FUNCTION public\\.' + name + '\\(').test(s)); assert.equal(found.length, 1, name); return found[0]; };
 export function buildOwnPeriodParticipationSql(options) {
  assert.match(options.sourceCommit, /^[a-f0-9]{40}$/);
  const published = buildOwnSalarySenioritySql(options);
- const migrationFile = 'scripts/migrations/157-own-period-participation.sql', source = options.read(migrationFile).replace(/\r\n?/g, '\n'), migration = splitPostgresStatements(source);
+ const migrationFile = 'scripts/migrations/157-own-period-participation.sql', source = options.read(migrationFile).replace(/\r\n?/g, '\n');
+ let migration = splitPostgresStatements(source);
  assert.equal(hash(source), SQL157_SHA256, 'PARTICIPATION_REVIEWED_SOURCE_CHANGED');
+ assert.ok(options.commandContentionGuard===undefined||typeof options.commandContentionGuard==='boolean');
+ const sourceHashes={[migrationFile]:hash(source)};
+ if(options.commandContentionGuard!==false){
+  const file='scripts/migrations/161-own-participation-command-guard.sql',text=options.read(file).replace(/\r\n?/g,'\n');
+  assert.equal(hash(text),SQL161_SHA256,'PARTICIPATION_COMMAND_GUARD_SOURCE_CHANGED');
+  const guarded=splitPostgresStatements(text);assert.equal(guarded.length,1);
+  const declaration=guarded[0].slice(guarded[0].indexOf('CREATE OR REPLACE FUNCTION '));
+  assert.ok(declaration.startsWith('CREATE OR REPLACE FUNCTION public.own_participation_command_v1('));
+  const original=get(migration,'own_participation_command_v1'),oldPin=ownInstallationFunctionPin(original),newPin=ownInstallationFunctionPin(declaration);
+  assert.deepEqual({...oldPin,sha256:null},{...newPin,sha256:null});assert.notEqual(oldPin.sha256,newPin.sha256);
+  migration=migration.map(s=>s===original?declaration.replace('CREATE OR REPLACE FUNCTION ','CREATE FUNCTION '):s);
+  sourceHashes[file]=hash(text);
+ }
  const beforeDefinition = get(published.changed, 'own_program_definition_v1'), beforeCommand = get(published.changed, 'own_program_command_v1'), beforeCapture = get(published.changed, 'own_run_capture_v1'), beforeReady = get(published.changed, 'municipal_adoption_ready_v1');
  let definition = once(beforeDefinition, 'facts boolean:=', "part boolean:=coalesce(p#>>'{periodParticipation,version}'='own-period-participation.v1',false);facts boolean:=");
  definition = once(definition, "CASE WHEN facts THEN ARRAY['employmentFactsVersion'] ELSE ARRAY[]::text[] END", "CASE WHEN facts THEN ARRAY['employmentFactsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN part THEN ARRAY['periodParticipation'] ELSE ARRAY[]::text[] END");
@@ -63,7 +78,7 @@ export function buildOwnPeriodParticipationSql(options) {
  const pin = s => ({ ...ownInstallationFunctionPin(s), runtime: /FUNCTION public\.(own_program_command|own_run_capture|own_run_complete)_v1\(/.test(s) });
  const beforePins = before.map(pin), afterPins = changed.map(pin);
  beforePins.forEach((p, n) => assert.deepEqual({ ...p, sha256: null }, { ...afterPins[n], sha256: null }));
- return { sourceCommit: options.sourceCommit, sourceHashes: { [migrationFile]: hash(source) }, migration, before, changed, beforePins, afterPins, newPins, statements: [...migration, ...changed], newTables: 1, adaptedFunctions: changed.length, connects: false, executesSql: false };
+ return { sourceCommit: options.sourceCommit, sourceHashes, migration, before, changed, beforePins, afterPins, newPins, statements: [...migration, ...changed], newTables: 1, adaptedFunctions: changed.length, connects: false, executesSql: false };
 }
 
 const table = 'own_participation_event', prefix = 'municontrol_participation.';

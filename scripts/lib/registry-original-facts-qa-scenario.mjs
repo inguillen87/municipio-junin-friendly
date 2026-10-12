@@ -10,7 +10,7 @@ import {registryPendingRaw} from '../../tests/fixtures/registry-original-facts-s
 import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {buildOwnRunDateInstallation} from './own-payroll-run-date-installation.mjs';
 import {relocateOwnRunDateInstallation} from './own-payroll-run-date-qa.mjs';
-export async function registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved}){
+export async function installRegistryOriginalFactsQa({options,qa,run,tx,ok,declaredBatch}){
  const date=relocateOwnRunDateInstallation(buildOwnRunDateInstallation(options),qa,declaredBatch.readyDefinition,declaredBatch);
  run(tx(date.installation));run(tx(date.durableVerification));ok(true,'registry baseline includes the published declared liquidation date protocol');
  const datedPrior={...declaredBatch,readyPin:date.readyPin,readyDefinition:date.readyDefinition,verification:[declaredBatch.verification[0],declaredBatch.verification[1].replaceAll(declaredBatch.readyPin.sha256,date.readyPin.sha256)+';'+date.durableVerification[0],...declaredBatch.verification.slice(2)]};
@@ -24,6 +24,11 @@ export async function registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,d
  const changedDate=qa.normalized(b.date.migration.find(s=>s.includes('CREATE FUNCTION public.own_run_bootstrap_v2('))).replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION ').replace(/AS (\$[\w]*\$)/,'AS $1\n -- QA changed date protocol pin\n');
  run(tx([changedDate,...b.verification.slice(1)]),'REGISTRY_DATE_PROTOCOL_METADATA');run(tx(b.verification));ok(true,'registry retains declared liquidation date guards and rejects changed date protocol metadata');
  run(tx([`GRANT EXECUTE ON FUNCTION ${qa.schema}.employment_adoption_registry_eligible_v1(jsonb) TO municontrol_actions_runtime_app`,...b.verification.slice(1)]),'REGISTRY_NEW_METADATA');run(tx(b.verification));ok(true,'runtime access to the private eligibility predicate is rejected');
+ return{...b,qaInstalled:installed,qaDurable:durable};
+}
+export async function registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved}){
+ const b=await installRegistryOriginalFactsQa({options,qa,run,tx,ok,declaredBatch}),input={revisionId:qa.revision,packageSha256:qa.packageSha};
+ const{qaInstalled:installed,qaDurable:durable}=b;
  const recovered=await adoptionPreparationOperation(db,principal,session,'attempt',{key});assert.equal(recovered.bodySha256,saved.bodySha256);const replay=await adoptionPreparationOperation(db,principal,session,'propose',{key,body});assert.equal(replay.receipt.replayed,true);ok(true,'earlier proposal body and key remain unchanged and recoverable after registry upgrade');
  const original=await adoptionPreparationOperation(db,principal,session,'registry-bootstrap',input);assert.equal(original.version,'employment-adoption-preparation.v6');assert.equal(original.canPrepare,true);assert.deepEqual(originalRegistryFactsCounts(original.review.rows),{total:869,pending:14,startDate:14,classification:2,jurisdiction:1});assert.equal(original.review.source.operationalCohort.archivedTotal,1583);ok(true,'actual SQL and application transport preserve the complete original active review and overlapping missing facts');
  const denied=structuredClone(principal);denied.tenant.effectiveCapabilities=denied.tenant.effectiveCapabilities.filter(c=>c!=='employee.record.propose');

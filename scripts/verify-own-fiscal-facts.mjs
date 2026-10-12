@@ -13,6 +13,7 @@ import {loadOwnF931Preparation} from '../assets/own-f931-preparation-client.js';
 import {prepareOwnF931,ownF931Proof,ownF931PreparationCsv,ownF931VisibleContracts} from '../assets/own-f931-preparation-model.js';
 const j=v=>q(JSON.stringify(v))+'::jsonb';
 export async function verifyOwnFiscalFacts(options){
+ assert.ok(options.continuation===undefined||typeof options.continuation==='function');
  return verifyOwnPeriodParticipation({...options,browser:'none',continuation:async h=>{
   const {qa,db,sql,adapter,deps,handlers,api,ok,setActor,period,relocate}=h,people=h.participation.people;
   const canonical=s=>s.replaceAll('search_path=pg_catalog, '+qa.schema+', public, pg_temp','search_path=pg_catalog, public, pg_temp').replaceAll(qa.schema,'public');
@@ -60,6 +61,7 @@ export async function verifyOwnFiscalFacts(options){
   const changedRow=changed.fiscalRows.find(r=>r.contractId===target);assert.equal(changedRow.state,'stale');assert.equal(changedRow.knownFields,null);assert.equal(changedRow.unknownFields,null);assert.equal(ownF931VisibleContracts(changed,'','stale').filtered,1);ok(true,'independent employment correction marks the original closed legajo stale without substituting its current source or inventing missing-field counts');
   const blocked=await api('close',{query:{resource:'detail',period,liquidationType:'monthly'},expected:422});assert.equal(blocked.code,'OWN_CLOSE_HISTORY_REQUIRED');await assert.rejects(()=>load(),/OWN_CLOSE_HISTORY_REQUIRED/);
   ok(true,'a protected contract changes only through independent review; the recorded closed census marks its fiscal facts stale and fresh F931 refuses an unverified historical framing');
+  if(options.continuation)return options.continuation({...h,fiscal:{people,installation}});
   return {version:'own-fiscal-facts-qa.v1',employeeCount:people.length,newTables:1,newFunctions:13,adaptedFunctions:0,installed:installation.installed,durable:installation.durable,syntheticOnly:true,productiveBusinessWrites:0};
  }});
 }

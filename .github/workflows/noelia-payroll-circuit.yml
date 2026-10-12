@@ -68,21 +68,37 @@ jobs:
       - name: Preview declared facts, preserve all pages and recover the original voluntary attempt
         run: node scripts/verify-active-source-declarations-browser.mjs --output-prefix=verification/active-source-declarations-browser-ci
       - name: Preserve original pending facts while adopting all active contracts and blocking incomplete salary subjects
+        env:
+          MC_QA_LOCK_OBSERVATION: '1'
         run: node scripts/verify-registry-original-facts.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/registry-original-facts-ci
       - name: Explicit original-facts acknowledgement, full review, mobile and unchanged recovery
         run: node scripts/verify-registry-original-facts-browser.mjs --output-prefix=verification/registry-original-facts-browser-ci
+      - name: Independently adopt all 855 operational contracts and preserve every deferred and historical row
+        env:
+          MC_QA_LOCK_OBSERVATION: '1'
+        run: node scripts/verify-operational-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/operational-adoption-ci
+      - name: Complete operational scope, immutable recovery, revocation and accessible mobile browser
+        run: node scripts/verify-operational-contract-adoption-browser.mjs --browser=chromium --source-commit=${{ github.sha }} --output=verification/operational-adoption-browser-ci
       - name: Parameter audit identity with historical contracts, unchanged shared context and actual SQL HTTP mobile UI
         run: node scripts/verify-salary-administrative-identity.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-administrative-ci
       - name: Review all 869 active rows, download observations and recover the same voluntary attempt
         run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/active-adoption-browser-ci --active=true
       - name: Independently decide and consult the final-cut result through actual SQL and HTTP
         run: node scripts/verify-municipal-adoption-operator-browser.mjs --transport=ci --final-cut=true --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-operator-ci
+      - name: Project QA browser for the read-only payroll summary
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete own payroll summary, original result and mobile access recovery
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-payroll-summary-ui.mjs --output=verification/own-payroll-summary-ci
       - name: Preserve synthetic evidence even when a check fails
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}
           path: |
+            verification/own-payroll-summary-ci
+            verification/release-chromium-157.0.8098.0/installation.json
             verification/salary-administrative-ci/result.json
             verification/salary-administrative-ci/browser-proof.json
             verification/salary-administrative-ci/partial-checks.json
@@ -118,8 +134,16 @@ jobs:
             verification/active-source-declarations-browser-ci-*.png
             verification/registry-original-facts-ci/result.json
             verification/registry-original-facts-ci/failure.txt
+            verification/registry-original-facts-ci/adapter-failure.txt
+            verification/registry-original-facts-ci/registry-lock-observations.ndjson
             verification/registry-original-facts-browser-ci-*.json
             verification/registry-original-facts-browser-ci-*.png
+            verification/operational-adoption-ci/result.json
+            verification/operational-adoption-ci/failure.txt
+            verification/operational-adoption-ci/adapter-failure.txt
+            verification/operational-adoption-ci/registry-lock-observations.ndjson
+            verification/operational-adoption-browser-ci/result.json
+            verification/operational-adoption-browser-ci/*.png
             verification/active-adoption-ci/failure.txt
             verification/active-adoption-ci/adapter-failure.txt
             verification/active-adoption-legacy-ci/result.json
