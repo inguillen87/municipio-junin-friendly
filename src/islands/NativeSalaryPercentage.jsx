@@ -1,0 +1,45 @@
+import {useEffect,useId,useState} from 'react';
+import {salaryRowKey,salarySerialized} from '../../assets/native-salary-catalog-model.js';
+import {salaryEffectivePercentagePlan} from '../../assets/native-salary-percentage-model.js';
+import Definition,{salaryDefinitionTitle as title} from './NativeSalaryDefinition.jsx';
+
+const PAGE=20,clone=value=>JSON.parse(JSON.stringify(value));
+const natural=new Intl.Collator('es',{numeric:true});
+
+export default function NativeSalaryPercentage({items,disabled,onApply,onNotice}){
+ const percentageHelp=useId(),precisionHelp=useId();
+ const [sourceMonth,setSourceMonth]=useState(''),[startMonth,setStartMonth]=useState('');
+ const [percentage,setPercentage]=useState(''),[precision,setPrecision]=useState(''),[reference,setReference]=useState('');
+ const [query,setQuery]=useState(''),[page,setPage]=useState(0),[selection,setSelection]=useState([]),[review,setReview]=useState(null);
+ useEffect(()=>{setReview(null);},[items,disabled]);
+ const filtered=items.filter(row=>row.active&&row.kind==='scale'&&(!sourceMonth||row.validFrom<=sourceMonth&&(row.validUntil===null||row.validUntil>=sourceMonth))&&[row.code,row.agreementCode,row.categoryCode,row.label].join(' ').toLowerCase().includes(query.toLowerCase())).sort((a,b)=>natural.compare(a.agreementCode,b.agreementCode)||natural.compare(a.categoryCode,b.categoryCode)||natural.compare(a.code,b.code)||a.validFrom.localeCompare(b.validFrom));
+ const last=Math.max(0,Math.ceil(filtered.length/PAGE)-1),currentPage=Math.min(page,last),visible=filtered.slice(currentPage*PAGE,(currentPage+1)*PAGE);
+ const selectedKeys=new Set(selection.map(row=>row.key));
+ const plan=()=>salaryEffectivePercentagePlan(items,selection,{sourceMonth,percentage:percentage.replace(',','.'),precision:precision===''?null:Number(precision),ruleReference:reference.trim().normalize('NFC')},startMonth);
+ function edit(setter,value,filter=false){if(disabled)return;setter(value);setReview(null);if(filter)setPage(0);}
+ function select(rows,checked=true){if(disabled)return;setReview(null);setSelection(previous=>{const next=new Map(previous.map(row=>[row.key,row]));for(const row of rows){const key=salaryRowKey(row);if(checked)next.set(key,{key,before:clone(row)});else next.delete(key);}return [...next.values()];});}
+ function compare(){if(disabled)return;try{const next=plan();setReview(next);onNotice(`${next.selectedCount} escalas comparadas con ${next.percentage}% de aumento. Revisá cada importe y las vigencias relacionadas antes de incorporarlos al borrador.`);}catch(error){setReview(null);onNotice(error.message);}}
+ function apply(){if(disabled||!review)return;try{const next=plan();if(salarySerialized(next)!==salarySerialized(review))throw Error('Cambió la comparación completa. Volvé a revisar las escalas.');onApply(next.items);setSelection([]);setReview(null);onNotice(`${next.selectedCount} escalas y sus vigencias relacionadas incorporadas al borrador. Todavía no se guardó ni aprobó la versión.`);}catch(error){setReview(null);onNotice(error.message);}}
+ return <section className="sc-percentage"><style>{css}</style>
+  <h3>Mes base, alcance y nuevos importes</h3><p>Declará el porcentaje y elegí las escalas alcanzadas por el documento municipal. Cada importe se calcula sobre su propio valor del mes base. No se redondean resultados ni se aumentan auxiliares automáticamente.</p>
+  <fieldset disabled={disabled}><div className="sc-form">
+   <label>Mes base de las escalas<input type="month" min="1900-01" max="2099-12" value={sourceMonth} onChange={event=>edit(setSourceMonth,event.target.value,true)}/></label>
+   <label>Mes inicial del aumento<input type="month" min="1900-01" max="2099-12" value={startMonth} onChange={event=>edit(setStartMonth,event.target.value)}/></label>
+   <label>Porcentaje de aumento<input aria-label="Porcentaje de aumento" aria-describedby={percentageHelp} inputMode="decimal" maxLength={27} value={percentage} onChange={event=>edit(setPercentage,event.target.value)}/><small id={percentageHelp}>Porcentaje positivo explícito, sin separador de miles.</small></label>
+   <label>Decimales de las nuevas escalas<select aria-label="Decimales de las nuevas escalas" aria-describedby={precisionHelp} value={precision} onChange={event=>edit(setPrecision,event.target.value)}><option value="">Elegí la precisión declarada</option>{Array.from({length:9},(_,number)=><option key={number} value={number}>{number} decimales</option>)}</select><small id={precisionHelp}>Si no alcanzan para el resultado exacto, la comparación se detiene sin redondear.</small></label>
+   <label>Documento que respalda el aumento<input maxLength={180} value={reference} onChange={event=>edit(setReference,event.target.value)}/></label>
+   <label>Buscar escalas por convenio, clase o código<input type="search" maxLength={160} value={query} onChange={event=>edit(setQuery,event.target.value,true)}/></label>
+  </div><p>{selection.length} escalas seleccionadas en todas las páginas · {filtered.length} resultados completos del filtro · página {currentPage+1} de {last+1}.</p>
+  <div className="sc-actions"><button type="button" disabled={!filtered.length} onClick={()=>select(filtered)}>Seleccionar las {filtered.length} escalas del filtro completo</button><button type="button" disabled={!selection.length} onClick={()=>{setSelection([]);setReview(null);}}>Quitar selección de escalas</button></div>
+  <ul className="sc-percentage-list">{visible.map(row=><li key={salaryRowKey(row)}><label className="sc-percentage-check"><input type="checkbox" checked={selectedKeys.has(salaryRowKey(row))} onChange={event=>select([row],event.target.checked)}/><span>{title(row)}<small>{row.label} · importe {row.value} · {row.precision} decimales · hasta {row.validUntil??'sin fin informado'}</small></span></label></li>)}</ul>
+  {!filtered.length&&<p>No hay escalas para este filtro. La selección de las otras páginas se conserva.</p>}
+  <div className="sc-actions"><button type="button" disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>Página anterior de escalas</button><button type="button" disabled={currentPage>=last} onClick={()=>setPage(currentPage+1)}>Página siguiente de escalas</button><button type="button" className="sc-primary" disabled={!selection.length} onClick={compare}>Comparar aumento completo</button></div>
+  {review&&<section data-salary-percentage-impact aria-label="Comparación completa del aumento"><h4>{review.selectedCount} escalas · aumento {review.percentage}%</h4><p>Base {review.sourceMonth}, nueva vigencia desde {review.validFrom}. Se cierran {review.newDefinitionsCount} vigencias al {review.previousUntil} y se crean {review.newDefinitionsCount}. El borrador completo tendrá {review.items.length} definiciones. La búsqueda no reduce esta comparación.</p>
+   <ul className="sc-percentage-list">{review.scaleComparisons.map(row=><li key={row.key}><strong>{title(selection.find(selected=>selected.key===row.key).before)}</strong><dl className="sc-values"><dt>Importe base</dt><dd>{row.before}</dd><dt>Importe exacto propuesto</dt><dd>{row.after} · {row.precision} decimales</dd></dl></li>)}</ul>
+   <p>{review.relatedDefinitionsCount} definiciones relacionadas conservan sus valores, unidades y reglas. Sus referencias se vinculan a las nuevas vigencias; no se ejecutan fórmulas. Las fechas finales declaradas se conservan.</p>
+   <details><summary>Revisar los {review.changes.length} cambios y sus antecedentes</summary>{review.changes.map(change=><details key={change.key}><summary>{title(change.after)} · {change.before?'Antecedente o referencia':'Nueva vigencia'}</summary>{change.before&&<><h5>Anterior</h5><Definition row={change.before}/></>}<h5>Propuesto</h5><Definition row={change.after}/></details>)}</details>
+   <div className="sc-actions"><button type="button" className="sc-primary" onClick={apply}>Incorporar aumento revisado al borrador</button><button type="button" onClick={()=>setReview(null)}>Volver a seleccionar escalas</button></div>
+  </section>}
+  </fieldset></section>;
+}
+const css=`.sc-percentage{margin:20px 0;border:1px solid #c9deda;border-radius:9px;background:#f7fbf9}.sc-workspace .sc-percentage-list{list-style:none;padding:0;margin:0}.sc-percentage-list li{border-bottom:1px solid #dce9e5;padding:10px 0}.sc-workspace .sc-percentage-check{flex-direction:row;align-items:center;gap:12px;min-height:44px;cursor:pointer}.sc-workspace .sc-percentage-check input[type=checkbox]{flex:0 0 20px;width:20px;height:20px;min-height:20px;padding:0;accent-color:#007d75}.sc-percentage-check span{min-width:0}.sc-percentage small{display:block;font-weight:400}.sc-percentage p,.sc-percentage li{overflow-wrap:anywhere}`;

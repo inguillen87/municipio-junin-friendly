@@ -6,10 +6,15 @@ import { gzipSync } from 'node:zlib';
 import { build } from 'esbuild';
 export async function buildPayrollParameters(root, output) {
   const source = 'src/islands/payroll-parameters-entry.jsx';
-  const result = await build({ ...publicBuildResolution, absWorkingDir: root, entryPoints: { 'payroll-parameters': source }, outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]', bundle: true, minify: true, jsx: 'automatic', format: 'esm', platform: 'browser', target: ['es2020'], sourcemap: false, legalComments: 'linked', metafile: true, logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' } });
+  const result = await build({ ...publicBuildResolution, absWorkingDir: root, entryPoints: { 'payroll-parameters': source }, outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]', chunkNames: 'parameter-chunk-[hash]', splitting: true, bundle: true, minify: true, jsx: 'automatic', format: 'esm', platform: 'browser', target: ['es2020'], sourcemap: false, legalComments: 'linked', metafile: true, logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' } });
   const entry = Object.entries(result.metafile.outputs).find(([, info]) => info.entryPoint?.replaceAll('\\', '/') === source)?.[0];
   assert.ok(entry, 'Parameter workspace entry must be emitted');
-  const absolute = path.resolve(root, entry), compressed = gzipSync(await fs.readFile(absolute)).length;
+  const absolute = path.resolve(root, entry), initial = new Set();
+  // Preserve the existing initial-load budget across every static chunk. Only
+  // the explicitly opened percentage helper is deferred; no chunk is hidden.
+  function include(file) { if(initial.has(file))return;initial.add(file);for(const dependency of result.metafile.outputs[file].imports)if(dependency.kind!=='dynamic-import'&&!dependency.external)include(dependency.path); }
+  include(entry);
+  let compressed=0;for(const file of initial)compressed+=gzipSync(await fs.readFile(path.resolve(root,file))).length;
   assert.ok(compressed < 110000, 'Parameter workspace must remain below 110 KB gzip');
   const href = '/' + path.relative(output, absolute).split(path.sep).join('/');
   const loader = 'assets/payroll-parameters-loader.js', code = await fs.readFile(path.join(root, loader), 'utf8'), marker = '__MC_PAYROLL_PARAMETERS_BUNDLE__';

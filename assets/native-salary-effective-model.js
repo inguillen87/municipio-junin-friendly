@@ -9,6 +9,10 @@ const description=row=>`${row.kind==='scale'?'Escala':row.kind==='auxiliary'?'Au
 // no formula is parsed, evaluated or assigned a result.
 export function salaryEffectivePlan(raw,selections,change,validFrom){
  const {current,chosen}=salaryBulkSelection(raw,selections,change);
+ return salaryEffectiveDefinitionsPlan(current,chosen,()=>({value:change.value,ruleReference:change.ruleReference}),validFrom);
+}
+
+export function salaryEffectiveDefinitionsPlan(current,chosen,update,validFrom){
  requireInput(month(validFrom),'Elegí el mes desde el que regirán los nuevos valores.');
  const [year,number]=validFrom.split('-').map(Number);
  const previousUntil=number===1?`${year-1}-12`:`${year}-${String(number-1).padStart(2,'0')}`;
@@ -21,7 +25,7 @@ export function salaryEffectivePlan(raw,selections,change,validFrom){
  const nextKeys=new Map([...affected].map(([key,row])=>[key,salaryRowKey({...row,validFrom})]));
  const relink=row=>row.dependencies.map(dependency=>nextKeys.get(dependency)??dependency).sort();
  const retained=current.map(row=>affected.has(salaryRowKey(row))?{...row,validUntil:previousUntil}:future.has(salaryRowKey(row))?{...row,dependencies:relink(row)}:row);
- const started=[...affected].map(([key,row])=>({...row,validFrom,dependencies:relink(row),...(chosen.has(key)?{value:change.value,ruleReference:change.ruleReference}:{})}));
+ const started=[...affected].map(([key,row])=>({...row,validFrom,dependencies:relink(row),...(chosen.has(key)?update(key):{})}));
  const items=salaryItems([...retained,...started]),changes=salaryDiff(current,items);
  return {items,changes,selectedCount:chosen.size,unchangedSelectedCount:0,newDefinitionsCount:affected.size,relatedDefinitionsCount:affected.size-chosen.size+future.size,relinkedFutureDefinitionsCount:future.size,validFrom,previousUntil};
 }
