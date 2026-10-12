@@ -7,6 +7,7 @@ import {adoptionProposalInput} from '../assets/employment-adoption-contract.js';
 import {OPERATIONAL_ADOPTION_COHORT as COHORT,OPERATIONAL_ADOPTION_PREPARATION_VERSION as BOOT_VERSION} from '../assets/employment-adoption-operational-cohort.js';
 import {adoptionPreparationOperation} from '../lib/internal-employment-adoption.js';
 import {buildOperationalContractAdoptionInstallation} from '../scripts/lib/operational-contract-adoption-installation.mjs';
+import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {operationalRaw} from './fixtures/operational-contract-adoption-synthetic.js';
 const payload=async raw=>adoptionPreparationPayload(await sealAdoptionReview(raw),catalogVersion,'','Documento exclusivamente ficticio','Preparación operativa completa exclusivamente sintética');
 test('explicit operational proposal retains complete source coverage and keeps exactly 14 pending outside its 855 rows',async()=>{
@@ -53,4 +54,15 @@ test('conservative installation generates distinct v7 dispatch, preserves earlie
  assert.match(b.afterDefinitions[0],/WHEN body_value->>'version'='employment-adoption-input.v7' THEN body_value-ARRAY\['version','finalSource','cohort'\]/);
  assert.match(b.afterDefinitions[0],/body_value->>'version'='employment-adoption-input.v6'/);assert.match(b.newDefinitions[0],/registry_eligible_v1/);
  assert.match(b.afterDefinitions[2],/active-with-entry.v1/);assert.match(b.migration.at(-1),/GRANT EXECUTE.*operational_bootstrap/);assert.doesNotMatch(b.newDefinitions.join('\n'),/INSERT INTO|UPDATE public|DELETE FROM|CREATE TABLE/);
+});
+test('operational installation starts from published participation readiness and preserves its consumer guards',()=>{
+ const b=buildOperationalContractAdoptionInstallation({sourceCommit:'a'.repeat(40),read:p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8')});
+ const ready=b.beforePins.find(p=>p.name==='municipal_adoption_ready_v1');
+ assert.equal(ready.sha256,'a8240fc907a5f4091b673a438f10207c19db49985cc5edf392c454c8683e74b6');
+ assert.notEqual(ready.sha256,b.previous.afterPins.at(-1).sha256);
+ assert.ok(b.beforeCheck.includes(ready.sha256));assert.ok(!b.beforeCheck.includes(b.previous.afterPins.at(-1).sha256));
+ for(const d of b.publishedBaseline.consumers){const p=ownInstallationFunctionPin(d);assert.ok(b.beforeDefinitions.at(-1).includes(p.sha256));assert.ok(b.afterDefinitions.at(-1).includes(p.sha256));assert.ok(!b.migration.some(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.'+p.name+'(')));}
+ assert.ok(Object.keys(b.sourceHashes).includes('scripts/migrations/157-own-period-participation.sql'));
+ assert.ok(!Object.keys(b.sourceHashes).includes('scripts/migrations/161-own-participation-command-guard.sql'));
+ assert.ok(!Object.keys(b.sourceHashes).includes('scripts/migrations/162-own-seniority-command-guard.sql'));
 });

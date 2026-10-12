@@ -3,6 +3,9 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {buildRegistryOriginalFactsInstallation} from './registry-original-facts-installation.mjs';
+import {buildOwnPeriodParticipationSql} from './own-period-participation-installation.mjs';
+import {buildSalaryAuxiliaryNamespaceSql} from './salary-auxiliary-namespace-installation.mjs';
+import {buildOwnRunDateInstallation} from './own-payroll-run-date-installation.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck,preservationSnapshot} from './native-leave-installation.mjs';
 import {OPERATIONAL_ADOPTION_INPUT_VERSION as V7,OPERATIONAL_ADOPTION_COHORT as COHORT} from '../../assets/employment-adoption-operational-cohort.js';
@@ -32,9 +35,22 @@ export function operationalContractAdoptionDefinitions(){
  END $operative$`;
  return[source,bootstrap];
 }
+export function publishedOperationalAdoptionBaseline(options){
+ const sourceHashes={},read=p=>{const s=options.read(p).replace(/\r\n?/g,'\n');sourceHashes[p]=createHash('sha256').update(s).digest('hex');return s;};
+ // The command guard upgrade is a separate technical lot. Read only the
+ // already published namespace, seniority and participation composition.
+ const opts={...options,read,commandContentionGuard:false};
+ const participation=buildOwnPeriodParticipationSql(opts),namespace=buildSalaryAuxiliaryNamespaceSql(opts),date=buildOwnRunDateInstallation(opts);
+ const definition=(rows,name)=>{const found=rows.filter(s=>new RegExp('^CREATE (?:OR REPLACE )?FUNCTION public\\.'+name+'\\(').test(s));assert.equal(found.length,1,'OPERATIONAL_PUBLISHED_SOURCE_MISSING:'+name);return found[0].replace('CREATE OR REPLACE FUNCTION ','CREATE FUNCTION ');};
+ const beforeConsumers=[definition(participation.before,'own_close_roster_v1'),definition(namespace.originals,'own_receipt_snapshot_v1'),definition(date.migration,'own_run_capture_v1')];
+ const consumers=[definition(participation.changed,'own_close_roster_v1'),definition(namespace.changed,'own_receipt_snapshot_v1'),definition(participation.changed,'own_run_capture_v1')];
+ for(const p of ['scripts/lib/own-period-participation-installation.mjs','scripts/lib/own-salary-seniority-installation.mjs','scripts/lib/salary-auxiliary-namespace-installation.mjs','scripts/lib/salary-administrative-identity-installation.mjs','scripts/lib/exact-program-precision-installation.mjs'])read(p);
+ return{ready:definition(participation.changed,'municipal_adoption_ready_v1'),beforeConsumers,consumers,sourceHashes};
+}
 export function buildOperationalContractAdoptionInstallation(options){
- const previous=buildRegistryOriginalFactsInstallation(options),beforeDefinitions=previous.afterDefinitions;
- const beforePins=previous.afterPins,pin=d=>({...ownInstallationFunctionPin(d),runtime:beforePins.find(p=>p.name===ownInstallationFunctionPin(d).name)?.runtime??false});
+ const previous=buildRegistryOriginalFactsInstallation(options),publishedBaseline=publishedOperationalAdoptionBaseline(options);
+ const beforeDefinitions=[...previous.afterDefinitions.slice(0,-1),publishedBaseline.ready];
+ const beforePins=beforeDefinitions.map(d=>({...ownInstallationFunctionPin(d),runtime:previous.afterPins.find(p=>p.name===ownInstallationFunctionPin(d).name)?.runtime??false})),pin=d=>({...ownInstallationFunctionPin(d),runtime:beforePins.find(p=>p.name===ownInstallationFunctionPin(d).name)?.runtime??false});
  const afterDefinitions=beforeDefinitions.slice(0,-1).map((s,index)=>{
   let v=s.replaceAll("'employment-adoption-input.v4','employment-adoption-input.v5','employment-adoption-input.v6'","'employment-adoption-input.v4','employment-adoption-input.v5','employment-adoption-input.v6','"+V7+"'");
   const actor=index===0?'body_value':'r.body';
@@ -49,7 +65,7 @@ export function buildOperationalContractAdoptionInstallation(options){
  const newDefinitions=operationalContractAdoptionDefinitions(),newPins=newDefinitions.map((d,n)=>({...ownInstallationFunctionPin(d),runtime:n===1}));
  const changedPins=afterDefinitions.map(pin),replace=s=>beforePins.slice(0,-1).reduce((v,p,n)=>v.replaceAll(p.sha256,changedPins[n].sha256),s);
  let ready=replace(beforeDefinitions.at(-1));ready=once(ready,' BEGIN ',' BEGIN EXECUTE '+q(pinsCheck(newPins,'OPERATIONAL_ADOPTION_NEW_METADATA'))+';');afterDefinitions.push(ready);
- const afterPins=afterDefinitions.map(pin),beforeCheck=previous.afterCheck,afterCheck=replace(beforeCheck).replaceAll(beforePins.at(-1).sha256,afterPins.at(-1).sha256)+';'+pinsCheck(newPins,'OPERATIONAL_ADOPTION_NEW_METADATA');
+ const afterPins=afterDefinitions.map(pin),beforeCheck=previous.afterCheck.replaceAll(previous.afterPins.at(-1).sha256,beforePins.at(-1).sha256),afterCheck=replace(beforeCheck).replaceAll(beforePins.at(-1).sha256,afterPins.at(-1).sha256)+';'+pinsCheck(newPins,'OPERATIONAL_ADOPTION_NEW_METADATA');
  beforePins.forEach((p,n)=>assert.deepEqual({...p,sha256:null},{...afterPins[n],sha256:null}));
  const prefix='municontrol_operational_adoption.',condition=`s.nspname='public' AND p.proname IN(${newPins.map(p=>q(p.name)).join(',')})`;
  const state=`DO $state$ DECLARE n integer;BEGIN IF current_setting('transaction_isolation')<>'repeatable read' THEN RAISE EXCEPTION 'OPERATIONAL_ADOPTION_ISOLATION_REQUIRED';END IF;PERFORM pg_advisory_xact_lock(132163);SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${condition};IF n=0 THEN PERFORM set_config('${prefix}mode','first',true);ELSIF n=2 THEN PERFORM set_config('${prefix}mode','repeat',true);ELSE RAISE EXCEPTION 'OPERATIONAL_ADOPTION_PARTIAL_STATE';END IF;END $state$`;
@@ -58,7 +74,7 @@ export function buildOperationalContractAdoptionInstallation(options){
  const apply=`DO $apply$ BEGIN IF current_setting('${prefix}mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
  const snapshot=slot=>{let s=preservationSnapshot(slot).replaceAll("p.oid IS DISTINCT FROM to_regclass('public.native_leave_event')",'true').replace("NOT(s.nspname='public' AND p.proname LIKE 'native_leave_%')",`NOT(${condition})`).replaceAll('municontrol_sql111.',prefix);return once(s,'to_jsonb(p)::text',`(CASE WHEN p.oid IN(${beforePins.map(p=>'to_regprocedure('+q(p.signature)+')').join(',')}) THEN to_jsonb(p)-'prosrc' ELSE to_jsonb(p) END)::text`);};
  const before=snapshot('before'),after=snapshot('after'),audit=`DO $audit$ BEGIN IF current_setting('${prefix}before')::jsonb IS DISTINCT FROM current_setting('${prefix}after')::jsonb THEN RAISE EXCEPTION 'OPERATIONAL_ADOPTION_PRIOR_STATE_CHANGED';END IF;END $audit$`,runtime='DO $runtime$ BEGIN PERFORM public.municipal_adoption_ready_v1();END $runtime$';
- const sourceHashes={...previous.sourceHashes,...Object.fromEntries(['scripts/lib/operational-contract-adoption-installation.mjs','assets/employment-adoption-operational-cohort.js'].map(p=>[p,createHash('sha256').update(options.read(p).replace(/\r\n?/g,'\n')).digest('hex')]))};
+ const sourceHashes={...previous.sourceHashes,...publishedBaseline.sourceHashes,...Object.fromEntries(['scripts/lib/operational-contract-adoption-installation.mjs','assets/employment-adoption-operational-cohort.js'].map(p=>[p,createHash('sha256').update(options.read(p).replace(/\r\n?/g,'\n')).digest('hex')]))};
  const proof=`SELECT jsonb_build_object('version','operational-contract-adoption-installation.v1','sourceCommit',${q(options.sourceCommit)},'sourceHashes',${q(JSON.stringify(sourceHashes))}::jsonb,'newFunctions',2,'adaptedFunctions',7,'newTables',0,'businessOperations',0,'nominalRowsReturned',0,'mode',coalesce(current_setting('${prefix}mode',true),'verify'),'priorFingerprint',encode(public.digest(current_setting('${prefix}after')::jsonb::text,'sha256'),'hex')) AS proof`;
- return{previous,beforeDefinitions,afterDefinitions,newDefinitions,beforePins,afterPins,newPins,sourceHashes,beforeCheck,afterCheck,state,initial,before,after,migration,apply,audit,runtime,proof,installation:[state,initial,before,apply,afterCheck,runtime,after,audit,proof],verification:['SET TRANSACTION READ ONLY',afterCheck,runtime,after,proof]};
+ return{previous,publishedBaseline,beforeDefinitions,afterDefinitions,newDefinitions,beforePins,afterPins,newPins,sourceHashes,beforeCheck,afterCheck,state,initial,before,after,migration,apply,audit,runtime,proof,installation:[state,initial,before,apply,afterCheck,runtime,after,audit,proof],verification:['SET TRANSACTION READ ONLY',afterCheck,runtime,after,proof]};
 }

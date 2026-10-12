@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';import {pinsCheck} from './native-leave-installation.mjs';
 import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {installRegistryOriginalFactsQa} from './registry-original-facts-qa-scenario.mjs';
-import {buildOperationalContractAdoptionInstallation} from './operational-contract-adoption-installation.mjs';
+import {buildOperationalContractAdoptionInstallation,publishedOperationalAdoptionBaseline} from './operational-contract-adoption-installation.mjs';
 import {adoptionPreparationOperation} from '../../lib/internal-employment-adoption.js';
 import {municipalAdoptionOperation} from '../../lib/internal-municipal-adoption.js';
 import {adoptionPreparationPayload,operationalAdoptionTransition} from '../../assets/employment-adoption-preparation-model.js';
@@ -18,12 +18,26 @@ export function relocateOperationalAdoption(batch,qa,previous){
  return{...batch,readyPin,readyDefinition:ready,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),verification:batch.verification.map((s,i)=>i===1?after:n(s))};
 }
 export async function operationalAdoptionQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved}){
- const previous=await installRegistryOriginalFactsQa({options,qa,run,tx,ok,declaredBatch});
+ const registry=await installRegistryOriginalFactsQa({options,qa,run,tx,ok,declaredBatch});
+ const published=publishedOperationalAdoptionBaseline(options),n=qa.normalized;
+ let publishedReady=registry.readyDefinition,publishedCheck=registry.verification[1];
+ for(let i=0;i<published.consumers.length;i++){
+  const before=ownInstallationFunctionPin(published.beforeConsumers[i]),after=ownInstallationFunctionPin(published.consumers[i]);
+  assert.ok(publishedReady.includes(before.sha256),'QA_PUBLISHED_CONSUMER_PIN_MISSING:'+before.name);
+  publishedReady=publishedReady.replaceAll(before.sha256,after.sha256);publishedCheck=publishedCheck.replaceAll(before.sha256,after.sha256);
+ }
+ const publishedReadyPin={...registry.readyPin,...ownInstallationFunctionPin(publishedReady.replace('CREATE FUNCTION '+qa.schema+'.','CREATE FUNCTION public.')),signature:registry.readyPin.signature,runtime:false};
+ publishedCheck=publishedCheck.replaceAll(registry.readyPin.sha256,publishedReadyPin.sha256);
+ run(tx([...published.consumers.map(s=>n(s.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '))),publishedReady.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '),publishedCheck,n(pinsCheck(published.consumers.map(s=>({...ownInstallationFunctionPin(s),runtime:ownInstallationFunctionPin(s).name==='own_run_capture_v1'})),'QA_PUBLISHED_CONSUMERS_CHANGED'))]));
+ const previous={...registry,readyDefinition:publishedReady,readyPin:publishedReadyPin,verification:registry.verification.map((s,i)=>i===1?publishedCheck:s)};
+ run(tx(previous.verification));ok(true,'operational baseline preserves the published namespace, seniority and participation consumers');
+ const consumerState=()=>db.run(`SELECT jsonb_agg(jsonb_build_object('name',p.proname,'source',md5(p.prosrc),'owner',p.proowner,'acl',p.proacl::text,'config',p.proconfig) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(qa.schema)}::regnamespace AND p.proname IN('own_close_roster_v1','own_receipt_snapshot_v1','own_run_capture_v1')`),consumersBefore=await consumerState();
  const batch=relocateOperationalAdoption(buildOperationalContractAdoptionInstallation(options),qa,previous),input={revisionId:qa.revision,packageSha256:qa.packageSha};
  run(tx(batch.installation,'ROLLBACK'));run(tx(previous.verification));ok(true,'operational rehearsal rolls back without changing all previous objects');
  run(tx([qa.normalized(batch.newDefinitions[0]),...batch.installation]),'OPERATIONAL_ADOPTION_PARTIAL_STATE');run(tx(previous.verification));ok(true,'partial operational state is rejected and rolled back');
  const installed=JSON.parse(run(tx(batch.installation))),durable=JSON.parse(run(tx(batch.verification)));assert.equal(installed.mode,'first');assert.deepEqual({...durable,mode:'first'},installed);ok(true,'operational installation preserves rows, privileges and durable function metadata');
  const repeat=JSON.parse(run(tx(batch.installation)));assert.equal(repeat.mode,'repeat');assert.deepEqual({...repeat,mode:'first'},installed);ok(true,'operational repeat installs no new object');
+ assert.deepEqual(await consumerState(),consumersBefore);ok(true,'operational installation leaves all three published consumer bodies and privileges intact');
  const recovered=await adoptionPreparationOperation(db,principal,session,'attempt',{key});assert.equal(recovered.bodySha256,saved.bodySha256);assert.equal((await adoptionPreparationOperation(db,principal,session,'propose',{key,body})).receipt.replayed,true);ok(true,'original pending request body and key remain recoverable after the extension');
  const full=await adoptionPreparationOperation(db,principal,session,'registry-bootstrap',input),operative=await adoptionPreparationOperation(db,principal,session,'operational-bootstrap',input);
  await operationalAdoptionTransition(full.review,operative.review);assert.equal(full.review.total,869);assert.equal(operative.review.total,855);assert.equal(operative.review.source.operationalCohort.deferredTotal,14);assert.equal(operative.review.source.operationalCohort.archivedTotal,1583);ok(true,'actual authoritative SQL splits 855 candidates,14 pending and1583 history with full2452 source coverage');
