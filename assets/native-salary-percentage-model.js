@@ -1,6 +1,6 @@
 import {SalaryInputError,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
 import {salaryEffectiveDefinitionsPlan} from './native-salary-effective-model.js';
-import {decimal,exactAdd,exactCompare,exactDivide,exactMultiply,quantize} from './own-payroll-exact.js';
+import {decimal,exactAdd,exactCompare,exactDivide,exactMultiply,exactSubtract,quantize} from './own-payroll-exact.js';
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('EFFECTIVE_INPUT_INVALID',message);};
 const month=value=>typeof value==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(value);
 const description=row=>`Escala ${row.code} · convenio ${row.agreementCode} · desde ${row.validFrom}`;
@@ -32,5 +32,31 @@ export function salaryEffectivePercentagePlan(raw,selections,change,validFrom){
   updates.set(key,{value,precision:change.precision,ruleReference:change.ruleReference});
  }
  const plan=salaryEffectiveDefinitionsPlan(current,chosen,key=>updates.get(key),validFrom);
- return {...plan,sourceMonth:change.sourceMonth,percentage:change.percentage,scaleComparisons:[...chosen].map(([key,row])=>({key,before:row.value,after:updates.get(key).value,precision:change.precision}))};
+ return {...plan,sourceMonth:change.sourceMonth,percentage:change.percentage,scaleComparisons:[...chosen].map(([key,row])=>{
+  const after=updates.get(key).value,incrementPrecision=Math.max(row.precision,change.precision);
+  const increment=quantize(exactSubtract(decimal(after),decimal(row.value)),{precision:incrementPrecision,mode:'exact'}).amount;
+  return {key,before:row.value,beforePrecision:row.precision,increment,incrementPrecision,after,precision:change.precision};
+ })};
+}
+
+const comparisonCell=value=>'"'+(value===''?'':"'"+String(value)).replaceAll('"','""')+'"';
+const sameDefinition=(a,b)=>['kind','agreementCode','categoryCode','code'].every(key=>a[key]===b[key]);
+// Recompute the complete reviewed transformation, including dependent metadata.
+// No names, free text, employee identifiers or source-document bytes are exported.
+export function salaryPercentageComparisonCsv(raw,selections,change,validFrom,review){
+ const plan=salaryEffectivePercentagePlan(raw,selections,change,validFrom);
+ requireInput(review&&salarySerialized(review)===salarySerialized(plan),'Cambió la comparación revisada. Volvé a comparar antes de descargar.');
+ const current=new Map(salaryItems(raw).map(row=>[salaryRowKey(row),row])),scales=new Map(plan.scaleComparisons.map(row=>[row.key,row]));
+ const closed=plan.changes.filter(row=>row.before&&row.before.validUntil!==row.after.validUntil);
+ const header=['tipo','convenio','clase','codigo','cambio','mes_base','desde_base','hasta_base','desde_propuesto','hasta_propuesto','valor_base','decimales_base','aumento_porcentaje','incremento_exacto','decimales_incremento','valor_propuesto','decimales_propuestos','unidad','dependencias_propuestas'];
+ const rows=plan.changes.map(row=>{
+  const before=row.before??closed.find(prior=>sameDefinition(prior.before,row.after))?.before;
+  requireInput(before,'No se pudo verificar el antecedente de una nueva vigencia. Volvé a comparar.');
+  const increased=!row.before?scales.get(salaryRowKey(before)):null;
+  requireInput(current.has(salaryRowKey(before)),'El antecedente no pertenece al conjunto completo revisado.');
+  return [({scale:'escala',auxiliary:'auxiliar',concept:'concepto'})[row.after.kind],row.after.agreementCode,row.after.categoryCode??'',row.after.code,row.before?(row.before.validUntil!==row.after.validUntil?'cierre_vigencia':'referencia_futura'):'nueva_vigencia',plan.sourceMonth,before.validFrom,before.validUntil??'',row.after.validFrom,row.after.validUntil??'',before.value??'',before.precision,increased?plan.percentage:'',increased?.increment??'',increased?.incrementPrecision??'',row.after.value??'',row.after.precision,row.after.unit,row.after.dependencies.join('|')];
+ });
+ const text='\ufeff'+header.map(value=>'"'+value+'"').join(';')+'\r\n'+rows.map(row=>row.map(comparisonCell).join(';')).join('\r\n')+'\r\n';
+ requireInput(new TextEncoder().encode(text).length<=2*1024*1024,'La comparación completa supera 2 MiB. No se recorta la descarga.');
+ return {filename:`comparacion-escalas-${plan.sourceMonth}-${plan.validFrom}.csv`,text,rows:rows.length,selectedScales:plan.selectedCount};
 }
