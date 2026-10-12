@@ -17,7 +17,7 @@ export function relocateOperationalAdoption(batch,qa,previous){
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_operational_adoption.mode')='first' THEN ${defs.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
  return{...batch,readyPin,readyDefinition:ready,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),verification:batch.verification.map((s,i)=>i===1?after:n(s))};
 }
-export async function operationalAdoptionQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved}){
+export async function operationalAdoptionQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved,afterOperationalScenario}){
  const registry=await installRegistryOriginalFactsQa({options,qa,run,tx,ok,declaredBatch});
  const published=publishedOperationalAdoptionBaseline(options),n=qa.normalized;
  let publishedReady=registry.readyDefinition,publishedCheck=registry.verification[1];
@@ -56,5 +56,6 @@ export async function operationalAdoptionQaScenario({options,qa,db,run,tx,ok,dec
  await assert.rejects(municipalAdoptionOperation(db,principal,session,'command',{key:randomUUID(),body:decision}));ok(true,'same actor cannot approve the operational adoption');
  const decisionKey=randomUUID(),done=await municipalAdoptionOperation(db,checker,checkerSession,'command',{key:decisionKey,body:decision});assert.equal(done.receipt.effects.contractsAdopted,855);assert.equal(done.receipt.effects.payrollCalculated,false);assert.equal(done.receipt.effects.paymentsExecuted,false);assert.deepEqual(await retained(),before);ok(true,'actual synthetic decision adopts exactly855 and preserves all14 pending and1583 historical rows byte for byte');
  const terminal=await municipalAdoptionOperation(db,checker,checkerSession,'review',{id:saved7.receipt.proposalId});assert.equal(terminal.proposal.status,'approved');assert.equal(terminal.review.total,855);assert.equal((await municipalAdoptionOperation(db,checker,checkerSession,'command',{key:decisionKey,body:decision})).receipt.replayed,true);ok(true,'terminal review and decision recovery preserve the frozen source scope');
- return{version:'operational-contract-adoption-qa.v1',installed,durable,syntheticAdopted:855,syntheticDeferred:14,syntheticArchived:1583};
+ const administrative=afterOperationalScenario?await afterOperationalScenario({options,qa,db,run,tx,ok,batch,principal,session,key,body,saved,key7,input7,saved7,decisionKey,done}):undefined;
+ return{version:'operational-contract-adoption-qa.v1',installed,durable,syntheticAdopted:855,syntheticDeferred:14,syntheticArchived:1583,...(administrative?{administrative}:{})};
 }
