@@ -1,6 +1,7 @@
 // Real product component, API handler and SQL; isolated fictional authentication.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
-export async function verifyAdoptionAdministrativeBrowser({handler,review,actor,revoke,restore,output,browserName,check}){
+export async function verifyAdoptionAdministrativeBrowser({handler,review,actor,revoke,restore,output,browserName,check,policy}){
+ assert.ok(policy===undefined||policy==='operative');
  assert.ok(['chrome','chromium'].includes(browserName));const root=fs.realpathSync(new URL('../..',import.meta.url)),origin='https://adoption-admin-qa.example',posts=[],errors=[];
  const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});let page;
  try{
@@ -20,6 +21,7 @@ export async function verifyAdoptionAdministrativeBrowser({handler,review,actor,
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origin+'/qa.html');
   const panel=page.locator('[data-ar-preparation]'),ready=()=>page.waitForFunction(()=>document.querySelector('[data-ar-preparation]').getAttribute('aria-busy')==='false');
   await panel.locator('[data-ap-open]').click();await panel.locator('[data-ap-load]').click();await ready();
+  if(policy){await panel.locator('[data-ap-policy]').selectOption(policy);await ready();assert.match(await panel.locator('[data-ap-counts]').innerText(),/855 activos.*14 registros.*1583.*2452/);check(true,'actual complete-source browser selects855 candidates while retaining14 deferred and1583 historical rows');}
   assert.ok(await panel.locator('[data-ap-form]').isVisible());assert.ok(await panel.locator('[data-ap-reference]').isEnabled());check(true,'real product form enables the archived administrative author after actual API and SQL validation');
   await panel.locator('[data-ap-reference]').fill('Documento exclusivamente ficticio; no se guarda');await panel.locator('[data-ap-reason]').fill('Borrador sintético de prueba que no se envía');
   for(const width of[1440,390,320]){await page.setViewportSize({width,height:1000});assert.ok(await panel.evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.ok(await panel.locator('[data-ap-send]').evaluate(n=>n.getBoundingClientRect().height>=44));await page.screenshot({path:path.join(output,'adoption-admin-'+width+'.png')});check(true,'actual administrative preparation fits '+width+'px and preserves accessible controls');}

@@ -7,11 +7,13 @@ import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 import {identityProfileValidatorQaDefinitions} from '../../tests/fixtures/final-identity-profile-synthetic.js';
+import {adoptionStreamingCoreFixture} from './adoption-streaming-core-fixture.mjs';
 
-export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddingBytes=0,invalidInactive=false}={}){
+export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddingBytes=0,invalidInactive=false,coreProjectionFixture=false}={}){
  assert.ok(Number.isSafeInteger(contractCount)&&contractCount>=57&&contractCount<=10000);
  assert.ok(Number.isSafeInteger(activeCount)&&activeCount>=2&&activeCount<contractCount);
  assert.ok(Number.isSafeInteger(paddingBytes)&&paddingBytes>=0&&paddingBytes<=8192);assert.equal(typeof invalidInactive,'boolean');
+ assert.equal(typeof coreProjectionFixture,'boolean');
  const qa=buildInactiveJurisdictionQa(major),source=fs.readFileSync(new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url),'utf8');
  const fixtureAnchor='FOR fixture_n IN 1..54 LOOP';assert.equal(qa.sql.split(fixtureAnchor).length,2);
  qa.sql=qa.sql.replace(fixtureAnchor,`FOR fixture_n IN 1..${contractCount-3} LOOP`);
@@ -59,10 +61,12 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  ALTER TABLE grh_curated_source_version ADD COLUMN source_sha256 text DEFAULT '5a604acfe5ea32832b630d8aab29e494038d4c8940b231e283a53d14112665c7',ADD COLUMN source_cutoff timestamp DEFAULT timestamp '2026-09-10 15:17:30',ADD UNIQUE(id);
  CREATE TABLE grh_core_source_version_seal(version_id uuid PRIMARY KEY,entity_fingerprints jsonb);
  ALTER TABLE grh_curated_source_version_seal ADD COLUMN version_id uuid UNIQUE,ADD COLUMN entity_fingerprints jsonb;
+ ${coreProjectionFixture?adoptionStreamingCoreFixture({qa,revision,read:p=>fs.readFileSync(new URL('../../'+p,import.meta.url),'utf8')}):''}
  CREATE TABLE qa_base_rows AS SELECT * FROM qa_final_rows;
  UPDATE qa_base_rows b SET record=b.record||jsonb_build_object('fecha_ingreso','2000-01-01') WHERE entity='curated/grh_employees';
  -- Explicit fictional predecessor adapters; SQL144's readers and guards are real.
  CREATE FUNCTION grh_core_source_unsealed_rows_v1(p_version uuid,p_entity text) RETURNS TABLE(source_id text,record jsonb) LANGUAGE sql AS $qa$ SELECT b.row_key,b.record FROM qa_base_rows b WHERE entity='core/'||p_entity AND EXISTS(SELECT 1 FROM grh_core_source_version WHERE id=p_version) $qa$;
+ ${coreProjectionFixture?'REVOKE ALL ON FUNCTION grh_core_source_unsealed_rows_v1(uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;':''}
  CREATE FUNCTION grh_curated_source_unsealed_rows_v1(p_version uuid,p_entity text) RETURNS TABLE(row_key text,record jsonb) LANGUAGE sql AS $qa$ SELECT b.row_key,b.record FROM qa_base_rows b WHERE entity='curated/'||p_entity AND EXISTS(SELECT 1 FROM grh_curated_source_version WHERE id=p_version) $qa$;
  CREATE FUNCTION grh_core_source_version_assert_v1(p_version uuid,p_entity text) RETURNS void LANGUAGE plpgsql AS $qa$ BEGIN IF NOT EXISTS(SELECT 1 FROM grh_core_source_version_seal WHERE version_id=p_version AND entity_fingerprints ? p_entity) THEN RAISE EXCEPTION 'QA_PREDECESSOR_CORE_UNSEALED';END IF;END $qa$;
  CREATE FUNCTION grh_curated_source_version_assert_v1(p_version uuid,p_entity text) RETURNS void LANGUAGE plpgsql AS $qa$ BEGIN IF NOT EXISTS(SELECT 1 FROM grh_curated_source_version_seal WHERE version_id=p_version AND entity_fingerprints ? p_entity) THEN RAISE EXCEPTION 'QA_PREDECESSOR_CURATED_UNSEALED';END IF;END $qa$;

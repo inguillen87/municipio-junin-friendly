@@ -22,9 +22,9 @@ export function relocateAdoptionAdministrativeIdentity(batch,qa,previous){
  const check=`DO $check$ BEGIN IF current_setting('municontrol_adoption_administrative.mode')='install' THEN EXECUTE ${q(beforeCheck)};ELSE EXECUTE ${q(afterCheck)};END IF;END $check$`;
  const mutations=[helper,n(batch.mutations[1]),...changed.map(d=>d.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION ')),ready.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION ')];
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_adoption_administrative.mode')='install' THEN ${mutations.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
- return{beforeCheck,afterCheck,statements:batch.statements.map((s,i)=>i===1?check:i===3?apply:i===4?afterCheck:n(s)),verification:batch.verification.map((s,i)=>i===0?afterCheck:n(s)),helperPin};
+ return{beforeCheck,afterCheck,readyDefinition:ready,readyPin,statements:batch.statements.map((s,i)=>i===1?check:i===3?apply:i===4?afterCheck:n(s)),verification:batch.verification.map((s,i)=>i===0?afterCheck:n(s)),helperPin};
 }
-export async function adoptionAdministrativeIdentityQaScenario({options,qa,db,run,tx,ok,batch:operative,principal,session,key,body,saved,key7,input7,saved7,browser='none',output}){
+export async function adoptionAdministrativeIdentityQaScenario({options,qa,db,run,tx,ok,batch:operative,principal,session,key,body,saved,key7,input7,saved7,browser='none',output,afterAdministrativeScenario}){
  const b=buildAdoptionAdministrativeIdentityInstallation(options),adminContract=randomUUID(),n=qa.normalized;
  // Explicit synthetic setup: an archived contract of the same audit person.
  // This is not part of the installation or a real personnel operation.
@@ -58,5 +58,6 @@ export async function adoptionAdministrativeIdentityQaScenario({options,qa,db,ru
  run(tx(['GRANT EXECUTE ON FUNCTION '+qa.schema+'.employment_adoption_administrative_context_v1(jsonb,text) TO municontrol_actions_runtime_app',...relocated.statements]),'METADATA');run(tx(relocated.verification));ok(true,'broadened private resolver access is rejected and rolled back by the installation verifier');
  if(browser!=='none')await verifyAdoptionAdministrativeBrowser({handler,review:current.review,actor:qa.actors.maker,check:ok,browserName:browser,output:path.resolve(output),revoke:async()=>run(tx([n('UPDATE public.tenant_action_employment_link SET active=false WHERE membership_id='+mid)])),restore:async()=>run(tx([n('UPDATE public.tenant_action_employment_link SET active=true WHERE membership_id='+mid)]))});
  assert.deepEqual(await historicalProof(),before);ok(true,'all administrative reads and replays leave the archived actor and municipal operation ledgers untouched');
- return{installed,durable,repeated:repeat,administrativeActorVerified:true,employmentReactivated:false,municipalOperations:0};
+ const streaming=afterAdministrativeScenario?await afterAdministrativeScenario({options,qa,db,run,tx,ok,administrative:relocated,principal,session,key,body,saved,key7,input7,saved7,browser,output,adminContract}):undefined;
+ return{installed,durable,repeated:repeat,administrativeActorVerified:true,employmentReactivated:false,municipalOperations:0,...(streaming?{streaming}:{})};
 }

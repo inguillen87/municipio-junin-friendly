@@ -81,6 +81,10 @@ jobs:
         run: node scripts/verify-operational-contract-adoption-browser.mjs --browser=chromium --source-commit=${{ github.sha }} --output=verification/operational-adoption-browser-ci
       - name: Administrative adoption identity with archived employment, unchanged requests and actual SQL mobile UI
         run: node scripts/verify-adoption-administrative-identity.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/adoption-administrative-identity-ci
+      - name: Compare complete streaming projections against canonical SQL061 and SQL144 with both delta layers and exact decimals
+        run: node scripts/verify-adoption-streaming-projection.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/adoption-streaming-projection-ci
+      - name: Complete streaming installation, all ten source checks, unchanged attempts, revocation and actual SQL mobile UI
+        run: node scripts/verify-adoption-source-streaming.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/adoption-source-streaming-ci
       - name: Parameter audit identity with historical contracts, unchanged shared context and actual SQL HTTP mobile UI
         run: node scripts/verify-salary-administrative-identity.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-administrative-ci
       - name: Review all 869 active rows, download observations and recover the same voluntary attempt
@@ -106,6 +110,13 @@ jobs:
             verification/salary-administrative-ci/partial-checks.json
             verification/salary-administrative-ci/failure.txt
             verification/salary-administrative-ci/*.png
+            verification/adoption-streaming-projection-ci/result.json
+            verification/adoption-streaming-projection-ci/stderr.log
+            verification/adoption-source-streaming-ci/result.json
+            verification/adoption-source-streaming-ci/failure.txt
+            verification/adoption-source-streaming-ci/administrative-browser.json
+            verification/adoption-source-streaming-ci/streaming-browser/*.json
+            verification/adoption-source-streaming-ci/streaming-browser/*.png
             verification/noelia-circuit-ci/result.json
             verification/noelia-circuit-ci/*-proof.json
             verification/noelia-circuit-ci/*-browser.json
