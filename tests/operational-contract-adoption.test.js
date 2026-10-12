@@ -62,6 +62,8 @@ test('operational installation starts from published participation readiness and
  assert.notEqual(ready.sha256,b.previous.afterPins.at(-1).sha256);
  assert.ok(b.beforeCheck.includes(ready.sha256));assert.ok(!b.beforeCheck.includes(b.previous.afterPins.at(-1).sha256));
  for(const d of b.publishedBaseline.consumers){const p=ownInstallationFunctionPin(d);assert.ok(b.beforeDefinitions.at(-1).includes(p.sha256));assert.ok(b.afterDefinitions.at(-1).includes(p.sha256));assert.ok(!b.migration.some(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.'+p.name+'(')));}
+ const oldCapture=ownInstallationFunctionPin(b.publishedBaseline.beforeConsumers[2]),capture=ownInstallationFunctionPin(b.publishedBaseline.consumers[2]);
+ assert.ok(!b.beforeCheck.includes(oldCapture.sha256));assert.ok(b.beforeCheck.includes(capture.sha256));
  assert.ok(Object.keys(b.sourceHashes).includes('scripts/migrations/157-own-period-participation.sql'));
  assert.ok(!Object.keys(b.sourceHashes).includes('scripts/migrations/161-own-participation-command-guard.sql'));
  assert.ok(!Object.keys(b.sourceHashes).includes('scripts/migrations/162-own-seniority-command-guard.sql'));
