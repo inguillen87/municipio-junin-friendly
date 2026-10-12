@@ -1,4 +1,5 @@
 import {sourceDeclarations,SOURCE_DECLARATIONS_VERSION,DECLARED_ADOPTION_REVIEW_VERSION} from './employment-source-declarations.js';
+import {OPERATIONAL_ADOPTION_COHORT,operationalAdoptionCohort} from './employment-adoption-operational-cohort.js';
 // Complete, read-only review of existing contracts. No identity resolution or decisions.
 export const ADOPTION_REVIEW_VERSION='employment-adoption-review.v1';
 export const ADOPTION_FINAL_REVIEW_VERSION='employment-adoption-review.v2';
@@ -55,7 +56,10 @@ function validateRaw(raw){
  if(raw.total!==raw.rows.length)fail();adoptionReviewScope(raw.scope);
  const s=raw.source,final=Object.hasOwn(s??{},'finalRevision'),active=Object.hasOwn(s??{},'operationalCohort'),declared=Object.hasOwn(s??{},'municipalDeclarations');if(!exact(s,[...sourceFields,...(final?['finalRevision']:[]),...(active?['operationalCohort']:[]),...(declared?['municipalDeclarations']:[])])||!sourceFields.slice(0,5).every(k=>uuid(s[k]))||!sourceFields.slice(5,9).every(k=>hash(s[k]))||!stamp(s.cutoff))fail();
  if(final){const f=s.finalRevision;if(!exact(f,finalSourceFields)||!uuid(f.revisionId)||!finalSourceFields.filter(k=>!['revisionId','cutoff'].includes(k)).every(k=>hash(f[k]))||!stamp(f.cutoff))fail();}
- if(active){const c=s.operationalCohort;if(!final||!exact(c,['version','sourceTotal','archivedTotal'])||c.version!=='active-contracts.v1'||!Number.isSafeInteger(c.sourceTotal)||c.sourceTotal<1||c.sourceTotal>ADOPTION_REVIEW_MAX_ROWS||!Number.isSafeInteger(c.archivedTotal)||c.archivedTotal<0||c.sourceTotal-c.archivedTotal!==raw.total)fail();}
+ if(active){const c=s.operationalCohort,operative=operationalAdoptionCohort(c);
+  if(!final||!exact(c,['version','sourceTotal','archivedTotal',...(operative?['deferredTotal','deferredSourceRowNumbers']:[])])||!['active-contracts.v1',OPERATIONAL_ADOPTION_COHORT].includes(c.version)||!Number.isSafeInteger(c.sourceTotal)||c.sourceTotal<1||c.sourceTotal>ADOPTION_REVIEW_MAX_ROWS||!Number.isSafeInteger(c.archivedTotal)||c.archivedTotal<0||c.sourceTotal-c.archivedTotal-(operative?c.deferredTotal:0)!==raw.total)fail();
+  if(operative){if(declared||!Number.isSafeInteger(c.deferredTotal)||c.deferredTotal<0||!Array.isArray(c.deferredSourceRowNumbers)||c.deferredSourceRowNumbers.length!==c.deferredTotal)fail();let prior=0;for(const n of c.deferredSourceRowNumbers){if(!Number.isSafeInteger(n)||n<=prior||n>c.sourceTotal)fail();prior=n;}}
+ }
  let lastSourceRow=0;
  const seen=new Set();for(const [index,r]of raw.rows.entries()){
   if(!exact(r,[...ADOPTION_REVIEW_ROW_FIELDS,...(final?['previous','sourceIssues']:[]),...(active?['sourceRowNumber']:[])])||r.rowNumber!==index+1||!uuid(r.contractId)||seen.has(r.contractId.toLowerCase())||!['active','inactive','state_error'].includes(r.status)
@@ -64,7 +68,8 @@ function validateRaw(raw){
   if(final){const b=r.previous;if(!exact(b,previousFields)||!['active','inactive','state_error','unknown'].includes(b.status)||!previousFields.filter(k=>k!=='status').every(k=>text(b[k]))
    ||b.startDate!==null&&!civilDay(b.startDate)||b.endDate!==null&&!civilDay(b.endDate)||!['42','55',null].includes(b.jurisdictionCode)
    ||!Array.isArray(r.sourceIssues)||new Set(r.sourceIssues).size!==r.sourceIssues.length||r.sourceIssues.some(k=>!ADOPTION_FINAL_SOURCE_ISSUES.includes(k)))fail();}
-  if(active){if(r.status!=='active'||!Number.isSafeInteger(r.sourceRowNumber)||r.sourceRowNumber<=lastSourceRow||r.sourceRowNumber>s.operationalCohort.sourceTotal)fail();lastSourceRow=r.sourceRowNumber;}
+  if(active){if(r.status!=='active'||!Number.isSafeInteger(r.sourceRowNumber)||r.sourceRowNumber<=lastSourceRow||r.sourceRowNumber>s.operationalCohort.sourceTotal)fail();lastSourceRow=r.sourceRowNumber;
+   if(operationalAdoptionCohort(s.operationalCohort)&&(r.startDate===null||r.endDate!==null||r.sourceIssues.includes('START_DATE_MISSING')||s.operationalCohort.deferredSourceRowNumbers.includes(r.sourceRowNumber)))fail();}
   seen.add(r.contractId.toLowerCase());
  }
  if(declared){if(!active||!exact(s.municipalDeclarations,['version','rows'])||s.municipalDeclarations.version!==SOURCE_DECLARATIONS_VERSION)fail();let ds;try{ds=sourceDeclarations(s.municipalDeclarations.rows);}catch{fail();}const byId=new Map(raw.rows.map(r=>[r.contractId.toLowerCase(),r]));for(const d of ds){const row=byId.get(d.contractId.toLowerCase());if(!row||Object.entries(d.values).some(([k,v])=>row[k]!==v))fail();}}
@@ -75,6 +80,7 @@ export async function sealAdoptionReview(raw){
  const rows=await Promise.all(raw.rows.map(async r=>({...structuredClone(r),contractVersion:await adoptionReviewHash({sourceContextVersion,row:r}),observations:adoptionReviewObservations(r)})));
  const counts={active:0,inactive:0,state_error:0,dataReview:0,jurisdictionPending:0,multipleActive:0,observations:0};
  for(const r of rows){counts[r.status]++;counts.observations+=r.observations.length;if(r.observations.some(o=>!['JURISDICTION_REQUIRED','MULTIPLE_ACTIVE'].includes(o.code)))counts.dataReview++;if(r.jurisdictionCode===null)counts.jurisdictionPending++;if(r.activeContractsForPerson>1)counts.multipleActive++;}
+ if(operationalAdoptionCohort(raw.source.operationalCohort))counts.observations+=raw.source.operationalCohort.deferredTotal;
  const data={version:raw.source.municipalDeclarations?DECLARED_ADOPTION_REVIEW_VERSION:raw.source.operationalCohort?ADOPTION_ACTIVE_REVIEW_VERSION:raw.source.finalRevision?ADOPTION_FINAL_REVIEW_VERSION:ADOPTION_REVIEW_VERSION,complete:true,...structuredClone(raw),sourceContextVersion,counts,rows};
  data.snapshot=await adoptionReviewHash({...data,queriedAt:null});
  if(new TextEncoder().encode(adoptionReviewJson(data)).length>ADOPTION_REVIEW_MAX_BYTES)throw new AdoptionReviewError('El padrón completo supera la capacidad de consulta. No se omitieron contratos.',422,'ADOPTION_REVIEW_LIMIT');
@@ -89,5 +95,6 @@ export async function verifiedAdoptionReview(value){
 export function adoptionReviewCsv(review){
  if(!verified.has(review))fail();const quote=v=>'"'+String(v).replaceAll('"','""')+'"';
  const active=Boolean(review.source.operationalCohort),rows=[[active?'Fila de la fuente completa':'Fila de la revisión','Estado','Acción sugerida']];for(const r of review.rows)for(const o of r.observations)rows.push([active?r.sourceRowNumber:r.rowNumber,o.status,o.action]);
+ if(operationalAdoptionCohort(review.source.operationalCohort))for(const n of review.source.operationalCohort.deferredSourceRowNumbers)rows.push([n,'Antecedente conservado fuera del alcance operativo','Conservar el registro sin modificarlo. Revisar su fecha de ingreso antes de incorporarlo al trabajo operativo.']);
  return '\ufeff'+rows.map(r=>r.map(quote).join(';')).join('\r\n')+'\r\n';
 }

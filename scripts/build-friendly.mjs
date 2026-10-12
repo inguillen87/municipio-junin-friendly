@@ -39,6 +39,7 @@ const shellFiles = [
   'assets/own-salary-seniority-panel.css',
   'assets/employment-adoption-contract.js',
   'assets/employment-adoption-original-facts.js',
+  'assets/employment-adoption-operational-cohort.js',
   'assets/employment-source-declarations.js',
   'assets/employment-adoption-changes-ui.js',
   'assets/employment-adoption-preparation-model.js',

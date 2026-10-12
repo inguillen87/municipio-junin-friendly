@@ -28,7 +28,7 @@ import {splitPostgresStatements} from './lib/sql-statements.mjs';
 
 const root=path.resolve(import.meta.dirname,'..');
 const parse=v=>typeof v==='string'?JSON.parse(v):v;
-export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local'}){
+export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local',registryScenario=registryOriginalFactsQaScenario}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);
  if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
  const destination=path.resolve(output);assert.ok(destination.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(destination));
@@ -98,7 +98,7 @@ export async function verifyRegistryOriginalFacts({major,output,sourceCommit,tra
   // The installed mode is repeat; prove late failure in a rehearsal after undoing
   // only this schema increment within the same synthetic transaction.
   run(tx(['DROP FUNCTION '+qa.schema+'.employment_adoption_declared_bootstrap_v1(jsonb,uuid,text,text,text,jsonb)','DROP FUNCTION '+qa.schema+'.employment_adoption_declared_source_v1(jsonb,uuid,text,jsonb)',...batch.migration,...declaredBatch.beforeDefinitions.slice(0,-1).map(v=>qa.normalized(v.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '))),...changedReady]),'QA_DECLARATION_LATE_FAILURE');run(tx(declaredBatch.verification));ok(true,'late failed declaration installation is fully rolled back');
-  const registryProof=await registryOriginalFactsQaScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved});
+  const registryProof=await registryScenario({options,qa,db,run,tx,ok,declaredBatch,principal,session,key,body,saved});
   report={version:"registry-original-facts-qa.v1",passed:true,sourceCommit,major,transport,checksPassed:checks.length,checks,...registryProof,syntheticContracts:qa.contractCount,productionWrites:0,municipalAcceptance:false};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack??String(e));}
  finally{if(seeded){assert.equal(Number(await db.run(`SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name=${q(db.applicationName)}`)),0);run(tx([`DROP SCHEMA ${qa.schema} CASCADE`]));assert.deepEqual(priorProof(),prior);if(report){report.syntheticSchemaRemoved=true;report.priorDatabasePreserved=true;report.syntheticConnectionsDrained=true;}}}
