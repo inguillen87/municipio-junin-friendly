@@ -28,11 +28,11 @@ import {splitPostgresStatements} from './lib/sql-statements.mjs';
 
 const root=path.resolve(import.meta.dirname,'..');
 const parse=v=>typeof v==='string'?JSON.parse(v):v;
-export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local',registryScenario=registryOriginalFactsQaScenario}){
+export async function verifyRegistryOriginalFacts({major,output,sourceCommit,transport='local',registryScenario=registryOriginalFactsQaScenario,coreProjectionFixture=false}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);
  if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
  const destination=path.resolve(output);assert.ok(destination.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(destination));
- const qa=buildFinalAdoptionQa(major,{invalidInactive:true,contractCount:2452,activeCount:869});
+ const qa=buildFinalAdoptionQa(major,{invalidInactive:true,contractCount:2452,activeCount:869,coreProjectionFixture});
  const options={sourceCommit,read:p=>fs.readFileSync(path.join(root,p),'utf8'),legacyIdentityComparison:true};
  const base=relocateNoeliaNoveltyInstallation(buildAdoptedOwnNoveltyInstallation(options),qa);
  const jurisdiction=relocateNoeliaJurisdictionInstallation(buildOwnJurisdictionInstallation(options),qa,base);
