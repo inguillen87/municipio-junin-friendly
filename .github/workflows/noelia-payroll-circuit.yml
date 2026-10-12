@@ -73,6 +73,12 @@ jobs:
         run: node scripts/verify-registry-original-facts.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/registry-original-facts-ci
       - name: Explicit original-facts acknowledgement, full review, mobile and unchanged recovery
         run: node scripts/verify-registry-original-facts-browser.mjs --output-prefix=verification/registry-original-facts-browser-ci
+      - name: Independently adopt all 855 operational contracts and preserve every deferred and historical row
+        env:
+          MC_QA_LOCK_OBSERVATION: '1'
+        run: node scripts/verify-operational-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/operational-adoption-ci
+      - name: Complete operational scope, immutable recovery, revocation and accessible mobile browser
+        run: node scripts/verify-operational-contract-adoption-browser.mjs --browser=chromium --source-commit=${{ github.sha }} --output=verification/operational-adoption-browser-ci
       - name: Parameter audit identity with historical contracts, unchanged shared context and actual SQL HTTP mobile UI
         run: node scripts/verify-salary-administrative-identity.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/salary-administrative-ci
       - name: Review all 869 active rows, download observations and recover the same voluntary attempt
@@ -132,6 +138,12 @@ jobs:
             verification/registry-original-facts-ci/registry-lock-observations.ndjson
             verification/registry-original-facts-browser-ci-*.json
             verification/registry-original-facts-browser-ci-*.png
+            verification/operational-adoption-ci/result.json
+            verification/operational-adoption-ci/failure.txt
+            verification/operational-adoption-ci/adapter-failure.txt
+            verification/operational-adoption-ci/registry-lock-observations.ndjson
+            verification/operational-adoption-browser-ci/result.json
+            verification/operational-adoption-browser-ci/*.png
             verification/active-adoption-ci/failure.txt
             verification/active-adoption-ci/adapter-failure.txt
             verification/active-adoption-legacy-ci/result.json

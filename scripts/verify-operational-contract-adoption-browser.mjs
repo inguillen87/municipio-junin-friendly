@@ -5,11 +5,12 @@ import {createEmploymentAdoptionHandler} from '../api/internal-employment-adopti
 import {registryPendingRaw} from '../tests/fixtures/registry-original-facts-synthetic.js';
 import {operationalRaw} from '../tests/fixtures/operational-contract-adoption-synthetic.js';
 import {principal,session,catalogVersion,preparationEnvelope} from '../tests/fixtures/employment-adoption-preparation-synthetic.js';
+import {operationalAdoptionBrowserOptions} from './lib/operational-adoption-browser-options.mjs';
 const root=path.resolve(import.meta.dirname,'..'),origin='https://municontrol.test';
-assert.equal(process.argv.length,3);assert.match(process.argv[2],/^--output=verification\/[a-z0-9-]+$/);const output=path.resolve(process.argv[2].slice(9));assert.ok(!fs.existsSync(output));fs.mkdirSync(output);
+const options=operationalAdoptionBrowserOptions(process.argv.slice(2));const output=path.resolve(root,options.output);assert.ok(!fs.existsSync(output));fs.mkdirSync(output);
 const checks=[],posts=[],reads=[],errors=[],saved=new Map();let caps=['workforce.employee.read','employee.record.propose'],loseResponse=false,sourceChanged=false;
 const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
-const browser=await chromium.launch({headless:true,channel:'chrome'});
+const browser=await chromium.launch(options.launchOptions);
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await context.route('**/*',async route=>{
@@ -38,5 +39,5 @@ try{
  caps=[];await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));assert.equal(await panel.locator('[data-ap-reference]').inputValue(),'');assert.equal(await panel.locator('[data-ap-fact]').count(),0);
  caps=['workforce.employee.read','employee.record.propose'];await page.evaluate(v=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(v)}})),caps);await panel.locator('[data-ap-recover]').click();await ready();assert.equal(posts.length,1);assert.match(await panel.locator('[data-ap-status]').innerText(),/855 contratos, 0 adoptados/);assert.ok(reads.some(q=>q.includes(first.key)));checks.push('revocation withdraws data and normal-authority GET recovers the same unknown attempt without a newPOST');
  await panel.locator('[data-ap-load]').click();await ready();await panel.locator('[data-ap-policy]').selectOption('operative');await ready();await fill();sourceChanged=true;await panel.locator('[data-ap-send]').click();await ready();assert.equal(posts.length,1);assert.match(await panel.locator('[data-ap-status]').innerText(),/Cambió el padrón/);checks.push('a changed reviewed source refuses another write and preserves the existing proposal');
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checksPassed:checks.length,checks,syntheticPosts:posts.length,storedSyntheticProposals:saved.size,realApiCalls:0,municipalWrites:0},null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({passed:true,checksPassed:checks.length}));
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checksPassed:checks.length,checks,browser:options.browser,sourceCommit:options.sourceCommit,syntheticPosts:posts.length,storedSyntheticProposals:saved.size,realApiCalls:0,municipalWrites:0},null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({passed:true,checksPassed:checks.length}));
 }finally{await browser.close();}
