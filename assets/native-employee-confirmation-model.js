@@ -15,11 +15,17 @@ export function employeeScopeKey(scope){
 export function employeeCreationBootstrap(value){
   if(!object(value)||value.version!=='native-employee.v1'||typeof value.canCreate!=='boolean'||!isoDay(value.today)||!(/^[1-9]\d{0,9}$/).test(value.suggestedLegajo)||!object(value.catalog)||!/^[a-f0-9]{64}$/.test(value.catalog.version)||!Array.isArray(value.catalog.items))fail('El catálogo y el acceso al alta no pudieron verificarse.');
   employeeScopeKey(value.scope);const seen=new Set();
+  if(value.catalog.items.some(item=>object(item)&&Object.hasOwn(item,'registrationAllowed'))&&!value.catalog.items.every(item=>object(item)&&typeof item.registrationAllowed==='boolean'))fail('La habilitación de nuevas altas debe estar declarada en el catálogo completo.');
   for(const item of value.catalog.items){
+    if(object(item)&&Object.hasOwn(item,'registrationAllowed')&&typeof item.registrationAllowed!=='boolean')fail('No se pudo verificar la habilitación de nuevas altas.');
     if(!object(item)||!['agreements','categories','organizations','sectors'].includes(item.kind)||typeof item.code!=='string'||!/^\d{1,9}$/.test(item.code)||typeof item.label!=='string'||!item.label.trim()||/[\u0000-\u001f\u007f]/.test(item.label)||item.kind==='categories'&&(typeof item.agreementCode!=='string'||!/^\d{1,9}$/.test(item.agreementCode)))fail('El catálogo de encuadres no pudo verificarse.');
     const key=[item.kind,item.kind==='categories'?item.agreementCode:'',item.code].join(':');if(seen.has(key))fail('El catálogo contiene opciones repetidas.');seen.add(key);
   }
   return freeze(structuredClone(value));
+}
+export function employeeRegistrationOptions(items,kind){
+  const allowed=item=>!Object.hasOwn(item,'registrationAllowed')||item.registrationAllowed===true;
+  return items.filter(item=>item.kind===kind&&allowed(item)&&(kind!=='categories'||items.some(a=>a.kind==='agreements'&&a.code===item.agreementCode&&allowed(a))));
 }
 const canonical=value=>Array.isArray(value)?value.map(canonical):object(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
 export const employeeCatalogEqual=(left,right)=>JSON.stringify(canonical(left))===JSON.stringify(canonical(right));

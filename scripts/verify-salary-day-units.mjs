@@ -56,7 +56,9 @@ export async function verifySalaryDayUnits(options){
    await verifySalaryDayUnitsBrowser({handlers:h.handlers,env:h.env,actor:qa.actors.maker,output:h.destination,browserName:options.browser,check:ok});
   }
   const result={version:'salary-day-units-qa.v1',syntheticOnly:true,productiveBusinessWrites:0,employees:people.length,dayRows:dayRows.length,amountPerSyntheticRow:'10.05000000',installed,durable,repeated};
-  fs.writeFileSync(path.join(h.destination,'day-units-proof.json'),JSON.stringify(result,null,2)+'\n');return result;
+  fs.writeFileSync(path.join(h.destination,'day-units-proof.json'),JSON.stringify(result,null,2)+'\n');
+  if(options.continuation)return options.continuation({...h,dayUnits:{people,period,result}});
+  return result;
  }});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

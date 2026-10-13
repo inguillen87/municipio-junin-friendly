@@ -1,5 +1,5 @@
 import { employeeDraft, EMPLOYEE_FIELDS } from './native-employee-contract.js';
-import {employeeCreationBootstrap,employeeScopeKey,employeeCatalogEqual,employeeReceipt,employeeCreationFinalRefusal} from './native-employee-confirmation-model.js';
+import {employeeCreationBootstrap,employeeScopeKey,employeeCatalogEqual,employeeReceipt,employeeCreationFinalRefusal,employeeRegistrationOptions} from './native-employee-confirmation-model.js';
 const URL_API='/api/internal-native-employees';
 const catalogOrder=new Intl.Collator('es',{numeric:true,sensitivity:'base'});
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -60,7 +60,7 @@ export function mountEmployeeCreate(button){
  }
  function denied(e){if([401,403].includes(e.status)||e.code==='NATIVE_EMPLOYEE_SCOPE_CHANGED'){withdraw(e.code==='NATIVE_EMPLOYEE_SCOPE_CHANGED'?e.message:undefined);return true;}return false;}
  function selectOptions(name,items,hint){const select=form.elements[name];select.replaceChildren(new Option(hint,''));for(const item of [...items].sort((a,b)=>catalogOrder.compare(a.code,b.code)||catalogOrder.compare(a.label,b.label)))select.add(new Option(item.code+' · '+item.label,item.code));}
- const catalog=kind=>context.catalog.items.filter(x=>x.kind===kind);
+ const catalog=kind=>employeeRegistrationOptions(context.catalog.items,kind);
  function fillCatalog(preserve=false){
   const saved=Object.fromEntries(['agreementCode','categoryCode','organizationId','sectorCode'].map(name=>[name,form.elements[name].value]));
   for(const [name,kind,hint]of [['agreementCode','agreements','Seleccioná convenio'],['organizationId','organizations','Seleccioná sector'],['sectorCode','sectors','Seleccioná repartición']]){selectOptions(name,catalog(kind),hint);if(preserve)form.elements[name].value=saved[name];}
