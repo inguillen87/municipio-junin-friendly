@@ -346,3 +346,6 @@ local-agents/
 # Reviewed working-time code sources only; no municipal or private inputs.
 !scripts/migrations/163-own-contract-working-time.sql
 !scripts/migrations/164-own-working-time-program-source.sql
+
+# Reviewed metadata-only repair required by the deployment build tests.
+!scripts/migrations/165-working-time-adoption-readiness.sql
