@@ -6,6 +6,10 @@ En Personas, **Catálogo de encuadres** permite consultar, preparar cambios, com
 
 Los catálogos anteriores conservan sus campos y restricciones originales. La primera declaración explícita aparece en la comparación de revisión. No se modifica una propuesta pendiente ni la referencia de un intento de alta anterior.
 
+La comparación separa incorporaciones, cambios de contenido y retiros de las declaraciones iniciales que conservan la habilitación anterior. Estas declaraciones permanecen en el detalle completo para revisión. En cada tarjeta móvil el uso aparece junto a la descripción, con etiqueta visible, teclado y superficie de interacción de 44 píxeles.
+
+Preparar una copia conserva los campos de la versión anterior. **Declarar uso para nuevas altas**, cambiar ese uso, agregar una opción o incorporar un CSV revisado inicia una declaración completa. Las versiones anteriores conservan su política original; en una versión con uso declarado, cambiar el código o el convenio de una categoría retira su habilitación para nuevas altas y exige declararla nuevamente. Las propuestas antiguas mantienen sus campos y su detalle originales.
+
 La carga por CSV trabaja en el borrador local. La plantilla contiene `tipo`, `codigo`, `descripcion`, `convenio` y `nuevas_altas` (`si` / `no`). El archivo incluye las cuatro clases completas, aun con búsqueda o paginación. Admite hasta 1.500 opciones y 2 MiB; los límites rechazan el conjunto y nunca recortan filas. Las celdas descargadas llevan un marcador de texto literal para impedir la evaluación de fórmulas al abrirlas en una planilla.
 
 Comparar no guarda ni publica. Cambiar el borrador invalida la comparación; ocultar la página o retirar el acceso retira el archivo y su comparación. Los permisos se comprueban en la API y en PostgreSQL. La confirmación de una nueva alta vuelve a comprobar el catálogo; un envío forzado de una opción cerrada se rechaza sin crear persona ni contrato.

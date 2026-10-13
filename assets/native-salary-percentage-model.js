@@ -1,16 +1,28 @@
-import {SALARY_MAX_ITEMS,SalaryInputError,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SalaryInputError,salaryDiff,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
 import {salaryEffectiveDefinitionsPlan} from './native-salary-effective-model.js';
 import {decimal,exactAdd,exactCompare,exactDivide,exactMultiply,exactSubtract,quantize} from './own-payroll-exact.js';
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('EFFECTIVE_INPUT_INVALID',message);};
 const month=value=>typeof value==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(value);
 const description=row=>`Escala ${row.code} · convenio ${row.agreementCode} · desde ${row.validFrom}`;
 
+function closedPeriodPlan(current,chosen,updates,validFrom,validUntil){
+ requireInput(month(validUntil)&&validUntil>=validFrom,'Declarale un mes final válido al período nuevo. No se prolonga la vigencia de origen.');
+ for(const row of chosen.values())requireInput(row.validUntil!==null&&row.validUntil<validFrom,`${description(row)} debe tener una vigencia finalizada antes del período nuevo. Se conserva su fecha final original.`);
+ requireInput(current.length+chosen.size<=SALARY_MAX_ITEMS,`La versión completa tendría ${current.length+chosen.size} definiciones y el límite es ${SALARY_MAX_ITEMS}. No se recorta ni se divide la preparación.`);
+ const started=[...chosen].map(([key,row])=>({...row,...updates.get(key),validFrom,validUntil}));
+ // Every source definition is retained unchanged. Only selected scales get a new
+ // interval; unrelated facts, values and dependencies never gain new validity.
+ const items=salaryItems([...current,...started]),changes=salaryDiff(current,items);
+ return {items,changes,selectedCount:chosen.size,unchangedSelectedCount:0,newDefinitionsCount:chosen.size,relatedDefinitionsCount:0,relinkedFutureDefinitionsCount:0,validFrom,previousUntil:null,validUntil,preparationMode:'closed_period'};
+}
+
 // An explicitly selected scale increase prepares definitions, never salaries.
 // Exact arithmetic is shared with the published decimal primitives; rounding
 // modes, formula evaluation and automatic approval are not offered here.
 export function salaryEffectivePercentagePlan(raw,selections,change,validFrom){
  const current=salaryItems(raw),byKey=new Map(current.map(row=>[salaryRowKey(row),row])),chosen=new Map();
- requireInput(salaryExact(change,['percentage','precision','ruleReference','sourceMonth'])&&month(change.sourceMonth)&&month(validFrom)&&change.sourceMonth<validFrom,'Declará el mes base y un mes posterior para la nueva vigencia.');
+ const closedPeriod=change!==null&&typeof change==='object'&&Object.hasOwn(change,'validUntil');
+ requireInput(salaryExact(change,['percentage','precision','ruleReference','sourceMonth',...(closedPeriod?['validUntil']:[])])&&month(change.sourceMonth)&&month(validFrom)&&change.sourceMonth<validFrom,'Declará el mes base y un mes posterior para la nueva vigencia.');
  requireInput(Number.isInteger(change.precision)&&change.precision>=0&&change.precision<=8,'Elegí explícitamente de 0 a 8 decimales para las nuevas escalas.');
  requireInput(typeof change.percentage==='string'&&/^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,8})?$/.test(change.percentage),'Informá un porcentaje exacto positivo, sin separador de miles ni exponente.');
  const rate=decimal(change.percentage);
@@ -31,7 +43,7 @@ export function salaryEffectivePercentagePlan(raw,selections,change,validFrom){
   requireInput(value.replace(/^-/, '').split('.')[0].length<=18,`${description(row)} supera la capacidad de 18 dígitos enteros. No se recorta el resultado.`);
   updates.set(key,{value,precision:change.precision,ruleReference:change.ruleReference});
  }
- const plan=salaryEffectiveDefinitionsPlan(current,chosen,key=>updates.get(key),validFrom);
+ const plan=closedPeriod?closedPeriodPlan(current,chosen,updates,validFrom,change.validUntil):salaryEffectiveDefinitionsPlan(current,chosen,key=>updates.get(key),validFrom);
  return {...plan,sourceMonth:change.sourceMonth,percentage:change.percentage,scaleComparisons:[...chosen].map(([key,row])=>{
   const after=updates.get(key).value,incrementPrecision=Math.max(row.precision,change.precision);
   const increment=quantize(exactSubtract(decimal(after),decimal(row.value)),{precision:incrementPrecision,mode:'exact'}).amount;
@@ -48,9 +60,10 @@ export function salaryPercentageComparisonCsv(raw,selections,change,validFrom,re
  requireInput(review&&salarySerialized(review)===salarySerialized(plan),'Cambió la comparación revisada. Volvé a comparar antes de descargar.');
  const current=new Map(salaryItems(raw).map(row=>[salaryRowKey(row),row])),scales=new Map(plan.scaleComparisons.map(row=>[row.key,row]));
  const closed=plan.changes.filter(row=>row.before&&row.before.validUntil!==row.after.validUntil);
+ const preservedSources=plan.preparationMode==='closed_period'?selections.map(row=>current.get(row.key)):[];
  const header=['tipo','convenio','clase','codigo','cambio','mes_base','desde_base','hasta_base','desde_propuesto','hasta_propuesto','valor_base','decimales_base','aumento_porcentaje','incremento_exacto','decimales_incremento','valor_propuesto','decimales_propuestos','unidad','dependencias_propuestas'];
  const rows=plan.changes.map(row=>{
-  const before=row.before??closed.find(prior=>sameDefinition(prior.before,row.after))?.before;
+  const before=row.before??closed.find(prior=>sameDefinition(prior.before,row.after))?.before??preservedSources.find(prior=>sameDefinition(prior,row.after));
   requireInput(before,'No se pudo verificar el antecedente de una nueva vigencia. Volvé a comparar.');
   const increased=!row.before?scales.get(salaryRowKey(before)):null;
   requireInput(current.has(salaryRowKey(before)),'El antecedente no pertenece al conjunto completo revisado.');
