@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {scaleReferenceFixture} from '../../tests/fixtures/own-payroll-program-scale-reference-synthetic.js';
+import {hash} from '../../tests/fixtures/own-payroll-program-synthetic.js';
+
+export async function verifyProgramScaleReference({page,origin,output,setBoot,getBoot,setRevoked,setLost,posts,check}){
+ const $=key=>page.locator('[data-program-'+key+']'),ref=key=>page.locator('[data-program-scale-'+key+']');
+ const settle=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
+ const targets=Array.from({length:61},(_,i)=>String(i+1)),fixture=scaleReferenceFixture(targets),initial=posts.length;
+ let checks=0;const verify=(condition,label)=>{check(condition,label);checks++;};
+ async function load(){setRevoked(false);setBoot(structuredClone(fixture.boot));await page.goto(origin+'/qa.html');await $('content').waitFor({state:'visible'});await settle();await $('namespaces').check();await $('precision').selectOption('6');await page.locator('.own-program-scale-reference summary').click();
+  await ref('source').selectOption(fixture.intent.sourceKey);await ref('auxiliary').selectOption('9000');await ref('factor').fill('1.50');await ref('precision').selectOption('6');await ref('from').fill('2026-10');await ref('until').fill('2026-10');await page.locator('[data-program-scale-type="monthly"]').check();await ref('mode').selectOption('add');await ref('reference').fill('Documento inventado QA de referencia, sin norma municipal');await ref('select-filtered').click();}
+ async function preview(){await ref('preview').click();await settle();await ref('review').waitFor({state:'visible'});}
+ async function apply(){await ref('confirm').check();await ref('apply').click();await settle();verify((await $('status').innerText()).includes('Auxiliares incorporados'),'reference applies only to local complete draft');}
+ async function send(){await $('reason').fill('Programa sintético íntegro de auxiliares referenciados');await $('prepare').click();await $('send-box').waitFor({state:'visible'});await $('confirm').check();await $('send').click();await settle();}
+ for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:960});await load();const before=posts.length;
+  await ref('next').click();verify(await page.locator('[data-program-scale-target]:checked').count()===25,'reference preserves the second page selection');await ref('search').fill('61');verify((await ref('selection').innerText()).includes('61 convenios seleccionados')&&await page.locator('[data-program-scale-target]:checked').count()===1,'reference filter retains all61 selected targets');await preview();
+  verify((await ref('summary').innerText()).includes('61 convenios completos')&&(await ref('value').innerText()).includes('150.015000'),'reference reviews all61 and exact6 decimal basis');verify(posts.length===before,'reference review makes no write');
+  await ref('search').fill('999');verify(await ref('review').isVisible()&&(await ref('selection').innerText()).includes('61 convenios seleccionados'),'zero-result filter never truncates reviewed targets');
+  verify(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'reference fits '+width+'px');verify((await ref('preview').boundingBox()).height>=44&&(await ref('confirm').locator('..').boundingBox()).height>=44,'reference controls are accessible at '+width+'px');
+  await ref('source').focus();verify(await page.evaluate(()=>document.activeElement?.hasAttribute('data-program-scale-source')),'reference source is keyboard accessible');await ref('source').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(path.dirname(output),'program-scale-reference-'+width+'.png')});
+  await apply();verify(await $('rule-select').locator('option').count()===61&&await $('binding-select').locator('option').count()===61&&posts.length===before,'all61 native rules and bindings reach draft without POST');await send();
+  verify(posts.length===before+1,'one voluntary reference proposal at '+width+'px');const body=JSON.parse(posts.at(-1).raw).payload;
+  verify(body.program.rules.length===61&&body.program.bindings.length===61&&body.program.rules.every(r=>r.nature==='auxiliary'&&r.rounding.mode==='exact'&&r.validUntil==='2026-10')&&body.program.bindings.every(b=>b.sourceKind==='scale_reference'&&b.sourceCategoryCode==='3'&&b.sourceAgreementCode==='1'),'reference sends the whole exact program and declared class at '+width+'px');
+ }
+ await load();await preview();await ref('factor').fill('2');verify(await ref('review').isHidden()&&await ref('apply').isDisabled(),'factor edit withdraws reference and confirmation');await ref('factor').fill('1.50');await ref('precision').selectOption('2');await ref('preview').click();await settle();verify(await ref('review').isHidden()&&posts.length===initial+3,'insufficient precision rejects reference without new write');
+ await load();await preview();getBoot().salaryCatalog.version=hash('f');await ref('confirm').check();await ref('apply').click();await settle();verify(await ref('review').isHidden()&&posts.length===initial+3,'fresh changed catalog withdraws complete reference before local apply');
+ await load();await preview();getBoot().permissions.canPropose=false;await $('refresh').click();await settle();verify(await ref('source').isDisabled()&&await ref('source').inputValue()===''&&await ref('reference').inputValue()===''&&await ref('review').isHidden(),'reference preparation withdrawal clears private selections and values');
+ await load();await preview();setRevoked(true);await $('refresh').click();await settle();verify(await $('content').isHidden()&&await ref('source').inputValue()===''&&await ref('review').isHidden(),'403 removes reference private view');
+ await load();await preview();await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});verify(await $('content').isHidden()&&await ref('source').inputValue()===''&&await ref('review').isHidden()&&posts.length===initial+3,'pagehide withdraws reference without a save');
+ await load();await preview();await apply();setLost(true);const before=posts.length;await send();await $('recover').waitFor({state:'visible'});const sent=structuredClone(posts.at(-1));verify(posts.length===before+1&&await ref('source').isDisabled()&&await ref('factor').isDisabled(),'lost reference ACK leaves one frozen pending request');
+ await page.evaluate(()=>{const n=document.querySelector('[data-program-scale-factor]');n.value='999';n.dispatchEvent(new Event('input',{bubbles:true}));});await $('recover').click();await settle();verify(posts.length===before+1&&posts.at(-1).key===sent.key&&posts.at(-1).raw===sent.raw,'reference recovery retains exact body/key despite forced pending DOM edit');
+ verify(await page.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('9000')||v.includes('scale_reference'))),'reference programs are not persisted in browser storage');
+ return {passed:true,checks,targets:61,widths:[1440,390,320],posts:posts.length-initial,syntheticAuthentication:true,syntheticApi:true,municipalWrites:0};
+}

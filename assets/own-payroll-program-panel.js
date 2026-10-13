@@ -4,6 +4,8 @@ import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {mountProgramCoverage} from './own-program-coverage-panel.js';
 import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-payroll-program-copy-model.js';
+import {prepareProgramScaleReference,applyProgramScaleReference} from './own-payroll-program-scale-reference-model.js';
+import {mountProgramScaleReference} from './own-payroll-program-scale-reference-panel.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {PROGRAM_READ,PROGRAM_UNITS,PROGRAM_SOURCES,PROGRAM_ROUNDING,PROGRAM_OPERATIONS,PROGRAM_COMPARE,programWorkspaceAccess,programWorkspaceGuidance,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,expressionChildren,expressionSize,changeExpressionOperation,describeProgramExpression,programWorkspaceChanges} from './own-payroll-program-workspace-model.js';
 
@@ -27,6 +29,7 @@ export function mountOwnPayrollProgram(container){
  <label class="own-program-check"><input type="checkbox" data-program-working-time>Usar jornada contractual propia aprobada</label><p>Horas diarias y mensuales separadas por contrato y período; no se convierten ni se deducen. <a href="/nomina#jornada">Preparar o revisar jornada</a>.</p>
  <label class="own-program-check"><input type="checkbox" data-program-participation>Liquidar vigencias laborales parciales con participación documentada</label><p>Elegí el tratamiento de cada regla y su respaldo. La fracción se conserva exacta dentro del cálculo. Un período completo usa 1/1; no se deducen días ni horas. <a href="/nomina#participacion">Preparar participación por legajo</a>.</p><label>Novedades fijas con vigencia parcial<select data-program-fixed-validity><option value="">Elegir…</option><option value="reject">Bloquear y revisar</option><option value="declared_values">Usar cantidades e importes aprobados sin convertirlos</option></select></label>
  <label>Decimales de los totales<select data-program-precision><option value="">Elegir precisión</option>${Array.from({length:9},(_,i)=>`<option value="${i}">${i}</option>`).join('')}</select></label>
+ <div data-program-scale-helper></div>
  <details data-program-copy><summary>Copiar fórmulas a varios convenios</summary><p>Elegí reglas propias y destinos. La copia conserva fórmula, unidades, tipos y redondeo; cada destino necesita sus definiciones y dependencias compatibles.</p>
  <label class="own-program-check"><input type="checkbox" data-program-copy-multiple>Seleccionar varias fórmulas para una actualización conjunta</label>
  <label data-program-copy-single>Regla de origen<select data-program-copy-source></select></label>
@@ -48,7 +51,8 @@ export function mountOwnPayrollProgram(container){
  <div class="own-program-actions"><button type="button" data-program-send hidden>Registrar propuesta</button><button type="button" data-program-recover hidden>Consultar el mismo intento</button><button type="button" data-program-new hidden>Nueva preparación</button><button type="button" data-program-revise hidden>Revisar intento no registrado</button></div><p data-program-receipt hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-program-'+key+']');
  const coverage=mountProgramCoverage($('content'));$('content').insertBefore($('content').lastElementChild,$('form'));
- let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null;
+ let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null,scalePlan=null;
+ const scaleReference=mountProgramScaleReference($('scale-helper'),{onEdit:invalidate,onPreview:reviewScaleReference,onApply:applyScaleReference,onConfirm:controls});
  const ruleKey=r=>ownProgramRuleKey(r,draft?.namespaceVersion);
  const copySelection=new Set();let copySourcePage=1;
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
@@ -57,6 +61,7 @@ export function mountOwnPayrollProgram(container){
  function controls(){
   coverage.setEnabled(!busy&&!attempt&&can(PROGRAM_READ));
   $('refresh').disabled=busy||!live();$('fields').disabled=busy||!!attempt||!can(capsFor('propose'))||!boot?.permissions.canPropose||!(boot?.salaryCatalog.revision>0);
+  scaleReference.setEnabled(!$('fields').disabled&&ownProgramNamespaced(draft),!!scalePlan);
   const proposal=boot?.proposals.find(p=>p.id===$('proposal-select').value);
   $('decision-fields').disabled=busy||!!attempt||!can(capsFor('approve'))||!proposal?.canReview||proposal.status!=='pending';
   $('edit-tab').disabled=busy||!!attempt||!can(PROGRAM_READ);$('review-tab').disabled=busy||!!attempt||!can(PROGRAM_READ);
@@ -73,9 +78,10 @@ export function mountOwnPayrollProgram(container){
   host.setAttribute('aria-busy',String(busy));
  }
  function clearCopy(){copyPlan=null;$('copy-confirm').checked=false;$('copy-review').hidden=true;$('copy-summary').textContent='';$('copy-comparison').replaceChildren();}
- function invalidate(){if(attempt)return;clearCopy();prepared=null;$('confirm').checked=false;$('impact').hidden=true;$('impact-table').replaceChildren();$('send-box').hidden=true;controls();}
+ function invalidate(){if(attempt)return;clearCopy();scalePlan=null;scaleReference.clearReview();prepared=null;$('confirm').checked=false;$('impact').hidden=true;$('impact-table').replaceChildren();$('send-box').hidden=true;controls();}
  function clearViews(){
   coverage.clear();
+  scalePlan=null;scaleReference.clear();
   clearCopy();$('copy').open=false;for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).value='';$('copy-source').replaceChildren();$('copy-targets').replaceChildren(node('legend','Convenios de destino'));
   copySelection.clear();copySourcePage=1;$('copy-multiple').checked=false;$('copy-search').value='';$('copy-single').hidden=false;$('copy-sources-panel').hidden=true;$('copy-sources').replaceChildren();$('copy-selection').textContent='';$('copy-page').textContent='';
   boot=null;draft=null;historicalRules=new WeakSet();prepared=null;receipt=null;notFound=false;$('content').hidden=true;$('receipt').hidden=true;$('receipt').textContent='';$('current').textContent='';
@@ -100,6 +106,7 @@ export function mountOwnPayrollProgram(container){
   if(!live()||busy)return;const version=++seq;busy=true;const owned=new AbortController();controller=owned;controls();const timer=setTimeout(()=>owned.abort(),45000);
   try{await work(()=>version===seq&&live());}catch(error){if(version===seq&&live()){
    clearCopy();
+   scalePlan=null;scaleReference.clearReview();
    if([401,403].includes(error.status)){access=null;clearViews();$('login').hidden=error.status!==401;}
    status(error.name==='AbortError'?'No se confirmó la respuesta. Consultá el mismo intento antes de iniciar otro.':error.message,'warning');
   }}finally{clearTimeout(timer);if(version===seq){busy=false;controller=null;controls();}}
@@ -142,6 +149,7 @@ export function mountOwnPayrollProgram(container){
   }walk(rule.expression,[],0);return area;
  }
  function selectors(){
+  scaleReference.renderChoices(boot,draft);
   renderCopyChoices();
   $('rule-select').replaceChildren(...draft.rules.map((r,i)=>new Option(`${i+1}. ${r.nature==='auxiliary'?'Auxiliar':'Concepto'} ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'}`,String(i))));
   $('binding-select').replaceChildren(...draft.bindings.map((b,i)=>new Option(`${i+1}. ${b.key||'Entrada por definir'} · convenio ${b.agreementCode||'por definir'}`,String(i))));
@@ -245,6 +253,7 @@ export function mountOwnPayrollProgram(container){
   if(p.status==='pending'&&(p.baseVersion!==boot.program.version||p.salaryVersion!==boot.salaryCatalog.version))$('proposal-detail').append(node('p','Cambió la base o el catálogo. No puede aprobarse esta versión; puede rechazarse conservando el historial.'));controls();
  }
  function renderBoot(value){
+  if(!value.permissions.canPropose)scaleReference.clear();
   coverage.setSource(value);
   boot=ownProgramBootstrap(value);$('content').hidden=false;$('current').textContent=`Programa aprobado: revisión ${boot.program.revision}. Catálogo salarial: revisión ${boot.salaryCatalog.revision}.`;
   const guidance=programWorkspaceGuidance(boot),messages={
@@ -311,12 +320,29 @@ export function mountOwnPayrollProgram(container){
    status('Copia aplicada al borrador completo. Revisá el programa y su fundamento antes de registrar una propuesta.','success');
   });
  });
+ function reviewScaleReference(){
+  if(!draft||attempt||busy||!can(capsFor('propose')))return;
+  const intent=scaleReference.intent();perform(async valid=>{invalidate();await session(capsFor('propose'));if(!valid())return;
+   const latest=ownProgramBootstrap((await request(endpoint+'?resource=bootstrap')).data);if(!valid())return;
+   if(latest.scopeVersion!==boot.scopeVersion||latest.program.version!==boot.program.version||latest.salaryCatalog.version!==boot.salaryCatalog.version||salarySerialized(intent)!==salarySerialized(scaleReference.intent()))throw Error('Cambió la selección, el programa o el maestro. Revisá todas las fuentes.');
+   scalePlan=prepareProgramScaleReference(latest,draft,intent);scaleReference.show(scalePlan);comparison(scaleReference.comparison(),draft.rules.length?draft:null,scalePlan.program);status('Referencia completa revisada. Confirmá las fuentes y todos los destinos antes de incorporarla al borrador.');controls();
+  });
+ }
+ function applyScaleReference(){
+  if(!scalePlan||attempt||busy||!scaleReference.confirmed()||!can(capsFor('propose')))return;
+  const reviewed=scalePlan;perform(async valid=>{await session(capsFor('propose'));if(!valid())return;
+   const latest=ownProgramBootstrap((await request(endpoint+'?resource=bootstrap')).data);if(!valid())return;
+   if(scalePlan!==reviewed||salarySerialized(reviewed.intent)!==salarySerialized(scaleReference.intent()))throw Error('Cambió la selección. Revisá de nuevo la referencia completa.');
+   const next=applyProgramScaleReference(latest,draft,reviewed);invalidate();draft=next;boot=latest;
+   const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);historicalRules=new WeakSet(draft.rules.filter(r=>priorKeys.has(ruleKey(r))));selectors();renderRule();renderBinding();status('Auxiliares incorporados al borrador completo. Revisá el programa y su fundamento antes de registrar la propuesta.','success');
+  });
+ }
  $('review-decision').addEventListener('click',()=>{if(attempt||busy)return;try{showPrepared(decideProgramWorkspace(boot,$('proposal-select').value,$('decision').value,$('decision-reason').value,true));}catch(e){invalidate();status(e.message,'warning');}});
  $('add-rule').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.rules.length>=1000){status('El programa alcanzó su capacidad. No se omitieron reglas.','warning');return;}draft.rules.push({agreementCode:'',code:'',nature:'',unit:'',validFrom:'',validUntil:null,liquidationTypes:[],ruleReference:'',rounding:{precision:null,mode:'exact'},expression:{op:'literal',unit:'',value:''}});ruleIndex=draft.rules.length-1;invalidate();selectors();renderRule();});
  $('add-binding').addEventListener('click',()=>{if(!draft||attempt)return;if(draft.bindings.length>=1000){status('El programa alcanzó su capacidad. No se omitieron entradas.','warning');return;}draft.bindings.push({agreementCode:'',key:'',unit:'',sourceKind:'',sourceCode:'',onMissing:'',combine:'',ruleReference:''});bindingIndex=draft.bindings.length-1;invalidate();selectors();renderBinding();});
  $('rule-select').addEventListener('change',()=>{ruleIndex=Number($('rule-select').value);renderRule();});$('binding-select').addEventListener('change',()=>{bindingIndex=Number($('binding-select').value);renderBinding();});
  for(const [key,value] of [['edit-tab','edit'],['review-tab','review']])$(key).addEventListener('click',()=>{if(attempt)return;tab=value;invalidate();$('form').hidden=tab!=='edit';$('proposals').hidden=tab!=='review';controls();});
- $('participation').addEventListener('change',()=>{if(!draft||attempt||busy)return;if($('participation').checked){draft.periodParticipation={version:OWN_PARTICIPATION_VERSION,fullPeriod:'neutral_fraction',fixedValidity:'',treatments:[]};syncParticipation();}else delete draft.periodParticipation;$('fixed-validity').disabled=!ownProgramParticipation(draft);invalidate();renderRule();renderBinding();});
+ $('participation').addEventListener('change',()=>{if(!draft||attempt||busy)return;if($('participation').checked){draft.periodParticipation={version:OWN_PARTICIPATION_VERSION,fullPeriod:'neutral_fraction',fixedValidity:'',treatments:[]};syncParticipation();}else delete draft.periodParticipation;$('fixed-validity').disabled=!ownProgramParticipation(draft);invalidate();scaleReference.renderChoices(boot,draft);renderRule();renderBinding();});
  $('fixed-validity').addEventListener('change',()=>{if(!draft||attempt||busy||!ownProgramParticipation(draft))return;draft.periodParticipation.fixedValidity=$('fixed-validity').value;invalidate();});
  $('working-time').addEventListener('change',()=>{if(!draft||attempt||busy)return;if($('working-time').checked)draft.workingTimeVersion=OWN_PROGRAM_WORKING_TIME_VERSION;else delete draft.workingTimeVersion;invalidate();renderBinding();});
  $('seniority').addEventListener('change',()=>{if(!draft||attempt||busy)return;if($('seniority').checked)draft.employmentFactsVersion=OWN_PROGRAM_SENIORITY_VERSION;else delete draft.employmentFactsVersion;invalidate();renderBinding();});

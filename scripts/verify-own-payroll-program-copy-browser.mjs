@@ -11,6 +11,7 @@ import {uid,hash} from '../tests/fixtures/own-payroll-program-synthetic.js';
 import {ownProgramCommand,ownProgramRuleKey} from '../assets/own-payroll-program-model.js';
 import {salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {PROGRAM_READ} from '../assets/own-payroll-program-workspace-model.js';
+import {verifyProgramScaleReference} from './lib/own-program-scale-reference-browser.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),opts={};
 for(const arg of process.argv.slice(2)){const m=/^--(output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}
@@ -111,6 +112,9 @@ try {
  await page.screenshot({path:output.replace(/\.json$/,'-mobile.png')});
  check(await page.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('606')||v.includes('own-payroll'))),'programs are not persisted in browser storage');
  check(posts.length===4&&errors.length===0,'no additional writes or browser/server exceptions');
- report={passed:true,checks,source:'actual built native copy UI',syntheticAuthentication:true,syntheticApi:true,actualPostgreSQL:false,parentPageVerifiedByExistingSuite:true,targets:61,reviewRows:62,multiSources:27,multiTargets:2,multiReviewRows:81,posts:4,events:2,exactRetry:true,mobileWidths:[1440,390,320],municipalApproval:false,productionWrites:false,requests};await context.close();
+ report={passed:true,checks,source:'actual built native copy UI',syntheticAuthentication:true,syntheticApi:true,actualPostgreSQL:false,parentPageVerifiedByExistingSuite:true,targets:61,reviewRows:62,multiSources:27,multiTargets:2,multiReviewRows:81,posts:4,events:2,exactRetry:true,mobileWidths:[1440,390,320],municipalApproval:false,productionWrites:false,requests};
+ report.copyChecks=checks;report.copyPosts=posts.length;
+ report.scaleReference=await verifyProgramScaleReference({page,origin,output,setBoot:value=>boot=value,getBoot:()=>boot,setRevoked:value=>revoked=value,setLost:value=>lose=value,posts,check});
+ report.checks=checks;report.posts=posts.length;report.events=committed.size;report.requests=requests;check(errors.length===0,'reference has no additional browser/server exceptions');await context.close();
 }catch(error){report={passed:false,checks,error:error.message,errors,posts:posts.length};throw error;}
 finally{held?.();await browser?.close();await new Promise(resolve=>server.close(resolve));fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(report));}
