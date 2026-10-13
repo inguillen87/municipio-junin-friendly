@@ -1,5 +1,10 @@
 // Municipal definitions and declared scale values. No formula evaluation or pay.
 export const SALARY_VERSION='native-salary-catalog.v1';
+export const SALARY_MAX_ITEMS=10000;
+export const SALARY_MAX_INPUT_BYTES=4*1024*1024;
+// JSONB adds a space after every structural comma and key separator. Object
+// ordering does not change UTF8 length. Match SQL's complete-item byte budget.
+export function salaryJsonbBytes(value){let spaces=0;const walk=v=>{if(Array.isArray(v)){spaces+=Math.max(0,v.length-1);for(const x of v)walk(x);}else if(v&&typeof v==='object'){const keys=Object.keys(v);spaces+=keys.length+Math.max(0,keys.length-1);for(const key of keys)walk(v[key]);}};walk(value);return new TextEncoder().encode(JSON.stringify(value)).length+spaces;}
 export const SALARY_NATURES=Object.freeze({remuneration:'Haber remunerativo',non_remuneration:'Haber no remunerativo',deduction:'Retención',employer_contribution:'Contribución patronal',auxiliary:'Auxiliar'});
 export const SALARY_UNITS=Object.freeze({money:'Pesos',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
 export const salaryExact=(v,keys)=>!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join('|')===[...keys].sort().join('|');
@@ -14,7 +19,8 @@ const code=v=>typeof v==='string'&&/^[0-9]{1,9}$/.test(v);
 export function salaryRowKey(r){return [r.kind,r.agreementCode,r.categoryCode??'',r.code,r.validFrom].join(':');}
 export function salarySerialized(v){if(Array.isArray(v))return '['+v.map(salarySerialized).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+salarySerialized(v[k])).join(',')+'}';return JSON.stringify(v);}
 export function salaryItems(raw,{allowEmpty=false}={}){
- ok(Array.isArray(raw)&&raw.length<1001&&(allowEmpty||raw.length>0),'El catálogo debe tener entre 1 y 1000 filas. No se recorta.');
+ ok(Array.isArray(raw)&&raw.length<=SALARY_MAX_ITEMS&&(allowEmpty||raw.length>0),'El catálogo debe tener entre 1 y 10000 filas. No se recorta.');
+ ok(salaryJsonbBytes(raw)<=SALARY_MAX_INPUT_BYTES,'El maestro completo supera 4 MiB. No se recorta ni se divide la versión.');
  const keys=['active','agreementCode','categoryCode','code','dependencies','kind','label','nature','precision','ruleReference','unit','validFrom','validUntil','value'];
  const rows=raw.map(r=>{
   ok(salaryExact(r,keys),'La fila contiene campos no admitidos.');
@@ -31,12 +37,13 @@ export function salaryItems(raw,{allowEmpty=false}={}){
  const byKey=new Map();for(const r of rows){const key=salaryRowKey(r);ok(!byKey.has(key),'Hay una definición repetida para código, convenio, clase y vigencia.');byKey.set(key,r);}
  const groups=new Map();for(const r of rows.filter(r=>r.active)){const id=[r.kind,r.agreementCode,r.categoryCode??'',r.code].join(':');const g=groups.get(id)??[];for(const other of g)ok((r.validUntil??'9999-12')<other.validFrom||(other.validUntil??'9999-12')<r.validFrom,'Hay vigencias superpuestas para la misma definición.');g.push(r);groups.set(id,g);}
  for(const r of rows)for(const key of r.dependencies){const d=byKey.get(key);ok(d&&d.agreementCode===r.agreementCode&&(!r.active||d.active&&d.validFrom<=r.validFrom&&(d.validUntil??'9999-12')>=(r.validUntil??'9999-12')),'Cada dependencia debe existir en el mismo convenio y cubrir la vigencia.');}
- const visiting=new Set(),visited=new Set();function visit(key){ok(!visiting.has(key),'Las dependencias forman un ciclo.');if(visited.has(key))return;visiting.add(key);for(const d of byKey.get(key).dependencies)visit(d);visiting.delete(key);visited.add(key);}for(const key of byKey.keys())visit(key);
+ const visiting=new Set(),visited=new Set();for(const root of byKey.keys()){if(visited.has(root))continue;const stack=[[root,false]];while(stack.length){const[key,finished]=stack.pop();if(finished){visiting.delete(key);visited.add(key);continue;}if(visited.has(key))continue;ok(!visiting.has(key),'Las dependencias forman un ciclo.');visiting.add(key);stack.push([key,true]);for(const dependency of byKey.get(key).dependencies)stack.push([dependency,false]);}}
  return rows;
 }
 export function salaryDiff(before,after){const a=salaryItems(before,{allowEmpty:true}),b=salaryItems(after),next=new Map(b.map(r=>[salaryRowKey(r),r]));for(const r of a)ok(next.has(salaryRowKey(r)),'No borres antecedentes: desactivá la fila o cerrá su vigencia.');const old=new Map(a.map(r=>[salaryRowKey(r),r]));return b.flatMap(r=>{const prior=old.get(salaryRowKey(r))??null;return prior&&salarySerialized(prior)===salarySerialized(r)?[]:[{key:salaryRowKey(r),before:prior,after:r}];});}
 export function salaryCommand(v){
  ok(salaryExact(v,['command','scopeVersion','baseVersion','classificationVersion','proposalId','proposalSha256','items','reason','reviewConfirmed']),'El formulario contiene campos no admitidos.');
+ ok(new TextEncoder().encode(JSON.stringify({operation:'command',payload:v})).length<=SALARY_MAX_INPUT_BYTES,'La solicitud completa supera 4 MiB. No se preparó otro intento ni un envío recortado.');
  ok(['propose','approve','reject'].includes(v.command)&&salaryHash(v.scopeVersion)&&salaryHash(v.baseVersion)&&salaryHash(v.classificationVersion)&&text(v.reason,10,1000)&&typeof v.reviewConfirmed==='boolean','Revisá operación, versión y motivo.');
  if(v.command==='propose'){ok(v.proposalId===null&&v.proposalSha256===null&&v.reviewConfirmed===false,'Una propuesta no es una decisión.');return {...v,items:salaryItems(v.items)};}
  ok(salaryUuid(v.proposalId)&&salaryHash(v.proposalSha256)&&v.items===null&&v.reviewConfirmed===true,'Revisá la propuesta completa y confirmá la decisión.');return {...v};

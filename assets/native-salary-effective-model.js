@@ -1,4 +1,4 @@
-import {SalaryInputError,salaryDiff,salaryItems,salaryRowKey} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SalaryInputError,salaryDiff,salaryItems,salaryRowKey} from './native-salary-catalog-model.js';
 import {salaryBulkSelection} from './native-salary-bulk-model.js';
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('EFFECTIVE_INPUT_INVALID',message);};
 const month=value=>typeof value==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(value);
@@ -21,7 +21,7 @@ export function salaryEffectiveDefinitionsPlan(current,chosen,update,validFrom){
  for(const row of chosen.values())canSplit(row);
  let added=true;
  while(added){added=false;for(const row of current){const key=salaryRowKey(row);if(!row.active||affected.has(key)||future.has(key)||(row.validUntil!==null&&row.validUntil<validFrom)||!row.dependencies.some(dependency=>affected.has(dependency)))continue;if(row.validFrom>=validFrom){future.set(key,row);continue;}canSplit(row);affected.set(key,row);added=true;}}
- requireInput(current.length+affected.size<=1000,`La versión completa tendría ${current.length+affected.size} definiciones y el límite es 1000. No se recorta ni se divide la actualización.`);
+ requireInput(current.length+affected.size<=SALARY_MAX_ITEMS,`La versión completa tendría ${current.length+affected.size} definiciones y el límite es ${SALARY_MAX_ITEMS}. No se recorta ni se divide la actualización.`);
  const nextKeys=new Map([...affected].map(([key,row])=>[key,salaryRowKey({...row,validFrom})]));
  const relink=row=>row.dependencies.map(dependency=>nextKeys.get(dependency)??dependency).sort();
  const retained=current.map(row=>affected.has(salaryRowKey(row))?{...row,validUntil:previousUntil}:future.has(salaryRowKey(row))?{...row,dependencies:relink(row)}:row);

@@ -2,6 +2,7 @@ import {test} from 'node:test';import assert from 'node:assert/strict';
 import {programCoverage,programCoverageCsv} from '../assets/own-program-coverage-model.js';
 import {bootstrap,program,uid,hash} from './fixtures/own-payroll-program-synthetic.js';
 import {OWN_PAYROLL_NAMESPACE_VERSION} from '../assets/own-payroll-engine.js';
+import {SALARY_MAX_ITEMS} from '../assets/native-salary-catalog-model.js';
 const selection={period:'2026-10',liquidationType:'monthly'},clone=v=>structuredClone(v);
 const approved=()=>bootstrap({program:{version:hash('b'),revision:1,definition:program(),salaryVersion:hash('c'),proposalId:uid(81),approvalId:uid(82)}});
 const row=(code,patch={})=>({...bootstrap().salaryCatalog.items.find(r=>r.code==='100'),code,...patch});
@@ -49,5 +50,5 @@ test('no admite exportar una vista recortada, forjada o alterada',()=>{
  const r=programCoverage(approved(),selection);assert.throws(()=>programCoverageCsv({...r,rows:r.rows.slice(0,1)}));assert.throws(()=>programCoverageCsv(clone(r)));assert.throws(()=>r.rows[0].code='=1+1');assert.ok(programCoverageCsv(r));
 });
 test('respuestas incompletas, fechas/tipos inválidos y capacidad excedida fallan sin recortar',()=>{
- for(const s of[{...selection,period:'2026-13'},{...selection,period:null},{...selection,period:202610},{...selection,liquidationType:'all'}])assert.throws(()=>programCoverage(approved(),s));const bad=approved();bad.program.definition.rules[0].expression={op:'eval',code:'1'};assert.throws(()=>programCoverage(bad,selection));const many=approved();many.salaryCatalog.items=Array.from({length:1001},(_,i)=>row(String(5000+i)));assert.throws(()=>programCoverage(many,selection));assert.throws(()=>programCoverage({version:'own-payroll-program.v1'},selection));
+ for(const s of[{...selection,period:'2026-13'},{...selection,period:null},{...selection,period:202610},{...selection,liquidationType:'all'}])assert.throws(()=>programCoverage(approved(),s));const bad=approved();bad.program.definition.rules[0].expression={op:'eval',code:'1'};assert.throws(()=>programCoverage(bad,selection));const many=approved();many.salaryCatalog.items=Array.from({length:SALARY_MAX_ITEMS+1},(_,i)=>row(String(5000+i)));assert.throws(()=>programCoverage(many,selection));assert.throws(()=>programCoverage({version:'own-payroll-program.v1'},selection));
 });

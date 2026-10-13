@@ -6,7 +6,12 @@ import NativeSalaryFile from './NativeSalaryFileLoader.jsx';
 import NativeSalarySourceScales from './NativeSalarySourceScaleLoader.jsx';
 import Definition,{salaryDefinitionTitle as display} from './NativeSalaryDefinition.jsx';
 const API='/api/internal-native-salary',PAGE=20;
-export async function salaryRequest(resource='resource=bootstrap',attempt=null){
+export async function salaryRequest(resource='resource=bootstrap',attempt=null,guard={}){
+ if(!attempt&&resource==='resource=bootstrap'){
+  const {readSalaryBootstrap}=await import('../../assets/native-salary-stream-model.js');
+  return readSalaryBootstrap((page,sha)=>salaryRequest('resource=stream&page='+page+(sha?'&snapshot='+sha:''),null,guard),guard);
+ }
+ if(guard.isCurrent&&!guard.isCurrent())throw new DOMException('Consulta descartada','AbortError');
  const response=await fetch(attempt?API:API+'?'+resource,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/json',...(attempt?{'Content-Type':'application/json','Idempotency-Key':attempt.key}:{})},...(attempt?{method:'POST',body:JSON.stringify({operation:'command',payload:attempt.body})}:{})});
  let data;try{data=await response.json();}catch{throw Object.assign(Error('No se pudo verificar la respuesta. Consultá el mismo intento.'),{status:503});}
  if(!response.ok||data?.ok!==true)throw Object.assign(Error(data?.error||'No se completó la consulta.'),{status:response.status,code:data?.code});return data.data;
@@ -38,7 +43,7 @@ export default function NativeSalaryCatalog({request=salaryRequest,revoked=false
  useEffect(()=>{if(confirm)dialog.current?.showModal();else dialog.current?.close();},[confirm]);
  const live=seq=>alive.current&&seq===epoch.current&&!document.hidden&&!revoked;
  async function run(fn){if(lock.current||revoked)return;lock.current=true;setBusy(true);const seq=epoch.current;try{await fn(seq);}catch(e){if(alive.current&&seq===epoch.current){if([401,403].includes(e.status))erase();setNotice(e.message||'No se confirmó el envío. Consultá el mismo intento.');}}finally{lock.current=false;if(alive.current)setBusy(false);}}
- async function fresh(seq){const b=salaryBootstrap(await request('resource=bootstrap'));if(!live(seq))throw new DOMException('Consulta descartada','AbortError');if(pending.current&&b.scopeVersion!==pending.current.body.scopeVersion||scope.current&&scope.current!==b.scopeVersion){erase();const m='Cambió la cuenta o el ámbito. Volvé a consultar; un envío pendiente sólo puede recuperarse con su cuenta original.';setNotice(m);throw Error(m);}scope.current=b.scopeVersion;setBoot(b);return b;}
+ async function fresh(seq){const b=salaryBootstrap(await request('resource=bootstrap',null,{isCurrent:()=>live(seq)}));if(!live(seq))throw new DOMException('Consulta descartada','AbortError');if(pending.current&&b.scopeVersion!==pending.current.body.scopeVersion||scope.current&&scope.current!==b.scopeVersion){erase();const m='Cambió la cuenta o el ámbito. Volvé a consultar; un envío pendiente sólo puede recuperarse con su cuenta original.';setNotice(m);throw Error(m);}scope.current=b.scopeVersion;setBoot(b);return b;}
  async function refresh(){await run(async seq=>{const b=await fresh(seq);setNotice(draft&&draft.baseVersion!==b.catalog.version?'El maestro vigente cambió. Tu borrador se conserva: compará las versiones antes de preparar otro.':`${b.catalog.items.length} definiciones propias · revisión ${b.catalog.revision}. Ninguna calcula haberes.`);});}
  const rows=draft?.items??boot?.catalog.items??[],filtered=[...rows].sort((a,b)=>natural.compare(a.kind,b.kind)||natural.compare(a.agreementCode,b.agreementCode)||natural.compare(a.categoryCode??'',b.categoryCode??'')||natural.compare(a.code,b.code)||a.validFrom.localeCompare(b.validFrom)).filter(r=>[r.code,r.label,r.agreementCode,r.categoryCode??''].join(' ').toLowerCase().includes(query.toLowerCase())),last=Math.max(0,Math.ceil(filtered.length/PAGE)-1),visible=filtered.slice(Math.min(page,last)*PAGE,(Math.min(page,last)+1)*PAGE),disabled=busy||hasPending||revoked;
  const agreements=boot?.classification.items.filter(r=>r.kind==='agreements')??[],categories=boot?.classification.items.filter(r=>r.kind==='categories'&&r.agreementCode===form.agreementCode)??[];

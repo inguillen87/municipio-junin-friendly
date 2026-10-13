@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {salaryBulkPlan} from '../assets/native-salary-bulk-model.js';
-import {salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {row} from './fixtures/native-salary-synthetic.js';
 
 const selected=rows=>rows.map(before=>({key:salaryRowKey(before),before:structuredClone(before)}));
@@ -25,5 +25,5 @@ test('si cambia una seleccionada se invalida la previa entera',()=>{const all=fu
 test('no admite filas inexistentes, repetidas, desactivadas o selección vacía',()=>{const all=full(),one=selected(all.slice(0,1));for(const selections of [[],[...one,...one],selected([row({code:'999'})]),[{...one[0],key:'other'}],[{...one[0],extra:true}]])assert.throws(()=>salaryBulkPlan(all,selections,update()));const archived=row({active:false});assert.throws(()=>salaryBulkPlan([archived],selected([archived]),update()),/desactivada/);});
 test('un cambio no seleccionado debe conservarse exactamente dentro del borrador',()=>{const all=full(),choices=selected(all.slice(0,2)),last=all.at(-1),changed=all.map(item=>salaryRowKey(item)===salaryRowKey(last)?{...item,label:'Cambio individual anterior a la actualización'}:item),plan=salaryBulkPlan(changed,choices,update());assert.deepEqual(plan.items.find(item=>salaryRowKey(item)===salaryRowKey(last)),changed.at(-1));});
 test('informa seleccionadas sin cambio y rechaza propuestas idénticas',()=>{const a=row({value:'12.50',ruleReference:update().ruleReference}),b=row({code:'44'}),plan=salaryBulkPlan([a,b],selected([a,b]),update());assert.equal(plan.selectedCount,2);assert.equal(plan.changes.length,1);assert.equal(plan.unchangedSelectedCount,1);assert.throws(()=>salaryBulkPlan([a],selected([a]),update()),/no producen cambios/);});
-test('1000 seleccionadas se conservan completas, sin truncar, y1001 se rechazan',()=>{const all=salaryItems(Array.from({length:1000},(_,n)=>row({code:String(n+1)}))),plan=salaryBulkPlan(all,selected(all),update());assert.equal(plan.items.length,1000);assert.equal(plan.changes.length,1000);assert.throws(()=>salaryBulkPlan([...all,row({code:'1001'})],selected(all),update()),/1000/);});
+test('10000 seleccionadas se conservan completas y un exceso se rechaza',()=>{const all=salaryItems(Array.from({length:SALARY_MAX_ITEMS},(_,n)=>row({code:String(n+1)}))),plan=salaryBulkPlan(all,selected(all),update());assert.equal(plan.items.length,SALARY_MAX_ITEMS);assert.equal(plan.changes.length,SALARY_MAX_ITEMS);assert.throws(()=>salaryBulkPlan([...all,row({code:String(SALARY_MAX_ITEMS+1)})],selected(all),update()),/10000/);});
 test('valida el catálogo entero incluso si el error está fuera de la selección',()=>{const all=full(),choices=selected(all.slice(0,2));all[89].precision=null;assert.throws(()=>salaryBulkPlan(all,choices,update()));});

@@ -1,4 +1,4 @@
-import {SALARY_UNITS,SalaryInputError,salaryDiff,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SALARY_UNITS,SalaryInputError,salaryDiff,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
 
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('BULK_INPUT_INVALID',message);};
 
@@ -6,7 +6,7 @@ const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputErro
 // remains the sole write; precision, units, dates and dependencies are preserved.
 export function salaryBulkSelection(raw,selections,change){
  const current=salaryItems(raw),byKey=new Map(current.map(row=>[salaryRowKey(row),row]));
- requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=1000,'Seleccioná las definiciones que querés actualizar; no se recortan filas.');
+ requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=SALARY_MAX_ITEMS,'Seleccioná las definiciones que querés actualizar; no se recortan filas.');
  requireInput(salaryExact(change,['unit','precision','value','ruleReference'])&&Object.hasOwn(SALARY_UNITS,change.unit)&&Number.isInteger(change.precision)&&change.precision>=0&&change.precision<=8,'Elegí la unidad y la precisión declaradas en las filas.');
  requireInput(change.value===null||typeof change.value==='string','Declarar un valor requiere una cadena decimal exacta; no se convierte a número.');
  const chosen=new Map();

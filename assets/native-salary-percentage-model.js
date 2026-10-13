@@ -1,4 +1,4 @@
-import {SalaryInputError,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SalaryInputError,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
 import {salaryEffectiveDefinitionsPlan} from './native-salary-effective-model.js';
 import {decimal,exactAdd,exactCompare,exactDivide,exactMultiply,exactSubtract,quantize} from './own-payroll-exact.js';
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('EFFECTIVE_INPUT_INVALID',message);};
@@ -15,7 +15,7 @@ export function salaryEffectivePercentagePlan(raw,selections,change,validFrom){
  requireInput(typeof change.percentage==='string'&&/^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,8})?$/.test(change.percentage),'Informá un porcentaje exacto positivo, sin separador de miles ni exponente.');
  const rate=decimal(change.percentage);
  requireInput(exactCompare(rate,decimal('0'))>0,'El porcentaje de aumento debe ser mayor que cero.');
- requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=1000,'Seleccioná las escalas que alcanza el aumento; no se recortan filas.');
+ requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=SALARY_MAX_ITEMS,'Seleccioná las escalas que alcanza el aumento; no se recortan filas.');
  for(const selection of selections){
   requireInput(salaryExact(selection,['key','before'])&&typeof selection.key==='string'&&selection.before&&selection.key===salaryRowKey(selection.before),'No se pudo verificar una escala seleccionada. Volvé a seleccionarla.');
   requireInput(!chosen.has(selection.key),'Hay una escala seleccionada más de una vez.');
