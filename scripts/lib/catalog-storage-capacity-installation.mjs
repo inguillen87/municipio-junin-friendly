@@ -1,0 +1,30 @@
+// Exact one-function technical protocol. No connection, catalog or employee write.
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {pinsCheck,preservationSnapshot} from './native-leave-installation.mjs';
+import {splitPostgresStatements} from './sql-statements.mjs';
+export const CATALOG_PROVIDER_BUDGET_BYTES=1073741824;
+export const CATALOG_STORAGE_CEILING_BYTES=1056964608;
+export const CATALOG_STORAGE_BEFORE_SHA256='d0be23b2b5f275b9ba91179bc2f303cf6828c33b5007b01cb68dc225512cb6cf';
+export const CATALOG_STORAGE_AFTER_SHA256='fc2b910ebde0e560de0b2bf07f4d7af7492f1b6f98ca27badaf1d0186befa0c4';
+export const CATALOG_STORAGE_SQL_SHA256="822b3b2f59b6f69f2f089b8458118272ed7a875c0e7014a088f439a5a68df62f";
+const hash=s=>createHash('sha256').update(s).digest('hex'),q=s=>"'"+s.replaceAll("'","''")+"'",prefix='municontrol_catalog_storage.';
+const pin={name:'native_employment_catalog_capacity_v1',signature:'public.native_employment_catalog_capacity_v1(integer)',sha256:CATALOG_STORAGE_BEFORE_SHA256,argNames:['extra_bytes'],defaults:'',resultType:'void',language:'plpgsql',returnsSet:false,strict:false,definer:true,volatility:'v',config:['search_path=pg_catalog, public, pg_temp'],runtime:false};
+const files=['scripts/migrations/168-catalog-storage-capacity.sql','scripts/lib/catalog-storage-capacity-installation.mjs','assets/native-employment-catalog-model.js','assets/native-employment-catalog.js','lib/internal-employment-catalog.js'];
+export function buildCatalogStorageCapacityInstallation({read,sourceCommit,verifiedBudgetBytes}){
+ assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.equal(verifiedBudgetBytes,CATALOG_PROVIDER_BUDGET_BYTES,'CATALOG_STORAGE_PROVIDER_BUDGET_REQUIRED');
+ const sourceHashes=Object.fromEntries(files.map(f=>[f,hash(read(f).replace(/\r\n?/g,'\n'))]));assert.equal(sourceHashes[files[0]],CATALOG_STORAGE_SQL_SHA256,'CATALOG_STORAGE_SOURCE_CHANGED');
+ const mutations=splitPostgresStatements(read(files[0])).map(s=>s.replace(/^(?:\s*--[^\n]*\n)+\s*/,''));assert.equal(mutations.length,1);assert.match(mutations[0],/^DO \$catalog_storage\$/);
+ const beforePins=[pin],afterPins=[{...pin,sha256:CATALOG_STORAGE_AFTER_SHA256}],beforeCheck=pinsCheck(beforePins,'CATALOG_STORAGE_BEFORE_METADATA'),afterCheck=pinsCheck(afterPins,'CATALOG_STORAGE_AFTER_METADATA');
+ const state=`DO $state$ DECLARE body_hash text; BEGIN IF current_setting('transaction_isolation')<>'repeatable read' THEN RAISE EXCEPTION 'CATALOG_STORAGE_ISOLATION_REQUIRED';END IF;PERFORM pg_advisory_xact_lock(132170);SELECT encode(public.digest(replace(p.prosrc,E'\\r\\n',E'\\n'),'sha256'),'hex') INTO body_hash FROM pg_proc p WHERE p.oid=to_regprocedure(${q(pin.signature)});IF body_hash=${q(CATALOG_STORAGE_AFTER_SHA256)} THEN PERFORM set_config('${prefix}mode','verify',true);ELSIF body_hash=${q(CATALOG_STORAGE_BEFORE_SHA256)} THEN PERFORM set_config('${prefix}mode','install',true);ELSE RAISE EXCEPTION 'CATALOG_STORAGE_STATE_CHANGED';END IF;PERFORM set_config('${prefix}provider_budget_bytes',${q(String(verifiedBudgetBytes))},true);END $state$`;
+ const choose=`DO $choose$ BEGIN IF current_setting('${prefix}mode')='install' THEN EXECUTE ${q(beforeCheck)};ELSE EXECUTE ${q(afterCheck)};END IF;END $choose$`;
+ const snapshot=slot=>{let s=preservationSnapshot(slot).replaceAll('municontrol_sql111.',prefix).replaceAll(" AND p.oid IS DISTINCT FROM to_regclass('public.native_leave_event')",'').replaceAll(" AND NOT(s.nspname='public' AND p.proname LIKE 'native_leave_%')",'');const anchor='public.digest(to_jsonb(p)::text';assert.equal(s.split(anchor).length,2);s=s.replace(anchor,`public.digest((CASE WHEN p.oid=${q(pin.signature)}::regprocedure THEN to_jsonb(p)-'prosrc' ELSE to_jsonb(p) END)::text`);assert.ok(!s.includes('native_leave_'));return s;};
+ const before=snapshot('before'),after=snapshot('after'),apply=`DO $apply$ BEGIN IF current_setting('${prefix}mode')='install' THEN EXECUTE ${q(mutations[0])};END IF;END $apply$`;
+ const conservation=`DO $conservation$ BEGIN IF current_setting('${prefix}before')::jsonb IS DISTINCT FROM current_setting('${prefix}after')::jsonb THEN RAISE EXCEPTION 'CATALOG_STORAGE_PRIOR_STATE_CHANGED';END IF;END $conservation$`;
+ const proof=mode=>`SELECT jsonb_build_object('version','catalog-storage-capacity-installation.v1','sourceCommit',${q(sourceCommit)},'sourceHashes',${q(JSON.stringify(sourceHashes))}::jsonb,'mode',${mode},'providerBudgetBytes',${verifiedBudgetBytes},'storageCeilingBytes',${CATALOG_STORAGE_CEILING_BYTES},'safetyMarginBytes',16777216,'perWriteReserveBytes',262144,'adaptedFunctions',1,'newTables',0,'newFunctions',0,'businessWrites',0,'existingAclChanges',0,'nominalRowsReturned',0,'preservationSha256',encode(public.digest(current_setting('${prefix}after')::jsonb::text,'sha256'),'hex')) AS proof`;
+ return{sourceCommit,sourceHashes,beforePins,afterPins,mutations,beforeCheck,afterCheck,state,choose,before,after,apply,conservation,proof:proof(`current_setting('${prefix}mode')`),statements:[state,choose,before,apply,afterCheck,after,conservation,proof(`current_setting('${prefix}mode')`)],verification:['SET TRANSACTION READ ONLY',afterCheck,after,proof("'verify'")],connects:false,executesSql:false};
+}
+export function assertCatalogStorageCapacityDurability(installed,durable){
+ for(const p of[installed,durable]){assert.equal(p.version,'catalog-storage-capacity-installation.v1');for(const[k,v]of Object.entries({providerBudgetBytes:CATALOG_PROVIDER_BUDGET_BYTES,storageCeilingBytes:CATALOG_STORAGE_CEILING_BYTES,safetyMarginBytes:16777216,perWriteReserveBytes:262144,adaptedFunctions:1,newTables:0,newFunctions:0,businessWrites:0,existingAclChanges:0,nominalRowsReturned:0}))assert.equal(p[k],v);assert.match(p.preservationSha256,/^[a-f0-9]{64}$/);}
+ assert.ok(['install','verify'].includes(installed.mode));assert.equal(durable.mode,'verify');assert.equal(installed.sourceCommit,durable.sourceCommit);assert.deepEqual(installed.sourceHashes,durable.sourceHashes);assert.equal(installed.preservationSha256,durable.preservationSha256);
+}

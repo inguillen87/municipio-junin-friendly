@@ -1,4 +1,4 @@
-import {CATALOG_KINDS,catalogProposalInput,catalogReviewInput,catalogDiff,catalogChangeSummary,validateCatalogBootstrap,validateCatalogProposal,validateCatalogReceipt,catalogRegistrationAllowed} from './native-employment-catalog-model.js';
+import {CATALOG_KINDS,catalogProposalInput,catalogReviewInput,catalogDiff,catalogChangeSummary,validateCatalogBootstrap,validateCatalogProposal,validateCatalogReceipt,catalogRegistrationAllowed,catalogErrorGuidance,catalogRetainAttempt} from './native-employment-catalog-model.js';
 import {catalogFileExport,catalogFilePlan,CATALOG_FILE_MAX_BYTES} from './native-employment-catalog-file-model.js';
 const API='/api/internal-employment-catalog',PAGE=50;
 const labels={agreements:'Convenios',categories:'Categorías / clases',organizations:'Sectores',sectors:'Reparticiones'};
@@ -8,7 +8,7 @@ const useLabel=row=>Object.hasOwn(row,'registrationAllowed')?(catalogRegistratio
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(text,action)=>{const b=el('button',text,'ec-button');b.type='button';if(action)b.dataset.ecAction=action;return b;};
 const stamp=value=>value?new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Sin publicación propia';
-const message=e=>[401,403].includes(e.status)?'Tu sesión o permiso cambió. Volvé a consultar con una sesión autorizada.':e.code==='CATALOG_ACTOR_CHANGED'?'Cambió la cuenta o el ámbito. Se descartó el borrador; ningún intento anterior se reenviará desde esta identidad.':e.status===409?'El catálogo o la propuesta cambió. Conservamos tu borrador; revisá la versión vigente antes de continuar.':e.status===404?'Todavía no hay una confirmación para este intento. Podés consultar otra vez o reenviar exactamente el mismo envío.':e.status>=500||e.name==='TypeError'||e.name==='TimeoutError'||e.name==='AbortError'?'No se pudo confirmar la operación. Se conservan los datos y, si hubo un envío, su misma referencia.':e.safeMessage||'No se pudo verificar la respuesta. Volvé a consultar.';
+const message=catalogErrorGuidance;
 
 export function mountEmploymentCatalog(entry){
  if(!entry||entry.dataset.ecMounted)return;entry.dataset.ecMounted='true';
@@ -126,7 +126,7 @@ export function mountEmploymentCatalog(entry){
    if(!(attempt.body.operation==='propose'?fresh.permissions.canPropose:fresh.permissions.canReview))throw Object.assign(Error(),{status:403});
    const data=(await request(recovery?API+'?'+new URLSearchParams({resource:'attempt',key:attempt.key}):API,recovery?{}:{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes})).data;
    if(seq!==epoch)return;saved=accept(data,attempt);say(saved.status==='approved'?'Catálogo aprobado y publicado. Los legajos existentes no cambiaron.':saved.status==='rejected'?'Propuesta rechazada. El catálogo vigente se conserva.':'Propuesta enviada a revisión. El catálogo vigente se conserva.');
-  }catch(e){if(seq!==epoch)return;if(pending===attempt){if(recovery||attempt.uncertain||!e.status||e.status>=500){attempt.uncertain=true;attempt.retryReady=recovery&&e.status===404;}else pending=null;}fail(e);}
+  }catch(e){if(seq!==epoch)return;if(pending===attempt){if(catalogRetainAttempt(e,attempt,recovery)){attempt.uncertain=true;attempt.retryReady=recovery&&e.status===404;}else pending=null;}fail(e);}
   finally{if(seq===epoch){busy=false;controls();}}
   if(saved&&seq===epoch){const status=$('[data-ec-status]').textContent,refreshEpoch=epoch+1;await load();if(bootstrap&&epoch===refreshEpoch)say(status);}
  }

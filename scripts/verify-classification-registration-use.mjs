@@ -84,7 +84,8 @@ export async function verifyClassificationRegistrationUse(options){
   assert.deepEqual(await db.run('SELECT to_jsonb(c) FROM employment_contract c WHERE id='+q(administrativeContract)+'::uuid'),administrativeBefore);
   ok(true,'native-only employee in a now-restricted encuadre still receives an exact own salary calculation; no GRH employee is required');
   if(options.browser&&options.browser!=='none'){const{verifyClassificationUseBrowser}=await import('./lib/classification-registration-use-browser.mjs');await verifyClassificationUseBrowser({...h,request,created,browserName:options.browser});}
-  const result={version:'classification-registration-use-qa.v1',syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,restrictedNewHireRefused:true,existingNativeSalaryAmount:'123.45000000',nativeHireReceiptPreserved:true};fs.writeFileSync(path.join(h.destination,'classification-use-proof.json'),JSON.stringify(result,null,2)+'\n');return result;
+  const extra=options.afterClassification?await options.afterClassification({...h,request,created}):null;
+  const result={version:'classification-registration-use-qa.v1',syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,restrictedNewHireRefused:true,existingNativeSalaryAmount:'123.45000000',nativeHireReceiptPreserved:true,...(extra?{continuation:extra}:{})};fs.writeFileSync(path.join(h.destination,'classification-use-proof.json'),JSON.stringify(result,null,2)+'\n');return result;
  }});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

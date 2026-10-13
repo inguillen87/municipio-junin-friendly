@@ -5,6 +5,25 @@ export const CATALOG_KINDS = Object.freeze(['agreements', 'categories', 'organiz
 // version declares the use of every option, without rewriting old publications.
 export const catalogRegistrationAllowed = row => !Object.hasOwn(row,'registrationAllowed') || row.registrationAllowed === true;
 export const catalogDeclareRegistration = input => catalogItems(input).map(row => ({...row,registrationAllowed:catalogRegistrationAllowed(row)}));
+export function catalogErrorGuidance(error) {
+  if ([401,403].includes(error?.status)) return 'Tu sesión o permiso cambió. Volvé a consultar con una sesión autorizada.';
+  const messages = {
+    CATALOG_ACTOR_CHANGED: 'Cambió la cuenta o el ámbito. Se descartó el borrador; ningún intento anterior se reenviará desde esta identidad.',
+    NATIVE_EMPLOYMENT_CATALOG_CAPACITY_LIMIT: 'No hay espacio suficiente para guardar la propuesta. Conservamos tu borrador. Administración debe revisar el almacenamiento disponible antes de volver a enviarlo.',
+    NATIVE_EMPLOYMENT_CATALOG_BUSY: 'Hay otra operación en curso. Conservamos el mismo intento y su contenido. Consultá su confirmación antes de reenviarlo.',
+    NATIVE_EMPLOYMENT_CATALOG_BASE_CHANGED: 'El catálogo vigente cambió. Conservamos tu borrador; actualizá la consulta y compará la versión de origen.',
+    NATIVE_EMPLOYMENT_CATALOG_SCOPE_CHANGED: 'Cambió el ámbito de la operación. Volvé a consultar con la cuenta original antes de recuperar el intento.',
+    NATIVE_EMPLOYMENT_CATALOG_BINDING_INVALID: 'Cambió el vínculo municipal de la consulta. Actualizá el catálogo con una sesión autorizada.',
+    NATIVE_EMPLOYMENT_CATALOG_IDEMPOTENCY_REUSE: 'Esta referencia corresponde a otro contenido. Consultá el intento anterior antes de continuar.',
+    NATIVE_EMPLOYMENT_CATALOG_DECIDED: 'La propuesta ya tiene una decisión. Consultá su resultado antes de continuar.'
+  };
+  if (Object.hasOwn(messages,error?.code)) return messages[error.code];
+  if (error?.status === 409) return 'No se pudo completar la operación. Conservamos tu borrador; actualizá la consulta antes de continuar.';
+  if (error?.status === 404) return 'Todavía no hay una confirmación para este intento. Podés consultar otra vez o reenviar exactamente el mismo envío.';
+  if (!error?.status || error.status >= 500) return 'No se pudo confirmar la operación. Conservamos los datos y, si hubo un envío, su misma referencia.';
+  return 'No se pudo verificar la respuesta. Revisá el borrador y volvé a consultar.';
+}
+export const catalogRetainAttempt = (error,attempt,recovery=false) => !!(recovery || attempt?.uncertain || !error?.status || error.status >= 500 || error.status === 409 && error.code === 'NATIVE_EMPLOYMENT_CATALOG_BUSY');
 export class CatalogInputError extends Error {
   constructor(code, message) { super(message); this.name = 'CatalogInputError'; this.code = code; }
 }
