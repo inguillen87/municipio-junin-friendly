@@ -342,3 +342,7 @@ local-agents/
 !scripts/migrations/161-own-participation-command-guard.sql
 
 !scripts/migrations/162-own-seniority-command-guard.sql
+
+# Reviewed working-time code sources only; no municipal or private inputs.
+!scripts/migrations/163-own-contract-working-time.sql
+!scripts/migrations/164-own-working-time-program-source.sql
