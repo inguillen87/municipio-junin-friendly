@@ -99,7 +99,9 @@ export async function verifyOwnContractWorkingTime(options){
   await sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');assert.equal((await api('workingTime',{query:query(people[0])})).permissions.canPropose,false);await api('workingTime',{query:{resource:'attempt',key:first.key},expected:403});await sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');
   ok(true,'append-only SQL and real access revocation preserve every declared hour and original attempt');
   const result={version:'own-contract-working-time-qa.v1',syntheticOnly:true,productiveBusinessWrites:0,definitions:2,employees:people.length,workingPeriod:period,oldRecordsPreserved:true,eventCount,installed,durable,repeated};
-  fs.writeFileSync(path.join(h.destination,'working-time-proof.json'),JSON.stringify(result,null,2)+'\n');return result;
+  fs.writeFileSync(path.join(h.destination,'working-time-proof.json'),JSON.stringify(result,null,2)+'\n');
+  if(options.continuation)return options.continuation({...h,workingTime:{people,period,result}});
+  return result;
  }});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

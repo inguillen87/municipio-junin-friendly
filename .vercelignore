@@ -349,3 +349,6 @@ local-agents/
 
 # Reviewed metadata-only repair required by the deployment build tests.
 !scripts/migrations/165-working-time-adoption-readiness.sql
+
+# Reviewed unit declarations required by the deployment build tests.
+!scripts/migrations/166-own-payroll-day-units.sql

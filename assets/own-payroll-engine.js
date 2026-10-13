@@ -8,7 +8,7 @@ export const OWN_PAYROLL_NAMESPACE_VERSION = 'own-payroll-namespaces.v2';
 export const ownPayrollRuleIdentity = (r, namespaced = false) => namespaced ? `${r.nature === 'auxiliary' ? 'auxiliary' : 'concept'}:${r.code}` : r.code;
 const referenceIdentity = (n, namespaced) => namespaced ? `${n.op}:${n.code}` : n.code;
 export const OWN_PAYROLL_LIMITS = Object.freeze({ employees: 10000, rules: 1000, inputs: 128, nodes: 256, depth: 32, dependencyDepth: 64, operations: 3000000 });
-const units = new Set(['money', 'hours', 'minutes', 'percent', 'units', 'coefficient']);
+const units = new Set(['money', 'hours', 'minutes', 'days', 'percent', 'units', 'coefficient']);
 const natures = new Set(['remuneration', 'non_remuneration', 'deduction', 'employer_contribution', 'auxiliary']);
 const types = new Set(['monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other']);
 const uuid = v => typeof v === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);

@@ -6,7 +6,7 @@ export const SALARY_MAX_INPUT_BYTES=4*1024*1024;
 // ordering does not change UTF8 length. Match SQL's complete-item byte budget.
 export function salaryJsonbBytes(value){let spaces=0;const walk=v=>{if(Array.isArray(v)){spaces+=Math.max(0,v.length-1);for(const x of v)walk(x);}else if(v&&typeof v==='object'){const keys=Object.keys(v);spaces+=keys.length+Math.max(0,keys.length-1);for(const key of keys)walk(v[key]);}};walk(value);return new TextEncoder().encode(JSON.stringify(value)).length+spaces;}
 export const SALARY_NATURES=Object.freeze({remuneration:'Haber remunerativo',non_remuneration:'Haber no remunerativo',deduction:'Retención',employer_contribution:'Contribución patronal',auxiliary:'Auxiliar'});
-export const SALARY_UNITS=Object.freeze({money:'Pesos',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
+export const SALARY_UNITS=Object.freeze({money:'Pesos',hours:'Horas',minutes:'Minutos',days:'Días',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
 export const salaryExact=(v,keys)=>!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join('|')===[...keys].sort().join('|');
 export const salaryHash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 export const salaryUuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
