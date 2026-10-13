@@ -1,0 +1,65 @@
+name: Own contract working time
+on:
+  pull_request:
+    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
+permissions:
+  contents: read
+concurrency:
+  group: working-time-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Prepare the existing disposable QA database
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - run: npx --no-install playwright install-deps chromium
+      - name: Use the project browser already admitted for release verification
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Complete documented hours, immutable attempts, actual SQL and desktop/mobile browser
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-contract-working-time.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/native-working-time-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: native-working-time-pg${{ matrix.pg }}-${{ github.sha }}
+          path: |
+            verification/native-working-time-pg${{ matrix.pg }}/result.json
+            verification/native-working-time-pg${{ matrix.pg }}/partial-checks.json
+            verification/native-working-time-pg${{ matrix.pg }}/failure.txt
+            verification/native-working-time-pg${{ matrix.pg }}/working-time-proof.json
+            verification/native-working-time-pg${{ matrix.pg }}/working-time-browser-proof.json
+            verification/native-working-time-pg${{ matrix.pg }}/working-time-browser-failure.json
+            verification/native-working-time-pg${{ matrix.pg }}/missing-source-error.json
+            verification/native-working-time-pg${{ matrix.pg }}/*.png
+            verification/release-chromium-157.0.8098.0/installation.json
+          retention-days: 5
