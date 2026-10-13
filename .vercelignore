@@ -352,3 +352,6 @@ local-agents/
 
 # Reviewed unit declarations required by the deployment build tests.
 !scripts/migrations/166-own-payroll-day-units.sql
+
+# Reviewed encuadre-use code required by the deployment build checks.
+!scripts/migrations/167-classification-registration-use.sql

@@ -1,6 +1,10 @@
-// Shared contract: reference encuadres for future registrations, never salary rules.
+// Shared classification reference; registration use is explicit, never a salary rule.
 export const CATALOG_VERSION = 'native-employment-catalog.v1';
 export const CATALOG_KINDS = Object.freeze(['agreements', 'categories', 'organizations', 'sectors']);
+// Five-field versions retain their original registration policy. A new complete
+// version declares the use of every option, without rewriting old publications.
+export const catalogRegistrationAllowed = row => !Object.hasOwn(row,'registrationAllowed') || row.registrationAllowed === true;
+export const catalogDeclareRegistration = input => catalogItems(input).map(row => ({...row,registrationAllowed:catalogRegistrationAllowed(row)}));
 export class CatalogInputError extends Error {
   constructor(code, message) { super(message); this.name = 'CatalogInputError'; this.code = code; }
 }
@@ -20,20 +24,23 @@ const text = (value, min, max, label) => {
 const identity = row => `${row.kind}:${row.agreementCode ?? ''}:${row.code}`;
 export function catalogItems(input) {
   if (!Array.isArray(input) || input.length < 4 || input.length > 1500) fail('El catálogo debe contener las cuatro clases y hasta 1.500 opciones.');
+  const declared=input.some(row=>object(row)&&Object.hasOwn(row,'registrationAllowed'));
+  if(declared&&!input.every(row=>object(row)&&typeof row.registrationAllowed==='boolean'))fail('Declarale a cada opción si permite nuevas altas. No se completa una habilitación faltante.');
   const seen = new Set(), kinds = new Set(), agreements = new Set();
   const items = input.map(row => {
-    if (!exact(row, ['kind', 'key', 'code', 'label', 'agreementCode']) || !CATALOG_KINDS.includes(row.kind) || !code(row.code)
+    if (!exact(row, ['kind', 'key', 'code', 'label', 'agreementCode',...(declared?['registrationAllowed']:[])]) || !CATALOG_KINDS.includes(row.kind) || !code(row.code)
       || typeof row.key !== 'string' || !row.key.length || row.key.length > 120 || /[\u0000-\u001f\u007f<>]/u.test(row.key)) fail('Hay una opción incompleta o con un código inválido.');
     if (row.kind === 'categories' ? !code(row.agreementCode) : row.agreementCode !== null) fail('Cada categoría debe indicar su convenio.');
-    if ((row.kind === 'agreements' && ['9', '10'].includes(row.code.replace(/^0+/, ''))) || ['9', '10'].includes(row.agreementCode?.replace(/^0+/, ''))) fail('Los convenios 9 y 10 no están habilitados para altas propias.');
+    if (!declared&&((row.kind === 'agreements' && ['9', '10'].includes(row.code.replace(/^0+/, ''))) || ['9', '10'].includes(row.agreementCode?.replace(/^0+/, '')))) fail('Los convenios 9 y 10 requieren una versión que declare expresamente su uso.');
     const key = identity(row);
     if (seen.has(key)) fail('Hay códigos repetidos dentro de una clase o de un convenio.');
     seen.add(key); kinds.add(row.kind);
     if (row.kind === 'agreements') agreements.add(row.code);
-    return {kind: row.kind, key, code: row.code, label: text(row.label, 1, 160, 'el nombre de la opción'), agreementCode: row.agreementCode};
+    return {kind: row.kind, key, code: row.code, label: text(row.label, 1, 160, 'el nombre de la opción'), agreementCode: row.agreementCode,...(declared?{registrationAllowed:row.registrationAllowed}:{})};
   });
   if (kinds.size !== 4) fail('Debe quedar al menos una opción de cada clase.');
   if (items.some(row => row.kind === 'categories' && !agreements.has(row.agreementCode))) fail('Hay categorías cuyo convenio no está en el catálogo.');
+  if(declared&&items.some(row=>row.kind==='categories'&&row.registrationAllowed&&!items.some(a=>a.kind==='agreements'&&a.code===row.agreementCode&&a.registrationAllowed)))fail('Una categoría no puede habilitar nuevas altas si su convenio no las permite.');
   return items.sort((a, b) => identity(a) < identity(b) ? -1 : identity(a) > identity(b) ? 1 : 0);
 }
 export function catalogProposalInput(value) {
@@ -48,7 +55,7 @@ export function catalogDiff(baseItems, nextItems) {
   const before = new Map(baseItems.map(row => [identity(row), row])), after = new Map(nextItems.map(row => [identity(row), row]));
   return [...new Set([...before.keys(), ...after.keys()])].sort().flatMap(key => {
     const a = before.get(key), b = after.get(key);
-    if (a && b && a.label === b.label) return [];
+    if (a && b && a.label === b.label && Object.hasOwn(a,'registrationAllowed')===Object.hasOwn(b,'registrationAllowed') && a.registrationAllowed===b.registrationAllowed) return [];
     const row = b || a;
     return [{change: !a ? 'added' : !b ? 'removed' : 'changed', kind: row.kind, code: row.code, agreementCode: row.agreementCode, before: a || null, after: b || null}];
   });

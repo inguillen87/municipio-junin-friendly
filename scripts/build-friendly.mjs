@@ -282,6 +282,7 @@ const shellFiles = [
   'assets/native-employment-catalog.js',
   'assets/native-employment-catalog.css',
   'assets/native-employment-catalog-model.js',
+  'assets/native-employment-catalog-file-model.js',
   'assets/native-employment-change.js',
   'assets/native-employment-change.css',
   'assets/native-employment-change-model.js',
