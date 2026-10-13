@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import {buildCatalogStorageCapacityInstallation,assertCatalogStorageCapacityDurability,CATALOG_PROVIDER_BUDGET_BYTES,CATALOG_STORAGE_CEILING_BYTES,CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
 const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const options={read,sourceCommit:'e'.repeat(40),verifiedBudgetBytes:1073741824};
+test('the Vercel build contains the exact protocol while private sources stay excluded',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(r=>r.trim()).filter(r=>r&&!r.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),p=neg?rule.slice(1):rule;if(p.endsWith('/')?file.startsWith(p):path.matchesGlob(file,p)||!p.includes('/')&&path.matchesGlob(path.basename(file),p))keep=neg;}return keep;};
+ const packagedRead=file=>{assert.ok(included(file),'Build dependency excluded: '+file);return read(file);};
+ const batch=buildCatalogStorageCapacityInstallation({...options,read:packagedRead});assert.equal(batch.mutations.length,1);
+ for(const file of['.handoff/sync-current.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/SQL168_INSTALLATION_REVIEW_20261013.json','data-rrhh/private.json','source.txt','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
+});
 test('installation refuses an absent, smaller or unverified provider budget',()=>{
  for(const budget of[undefined,null,0,536870912,1073741825])assert.throws(()=>buildCatalogStorageCapacityInstallation({...options,verifiedBudgetBytes:budget}),/PROVIDER_BUDGET_REQUIRED/);
 });
