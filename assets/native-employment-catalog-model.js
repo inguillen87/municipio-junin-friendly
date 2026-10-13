@@ -60,6 +60,10 @@ export function catalogDiff(baseItems, nextItems) {
     return [{change: !a ? 'added' : !b ? 'removed' : 'changed', kind: row.kind, code: row.code, agreementCode: row.agreementCode, before: a || null, after: b || null}];
   });
 }
+export function catalogChangeSummary(baseItems,nextItems){
+  const diffs=catalogDiff(baseItems,nextItems),declared=diffs.filter(d=>d.change==='changed'&&d.before.label===d.after.label&&Object.hasOwn(d.before,'registrationAllowed')!==Object.hasOwn(d.after,'registrationAllowed')&&catalogRegistrationAllowed(d.before)===catalogRegistrationAllowed(d.after));
+  return {added:diffs.filter(d=>d.change==='added').length,changed:diffs.filter(d=>d.change==='changed').length-declared.length,removed:diffs.filter(d=>d.change==='removed').length,declarations:declared.length,total:diffs.length};
+}
 const contract = valid => { if (!valid) fail('La respuesta no pudo verificarse. Volvé a consultar antes de continuar.', 'CONTRACT_INVALID'); };
 const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
 const status = value => ['pending', 'approved', 'rejected'].includes(value);
