@@ -237,6 +237,8 @@ const shellFiles = [
   'assets/own-payroll-program-precision.js',
   'assets/own-payroll-program-model.js',
   'assets/own-payroll-program-copy-model.js',
+  'assets/own-payroll-program-scale-reference-model.js',
+  'assets/own-payroll-program-scale-reference-panel.js',
   'assets/own-payroll-run-panel.css',
   'assets/own-payroll-run-workspace-model.js',
   'assets/own-payroll-run-model.js',

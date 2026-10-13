@@ -1,0 +1,56 @@
+name: Own auxiliary class references
+on:
+  pull_request:
+    paths: ['assets/own-payroll-program*', 'lib/own-payroll-approved-input.js', 'scripts/verify-own-program-scale-reference.mjs', 'scripts/lib/own-program-scale-reference-browser.mjs', 'scripts/verify-own-payroll-program-copy-browser.mjs', 'tests/own-payroll-program-scale-reference.test.js', 'tests/fixtures/own-payroll-program-scale-reference-synthetic.js', '.github/workflows/program-scale-reference.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-payroll-program*', 'lib/own-payroll-approved-input.js', 'scripts/verify-own-program-scale-reference.mjs', 'scripts/lib/own-program-scale-reference-browser.mjs', 'scripts/verify-own-payroll-program-copy-browser.mjs', 'tests/own-payroll-program-scale-reference.test.js', 'tests/fixtures/own-payroll-program-scale-reference-synthetic.js', '.github/workflows/program-scale-reference.yml']
+permissions:
+  contents: read
+concurrency:
+  group: auxiliary-class-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare disposable PostgreSQL under existing guards
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Original namespace circuit and native class-reference governance
+        run: node scripts/verify-own-program-scale-reference.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/program-scale-reference-pg${{ matrix.pg }}
+      - name: Built class-reference controls, original copy regressions and exact recovery
+        run: node scripts/verify-own-payroll-program-copy-browser.mjs --browser=chromium --output=verification/program-class-reference-browser-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: program-class-reference-pg${{ matrix.pg }}-${{ github.sha }}
+          path: |
+            verification/program-scale-reference-pg${{ matrix.pg }}/**
+            verification/program-class-reference-browser-pg${{ matrix.pg }}*
+            verification/program-scale-reference-*.png
