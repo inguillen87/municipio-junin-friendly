@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SALARY_FILE_HEADER,SALARY_FILE_MAX_BYTES,salaryFileExport,salaryFilePlan} from '../assets/native-salary-file-model.js';
-import {salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
 import {row,bootstrap} from './fixtures/native-salary-synthetic.js';
 const classification=bootstrap().classification.items;
 const plan=(items,text)=>salaryFilePlan(items,text,classification);
@@ -34,4 +34,4 @@ for(const [label,mutate]of [
 test('unknown and ambiguous agreement/class cannot be inferred from code or file name',()=>{const text=salaryFileExport([row()]);for(const catalogue of [[],[...classification,classification[0]]])assert.throws(()=>salaryFilePlan([],text,catalogue),/convenio/);const scale=row({kind:'scale',categoryCode:'6',nature:null,unit:'money',value:'0.00'});assert.throws(()=>salaryFilePlan([],salaryFileExport([scale]),classification.filter(c=>c.kind!=='categories')),/clase/);});
 test('complete history cannot be removed by a file containing only the searched row',()=>{const items=all();assert.throws(()=>plan(items,salaryFileExport([items[0]])),/antecedentes/);});
 test('duplicate, overlap and dependency-cycle errors reject the whole file',()=>{const first=row(),second=row({code:'88'}),good=salaryFileExport([first,second]);const data=good.split('\r\n');assert.throws(()=>plan([],data.slice(0,2).concat(data[1],'').join('\r\n')),/repetida/);assert.throws(()=>plan([],good.replace('"\'88"','"\'95"')),/repetida/);first.dependencies=[salaryRowKey(second)];second.dependencies=[salaryRowKey(first)];const file=salaryFileExport([row(),row({code:'88'})]).replace('"";"\'si"','"\'concept:1::88:2026-10";"\'si"').replaceAll('"";"\'si"','"\'concept:1::95:2026-10";"\'si"');assert.throws(()=>plan([],file),/ciclo/);});
-test('1,000 exact definitions pass; 1,001 rows and 2 MiB overflow are global failures',()=>{const items=salaryItems(Array.from({length:1000},(_,n)=>row({code:String(n+1)}))),text=salaryFileExport(items);assert.equal(plan([],text).total,1000);const data=text.split('\r\n');assert.throws(()=>plan([],data.slice(0,-1).concat(data[1],'').join('\r\n')),/1.000/);assert.throws(()=>plan([],text+'x'.repeat(SALARY_FILE_MAX_BYTES)),/2 MiB/);});
+test('10,000 exact definitions pass; excess rows and 4 MiB overflow are global failures',()=>{const items=salaryItems(Array.from({length:SALARY_MAX_ITEMS},(_,n)=>row({code:String(n+1),label:'QA',ruleReference:'QA source',precision:0,value:'0'}))),text=salaryFileExport(items);assert.equal(plan([],text).total,SALARY_MAX_ITEMS);const data=text.split('\r\n');assert.throws(()=>plan([],data.slice(0,-1).concat(data[1],'').join('\r\n')),/10.000/);assert.throws(()=>plan([],text+'x'.repeat(SALARY_FILE_MAX_BYTES)),/4 MiB/);});

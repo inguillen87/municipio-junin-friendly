@@ -1,6 +1,6 @@
-import {SalaryInputError,salaryDiff,salaryItems,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SalaryInputError,salaryDiff,salaryItems,salarySerialized} from './native-salary-catalog-model.js';
 
-export const SALARY_FILE_MAX_BYTES=2*1024*1024;
+export const SALARY_FILE_MAX_BYTES=4*1024*1024;
 export const SALARY_FILE_HEADER=Object.freeze(['tipo','convenio','clase','codigo','descripcion','naturaleza','unidad','decimales','valor','desde','hasta','respaldo','dependencias','activo']);
 const kinds={concepto:'concept',auxiliar:'auxiliary',escala:'scale'},natures={remunerativo:'remuneration',no_remunerativo:'non_remuneration',retencion:'deduction',contribucion_patronal:'employer_contribution',auxiliar:'auxiliary'},units={pesos:'money',horas:'hours',minutos:'minutes',porcentaje:'percent',unidades:'units',coeficiente:'coefficient'};
 const fail=message=>{throw new SalaryInputError('FILE_INPUT_INVALID',message);};
@@ -10,11 +10,11 @@ const reverse=(map,value)=>Object.keys(map).find(k=>map[k]===value);
 const literal=value=>value.startsWith("'")?value.slice(1):value;
 const cell=value=>'"'+(value===''?'':"'"+value).replaceAll('"','""')+'"';
 function csvRows(text){
- if(typeof text!=='string'||new TextEncoder().encode(text).length>SALARY_FILE_MAX_BYTES)fail('El CSV supera 2 MiB. No se cargó ninguna fila.');
+ if(typeof text!=='string'||new TextEncoder().encode(text).length>SALARY_FILE_MAX_BYTES)fail('El CSV supera 4 MiB. No se cargó ninguna fila.');
  if(text.charCodeAt(0)===0xfeff)text=text.slice(1);
  const rows=[];let row=[],value='',quoted=false,closed=false,started=false;
  const field=()=>{row.push(value);if(row.length>SALARY_FILE_HEADER.length)fail('El CSV contiene columnas adicionales. Usá la plantilla completa del maestro.');value='';closed=false;started=false;};
- const record=()=>{field();rows.push(row);row=[];if(rows.length>1001)fail('El CSV supera 1.000 definiciones. No se recortó ni se dividió el archivo.');};
+ const record=()=>{field();rows.push(row);row=[];if(rows.length>SALARY_MAX_ITEMS+1)fail('El CSV supera 10.000 definiciones. No se recortó ni se dividió el archivo.');};
  for(let n=0;n<text.length;n++){
   const c=text[n];
   if(quoted){if(c==='"'){if(text[n+1]==='"'){value+='"';n++;}else{quoted=false;closed=true;}}else value+=c;continue;}
@@ -33,7 +33,7 @@ export function salaryFileExport(raw=[]){
  const text='\ufeff'+SALARY_FILE_HEADER.map(k=>'"'+k+'"').join(';')+'\r\n'+rows.map(r=>[
   reverse(kinds,r.kind),r.agreementCode,r.categoryCode??'',r.code,r.label,r.nature?reverse(natures,r.nature):'',reverse(units,r.unit),String(r.precision),r.value??'',r.validFrom,r.validUntil??'',r.ruleReference,r.dependencies.join('|'),r.active?'si':'no'
  ].map(cell).join(';')+'\r\n').join('');
- if(new TextEncoder().encode(text).length>SALARY_FILE_MAX_BYTES)fail('El CSV completo supera 2 MiB. No se descargó un archivo recortado.');
+ if(new TextEncoder().encode(text).length>SALARY_FILE_MAX_BYTES)fail('El CSV completo supera 4 MiB. No se descargó un archivo recortado.');
  return text;
 }
 export function salaryFilePlan(raw,text,classification){

@@ -8,12 +8,14 @@ import {verifySalarySourceScales} from './lib/native-salary-source-scale-browser
 import {createNativeSalaryHandler} from '../api/internal-native-salary.js';
 import {body,row,bootstrap,proposal,receipt,uid} from '../tests/fixtures/native-salary-synthetic.js';
 import {salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
+import {salaryStreamFixture} from '../tests/fixtures/native-salary-stream-synthetic.js';
 const root=path.resolve('public'),out=path.resolve('verification/native-salary-browser'),origin='http://127.0.0.1:4352';fs.mkdirSync(out,{recursive:true});
 const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
 const principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid(1),membershipId:uid(2),effectiveCapabilities:caps}},session={email:'qa@example.invalid',id:uid(3),version:1,releaseSha:'d'.repeat(40)};
 let state,writes=[],reads=[],caseNumber=0;const checks=[],errors=[];
 function reset(){state={boot:bootstrap({catalog:{version:'b'.repeat(64),revision:1,items:salaryItems(Array.from({length:75},(_,n)=>row({code:String(n+1),label:'Definición sintética '+(n+1)})))}}),denied:false,mode:'ok',receipts:new Map(),delay:null};}
 const handler=createNativeSalaryHandler({env:{INTERNAL_APP_ORIGIN:origin},requireAccess:async(req,res)=>{if(state.denied){res.status(403).json({ok:false,error:'Permiso sintético retirado'});return null;}return{mode:'managed',principal};},sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{
+ if(query.includes('native_salary_stream_v1')){const stream=salaryStreamFixture(state.boot);if(values[2]!==null&&values[2]!==stream.snapshotSha256)throw Error('NATIVE_SALARY_SNAPSHOT_CHANGED');reads.push('bootstrap');return[{result:stream.frames[values[1]]}];}
  if(query.includes('bootstrap')){reads.push('bootstrap');return[{result:state.boot}];}
  if(query.includes('attempt')){reads.push('attempt');const r=state.receipts.get(values[1]);if(!r)throw Error('NATIVE_SALARY_NOT_FOUND');return[{result:{...r,replayed:true}}];}
  const input=JSON.parse(values[1]),key=values[2];writes.push({body:input,key});const r=receipt(input,{requestKey:key});state.receipts.set(key,r);

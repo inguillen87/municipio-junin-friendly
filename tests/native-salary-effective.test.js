@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {salaryEffectivePlan} from '../assets/native-salary-effective-model.js';
-import {salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {row} from './fixtures/native-salary-synthetic.js';
 const selected=rows=>rows.map(before=>({key:salaryRowKey(before),before:structuredClone(before)}));
 const update=(patch={})=>({unit:'money',precision:2,value:'1200.00',ruleReference:'Resolución sintética para vigencia futura, no municipal',...patch});
@@ -28,5 +28,5 @@ test('un intervalo futuro independiente se conserva entero sin solapamiento',()=
 test('nuevo inicio que chocaría con una definición futura rechaza el conjunto',()=>{const first={...base(),validUntil:'2026-12'},future={...base(),validFrom:'2027-01'};assert.throws(()=>salaryEffectivePlan([first,future],selected([first]),update(),'2027-01'),/no contiene un tramo/);});
 test('filas seleccionadas cambiadas y dobles se rechazan sin generar versión',()=>{const first=base(),choices=selected([first]);assert.throws(()=>salaryEffectivePlan([{...first,value:'999.00'}],choices,update(),'2026-11'),/Cambió una fila/);assert.throws(()=>salaryEffectivePlan([first],[...choices,...choices],update(),'2026-11'),/más de una vez/);});
 for(const patch of [{value:1200},{value:'1.2'},{value:'1e3'},{value:'1,200.00'},{unit:'hours'},{precision:3},{ruleReference:''},{formula:'eval'}])test('rechaza cambio inválido sin tocar fechas: '+JSON.stringify(patch),()=>{const first=base();assert.throws(()=>salaryEffectivePlan([first],selected([first]),update(patch),'2026-11'));assert.equal(first.validUntil,null);});
-test('capacidad incluye antecedentes y nuevos períodos sin recorte',()=>{const rows=salaryItems(Array.from({length:500},(_,number)=>row({code:String(number+1),unit:'money'})));assert.equal(salaryEffectivePlan(rows,selected(rows),update(),'2026-11').items.length,1000);const extra=row({code:'501',unit:'money'});assert.throws(()=>salaryEffectivePlan([...rows,extra],selected([...rows,extra]),update(),'2026-11'),/1002/);});
-test('dependientes adicionales cuentan contra el límite completo',()=>{const rows=salaryItems(Array.from({length:999},(_,number)=>row({code:String(number+1),unit:'money'})));const second=dependent(rows[0],{code:'9999'});assert.throws(()=>salaryEffectivePlan([...rows,second],selected([rows[0]]),update(),'2026-11'),/1002/);});
+test('capacidad incluye antecedentes y nuevos períodos sin recorte',()=>{const rows=salaryItems(Array.from({length:SALARY_MAX_ITEMS/2},(_,number)=>row({code:String(number+1),unit:'money'})));assert.equal(salaryEffectivePlan(rows,selected(rows),update(),'2026-11').items.length,SALARY_MAX_ITEMS);const extra=row({code:String(SALARY_MAX_ITEMS/2+1),unit:'money'});assert.throws(()=>salaryEffectivePlan([...rows,extra],selected([...rows,extra]),update(),'2026-11'),/10002/);});
+test('dependientes adicionales cuentan contra el límite completo',()=>{const rows=salaryItems(Array.from({length:SALARY_MAX_ITEMS-1},(_,number)=>row({code:String(number+1),unit:'money'})));const second=dependent(rows[0],{code:'999999'});assert.throws(()=>salaryEffectivePlan([...rows,second],selected([rows[0]]),update(),'2026-11'),/10002/);});

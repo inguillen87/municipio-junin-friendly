@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {salaryCopyPlan} from '../assets/native-salary-copy-model.js';
-import {salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
 import {row} from './fixtures/native-salary-synthetic.js';
 const classification=()=>['1','4','6'].flatMap(code=>[{kind:'agreements',code,label:'Convenio sintético '+code},{kind:'categories',code:'6',agreementCode:code,label:'Clase sintética revisada'}]);
 const selections=rows=>rows.map(before=>({key:salaryRowKey(before),before:structuredClone(before)}));
@@ -45,9 +45,9 @@ test('nonoverlapping historical and deactivated definitions are retained without
 test('dependency diamonds copy each definition once; reversed selections and targets yield the same complete plan',()=>{
  const aux=row({code:'88'}),a=row({code:'95',dependencies:[salaryRowKey(aux)]}),b=row({code:'44',dependencies:[salaryRowKey(aux)]}),rows=[aux,a,b];const p=copy(rows,['6','4'],[a,b]);assert.equal(p.newDefinitionsCount,6);assert.equal(p.dependencyCount,1);assert.deepEqual(p,copy([...rows].reverse(),['4','6'],[b,a]));
 });
-test('up to 1000 total definitions succeeds; an excess fails globally without truncation or source mutation',()=>{
+test('up to 10000 total definitions succeeds; an excess fails globally without truncation or source mutation',()=>{
  const selected=Array.from({length:90},(_,i)=>row({code:String(1000+i)})),p=copy(selected);assert.equal(p.items.length,270);assert.equal(p.changes.length,180);
- const rows=Array.from({length:500},(_,i)=>row({code:String(1000+i)}));assert.equal(copy(rows,['4']).items.length,1000);const before=JSON.stringify(rows);assert.throws(()=>copy(rows),/excede 1.000/);assert.equal(JSON.stringify(rows),before);
+ const rows=Array.from({length:SALARY_MAX_ITEMS/2},(_,i)=>row({code:String(1000+i)}));assert.equal(copy(rows,['4']).items.length,SALARY_MAX_ITEMS);const before=JSON.stringify(rows);assert.throws(()=>copy(rows),/excede 10.000/);assert.equal(JSON.stringify(rows),before);
 });
 test('empty, duplicated, edited, inactive, scale and mixed-source selections fail closed',()=>{
  const current=[row(),row({code:'88',active:false}),scale('1'),row({agreementCode:'4'})];

@@ -2,6 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';import {fileURLToPath} from 'node:url';
 import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa} from './lib/noelia-payroll-circuit-qa.mjs';
 import {buildSalaryAdministrativeIdentityInstallation} from './lib/salary-administrative-identity-installation.mjs';
+import {SALARY_STREAM_SQL} from './lib/native-salary-capacity-installation.mjs';
 import {buildExactProgramPrecisionInstallation} from './lib/exact-program-precision-installation.mjs';
 import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {createNativeSalaryHandler} from '../api/internal-native-salary.js';
@@ -28,8 +29,8 @@ export async function verifySalaryAdministrativeIdentity({major,transport='local
  let current=qa.actors.maker;
  const caps=['workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve'];
  const adapter={query:async(query,values)=>{
-  assert.match(query,/^SELECT public\.(?:native_salary|own_program)_(?:bootstrap|command|attempt)_v1\([\s\S]+\) AS result$/);
-  return [{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,k)=>{assert.ok(Number(k)>0&&Number(k)<=values.length);return q(values[Number(k)-1]);}),true)}];
+  assert.match(query,/^SELECT public\.(?:native_salary|own_program)_(?:bootstrap|command|attempt|stream)_v1\([\s\S]+\) AS result$/);
+  return [{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,k)=>{assert.ok(Number(k)>0&&Number(k)<=values.length);return values[Number(k)-1]===null?'NULL':q(values[Number(k)-1]);}),true)}];
  }};
  const env={INTERNAL_APP_ORIGIN:'https://salary-identity-qa.example'},deps={env,requireAccess:()=>({mode:'managed',principal:{user:{email:current.actorEmail},tenant:{source:'membership',id:current.tenantId,membershipId:current.membershipId,effectiveCapabilities:caps}}}),sessionFor:()=>({email:current.actorEmail,id:current.actorSessionId,version:current.actorSessionVersion,releaseSha:current.releaseSha}),getSql:()=>adapter};
  const handlers={salary:createNativeSalaryHandler(deps),program:createOwnProgramHandler(deps)};
@@ -107,6 +108,7 @@ export async function verifySalaryAdministrativeIdentity({major,transport='local
   const nativeHistorical=await api('salary');ok(nativeHistorical.permissions.canPropose&&nativeHistorical.scopeVersion===nativeActive.scopeVersion,'native-only historical contract keeps its verified administrative audit person and scope');
   const nativeContext=await db.run('SELECT native_salary_administrative_context_v1('+j(current)+')');ok(nativeContext.actorPersonId===nativeContract.person_id&&nativeContext.employmentContractId===null,'native historical audit does not advertise active employment');
   ok(await db.run("SELECT to_jsonb(NOT has_function_privilege('municontrol_actions_runtime_app','"+qa.schema+".native_salary_administrative_context_v1(jsonb)','EXECUTE'))"),'new audit helper is private and cannot be invoked by runtime directly');
+  if(browser!=='none')await sql(n(SALARY_STREAM_SQL)+';REVOKE ALL ON FUNCTION '+qa.schema+'.native_salary_stream_v1(jsonb,integer,text) FROM PUBLIC;GRANT EXECUTE ON FUNCTION '+qa.schema+'.native_salary_stream_v1(jsonb,integer,text) TO municontrol_actions_runtime_app');
   if(browser!=='none')await verifySalaryAdministrativeBrowser({handlers,env,actor:{...current,bindingId:qa.ids.binding},output:destination,check:ok,browserName:browser,
    revoke:()=>sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(current.membershipId)+'::uuid'),
    restore:()=>sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(current.membershipId)+'::uuid')});

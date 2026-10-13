@@ -1,4 +1,4 @@
-import {SalaryInputError,salaryDiff,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,SalaryInputError,salaryDiff,salaryExact,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
 
 const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputError('COPY_INPUT_INVALID',message);};
 const mapped=(row,agreementCode)=>({...row,agreementCode,dependencies:row.dependencies.map(key=>{const parts=key.split(':');parts[1]=agreementCode;return parts.join(':');}).sort()});
@@ -10,7 +10,7 @@ const overlap=(a,b)=>a.active&&b.active&&a.validFrom<=(b.validUntil??'9999-12')&
 // equated automatically. Complete-version SQL112 is still the sole write.
 export function salaryCopyPlan(raw,selections,targetAgreements,classification){
  const current=salaryItems(raw),byKey=new Map(current.map(row=>[salaryRowKey(row),row]));
- requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=1000,'Seleccioná conceptos o auxiliares del mismo convenio de origen.');
+ requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=SALARY_MAX_ITEMS,'Seleccioná conceptos o auxiliares del mismo convenio de origen.');
  requireInput(Array.isArray(targetAgreements)&&targetAgreements.length>0&&targetAgreements.length<=1000&&targetAgreements.every(code=>typeof code==='string'&&/^[0-9]{1,9}$/.test(code))&&new Set(targetAgreements).size===targetAgreements.length,'Elegí convenios de destino distintos, sin repetirlos.');
  requireInput(Array.isArray(classification),'Volvé a consultar el catálogo de convenios y clases.');
  const selected=new Map();let sourceAgreement=null;
@@ -26,7 +26,7 @@ export function salaryCopyPlan(raw,selections,targetAgreements,classification){
  for(const row of selected.values())include(row);
  const targets=[...targetAgreements].sort((a,b)=>a<b?-1:a>b?1:0),sourceRows=[...sources.values()].sort((a,b)=>salaryRowKey(a).localeCompare(salaryRowKey(b)));
  let newCount=0;for(const target of targets)for(const row of sourceRows)if(row.kind!=='scale'&&!byKey.has(salaryRowKey({...row,agreementCode:target})))newCount++;
- requireInput(current.length+newCount<=1000,'El conjunto completo excede 1.000 definiciones. No se recorta ni se divide la preparación.');
+ requireInput(current.length+newCount<=SALARY_MAX_ITEMS,'El conjunto completo excede 10.000 definiciones. No se recorta ni se divide la preparación.');
  const comparisons=[],conflicts=[],additions=[];
  for(const target of targets)for(const source of sourceRows){
   const candidate=mapped(source,target),key=salaryRowKey(candidate),existing=byKey.get(key)??null;

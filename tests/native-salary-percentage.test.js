@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {salaryEffectivePercentagePlan as plan,salaryPercentageComparisonCsv as exportComparison} from '../assets/native-salary-percentage-model.js';
-import {salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
+import {SALARY_MAX_ITEMS,salaryItems,salaryRowKey,salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {row} from './fixtures/native-salary-synthetic.js';
 const scale=(patch={})=>row({kind:'scale',categoryCode:'6',nature:null,unit:'money',value:'100.01',validFrom:'2026-09',...patch});
 const selected=rows=>rows.map(before=>({key:salaryRowKey(before),before:structuredClone(before)}));
@@ -32,7 +32,7 @@ test('no prolonga un intervalo terminado ni sustituye uno iniciado en el mes des
 test('cambio de fila, selección duplicada, inactiva, inexistente o de otro tipo exige nueva revisión',()=>{const source=scale(),choices=selected([source]);assert.throws(()=>plan([{...source,value:'100.02'}],choices,change(),'2026-10'),/Cambió/);assert.throws(()=>plan([source],[...choices,...choices],change(),'2026-10'),/más de una vez/);for(const candidate of [scale({active:false}),row({unit:'money',value:'100.01',validFrom:'2026-09'})])assert.throws(()=>plan([candidate],selected([candidate]),change(),'2026-10'),/únicamente escalas/);assert.throws(()=>plan([source],selected([scale({categoryCode:'9'})]),change(),'2026-10'),/Cambió/);});
 for(const percentage of [null,2,'','0','0.00','-2','+2','02','2e0','2,5','2.000000001','2\n','NaN'])test('porcentaje inválido '+JSON.stringify(percentage),()=>{const source=scale();assert.throws(()=>plan([source],selected([source]),change({percentage}),'2026-10'));});
 for(const patch of [{precision:null},{precision:'4'},{precision:9},{precision:-1},{sourceMonth:'2026-13'},{sourceMonth:'2026-10'},{ruleReference:''},{ruleReference:'x\nunsafe'},{unexpected:true}])test('declaración inválida '+JSON.stringify(patch),()=>{const source=scale();assert.throws(()=>plan([source],selected([source]),change(patch),'2026-10'));});
-test('el límite es global, incluye antecedentes y dependencias y no divide el catálogo',()=>{const rows=Array.from({length:501},(_,n)=>scale({categoryCode:String(n+1)}));assert.throws(()=>plan(rows,selected(rows),change(),'2026-10'),/1002/);const result=plan(rows.slice(0,500),selected(rows.slice(0,500)),change(),'2026-10');assert.equal(result.items.length,1000);});
+test('el límite es global, incluye antecedentes y dependencias y no divide el catálogo',()=>{const half=SALARY_MAX_ITEMS/2,rows=Array.from({length:half+1},(_,n)=>scale({categoryCode:String(n+1)}));assert.throws(()=>plan(rows,selected(rows),change(),'2026-10'),/10002/);const result=plan(rows.slice(0,half),selected(rows.slice(0,half)),change(),'2026-10');assert.equal(result.items.length,SALARY_MAX_ITEMS);});
 test('desbordamiento del importe rechaza todo el aumento en vez de truncarlo',()=>{const source=scale({value:'999999999999999999.00'});assert.throws(()=>plan([source],selected([source]),change({percentage:'100'}),'2026-10'),/18 dígitos/);});
 
 test('el incremento exacto conserva más decimales que la nueva escala si la base los necesita',()=>{const source=scale({value:'3.125',precision:3});const result=plan([source],selected([source]),change({percentage:'60',precision:0}),'2026-10');assert.equal(result.scaleComparisons[0].after,'5');assert.equal(result.scaleComparisons[0].increment,'1.875');assert.equal(result.scaleComparisons[0].incrementPrecision,3);assert.equal(source.value,'3.125');});
