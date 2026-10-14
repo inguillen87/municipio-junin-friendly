@@ -4,7 +4,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { launchOwnSyntheticBrowser } from './own-synthetic-browser.mjs';
-import { periodClassificationDefinition, preparePeriodClassification } from '../../assets/own-period-classification-model.js';
+import { periodClassificationDefinition,periodClassificationProvenance, preparePeriodClassification } from '../../assets/own-period-classification-model.js';
+
+export async function assertOwnPeriodClassificationBrowserProvenance(s,raw){
+ const proof=periodClassificationProvenance(raw),container=s('provenance'),details=container.locator('details'),summary=details.locator('summary'),references=details.locator('dl');
+ const expected=[['Alta propia',proof.registrationId],['Contenido original',proof.requestSha256],...(proof.kind==='employment_adoption_final'?[['Propuesta de adopción',proof.adoptionProposalId],['Decisión de adopción',proof.adoptionReviewId],['Sello',proof.sealSha256],['Revisión final',proof.finalRevision.revisionId],['Corte del respaldo (no es vigencia)',proof.finalRevision.cutoff],['Paquete final',proof.finalRevision.packageSha256],['Fuente final',proof.finalRevision.sourceSha256],['Manifiesto principal',proof.finalRevision.coreManifestSha256],['Manifiesto preparado',proof.finalRevision.curatedManifestSha256],['Hechos conservados',proof.finalRevision.factsSha256]]:[])];
+ assert.equal(await container.locator('p').first().innerText(),proof.kind==='native_registration'?'Alta creada en MuniControl. El circuito propio no requiere un registro previo en GRH.':'Registro incorporado al padrón propio mediante una adopción conservada.');
+ assert.equal(await summary.innerText(),'Ver referencias de la procedencia');
+ // References are deliberately behind progressive disclosure. Read the actual
+ // visible values only after the operator's explicit expansion, not innerText
+ // from a collapsed DETAILS that correctly hides its UUIDs and hashes.
+ if(await details.getAttribute('open')===null)await summary.click();
+ assert.notEqual(await details.getAttribute('open'),null);assert.ok(await references.isVisible());
+ assert.deepEqual(await references.locator('dt').allTextContents(),expected.map(([label])=>label));
+ assert.deepEqual(await references.locator('dd').allTextContents(),expected.map(([,value])=>value));
+ for(let n=0;n<expected.length;n++)assert.ok(await references.locator('dd').nth(n).isVisible(),'immutable provenance reference is visible: '+expected[n][0]);
+ await summary.click();assert.equal(await details.getAttribute('open'),null);assert.ok(await references.isHidden());return{kind:proof.kind,referenceCount:expected.length};
+}
 
 export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,setActor,period,contractId,employeeNumber,definition,bootstrap,output,check,browserName='chromium'}){
  assert.equal(browserName,'chromium');
@@ -57,7 +73,9 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
   await fresh();await select();assert.equal(writes.length,0);
   for(const key of Object.keys(declaration))assert.equal(await s(key).inputValue(),'');
   check(true,'built classification query keeps every code and date blank and issues zero writes');
-  check((await s('provenance').innerText()).includes(before.preparation.source.provenance.registrationId),'built panel shows the immutable own provenance separately from the explicit declaration');
+  const provenanceProof=await assertOwnPeriodClassificationBrowserProvenance(s,before.preparation.source.provenance);
+  for(const key of Object.keys(declaration))assert.equal(await s(key).inputValue(),'');
+  check(true,'built panel exposes every immutable provenance reference after explicit expansion and keeps all declaration codes and dates blank');
   for(const width of [390,320]){
    await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'classification panel has no page overflow at '+width+'px');
    check(await s('picker').evaluate(e=>e.getBoundingClientRect().height>=44),'classification legajo picker has a44px mobile target at '+width+'px');
@@ -99,7 +117,7 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
   for(const key of Object.keys(declaration))assert.equal(await s(key).inputValue(),'');
   assert.ok((await s('approved').innerText()).includes(declaration.documentReference));await panel.screenshot({path:path.join(output,'period-classification-desktop.png')});
   assert.deepEqual(errors,[]);check(true,'new verified consultation displays the approved declaration separately and never autocompletes a new draft');
-  fs.writeFileSync(path.join(output,'period-classification-browser-proof.json'),JSON.stringify({ok:true,browser:browserName,actualHandlers:true,actualSql:true,syntheticAuth:true,syntheticOnly:true,productiveBusinessWrites:0,writes:writes.length,reads:reads.length,errors},null,2)+'\n');
+  fs.writeFileSync(path.join(output,'period-classification-browser-proof.json'),JSON.stringify({ok:true,browser:browserName,actualHandlers:true,actualSql:true,syntheticAuth:true,syntheticOnly:true,productiveBusinessWrites:0,immutableProvenanceReferencesVerified:true,provenance:provenanceProof,provenanceDoesNotAutocompleteDeclaration:true,writes:writes.length,reads:reads.length,errors},null,2)+'\n');
  }catch(error){if(page&&!page.isClosed())await page.screenshot({path:path.join(output,'period-classification-browser-failure.png'),fullPage:true});throw error;}
  finally{holding?.release();allowed=true;actor(actors.maker);if(originalOrigin===undefined)delete env.INTERNAL_APP_ORIGIN;else env.INTERNAL_APP_ORIGIN=originalOrigin;await browser.close();}
 }

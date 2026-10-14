@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities,buildFinalClassificationInactiveSalaryGuardProbe} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities,buildFinalClassificationInactiveSalaryGuardProbe,runFinalClassificationReceiptPreviewQa} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -131,6 +131,38 @@ test('inactive salary probes retain every canonical lock and reader guard in one
  assert.doesNotMatch(sql,/WHEN OTHERS|pg_advisory|SESSION_BUSY|pg_sleep|(?:INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE)\b/);assert.equal(sql.match(/payroll_fixed_registry_subject_v2\(/g).length,1);
  assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.slice(1)}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.map(()=>contractIds[0])}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.map((id,n)=>n===0?'bad':id)}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,schema:'public'}));
  for(const changed of [source.replace('SHARE MODE NOWAIT','ACCESS SHARE MODE NOWAIT'),source.replace('public.person_identity,',''),source.replace('IF hold_lock THEN','IF true THEN')])assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,read:()=>changed}),/FINAL_CLASSIFICATION_SALARY_LOCK_SOURCE_CHANGED/);
+});
+
+const receiptPreviewRendered='SELECT '+blueprint.qa.schema+'.own_receipt_preview_v1('+quote(JSON.stringify(blueprint.qa.actors.maker))+'::jsonb,'+quote(JSON.stringify({period:'2026-09',fixture:'exact fictional preview parameters'}))+'::jsonb) AS result';
+const previewLockFailure=(relation=blueprint.qa.schema+'.native_employee_registration',state='55P03',context='own_receipt_snapshot_v1(jsonb,jsonb)')=>new Error('synthetic psql failure',{cause:{stderr:'psql:<stdin>:1: ERROR:  '+state+': could not obtain lock on relation "'+relation+'"\nCONTEXT:  SQL statement "LOCK TABLE fictional fixture IN SHARE MODE NOWAIT"\nPL/pgSQL function '+context+' line 4 at SQL statement\n'}});
+
+test('receipt preview observation retries only exact55P03 snapshot refusals with identical actor and bytes',async()=>{
+ const calls=[],errors=[],pauses=[],failure=previewLockFailure(),value={read:true},options={read,schema:blueprint.qa.schema,rendered:receiptPreviewRendered,onSqlError:e=>errors.push(e),pause:async ms=>pauses.push(ms)};
+ const outcome=await runFinalClassificationReceiptPreviewQa({...options,execute:async sql=>{calls.push(sql);if(calls.length<3)throw failure;return value;}});
+ assert.deepEqual(outcome,{value,attempts:3,retries:2,maxAttempts:3});assert.deepEqual(errors,[failure,failure]);assert.deepEqual(pauses,[100,250]);assert.equal(calls.length,3);assert.ok(calls.every(sql=>sql==='\n\\set VERBOSITY verbose\n'+receiptPreviewRendered));assert.ok(calls.every(sql=>sql.includes(quote(JSON.stringify(blueprint.qa.actors.maker)))));
+ const first=await runFinalClassificationReceiptPreviewQa({...options,execute:async()=>value});assert.deepEqual(first,{value,attempts:1,retries:0,maxAttempts:3});assert.equal(errors.length,2);
+ const helper=read('scripts/lib/own-period-classification-final-qa.mjs');for(const field of ['receiptPreviewBusinessStatePreserved:true','receiptPreviewEventWrites:0','receiptPreviewStateChecks','receiptEventCount','FINAL_CLASSIFICATION_RECEIPT_PREVIEW_CHANGED_BUSINESS_STATE'])assert.ok(helper.includes(field));
+});
+
+test('receipt preview refuses generic503, mappedBUSY, foreign relations and other SQL contexts without retry',async()=>{
+ const failures=[new Error('generic503'),new Error('network failed'),previewLockFailure(undefined,'P0001'),previewLockFailure('native_employee_registration'),previewLockFailure('mc_qa_fixed_092_'+'f'.repeat(32)+'.native_employee_registration'),previewLockFailure(blueprint.qa.schema+'.own_payroll_receipt_event'),previewLockFailure(undefined,'55P03','own_close_context_v1(jsonb,boolean,boolean)'),new Error('could not obtain lock on relation',{cause:{stderr:'ERROR: could not obtain lock on relation "'+blueprint.qa.schema+'.native_employee_registration"\nPL/pgSQL function own_receipt_snapshot_v1(jsonb,jsonb) line 4 at SQL statement\n'}})];
+ for(const failure of failures){let calls=0,pauses=0;const errors=[];await assert.rejects(runFinalClassificationReceiptPreviewQa({read,schema:blueprint.qa.schema,rendered:receiptPreviewRendered,execute:async()=>{calls++;throw failure;},onSqlError:e=>errors.push(e),pause:async()=>{pauses++;}}),error=>error===failure);assert.equal(calls,1);assert.equal(pauses,0);assert.deepEqual(errors,[failure]);}
+ const failure=previewLockFailure(),errors=[],pauses=[];let calls=0;await assert.rejects(runFinalClassificationReceiptPreviewQa({read,schema:blueprint.qa.schema,rendered:receiptPreviewRendered,execute:async()=>{calls++;throw failure;},onSqlError:e=>errors.push(e),pause:async ms=>pauses.push(ms)}),error=>error===failure);assert.equal(calls,3);assert.deepEqual(errors,[failure,failure,failure]);assert.deepEqual(pauses,[100,250]);
+});
+
+test('only the exact preview adapter gets client verbosity; commands and other reads remain single attempts',async()=>{
+ for(const query of ['SELECT public.own_receipt_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result','SELECT public.own_receipt_batch_v1($1::jsonb,$2::uuid) AS result','SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result']){
+  const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async sql=>{calls.push(sql);throw failure;}},onSqlError:e=>errors.push(e),read});
+  await assert.rejects(fixture.adapter.query(query,['{}','{}',blueprint.qa.ids.makerContract,'fixture']),error=>error===failure);assert.equal(calls.length,1);assert.equal(errors.length,1);assert.ok(!calls[0].includes('\\set'));assert.deepEqual(fixture.receiptPreviewReadProof(),{requests:0,attempts:0,retries:0,maxAttempts:3,maxObservedAttempts:0});
+ }
+ const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async(sql,runtime)=>{assert.equal(runtime,true);calls.push(sql);if(calls.length===1)throw failure;return{read:true};}},onSqlError:e=>errors.push(e),read}),values=[JSON.stringify(blueprint.qa.actors.maker),JSON.stringify({fixture:'unchanged request'})];
+ assert.deepEqual(await fixture.adapter.query('SELECT public.own_receipt_preview_v1($1::jsonb,$2::jsonb) AS result',values),[{result:{read:true}}]);assert.equal(calls.length,2);assert.equal(calls[0],calls[1]);assert.equal(errors.length,1);assert.deepEqual(fixture.receiptPreviewReadProof(),{requests:1,attempts:2,retries:1,maxAttempts:3,maxObservedAttempts:2});
+});
+
+test('preview retry source pins reject a changed reader, snapshot locks or non-stdin transport',async()=>{
+ const options={read,schema:blueprint.qa.schema,rendered:receiptPreviewRendered,execute:async()=>assert.fail('changed source must not execute'),onSqlError:()=>assert.fail('changed source must not reach SQL')};
+ for(const file of ['scripts/migrations/126-own-payroll-receipts.sql','scripts/migrations/142-adopted-own-payroll-receipts.sql','scripts/lib/own-payroll-psql-qa.mjs'])await assert.rejects(runFinalClassificationReceiptPreviewQa({...options,read:f=>read(f)+(f===file?'\n-- changed fixture source\n':'')}),/FINAL_CLASSIFICATION_RECEIPT_PREVIEW_SOURCE_CHANGED/);
+ await assert.rejects(runFinalClassificationReceiptPreviewQa({...options,rendered:receiptPreviewRendered.replace('own_receipt_preview_v1','own_receipt_command_v1')}),/FINAL_CLASSIFICATION_RECEIPT_PREVIEW_ONLY/);
 });
 
 test('all22 private/classification RPC sources and all5 payroll consumers retain exact source bytes',()=>{
