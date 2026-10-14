@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities,buildFinalClassificationInactiveSalaryGuardProbe} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -117,7 +117,20 @@ test('eligibility evidence preserves all57 source rows,55 inactive nulls and onl
  assert.deepEqual(assertFinalClassificationRangeEvidence(rows,activeIds,before,structuredClone(before)),{inactiveNullJurisdictionExcluded:true,activeRangeCount:2,inactiveRangeCount:55});assert.deepEqual(rows,original);
  for(const change of [r=>r.pop(),r=>r[2].jurisdictionCode='42',r=>r[2].eligible=true,r=>r[0].eligible=false,r=>r[2].endDate=null,r=>r[2].contractId=r[3].contractId]){const altered=structuredClone(rows);change(altered);assert.throws(()=>assertFinalClassificationRangeEvidence(altered,activeIds,before,before));}
  assert.throws(()=>assertFinalClassificationRangeEvidence(rows,activeIds,before,{...before,contracts:'4'.repeat(64)}),/FINAL_CLASSIFICATION_ELIGIBILITY_CHANGED_STORED_SOURCE/);
- const helper=read('scripts/lib/own-period-classification-final-qa.mjs');assert.ok(helper.indexOf('const rangeProof=assertFinalClassificationRangeEvidence')<helper.indexOf('await prepareOwnPeriodClassificationFixtureFacts(child'));assert.ok(helper.includes('for(const contractId of inactiveIds)await assert.rejects'));for(const flag of ['PAYROLL_FIXED_JURISDICTION_REQUIRED','PAYROLL_FIXED_NOT_FOUND','PAYROLL_FIXED_IDENTITY_CHANGED','inactiveSalarySubjectStillDenied:true'])assert.ok(helper.includes(flag));
+ const helper=read('scripts/lib/own-period-classification-final-qa.mjs');assert.ok(helper.indexOf('const rangeProof=assertFinalClassificationRangeEvidence')<helper.indexOf('await prepareOwnPeriodClassificationFixtureFacts(child'));assert.ok(helper.includes('await child.sql(buildFinalClassificationInactiveSalaryGuardProbe('));for(const flag of ['PAYROLL_FIXED_JURISDICTION_REQUIRED','PAYROLL_FIXED_NOT_FOUND','PAYROLL_FIXED_IDENTITY_CHANGED','inactiveSalarySubjectStillDenied:true'])assert.ok(helper.includes(flag));
+});
+
+test('inactive salary probes retain every canonical lock and reader guard in one bounded transaction',()=>{
+ const context={tenantId:blueprint.qa.actors.maker.tenantId,sourceBindingId:blueprint.qa.actors.maker.sourceBindingId},contractIds=Array.from({length:55},(_,n)=>'11111111-1111-4111-a111-'+String(n).padStart(12,'0'));
+ const options={read,schema:blueprint.qa.schema,context,contractIds},sql=buildFinalClassificationInactiveSalaryGuardProbe(options),source=read('scripts/migrations/138-adopted-fixed-novelties.sql'),guard=/IF hold_lock THEN (LOCK TABLE [\s\S]+? IN SHARE MODE NOWAIT;) END IF;/.exec(source);
+ assert.ok(guard);assert.equal(ownInstallationFunctionPin(splitPostgresStatements(source).find(s=>s.startsWith('CREATE FUNCTION public.payroll_fixed_registry_adopted_subject_v1('))).sha256,'83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa');
+ const expectedLock=guard[1].replace(' IN SHARE MODE NOWAIT;',' IN SHARE MODE;').replaceAll('public.',blueprint.qa.schema+'.');assert.equal(sql.slice(0,sql.indexOf('\nDO ')),expectedLock);assert.equal(expectedLock.match(new RegExp(blueprint.qa.schema+'\\.','g')).length,8);
+ for(const id of contractIds)assert.equal(sql.split(JSON.stringify(id)).length,2,'each exact contract is present once');
+ assert.ok(sql.includes(blueprint.qa.schema+'.payroll_fixed_registry_subject_v2('+quote(JSON.stringify(context))+'::jsonb,target,true)'));
+ assert.match(sql,/EXCEPTION WHEN SQLSTATE 'P0001' THEN\s+IF SQLERRM<>'PAYROLL_FIXED_JURISDICTION_REQUIRED' THEN RAISE; END IF;/);assert.match(sql,/IF blocked<>55 THEN RAISE EXCEPTION 'FINAL_CLASSIFICATION_INACTIVE_SALARY_GUARD_COUNT'/);assert.match(sql,/'inactiveSalarySubjectBlockedCount',current_setting\('municontrol_qa177\.inactive_salary_blocked_count'\)::integer/);
+ assert.doesNotMatch(sql,/WHEN OTHERS|pg_advisory|SESSION_BUSY|pg_sleep|(?:INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE)\b/);assert.equal(sql.match(/payroll_fixed_registry_subject_v2\(/g).length,1);
+ assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.slice(1)}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.map(()=>contractIds[0])}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,contractIds:contractIds.map((id,n)=>n===0?'bad':id)}));assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,schema:'public'}));
+ for(const changed of [source.replace('SHARE MODE NOWAIT','ACCESS SHARE MODE NOWAIT'),source.replace('public.person_identity,',''),source.replace('IF hold_lock THEN','IF true THEN')])assert.throws(()=>buildFinalClassificationInactiveSalaryGuardProbe({...options,read:()=>changed}),/FINAL_CLASSIFICATION_SALARY_LOCK_SOURCE_CHANGED/);
 });
 
 test('all22 private/classification RPC sources and all5 payroll consumers retain exact source bytes',()=>{

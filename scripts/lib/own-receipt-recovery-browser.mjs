@@ -9,6 +9,18 @@ import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 import {ownReceiptParams} from '../../assets/own-payroll-receipt-model.js';
 import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.js';
 
+const receiptRecoveryControls=Object.freeze(['period','types','scope','departmentFrom','departmentTo','date','legend','all','consult','reason','confirm','contracts','prepare']);
+export async function assertOwnReceiptRecoveryControls(p,locked){
+ assert.equal(typeof p,'function');assert.equal(typeof locked,'boolean');const fields=p('fields');
+ // Playwright's isDisabled applies to form controls, not the FIELDSET itself.
+ // Verify its actual native lock and every editable payload/control used by
+ // this department-scoped drill, including the separate decision fieldset.
+ assert.equal(await fields.evaluate(el=>el.tagName),'FIELDSET');
+ assert.equal(await fields.evaluate(el=>el.disabled),locked,'receipt fieldset native lock');
+ assert.equal((await fields.getAttribute('disabled'))!==null,locked,'receipt fieldset disabled attribute');
+ for(const key of receiptRecoveryControls)assert.equal(await p(key).isDisabled(),locked,'receipt effective control lock: '+key);
+}
+
 export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActor,auth,params,expectedRecords,eventCount,preserved,output,check,browserName='chromium'}){
  assert.equal(browserName,'chromium');assert.equal(typeof handler,'function');assert.equal(typeof auth,'function');assert.equal(typeof eventCount,'function');assert.equal(typeof preserved,'function');
  const declared=ownReceiptParams(params);assert.ok(expectedRecords.length>0);assert.ok(expectedRecords.every(r=>r.departmentCode===declared.filters.departmentFrom));
@@ -55,14 +67,14 @@ export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActo
   const reason='Preparación exclusivamente sintética de recuperación de recibos QA177';await p('reason').fill(reason);await p('prepare').click();await idle();
   assert.equal(commands.length,1);const original=structuredClone(commands[0]);assert.equal(original.status,409);assert.equal(original.response.code,'OWN_RECEIPT_STATE_CHANGED');assert.notEqual(original.submitted.sourceVersion,original.original.sourceVersion);
   assert.deepEqual({...original.submitted,sourceVersion:original.original.sourceVersion},original.original);assert.deepEqual(original.original.params,declared);
-  assert.ok(await p('fields').isDisabled());assert.ok(await p('correct').isHidden());assert.ok(await p('recover').isVisible());assert.equal(await eventCount(),initialEvents);assert.deepEqual(await preserved(),before);
+  await assertOwnReceiptRecoveryControls(p,true);assert.ok(await p('correct').isHidden());assert.ok(await p('recover').isVisible());assert.equal(await eventCount(),initialEvents);assert.deepEqual(await preserved(),before);
   await p('recover').click();await idle();assert.equal(commands.length,1);
   const absence=requests.filter(r=>r.resource==='attempt'&&r.attemptKey===original.key).at(-1);assert.ok(absence);assert.equal(absence.status,404);
-  assert.ok(await p('correct').isVisible());assert.ok(await p('fields').isDisabled());
+  assert.ok(await p('correct').isVisible());await assertOwnReceiptRecoveryControls(p,true);
   check(true,'real SQL409 and same-key404 expose explicit correction while preserving the original attempt and all business records');
   const readStart=requests.length;await p('correct').click();await idle();assert.equal(commands.length,1);assert.deepEqual(commands[0],original);
   const revalidated=requests.slice(readStart);assert.ok(revalidated.some(r=>r.resource==='issuer'&&r.status===200));assert.ok(revalidated.some(r=>r.operation==='preview'&&r.status===200));assert.ok(revalidated.some(r=>r.resource==='attempt'&&r.attemptKey===original.key&&r.status===404));
-  assert.ok(await p('fields').isEnabled());assert.ok(await p('result').isVisible());assert.ok(await p('correct').isHidden());assert.ok(await p('recover').isHidden());assert.ok(await p('retry').isHidden());assert.ok(await p('previous').isVisible());
+  await assertOwnReceiptRecoveryControls(p,false);assert.ok(await p('result').isVisible());assert.ok(await p('correct').isHidden());assert.ok(await p('recover').isHidden());assert.ok(await p('retry').isHidden());assert.ok(await p('previous').isVisible());
   assert.ok((await p('previous').innerText()).includes(original.key));assert.equal(await p('reason').inputValue(),reason);assert.equal(await p('period').inputValue(),declared.period);assert.equal(await p('scope').inputValue(),'department');assert.equal(await p('departmentFrom').inputValue(),declared.filters.departmentFrom);assert.equal(await p('departmentTo').inputValue(),declared.filters.departmentTo);assert.equal(await p('date').inputValue(),declared.paymentDate);assert.equal(await p('legend').inputValue(),declared.legend);assert.equal(await p('confirm').isChecked(),false);
   assert.deepEqual(previews.at(-1).snapshot.params,declared);assert.deepEqual(previews.at(-1).snapshot.records,expectedRecords);
   for(const record of expectedRecords)assert.ok((await p('rows').innerText()).includes(formatOwnRunDecimal(record.totals.net)));
@@ -79,7 +91,7 @@ export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActo
   assert.ok((await p('state').innerText()).includes('pendiente de revisión'));assert.ok(await p('approve').isDisabled());assert.ok(next.response.ok);assert.equal(next.response.data.body.command,'prepare');
   const after=await preserved();assert.deepEqual({...after,receipts:before.receipts},before);assert.deepEqual(errors,[]);assert.deepEqual(routeFailures,[]);
   check(true,'only a later explicit preparation obtains a new key and saves one pending receipt event; source, identities, captures, results and close remain unchanged');
-  const proof={ok:true,browser:browserName,actualHandler:true,actualSql:true,syntheticAuth:true,syntheticIssuer:true,syntheticOnly:true,firstCommandSourceHashAltered:true,realDeterministicRejection:original.response.code,realAttemptNotFound:true,readOnlyCorrection:true,exactDraftPreserved:true,exactRecordsPreserved:true,newExplicitPreparation:true,commandPosts:commands.length,receiptEventsAdded:1,recordCount:expectedRecords.length,productiveBusinessWrites:0,errors};
+  const proof={ok:true,browser:browserName,actualHandler:true,actualSql:true,syntheticAuth:true,syntheticIssuer:true,syntheticOnly:true,firstCommandSourceHashAltered:true,realDeterministicRejection:original.response.code,realAttemptNotFound:true,readOnlyCorrection:true,exactDraftPreserved:true,exactRecordsPreserved:true,nativeFieldsetLockVerified:true,effectiveControlLocksVerified:[...receiptRecoveryControls],explicitCorrectionUnlockVerified:true,newExplicitPreparation:true,commandPosts:commands.length,receiptEventsAdded:1,recordCount:expectedRecords.length,productiveBusinessWrites:0,errors};
   fs.writeFileSync(path.join(output,'receipt-recovery-browser-proof.json'),JSON.stringify(proof,null,2)+'\n');return proof;
  }catch(error){if(page&&!page.isClosed())await page.screenshot({path:path.join(output,'receipt-recovery-browser-failure.png'),fullPage:true});throw error;}
  finally{setActor(actor);if(originalOrigin===undefined)delete env.INTERNAL_APP_ORIGIN;else env.INTERNAL_APP_ORIGIN=originalOrigin;await browser.close();}

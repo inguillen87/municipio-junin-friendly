@@ -215,6 +215,39 @@ export function assertFinalClassificationRangeEvidence(rows,activeIds,before,aft
  return Object.freeze({inactiveNullJurisdictionExcluded:true,activeRangeCount:2,inactiveRangeCount:55});
 }
 
+// Keep the original salary guard's eight SHARE locks throughout this single
+// synthetic probe. A separate psql process for each expected exception could
+// overlap backend teardown or table maintenance with the next NOWAIT call.
+// The initial bounded lock may wait or fail; no BUSY/other error is retried or
+// accepted. Every subject still invokes the exact runtime reader with true.
+export function buildFinalClassificationInactiveSalaryGuardProbe({read,schema,context,contractIds}){
+ assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(typeof read,'function');
+ assert.ok(Array.isArray(contractIds));assert.equal(contractIds.length,55);assert.equal(new Set(contractIds).size,55);
+ for(const id of contractIds)assert.match(id,/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/);
+ assert.ok(context&&typeof context==='object'&&!Array.isArray(context));
+ const source=read('scripts/migrations/138-adopted-fixed-novelties.sql').replace(/\r\n?/g,'\n');
+ assert.equal(fileHash(source),'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469','FINAL_CLASSIFICATION_SALARY_LOCK_SOURCE_CHANGED');
+ const definitions=splitPostgresStatements(source).filter(s=>s.startsWith('CREATE FUNCTION public.payroll_fixed_registry_adopted_subject_v1('));assert.equal(definitions.length,1);
+ assert.equal(ownInstallationFunctionPin(definitions[0]).sha256,'83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa','FINAL_CLASSIFICATION_SALARY_LOCK_BODY_CHANGED');
+ const guard='IF hold_lock THEN LOCK TABLE public.employment_contract,public.person_identity,public.native_employee_registration,\n  public.platform_tenant_source_binding,public.employment_adoption_application,public.employment_adoption_decision,\n  public.employment_adoption_proposal,public.native_employment_lifecycle_review IN SHARE MODE NOWAIT; END IF;';
+ assert.equal(definitions[0].split(guard).length,2,'FINAL_CLASSIFICATION_SALARY_LOCK_TABLES_CHANGED');
+ const lock=guard.slice('IF hold_lock THEN '.length,-' END IF;'.length).replace(' IN SHARE MODE NOWAIT;',' IN SHARE MODE;').replaceAll('public.',schema+'.');
+ return lock+`\nDO $inactive_salary_guard_probe$ DECLARE target uuid; blocked integer:=0; BEGIN
+ FOR target IN SELECT value::uuid FROM jsonb_array_elements_text(${j(contractIds)}) LOOP
+  BEGIN
+   PERFORM ${schema}.payroll_fixed_registry_subject_v2(${j(context)},target,true);
+   RAISE EXCEPTION 'FINAL_CLASSIFICATION_INACTIVE_SALARY_GUARD_NOT_ENFORCED';
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+   IF SQLERRM<>'PAYROLL_FIXED_JURISDICTION_REQUIRED' THEN RAISE; END IF;
+   blocked:=blocked+1;
+  END;
+ END LOOP;
+ IF blocked<>55 THEN RAISE EXCEPTION 'FINAL_CLASSIFICATION_INACTIVE_SALARY_GUARD_COUNT'; END IF;
+ PERFORM set_config('municontrol_qa177.inactive_salary_blocked_count',blocked::text,true);
+ END $inactive_salary_guard_probe$;
+ SELECT jsonb_build_object('inactiveSalarySubjectBlockedCount',current_setting('municontrol_qa177.inactive_salary_blocked_count')::integer,'inactiveSalaryGuardHeldLock',true)`;
+}
+
 export async function finalAdoptedHistory({h,installation,major,transport='local'}){
  assert.ok([17,18].includes(major));assert.ok(['local','ci'].includes(transport));
  const {prepareOwnPeriodClassificationFixtureFacts,publishOwnPeriodClassificationFixtureProgram}=await import('./own-period-classification-qa.mjs');
@@ -262,7 +295,8 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   // salary subject still requires jurisdiction. No dates/nuls are repaired.
   const beforeEligibility=await sourceState(),administrativeContext=await db.run('SELECT native_salary_administrative_context_v1('+j(actors.maker)+')'),rangeContext={...administrativeContext,certifiedBindingId:administrativeContext.sourceBindingId};
   const inactiveIds=await db.run("SELECT coalesce(jsonb_agg(c.id ORDER BY c.id),'[]') FROM employment_adoption_application a JOIN employment_contract c ON c.id=a.contract_id WHERE c.status='inactive' AND c.jurisdiction_code IS NULL");assert.equal(inactiveIds.length,55);
-  for(const contractId of inactiveIds)await assert.rejects(db.run('SELECT payroll_fixed_registry_subject_v2('+j(rangeContext)+','+q(contractId)+'::uuid,true)'),/\bPAYROLL_FIXED_JURISDICTION_REQUIRED\b/);
+  const inactiveSalaryGuardProof=await child.sql(buildFinalClassificationInactiveSalaryGuardProbe({read:h.options.read,schema:qa.schema,context:rangeContext,contractIds:inactiveIds}));
+  assert.deepEqual(inactiveSalaryGuardProof,{inactiveSalarySubjectBlockedCount:55,inactiveSalaryGuardHeldLock:true});
   const rangeCall=(ctx,id)=>'SELECT payroll_fixed_registry_range_v2('+j(ctx)+','+q(id)+'::uuid,'+q(period+'-01')+'::date,'+q(dates.lastDate)+'::date,false)';
   await assert.rejects(db.run(rangeCall({...rangeContext,tenantId:randomUUID()},inactiveIds[0])),/\bPAYROLL_FIXED_NOT_FOUND\b/);
   const foreignBinding=randomUUID();await assert.rejects(db.run(rangeCall({...rangeContext,sourceBindingId:foreignBinding,certifiedBindingId:foreignBinding},inactiveIds[0])),/\bPAYROLL_FIXED_IDENTITY_CHANGED\b/);
@@ -286,7 +320,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const receiptBody={command:'prepare',scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params,batchId:null,batchSha256:null,reason:subjectReason,reviewConfirmed:false},emission=await child.api('receipt',{body:receiptBody,expected:201});child.setActor(actors.checker);const rb=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),rp=await child.api('receipt',{previewParams:params});await child.api('receipt',{body:{...receiptBody,command:'approve',scopeVersion:rp.scopeVersion,sourceVersion:rp.snapshot.sourceVersion,params:null,batchId:emission.batchId,batchSha256:rb.snapshotSha256,reason:reviewReason,reviewConfirmed:true},expected:201});
   const issued=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),group=await child.api('close',{query:{resource:'group',id:closed.groupId}}),planilla=await prepareOwnPlanilla(issued,[group],'55');assert.equal(planilla.total,2);assert.equal(planilla.selected,2);assert.ok(planilla.records.every(r=>r.departmentCode==='21'&&r.jurisdiction==='55'&&r.totals.net==='500.22'));
   assert.deepEqual(await sourceState(),originals);assert.deepEqual(await parentState(),parentBefore);
-  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,inactiveSalarySubjectStillDenied:true,period,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
+  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,...inactiveSalaryGuardProof,inactiveSalarySubjectStillDenied:true,period,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
  }finally{
   if(seeded){assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name='+q(db.applicationName)),0);await sql(tx(['DROP SCHEMA '+qa.schema+' CASCADE']));assert.deepEqual(await parentState(),parentBefore);assert.deepEqual(await schemaInventory(),schemasBefore);if(proof){proof.syntheticSchemaRemoved=true;proof.priorSchemaInventoryPreserved=true;}}
  }
