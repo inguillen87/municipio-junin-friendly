@@ -75,3 +75,27 @@ test('source drift, lost guards and database-derived alternatives are refused',(
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,relocate:s=>relocate(s).replaceAll('SQL130_NEW_OBJECTS_NOT_EMPTY','lost')}),/READY_GUARD_LOST/);
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,beforePins:batch.beforePins.map(p=>p.name==='municipal_adoption_ready_v1'?{...p,sha256:'b'.repeat(64)}:p)}}));
 });
+
+test('the declared QA predecessor adapts only exact138 salary83 to published47 and preserves the already strict readiness',()=>{
+ const p=artifact.predecessor;assert.equal(p.productionCompatible,false);assert.equal(p.connects,false);assert.equal(p.executesSql,false);
+ assert.equal(p.priorSalaryPin.sha256,'83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa');assert.equal(p.afterSalaryPin.sha256,'47aa5dda0e474a3efa9279d526d86855d670dce0f0c47097cd6d97e7e4e32672');
+ assert.deepEqual({...p.priorSalaryPin,sha256:null},{...p.afterSalaryPin,sha256:null});assert.equal(p.priorSalaryPin.runtime,false);
+ assert.equal(p.mutations.length,1);const definition=p.mutations[0];assert.match(definition,new RegExp('^CREATE OR REPLACE FUNCTION '+qa.schema+'\\.payroll_fixed_registry_adopted_subject_v1\\('));
+ assert.equal(sourcePin(definition.replaceAll(qa.schema,'public')).sha256,p.afterSalaryPin.sha256);assert.match(definition,/IF c\.jurisdiction_code IS NULL THEN RAISE EXCEPTION 'PAYROLL_FIXED_JURISDICTION_REQUIRED'/);
+ assert.equal(p.priorFixtureReadySha256,artifact.fixtureBeforeSha256);assert.ok(artifact.beforeDefinition.includes(p.afterSalaryPin.sha256));assert.ok(!artifact.beforeDefinition.includes(p.priorSalaryPin.sha256));
+ assert.ok(p.beforeCheck.includes(p.priorSalaryPin.sha256)&&p.beforeCheck.includes(p.priorFixtureReadySha256));assert.ok(p.afterCheck.includes(p.afterSalaryPin.sha256)&&p.afterCheck.includes(p.priorFixtureReadySha256));
+ assert.match(p.statements[0],/current_database\(\)<>'own_payroll_run_qa'/);assert.match(p.statements[0],/current_setting\('neon.project_id',true\)/);
+ assert.match(p.beforeCheck,/aclexplode/);assert.match(p.afterCheck,/has_function_privilege/);
+ const snapshots=p.statements.filter(s=>s.includes('DO $snapshot$'));assert.equal(snapshots.length,2);
+ for(const s of snapshots){assert.ok(s.includes("to_jsonb(p)-'prosrc'"));assert.ok(s.includes(p.priorSalaryPin.signature.replace('public.',qa.schema+'.')));assert.ok(!s.includes("NOT(s.nspname='"+qa.schema+"' AND p.proname LIKE 'native_leave_%')"));assert.match(s,/'tables',tables/);assert.match(s,/'roles'/);assert.match(s,/'memberships'/);assert.match(s,/'defaultAcl'/);}
+ assert.ok(p.statements.some(s=>s.includes('PERIOD_CLASSIFICATION_QA_PREDECESSOR_STATE_CHANGED')));
+ assert.ok(!p.mutations.some(s=>s.includes('FUNCTION '+qa.schema+'.municipal_adoption_ready_v1(')));assert.doesNotMatch(p.mutations.join('\n'),/\b(?:GRANT|REVOKE|INSERT INTO|UPDATE public\.|DELETE FROM)\b/);
+ assert.equal(batch.prerequisitePins.length,41);assert.equal(batch.prerequisitePins.find(x=>x.name===p.afterSalaryPin.name).sha256,p.afterSalaryPin.sha256);assert.ok(batch.beforeCheck.includes(p.afterSalaryPin.sha256)&&!batch.beforeCheck.includes(p.priorSalaryPin.sha256));
+});
+
+test('the QA predecessor refuses altered138, altered strict body, public grants and alternate observed authority',()=>{
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p==='scripts/migrations/138-adopted-fixed-novelties.sql'?'\n-- drift':'')}),/FIXTURE_SOURCE_CHANGED/);
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,lifecyclePrerequisiteDefinitions:batch.lifecyclePrerequisiteDefinitions.map((s,i)=>i===0?s.replace("IF c.jurisdiction_code IS NULL THEN RAISE EXCEPTION 'PAYROLL_FIXED_JURISDICTION_REQUIRED';END IF;",''):s)}}));
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,prerequisitePins:batch.prerequisitePins.map(p=>p.name==='payroll_fixed_registry_adopted_subject_v1'?{...p,runtime:true}:p)}}));
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,predecessorDefinition:'BEGIN NULL;END'}),/UNKNOWN_OPTION/);
+});
