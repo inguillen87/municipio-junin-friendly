@@ -39,7 +39,7 @@ export function buildOwnPeriodClassificationQaRelocation(options){
  assert.equal(live.sourceCommit,sourceCommit);assert.equal(live.connects,false);assert.equal(live.executesSql,false);
  const beforeLive=live.beforePins.find(p=>p.name==='municipal_adoption_ready_v1'),afterLive=live.afterConsumerPins.find(p=>p.name==='municipal_adoption_ready_v1');
  assert.equal(beforeLive.sha256,'c4546ebd3e2dacfff29aad1edfea16b6dc4061774598110e7b10c58f264fdb08');
- assert.equal(live.beforePins.length,5);assert.equal(live.newPins.length,21);assert.equal(live.afterPins.length,26);
+ assert.equal(live.beforePins.length,6);assert.equal(live.newPins.length,22);assert.equal(live.afterPins.length,28);
  const beforeSource=buildOwnPeriodParticipationSql({read,sourceCommit}).changed.find(s=>s.includes('FUNCTION public.municipal_adoption_ready_v1('));
  const beforeSourcePin=ownInstallationFunctionPin(beforeSource);
  assert.equal(beforeSourcePin.sha256,'a8240fc907a5f4091b673a438f10207c19db49985cc5edf392c454c8683e74b6','PERIOD_CLASSIFICATION_QA_READY_SOURCE_CHANGED');
@@ -49,6 +49,7 @@ export function buildOwnPeriodClassificationQaRelocation(options){
   ['own_run_capture_v1','18061aa38556ee715edf0413b9583cd8717d58717c1cfa0ff24fddc8c778ff6d'],
   ['own_close_roster_v1','aa89d27c43d147d9150f141522350445d3ef6e48203f88b63531992b3945d84d'],
   ['own_run_jurisdictions_v1','dab6d819db8c361600b7676787c1a8deb7fd01939edc938f97558d627e0fb93a'],
+  ['payroll_fixed_registry_range_v2','30afb71e97988bd4862d98d3d56d84603252bbb600812d5f40c63a5596a69546'],
  ]){
   const current=live.afterConsumerPins.find(p=>p.name===name);assert.ok(current);
   afterSource=once(afterSource,prior,current.sha256);
@@ -59,7 +60,7 @@ export function buildOwnPeriodClassificationQaRelocation(options){
  const beforeDefinition=relocate(functionPreface(beforeSource)),afterDefinition=relocate(functionPreface(afterSource));
  for(const definition of[beforeDefinition,afterDefinition]){
   assert.ok(definition.includes('FUNCTION '+schema+'.municipal_adoption_ready_v1('));
-  for(const marker of['ADOPTED_CONSUMERS_AFTER_METADATA','SQL130_NEW_OBJECTS_NOT_EMPTY','own_close_roster_v1','own_run_jurisdictions_v1','own_run_capture_v1'])assert.ok(definition.includes(marker),'PERIOD_CLASSIFICATION_QA_READY_GUARD_LOST: '+marker);
+  for(const marker of['ADOPTED_CONSUMERS_AFTER_METADATA','SQL130_NEW_OBJECTS_NOT_EMPTY','own_close_roster_v1','own_run_jurisdictions_v1','own_run_capture_v1','payroll_fixed_registry_range_v2'])assert.ok(definition.includes(marker),'PERIOD_CLASSIFICATION_QA_READY_GUARD_LOST: '+marker);
  }
  const fixtureBeforeSha256=hash(body(canonical(beforeDefinition))),fixtureAfterSha256=hash(body(canonical(afterDefinition)));
  assert.notEqual(fixtureBeforeSha256,fixtureAfterSha256);

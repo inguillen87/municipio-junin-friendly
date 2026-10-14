@@ -14,6 +14,9 @@ on:
       - 'scripts/migrations/177-own-period-classification.sql'
       - 'scripts/verify-own-period-classification.mjs'
       - 'scripts/lib/own-period-classification*'
+      - 'scripts/lib/own-receipt-recovery-browser.mjs'
+      - 'assets/own-payroll-receipt-panel.*'
+      - 'tests/own-payroll-receipt-panel.test.js'
       - 'scripts/lib/own-payroll-administrative-operator*'
       - 'scripts/lib/own-contract-salary-conditions*'
       - 'scripts/lib/own-contract-working-time*'
@@ -44,6 +47,9 @@ on:
       - 'scripts/migrations/177-own-period-classification.sql'
       - 'scripts/verify-own-period-classification.mjs'
       - 'scripts/lib/own-period-classification*'
+      - 'scripts/lib/own-receipt-recovery-browser.mjs'
+      - 'assets/own-payroll-receipt-panel.*'
+      - 'tests/own-payroll-receipt-panel.test.js'
       - 'scripts/lib/own-payroll-administrative-operator*'
       - 'scripts/lib/own-contract-salary-conditions*'
       - 'scripts/lib/own-contract-working-time*'
@@ -112,4 +118,5 @@ jobs:
             verification/period-classification-pg${{ matrix.pg }}/*failure.png
             verification/period-classification-pg${{ matrix.pg }}/period-classification-mobile-*.png
             verification/period-classification-pg${{ matrix.pg }}/period-classification-desktop.png
+            verification/period-classification-pg${{ matrix.pg }}/receipt-recovery-*.png
           retention-days: 5

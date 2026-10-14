@@ -136,6 +136,8 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
  // The current close/detail consumer is a reviewed source derivation of125,
  //141 and143. Use that canonical generated artifact, never a database body.
  sourceArtifacts.push({file:'source-generated:own-period-classification.originals',text:withoutReady(installation.originals).join(';\n')});
+ assert.equal(installation.lifecyclePrerequisiteDefinitions.length,6);
+ sourceArtifacts.push({file:'source-generated:own-period-classification.lifecyclePrerequisites',text:installation.lifecyclePrerequisiteDefinitions.join(';\n')});
  const candidates=sourceArtifacts.flatMap(a=>splitPostgresStatements(a.text).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim()).filter(s=>definitionName(s)).map(s=>{const source=normalizeFinalClassificationQaHeader(s);return {source,file:a.file,pin:ownInstallationFunctionPin(source)};}));
  const bridgePins=[],bridge=[];
  for(const target of needed){
@@ -187,6 +189,17 @@ export function makeFinalClassificationQaHandlers({qa,db,onSqlError=()=>{}}){
  return {handlers,adapter,env,api,setActor:a=>{current=a;},caps};
 }
 
+// Validate only the declared fixture evidence. This does not resolve an
+// employee, execute SQL or calculate payroll; the callback obtains every row
+// through the real range reader and verifies the before/after stored state.
+export function assertFinalClassificationRangeEvidence(rows,activeIds,before,after){
+ assert.ok(Array.isArray(rows));assert.equal(rows.length,57);assert.equal(new Set(rows.map(r=>r.contractId)).size,57);assert.equal(activeIds.length,2);assert.equal(new Set(activeIds).size,2);
+ const active=rows.filter(r=>r.status==='active'),inactive=rows.filter(r=>r.status==='inactive');assert.equal(active.length,2);assert.equal(inactive.length,55);assert.deepEqual(active.map(r=>r.contractId).sort(),[...activeIds].sort());
+ for(const row of rows){assert.deepEqual(Object.keys(row).sort(),['contractId','eligible','endDate','jurisdictionCode','startDate','status']);assert.equal(row.startDate,'2001-02-03');if(row.status==='active'){assert.equal(row.jurisdictionCode,'42');assert.equal(row.endDate,null);assert.equal(row.eligible,true);}else{assert.equal(row.jurisdictionCode,null);assert.equal(row.endDate,'2019-12-31');assert.equal(row.eligible,false);}}
+ assert.deepEqual(after,before,'FINAL_CLASSIFICATION_ELIGIBILITY_CHANGED_STORED_SOURCE');
+ return Object.freeze({inactiveNullJurisdictionExcluded:true,activeRangeCount:2,inactiveRangeCount:55});
+}
+
 export async function finalAdoptedHistory({h,installation,major,transport='local'}){
  assert.ok([17,18].includes(major));assert.ok(['local','ci'].includes(transport));
  const {prepareOwnPeriodClassificationFixtureFacts,publishOwnPeriodClassificationFixtureProgram}=await import('./own-period-classification-qa.mjs');
@@ -229,6 +242,17 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const dates=await db.run("SELECT jsonb_build_object('createdDate',to_char(min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD'),'period',to_char((min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza')::date-interval '1 month','YYYY-MM'),'lastDate',to_char(date_trunc('month',min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza')-interval '1 day','YYYY-MM-DD'),'today',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD')) FROM native_employee_registration n JOIN employment_adoption_application a ON a.registration_id=n.id");
   assert.equal(dates.createdDate,dates.today);const period=dates.period,targets=[qa.ids.makerContract,qa.ids.checkerContract].sort();
   const eligible=await db.run('SELECT coalesce(jsonb_agg(c.id ORDER BY c.id),\'[]\') FROM employment_adoption_application a JOIN employment_contract c ON c.id=a.contract_id WHERE c.status=\'active\'');assert.deepEqual(eligible,targets);
+  // Inactive adopted records remain in the original57-row source. The range
+  // reader must exclude all55 by their verified dates while their direct
+  // salary subject still requires jurisdiction. No dates/nuls are repaired.
+  const beforeEligibility=await sourceState(),administrativeContext=await db.run('SELECT native_salary_administrative_context_v1('+j(actors.maker)+')'),rangeContext={...administrativeContext,certifiedBindingId:administrativeContext.sourceBindingId};
+  const inactiveIds=await db.run("SELECT coalesce(jsonb_agg(c.id ORDER BY c.id),'[]') FROM employment_adoption_application a JOIN employment_contract c ON c.id=a.contract_id WHERE c.status='inactive' AND c.jurisdiction_code IS NULL");assert.equal(inactiveIds.length,55);
+  for(const contractId of inactiveIds)await assert.rejects(db.run('SELECT payroll_fixed_registry_subject_v2('+j(rangeContext)+','+q(contractId)+'::uuid,true)'),/\bPAYROLL_FIXED_JURISDICTION_REQUIRED\b/);
+  const rangeCall=(ctx,id)=>'SELECT payroll_fixed_registry_range_v2('+j(ctx)+','+q(id)+'::uuid,'+q(period+'-01')+'::date,'+q(dates.lastDate)+'::date,false)';
+  await assert.rejects(db.run(rangeCall({...rangeContext,tenantId:randomUUID()},inactiveIds[0])),/\bPAYROLL_FIXED_NOT_FOUND\b/);
+  const foreignBinding=randomUUID();await assert.rejects(db.run(rangeCall({...rangeContext,sourceBindingId:foreignBinding,certifiedBindingId:foreignBinding},inactiveIds[0])),/\bPAYROLL_FIXED_IDENTITY_CHANGED\b/);
+  const rangeRows=await db.run("SELECT coalesce(jsonb_agg(jsonb_build_object('contractId',c.id,'status',c.status,'jurisdictionCode',c.jurisdiction_code,'startDate',c.start_date,'endDate',c.end_date,'eligible',payroll_fixed_registry_range_v2("+j(rangeContext)+",c.id,"+q(period+'-01')+'::date,'+q(dates.lastDate)+"::date,false)) ORDER BY c.id),'[]') FROM employment_adoption_application a JOIN employment_contract c ON c.id=a.contract_id");
+  const rangeProof=assertFinalClassificationRangeEvidence(rangeRows,targets,beforeEligibility,await sourceState());
   await prepareOwnPeriodClassificationFixtureFacts(child,actors,targets,period);await publishOwnPeriodClassificationFixtureProgram(child,actors,period);
   const declaration={agreementCode:'1',categoryCode:'7',organizationId:'10',sectorCode:'21',jurisdictionCode:'55',startDate:'2001-02-03',endDate:null,effectiveFrom:period+'-01',effectiveUntil:dates.lastDate,documentDate:dates.today,documentReference:subjectReason};
   let provenanceValue=null;
@@ -247,7 +271,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const receiptBody={command:'prepare',scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params,batchId:null,batchSha256:null,reason:subjectReason,reviewConfirmed:false},emission=await child.api('receipt',{body:receiptBody,expected:201});child.setActor(actors.checker);const rb=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),rp=await child.api('receipt',{previewParams:params});await child.api('receipt',{body:{...receiptBody,command:'approve',scopeVersion:rp.scopeVersion,sourceVersion:rp.snapshot.sourceVersion,params:null,batchId:emission.batchId,batchSha256:rb.snapshotSha256,reason:reviewReason,reviewConfirmed:true},expected:201});
   const issued=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),group=await child.api('close',{query:{resource:'group',id:closed.groupId}}),planilla=await prepareOwnPlanilla(issued,[group],'55');assert.equal(planilla.total,2);assert.equal(planilla.selected,2);assert.ok(planilla.records.every(r=>r.departmentCode==='21'&&r.jurisdiction==='55'&&r.totals.net==='500.22'));
   assert.deepEqual(await sourceState(),originals);assert.deepEqual(await parentState(),parentBefore);
-  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,period,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
+  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,inactiveSalarySubjectStillDenied:true,period,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
  }finally{
   if(seeded){assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name='+q(db.applicationName)),0);await sql(tx(['DROP SCHEMA '+qa.schema+' CASCADE']));assert.deepEqual(await parentState(),parentBefore);assert.deepEqual(await schemaInventory(),schemasBefore);if(proof){proof.syntheticSchemaRemoved=true;proof.priorSchemaInventoryPreserved=true;}}
  }

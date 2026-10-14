@@ -25,11 +25,12 @@ const writeReason='Declaración exclusivamente sintética de encuadre por perío
 const reviewReason='Revisión independiente exclusivamente sintética del período QA177';
 export const OWN_PERIOD_CLASSIFICATION_REQUIRED_CHECKS=Object.freeze([
  'installationRollback','zeroInstallationWrites','durableInstallation','repeatVerifyOnly','privateAcl',
- 'nativeRegistrationNow','authoritativeSource','readWithoutPrepare','missingRead','missingPrepare','missingApprove',
+ 'lifecycleSubjectIdentity','lifecycleRangeIdentity','lifecycleBindingIsolation','lifecycleTenantIsolation','lifecycleReadConservation',
+ 'nativeRegistrationNow','authoritativeSource','nativeLifecycleBranchUnchanged','readWithoutPrepare','missingRead','missingPrepare','missingApprove',
  'clientIdentityRejected','scopeChanged','sourceChanged','invalidSession','foreignContract','readConservation','sameActor','samePerson','sameEmail','recoverSameAttempt','idempotencyReuse','foreignAttempt',
  'nullPreserved','partialPeriod','unknownClassification','baseChanged','catalogueChanged','staleReject','independentApproval','noChanges',
  'nativeHistoryRequired','approvedHistoricalCapture','confirmedHistoricalClose','approvedHistoricalReceipt','closedSnapshotAfterRevision','realPartialEmployment','legacyAttemptConserved',
- 'oldAdoptionMissingFinalSource','finalAdoptedHistory','browser',
+ 'oldAdoptionMissingFinalSource','finalAdoptedHistory','receiptRecoveryBrowser','browser',
 ]);
 export function ownPeriodClassificationCoverage(completed){
  assert.ok(Array.isArray(completed));assert.equal(new Set(completed).size,completed.length);
@@ -138,6 +139,30 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
  const actualAccess=async(...args)=>{const access=await h.deps.requireAccess(...args);const caps=await db.run('SELECT coalesce(jsonb_agg(capability_key ORDER BY capability_key),\'[]\') FROM capabilities WHERE membership_id='+q(access.principal.tenant.membershipId)+'::uuid');return{...access,principal:{...access.principal,tenant:{...access.principal.tenant,effectiveCapabilities:caps}}};};
  h.handlers.classification=createOwnPeriodClassificationHandler({...h.deps,requireAccess:actualAccess,getSql:()=>classificationAdapter});
  setActor(qa.actors.maker);const legacy=await api('run',{query:{resource:'attempt',key:h.oldKey}});assert.deepEqual(legacy.body,h.old.body);assert.deepEqual(legacy.payload,h.old.payload);assert.deepEqual(legacy.saved,h.old.saved);done('legacyAttemptConserved');
+ // A lifecycle-only read must prove the existing adopted identity before it
+ // can exclude a period. It neither upgrades this old v2 adoption to final
+ // source provenance nor changes any historical contract, null or dates.
+ const lifecycleBefore=await preserved(),adoptedTarget=qa.ids.checkerContract;
+ const adoptedContext=await db.run('SELECT native_salary_administrative_context_v1('+j(qa.actors.maker)+')'),rangeContext={...adoptedContext,certifiedBindingId:adoptedContext.sourceBindingId};
+ assert.equal(rangeContext.sourceBindingId,qa.ids.binding);assert.equal(rangeContext.sourceCompanyId,101);
+ const subjectCall=(name,ctx)=>'SELECT '+name+'('+j(ctx)+','+q(adoptedTarget)+'::uuid,true)';
+ const lifecycleSubject=await db.run(subjectCall('own_period_classification_lifecycle_subject_v1',rangeContext));
+ const strictSubject=await db.run(subjectCall('payroll_fixed_registry_adopted_subject_v1',rangeContext));
+ assert.deepEqual(lifecycleSubject,strictSubject);assert.equal(strictSubject.subject.contractId,adoptedTarget);
+ assert.deepEqual(await db.run(subjectCall('own_period_classification_lifecycle_subject_v1',{...rangeContext,certifiedBindingId:null})),strictSubject);done('lifecycleSubjectIdentity');
+ const lifecyclePeriod=h.conditionsProgram.period;
+ const rangeCall=ctx=>'SELECT to_jsonb(payroll_fixed_registry_range_v2('+j(ctx)+','+q(adoptedTarget)+'::uuid,'+q(lifecyclePeriod+'-01')+'::date,(date_trunc(\'month\','+q(lifecyclePeriod+'-01')+'::date)+interval \'1 month\'-interval \'1 day\')::date,false))';
+ assert.equal(await db.run(rangeCall(rangeContext)),true);assert.equal(await db.run(rangeCall({...rangeContext,certifiedBindingId:null})),true);done('lifecycleRangeIdentity');
+ const wrongBinding=randomUUID();
+ for(const ctx of[{...rangeContext,sourceBindingId:wrongBinding,certifiedBindingId:wrongBinding},{...rangeContext,certifiedBindingId:wrongBinding}]){
+  await assert.rejects(db.run(subjectCall('own_period_classification_lifecycle_subject_v1',ctx)),/\bPAYROLL_FIXED_IDENTITY_CHANGED\b/);
+  await assert.rejects(db.run(rangeCall(ctx)),/\bPAYROLL_FIXED_IDENTITY_CHANGED\b/);
+ }done('lifecycleBindingIsolation');
+ for(const ctx of[{...rangeContext,tenantId:randomUUID()},{...rangeContext,sourceCompanyId:202}]){
+  await assert.rejects(db.run(subjectCall('own_period_classification_lifecycle_subject_v1',ctx)),/\bPAYROLL_FIXED_NOT_FOUND\b/);
+  await assert.rejects(db.run(rangeCall(ctx)),/\bPAYROLL_FIXED_NOT_FOUND\b/);
+ }done('lifecycleTenantIsolation');
+ assert.deepEqual(await preserved(),lifecycleBefore);assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM own_period_classification_event'),0);done('lifecycleReadConservation');
  const old=await api('classification',{query:{resource:'bootstrap',contractId:qa.ids.checkerContract,period:h.conditionsProgram.period},expected:409});assert.equal(old.code,'PERIOD_CLASSIFICATION_SOURCE_CHANGED');done('oldAdoptionMissingFinalSource');
  const fixture=await createIsolatedActors(h),{actors}=fixture;await publishCatalogue(h,actors);
  const native=await hire(h,actors,'2000-01-01',1),target=native.contractId;
@@ -149,6 +174,10 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
  const decisionBody=(pending,b,command='approve')=>({...pending.body,command,scopeVersion:b.preparation.scopeVersion,identityToken:null,provenance:null,definition:null,proposalId:pending.receipt.proposalId,proposalSha256:pending.receipt.requestSha256,reason:reviewReason,reviewConfirmed:true});
  const declaration={agreementCode:'1',categoryCode:'7',organizationId:'10',sectorCode:'21',jurisdictionCode:'55',startDate:'2000-01-01',endDate:null,effectiveFrom:period+'-01',effectiveUntil:dates.lastDate,documentDate:dates.today,documentReference:writeReason};
  const b0=await boot();assert.equal(b0.configuration.revision,0);assert.equal(b0.preparation.source.subject.origin,'MUNICONTROL');assert.equal(b0.preparation.source.provenance.kind,'native_registration');assert.equal(b0.preparation.source.provenance.registrationId,native.registrationId);assert.equal(b0.preparation.source.subject.contractId,target);assert.equal(b0.preparation.source.scope.companyId,202);done('authoritativeSource');
+ const nativeBefore=await preserved(),nativeContext=await db.run('SELECT native_salary_administrative_context_v1('+j(actors.maker)+')');assert.equal(nativeContext.sourceBindingId,qa.ids.foreignBinding);assert.equal(nativeContext.sourceCompanyId,202);
+ assert.equal(await db.run('SELECT to_jsonb(payroll_fixed_registry_range_v2('+j({...nativeContext,certifiedBindingId:nativeContext.sourceBindingId})+','+q(target)+'::uuid,'+q(period+'-01')+'::date,'+q(dates.lastDate)+'::date,false))'),true);
+ await assert.rejects(db.run('SELECT own_period_classification_lifecycle_subject_v1('+j(nativeContext)+','+q(target)+'::uuid,true)'),/\bPAYROLL_FIXED_IDENTITY_CHANGED\b/);
+ assert.deepEqual(await preserved(),nativeBefore);done('nativeLifecycleBranchUnchanged');
  const count=()=>db.run('SELECT to_jsonb(count(*)) FROM own_period_classification_event');let before=await count();const read=await boot(actors.reader);assert.equal(read.permissions.canPropose,false);assert.equal(read.permissions.canReview,false);assert.deepEqual(read.configuration,b0.configuration);assert.equal(await count(),before);done('readWithoutPrepare');
  const withdrawn=async(actor,cap,fn)=>{await sql('DELETE FROM capabilities WHERE membership_id='+q(actor.membershipId)+'::uuid AND capability_key='+q(cap));try{return await fn();}finally{await sql('INSERT INTO capabilities(membership_id,capability_key) VALUES('+q(actor.membershipId)+'::uuid,'+q(cap)+')');}};
  await withdrawn(actors.maker,'payroll.parameter.read',async()=>{setActor(actors.maker);const error=await api('classification',{query,expected:403});assert.equal(error.code,'PERIOD_CLASSIFICATION_FORBIDDEN');});done('missingRead');
@@ -198,7 +227,17 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
  // The final adoption positive is mandatory. A fabricated seven-field token
  // or an older v2 application is never accepted as equivalent coverage.
  let finalProof=null;if(finalAdoptedFixture){assert.equal(typeof finalAdoptedFixture,'function');finalProof=await finalAdoptedFixture({h,handlers:h.handlers,installation:batch});assert.equal(finalProof.actualSql,true);assert.equal(finalProof.actualHandlers,true);assert.equal(finalProof.normalFinalApplication,true);assert.equal(finalProof.historicalCaptureConfirmedClosedReceipt,true);assert.equal(finalProof.provenance.kind,'employment_adoption_final');assert.equal(Object.keys(finalProof.provenance.finalRevision).length,7);done('finalAdoptedHistory');}
- if(browser==='chromium'){
+ let receiptRecoveryProof=null;if(browser==='chromium'){
+  // The previously closed, classified tenant202 period is reused exactly.
+  // This dedicated drill routes the built receipt panel to the actual SQL
+  // handler; its fictional institutional profile never reaches production.
+  const {createOwnReceiptHandler}=await import('../../api/internal-own-payroll-receipts.js');
+  const {verifyOwnReceiptRecoveryBrowser}=await import('./own-receipt-recovery-browser.mjs');
+  const issuerConfig={id:'qa177-recovery-issuer',revision:1,issuer:{...params.issuer},source:{kind:'municipal_official_backup',label:'Identificación institucional exclusivamente sintética QA177',cutoff:'2026-10-01T15:17:29',validityDeclared:false}};
+  const recoveryParams={...emptyOwnReceiptParams(period),filters:{...emptyOwnReceiptParams(period).filters,departmentFrom:'21',departmentTo:'21'},issuer:{...issuerConfig.issuer},paymentDate:dates.lastDate,legend:'Leyenda exclusivamente sintética de recuperación QA177'};
+  const recoveryHandler=createOwnReceiptHandler({...h.deps,requireAccess:actualAccess,issuerProfiles:{[actors.maker.tenantId]:issuerConfig}});
+  const recoveryAuth=async()=>{const access=await actualAccess(),session=h.deps.sessionFor(access,h.env);return{ok:true,authenticated:true,sessionVersion:2,user:{id:session.id,email:session.email},access:{context:'tenant',tenant:{id:access.principal.tenant.id,roleKey:'QA'},tenantCapabilities:access.principal.tenant.effectiveCapabilities,platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()};};
+  receiptRecoveryProof=await verifyOwnReceiptRecoveryBrowser({handler:recoveryHandler,env:h.env,actor:actors.maker,setActor,auth:recoveryAuth,params:recoveryParams,expectedRecords:issued.snapshot.records,eventCount:()=>db.run('SELECT to_jsonb(count(*)) FROM own_payroll_receipt_event'),preserved,output:h.destination,check:h.ok,browserName:browser});done('receiptRecoveryBrowser');
   // A separate normal hire starts this month and cannot silently enter the
   // historical complete population used above. Its fresh revision0 is the UI
   // test's starting point, rather than an approved configuration reset.
@@ -213,5 +252,5 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
   await verifyOwnPeriodClassificationBrowser({handlers:h.handlers,env:h.env,actors:browserActors,setActor,period:browserPeriod,contractId:browserNative.contractId,employeeNumber:browserNative.legajo,definition,bootstrap:async()=>{setActor(browserActors.maker);return api('classification',{query:{resource:'bootstrap',contractId:browserNative.contractId,period:browserPeriod}});},output:h.destination,check:h.ok,browserName:browser});done('browser');
  }
  const storage=await db.run("SELECT jsonb_build_object('eventRows',count(*),'totalPhysicalBytes',sum(pg_column_size(source_snapshot)),'maximumSnapshotBytes',max(pg_column_size(source_snapshot)),'embeddedCatalogueItems',coalesce(bool_or(source_snapshot?'classification'),false),'missingCatalogueReference',coalesce(bool_or(NOT(source_snapshot?'classificationRef')),false)) FROM own_period_classification_event");assert.ok(storage.eventRows>0);assert.equal(storage.embeddedCatalogueItems,false);assert.equal(storage.missingCatalogueReference,false);assert.ok(storage.maximumSnapshotBytes<32768);
- return{version:'own-period-classification-qa.v1',...ownPeriodClassificationCoverage(checks),syntheticOnly:true,actualHandlers:true,actualSql:true,productiveBusinessWrites:0,fixtureChain:fixtureInstallation.fixtureChain,productionCompatible:fixtureInstallation.productionCompatible,normal165Installed:fixtureInstallation.normal165Installed,finalSourceFixture:fixtureInstallation.finalSourceFixture,fixtureSourceHashes:fixtureInstallation.fixtureSourceHashes,fixtureBeforeReadySha256:fixtureInstallation.fixtureBeforeSha256,fixtureAfterReadySha256:fixtureInstallation.fixtureAfterSha256,capacityInstalled,capacityDurable,installed,durable,repeated,period,ownContracts:1,historicalCategory:'7',currentCategory:'6',historicalSector:'21',currentSector:'20',historicalJurisdiction:'55',currentJurisdiction:'42',originalRegistrationDate:dates.createdDate,declaredEmploymentStart:'2000-01-01',storage,finalProof};
+ return{version:'own-period-classification-qa.v1',...ownPeriodClassificationCoverage(checks),syntheticOnly:true,actualHandlers:true,actualSql:true,productiveBusinessWrites:0,fixtureChain:fixtureInstallation.fixtureChain,productionCompatible:fixtureInstallation.productionCompatible,normal165Installed:fixtureInstallation.normal165Installed,finalSourceFixture:fixtureInstallation.finalSourceFixture,fixtureSourceHashes:fixtureInstallation.fixtureSourceHashes,fixtureBeforeReadySha256:fixtureInstallation.fixtureBeforeSha256,fixtureAfterReadySha256:fixtureInstallation.fixtureAfterSha256,capacityInstalled,capacityDurable,installed,durable,repeated,period,ownContracts:1,historicalCategory:'7',currentCategory:'6',historicalSector:'21',currentSector:'20',historicalJurisdiction:'55',currentJurisdiction:'42',originalRegistrationDate:dates.createdDate,declaredEmploymentStart:'2000-01-01',storage,finalProof,receiptRecoveryProof};
 }

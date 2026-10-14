@@ -22,7 +22,7 @@ test('fixture readiness is derived from the exact old chain and keeps production
  assert.equal(batch.beforePins.find(p=>p.name==='municipal_adoption_ready_v1').sha256,artifact.liveBeforeReadinessSha256);
  assert.ok(batch.beforeCheck.includes(artifact.liveBeforeReadinessSha256));assert.ok(!batch.beforeCheck.includes(artifact.fixtureBeforeSha256));
  for(const name of['ADOPTED_CONSUMERS_AFTER_METADATA','SQL130_NEW_OBJECTS_NOT_EMPTY'])assert.ok(artifact.beforeDefinition.includes(name)&&artifact.afterDefinition.includes(name));
- for(const name of['own_run_capture_v1','own_close_roster_v1','own_run_jurisdictions_v1']){
+ for(const name of['own_run_capture_v1','own_close_roster_v1','own_run_jurisdictions_v1','payroll_fixed_registry_range_v2']){
   const p=batch.afterConsumerPins.find(p=>p.name===name);assert.ok(artifact.afterDefinition.includes(p.sha256));
  }
 });
@@ -31,6 +31,8 @@ test('the artifact preserves all mutations and requires the existing synthetic d
  assert.equal(artifact.connects,false);assert.equal(artifact.executesSql,false);
  assert.equal(artifact.statements.length,batch.statements.length+1);assert.equal(artifact.verification.length,batch.verification.length+1);
  assert.equal(artifact.mutations.length,batch.mutations.length);
+ assert.equal(batch.beforePins.length,6);assert.equal(batch.afterConsumerPins.length,6);assert.equal(batch.newPins.length,22);assert.equal(batch.afterPins.length,28);
+ assert.equal(batch.beforePins.find(p=>p.name==='payroll_fixed_registry_range_v2').sha256,'30afb71e97988bd4862d98d3d56d84603252bbb600812d5f40c63a5596a69546');
  assert.match(artifact.statements[0],/current_database\(\)<>'own_payroll_run_qa'/);
  assert.match(artifact.verification[0],/current_setting\('neon.project_id',true\) IS NOT NULL/);
  assert.match(artifact.verification[0],/current_setting\('neon.branch_id',true\) IS NOT NULL/);
@@ -56,6 +58,15 @@ test('relocated function metadata matches the checked schema and preserves canon
  assert.match(capture,/SET search_path=pg_catalog,[^\n]*,public,pg_temp/);
  assert.match(capture,/SET timezone='UTC'/);
  assert.ok(batch.mutations.find(s=>s.includes('FUNCTION public.own_run_capture_v1(')).includes("SET search_path TO 'pg_catalog', 'public', 'pg_temp'"));
+ const lifecycle=definitions.find(s=>s.includes('FUNCTION '+qa.schema+'.own_period_classification_lifecycle_subject_v1('));
+ const lifecyclePin=sourcePin(lifecycle.replaceAll(qa.schema,'public'));
+ assert.equal(lifecyclePin.sha256,batch.newPins.find(p=>p.name==='own_period_classification_lifecycle_subject_v1').sha256);
+ assert.equal(lifecyclePin.defaults,'false');
+ assert.match(lifecycle,/SET timezone='UTC'/);
+ const strict=batch.prerequisitePins.find(p=>p.name==='payroll_fixed_registry_adopted_subject_v1');
+ assert.equal(strict.sha256,'47aa5dda0e474a3efa9279d526d86855d670dce0f0c47097cd6d97e7e4e32672');
+ assert.ok(artifact.beforeCheck.includes(strict.sha256)&&artifact.afterCheck.includes(strict.sha256));
+ assert.ok(!definitions.some(s=>s.includes('FUNCTION '+qa.schema+'.payroll_fixed_registry_adopted_subject_v1(')),'strict salary subject remains an unchanged prerequisite');
 });
 
 test('source drift, lost guards and database-derived alternatives are refused',()=>{

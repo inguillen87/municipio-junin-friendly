@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -43,7 +43,7 @@ test('every current prerequisite is explicitly reproduced with its exact reviewe
   assert.equal(actual.sha256,expected.sha256,expected.name+' body');for(const k of ['signature','argNames','defaults','resultType','language','returnsSet','strict','definer','volatility','config'])assert.deepEqual(actual[k],expected[k],expected.name+' '+k);checked++;
  }
  assert.equal(checked,installation.prerequisitePins.length+installation.beforePins.length-1,'all source dependencies accounted for');
- assert.equal(blueprint.bridgePins.length,13);for(const pin of blueprint.bridgePins){assert.match(pin.sourceSha256,/^[a-f0-9]{64}$/);assert.ok(pin.sourceFile);}
+ assert.equal(blueprint.bridgePins.length,19);for(const pin of blueprint.bridgePins){assert.match(pin.sourceSha256,/^[a-f0-9]{64}$/);assert.ok(pin.sourceFile);}
  assert.equal(generated.get('employment_adoption_administrative_context_v1').pin.sha256,CLASSIFICATION_USE_ADMINISTRATIVE_PIN.sha256);
 });
 
@@ -94,9 +94,17 @@ test('synthetic adapter retains the original SQL transport cause while the actua
  await assert.rejects(fixture.api('salaryConditions',{query:{resource:'bootstrap',period:'2026-09'}}),/Synthetic fixture SQL cause: ERROR: PAYROLL_FIXED_JURISDICTION_REQUIRED/);
 });
 
-test('all21 private/classification RPC sources and all4 payroll consumers retain exact source bytes',()=>{
+test('eligibility evidence preserves all57 source rows,55 inactive nulls and only2 active declarations without calculating payroll',()=>{
+ const activeIds=[blueprint.qa.ids.makerContract,blueprint.qa.ids.checkerContract],rows=Array.from({length:57},(_,n)=>({contractId:n<2?activeIds[n]:'11111111-1111-4111-a111-'+String(n).padStart(12,'0'),status:n<2?'active':'inactive',jurisdictionCode:n<2?'42':null,startDate:'2001-02-03',endDate:n<2?null:'2019-12-31',eligible:n<2})),before={contracts:'1'.repeat(64),registrations:'2'.repeat(64),applications:'3'.repeat(64)},original=structuredClone(rows);
+ assert.deepEqual(assertFinalClassificationRangeEvidence(rows,activeIds,before,structuredClone(before)),{inactiveNullJurisdictionExcluded:true,activeRangeCount:2,inactiveRangeCount:55});assert.deepEqual(rows,original);
+ for(const change of [r=>r.pop(),r=>r[2].jurisdictionCode='42',r=>r[2].eligible=true,r=>r[0].eligible=false,r=>r[2].endDate=null,r=>r[2].contractId=r[3].contractId]){const altered=structuredClone(rows);change(altered);assert.throws(()=>assertFinalClassificationRangeEvidence(altered,activeIds,before,before));}
+ assert.throws(()=>assertFinalClassificationRangeEvidence(rows,activeIds,before,{...before,contracts:'4'.repeat(64)}),/FINAL_CLASSIFICATION_ELIGIBILITY_CHANGED_STORED_SOURCE/);
+ const helper=read('scripts/lib/own-period-classification-final-qa.mjs');assert.ok(helper.indexOf('const rangeProof=assertFinalClassificationRangeEvidence')<helper.indexOf('await prepareOwnPeriodClassificationFixtureFacts(child'));assert.ok(helper.includes('for(const contractId of inactiveIds)await assert.rejects'));for(const flag of ['PAYROLL_FIXED_JURISDICTION_REQUIRED','PAYROLL_FIXED_NOT_FOUND','PAYROLL_FIXED_IDENTITY_CHANGED','inactiveSalarySubjectStillDenied:true'])assert.ok(helper.includes(flag));
+});
+
+test('all22 private/classification RPC sources and all5 payroll consumers retain exact source bytes',()=>{
  const generated=sources(blueprint.classification),expected=installation.newPins.concat(installation.afterConsumerPins.filter(p=>p.name!=='municipal_adoption_ready_v1'));
- assert.equal(expected.length,25);for(const pin of expected){assert.ok(generated.has(pin.name),pin.name+' source');const actual=generated.get(pin.name);assert.equal(sha(body(actual.source)),pin.sha256,pin.name+' exact body');for(const k of ['signature','argNames','defaults','resultType','language','returnsSet','strict','definer','volatility','config'])assert.deepEqual(actual.pin[k],pin[k],pin.name+' '+k);}
+ assert.equal(expected.length,27);for(const pin of expected){assert.ok(generated.has(pin.name),pin.name+' source');const actual=generated.get(pin.name);assert.equal(sha(body(actual.source)),pin.sha256,pin.name+' exact body');for(const k of ['signature','argNames','defaults','resultType','language','returnsSet','strict','definer','volatility','config'])assert.deepEqual(actual.pin[k],pin[k],pin.name+' '+k);}
  assert.ok(blueprint.afterCheck.includes('FINAL_PERIOD_CLASSIFICATION_READY_METADATA'));assert.ok(blueprint.afterCheck.includes('FINAL_PERIOD_CLASSIFICATION_SOURCE_METADATA'));
 });
 
