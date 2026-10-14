@@ -10,9 +10,9 @@ import {createOwnPeriodClassificationHandler} from '../../api/internal-own-perio
 import {createInternalDataHandler} from '../../api/internal-data.js';
 import {preparePeriodClassification,periodClassificationBootstrap,periodClassificationDetail,decidePeriodClassification,createPeriodClassificationAttempt,periodClassificationReceipt} from '../../assets/own-period-classification-model.js';
 import {prepareSalaryConditions,salaryConditionsDetail,decideSalaryConditions} from '../../assets/own-contract-salary-conditions-model.js';
-import {ownProgramDefinition} from '../../assets/own-payroll-program-model.js';
+import {ownProgramDefinition,ownProgramStructure,ownProgramNamespaced,ownProgramHistory} from '../../assets/own-payroll-program-model.js';
 import {participationRuleKey} from '../../assets/own-period-participation-program.js';
-import {salaryItems} from '../../assets/native-salary-catalog-model.js';
+import {salaryItems,salaryRowKey} from '../../assets/native-salary-catalog-model.js';
 import {emptyOwnReceiptParams} from '../../assets/own-payroll-receipt-model.js';
 import {prepareOwnPlanilla} from '../../assets/own-payroll-receipt-planilla-model.js';
 import {draft as employeeDraft} from '../../tests/fixtures/native-employee-synthetic.js';
@@ -99,17 +99,31 @@ async function prepareHistoricalFacts(h,actors,target,period){
  const review=await h.api('salaryConditions',{query:{resource:'bootstrap',period}}),detail=await salaryConditionsDetail(await h.api('salaryConditions',{query:{resource:'detail',id:p.proposalId}}));
  const approved=await h.api('salaryConditions',{body:await decideSalaryConditions(review,detail,'approve',reviewReason),expected:201});assert.equal(approved.status,'approved');
 }
-async function publishHistoricalProgram(h,actors,period){
- h.setActor(actors.maker);let b=await h.api('salary');
- const body={command:'propose',scopeVersion:b.scopeVersion,baseVersion:b.catalog.version,classificationVersion:b.classification.version,items:salaryItems([...b.catalog.items,row({code:'1771',nature:'remuneration',unit:'money',value:null,validFrom:period,validUntil:period})]),proposalId:null,proposalSha256:null,reason:writeReason,reviewConfirmed:false};
- const p=await h.api('salary',{body,expected:201});h.setActor(actors.checker);b=await h.api('salary');await h.api('salary',{body:{...body,command:'approve',scopeVersion:b.scopeVersion,items:null,proposalId:p.proposalId,proposalSha256:p.requestSha256,reason:reviewReason,reviewConfirmed:true},expected:201});
- h.setActor(actors.maker);const pb=await h.api('program');
+export function prepareOwnPeriodClassificationFixtureProgram(baseDefinition,catalogItems,period){
+ const prior=baseDefinition===null?null:ownProgramStructure(baseDefinition),catalog=salaryItems(catalogItems,{allowEmpty:true});
+ // The final-adoption child starts from the canonical legacy program fixture.
+ // Reproduce the explicit transition already exercised by the namespace QA:
+ // keep all old concept rows and add separate, identical auxiliary definitions.
+ // No value, validity, expression or historical program is rewritten in place.
+ const legacyAuxiliaries=prior&&!ownProgramNamespaced(prior)?catalog.filter(r=>r.kind==='concept'&&r.nature==='auxiliary'):[];
+ const copies=legacyAuxiliaries.map(r=>({...r,kind:'auxiliary'})),byKey=new Map(catalog.map(r=>[salaryRowKey(r),r]));
+ for(const copy of copies){const existing=byKey.get(salaryRowKey(copy));if(existing)assert.deepEqual(existing,copy,'QA177_EXISTING_AUXILIARY_MUST_MATCH_LEGACY_DEFINITION');}
+ const additions=copies.filter(r=>!byKey.has(salaryRowKey(r))),items=salaryItems([...catalog,...additions,row({code:'1771',nature:'remuneration',unit:'money',value:null,validFrom:period,validUntil:period})]);
  const paid=rule('1771',{op:'choose',condition:conditionMatch('historicalCategory','code','7'),then:lit('500.22','money'),else:lit('0','money')},{validFrom:period,validUntil:period,rounding:policy('exact',2)});
- const rules=[...(pb.program.definition?.rules??[]),paid],bindings=structuredClone(pb.program.definition?.bindings??[]),historicalBinding={agreementCode:'1',key:'historicalCategory',unit:'code',sourceKind:'classification_fact',sourceField:'categoryCode',onMissing:'error',combine:'single',ruleReference:writeReason};
+ const rules=[...(prior?.rules??[]),paid],bindings=structuredClone(prior?.bindings??[]).map(b=>b.sourceKind==='parameter'&&legacyAuxiliaries.some(r=>r.agreementCode===b.agreementCode&&r.code===b.sourceCode)?{...b,sourceKind:'auxiliary_parameter'}:b),historicalBinding={agreementCode:'1',key:'historicalCategory',unit:'code',sourceKind:'classification_fact',sourceField:'categoryCode',onMissing:'error',combine:'single',ruleReference:writeReason};
  const oldHistorical=bindings.find(b=>b.agreementCode==='1'&&b.key==='historicalCategory');if(oldHistorical){for(const field of ['unit','sourceKind','sourceField','onMissing','combine'])assert.equal(oldHistorical[field],historicalBinding[field],'the existing fixture binding cannot be reinterpreted');}else bindings.push(historicalBinding);
- const program=ownProgramDefinition({namespaceVersion:'own-payroll-namespaces.v2',employmentFactsVersion:'own-salary-seniority.v1',workingTimeVersion:'own-contract-working-time.v1',salaryConditionsVersion:'own-contract-salary-conditions.v1',periodParticipation:{version:'own-period-participation.v1',fullPeriod:'neutral_fraction',fixedValidity:'declared_values',treatments:rules.map(r=>({ruleKey:participationRuleKey(r),treatment:'declared_formula',reference:writeReason}))},rules,bindings,totalsPrecision:2},pb.salaryCatalog.items);
+ const program=ownProgramDefinition({namespaceVersion:'own-payroll-namespaces.v2',employmentFactsVersion:'own-salary-seniority.v1',workingTimeVersion:'own-contract-working-time.v1',salaryConditionsVersion:'own-contract-salary-conditions.v1',periodParticipation:{version:'own-period-participation.v1',fullPeriod:'neutral_fraction',fixedValidity:'declared_values',treatments:rules.map(r=>({ruleKey:participationRuleKey(r),treatment:'declared_formula',reference:writeReason}))},rules,bindings,totalsPrecision:2},items);
+ ownProgramHistory(prior,program);return{items,program,auxiliaryCopies:additions.length};
+}
+async function publishHistoricalProgram(h,actors,period){
+ h.setActor(actors.maker);let b=await h.api('salary');const before=await h.api('program'),preparedFixture=prepareOwnPeriodClassificationFixtureProgram(before.program.definition,b.catalog.items,period);
+ const body={command:'propose',scopeVersion:b.scopeVersion,baseVersion:b.catalog.version,classificationVersion:b.classification.version,items:preparedFixture.items,proposalId:null,proposalSha256:null,reason:writeReason,reviewConfirmed:false};
+ const p=await h.api('salary',{body,expected:201});h.setActor(actors.checker);b=await h.api('salary');await h.api('salary',{body:{...body,command:'approve',scopeVersion:b.scopeVersion,items:null,proposalId:p.proposalId,proposalSha256:p.requestSha256,reason:reviewReason,reviewConfirmed:true},expected:201});
+ h.setActor(actors.maker);const pb=await h.api('program');assert.deepEqual(pb.program.definition,before.program.definition,'catalogue approval cannot alter the prior program');assert.deepEqual(pb.salaryCatalog.items,preparedFixture.items,'the normal independent writer must publish the complete declared catalogue');
+ const program=ownProgramDefinition(preparedFixture.program,pb.salaryCatalog.items);
  const preparedBody={command:'propose',scopeVersion:pb.scopeVersion,baseVersion:pb.program.version,salaryVersion:pb.salaryCatalog.version,program,proposalId:null,proposalSha256:null,reason:writeReason,reviewConfirmed:false},prepared=await h.api('program',{body:preparedBody,expected:201});
  h.setActor(actors.checker);const rb=await h.api('program');await h.api('program',{body:{...preparedBody,command:'approve',scopeVersion:rb.scopeVersion,program:null,proposalId:prepared.proposalId,proposalSha256:prepared.requestSha256,reason:reviewReason,reviewConfirmed:true},expected:201});
+ const published=await h.api('program');assert.deepEqual(published.program.definition,program,'the normal independent writer must publish the complete historical program');
 }
 export {prepareHistoricalFacts as prepareOwnPeriodClassificationFixtureFacts,publishHistoricalProgram as publishOwnPeriodClassificationFixtureProgram};
 
