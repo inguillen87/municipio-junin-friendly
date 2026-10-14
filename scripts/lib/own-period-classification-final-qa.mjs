@@ -96,9 +96,24 @@ function repinReady(ready,beforePins,afterPins){
  return ready;
 }
 
+// SQL144's general fixture deliberately preserves unknown CUIL as NULL. This
+// receipt circuit declares valid fictional identities for its two active
+// employees before the original source is copied or sealed. The other55 keep
+// their unknown values; no adopted row or immutable source is repaired later.
+export function declareFinalClassificationQaReceiptIdentities(qa){
+ const targets=[qa.ids.makerContract,qa.ids.checkerContract];assert.equal(new Set(targets).size,2);
+ targets.forEach(id=>assert.match(id,/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/));
+ const selected=targets.map(id=>q(id)+'::uuid').join(','),guard='CREATE TRIGGER grh_effective_baseline_rows',sourceAnchor='CREATE TABLE source_xref';
+ assert.equal(qa.sql.split(guard).length,2,'FINAL_CLASSIFICATION_IDENTITY_SEED_ANCHOR');
+ assert.equal(qa.sourceFixture.split(sourceAnchor).length,2,'FINAL_CLASSIFICATION_IDENTITY_SOURCE_ANCHOR');
+ const seed="UPDATE person_identity pi SET cuil=declared.cuil FROM employment_contract ec,(VALUES('99008001','20990080012'),('99008002','20990080020'),('99008003','20990080039')) declared(dni,cuil) WHERE ec.person_id=pi.id AND ec.id IN("+selected+") AND pi.dni=declared.dni;";
+ const check="DO $receipt_identity_fixture$ BEGIN IF(SELECT count(*) FROM employment_contract ec JOIN person_identity pi ON pi.id=ec.person_id WHERE ec.id IN("+selected+") AND is_valid_cuil(pi.cuil) IS TRUE)<>2 THEN RAISE EXCEPTION 'FINAL_CLASSIFICATION_ACTIVE_RECEIPT_IDENTITY';END IF;IF(SELECT count(*) FROM employment_contract ec JOIN person_identity pi ON pi.id=ec.person_id WHERE ec.source_system='GRH' AND ec.legacy_company_id=101 AND ec.id NOT IN("+selected+") AND pi.cuil IS NULL)<>55 THEN RAISE EXCEPTION 'FINAL_CLASSIFICATION_INACTIVE_RECEIPT_NULLS';END IF;END $receipt_identity_fixture$;";
+ return{...qa,sql:qa.sql.replace(guard,()=>seed+'\n'+guard),sourceFixture:qa.sourceFixture.replace(sourceAnchor,()=>check+'\n'+sourceAnchor)};
+}
+
 export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,installation}){
  assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok([17,18].includes(major));
- const qa=buildFinalAdoptionQa(major,{contractCount:57,activeCount:2}),options={read,sourceCommit};
+ const qa=declareFinalClassificationQaReceiptIdentities(buildFinalAdoptionQa(major,{contractCount:57,activeCount:2})),options={read,sourceCommit};
  const base=relocateNoeliaNoveltyInstallation(buildAdoptedOwnNoveltyInstallation(options),qa);
  const jurisdiction=relocateNoeliaJurisdictionInstallation(buildOwnJurisdictionInstallation(options),qa,base);
  const inactive=relocateInactiveJurisdictionInstallation(buildInactiveJurisdictionInstallation(options),qa,jurisdiction);

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -14,6 +14,7 @@ import {WORKING_TIME_CONSUMER_DEFINITION_HASHES,WORKING_TIME_PRIOR_PINS} from '.
 import {buildNativeSalaryCapacityInstallation} from '../scripts/lib/native-salary-capacity-installation.mjs';
 import {DAY_UNIT_PRIOR_PINS} from '../scripts/lib/salary-day-units-pins.mjs';
 import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
+import {buildFinalAdoptionQa} from '../scripts/lib/final-contract-adoption-qa.mjs';
 
 const root=new URL('../',import.meta.url),read=p=>fs.readFileSync(new URL(p,root),'utf8'),sourceCommit='aaf35dfe5b9dec5529090607c5ba753f42ba1917';
 const installation=buildOwnPeriodClassificationInstallation({read,sourceCommit}),blueprint=buildOwnPeriodClassificationFinalQa({read,sourceCommit,major:17,installation});
@@ -28,6 +29,23 @@ test('final fixture is an independent real57-row source composition and labels i
  assert.match(blueprint.qa.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(blueprint.qa.contractCount,57);assert.equal(blueprint.qa.activeCount,2);assert.equal(blueprint.connects,false);assert.equal(blueprint.executesSql,false);assert.equal(blueprint.technicalInstallationProtocol,false);
  for(const marker of ['grh_final_source_revision','grh_final_source_delta','grh_final_source_seal','grh_final_source_fingerprint_v1'])assert.ok(blueprint.qa.sourceFixture.includes(marker));
  assert.ok(blueprint.groups.includes('classification-registration-use'));assert.ok(blueprint.groups.includes('catalogue-capacity'));
+});
+
+test('only two active fictional receipt identities are declared before source sealing and canonical validation preserves55 unknowns',()=>{
+ const original=buildFinalAdoptionQa(17,{contractCount:57,activeCount:2}),declared=declareFinalClassificationQaReceiptIdentities(original),guard='CREATE TRIGGER grh_effective_baseline_rows',sourceAnchor='CREATE TABLE source_xref';
+ const seed=declared.sql.slice(declared.sql.lastIndexOf('UPDATE person_identity pi SET cuil=declared.cuil'),declared.sql.indexOf(guard));
+ assert.ok(seed);assert.equal(declared.sql.replace(seed,''),original.sql,'the earlier fictional identities and all source guards remain byte-for-byte unchanged');
+ for(const id of [original.ids.makerContract,original.ids.checkerContract])assert.ok(seed.includes(quote(id)+'::uuid'));
+ assert.ok(!seed.includes(quote(original.ids.targetContract)));assert.match(seed,/AND pi\.dni=declared\.dni/);
+ const expected=[['99008001','20990080012'],['99008002','20990080020'],['99008003','20990080039']];
+ for(const [dni,cuil]of expected){assert.ok(seed.includes("('"+dni+"','"+cuil+"')"));assert.equal(cuil.slice(2,10),dni);}
+ const check=declared.sourceFixture.slice(declared.sourceFixture.indexOf('DO $receipt_identity_fixture$'),declared.sourceFixture.indexOf(sourceAnchor));
+ assert.ok(check);assert.equal(declared.sourceFixture.replace(check,''),original.sourceFixture,'the sealed source uses the original complete construction');
+ assert.ok(declared.sourceFixture.indexOf('FUNCTION '+original.schema+'.is_valid_cuil(')<declared.sourceFixture.indexOf(check),'the fixture uses the unchanged canonical validator');
+ assert.match(check,/is_valid_cuil\(pi\.cuil\) IS TRUE\)<>2/);assert.match(check,/AND pi\.cuil IS NULL\)<>55/);assert.ok(!check.includes('UPDATE '));
+ assert.throws(()=>declareFinalClassificationQaReceiptIdentities({...original,sql:original.sql.replace(guard,'missing')}),/FINAL_CLASSIFICATION_IDENTITY_SEED_ANCHOR/);
+ assert.throws(()=>declareFinalClassificationQaReceiptIdentities({...original,sourceFixture:original.sourceFixture.replace(sourceAnchor,'missing')}),/FINAL_CLASSIFICATION_IDENTITY_SOURCE_ANCHOR/);
+ assert.throws(()=>declareFinalClassificationQaReceiptIdentities({...original,ids:{...original.ids,checkerContract:original.ids.makerContract}}));
 });
 
 test('every current prerequisite is explicitly reproduced with its exact reviewed body and metadata',()=>{
