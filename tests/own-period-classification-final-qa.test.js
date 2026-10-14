@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -84,6 +84,14 @@ test('canonical capacity160 reproduces the exact items precursor before166 with 
  const expected=DAY_UNIT_PRIOR_PINS.find(p=>p.name==='native_salary_items_v1');assert.equal(ownInstallationFunctionPin(capacity.items).sha256,expected.sha256);assert.equal(before.get(expected.name).pin.sha256,expected.sha256,'exact160 precursor is installed before166');
  for(const mutation of capacity.mutations)assert.ok(blueprint.baseline.slice(0,dayIndex).includes(relocateFinalClassificationQaStatement(mutation.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '),blueprint.qa)),mutation.slice(0,90));
  assert.ok(blueprint.groups.indexOf('working-time')<blueprint.groups.indexOf('native-salary-capacity'));assert.ok(blueprint.groups.indexOf('native-salary-capacity')<blueprint.groups.indexOf('day-units'));
+});
+
+test('synthetic adapter retains the original SQL transport cause while the actual HTTP handler keeps it private',async()=>{
+ const recorded=[],message='ERROR: PAYROLL_FIXED_JURISDICTION_REQUIRED',stderr=message+'\nCONTEXT: synthetic adopted_subject -> range_v2 -> conditions_source',failure=new Error(message,{cause:{stderr}});
+ const fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async()=>{throw failure;}},onSqlError:value=>recorded.push(value)});
+ const response=await fixture.api('salaryConditions',{query:{resource:'bootstrap',period:'2026-09'},expected:503});assert.equal(response.code,'SALARY_CONDITIONS_UNAVAILABLE');assert.equal(response.ok,false);assert.ok(!JSON.stringify(response).includes('PAYROLL_FIXED_JURISDICTION_REQUIRED'));
+ assert.equal(recorded.length,1);assert.deepEqual(Object.keys(recorded[0]).sort(),['functionName','message','querySha256','stderr','version']);assert.equal(recorded[0].functionName,'own_salary_conditions_bootstrap_v1');assert.equal(recorded[0].message,message);assert.equal(recorded[0].stderr,stderr);assert.match(recorded[0].querySha256,/^[a-f0-9]{64}$/);assert.ok(!JSON.stringify(recorded[0]).includes(blueprint.qa.actors.maker.actorEmail));
+ await assert.rejects(fixture.api('salaryConditions',{query:{resource:'bootstrap',period:'2026-09'}}),/Synthetic fixture SQL cause: ERROR: PAYROLL_FIXED_JURISDICTION_REQUIRED/);
 });
 
 test('all21 private/classification RPC sources and all4 payroll consumers retain exact source bytes',()=>{

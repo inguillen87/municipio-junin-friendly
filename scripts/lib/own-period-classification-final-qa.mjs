@@ -164,20 +164,25 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
  return {qa,base,jurisdiction,inactive,final,groups:groups.map(g=>g.name),bridgePins,baseline:statements,classification,beforeCheck,afterCheck,technicalInstallationProtocol:false,connects:false,executesSql:false};
 }
 
-function makeHandlers({qa,db}){
- let current=qa.actors.maker;
+export function makeFinalClassificationQaHandlers({qa,db,onSqlError=()=>{}}){
+ assert.equal(typeof onSqlError,'function');let current=qa.actors.maker,lastSqlError=null;
  const caps=[...new Set([...qa.caps,'payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve'])];
  const adapter={query:async(query,values)=>{
   assert.match(query,/^SELECT public\.(?:native_salary|own_program|own_run|own_liquidation|own_close|own_receipt|own_seniority|own_participation|own_working_time|own_salary_conditions|own_period_classification)_\w+\([\s\S]+\) AS result$/);
   const rendered=query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return values[Number(n)-1]===null?'NULL':q(values[Number(n)-1]);});
-  return [{result:await db.run(rendered,true)}];
+  try{return [{result:await db.run(rendered,true)}];}catch(error){
+   // This adapter is used only by the declared fictional loopback fixture.
+   // Keep the transport cause before the normal HTTP mapper makes it safe;
+   // never copy request parameters, SQL bodies or observed function definitions.
+   lastSqlError={version:'own-period-classification-final-sql-error.v1',functionName:/^SELECT public\.(\w+)\(/.exec(query)?.[1]??null,querySha256:fileHash(query),message:String(error?.message??error),stderr:typeof error?.cause?.stderr==='string'?error.cause.stderr:''};onSqlError(lastSqlError);throw error;
+  }
  }};
  const env={INTERNAL_APP_ORIGIN:'https://final-period-classification-qa.example'},deps={env,requireAccess:()=>({mode:'managed',principal:{user:{email:current.actorEmail},tenant:{source:'membership',id:current.tenantId,membershipId:current.membershipId,effectiveCapabilities:caps}}}),sessionFor:()=>({email:current.actorEmail,id:current.actorSessionId,version:current.actorSessionVersion,releaseSha:current.releaseSha}),getSql:()=>adapter};
  const handlers={salary:createNativeSalaryHandler(deps),program:createOwnProgramHandler(deps),run:createOwnRunHandler(deps),liquidation:createOwnLiquidationHandler(deps),close:createOwnCloseHandler(deps),receipt:createOwnReceiptHandler(deps),seniority:createOwnSalarySeniorityHandler(deps),participation:createOwnPeriodParticipationHandler(deps),workingTime:createOwnContractWorkingTimeHandler(deps),salaryConditions:createOwnContractSalaryConditionsHandler(deps),classification:createOwnPeriodClassificationHandler(deps)};
  const api=async(kind,{query={resource:'bootstrap'},key=randomUUID(),body,previewParams,expected=200}={})=>{
-  assert.equal(typeof handlers[kind],'function');const res={setHeader(){},status(n){this.statusCode=n;return this;},json(v){this.value=v;return this;}},posted=!!(body||previewParams);
+  lastSqlError=null;assert.equal(typeof handlers[kind],'function');const res={setHeader(){},status(n){this.statusCode=n;return this;},json(v){this.value=v;return this;}},posted=!!(body||previewParams);
   await handlers[kind]({method:posted?'POST':'GET',url:'/api/final-qa-'+kind+(posted?'':'?'+new URLSearchParams(query)),query:posted?{}:query,headers:posted?{origin:env.INTERNAL_APP_ORIGIN,'content-type':'application/json','idempotency-key':key}:{},...(posted?{body:JSON.stringify(previewParams?{operation:'preview',params:previewParams}:{operation:kind==='run'?'calculate':'command',payload:body})}:{})},res);
-  assert.equal(res.statusCode,expected,JSON.stringify(res.value));return res.value.data??res.value;
+  assert.equal(res.statusCode,expected,JSON.stringify(res.value)+(lastSqlError?'\nSynthetic fixture SQL cause: '+lastSqlError.message:''));return res.value.data??res.value;
  };
  return {handlers,adapter,env,api,setActor:a=>{current=a;},caps};
 }
@@ -215,7 +220,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const originals=await sourceState();
   await sql(tx(["ALTER TABLE tenant_action_employment_link ADD COLUMN IF NOT EXISTS revoked_at timestamptz",...blueprint.baseline,blueprint.beforeCheck]));assert.deepEqual(await sourceState(),originals);
   await sql(tx([...blueprint.classification,blueprint.afterCheck]));assert.deepEqual(await sourceState(),originals);
-  const f=makeHandlers({qa,db}),child={...h,qa,db,sql:source=>sql(tx([source])),...f},actors=qa.actors;
+  const f=makeFinalClassificationQaHandlers({qa,db,onSqlError:value=>fs.appendFileSync(path.join(folder,'handler-sql-errors.jsonl'),JSON.stringify(value)+'\n')}),child={...h,qa,db,sql:source=>sql(tx([source])),...f},actors=qa.actors;
   // Current catalogue additions are declared fictional input and independently
   // reviewed. They do not replace the immutable final-source facts.
   let cb=await db.run('SELECT native_employment_catalog_bootstrap_v1('+j(actors.maker)+')',true);
