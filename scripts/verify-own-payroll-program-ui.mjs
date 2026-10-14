@@ -9,6 +9,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {chromium} from 'playwright';
 import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
+import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
@@ -47,6 +48,7 @@ const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(ac
 }})};
 try{
  const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
+ await db.run(ownPayrollFullQaInstallation(qa.schema));
  const precision=buildExactProgramPrecisionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit:'a'.repeat(40)});
  await db.run(precision.changed.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replace('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${qa.schema},public,pg_temp`)+"; SELECT '{}'::jsonb");
  let referenceInstallation=null;

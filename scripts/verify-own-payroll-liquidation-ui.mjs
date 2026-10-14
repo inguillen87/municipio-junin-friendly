@@ -12,6 +12,7 @@ import {buildOwnLiquidationQa,createOwnLiquidationPsqlQa} from './lib/own-payrol
 import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {createOwnLiquidationHandler} from '../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
+import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
 import {ownRunOperation,RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
 import {OWN_LIQ_REVIEW} from '../lib/internal-own-payroll-liquidation.js';
@@ -25,13 +26,14 @@ const identity=(actor,caps)=>({actor,principal:{user:{email:actor.actorEmail},te
 let installed=false,server,browser,testPage,report,checks=0,posts=0,lose=false,loseBefore=false,loseCalculation=false,expire=false;const writes=[],calculationWrites=[],diagnostics=[],check=(v,label)=>{assert.ok(v,label);checks++;};
 try{
  const r=await execute(executable,[...db.args,'-f',seed],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});installed=true;fs.writeFileSync(prefix+'-seed.log',r.stdout+r.stderr);
+ await db.run(ownPayrollFullQaInstallation(qa.schema));
  const maker=identity(qa.actors.maker,RUN_CALCULATE),reviewer=identity(qa.actors.checker,OWN_LIQ_REVIEW);let current=reviewer;
  const run=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),boot=await run('bootstrap'),period=await db.run("SELECT to_jsonb(greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const body={period,liquidationType:'monthly',selection:{kind:'all',values:[]},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'},capture=await run('calculate',{body,key:randomUUID()}),original=structuredClone(capture.saved);
  const env={},deps={env,requireAccess:async()=>({mode:'managed',principal:current.principal}),sessionFor:()=>current.session,getSql:async()=>({query:async(query,values)=>{
   if(query.includes('own_liquidation_command_v1')){writes.push({key:values[2],body:JSON.parse(values[1])});if(loseBefore){loseBefore=false;throw Error('QA_UNSENT_DECISION');}}
   if(query.includes('own_run_capture_v1'))calculationWrites.push({key:values[2],body:JSON.parse(values[1])});
-  try{const rows=await db.query(query,values);if(lose&&query.includes('own_liquidation_command_v1')){lose=false;throw Error('QA_ACK_LOST_AFTER_COMMIT');}if(loseCalculation&&query.includes('own_run_complete_v1')){loseCalculation=false;throw Error('QA_CALCULATION_ACK_LOST_AFTER_COMMIT');}return rows;}catch(e){diagnostics.push(e.message);throw e;}
+  try{const rows=await db.query(query,values);if(lose&&query.includes('own_liquidation_command_v1')){lose=false;throw Error('QA_ACK_LOST_AFTER_COMMIT');}if(loseCalculation&&/own_run_complete(?:_full)?_v1\(/.test(query)){loseCalculation=false;throw Error('QA_CALCULATION_ACK_LOST_AFTER_COMMIT');}return rows;}catch(e){diagnostics.push(e.message);throw e;}
  }})};
  const handler=createOwnLiquidationHandler(deps),runHandler=createOwnRunHandler(deps),catalogHandler=createEmploymentCatalogHandler({...deps,getSql:async()=>({query:async(query,values)=>{assert.equal(query,'SELECT public.native_employment_catalog_bootstrap_v1($1::jsonb) AS result');return [{result:await db.run(query.replace('public.native_employment_catalog_',qa.schema+'.native_employment_catalog_').replace('$1',q(values[0])),true)}];}})});
  server=http.createServer((req,res)=>{

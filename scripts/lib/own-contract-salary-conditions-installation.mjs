@@ -13,7 +13,7 @@ const table='own_salary_conditions_event',prefix='municontrol_salary_conditions_
 const expected=Object.freeze({
  'scripts/migrations/171-own-contract-salary-conditions.sql':'42c253a0395abf7abe326804cdd1a641d6936df84c960728c1e6a6aa6319c8ee',
  'scripts/migrations/172-own-salary-conditions-program-source.sql':'74ae429927824d6b9e209f1776ec4f7537e95182f2fd14b4f40b5862d0a633df',
- 'scripts/migrations/173-own-full-payroll-response.sql':'9bad8f03e887d5f01e6c71b0d668e28fb83c71639060df330b11f8db79af9825',
+ 'scripts/migrations/173-own-full-payroll-response.sql':'53edda88ffd719d2322cddc9caad477d63262023475c8084328d7f97e7ecd084',
  'scripts/lib/own-contract-salary-conditions-source-pins.mjs':'6a80ddb83c414e9697b9077e15033bbe811dfbc3fde03e0c69a8aca3523c13f5',
  'scripts/lib/own-contract-working-time-source-pins.mjs':'f7bfec89a0ad3b96c401c849168b822265bc55961b2c1f38ad3bf970625bccfd',
  'scripts/migrations/138-adopted-fixed-novelties.sql':'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469',
