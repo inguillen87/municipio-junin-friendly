@@ -19,7 +19,7 @@ const errors={
   OWN_RUN_PROGRAM_REQUIRED:'Falta aprobar un programa propio compatible con las definiciones salariales. El cálculo no se completó.',
   OWN_RUN_PROGRAM_CHANGED:'Cambió el programa aprobado. Consultá el intento antes de revisar otra preparación.',
   OWN_RUN_PRORATION_REQUIRED:'Hay una vigencia laboral parcial. Se necesita una regla de prorrateo aprobada; no se supusieron días ni horas.',
-  OWN_RUN_HISTORY_REQUIRED:'Falta verificar el encuadre histórico propio de este período.',
+  OWN_RUN_HISTORY_REQUIRED:'Falta aprobar el encuadre de este período. Abrí Encuadre por período, elegí el legajo y el mes, y prepará la declaración para su revisión independiente. Después consultá este intento antes de calcular de nuevo.',
   OWN_RUN_SOURCE_VIGENCY_INVALID:'Hay un registro sin vigencia laboral verificada para todo el período. Revisá sus fechas y consultá este intento antes de preparar otro cálculo.',
   OWN_RUN_SOURCE_IDENTITY_CHANGED:'Cambió la identidad de un registro del alcance. Revisá su vínculo y consultá este intento antes de otra captura.',
   OWN_RUN_SOURCE_UNUSED:'El programa aprobado no contempla todas las novedades capturadas. Revisá sus conceptos; no se omitieron novedades ni se completó el cálculo.',

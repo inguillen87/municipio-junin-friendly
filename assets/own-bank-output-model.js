@@ -94,7 +94,7 @@ async function prepareSource(batchValue, accountsValue, profile, closeValues, ki
     need(employee && ['employeeNumber','runId','liquidationVersion','agreementCode','departmentCode','precision'].every(k=>employee[k]===r[k]) && ['remuneration','non_remuneration','deduction','employer_contribution','gross','net'].every(k=>employee.totals[k]===r.totals[k]), 'Un recibo no coincide con su participación original cerrada.');
     const jurisdiction=ownClosedJurisdiction(employee,source.value.snapshot.version);
     const codes = [], identity = identities.get(r.contractId.toLowerCase());
-    if(jurisdiction.basis!=='captured_own_registration'||jurisdiction.code===null)codes.push('JURISDICTION_MISSING');
+    if(!['captured_own_registration','captured_own_period_classification'].includes(jurisdiction.basis)||jurisdiction.code===null)codes.push('JURISDICTION_MISSING');
     if (!identity || identity.registrationId.toLowerCase() !== r.registrationId.toLowerCase() || identity.employeeNumber !== r.employeeNumber || identity.name !== r.name) codes.push('IDENTITY_CHANGED');
     const candidates = (accountsByContract.get(r.contractId.toLowerCase()) ?? []).filter(a => a.status === 'enabled' && a.validFrom <= profile.creditDate && (a.validUntil === null || a.validUntil >= profile.creditDate));
     need(candidates.length <= 1, 'La configuración aprobada contiene cuentas superpuestas. No se eligió una arbitrariamente.');
