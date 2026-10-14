@@ -21,6 +21,8 @@ import {buildOwnRunDateInstallation} from './own-payroll-run-date-installation.m
 import {buildOwnSalarySenioritySql} from './own-salary-seniority-installation.mjs';
 import {buildOwnPeriodParticipationSql} from './own-period-participation-installation.mjs';
 import {buildOwnContractWorkingTimeInstallation} from './own-contract-working-time-installation.mjs';
+import {WORKING_TIME_CONSUMER_DEFINITION_HASHES,WORKING_TIME_PRIOR_PINS} from './own-contract-working-time-source-pins.mjs';
+import {buildNativeSalaryCapacityInstallation} from './native-salary-capacity-installation.mjs';
 import {buildSalaryDayUnitsInstallation} from './salary-day-units-installation.mjs';
 import {buildClassificationRegistrationUseInstallation} from './classification-registration-use-installation.mjs';
 import {buildOwnContractSalaryConditionsInstallation} from './own-contract-salary-conditions-installation.mjs';
@@ -65,6 +67,28 @@ export function normalizeFinalClassificationQaHeader(source){
  return source.slice(0,at).replace("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp').replace(/SET (?:\"TimeZone\"|timezone) TO 'UTC'/i,"SET timezone='UTC'")+source.slice(at);
 }
 
+// Keep the published guard hashes as the authority. Only undo the explicitly
+// known disposable-schema relocation inside their verification expressions.
+export function relocateFinalClassificationQaStatement(source,qa){
+ assert.match(qa.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);let value=qa.normalized(normalizeFinalClassificationQaHeader(source));
+ if(source.includes('WORKING_TIME_CONSUMER_CHANGED:')){
+  assert.match(source,/DO \$guard\$ BEGIN/);assert.equal(source.match(/WORKING_TIME_CONSUMER_CHANGED:/g)?.length,4);
+  const from="SET search_path TO 'pg_catalog', '"+qa.schema+"', 'public', 'pg_temp'",to="SET search_path TO 'pg_catalog', 'public', 'pg_temp'";
+  for(const expected of WORKING_TIME_CONSUMER_DEFINITION_HASHES){
+   assert.equal(source.split(expected.sha256).length,2,'FINAL_CLASSIFICATION_GUARD_PIN_CHANGED');
+   const pin=WORKING_TIME_PRIOR_PINS.find(p=>p.name===expected.name);assert.ok(pin);
+   const anchor='pg_get_functiondef(to_regprocedure('+q(pin.signature.replace('public.',qa.schema+'.'))+'))';assert.equal(value.split(anchor).length,2,'FINAL_CLASSIFICATION_GUARD_ANCHOR_CHANGED');
+   value=value.replace(anchor,()=> 'replace(replace('+anchor+','+q(from)+','+q(to)+'),'+q(qa.schema+'.')+",'public'||'.')");
+  }
+  assert.ok(value.includes('WORKING_TIME_PREREQUISITE'));assert.equal(value.match(/WORKING_TIME_CONSUMER_CHANGED:/g)?.length,4);
+ }
+ // Same finite alias normalization as the existing167/168 QA verifiers.
+ const aliases=source.includes('DO $classification_use$')?['updated.prosrc','f.prosrc']:source.includes('DO $catalog_storage$')?['updated.prosrc','after_body']:[];
+ const canonical=qa.normalized("replace(p.prosrc,E'\\r\\n',E'\\n')");
+ for(const alias of aliases){const anchor="replace("+alias+",E'\\r\\n',E'\\n')";assert.equal(value.split(anchor).length,2,'FINAL_CLASSIFICATION_BODY_ALIAS_CHANGED: '+alias);value=value.replace(anchor,()=>canonical.replaceAll('p.prosrc',alias));}
+ return value;
+}
+
 // Every repin below comes from two immutable source artifacts. A changed
 // runtime body/hash is never accepted as a new authority for this fixture.
 function repinReady(ready,beforePins,afterPins){
@@ -85,7 +109,7 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
  const readySource=final.afterDefinitions.at(-1);
  let ready=qa.normalized(readySource.slice(0,readySource.indexOf(' BEGIN ')))+' BEGIN '+final.readyChecks.map(s=>'EXECUTE '+q(qa.normalized(s))+';').join('\n')+' END $operator$';
  assert.equal(ownInstallationFunctionPin(ready.replace('CREATE FUNCTION '+qa.schema+'.','CREATE FUNCTION public.')).sha256,final.readyPin.sha256);
- const administrative=buildSalaryAdministrativeIdentityInstallation(options),namespace=buildSalaryAuxiliaryNamespaceSql(options),dated=buildOwnRunDateInstallation(options),seniority=buildOwnSalarySenioritySql(options),participation=buildOwnPeriodParticipationSql(options),working=buildOwnContractWorkingTimeInstallation(options),days=buildSalaryDayUnitsInstallation(options),classificationUse=buildClassificationRegistrationUseInstallation(options),conditions=buildOwnContractSalaryConditionsInstallation(options),operator=buildOwnPayrollAdministrativeOperatorInstallation(options),capacity=buildCatalogStorageCapacityInstallation({...options,verifiedBudgetBytes:CATALOG_PROVIDER_BUDGET_BYTES});
+ const administrative=buildSalaryAdministrativeIdentityInstallation(options),namespace=buildSalaryAuxiliaryNamespaceSql(options),dated=buildOwnRunDateInstallation(options),seniority=buildOwnSalarySenioritySql(options),participation=buildOwnPeriodParticipationSql(options),working=buildOwnContractWorkingTimeInstallation(options),salaryCapacity=buildNativeSalaryCapacityInstallation(options),days=buildSalaryDayUnitsInstallation(options),classificationUse=buildClassificationRegistrationUseInstallation(options),conditions=buildOwnContractSalaryConditionsInstallation(options),operator=buildOwnPayrollAdministrativeOperatorInstallation(options),capacity=buildCatalogStorageCapacityInstallation({...options,verifiedBudgetBytes:CATALOG_PROVIDER_BUDGET_BYTES});
  const groups=[
   {name:'salary-administrative',definitions:[administrative.context,...administrative.mutations],before:administrative.beforePins,after:administrative.afterPins},
   {name:'auxiliary-namespace',definitions:namespace.mutations,before:namespace.beforePins,after:namespace.afterPins},
@@ -93,6 +117,7 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
   {name:'seniority',definitions:seniority.statements,before:seniority.beforePins,after:seniority.afterPins},
   {name:'participation',definitions:participation.statements,before:participation.beforePins,after:participation.afterPins},
   {name:'working-time',definitions:working.mutations,before:working.beforePins,after:working.afterPins},
+  {name:'native-salary-capacity',definitions:salaryCapacity.mutations,before:salaryCapacity.beforePins,after:salaryCapacity.afterPins},
   {name:'day-units',definitions:days.mutations,before:days.beforePins,after:days.afterPins},
   {name:'adoption-administrative-context',definitions:[ADOPTION_ADMINISTRATIVE_CONTEXT,'REVOKE ALL ON FUNCTION public.employment_adoption_administrative_context_v1(jsonb,text) FROM PUBLIC,municontrol_actions_runtime_app'],before:[],after:[]},
   {name:'classification-registration-use',definitions:[classificationUse.prerequisite,classificationUse.state,...classificationUse.mutations,classificationUse.afterCheck],before:classificationUse.beforePins,after:classificationUse.afterPins},
@@ -121,7 +146,7 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
  }
  groups.unshift({name:'canonical-base-prerequisites',definitions:bridge,before:[],after:[]});
  const statements=[];
- for(const group of groups){ready=repinReady(ready,group.before,group.after);statements.push(...withoutReady(group.definitions).map(s=>qa.normalized(normalizeFinalClassificationQaHeader(replaceable(s)))));}
+ for(const group of groups){ready=repinReady(ready,group.before,group.after);statements.push(...withoutReady(group.definitions).map(s=>relocateFinalClassificationQaStatement(replaceable(s),qa)));}
  // The immutable final-source adapter suite does not use the operational v7
  // readiness chain. Validate every relevant published payroll source directly
  // in addition to all retained final144/adoption checks.
@@ -134,7 +159,7 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
  const beforeCheck=qa.normalized(pinsCheck(priorPins,'FINAL_PERIOD_CLASSIFICATION_BASELINE_METADATA'))+';'+pinsCheck([beforeReadyPin],'FINAL_PERIOD_CLASSIFICATION_READY_METADATA');
  const afterPins=installation.prerequisitePins.concat(installation.afterConsumerPins,installation.newPins).filter(p=>p.name!==readyName);
  const afterCheck=qa.normalized(pinsCheck(afterPins,'FINAL_PERIOD_CLASSIFICATION_SOURCE_METADATA'))+';'+pinsCheck([afterReadyPin],'FINAL_PERIOD_CLASSIFICATION_READY_METADATA');
- const classification=[...installation.migration,...withoutReady(installation.changed).map(replaceable)].map(s=>qa.normalized(normalizeFinalClassificationQaHeader(s))).concat(replaceable(afterReady));
+ const classification=[...installation.migration,...withoutReady(installation.changed).map(replaceable)].map(s=>relocateFinalClassificationQaStatement(s,qa)).concat(replaceable(afterReady));
  assert.ok(classification.every(s=>!/^\s*(?:BEGIN|COMMIT|ROLLBACK)\b/i.test(s)));
  return {qa,base,jurisdiction,inactive,final,groups:groups.map(g=>g.name),bridgePins,baseline:statements,classification,beforeCheck,afterCheck,technicalInstallationProtocol:false,connects:false,executesSql:false};
 }
