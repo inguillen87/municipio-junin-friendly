@@ -2,11 +2,17 @@ import {ownProgramBootstrap,ownProgramStructure,ownProgramDefinition,ownProgramH
 import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {requireExactProgramChanges} from './own-payroll-program-precision.js';
+import {ownPayrollConditions} from './own-payroll-conditions.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',days:'Días',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
-export const PROGRAM_SOURCES=Object.freeze({working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
+export const PROGRAM_CONDITION_TYPES=Object.freeze({code:'Código o situación declarada',boolean:'Declaración de sí o no'});
+export const PROGRAM_CONDITION_FIELDS=Object.freeze({partialSeniorityYears:'Años de antigüedad parcial',titleStatus:'Situación del título',titleCode:'Código del título',titlePercentage:'Porcentaje del título',unhealthyWork:'Insalubridad declarada'});
+export const PROGRAM_CLASSIFICATION_FIELDS=Object.freeze({categoryCode:'Clase del contrato propio',agreementCode:'Convenio del contrato propio'});
+export const PROGRAM_SOURCES=Object.freeze({classification_fact:'Encuadre propio capturado',salary_condition_fact:'Condiciones propias aprobadas',working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
 export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',auxiliary:'Usar un auxiliar calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
+const conditionOperations=Object.freeze({match:'Comprobar un código o declaración'});
+export const programWorkspaceOperations=definition=>ownPayrollConditions(definition)?{...PROGRAM_OPERATIONS,...conditionOperations}:PROGRAM_OPERATIONS;
 export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq:'Igual',ne:'Distinto',ge:'Mayor o igual',gt:'Mayor que'});
 export const PROGRAM_READ=Object.freeze(['workforce.employee.read','payroll.parameter.read']);
 const require=(v,message)=>{if(!v)throw Error(message);};
@@ -58,15 +64,16 @@ export function expressionChildren(node){
 }
 export function expressionSize(node){
  let count=0,depth=0;const walk=(n,level)=>{
-  require(n&&typeof n==='object'&&Object.hasOwn(PROGRAM_OPERATIONS,n.op),'Elegí una operación para la fórmula.');
+  require(n&&typeof n==='object'&&(Object.hasOwn(PROGRAM_OPERATIONS,n.op)||Object.hasOwn(conditionOperations,n.op)),'Elegí una operación para la fórmula.');
   require(++count<=256&&level<=32,'La fórmula supera su capacidad. No se recortaron operaciones.');depth=Math.max(depth,level);
   for(const child of expressionChildren(n))walk(n[child],level+1);
  };walk(node,0);return {nodes:count,depth};
 }
 export function changeExpressionOperation(previous,op){
- require(Object.hasOwn(PROGRAM_OPERATIONS,op),'La operación no está admitida.');
+ require(Object.hasOwn(PROGRAM_OPERATIONS,op)||Object.hasOwn(conditionOperations,op),'La operación no está admitida.');
  const leaf=()=>({op:'literal',unit:'',value:''});
  if(op==='input')return {op,unit:previous?.unit??'',key:previous?.key??''};
+ if(op==='match')return{op,key:previous?.key??'',type:previous?.type??(Object.hasOwn(PROGRAM_CONDITION_TYPES,previous?.unit)?previous.unit:''),operator:previous?.operator??'',value:typeof previous?.value==='boolean'||typeof previous?.value==='string'?previous.value:''};
  if(op==='literal')return {op,unit:previous?.unit??'',value:typeof previous?.value==='string'?previous.value:''};
  if(['concept','auxiliary'].includes(op))return {op,code:previous?.code??'',stage:previous?.stage??'exact'};
  if(op==='choose')return {op,condition:previous?.condition??{op:'compare',operator:'',left:leaf(),right:leaf()},then:previous?.then??leaf(),else:previous?.else??leaf()};
@@ -78,6 +85,7 @@ export function describeProgramExpression(node){
  expressionSize(node);
  const show=n=>{
   if(n.op==='input')return `Entrada ${n.key} (${PROGRAM_UNITS[n.unit]??'unidad pendiente'})`;
+  if(n.op==='match')return `Entrada ${n.key} (${PROGRAM_CONDITION_TYPES[n.type]??'tipo pendiente'}), ${PROGRAM_COMPARE[n.operator]??'comparación pendiente'} a ${typeof n.value==='boolean'?(n.value?'Sí':'No'):n.value}`;
   if(n.op==='literal')return `${n.value} (${PROGRAM_UNITS[n.unit]??'unidad pendiente'})`;
   if(['concept','auxiliary'].includes(n.op))return `${n.op==='auxiliary'?'Auxiliar':'Concepto'} ${n.code}, ${n.stage==='exact'?'antes':'después'} del redondeo`;
   if(n.op==='round')return `Redondear [${show(n.value)}] a ${n.rounding.precision} decimales, ${PROGRAM_ROUNDING[n.rounding.mode]}`;
@@ -96,5 +104,5 @@ export function programWorkspaceChanges(before,after){
   const old=new Map((prior.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t])),fresh=new Map((next.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t]));
   for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind:'participation',key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
  }
- return {...(next.workingTimeVersion||prior.workingTimeVersion?{workingTimeVersion:{before:prior.workingTimeVersion??null,after:next.workingTimeVersion??null}}:{}),...(next.periodParticipation||prior.periodParticipation?{periodParticipation:{before:prior.periodParticipation??null,after:next.periodParticipation??null}}:{}),rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},...(next.employmentFactsVersion||prior.employmentFactsVersion?{employmentFactsVersion:{before:prior.employmentFactsVersion??null,after:next.employmentFactsVersion??null}}:{}),changed:(prior.workingTimeVersion!==next.workingTimeVersion?1:0)+(salarySerialized(prior.periodParticipation??null)!==salarySerialized(next.periodParticipation??null)?1:0)+(prior.employmentFactsVersion!==next.employmentFactsVersion?1:0)+rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
+ return {...(next.salaryConditionsVersion||prior.salaryConditionsVersion?{salaryConditionsVersion:{before:prior.salaryConditionsVersion??null,after:next.salaryConditionsVersion??null}}:{}),...(next.workingTimeVersion||prior.workingTimeVersion?{workingTimeVersion:{before:prior.workingTimeVersion??null,after:next.workingTimeVersion??null}}:{}),...(next.periodParticipation||prior.periodParticipation?{periodParticipation:{before:prior.periodParticipation??null,after:next.periodParticipation??null}}:{}),rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},...(next.employmentFactsVersion||prior.employmentFactsVersion?{employmentFactsVersion:{before:prior.employmentFactsVersion??null,after:next.employmentFactsVersion??null}}:{}),changed:(prior.salaryConditionsVersion!==next.salaryConditionsVersion?1:0)+(prior.workingTimeVersion!==next.workingTimeVersion?1:0)+(salarySerialized(prior.periodParticipation??null)!==salarySerialized(next.periodParticipation??null)?1:0)+(prior.employmentFactsVersion!==next.employmentFactsVersion?1:0)+rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
 }

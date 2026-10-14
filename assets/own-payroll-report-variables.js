@@ -2,16 +2,20 @@ import {salaryExact,salarySerialized} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceResult} from './own-payroll-run-workspace-model.js';
 import {ownProgramBootstrap} from './own-payroll-program-model.js';
 import {decimal,exactEvidence} from './own-payroll-exact.js';
+import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
 
 const need=(v,message)=>{if(!v)throw Error(message);};
-export const OWN_VARIABLE_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
+export const OWN_VARIABLE_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente',code:'Código',boolean:'Sí/no'});
+export const ownVariableDisplayValue=input=>input.value===null?null:input.unit==='boolean'?(input.value?'Sí':'No'):input.value;
+const factDescriptions={salary_condition_fact:{partialSeniorityYears:'Antigüedad parcial declarada',titleStatus:'Situación del título',titleCode:'Código del título',titlePercentage:'Porcentaje del título',unhealthyWork:'Insalubridad declarada'},classification_fact:{categoryCode:'Clase del contrato propio',agreementCode:'Convenio del contrato propio'},employment_fact:{seniorityYears:'Años reconocidos de antigüedad total',seniorityMonths:'Meses reconocidos de antigüedad total'},working_time_fact:{dailyHours:'Horas contractuales diarias',monthlyHours:'Horas contractuales mensuales'},period_fact:{recognizedUnits:'Unidades reconocidas del período',baseUnits:'Base de unidades del período'}};
+const factOrigins={salary_condition_fact:'Condiciones propias',classification_fact:'Encuadre propio',employment_fact:'Antigüedad propia',working_time_fact:'Jornada propia',period_fact:'Participación del período'};
 const origins={parameter:'Parámetro',auxiliary_parameter:'Parámetro auxiliar',scale:'Escala',scale_reference:'Escala de referencia',monthly_quantity:'Cantidad mensual',monthly_amount:'Importe mensual',fixed_quantity:'Cantidad fija',fixed_amount:'Importe fijo'};
 const operations=new Set(['literal','input','concept','auxiliary','round','convert','choose','compare','add','subtract','multiply','divide','min','max']);
 const same=(a,b)=>salarySerialized(a)===salarySerialized(b);
 
 // Executed references include only the branch actually evaluated. A static
 // dependency or a supplied input is not proof that a concept used the input.
-function usage(rows,inputs,namespaced){
+function usage(rows,inputs,namespaced,typedConditions,rules){
  const rowKey=r=>(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
  const concepts=new Map(rows.map(r=>[rowKey(r),r])),direct=new Map(),links=new Map(),memo=new Map(),visiting=new Set();
  need(concepts.size===rows.length,'Hay conceptos o auxiliares repetidos en la captura original.');
@@ -19,10 +23,14 @@ function usage(rows,inputs,namespaced){
   need(Array.isArray(row.trace)&&row.trace.length>0&&row.trace.length<=256,'Falta la traza original completa de un concepto.');
   const keys=new Set(),references=new Set();
   for(const t of row.trace){
-   need(salaryExact(t,['operation','reference','stage','result'])&&operations.has(t.operation),'La traza original contiene una operación sin verificar.');
+   need(salaryExact(t,['operation','reference','stage','result'])&&(operations.has(t.operation)||typedConditions&&t.operation==='match'),'La traza original contiene una operación sin verificar.');
    if(t.operation==='input'){
     const input=inputs.get(t.reference);
     need(input&&input.value!==null&&t.stage===null&&same(t.result,exactEvidence(decimal(input.value))),'Una variable usada no coincide con su valor original.');keys.add(t.reference);
+   }else if(t.operation==='match'){
+    const input=inputs.get(t.reference),r=rules.find(r=>r.code===row.conceptCode&&r.agreementCode===row.agreementCode&&(!namespaced||(r.nature==='auxiliary')===(row.nature==='auxiliary')));
+    const predicates=n=>n.op==='match'?[n]:['left','right','value','condition','then','else'].flatMap(k=>n[k]&&typeof n[k]==='object'?predicates(n[k]):[]);
+    need(input&&input.value!==null&&conditionUnit(input.unit)&&conditionValue(input.unit,input.value)&&t.stage===null&&typeof t.result==='boolean'&&r&&predicates(r.expression).some(n=>n.key===t.reference&&n.type===input.unit&&t.result===(n.operator==='eq'?input.value===n.value:input.value!==n.value)),'La condición usada no coincide con su tipo, valor y predicado originales.');keys.add(t.reference);
    }else if(t.operation==='concept'||namespaced&&t.operation==='auxiliary'){
     need(!namespaced||typeof t.reference==='string'&&t.reference.startsWith(t.operation+':'),'La traza mezcla referencias de concepto y auxiliar.');
     const referenced=concepts.get(t.reference);
@@ -58,15 +66,16 @@ export function ownReportVariableSources(bundle,captures,maximum=250000){
   need(saved.input.period===item.period&&saved.input.liquidationType===item.type&&capture.body.period===item.period&&capture.body.liquidationType===item.type&&saved.inputSha256===e.inputSha256&&saved.resultSha256===e.resultSha256&&person&&['employeeNumber','agreementCode','departmentCode'].every(k=>person[k]===e[k])&&saved.input.totalsPrecision===e.precision&&same(run.totals.get(e.contractId),e.totals),'Las variables no corresponden a la liquidación cerrada original.');
   const closed=item.source.snapshot.concepts.filter(r=>r.contractId===e.contractId);
   need(concepts&&same(concepts,closed),'Los conceptos de la captura no coinciden con su cierre original.');
-  const inputs=new Map(person.inputs.map(i=>[i.key,i])),namespaced=saved.input.version==='own-payroll-input.v2',uses=usage(concepts,inputs,namespaced),variables=[];
+  const inputs=new Map(person.inputs.map(i=>[i.key,i])),namespaced=saved.input.version==='own-payroll-input.v2',uses=usage(concepts,inputs,namespaced,ownPayrollConditions(saved.input),saved.input.rules.filter(r=>r.validFrom<=item.period&&(r.validUntil===null||r.validUntil>=item.period)&&r.liquidationTypes.includes(item.type))),variables=[];
   for(const input of person.inputs){
    const bindings=capture.payload.programState.program.definition.bindings.filter(b=>b.agreementCode===person.agreementCode&&b.key===input.key);
    need(bindings.length===1&&bindings[0].unit===input.unit,'Falta la definición original de una variable capturada.');const binding=bindings[0];
    const category=capture.payload.population.employees.find(p=>p.contractId===e.contractId)?.categoryCode;
    const descriptions=capture.payload.programState.salaryCatalog.items.filter(d=>d.active&&d.code===binding.sourceCode&&d.agreementCode===(binding.sourceAgreementCode??person.agreementCode)&&d.kind===(['scale','scale_reference'].includes(binding.sourceKind)?'scale':binding.sourceKind==='auxiliary_parameter'?'auxiliary':'concept')&&(!namespaced||d.kind!=='concept'||d.nature!=='auxiliary')&&d.validFrom<=item.period&&(d.validUntil===null||d.validUntil>=item.period)&&(!['scale','scale_reference'].includes(binding.sourceKind)||d.categoryCode===(binding.sourceCategoryCode??category)));
-   need(descriptions.length===1,'Falta una descripción única de la fuente original de la variable.');
+   const factLabel=factDescriptions[binding.sourceKind]?.[binding.sourceField];
+   need(factLabel||descriptions.length===1,'Falta una descripción única de la fuente original de la variable.');
    const occurrences=concepts.filter(r=>uses.all.get(uses.rowKey(r)).has(input.key)).map(r=>({concept:namespaced?(r.nature==='auxiliary'?'Auxiliar ':'Concepto ')+r.conceptCode:r.conceptCode,kind:uses.direct.get(uses.rowKey(r)).has(input.key)?'Uso directo':'Uso por concepto referenciado'}));
-   variables.push({input,label:descriptions[0].label,origin:origins[binding.sourceKind]+' '+binding.sourceCode,occurrences});
+   variables.push({input,label:factLabel??descriptions[0].label,origin:factLabel?factOrigins[binding.sourceKind]+' / '+binding.sourceField:origins[binding.sourceKind]+' '+binding.sourceCode,occurrences});
    variableCount++;rowCount+=Math.max(1,occurrences.length);
   }
   if(!variables.length)rowCount++;

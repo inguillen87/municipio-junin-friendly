@@ -1,4 +1,5 @@
 import {ownRunDateLabel} from './own-payroll-run-date.js';
+import {ownPayrollConditions} from './own-payroll-conditions.js';
 import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
 import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
@@ -43,6 +44,7 @@ export function ownRunWorkspaceResult(capture) {
   const saved=capture.saved;if(!saved)return null;
   const {input,result}=saved, people=new Map(input.employees.map(e=>[e.contractId,e]));
   if(input.version!==(capture.payload.programState.program.definition.namespaceVersion==='own-payroll-namespaces.v2'?'own-payroll-input.v2':'own-payroll-input.v1'))fail('La versión de referencias no corresponde al programa original.');
+  if(ownPayrollConditions(input)!==ownPayrollConditions(capture.payload.programState.program.definition))fail('Las condiciones de la entrada no corresponden al programa capturado.');
   const expected=input.employees.filter(e=>input.selection.kind==='all'||input.selection.values.includes(input.selection.kind==='contracts'?e.contractId:input.selection.kind==='agreements'?e.agreementCode:e.departmentCode));
   const expectedIds=new Set(expected.map(e=>e.contractId)), totalIds=new Set(), rowKeys=new Set();
   if(result.employeeCount!==expected.length || !Number.isFinite(Date.parse(saved.recordedAt))) fail('El resultado no contiene el alcance completo.');

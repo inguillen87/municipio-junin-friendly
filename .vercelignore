@@ -358,3 +358,8 @@ local-agents/
 !scripts/migrations/168-catalog-storage-capacity.sql
 !scripts/migrations/169-fixed-novelty-storage-capacity.sql
 !scripts/migrations/170-monthly-revision-storage-capacity.sql
+
+# Reviewed conditions and full-response code required by deployment build tests.
+!scripts/migrations/171-own-contract-salary-conditions.sql
+!scripts/migrations/172-own-salary-conditions-program-source.sql
+!scripts/migrations/173-own-full-payroll-response.sql

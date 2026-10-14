@@ -14,8 +14,19 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
    if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.session.id,email:current.session.email},access:{context:'tenant',tenant:{id:current.principal.tenant.id,roleKey:'QA'},tenantCapabilities:[...current.principal.tenant.effectiveCapabilities,'payroll.read'],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
-   const kind=endpoints.get(url.pathname);if(kind==='directory'&&(url.searchParams.get('resource')!=='employees'||url.searchParams.get('view')!=='novelty-selector')){json(503,{ok:false,error:'API ajena al selector no disponible en esta prueba sintética.'});return;}if(kind){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{
-    if(req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+   const kind=endpoints.get(url.pathname);if(kind==='directory'&&(url.searchParams.get('resource')!=='employees'||url.searchParams.get('view')!=='novelty-selector')){json(503,{ok:false,error:'API ajena al selector no disponible en esta prueba sintética.'});return;}if(kind){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};
+    if(kind==='run'&&req.method==='POST'){
+     // Observe the complete real response after SQL, for both JSON and
+     // streaming. Interrupted acknowledgments retain the original receipt.
+     const write=res.write.bind(res),end=res.end.bind(res),chunks=[];let bytes=0;
+     const retain=chunk=>{if(chunk===undefined||chunk===null)return;const b=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);bytes+=b.length;assert.ok(bytes<=33554432,'QA_RESPONSE_TOO_LARGE');chunks.push(b);};
+     res.write=chunk=>{retain(chunk);return true;};
+     res.end=chunk=>{retain(chunk);res.write=write;res.end=end;const packet=Buffer.concat(chunks),value=JSON.parse(packet.toString('utf8'));
+      if(value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.removeHeader('X-MuniControl-JSON-Bytes');res.removeHeader('Content-Length');end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+      for(const c of chunks)write(c);end();return res;};
+    }
+    res.json=value=>{
+    if(kind!=='run'&&req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};await handlers[kind](req,res);return;}
    if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'API ajena al circuito no disponible en esta prueba sintética.'});return;}
    const base=path.join(root,'public'),file=path.resolve(base,'.'+decodeURIComponent(url.pathname));if(req.method!=='GET'||!file.startsWith(base+path.sep)||!/\.(html|js|css|png|svg|webp)$/.test(file)||!fs.existsSync(file)){res.writeHead(404).end();return;}

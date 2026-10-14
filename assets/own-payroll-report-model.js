@@ -3,7 +3,7 @@ import {salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-m
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownCloseDetail,ownCloseReceipt,verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {decimal,rational,exactAdd,quantize} from './own-payroll-exact.js';
-import {ownReportVariableSources,OWN_VARIABLE_UNITS} from './own-payroll-report-variables.js';
+import {ownReportVariableSources,OWN_VARIABLE_UNITS,ownVariableDisplayValue} from './own-payroll-report-variables.js';
 import {ownReportStatement} from './own-payroll-report-statement.js';
 import {ownLegajoReportRows} from './own-payroll-report-legajo.js';
 
@@ -130,8 +130,8 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
    const summary=view==='variables';title=summary?'Variables originales de las liquidaciones propias':'Uso de variables originales por concepto';columns=['Período / tipo','Legajo / convenio / repartición','Variable / descripción conservada','Valor original','Unidad declarada',...(summary?['Conceptos con uso directo','Conceptos con uso por referencia']:['Concepto','Uso registrado']),'Fuente original','Versión / fecha declarada'].map((label,i)=>summary&&[5,6].includes(i)?integer(label):text(label));
    rows=chosen.flatMap(item=>{const {capture,variables}=originals.participations.get(item.identity),e=item.employee,context=[item.period+' / '+OWN_RUN_TYPES[item.type],e.employeeNumber+' / '+e.agreementCode+' / '+e.departmentCode],version=String(e.liquidationVersion)+' / '+(capture.body.liquidationDate??'Fecha no declarada');
     if(!variables.length)return [[...context,'Sin variables capturadas',null,null,null,summary?null:'No informado',null,version]];
-    if(summary)return variables.map(({input,label,origin,occurrences})=>[...context,input.key+' / '+label,input.value,OWN_VARIABLE_UNITS[input.unit],occurrences.filter(v=>v.kind==='Uso directo').length,occurrences.filter(v=>v.kind==='Uso por concepto referenciado').length,origin+' / '+input.sourceReference,version]);
-    return variables.flatMap(({input,label,origin,occurrences})=>(occurrences.length?occurrences:[{concept:null,kind:'Capturada; sin uso en la traza'}]).map(use=>[...context,input.key+' / '+label,input.value,OWN_VARIABLE_UNITS[input.unit],use.concept,use.kind,origin+' / '+input.sourceReference,version]));
+    if(summary)return variables.map(({input,label,origin,occurrences})=>[...context,input.key+' / '+label,ownVariableDisplayValue(input),OWN_VARIABLE_UNITS[input.unit],occurrences.filter(v=>v.kind==='Uso directo').length,occurrences.filter(v=>v.kind==='Uso por concepto referenciado').length,origin+' / '+input.sourceReference,version]);
+    return variables.flatMap(({input,label,origin,occurrences})=>(occurrences.length?occurrences:[{concept:null,kind:'Capturada; sin uso en la traza'}]).map(use=>[...context,input.key+' / '+label,ownVariableDisplayValue(input),OWN_VARIABLE_UNITS[input.unit],use.concept,use.kind,origin+' / '+input.sourceReference,version]));
    });
   }else{
    title='Fuentes originales de las variables';columns=['Período','Tipo','Corrida original','Fecha declarada','Participaciones seleccionadas','SHA-256 programa','SHA-256 captura','SHA-256 entradas','SHA-256 resultado'].map((label,i)=>i===4?integer(label):text(label));

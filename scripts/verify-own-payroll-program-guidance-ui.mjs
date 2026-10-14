@@ -123,9 +123,13 @@ try{
  await load(many);await coverage.locator('summary').click();await coverageReview();const coverageHeld=new Promise(resolve=>{holdReady=resolve;});hold=true;await $('refresh').click();await coverageHeld;await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));held();held=null;await $('content').waitFor({state:'hidden'});check(await c('review').isDisabled()&&await c('table').innerText()==='','a late bootstrap cannot restore coverage after revocation');
  // Real handler, synthetic lost acknowledgment: added navigation must not
  // unlock a second operation or modify the stored body/key.
- await load(bootstrap({program:approved()}));await $('reason').fill('Revisión sintética de fuentes completas QA');await $('prepare').click();await $('confirm').check();lose=true;await $('send').click();
+ await load(bootstrap({program:approved()}));await $('reason').fill('Revisión sintética de fuentes completas QA');await $('prepare').click();
+ check(await $('confirm').isDisabled()&&await $('send').isDisabled()&&posts===0,'an identical approved programme cannot open a futile confirmation or create a request');
+ await $('binding-select').selectOption('0');await page.locator('[data-program-field="binding-reference"]').fill('Respaldo actualizado exclusivamente sintético de recuperación QA');
+ await $('prepare').click();await $('confirm').check();lose=true;await $('send').click();
  await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
  const original=structuredClone(writes[0]);check(posts===1&&writes.length===1,'only explicitly submitted synthetic command writes');
+ check(original.body.program.bindings[0].ruleReference==='Respaldo actualizado exclusivamente sintético de recuperación QA','the positive recovery case submits the complete programme with an actual reviewed change');
  check(await $('catalog-link').isHidden()&&await $('pending-link').isDisabled(),'uncertain attempt prevents guidance navigation from opening another operation');
  check(await c('review').isDisabled()&&await c('download').isDisabled(),'coverage cannot reopen or export during an uncertain command');
  await $('recover').click();await $('receipt').waitFor({state:'visible'});check(writes.length===1&&JSON.stringify(writes[0])===JSON.stringify(original),'receipt recovery keeps original body and key');

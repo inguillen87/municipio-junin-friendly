@@ -41,7 +41,7 @@ function prepareCopy(bootstrap,draft,intent,multiple) {
   const candidate = structuredClone(base);
   for(const source of selected) {
     const keys = new Set();
-    const walk = n => { if(n.op === 'input') keys.add(n.key); for(const key of expressionChildren(n)) walk(n[key]); };
+    const walk = n => { if(n.op === 'input'||n.op==='match') keys.add(n.key); for(const key of expressionChildren(n)) walk(n[key]); };
     walk(participationRules(base).find(r=>ownProgramRuleKey(r,base.namespaceVersion)===ownProgramRuleKey(source,base.namespaceVersion)).expression);
     const sources = base.bindings.filter(b => b.agreementCode === source.agreementCode && keys.has(b.key));
     for(const target of [...intent.targets].sort()) {

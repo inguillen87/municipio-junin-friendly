@@ -12,6 +12,7 @@ import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
 import {RUN_CALCULATE,ownRunHash} from '../lib/internal-own-payroll-run.js';
+import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
@@ -25,13 +26,14 @@ const writes=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);c
 let report;
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
+  await db.run(ownPayrollFullQaInstallation(qa.schema));
   const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
   const actor=qa.actors.maker,principal={user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:[...RUN_CALCULATE,'payroll.read']}},session={email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha},env={};
   const deps={env,requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{
     try{
       if(query.includes('own_run_capture_v1'))writes.push({key:values[2],body:JSON.parse(values[1])});
       const rows=await db.query(query,values);
-      if(lose&&query.includes('own_run_complete_v1')){lose=false;throw Error('QA_LOST_RESULT_ACK_AFTER_COMMIT');}
+      if(lose&&/own_run_complete(?:_full)?_v1\(/.test(query)){lose=false;throw Error('QA_LOST_RESULT_ACK_AFTER_COMMIT');}
       return rows;
     }catch(e){sqlDiagnostics.push({message:e.message});throw e;}
   }})};
@@ -56,7 +58,14 @@ try{
     }
     if(url.pathname==='/api/internal-own-payroll-run'||url.pathname==='/api/internal-employment-catalog'){
       req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};
-      res.json=value=>{res.setHeader('Content-Type','application/json');if(delay&&req.method==='GET'&&url.searchParams.get('resource')==='attempt'){delay=false;held=()=>{if(!res.destroyed)res.end(JSON.stringify(value));};}else res.end(JSON.stringify(value));return res;};
+      if(delay&&req.method==='GET'&&url.searchParams.get('resource')==='attempt'){
+        // Hold the actual already-authorized response after SQL has finished.
+        // Cover both legacy JSON and streamed packets without changing bytes.
+        delay=false;const write=res.write.bind(res),end=res.end.bind(res),chunks=[];
+        res.write=(...values)=>{chunks.push(values);return true;};
+        res.end=(...values)=>{held=()=>{if(!res.destroyed){res.write=write;res.end=end;for(const c of chunks)write(...c);end(...values);}};return res;};
+      }
+      res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
       if(req.method==='POST')posts++;
       (url.pathname==='/api/internal-own-payroll-run'?runHandler:catalogHandler)(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
