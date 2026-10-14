@@ -10,6 +10,9 @@ import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 import {employeeDraft} from '../assets/native-employee-contract.js';
 import {salaryConditionsBootstrap,salaryConditionsDetail,salaryConditionsReceipt,salaryConditionsCapture,prepareSalaryConditions,decideSalaryConditions} from '../assets/own-contract-salary-conditions-model.js';
+import {buildOwnContractSalaryConditionsInstallation,assertOwnContractSalaryConditionsDurability} from './lib/own-contract-salary-conditions-installation.mjs';
+import {buildNativeSalaryCapacityInstallation} from './lib/native-salary-capacity-installation.mjs';
+import {buildSalaryDayUnitsInstallation,assertSalaryDayUnitsDurability} from './lib/salary-day-units-installation.mjs';
 const root=fs.realpathSync(new URL('..',import.meta.url)),j=v=>q(JSON.stringify(v))+'::jsonb';
 
 export async function verifyOwnContractSalaryConditions(options){
@@ -28,8 +31,31 @@ export async function verifyOwnContractSalaryConditions(options){
   for(const actor of [checker,qa.actors.samePerson])await sql('INSERT INTO capabilities SELECT '+q(actor.membershipId)+'::uuid,\'payroll.calculation.nominal.read\' WHERE NOT EXISTS(SELECT 1 FROM capabilities WHERE membership_id='+q(actor.membershipId)+'::uuid AND capability_key=\'payroll.calculation.nominal.read\')');
   await sql('INSERT INTO capabilities SELECT '+q(qa.actors.samePerson.membershipId)+'::uuid,\'payroll.parameter.approve\' WHERE NOT EXISTS(SELECT 1 FROM capabilities WHERE membership_id='+q(qa.actors.samePerson.membershipId)+'::uuid AND capability_key=\'payroll.parameter.approve\')');
   const surface=()=>db.run("SELECT jsonb_build_object('contracts',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM employment_contract e),'registrations',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM native_employee_registration e),'seniority',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM own_seniority_event e),'workingTime',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM own_working_time_event e),'salary',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM native_salary_event e),'program',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM own_payroll_program_event e),'captures',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM own_payroll_run_capture e),'results',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY capture_id)::text) FROM own_payroll_run_result e),'capabilities',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY membership_id,capability_key)::text) FROM capabilities e))");
-  const before=await surface();await sql(statements.map(relocate).join(';'));assert.deepEqual(await surface(),before);
-  ok(true,'new conditions table/functions preserve every inherited row, salary result, earlier approval and synthetic permission');
+  // Reproduce the already published capacity/day validators in the disposable
+  // foundation. The conditions batch must reject the older working-time-only
+  // baseline; its production prerequisite pins remain unchanged.
+  const baseline=await surface(),capacity=buildNativeSalaryCapacityInstallation(h.options);
+  for(const s of capacity.mutations)await sql(relocate(s));
+  const days=buildSalaryDayUnitsInstallation(h.options),daySteps=days.statements.map(s=>s===days.choose?"DO $choose$ BEGIN IF current_setting('municontrol_day_units.mode')='install' THEN EXECUTE "+q(relocate(days.beforeCheck))+";ELSE EXECUTE "+q(relocate(days.afterCheck))+";END IF;END $choose$":s===days.apply?"DO $apply$ BEGIN IF current_setting('municontrol_day_units.mode')='install' THEN EXECUTE "+q(relocate(days.mutations[0]))+";END IF;END $apply$":relocate(s));
+  const dayInstalled=await sql(daySteps.join(';')),dayDurable=await sql(days.verification.map(relocate).join(';'));assertSalaryDayUnitsDurability({installed:dayInstalled,durable:dayDurable,batch:days});assert.deepEqual(await surface(),baseline);
+  ok(true,'disposable prerequisites reproduce the published capacity and days validators with unchanged earlier rows and independently durable metadata');
+  const before=await surface(),batch=buildOwnContractSalaryConditionsInstallation(h.options);
+  const n=s=>relocate(s.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp'));
+  const installStatements=batch.statements.map(s=>s===batch.choose?"DO $choose$ BEGIN IF current_setting('municontrol_salary_conditions_install.mode')='install' THEN EXECUTE "+q(n(batch.beforeCheck))+";ELSE EXECUTE "+q(n(batch.afterCheck))+";END IF;END $choose$":s===batch.apply?"DO $apply$ BEGIN IF current_setting('municontrol_salary_conditions_install.mode')='install' THEN "+batch.mutations.map(m=>'EXECUTE '+q(n(m))+';').join('\n')+"IF(SELECT count(*) FROM "+qa.schema+".own_salary_conditions_event)<>0 THEN RAISE EXCEPTION 'SALARY_CONDITIONS_NEW_TABLE_NOT_EMPTY';END IF;END IF;END $apply$":n(s));
+  const rolledBack=await sql('BEGIN ISOLATION LEVEL REPEATABLE READ;SET LOCAL search_path=pg_catalog,'+qa.schema+',public,pg_temp;DO $destination$ BEGIN '+qa.pins+' END $destination$;'+installStatements.join(';')+';ROLLBACK');
+  assert.equal(rolledBack.mode,'install');assert.deepEqual(await surface(),before);
+  assert.equal(await db.run("SELECT to_jsonb(to_regclass("+q(qa.schema+'.own_salary_conditions_event')+") IS NULL AND to_regprocedure("+q(qa.schema+'.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)')+") IS NULL)"),true);
+  ok(true,'the entire conditions, typed source and full-response installation rehearses then rolls back every new object and previous row');
+  const installed=await sql(installStatements.join(';')),durable=await sql(batch.verification.map(n).join(';'));
+  assertOwnContractSalaryConditionsDurability({installed,durable,batch});const repeated=await sql(installStatements.join(';'));assert.equal(installed.mode,'install');assert.deepEqual(repeated,durable);assert.deepEqual(await surface(),before);
+  ok(true,'combined source-pinned installation conserves all prior rows and rights, separately durable metadata, and verifies only on repetition');
+  await assert.rejects(()=>sql('GRANT SELECT ON '+qa.schema+'.own_salary_conditions_event TO municontrol_actions_runtime_app;'+n(batch.afterCheck)),/SALARY_CONDITIONS_TABLE_SECURITY/);
+  await assert.rejects(()=>sql('ALTER FUNCTION '+qa.schema+'.own_program_node_v2(jsonb,integer) STRICT;'+n(batch.afterCheck)),/SALARY_CONDITIONS_FUNCTION_CHANGED/);
+  const changedPrior=installStatements.slice();changedPrior.splice(changedPrior.indexOf(n(batch.after)),0,'DELETE FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid');
+  await assert.rejects(()=>sql(changedPrior.join(';')),/SALARY_CONDITIONS_PRIOR_STATE_CHANGED/);
+  assert.deepEqual(await sql(batch.verification.map(n).join(';')),durable);
+  ok(true,'unexpected direct access, changed existing attributes and altered prior permissions all fail and roll back');
+  fs.writeFileSync(path.join(h.destination,'salary-conditions-installation-proof.json'),JSON.stringify({syntheticOnly:true,major:options.major,rolledBack,installed,durable,repeated,productiveBusinessWrites:0},null,2)+'\n');
   const conditionsAdapter={query:async(query,values)=>{
    if(!query.startsWith('SELECT public.own_salary_conditions_'))return adapter.query(query,values);
    assert.match(query,/^SELECT public\.own_salary_conditions_(?:bootstrap|detail|attempt|command)_v1\([\s\S]+\) AS result$/);
@@ -99,7 +125,7 @@ export async function verifyOwnContractSalaryConditions(options){
     revoke:()=>sql('DELETE FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid AND capability_key=\'payroll.calculation.nominal.read\''),
     restore:()=>sql('INSERT INTO capabilities SELECT '+q(maker.membershipId)+'::uuid,\'payroll.calculation.nominal.read\' WHERE NOT EXISTS(SELECT 1 FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid AND capability_key=\'payroll.calculation.nominal.read\')')});
   }
-  const proof={version:'own-contract-salary-conditions-sql-qa.v1',major:options.major,syntheticOnly:true,productiveBusinessWrites:0,rows:items.length,newNativeEmployees:856,eventRows:await db.run('SELECT to_jsonb(count(*)) FROM own_salary_conditions_event'),sourceSqlSha256:createHash('sha256').update(text).digest('hex'),modelBytes:4194304,actualHttpHandlers:true,engineIntegrated:false,technicalInstallationProtocol:false};
+  const proof={version:'own-contract-salary-conditions-sql-qa.v1',major:options.major,syntheticOnly:true,productiveBusinessWrites:0,rows:items.length,newNativeEmployees:856,eventRows:await db.run('SELECT to_jsonb(count(*)) FROM own_salary_conditions_event'),sourceSqlSha256:createHash('sha256').update(text).digest('hex'),modelBytes:4194304,actualHttpHandlers:true,engineIntegrated:false,technicalInstallationProtocol:true};
   fs.writeFileSync(path.join(h.destination,'salary-conditions-sql-proof.json'),JSON.stringify(proof,null,2)+'\n');
   if(options.continuation)return options.continuation({...h,salaryConditions:{proof,extraPeople}});return proof;
  }});

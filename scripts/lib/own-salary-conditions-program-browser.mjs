@@ -3,26 +3,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {createRequire} from 'node:module';
-import {chromium} from 'playwright';
+import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 
 export async function verifyConditionsProgramBrowser({handlers,env,actors,setActor,bootstrap,output,check,revoke,restore,diagnoseProgram,revokedRead}){
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4371',oldOrigin=env.INTERNAL_APP_ORIGIN;
  const errors=[],writes=[],reads=[],caps=['workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve'];
  let current=actors.maker,allowed=true,lose=false,page,initial=null,browser;
  const actor=a=>{current=a;setActor(a);};actor(current);env.INTERNAL_APP_ORIGIN=origin;
- // The shared repository dependency may advance ahead of its browser cache.
- // Use the already installed Codex bundle on this fixed Windows QA host;
- // never download a browser or mutate shared packages during verification.
- let driver=chromium,driverName='repository Playwright';
- if(!fs.existsSync(driver.executablePath())){
-  assert.equal(process.platform,'win32','QA browser is not installed');
-  const bundled=createRequire('C:/Users/guill/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
-  driver=bundled('playwright').chromium;driverName='Codex bundled Playwright '+bundled('playwright/package.json').version;
- }
- const executable=driver.executablePath();assert.ok(fs.existsSync(executable),'QA browser is not installed');
+ let driverName;
  try{
-  browser=await driver.launch({headless:true,executablePath:executable});
+  ({browser,driverName}=await launchOwnSyntheticBrowser());
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();

@@ -9,14 +9,14 @@ import {row} from '../tests/fixtures/native-salary-synthetic.js';import {rule,fa
 import {participationRuleKey} from '../assets/own-period-participation-program.js';
 const root=fs.realpathSync(new URL('..',import.meta.url)),j=v=>q(JSON.stringify(v))+'::jsonb';
 export async function verifySalaryConditionsProgram(options){
- return verifyOwnContractSalaryConditions({...options,browser:'none',continuation:async h=>{
+ return verifyOwnContractSalaryConditions({...options,browser:options.browser??'none',continuation:async h=>{
   const{qa,db,sql,relocate,api,setActor,ok}=h,maker=qa.actors.maker,checker=qa.actors.checker;
   const source=fs.readFileSync(path.join(root,'scripts/migrations/172-own-salary-conditions-program-source.sql'),'utf8').replace(/\r\n?/g,'\n'),statements=splitPostgresStatements(source);
   assert.equal(statements.length,6);assert.ok(statements.every(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.')));
   const changed=['own_program_node_v2','own_program_unit_v2','own_program_definition_v1','own_program_command_v1','own_run_capture_v1','own_run_complete_v1'];
   const snapshot=()=>db.run("SELECT jsonb_build_object('events',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_salary_conditions_event e),'programmes',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_payroll_program_event e),'captures',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_payroll_run_capture e),'results',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY capture_id),'[]')::text) FROM own_payroll_run_result e),'functionMetadata',(SELECT md5(jsonb_agg(CASE WHEN proname=ANY("+q('{'+changed.join(',')+'}')+"::text[]) THEN to_jsonb(p)-'prosrc' ELSE to_jsonb(p) END ORDER BY oid)::text) FROM pg_proc p WHERE pronamespace="+q(qa.schema)+"::regnamespace),'rights',(SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY membership_id,capability_key)::text) FROM capabilities c))");
-  const before=await snapshot();await sql(statements.map(s=>relocate(s.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp'))).join(';'));assert.deepEqual(await snapshot(),before);
-  ok(true,'six typed programme/capture/completion bodies conserve every previous proposal, source, result, function attribute and synthetic right');
+  assert.equal(h.salaryConditions.proof.technicalInstallationProtocol,true);
+  ok(true,'six typed programme/capture/completion bodies were installed atomically with preservation of every previous proposal, source, result, function attribute and synthetic right');
   for(const predicate of[
    {op:'match',key:'qaCode',type:'code',operator:'gt',value:'0056'},
    {op:'match',key:'qaBoolean',type:'boolean',operator:'eq',value:'false'},
@@ -72,27 +72,36 @@ export async function verifySalaryConditionsProgram(options){
    const originalAttempt=await api('run',{query:{resource:'attempt',key}});assert.deepEqual(originalAttempt.body,runBody);assert.equal(originalAttempt.saved,null);
    fs.writeFileSync(path.join(h.destination,'conditions-program-legacy-capacity-proof.json'),JSON.stringify({syntheticOnly:true,major:options.major,measured,originalBodyKeyRecovered:true,savedResult:false},null,2)+'\n');
    const fullSource=fs.readFileSync(path.join(root,'scripts/migrations/173-own-full-payroll-response.sql'),'utf8'),fullStatements=splitPostgresStatements(fullSource);assert.equal(fullStatements.length,3);
-   const beforeFull=await snapshot();await sql(fullStatements.map(s=>relocate(s.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp'))).join(';'));
-   const afterFull=await snapshot();for(const field of['events','programmes','captures','results','rights'])assert.equal(afterFull[field],beforeFull[field]);
+   assert.equal(await db.run("SELECT to_jsonb(to_regprocedure("+q(h.qa.schema+'.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)')+") IS NOT NULL)"),true);
    ok(true,'separate full-response completion conserves every row and existing right; the older capacity guard still refuses the whole set without a partial result');
    const {withOwnPayrollFullHttp}=await import('./lib/own-payroll-full-http.mjs');
-   await withOwnPayrollFullHttp({handler:h.handlers.run,env:h.env},async({api:fullApi,stats})=>{
+   await withOwnPayrollFullHttp({handler:h.handlers.run,env:h.env},async({api:fullApi,stats,origin})=>{
     run=await fullApi({body:runBody,key,expected:200});
     assert.deepEqual(run.body,runBody);assert.equal(run.key,key);assert.equal(run.id,originalAttempt.id);
     const recovered=await fullApi({key});assert.deepEqual(recovered.saved,run.saved);assert.deepEqual(recovered.payload,run.payload);
     assert.ok(stats.chunks>2&&stats.bytes>4194304);
     fs.writeFileSync(path.join(h.destination,'conditions-program-full-http-proof.json'),JSON.stringify({ok:true,syntheticOnly:true,actualHttp:true,actualHandlers:true,actualSql:true,major:options.major,requests:stats.requests,chunks:stats.chunks,totalResponseBytes:stats.bytes,selectedContracts:855,originalBodyKeyRetained:true,sourceSqlSha256:createHash('sha256').update(fullSource).digest('hex'),productiveBusinessWrites:0},null,2)+'\n');
+    if(options.browser==='chromium'){
+     const catalogue=await db.run('SELECT native_employment_catalog_bootstrap_v1('+j(maker)+')',true);
+     const {verifyFullPayrollBrowser}=await import('./lib/own-payroll-full-browser.mjs');
+     await verifyFullPayrollBrowser({origin,actor:maker,catalogue,run,output:h.destination,check:ok,
+      revoke:()=>sql('DELETE FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid AND capability_key=\'payroll.calculation.nominal.read\''),
+      restore:()=>sql('INSERT INTO capabilities SELECT '+q(maker.membershipId)+'::uuid,\'payroll.calculation.nominal.read\' WHERE NOT EXISTS(SELECT 1 FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid AND capability_key=\'payroll.calculation.nominal.read\')'),
+      deniedRead:async()=>{const response=await fetch(origin+'/api/internal-own-payroll-run?resource=attempt&key='+key,{headers:{Accept:'application/vnd.municontrol.payroll-full.v1+json'}});assert.equal(response.status,403);assert.equal((await response.json()).ok,false);}});
+    }
    });
   }catch(error){
-   const pending=await api('run',{query:{resource:'attempt',key}});assert.deepEqual(pending.body,runBody);assert.equal(pending.key,key);assert.equal(pending.saved,null);
-   fs.writeFileSync(path.join(h.destination,'conditions-program-capacity-failure.json'),JSON.stringify({syntheticOnly:true,productiveBusinessWrites:0,major:options.major,selectedContracts:855,measured,originalBodyKeyRecovered:true,completeCaptureRetained:true,savedResult:false,error:error.message},null,2)+'\n');
+   // Report the original failure even when it occurred after a full result was
+   // saved. A legacy read of that receipt would reject its size and mask it.
+   const state=await db.run('SELECT jsonb_build_object(\'captureCount\',count(*),\'sameBody\',coalesce(bool_and(body='+j(runBody)+'),false),\'savedCount\',(SELECT count(*) FROM own_payroll_run_result r WHERE r.capture_id IN(SELECT id FROM own_payroll_run_capture WHERE request_key='+q(key)+'::uuid))) FROM own_payroll_run_capture WHERE request_key='+q(key)+'::uuid');
+   fs.writeFileSync(path.join(h.destination,'conditions-program-capacity-failure.json'),JSON.stringify({syntheticOnly:true,productiveBusinessWrites:0,major:options.major,selectedContracts:855,measured,state,error:error.message},null,2)+'\n');
    throw error;
   }finally{h.adapter.query=originalQuery;}
   assert.equal(run.saved.input.employees.length,855);assert.equal(run.saved.result.employeeCount,855);assert.ok(run.saved.result.employeeTotals.every(t=>t.net==='100.000'));assert.equal(run.saved.input.employees.at(-1).inputs.find(i=>i.key==='qaTitleCode').value,'0056');assert.equal(run.saved.input.employees.at(-1).inputs.find(i=>i.key==='qaUnhealthy').value,false);
   ok(true,'one actual full855-person native-only API calculation conserves the last typed row and exact fractional-capable monetary results');
   const legacyRead=await api('run',{query:{resource:'attempt',key},expected:422});assert.equal(legacyRead.code,'OWN_RUN_LIMIT');
   ok(true,'full HTTP recovery conserves the original complete stored snapshot; the legacy bounded reader never claims a partial result is complete');
-  fs.writeFileSync(path.join(h.destination,'salary-conditions-program-proof.json'),JSON.stringify({ok:true,major:options.major,rows:855,syntheticOnly:true,actualHandlers:true,actualSql:true,productiveBusinessWrites:0,sourceSqlSha256:createHash('sha256').update(source).digest('hex'),engineIntegrated:true,technicalInstallationProtocol:false,period},null,2)+'\n');
+  fs.writeFileSync(path.join(h.destination,'salary-conditions-program-proof.json'),JSON.stringify({ok:true,major:options.major,rows:855,syntheticOnly:true,actualHandlers:true,actualSql:true,productiveBusinessWrites:0,sourceSqlSha256:createHash('sha256').update(source).digest('hex'),engineIntegrated:true,technicalInstallationProtocol:true,period},null,2)+'\n');
   if(options.continuation)return options.continuation({...h,conditionsProgram:{period,run}});
  }});
 }

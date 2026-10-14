@@ -22,6 +22,6 @@ export async function withOwnPayrollFullHttp({handler,env},work){
    const value=await readOwnPayrollResponse(response,{maxBytes:OWN_RUN_FULL_MAX_BYTES});assert.equal(response.status,expected,JSON.stringify(value?.error));
    assert.equal(response.headers.get('content-type'),OWN_RUN_FULL_JSON+'; charset=utf-8');assert.equal(value.ok,true);return value.data;
   };
-  return await work({api,stats});
+  return await work({api,stats,origin});
  }finally{env.INTERNAL_APP_ORIGIN=original;server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 }
