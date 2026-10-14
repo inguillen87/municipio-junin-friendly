@@ -39,6 +39,7 @@ export async function verifyOwnContractSalaryConditions(options){
   const days=buildSalaryDayUnitsInstallation(h.options),daySteps=days.statements.map(s=>s===days.choose?"DO $choose$ BEGIN IF current_setting('municontrol_day_units.mode')='install' THEN EXECUTE "+q(relocate(days.beforeCheck))+";ELSE EXECUTE "+q(relocate(days.afterCheck))+";END IF;END $choose$":s===days.apply?"DO $apply$ BEGIN IF current_setting('municontrol_day_units.mode')='install' THEN EXECUTE "+q(relocate(days.mutations[0]))+";END IF;END $apply$":relocate(s));
   const dayInstalled=await sql(daySteps.join(';')),dayDurable=await sql(days.verification.map(relocate).join(';'));assertSalaryDayUnitsDurability({installed:dayInstalled,durable:dayDurable,batch:days});assert.deepEqual(await surface(),baseline);
   ok(true,'disposable prerequisites reproduce the published capacity and days validators with unchanged earlier rows and independently durable metadata');
+  await sql('CREATE TABLE '+qa.schema+".qa_live_ingest(id integer PRIMARY KEY,label text NOT NULL);INSERT INTO "+qa.schema+".qa_live_ingest VALUES(1,'previous synthetic event')");
   const before=await surface(),batch=buildOwnContractSalaryConditionsInstallation(h.options);
   const n=s=>relocate(s.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp'));
   const installStatements=batch.statements.map(s=>s===batch.choose?"DO $choose$ BEGIN IF current_setting('municontrol_salary_conditions_install.mode')='install' THEN EXECUTE "+q(n(batch.beforeCheck))+";ELSE EXECUTE "+q(n(batch.afterCheck))+";END IF;END $choose$":s===batch.apply?"DO $apply$ BEGIN IF current_setting('municontrol_salary_conditions_install.mode')='install' THEN "+batch.mutations.map(m=>'EXECUTE '+q(n(m))+';').join('\n')+"IF(SELECT count(*) FROM "+qa.schema+".own_salary_conditions_event)<>0 THEN RAISE EXCEPTION 'SALARY_CONDITIONS_NEW_TABLE_NOT_EMPTY';END IF;END IF;END $apply$":n(s));
@@ -47,15 +48,25 @@ export async function verifyOwnContractSalaryConditions(options){
   assert.equal(await db.run("SELECT to_jsonb(to_regclass("+q(qa.schema+'.own_salary_conditions_event')+") IS NULL AND to_regprocedure("+q(qa.schema+'.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)')+") IS NULL)"),true);
   ok(true,'the entire conditions, typed source and full-response installation rehearses then rolls back every new object and previous row');
   const installed=await sql(installStatements.join(';')),durable=await sql(batch.verification.map(n).join(';'));
-  assertOwnContractSalaryConditionsDurability({installed,durable,batch});const repeated=await sql(installStatements.join(';'));assert.equal(installed.mode,'install');assert.deepEqual(repeated,durable);assert.deepEqual(await surface(),before);
+  assertOwnContractSalaryConditionsDurability({installed,durable,batch});
+  await sql('INSERT INTO '+qa.schema+".qa_live_ingest VALUES(2,'later synthetic collector event')");
+  const liveDurable=await sql(batch.verification.map(n).join(';'));
+  assert.notEqual(installed.preservationSha256,liveDurable.preservationSha256);assert.equal(installed.priorMetadataSha256,liveDurable.priorMetadataSha256);assertOwnContractSalaryConditionsDurability({installed,durable:liveDurable,batch});
+  assert.deepEqual(await db.run('SELECT jsonb_agg(label ORDER BY id) FROM '+qa.schema+'.qa_live_ingest'),['previous synthetic event','later synthetic collector event']);
+  const repeated=await sql(installStatements.join(';'));assert.equal(installed.mode,'install');assertOwnContractSalaryConditionsDurability({installed:repeated,durable:liveDurable,batch});assert.deepEqual(await surface(),before);
   ok(true,'combined source-pinned installation conserves all prior rows and rights, separately durable metadata, and verifies only on repetition');
+  ok(true,'a separate synthetic collector commit preserves the old event and does not turn live row growth into an installation durability failure');
+  const changedMeta=await sql('BEGIN;ALTER TABLE '+qa.schema+'.qa_live_ingest ADD COLUMN unauthorized_metadata boolean;'+batch.verification.map(n).join(';')+';ROLLBACK');
+  assert.throws(()=>assertOwnContractSalaryConditionsDurability({installed,durable:changedMeta,batch}),/SALARY_CONDITIONS_INSTALL_NOT_DURABLE/);
+  assert.deepEqual(await sql(batch.verification.map(n).join(';')),liveDurable);
+  ok(true,'a changed prior table definition is still refused across independent durability reads and the synthetic alteration rolls back');
   await assert.rejects(()=>sql('GRANT SELECT ON '+qa.schema+'.own_salary_conditions_event TO municontrol_actions_runtime_app;'+n(batch.afterCheck)),/SALARY_CONDITIONS_TABLE_SECURITY/);
   await assert.rejects(()=>sql('ALTER FUNCTION '+qa.schema+'.own_program_node_v2(jsonb,integer) STRICT;'+n(batch.afterCheck)),/SALARY_CONDITIONS_FUNCTION_CHANGED/);
   const changedPrior=installStatements.slice();changedPrior.splice(changedPrior.indexOf(n(batch.after)),0,'DELETE FROM capabilities WHERE membership_id='+q(maker.membershipId)+'::uuid');
   await assert.rejects(()=>sql(changedPrior.join(';')),/SALARY_CONDITIONS_PRIOR_STATE_CHANGED/);
-  assert.deepEqual(await sql(batch.verification.map(n).join(';')),durable);
+  assert.deepEqual(await sql(batch.verification.map(n).join(';')),liveDurable);
   ok(true,'unexpected direct access, changed existing attributes and altered prior permissions all fail and roll back');
-  fs.writeFileSync(path.join(h.destination,'salary-conditions-installation-proof.json'),JSON.stringify({syntheticOnly:true,major:options.major,rolledBack,installed,durable,repeated,productiveBusinessWrites:0},null,2)+'\n');
+  fs.writeFileSync(path.join(h.destination,'salary-conditions-installation-proof.json'),JSON.stringify({syntheticOnly:true,major:options.major,rolledBack,installed,durable,liveDurable,repeated,productiveBusinessWrites:0},null,2)+'\n');
   const conditionsAdapter={query:async(query,values)=>{
    if(!query.startsWith('SELECT public.own_salary_conditions_'))return adapter.query(query,values);
    assert.match(query,/^SELECT public\.own_salary_conditions_(?:bootstrap|detail|attempt|command)_v1\([\s\S]+\) AS result$/);
