@@ -44,6 +44,7 @@ try {
         assert.equal(body.payload.password, 'synthetic-access-feedback-only');
       }
       if (scenario === 'network') { await route.abort('internetdisconnected'); return; }
+      if (scenario === 'origin403') { await route.fulfill({ status: 403, json: { ok: false, code: 'IDENTITY_ORIGIN_FORBIDDEN', error: 'synthetic server diagnostic must not be shown' } }); return; }
       if (scenario === 'context' && body.command === 'login') {
         await route.fulfill({ status: 202, json: { code: 'CONTEXT_REQUIRED', flowToken: 'synthetic-flow-token', expectedVersion: 4, expiresAt: '2099-01-01T00:00:00Z', contexts: [
           { kind: 'platform', label: 'Administración de plataforma' },
@@ -54,7 +55,7 @@ try {
       if (scenario === 'html503') { await route.fulfill({ status: 503, contentType: 'text/html', body: '<h1>Service Unavailable</h1>' }); return; }
       await route.fulfill({ status: scenario === 'auth401' ? 401 : 503, json: { ok: false, code: scenario === 'auth401' ? 'IDENTITY_AUTH_FAILED' : 'IDENTITY_GATEWAY_NOT_CONFIGURED', error: 'synthetic server diagnostic must not be shown' } });
     });
-    for (const [name, expected] of [['configured503', /servicio de acceso no está disponible/], ['html503', /servicio de acceso no está disponible/], ['network', /No se pudo conectar/], ['auth401', /Revisá los datos/]]) {
+    for (const [name, expected] of [['origin403', /no está habilitado desde esta dirección/], ['configured503', /servicio de acceso no está disponible/], ['html503', /servicio de acceso no está disponible/], ['network', /No se pudo conectar/], ['auth401', /Revisá los datos/]]) {
       scenario = name;
       await page.goto(`${origin}/acceso?next=%2Fnomina%23conciliacion`);
       await page.getByLabel('Correo institucional').fill('access-feedback@local.invalid');
@@ -69,6 +70,15 @@ try {
       assert.equal(await page.locator('#btnLogin').isEnabled(), true);
       assert.equal(requests.length - before, 1, 'no automatic retry');
       assert.equal(await page.locator('#contextStep').isVisible(), false);
+      assert.equal(await page.locator('#officialAccessRow').isVisible(), name === 'origin403');
+      if (name === 'origin403') {
+        const link = page.getByRole('link', { name: 'Abrir acceso de producción', exact: true });
+        assert.equal(await link.getAttribute('href'), 'https://municontrol.com/acceso');
+        assert.equal(await link.getAttribute('target'), null);
+        const linkBox = await link.boundingBox();
+        assert.ok(linkBox.height >= 44 && linkBox.width >= 44, 'official destination has an accessible mobile target');
+        assert.equal(await page.url(), `${origin}/acceso?next=%2Fnomina%23conciliacion`, 'no automatic navigation or credential forwarding');
+      }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal overflow');
       const box = await page.locator('#btnLogin').boundingBox();
       assert.ok(box.height >= 44 && box.width >= 44, 'accessible touch target');

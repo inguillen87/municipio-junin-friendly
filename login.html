@@ -58,6 +58,10 @@
           <div class="error-msg" id="errorMsg" role="alert" aria-live="assertive" hidden>
             Credenciales incorrectas. Verificá el correo y la contraseña.
           </div>
+          <div class="official-access" id="officialAccessRow" hidden>
+            <a class="official-access-link" id="officialAccessLink" href="https://municontrol.com/acceso">Abrir acceso de producción</a>
+            <p>Ingresá desde municontrol.com con tus mismos datos.</p>
+          </div>
 
           <div id="credentialStep">
             <div class="form-group">
@@ -233,14 +237,16 @@
       renderEmailMfaControls();
     }
 
-    function showError(message) {
+    function showError(message, error) {
       var errEl = document.getElementById('errorMsg');
       errEl.textContent = message || 'No se pudo iniciar sesión.';
       errEl.hidden = false;
+      document.getElementById('officialAccessRow').hidden = !error || error.code !== 'IDENTITY_ORIGIN_FORBIDDEN';
     }
 
     function hideError() {
       document.getElementById('errorMsg').hidden = true;
+      document.getElementById('officialAccessRow').hidden = true;
     }
 
     function openPublicView() {
@@ -639,7 +645,7 @@
           setLoading(false, 'Elegí uno de los métodos de verificación disponibles.');
           return;
         }
-        showError(identityError(error));
+        showError(identityError(error), error);
         setLoading(false, 'No se pudo enviar el código por correo.');
         document.getElementById('requestEmailMfaButton').focus();
       } finally {
@@ -712,7 +718,7 @@
           }
           completeLogin(contextResult.session, contextEmail);
         } catch (error) {
-          showError(identityError(error)); setLoading(false, 'No se pudo confirmar el ámbito.');
+          showError(identityError(error), error); setLoading(false, 'No se pudo confirmar el ámbito.');
         }
         return;
       }
@@ -789,7 +795,7 @@
       } catch (error) {
         document.getElementById('passInput').value = '';
         var loginErrorMessage = identityError(error);
-        showError(loginErrorMessage);
+        showError(loginErrorMessage, error);
         btnLabel.textContent = 'Ingresar al portal interno';
         setLoading(false, loginErrorMessage);
         document.getElementById('passInput').focus();
