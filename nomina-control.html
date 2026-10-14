@@ -602,7 +602,7 @@
 
       <main id="mainContent" hidden>
         <section class="page-head" aria-labelledby="pageTitle">
-          <div><p class="eyebrow">Nómina · cierre y trazabilidad</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Separa la referencia cerrada de la corrida en curso. Los importes abiertos permanecen fuera de los indicadores ejecutivos, aunque estén disponibles en la fuente técnica.</p></div>
+          <div><p class="eyebrow">Nómina · consultas y liquidación propia</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Prepará el cálculo, revisá sus resultados y cerrá las liquidaciones propias. La información incorporada sirve como referencia; los importes abiertos quedan fuera de los indicadores ejecutivos.</p></div>
           <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Estado del control</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
         </section>
 
@@ -1924,8 +1924,8 @@
         var ready = payload.status === 'ready' && closedPublishable && openCorrectlyBlocked;
         setBadge('runsBadge', ready ? 'closed' : 'warning', ready ? 'Control vigente' : 'Con pendientes');
         byId('overallPanel').dataset.state = ready ? 'ready' : 'warning';
-        setText('overallTitle', ready ? 'Referencia cerrada disponible' : 'Control disponible con pendientes');
-        setText('overallDetail', ready ? 'La última corrida cerrada está conciliada; la corrida abierta permanece bloqueada para uso financiero.' : 'La interfaz conserva los bloqueos hasta que la API confirme cierre, conciliación y publicación.');
+        setText('overallTitle', ready ? 'Liquidación incorporada como referencia' : 'Referencia incorporada con pendientes');
+        setText('overallDetail', ready ? 'Este cierre corresponde a la información incorporada. Las corridas propias se consultan, confirman y cierran en las tareas de MuniControl; los importes abiertos permanecen bloqueados para uso financiero.' : 'Revisá los controles de esta referencia. Los importes abiertos permanecen bloqueados hasta verificar su cierre, conciliación y publicación.');
 
         byId('loading').hidden = true;
         byId('errorHost').hidden = true;

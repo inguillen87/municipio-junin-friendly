@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {ownPeriodClassificationQaOptions,assertOwnPeriodClassificationCiSource,runOwnPeriodClassificationQa} from './lib/own-period-classification-qa.mjs';
 import {runOwnPayrollAdministrativeOperatorQa} from './lib/own-payroll-administrative-operator-qa.mjs';
+import {finalAdoptedHistory} from './lib/own-period-classification-final-qa.mjs';
 
 export async function verifyOwnPeriodClassification(options){
  const safe=assertOwnPeriodClassificationCiSource(ownPeriodClassificationQaOptions(options));
@@ -13,7 +14,7 @@ export async function verifyOwnPeriodClassification(options){
   const administrative=await runOwnPayrollAdministrativeOperatorQa(h);
   fs.writeFileSync(path.join(h.destination,administrative.ok?'administrative-operator-proof.json':'administrative-operator-draft-proof.json'),JSON.stringify(administrative,null,2)+'\n');
   assert.equal(administrative.ok,true,'OWN_ADMIN_OPERATOR_QA_INCOMPLETE: '+administrative.pending.join(', '));
-  const report=await runOwnPeriodClassificationQa(h,{browser:safe.browser});
+  const report=await runOwnPeriodClassificationQa(h,{browser:safe.browser,finalAdoptedFixture:args=>finalAdoptedHistory({...args,major:safe.major,transport:safe.transport})});
   fs.writeFileSync(path.join(h.destination,report.ok?'period-classification-proof.json':'period-classification-draft-proof.json'),JSON.stringify(report,null,2)+'\n');
   assert.equal(report.ok,true,'PERIOD_CLASSIFICATION_QA_INCOMPLETE: '+report.pending.join(', '));return report;
  }});

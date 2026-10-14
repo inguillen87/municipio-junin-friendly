@@ -17,6 +17,16 @@ const files=Object.freeze({
 const hash=s=>createHash('sha256').update(s).digest('hex'),lf=s=>s.replace(/\r\n?/g,'\n');
 const q=s=>"'"+s.replaceAll("'","''")+"'";
 const body=s=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(s);assert.ok(m,'PERIOD_CLASSIFICATION_QA_FUNCTION_BODY_REQUIRED');return m[2];};
+// pg_get_functiondef uses SET ... TO in its preface. The existing fixture
+// relocator recognizes SET ... =; normalize only that preface, never prosrc.
+const functionPreface=s=>{
+ if(!/^\s*CREATE(?: OR REPLACE)? FUNCTION\b/i.test(s))return s;
+ const marker=/\bAS\s+\$[\w]*\$/.exec(s);assert.ok(marker,'PERIOD_CLASSIFICATION_QA_FUNCTION_BODY_REQUIRED');
+ const header=s.slice(0,marker.index)
+  .replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp')
+  .replaceAll('SET "TimeZone" TO \'UTC\'',"SET timezone='UTC'");
+ return header+s.slice(marker.index);
+};
 const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'PERIOD_CLASSIFICATION_QA_READY_ANCHOR_CHANGED: '+a);return s.replace(a,()=>b);};
 const sourceHashes=(read)=>Object.fromEntries(Object.entries(files).map(([p,expected])=>{const observed=hash(lf(read(p)));assert.equal(observed,expected,'PERIOD_CLASSIFICATION_QA_FIXTURE_SOURCE_CHANGED: '+p);return[p,observed];}));
 
@@ -46,14 +56,14 @@ export function buildOwnPeriodClassificationQaRelocation(options){
  // Same canonicalization used by the existing namespace/seniority/participation
  // verifier: the fixture hardens one old search_path, while all checks survive.
  const canonical=s=>s.replaceAll('search_path=pg_catalog, '+schema+', public, pg_temp','search_path=pg_catalog, public, pg_temp').replaceAll(schema,'public');
- const beforeDefinition=relocate(beforeSource),afterDefinition=relocate(afterSource);
+ const beforeDefinition=relocate(functionPreface(beforeSource)),afterDefinition=relocate(functionPreface(afterSource));
  for(const definition of[beforeDefinition,afterDefinition]){
   assert.ok(definition.includes('FUNCTION '+schema+'.municipal_adoption_ready_v1('));
   for(const marker of['ADOPTED_CONSUMERS_AFTER_METADATA','SQL130_NEW_OBJECTS_NOT_EMPTY','own_close_roster_v1','own_run_jurisdictions_v1','own_run_capture_v1'])assert.ok(definition.includes(marker),'PERIOD_CLASSIFICATION_QA_READY_GUARD_LOST: '+marker);
  }
  const fixtureBeforeSha256=hash(body(canonical(beforeDefinition))),fixtureAfterSha256=hash(body(canonical(afterDefinition)));
  assert.notEqual(fixtureBeforeSha256,fixtureAfterSha256);
- const map=s=>relocate(s).replaceAll(beforeLive.sha256,fixtureBeforeSha256).replaceAll(afterLive.sha256,fixtureAfterSha256);
+ const map=s=>relocate(functionPreface(s)).replaceAll(beforeLive.sha256,fixtureBeforeSha256).replaceAll(afterLive.sha256,fixtureAfterSha256);
  const beforeCheck=map(live.beforeCheck),afterCheck=map(live.afterCheck);
  const mutations=live.mutations.map(s=>s.includes('FUNCTION public.municipal_adoption_ready_v1(')?afterDefinition:map(s));
  assert.equal(mutations.length,live.mutations.length);assert.equal(mutations.filter(s=>s.includes('FUNCTION '+schema+'.municipal_adoption_ready_v1(')).length,1);

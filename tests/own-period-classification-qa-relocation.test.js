@@ -3,12 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {buildNoeliaCircuitQa} from '../scripts/lib/noelia-payroll-circuit-qa.mjs';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
+import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {buildOwnPeriodClassificationQaRelocation,OWN_PERIOD_CLASSIFICATION_QA_FIXTURE_CHAIN} from '../scripts/lib/own-period-classification-qa-relocation.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'),sourceCommit='aaf35dfe5b9dec5529090607c5ba753f42ba1917';
 const qa=buildNoeliaCircuitQa(17),q=s=>"'"+s.replaceAll("'","''")+"'";
 const relocate=s=>qa.normalized(s).replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q('search_path=pg_catalog, '+qa.schema+', public, pg_temp')+",'search_path=pg_catalog, public, pg_temp'),"+q(qa.schema)+",'public')");
 const batch=buildOwnPeriodClassificationInstallation({read,sourceCommit}),options={read,sourceCommit,schema:qa.schema,relocate,batch};
 const artifact=buildOwnPeriodClassificationQaRelocation(options);
+const sourcePin=definition=>{
+ const marker=/\bAS\s+\$[\w]*\$/.exec(definition);assert.ok(marker);
+ return ownInstallationFunctionPin(definition.slice(0,marker.index).replace(/\s+/g,' ')+definition.slice(marker.index));
+};
 
 test('fixture readiness is derived from the exact old chain and keeps production prerequisites unchanged',()=>{
  assert.equal(artifact.fixtureChain,OWN_PERIOD_CLASSIFICATION_QA_FIXTURE_CHAIN);assert.equal(artifact.productionCompatible,false);assert.equal(artifact.normal165Installed,false);assert.equal(artifact.finalSourceFixture,false);
@@ -33,6 +38,24 @@ test('the artifact preserves all mutations and requires the existing synthetic d
  assert.equal(artifact.mutations.filter(s=>s.includes('FUNCTION '+qa.schema+'.municipal_adoption_ready_v1(')).length,1);
  assert.ok(artifact.afterCheck.includes('PERIOD_CLASSIFICATION_FOREIGN_SHAPE'));
  for(const p of batch.prerequisitePins.filter(p=>p.name.startsWith('own_run_complete')))assert.ok(artifact.beforeCheck.includes(p.sha256)&&artifact.afterCheck.includes(p.sha256));
+});
+
+test('relocated function metadata matches the checked schema and preserves canonical source bodies',()=>{
+ const definitions=artifact.mutations.filter(s=>/^CREATE(?: OR REPLACE)? FUNCTION\b/.test(s));
+ assert.equal(definitions.length,batch.afterPins.length);
+ for(const definition of definitions){
+  const pin=sourcePin(definition.replace('FUNCTION '+qa.schema+'.','FUNCTION public.'));
+  const expected=batch.afterPins.find(p=>p.name===pin.name);assert.ok(expected);
+  assert.deepEqual(pin.config,expected.config.map(v=>v.startsWith('search_path=')?'search_path=pg_catalog, '+qa.schema+', public, pg_temp':v),pin.name+' search_path/TimeZone');
+  for(const attr of['argNames','defaults','resultType','language','returnsSet','strict','definer','volatility'])assert.deepEqual(pin[attr],expected[attr],pin.name+' '+attr);
+  if(pin.name==='municipal_adoption_ready_v1')continue; // This older fixture readiness has its own source-derived pin.
+  const canonical=sourcePin(definition.replaceAll(qa.schema,'public'));
+  assert.equal(canonical.sha256,expected.sha256,pin.name+' body changed');
+ }
+ const capture=definitions.find(s=>s.includes('FUNCTION '+qa.schema+'.own_run_capture_v1('));
+ assert.match(capture,/SET search_path=pg_catalog,[^\n]*,public,pg_temp/);
+ assert.match(capture,/SET timezone='UTC'/);
+ assert.ok(batch.mutations.find(s=>s.includes('FUNCTION public.own_run_capture_v1(')).includes("SET search_path TO 'pg_catalog', 'public', 'pg_temp'"));
 });
 
 test('source drift, lost guards and database-derived alternatives are refused',()=>{
