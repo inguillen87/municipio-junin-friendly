@@ -1,4 +1,4 @@
--- DRAFT: individual own-period classification. Install only through the
+-- Individual own-period classification. Install only through the
 -- source-pinned composition; no source import, backfill, payroll or IAM write.
 CREATE TABLE public.own_period_classification_event(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.platform_tenant(id),source_binding_id uuid NOT NULL,
@@ -329,7 +329,7 @@ DECLARE c public.employment_contract;n public.native_employee_registration;confi
   IF NOT public.payroll_fixed_registry_range_v2(ctx||jsonb_build_object('certifiedBindingId',ctx->>'sourceBindingId'),target,(period_value||'-01')::date,((period_value||'-01')::date+interval '1 month - 1 day')::date,true) THEN RAISE EXCEPTION 'OWN_RUN_PRORATION_REQUIRED';END IF;
   RETURN jsonb_build_object('contractId',target,'registrationId',n.id,'basis','approved_own_period_classification','classificationVersion',configuration->>'version','approvalId',configuration->>'approvalId','definition',d,'provenance',configuration->'provenance');
  END IF;
- IF(n.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date>((period_value||'-01')::date+interval '1 month - 1 day')::date OR EXISTS(SELECT 1 FROM public.native_employment_change_review r WHERE r.contract_id=target AND r.decision='approve' AND(r.reviewed_at AT TIME ZONE 'America/Argentina/Mendoza')::date>=(period_value||'-01')::date) THEN RAISE EXCEPTION 'OWN_RUN_HISTORY_REQUIRED';END IF;
+ IF(n.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date>((period_value||'-01')::date+interval '1 month - 1 day')::date OR EXISTS(SELECT 1 FROM public.native_employment_change_review change_review WHERE change_review.contract_id=target AND change_review.decision='approve' AND(change_review.reviewed_at AT TIME ZONE 'America/Argentina/Mendoza')::date>=(period_value||'-01')::date) THEN RAISE EXCEPTION 'OWN_RUN_HISTORY_REQUIRED';END IF;
  RETURN jsonb_build_object('contractId',target,'registrationId',n.id,'basis','current_own_registration','classificationVersion',NULL,'approvalId',NULL,'definition',jsonb_build_object('agreementCode',c.agreement_code,'categoryCode',c.category_code,'organizationId',c.organization_unit_source_id,'sectorCode',c.sector_source_id,'jurisdictionCode',c.jurisdiction_code,'startDate',to_char(c.start_date,'YYYY-MM-DD'),'endDate',to_char(c.end_date,'YYYY-MM-DD')),'provenance',NULL);
 END $$;
 CREATE FUNCTION public.own_period_classification_close_match_v1(ctx jsonb,capture public.own_payroll_run_capture,target uuid,period_value text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$

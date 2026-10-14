@@ -88,6 +88,25 @@ test('historical consumption needs immutable evidence and the existing real full
  assert.match(jurisdictions,/IF NOT coalesce\(inventory \? 'jurisdictions',false\) THEN IF coalesce\(inventory \? 'periodClassifications',false\) THEN RAISE EXCEPTION 'OWN_CLOSE_JURISDICTION_INVALID';END IF;RETURN 'null'::jsonb/);
 });
 
+test('relation aliases do not shadow declared variables in the 21 published classification functions',()=>{
+ const functions=batch.migration.filter(s=>s.startsWith('CREATE FUNCTION public.own_period_classification_'));
+ assert.equal(functions.length,21);
+ const assertDistinctAliases=sql=>{
+  const declaration=/\bDECLARE\b([\s\S]*?)\bBEGIN\b/.exec(sql)?.[1]??'';
+  const variables=new Set(declaration.split(';').map(s=>/^\s*([a-z_][a-z0-9_]*)\s+/i.exec(s)?.[1].toLowerCase()).filter(Boolean));
+  for(const alias of sql.matchAll(/\b(?:FROM|JOIN)\s+public\.[a-z_][a-z0-9_]*\s+(?:AS\s+)?([a-z_][a-z0-9_]*)\b/gi)){
+   assert.ok(!variables.has(alias[1].toLowerCase()),sql.slice(0,sql.indexOf('('))+': relation alias shadows declared variable '+alias[1]);
+  }
+ };
+ for(const sql of functions)assertDistinctAliases(sql);
+ const resolve=functions.find(s=>s.startsWith('CREATE FUNCTION public.own_period_classification_resolve_v1('));
+ assert.match(resolve,/native_employment_change_review change_review WHERE change_review\.contract_id=target AND change_review\.decision='approve' AND\(change_review\.reviewed_at[\s\S]*OWN_RUN_HISTORY_REQUIRED/);
+ assert.match(resolve,/SELECT \* INTO STRICT r FROM public\.own_period_classification_event/);
+ assert.match(resolve,/r\.source_snapshot->'source'/);
+ const originalAmbiguity=resolve.replace(/\bchange_review\b/g,'r');
+ assert.throws(()=>assertDistinctAliases(originalAmbiguity),/relation alias shadows declared variable r/);
+});
+
 test('installation modes are explicit, repeat verifies only, and prior objects retain every audit boundary',()=>{
  assert.equal(batch.connects,false);assert.equal(batch.executesSql,false);
  assert.equal(batch.statements.length,8);assert.equal(batch.verification.length,3);

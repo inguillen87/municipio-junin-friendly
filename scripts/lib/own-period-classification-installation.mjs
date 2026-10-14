@@ -12,7 +12,7 @@ import {READINESS_PRIOR,READINESS_FINAL,CAPTURE_PRIOR,CAPTURE_FINAL} from './wor
 import {CATALOG_STORAGE_AFTER_SHA256,CATALOG_STORAGE_SQL_SHA256} from './catalog-storage-capacity-installation.mjs';
 
 export const OWN_PERIOD_CLASSIFICATION_MIGRATION='scripts/migrations/177-own-period-classification.sql';
-export const OWN_PERIOD_CLASSIFICATION_SQL_SHA256='22a333a1d1423d717fefc70a157b95969bcb953cacc00957f4d8bc315444e28c';
+export const OWN_PERIOD_CLASSIFICATION_SQL_SHA256='987ed2761b4bccb3f64798957b8c6bc74e1b0c390101e2ecb1100b1861d6f1c9';
 const table='own_period_classification_event',prefix='municontrol_period_classification.';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",lf=v=>v.replace(/\r\n?/g,'\n'),hash=v=>createHash('sha256').update(v).digest('hex');
 const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'PERIOD_CLASSIFICATION_SOURCE_ANCHOR: '+a.slice(0,90));return s.replace(a,()=>b);};
