@@ -1,6 +1,14 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
 import {buildOwnPayrollAdministrativeOperatorInstallation,assertOwnPayrollAdministrativeOperatorDurability,OWN_ADMIN_OPERATOR_MIGRATION} from '../scripts/lib/own-payroll-administrative-operator-installation.mjs';
 const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8'),sourceCommit='a'.repeat(40);
+
+test('deployment includes every reviewed operator source while retaining private-source exclusions',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(r=>r.trim()).filter(r=>r&&!r.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const negate=rule.startsWith('!'),pattern=negate?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=negate;}return keep;};
+ assert.ok(included(OWN_ADMIN_OPERATOR_MIGRATION));
+ const batch=buildOwnPayrollAdministrativeOperatorInstallation({sourceCommit,read:file=>{assert.ok(included(file),'deployment source excluded: '+file);return read(file);}});assert.equal(batch.migration.length,3);
+ for(const file of['.handoff/private.json','verification/personnel.json','source.sql.gz','.env.local','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','municipal.backup'])assert.equal(included(file),false);
+});
 
 test('administrative operator batch replaces exactly three published bodies and preserves all existing metadata and data',()=>{
  const b=buildOwnPayrollAdministrativeOperatorInstallation({read,sourceCommit});assert.equal(b.connects,false);assert.equal(b.executesSql,false);assert.equal(b.migration.length,3);

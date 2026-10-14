@@ -48,6 +48,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.nvmrc'
+      - '.vercelignore'
       - '.github/workflows/own-payroll-administrative-operator.yml'
   push:
     branches: ['master']
@@ -98,6 +99,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.nvmrc'
+      - '.vercelignore'
       - '.github/workflows/own-payroll-administrative-operator.yml'
 permissions:
   contents: read
