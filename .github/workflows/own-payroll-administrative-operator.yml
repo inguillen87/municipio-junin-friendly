@@ -1,0 +1,152 @@
+name: Own payroll administrative operator
+on:
+  pull_request:
+    paths:
+      - 'scripts/migrations/176-own-payroll-administrative-operator.sql'
+      - 'scripts/verify-own-payroll-administrative-operator.mjs'
+      - 'scripts/lib/own-payroll-administrative-operator*'
+      - 'tests/own-payroll-administrative-operator*'
+      - 'scripts/migrations/123-own-payroll-runs.sql'
+      - 'scripts/migrations/130-own-bulk-novelties.sql'
+      - 'scripts/migrations/171-own-contract-salary-conditions.sql'
+      - 'scripts/migrations/172-own-salary-conditions-program-source.sql'
+      - 'scripts/migrations/173-own-full-payroll-response.sql'
+      - 'scripts/lib/salary-administrative-identity-installation.mjs'
+      - 'scripts/lib/own-payroll-installation.mjs'
+      - 'scripts/lib/native-leave-installation.mjs'
+      - 'scripts/lib/sql-statements.mjs'
+      - 'scripts/lib/own-contract-working-time*'
+      - 'scripts/lib/own-contract-salary-conditions*'
+      - 'scripts/lib/own-payroll-durable-qa.mjs'
+      - 'scripts/lib/noelia-circuit-runtime.mjs'
+      - 'scripts/lib/noelia-payroll-circuit-qa.mjs'
+      - 'scripts/lib/own-payroll-psql-qa.mjs'
+      - 'scripts/lib/own-payroll-full*'
+      - 'scripts/verify-own-contract-working-time.mjs'
+      - 'scripts/verify-own-contract-salary-conditions.mjs'
+      - 'scripts/verify-own-salary-conditions-program.mjs'
+      - 'api/internal-own-payroll-run.js'
+      - 'api/internal-own-payroll-close.js'
+      - 'api/internal-own-payroll-receipts.js'
+      - 'lib/internal-own-payroll-run.js'
+      - 'lib/internal-own-payroll-close.js'
+      - 'lib/internal-own-payroll-receipts.js'
+      - 'lib/own-payroll-approved-input.js'
+      - 'lib/own-payroll-snapshot.js'
+      - 'lib/own-period-read-recovery.js'
+      - 'assets/own-payroll-run-model.js'
+      - 'assets/own-payroll-run-workspace-model.js'
+      - 'assets/own-payroll-program-model.js'
+      - 'assets/own-payroll-receipt-model.js'
+      - 'assets/own-contract-working-time-model.js'
+      - 'assets/own-period-participation*'
+      - 'assets/own-salary-seniority-model.js'
+      - 'assets/own-contract-salary-conditions-model.js'
+      - 'tests/fixtures/own-payroll*'
+      - 'tests/fixtures/native-salary-synthetic.js'
+      - 'scripts/build-friendly.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.vercelignore'
+      - '.github/workflows/own-payroll-administrative-operator.yml'
+  push:
+    branches: ['master']
+    paths:
+      - 'scripts/migrations/176-own-payroll-administrative-operator.sql'
+      - 'scripts/verify-own-payroll-administrative-operator.mjs'
+      - 'scripts/lib/own-payroll-administrative-operator*'
+      - 'tests/own-payroll-administrative-operator*'
+      - 'scripts/migrations/123-own-payroll-runs.sql'
+      - 'scripts/migrations/130-own-bulk-novelties.sql'
+      - 'scripts/migrations/171-own-contract-salary-conditions.sql'
+      - 'scripts/migrations/172-own-salary-conditions-program-source.sql'
+      - 'scripts/migrations/173-own-full-payroll-response.sql'
+      - 'scripts/lib/salary-administrative-identity-installation.mjs'
+      - 'scripts/lib/own-payroll-installation.mjs'
+      - 'scripts/lib/native-leave-installation.mjs'
+      - 'scripts/lib/sql-statements.mjs'
+      - 'scripts/lib/own-contract-working-time*'
+      - 'scripts/lib/own-contract-salary-conditions*'
+      - 'scripts/lib/own-payroll-durable-qa.mjs'
+      - 'scripts/lib/noelia-circuit-runtime.mjs'
+      - 'scripts/lib/noelia-payroll-circuit-qa.mjs'
+      - 'scripts/lib/own-payroll-psql-qa.mjs'
+      - 'scripts/lib/own-payroll-full*'
+      - 'scripts/verify-own-contract-working-time.mjs'
+      - 'scripts/verify-own-contract-salary-conditions.mjs'
+      - 'scripts/verify-own-salary-conditions-program.mjs'
+      - 'api/internal-own-payroll-run.js'
+      - 'api/internal-own-payroll-close.js'
+      - 'api/internal-own-payroll-receipts.js'
+      - 'lib/internal-own-payroll-run.js'
+      - 'lib/internal-own-payroll-close.js'
+      - 'lib/internal-own-payroll-receipts.js'
+      - 'lib/own-payroll-approved-input.js'
+      - 'lib/own-payroll-snapshot.js'
+      - 'lib/own-period-read-recovery.js'
+      - 'assets/own-payroll-run-model.js'
+      - 'assets/own-payroll-run-workspace-model.js'
+      - 'assets/own-payroll-program-model.js'
+      - 'assets/own-payroll-receipt-model.js'
+      - 'assets/own-contract-working-time-model.js'
+      - 'assets/own-period-participation*'
+      - 'assets/own-salary-seniority-model.js'
+      - 'assets/own-contract-salary-conditions-model.js'
+      - 'tests/fixtures/own-payroll*'
+      - 'tests/fixtures/native-salary-synthetic.js'
+      - 'scripts/build-friendly.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.vercelignore'
+      - '.github/workflows/own-payroll-administrative-operator.yml'
+permissions:
+  contents: read
+concurrency:
+  group: payroll-administrative-operator-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Prepare disposable synthetic PostgreSQL
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Administrative identity, original attempts and complete payroll on synthetic loopback
+        run: node scripts/verify-own-payroll-administrative-operator.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --output=verification/administrative-operator-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: administrative-operator-pg${{ matrix.pg }}-${{ github.sha }}
+          path: |
+            verification/administrative-operator-pg${{ matrix.pg }}/result.json
+            verification/administrative-operator-pg${{ matrix.pg }}/*proof.json
+            verification/administrative-operator-pg${{ matrix.pg }}/partial-checks.json
+            verification/administrative-operator-pg${{ matrix.pg }}/failure.txt
+            verification/administrative-operator-pg${{ matrix.pg }}/*failure.json
+          retention-days: 5
