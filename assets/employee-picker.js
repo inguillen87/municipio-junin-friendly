@@ -2,13 +2,14 @@ import { pickerSearch, pickerQuery, pickerResult, addPickerSelection } from './e
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const dateLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'fecha no informada';
 /** One modal reused by individual, agile and native-sheet entry. All state is in memory. */
-export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker',selectionIssue=()=>null}={}) {
+export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker',selectionIssue=()=>null,historicalAdoptionHelp=false}={}) {
   if(!/^[A-Za-z][A-Za-z0-9]{1,60}$/.test(instanceId))throw Error('Identificador de búsqueda inválido.');
   const dialog=node('dialog',undefined,'employee-picker');dialog.id=instanceId;dialog.setAttribute('aria-labelledby',instanceId+'Title');
   dialog.innerHTML=`<header class="picker-header"><div><p class="picker-eyebrow">DIRECTORIO MUNICIPAL · SELECCIÓN ASISTIDA</p><h2 id="employeePickerTitle">Buscar legajos activos</h2><p>Elegí personas por nombre o legajo. No hace falta copiar datos de un Excel.</p></div><button class="button" type="button" data-picker-close aria-label="Cerrar búsqueda de legajos">Cerrar</button></header>
   <div class="picker-body"><form data-picker-form class="picker-search"><label for="employeePickerSearch">Nombre, apellido o legajo<input id="employeePickerSearch" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Ej.: apellido o número de legajo" required></label><button type="submit" class="button primary">Buscar</button></form>
   <p class="picker-state" role="status" aria-live="polite" data-picker-state></p><a href="login.html?next=novedades-nomina.html" data-picker-login hidden>Ingresar nuevamente al portal</a>
   <p class="picker-source" data-picker-source hidden></p><div data-picker-results class="picker-results" aria-label="Resultados del directorio"></div>
+  <aside class="picker-adoption-help" data-picker-adoption-help hidden><strong>Primero incorporá el padrón al circuito propio</strong><p>Revisá la propuesta de adopción en Personas. Su aprobación conserva los legajos y el historial; no calcula ni paga sueldos. Después también deben aprobarse las definiciones salariales y las reglas del período.</p><a class="button" href="/personal#legajos">Revisar incorporación del padrón</a></aside>
   <nav class="picker-pages" aria-label="Páginas de resultados" hidden data-picker-pages><button class="button" type="button" data-picker-previous>Anterior</button><span data-picker-range></span><button class="button" type="button" data-picker-next>Siguiente</button></nav>
   <section class="picker-chosen" data-picker-chosen hidden aria-labelledby="employeePickerChosen"><h3 id="employeePickerChosen">Tu selección</h3><p>La selección se conserva al cambiar de búsqueda o de página; no se seleccionan resultados ocultos.</p><div data-picker-chips></div></section></div>
   <footer class="picker-footer"><div><strong data-picker-count>Sin legajos seleccionados</strong><p>Activo según el estado consultado, no una certificación de liquidación. Cada operación vuelve a validar el vínculo y los permisos.</p></div><button type="button" class="button primary" data-picker-apply disabled>Usar selección</button></footer>`;
@@ -17,7 +18,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   const $=s=>dialog.querySelector(s),input=$('#'+instanceId+'Search'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]'),searchButton=$('[data-picker-form] button[type=submit]');
   let requestVersion=0,controller=null,selected=[],options=null,view=null,query='',busy=false,pendingPage=null,scopeKey=null,opener=null;
   function stop(){requestVersion++;controller?.abort();controller=null;busy=false;pendingPage=null;}
-  function clearResults(){view=null;$('[data-picker-source]').hidden=true;$('[data-picker-source]').textContent='';results.replaceChildren();$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}
+  function clearResults(){view=null;$('[data-picker-source]').hidden=true;$('[data-picker-source]').textContent='';results.replaceChildren();$('[data-picker-adoption-help]').hidden=true;$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}
   function reset(){stop();selected=[];options=null;view=null;scopeKey=null;query='';input.value='';status.textContent='';clearResults();$('[data-picker-source]').textContent='';$('[data-picker-source]').hidden=true;$('[data-picker-login]').hidden=true;renderSelection();}
   function close(){if(dialog.open)dialog.close();reset();if(opener?.isConnected&&!opener.disabled)opener.focus();opener=null;}
   function renderSelection(){
@@ -30,6 +31,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     $('[data-picker-chips]').replaceChildren(...selected.map(item=>{const chip=node('span',undefined,'picker-chip'),remove=node('button','×');remove.type='button';remove.setAttribute('aria-label','Quitar legajo '+item.legajo+' de la selección');chip.append(node('span',(item.nombre||'Nombre no informado')+' · '+item.legajo),remove);remove.addEventListener('click',()=>{selected=selected.filter(x=>x.contractId!==item.contractId);renderSelection();renderRows();});return chip;}));
   }
   function renderRows(){
+    $('[data-picker-adoption-help]').hidden=historicalAdoptionHelp!==true||!view||busy||!canUse()||!view.rows.some(item=>item.recordOrigin!=='MUNICONTROL'&&Boolean(selectionIssue(item)));
     if(!view){results.replaceChildren();return;}
     results.replaceChildren(...view.rows.map(item=>{
       const label=node('label',undefined,'picker-row'),control=node('input');control.type=options.multiple?'checkbox':'radio';control.name='picker-employee';control.value=item.contractId;
