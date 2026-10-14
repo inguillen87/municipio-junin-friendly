@@ -8,6 +8,7 @@ import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact} from '../assets/native-salary-catalog-model.js';
 import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,OWN_RECEIPT_SELF,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
 import {receiptFail,receiptError,ownReceiptOperation} from '../lib/internal-own-payroll-receipts.js';
+import {municipalDocumentIssuerProfile} from '../lib/municipal-document-issuer.js';
 export const config={api:{bodyParser:false}};
 export function createOwnReceiptHandler(deps={}){
  const env=deps.env??process.env,authorize=deps.requireAccess??requireCompatibleInternalAccess,getSql=deps.getSql??getActionCenterSql,sessionFor=deps.sessionFor??actionMutationSession;
@@ -17,6 +18,7 @@ export function createOwnReceiptHandler(deps={}){
   if(!q||typeof q!=='object'||Array.isArray(q)||Object.values(q).some(v=>typeof v!=='string'))receiptFail('QUERY_INVALID',400,'Consulta inválida.');
   if(req.url){const entries=[...new URL(req.url,'http://local.invalid').searchParams];if(entries.length!==Object.keys(q).length||entries.some(([k,v])=>q[k]!==v)||new Set(entries.map(([k])=>k)).size!==entries.length)receiptFail('QUERY_INVALID',400,'Consulta ambigua.');}
   if(method==='POST'){if(Object.keys(q).length)receiptFail('QUERY_INVALID',400,'El formulario no admite parámetros.');schoolCertificateHttp.assertOrigin(req,env);if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')receiptFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,16384);}
+  else if(q.resource==='issuer'&&Object.keys(q).join('|')==='resource')operation='issuer';
   else if(q.resource==='self'&&Object.keys(q).join('|')==='resource')operation='self';
   else if(q.resource==='list'&&Object.keys(q).sort().join('|')==='period|resource'){operation='list';input={period:q.period};}
   else if(q.resource==='batch'&&Object.keys(q).sort().join('|')==='id|resource'){operation='batch';input={id:q.id};}
@@ -24,7 +26,8 @@ export function createOwnReceiptHandler(deps={}){
   else if(method==='GET')receiptFail('QUERY_INVALID',400,'Consulta inválida.');
   const required=operation==='self'?OWN_RECEIPT_SELF:OWN_RECEIPT_READ;
   const access=await authorize(req,res,{env,requiredCapabilities:required,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
-  if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,required))receiptFail('FORBIDDEN',403,'La membresía no permite esta operación.');const session=sessionFor(access,env);employeeContext(access.principal,session);
+  if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,required))receiptFail('FORBIDDEN',403,'La membresía no permite esta operación.');const session=sessionFor(access,env),context=employeeContext(access.principal,session);
+  if(operation==='issuer')return res.status(200).json({ok:true,data:municipalDocumentIssuerProfile(context,deps.issuerProfiles)});
   if(method==='POST'){
    const body=await readRawPrivateJson(req,{maxBytes:16384,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>receiptFail(kind==='large'?'LIMIT':kind==='unavailable'?'UNAVAILABLE':'INPUT_INVALID',kind==='large'?413:kind==='unavailable'?503:400,'No se verificó el formulario completo. Consultá el mismo intento.')});
    if(salaryExact(body,['operation','params'])&&body.operation==='preview'){operation='preview';try{input={params:ownReceiptParams(body.params)};}catch{receiptFail('INPUT_INVALID',422,'Revisá alcance y datos declarados.');}}

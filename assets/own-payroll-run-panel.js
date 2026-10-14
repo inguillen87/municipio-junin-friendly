@@ -40,6 +40,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN · MOTOR PROPIO</p><h2>Calcular nómina</h2><p>Elegí el período y el alcance. Se conservan el programa aprobado, las novedades y el resultado de cada cálculo.</p></div><button class="button" type="button" data-own-refresh>Actualizar acceso y corridas</button></header>
   <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <details class="own-run-notice" data-own-prerequisites><summary>Antes del primer cálculo: padrón, valores y reglas</summary><ol><li>Revisá y adoptá el padrón preparado en <a href="/personal#legajos">Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Prepará y aprobá el programa en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
     <label for="ownRunPeriod">Período<input id="ownRunPeriod" data-own-period type="month" required></label>
     <div class="own-run-date"><label for="ownRunDate">Fecha de liquidación<input id="ownRunDate" data-own-date type="date" min="1900-01-01" max="2099-12-31" required aria-describedby="ownRunDateHelp"></label><small id="ownRunDateHelp">Fecha declarada de este cálculo. Las reglas aprobadas se aplican al período; esta fecha no es una fecha de pago.</small><button class="button" type="button" data-own-period-end>Usar último día del período</button></div>
@@ -76,9 +77,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
   const canPrepare=()=>can(OWN_RUN_PREPARE)&&boot?.canCalculate===true;
   const individual=mountOwnPayrollIndividual($('individual'),{id:'ownRunIndividual',canUse:()=>can(OWN_RUN_NOMINAL),returnFocus:()=>$('result').querySelector('h3')});
-  const picker=createEmployeePicker({instanceId:'ownRunPicker',canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este cálculo admite registros propios de MuniControl. El legajo seleccionado pertenece a la fuente histórica.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
+  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
+    $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
     $('fields').disabled=busy||!canPrepare()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&!$('confirm').checked||!!attempt&&!attempt.body;
@@ -275,7 +277,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Actualizá para verificar el acceso y recuperar el intento.');else controls();};
   const capability=event=>{const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
     if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
-    else{queuedPreparation=null;access.caps=new Set([...access.caps].filter(c=>caps.has(c)));$('confirm').checked=false;controls();}
+    else{queuedPreparation=null;access.caps=new Set([...access.caps].filter(c=>caps.has(c)));if(!canPrepare())picker.close();$('confirm').checked=false;controls();}
   };
   document.addEventListener('taskchange',task);document.addEventListener('visibilitychange',visibility);document.addEventListener('municontrol:capabilities-ready',capability);
   document.getElementById('logoutButton')?.addEventListener('click',()=>suspend('Sesión cerrada. Se retiraron los datos.'));

@@ -32,6 +32,31 @@ export function ownReceiptParams(value){
  need(text(value.legend,0,240),'La leyenda admite hasta 240 caracteres sin controles ni marcado.');
  return {period:query.from,types:query.types,filters,issuer:{...issuer},paymentDate:value.paymentDate,legend:value.legend,...(selected?{contracts:ownReceiptContracts(value.contracts)}:{})};
 }
+export function ownReceiptScopeFilters(value){
+ need(salaryExact(value,['kind','from','to'])&&['employee','department','all'].includes(value.kind),'Elegí el alcance: legajo, repartición o todos los legajos.');
+ const filters=emptyOwnReportFilters();
+ if(value.kind==='all'){
+  need(value.from===''&&value.to==='','Todos los legajos requiere un alcance explícito sin rangos.');
+  return filters;
+ }
+ need(code(value.from)&&(value.to===''||code(value.to)),'Informá el legajo o la repartición. Para un rango, indicá también el límite final.');
+ return ownReportFilters({...filters,[value.kind+'From']:value.from,[value.kind+'To']:value.to||value.from});
+}
+export function ownReceiptIssuer(value,expectedScope){
+ need(salaryExact(value,['version','scope','state','profile'])&&value.version==='own-receipt-issuer.v1'&&salaryExact(value.scope,['tenantId'])&&salaryUuid(value.scope.tenantId)&&salaryExact(expectedScope,['tenantId'])&&salaryUuid(expectedScope.tenantId)&&value.scope.tenantId===expectedScope.tenantId,'No se verificó el municipio de los datos institucionales. Volvé a consultar con tu cuenta municipal.');
+ need(['configured','missing'].includes(value.state),'No se verificó el estado de los datos institucionales.');
+ if(value.state==='missing')need(value.profile===null,'El municipio sin configuración no puede contener datos de otro emisor.');
+ else{
+  const profile=value.profile;
+  need(salaryExact(profile,['id','revision','version','issuer','source'])&&text(profile.id,1,160)&&Number.isSafeInteger(profile.revision)&&profile.revision>0&&salaryHash(profile.version),'No se verificó la versión de los datos institucionales.');
+  const issuer=profile.issuer,source=profile.source;
+  need(salaryExact(issuer,['name','taxId','address'])&&text(issuer.name,3,160)&&typeof issuer.taxId==='string'&&/^\d{11}$/.test(issuer.taxId)&&text(issuer.address,3,240),'Los datos institucionales requieren nombre, CUIT de once dígitos y domicilio del municipio.');
+  need(salaryExact(source,['kind','label','cutoff','validityDeclared'])&&source.kind==='municipal_official_backup'&&text(source.label,1,240)&&typeof source.cutoff==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(source.cutoff)&&source.validityDeclared===false,'No se verificó la procedencia de los datos institucionales. La fuente no acredita aprobación ni vigencia institucional.');
+  const cutoffDate=new Date(source.cutoff+'Z');
+  need(Number.isFinite(cutoffDate.getTime())&&cutoffDate.toISOString().slice(0,19)===source.cutoff,'La fecha de procedencia de los datos institucionales no es válida.');
+ }
+ return freeze(structuredClone(value));
+}
 export function emptyOwnReceiptParams(period){return {period,types:['monthly'],filters:emptyOwnReportFilters(),issuer:{name:'',taxId:'',address:''},paymentDate:null,legend:''};}
 export function ownReceiptCommand(value){
  need(salaryExact(value,['command','scopeVersion','sourceVersion','params','batchId','batchSha256','reason','reviewConfirmed'])&&['prepare','approve','withdraw'].includes(value.command)&&[value.scopeVersion,value.sourceVersion].every(salaryHash)&&text(value.reason,10,1000)&&typeof value.reviewConfirmed==='boolean','Revisá operación, revisión completa y fundamento de la emisión.');

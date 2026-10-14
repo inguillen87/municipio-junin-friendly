@@ -21,7 +21,7 @@ const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(roo
 const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
-let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
+let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,directoryOrigin='MUNICONTROL',checks=0,posts=0;
 const writes=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
 try{
@@ -51,7 +51,7 @@ try{
     }
     if(req.method==='GET'&&url.pathname==='/api/internal-data'){
       if(url.searchParams.get('resource')==='employees'){
-        const page=Number(url.searchParams.get('page')),rows=page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'}]:[];
+        const page=Number(url.searchParams.get('page')),rows=page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:directoryOrigin}]:[];
         json(200,{ok:true,version:'employee-picker.v1',data:rows,pagination:{page,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}});return;
       }
       json(503,{ok:false,error:'Synthetic historical dashboard unavailable'});return;
@@ -70,6 +70,7 @@ try{
       (url.pathname==='/api/internal-own-payroll-run'?runHandler:catalogHandler)(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
     if(req.method!=='GET'){json(405,{ok:false});return;}
+    if(url.pathname==='/personal'){res.writeHead(200,{'Content-Type':'text/html'}).end('<!doctype html><title>Personas QA</title><h1>Revisión voluntaria del padrón</h1>');return;}
     let file=url.pathname==='/nomina-control.html'?path.join(pageRoot,'nomina-control.html'):path.resolve(pageRoot,'.'+decodeURIComponent(url.pathname));
     if(!(url.pathname==='/nomina-control.html'||file.startsWith(path.join(pageRoot,'assets')+path.sep)&&/\.(?:js|css|png|svg|webp)$/.test(file))||!fs.existsSync(file)){res.writeHead(404).end();return;}
     const mime=file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'image/svg+xml';
@@ -87,6 +88,30 @@ try{
   check(await scope.locator('h2').innerText()==='Calcular nómina','product tab opens own calculation');
   async function prepare(kind){await select('period').fill(sources.period);await select('period-end').click();await select('type').selectOption('monthly');await select('kind').selectOption(kind);}
   async function calculate(){await select('confirm').check();await select('send').click();await select('result').waitFor({state:'visible',timeout:20000});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');}
+  await select('prerequisites').locator('summary').click();
+  const guidanceLinks=await select('prerequisites').locator('a').evaluateAll(links=>links.map(a=>a.getAttribute('href')));
+  assert.deepEqual(guidanceLinks,['/personal#legajos','/nomina#parametros','/nomina#reglas']);checks++;
+  check(posts===0,'first-calculation guidance does not adopt employees, approve parameters or calculate');
+  await prepare('contracts');directoryOrigin='GRH';await select('picker').click();
+  const picker=page.locator('#ownRunPicker'),adoptionHelp=picker.locator('[data-picker-adoption-help]'),adoptionLink=adoptionHelp.getByRole('link',{name:'Revisar incorporación del padrón'});
+  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  check(await picker.locator('[data-picker-results] input').isDisabled()&&await picker.locator('[data-picker-apply]').isDisabled(),'historical active contract remains unselectable for own payroll');
+  check((await picker.locator('.picker-selection-issue').innerText()).includes('revisión de adopción en Personas'),'historical exclusion identifies the missing incorporation and its review');
+  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});await adoptionLink.focus();const box=await adoptionLink.boundingBox();check(box?.height>=48&&box.x>=0&&box.x+box.width<=width,'adoption review link is accessible and fits viewport '+width);}
+  check(await adoptionLink.getAttribute('href')==='/personal#legajos'&&posts===0,'recovery link has a fixed internal route and never carries employee data or executes a write');
+  await picker.locator('input[type=search]').fill('otro');check(!(await adoptionHelp.isVisible()),'changing search withdraws recovery guidance from the previous directory response');
+  await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:caps}})),principal.tenant.effectiveCapabilities.filter(c=>c!=='payroll.calculation.prepare'));
+  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&await select('picker').isDisabled()&&posts===0,'loss of calculation preparation alone closes historical guidance while preserving consultation');
+  await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
+  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));
+  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&posts===0,'permission revocation withdraws directory and recovery without adopting or calculating');
+  await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
+  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  await adoptionLink.click();await page.waitForURL(origin+'/personal#legajos');
+  check(posts===0,'voluntary adoption link only navigates to review and does not save a decision');
+  directoryOrigin='MUNICONTROL';await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
   check((await select('totals').innerText()).includes('19041'),'totals use actual own employee reference');
@@ -99,6 +124,7 @@ try{
   check(!csv.includes(sources.contractId),'CSV does not expose contract UUID');
   await select('new').click();await settled();await prepare('contracts');await select('picker').click();
   await page.locator('#ownRunPickerSearch').fill('19041');await page.locator('#ownRunPicker [data-picker-form] button').click();
+  await page.locator('#ownRunPicker [data-picker-results] input').waitFor({state:'visible'});check(!(await page.locator('#ownRunPicker [data-picker-adoption-help]').isVisible()),'an own contract stays selectable without historical adoption guidance');
   await page.locator('#ownRunPicker [data-picker-results] input').check();await page.locator('#ownRunPicker [data-picker-apply]').click();
   check(posts===1,'directory selection never executes payroll');await calculate();
   check(writes.at(-1).body.selection.kind==='contracts'&&writes.at(-1).body.selection.values[0]===sources.contractId,'selected legajo is sent as verified own contract');
@@ -106,6 +132,7 @@ try{
   check((await select('codes').locator('option').count())>0,'repartition options come from actual catalog facade');
   lose=true;await select('confirm').check();await select('send').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   check(!(await select('result').isVisible())&&(await select('recover').isVisible()),'lost committed ack remains uncertain with original attempt');
+  check(!await select('prerequisites').isVisible(),'pending calculation hides preparation navigation without discarding its original attempt');
   const lost=structuredClone(writes.at(-1));await select('period').evaluate(el=>{el.value='2026-11';el.dispatchEvent(new Event('change',{bubbles:true}));});
   await select('send').click();await select('result').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   assert.deepEqual(writes.at(-1),lost);checks++;
