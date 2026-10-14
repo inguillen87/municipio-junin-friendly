@@ -1,0 +1,28 @@
+// Generate a concrete technical review from committed source; never connects.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
+import {buildMonthlyRevisionStorageInstallation,MONTHLY_STORAGE_PROVIDER_BYTES} from './lib/monthly-revision-storage-installation.mjs';
+import {splitPostgresStatements} from './lib/sql-statements.mjs';
+const options={};for(const arg of process.argv.slice(2)){const m=/^--(source-commit|output-prefix|provider-evidence)=(.+)$/.exec(arg);assert.ok(m&&!Object.hasOwn(options,m[1]));options[m[1]]=m[2];}
+const root=fs.realpathSync(new URL('..',import.meta.url)),output=path.resolve(root,options['output-prefix']??'');
+assert.ok(output.startsWith(path.join(root,'verification')+path.sep));
+const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'});
+assert.equal(git('rev-parse','HEAD').trim(),options['source-commit']);assert.equal(git('diff','--name-only').trim(),'');assert.equal(git('diff','--cached','--name-only').trim(),'');
+for(const ext of['.json','.md'])assert.ok(!fs.existsSync(output+ext));
+const evidencePath=path.resolve(root,options['provider-evidence']??'');assert.ok(evidencePath.startsWith(path.join(root,'verification')+path.sep));
+const evidenceBytes=fs.readFileSync(evidencePath),evidence=JSON.parse(evidenceBytes),age=Date.now()-Date.parse(evidence.at);
+assert.ok(Number.isFinite(age)&&age>=0&&age<86400000,'MONTHLY_STORAGE_PROVIDER_EVIDENCE_STALE');
+const targets=[{label:'PG18',project_id:'wild-cake-87689498',branch_id:'br-plain-dawn-ac8crb1h',database_name:'neondb',major:18,guardOid:24740},{label:'PG17',project_id:'noisy-poetry-54471701',branch_id:'br-plain-dust-acpjgebb',database_name:'neondb',major:17,guardOid:532699}];
+for(const target of targets){const e=evidence.provider.find(e=>e.projectId===target.project_id&&e.branchId===target.branch_id);assert.ok(e);assert.equal(e.projectLogicalLimitBytes,MONTHLY_STORAGE_PROVIDER_BYTES);assert.equal(e.branchState,'ready');assert.equal(e.pgVersion,target.major);}
+const read=f=>{const source=git('show',options['source-commit']+':'+f);assert.equal(fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n?/g,'\n'),source);return source;};
+const batch=buildMonthlyRevisionStorageInstallation({read,sourceCommit:options['source-commit'],verifiedBudgetBytes:MONTHLY_STORAGE_PROVIDER_BYTES});
+const settings=['SET TRANSACTION ISOLATION LEVEL REPEATABLE READ','SET LOCAL search_path=public,pg_catalog,pg_temp',"SET LOCAL timezone='UTC'","SET LOCAL statement_timeout='45s'","SET LOCAL lock_timeout='5s'"];
+// guardOid identifies the already verified branch, not a capacity target.
+const identity=t=>`DO $destination$ BEGIN IF current_database()<>'neondb' OR current_user<>'neondb_owner' OR current_setting('server_version_num')::integer/10000<>${t.major} OR to_regprocedure('public.native_employee_contract_guard_v1()')::oid IS DISTINCT FROM ${t.guardOid}::oid OR(SELECT count(*) FROM public.platform_tenant t JOIN public.platform_tenant_source_binding b ON b.tenant_id=t.id WHERE t.slug='junin-mendoza' AND t.status='active' AND b.verified AND b.source_system='GRH' AND b.source_database='grh_junin' AND b.source_company_id=101)<>1 OR has_schema_privilege('municontrol_actions_runtime_app','public','CREATE') THEN RAISE EXCEPTION 'MONTHLY_STORAGE_DESTINATION_MISMATCH';END IF;END $destination$`;
+const ready='DO $readiness$ BEGIN PERFORM public.municipal_adoption_ready_v1();END $readiness$';
+const prepared=statements=>statements.flatMap(splitPostgresStatements);
+const result={sourceCommit:batch.sourceCommit,sourceHashes:batch.sourceHashes,providerEvidenceSha256:createHash('sha256').update(evidenceBytes).digest('hex'),verifiedProviderBudgetBytes:MONTHLY_STORAGE_PROVIDER_BYTES,targets:targets.map(t=>({...t,preflight:prepared([...settings,identity(t),ready,batch.state,batch.choose,batch.before,"SELECT encode(public.digest(current_setting('municontrol_monthly_storage.before')::jsonb::text,'sha256'),'hex') AS preservation"]),installation:prepared([...settings,identity(t),ready,...batch.statements,ready]),verification:prepared([...settings,identity(t),...batch.verification.slice(0,-1),ready,batch.verification.at(-1)])})),newTables:0,newFunctions:0,adaptedFunctions:2,existingAclChanges:0,businessWrites:0,connects:false,executesSql:false};
+const bytes=JSON.stringify(result,null,2)+'\n',batchSha256=createHash('sha256').update(bytes).digest('hex');
+fs.writeFileSync(output+'.json',bytes,{flag:'wx'});
+fs.writeFileSync(output+'.md',`# Novedades mensuales: revisión de capacidad\n\nFuente ${batch.sourceCommit}; lote SHA256 ${batchSha256}.\n\nAdapta únicamente dos funciones existentes al presupuesto de 1 GiB verificado en las dos bases existentes. Mide todas las bases de la rama y conserva margen de 16 MiB, reserva de 2 MiB, límites, bloqueos y permisos. No modifica filas ni crea tablas o funciones. No realiza novedades, decisiones municipales, cálculos o pagos; conserva el lote salarial159 y su cuerpo/clave.\n\nEnsayar con rollback, instalar primero en PG18 y después en la operativa PG17, exigir conservación, lectura durable y repetición en modo verify. Revalidar el presupuesto efectivo antes de aplicar. Una mezcla de cuerpos anteriores y nuevos aborta. No usar main de PG17 ni otra base/proyecto.\n\nNo modifica otras guardas ni resuelve el límite de 500 registros del importador. La publicación técnica y la aceptación municipal se comprueban por separado.\n`,{flag:'wx'});
+console.log(JSON.stringify({prepared:true,sourceCommit:batch.sourceCommit,batchSha256,adaptedFunctions:2,businessWrites:0}));
