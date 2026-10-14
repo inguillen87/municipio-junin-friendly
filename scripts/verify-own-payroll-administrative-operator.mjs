@@ -1,9 +1,9 @@
 // Source-pinned verifier; only existing loopback synthetic QA, never Prod.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {fileURLToPath} from 'node:url';
-import {ownAdministrativeOperatorQaOptions,runOwnPayrollAdministrativeOperatorQa} from './lib/own-payroll-administrative-operator-qa.mjs';
+import {ownAdministrativeOperatorQaOptions,assertOwnAdministrativeOperatorCiSource,runOwnPayrollAdministrativeOperatorQa} from './lib/own-payroll-administrative-operator-qa.mjs';
 const root=fs.realpathSync(new URL('..',import.meta.url));
 export async function verifyOwnPayrollAdministrativeOperator(options){
- const safe=ownAdministrativeOperatorQaOptions(options);
+ const safe=assertOwnAdministrativeOperatorCiSource(ownAdministrativeOperatorQaOptions(options));
  const {verifySalaryConditionsProgram}=await import('./verify-own-salary-conditions-program.mjs');
  const result=await verifySalaryConditionsProgram({...safe,continuation:async h=>{
   const report=await runOwnPayrollAdministrativeOperatorQa(h);
