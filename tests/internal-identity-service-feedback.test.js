@@ -61,7 +61,7 @@ function runtime(fetchResponse) {
       return typeof fetchResponse === 'function' ? fetchResponse(url, options) : fetchResponse;
     },
     hideError: () => { state.message = ''; },
-    showError: message => { state.message = message; },
+    showError: (message, error) => { state.message = message; state.errorCode = error?.code ?? null; },
     setLoading: (loading, status) => { state.loading = loading; state.status = status; scope.identityLoading = loading; },
     openContextStep: (context, email) => { state.contexts.push({ context, email }); },
     completeLogin: (session, email) => { state.sessions.push({ session, email }); },
@@ -69,6 +69,17 @@ function runtime(fetchResponse) {
   vm.runInContext(['identityError', 'identityRequest', 'doLogin'].map(functionSource).join('\n'), scope);
   return { scope, requests, state, elements, login: () => scope.doLogin({ preventDefault() {} }) };
 }
+
+test('actual login origin denial reaches the production-link gate while clearing only the submitted password', async () => {
+  const qa = runtime(response(403, {ok:false, code:'IDENTITY_ORIGIN_FORBIDDEN'}));
+  await qa.login();
+  assert.equal(qa.state.errorCode, 'IDENTITY_ORIGIN_FORBIDDEN');
+  assert.match(qa.state.message, /dirección/);
+  assert.equal(qa.elements.emailInput.value, EMAIL);
+  assert.equal(qa.elements.passInput.value, '');
+  assert.equal(qa.requests.length, 1);
+  assert.equal(qa.state.contexts.length, 0);
+});
 
 for (const body of [
   { ok: false, code: 'IDENTITY_GATEWAY_NOT_CONFIGURED', error: 'private server diagnostic' },
