@@ -363,3 +363,6 @@ local-agents/
 !scripts/migrations/171-own-contract-salary-conditions.sql
 !scripts/migrations/172-own-salary-conditions-program-source.sql
 !scripts/migrations/173-own-full-payroll-response.sql
+
+# Reviewed administrative-operator code required by deployment build tests.
+!scripts/migrations/176-own-payroll-administrative-operator.sql
