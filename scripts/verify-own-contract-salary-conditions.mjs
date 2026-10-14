@@ -55,7 +55,7 @@ export async function verifyOwnContractSalaryConditions(options){
    const draft=employeeDraft({legajo:String(61000+i),fullName:'CONDICIONES AGENTE EXCLUSIVAMENTE SINTETICO QA '+i,dni,cuil:cuilBase+(rem===11?'0':rem===10?'9':String(rem)),birthDate:'1990-01-01',sexCode:'X',startDate:period+'-01',agreementCode:'1',categoryCode:category.code,organizationId:hireBoot.catalog.items.find(x=>x.kind==='organizations').code,sectorCode:hireBoot.catalog.items.find(x=>x.kind==='sectors').code,jobTitle:'Agente exclusivamente sintético QA',legalReference:'Alta exclusivamente sintética de condiciones QA',jurisdictionCode:i%2?'55':'42'});
    return db.run('SELECT native_employee_create_v1('+j(maker)+','+j(draft)+','+q(hireBoot.catalog.version)+','+q(randomUUID())+'::uuid)',true);
   };
-  for(let i=1;i<=855;i++)await hire(i);
+  const extraPeople=[];for(let i=1;i<=855;i++)extraPeople.push(await hire(i));
   const b=await boot();assert.ok(b.source.subjects.length>=855);assert.ok(b.source.subjects.every(s=>s.origin==='MUNICONTROL'&&s.sourceCutoff===null));
   const items=b.source.subjects.map((s,i)=>({contractId:s.contractId,identityToken:s.identityToken,definition:definition(i)}));
   const body=prepareSalaryConditions(b,items,'Preparación completa exclusivamente sintética QA'),key=randomUUID();
@@ -101,7 +101,7 @@ export async function verifyOwnContractSalaryConditions(options){
   }
   const proof={version:'own-contract-salary-conditions-sql-qa.v1',major:options.major,syntheticOnly:true,productiveBusinessWrites:0,rows:items.length,newNativeEmployees:856,eventRows:await db.run('SELECT to_jsonb(count(*)) FROM own_salary_conditions_event'),sourceSqlSha256:createHash('sha256').update(text).digest('hex'),modelBytes:4194304,actualHttpHandlers:true,engineIntegrated:false,technicalInstallationProtocol:false};
   fs.writeFileSync(path.join(h.destination,'salary-conditions-sql-proof.json'),JSON.stringify(proof,null,2)+'\n');
-  if(options.continuation)return options.continuation({...h,salaryConditions:{proof}});return proof;
+  if(options.continuation)return options.continuation({...h,salaryConditions:{proof,extraPeople}});return proof;
  }});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

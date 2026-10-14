@@ -1,4 +1,5 @@
 import { decimal, rational, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
+import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
 
 export const OWN_PAYROLL_INPUT_VERSION = 'own-payroll-input.v1';
 export const OWN_PAYROLL_RESULT_VERSION = 'own-payroll-result.v1';
@@ -27,12 +28,16 @@ function list(v, maximum, allowEmpty = false) {
   require(Reflect.ownKeys(v).length === v.length + 1 && Array.from({ length: v.length }, (_, i) => Object.getOwnPropertyDescriptor(v, String(i))).every(d => d && Object.hasOwn(d, 'value')), 'CONTRACT_INVALID', 'El conjunto no puede tener huecos, propiedades adicionales ni accesores.');
 }
 function unique(values, error = 'DUPLICATE') { require(new Set(values).size === values.length, error, 'Hay una referencia repetida o ambigua.'); }
-function expression(node, depth = 0, counter = { nodes: 0 }, namespaced = false) {
+function expression(node, depth = 0, counter = { nodes: 0 }, namespaced = false, typedConditions = false) {
   require(depth <= OWN_PAYROLL_LIMITS.depth && ++counter.nodes <= OWN_PAYROLL_LIMITS.nodes, 'EXPRESSION_LIMIT', 'La regla supera el límite de profundidad u operaciones declaradas.');
   require(node && typeof node === 'object' && Object.getOwnPropertyDescriptor(node, 'op')?.value, 'EXPRESSION_INVALID', 'La operación de la regla no es válida.');
-  const child = v => expression(v, depth + 1, counter, namespaced);
+  const child = v => expression(v, depth + 1, counter, namespaced, typedConditions);
   if (node.op === 'literal') { shape(node, ['op', 'unit', 'value']); require(units.has(node.unit), 'UNIT_INVALID', 'La unidad no está declarada.'); decimal(node.value); return { ...node }; }
   if (node.op === 'input') { shape(node, ['op', 'unit', 'key']); require(units.has(node.unit) && key(node.key), 'INPUT_INVALID', 'La entrada necesita nombre y unidad explícitos.'); return { ...node }; }
+  if (node.op === 'match' && typedConditions) {
+    shape(node,['op','key','type','operator','value']);
+    require(key(node.key)&&conditionUnit(node.type)&&['eq','ne'].includes(node.operator)&&conditionValue(node.type,node.value),'EXPRESSION_INVALID','La condición necesita un código o booleano exacto y una igualdad explícita.');return {...node};
+  }
   if (node.op === 'concept' || namespaced && node.op === 'auxiliary') { shape(node, ['op', 'code', 'stage']); require(code(node.code) && ['exact', 'rounded'].includes(node.stage), 'REFERENCE_INVALID', 'La referencia necesita concepto o auxiliar y etapa explícita, antes o después de redondear.'); return { ...node }; }
   if (node.op === 'round') { shape(node, ['op', 'value', 'rounding']); return { op: node.op, value: child(node.value), rounding: roundingPolicy(node.rounding) }; }
   if (node.op === 'convert') {
@@ -49,7 +54,9 @@ function expression(node, depth = 0, counter = { nodes: 0 }, namespaced = false)
   require(false, 'OPERATION_UNSUPPORTED', 'La operación no está implementada; no se ejecuta texto o una rutina externa.');
 }
 export function normalizeOwnPayrollInput(input) {
-  shape(input, ['version', 'period', 'liquidationType', 'selection', 'sourceVersions', 'populationComplete', 'totalsPrecision', 'employees', 'rules']);
+  const typedConditions=ownPayrollConditions(input);
+  shape(input, ['version', 'period', 'liquidationType', 'selection', 'sourceVersions', 'populationComplete', 'totalsPrecision', 'employees', 'rules',...(typedConditions?['salaryConditionsVersion']:[])]);
+  require(!typedConditions||input.version===OWN_PAYROLL_NAMESPACED_INPUT_VERSION,'CONTRACT_INVALID','Las condiciones propias requieren referencias separadas y su versión explícita.');
   require([OWN_PAYROLL_INPUT_VERSION, OWN_PAYROLL_NAMESPACED_INPUT_VERSION].includes(input.version) && month(input.period) && types.has(input.liquidationType) && input.populationComplete === true && Number.isInteger(input.totalsPrecision) && input.totalsPrecision >= 0 && input.totalsPrecision <= 8, 'SCOPE_INVALID', 'Declarar período, tipo, población completa y precisión de totales es obligatorio.');
   shape(input.sourceVersions, ['population', 'rules', 'novelties']); require(Object.values(input.sourceVersions).every(hash), 'SOURCE_VERSION_REQUIRED', 'Cada fuente necesita una versión exacta.');
   shape(input.selection, ['kind', 'values']); require(['all', 'contracts', 'agreements', 'departments'].includes(input.selection.kind), 'SELECTION_INVALID', 'La población debe elegirse expresamente.');
@@ -60,19 +67,20 @@ export function normalizeOwnPayrollInput(input) {
     shape(e, ['contractId', 'employeeNumber', 'agreementCode', 'departmentCode', 'inputs']);
     require(uuid(e.contractId) && ownPayrollEmployeeNumber(e.employeeNumber) && code(e.agreementCode) && code(e.departmentCode), 'EMPLOYEE_INVALID', 'El contrato y sus referencias deben ser exactos.');
     list(e.inputs, OWN_PAYROLL_LIMITS.inputs, true);
-    const inputs = e.inputs.map(i => { shape(i, ['key', 'unit', 'value', 'sourceReference']); require(key(i.key) && units.has(i.unit) && reference(i.sourceReference), 'INPUT_INVALID', 'Cada entrada necesita clave, unidad y procedencia.'); if (i.value !== null) decimal(i.value); return { ...i }; }).sort((a, b) => order(a.key, b.key));
+    const inputs = e.inputs.map(i => { shape(i, ['key', 'unit', 'value', 'sourceReference']); require(key(i.key) && (units.has(i.unit)||typedConditions&&conditionUnit(i.unit)) && reference(i.sourceReference), 'INPUT_INVALID', 'Cada entrada necesita clave, unidad y procedencia.'); if (i.value !== null) {if(conditionUnit(i.unit))require(conditionValue(i.unit,i.value),'INPUT_INVALID','El código o booleano debe conservar su tipo; no se convierte en una cantidad.');else decimal(i.value);} return { ...i }; }).sort((a, b) => order(a.key, b.key));
     unique(inputs.map(i => i.key)); return { ...e, inputs };
   }).sort((a, b) => order(a.contractId, b.contractId)); unique(employees.map(e => e.contractId));
-  const rules = normalizeOwnPayrollRules(input.rules, { namespaced: input.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION });
+  const rules = normalizeOwnPayrollRules(input.rules, { namespaced: input.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION, typedConditions });
   return { ...input, selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
 }
-export function normalizeOwnPayrollRules(raw, { namespaced = false } = {}) {
+export function normalizeOwnPayrollRules(raw, { namespaced = false, typedConditions = false } = {}) {
+  require(!typedConditions||namespaced,'CONTRACT_INVALID','Las condiciones propias requieren referencias separadas.');
   list(raw, OWN_PAYROLL_LIMITS.rules);
   const rules = raw.map(r => {
     shape(r, ['code', 'agreementCode', 'nature', 'unit', 'validFrom', 'validUntil', 'liquidationTypes', 'ruleReference', 'rounding', 'expression']);
     require(code(r.code) && code(r.agreementCode) && natures.has(r.nature) && units.has(r.unit) && (r.nature === 'auxiliary' || r.unit === 'money') && month(r.validFrom) && (r.validUntil === null || month(r.validUntil) && r.validUntil >= r.validFrom) && reference(r.ruleReference), 'RULE_INVALID', 'La regla necesita naturaleza, unidad, vigencia y respaldo explícitos.');
     list(r.liquidationTypes, types.size); require(r.liquidationTypes.every(t => types.has(t)), 'RULE_INVALID', 'El tipo de liquidación no está admitido.'); unique(r.liquidationTypes);
-    return { ...r, liquidationTypes: [...r.liquidationTypes].sort(), rounding: roundingPolicy(r.rounding), expression: expression(r.expression, 0, { nodes: 0 }, namespaced) };
+    return { ...r, liquidationTypes: [...r.liquidationTypes].sort(), rounding: roundingPolicy(r.rounding), expression: expression(r.expression, 0, { nodes: 0 }, namespaced, typedConditions) };
   }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.code, b.code) || (namespaced ? order(ownPayrollRuleIdentity(a, true), ownPayrollRuleIdentity(b, true)) : 0) || order(a.validFrom, b.validFrom) || order(a.liquidationTypes.join(','), b.liquidationTypes.join(',')));
   const groups = new Map();
   for (const r of rules) for (const type of r.liquidationTypes) {
@@ -92,6 +100,7 @@ function compileRules(rules, budget = { operations: 0 }, namespaced = false) {
     function unit(n) {
       require(++budget.operations <= OWN_PAYROLL_LIMITS.operations, 'EXPRESSION_LIMIT', 'La revisión supera su capacidad de operaciones. No se omiten reglas.');
       if (['literal', 'input'].includes(n.op)) return n.unit;
+      if (n.op === 'match') return 'boolean';
       if (n.op === 'concept' || n.op === 'auxiliary') { const id = referenceIdentity(n, namespaced); dependencies.add(id); return compile(id).unit; }
       if (n.op === 'round') { const result = unit(n.value); require(result !== 'boolean', 'UNIT_MISMATCH', 'No se redondea una condición.'); return result; }
       if (n.op === 'convert') { require(unit(n.value) !== 'boolean', 'UNIT_MISMATCH', 'No se convierte una condición en un importe.'); return n.unit; }
@@ -109,8 +118,8 @@ function compileRules(rules, budget = { operations: 0 }, namespaced = false) {
   for (const code of map.keys()) compile(code);
   return compiled;
 }
-export function validateOwnPayrollRulePeriods(raw, { namespaced = false } = {}) {
-  const rules = normalizeOwnPayrollRules(raw, { namespaced }), groups = new Map();
+export function validateOwnPayrollRulePeriods(raw, { namespaced = false, typedConditions = false } = {}) {
+  const rules = normalizeOwnPayrollRules(raw, { namespaced, typedConditions }), groups = new Map();
   const budget = { operations: 0 };
   let checks = 0;
   const nextMonth = m => { const [y, n] = m.split('-').map(Number); return String(n === 12 ? y + 1 : y) + '-' + String(n === 12 ? 1 : n + 1).padStart(2, '0'); };
@@ -148,6 +157,7 @@ export function calculateOwnPayroll(raw) {
         let value;
         if (n.op === 'literal') value = decimal(n.value);
         else if (n.op === 'input') { const input = inputs.get(n.key); require(input && input.value !== null, 'INPUT_MISSING', 'Falta una entrada necesaria; no se supone cero.'); require(input.unit === n.unit, 'UNIT_MISMATCH', 'La entrada tiene otra unidad.'); value = decimal(input.value); }
+        else if(n.op==='match'){const input=inputs.get(n.key);require(input&&input.value!==null,'INPUT_MISSING','Falta la condición necesaria; no se supone no, sin título ni cero.');require(input.unit===n.type&&conditionValue(input.unit,input.value),'UNIT_MISMATCH','La condición tiene otro tipo.');value=n.operator==='eq'?input.value===n.value:input.value!==n.value;}
         else if (n.op === 'concept' || n.op === 'auxiliary') { const referenced = concept(referenceIdentity(n, namespaced)); value = n.stage === 'exact' ? referenced.exact : referenced.value; }
         else if (n.op === 'round') value = quantize(evaluate(n.value), n.rounding).value;
         else if (n.op === 'convert') value = exactMultiply(evaluate(n.value), decimal(n.factor));
@@ -158,7 +168,7 @@ export function calculateOwnPayroll(raw) {
           else value = ({ add: exactAdd, subtract: exactSubtract, multiply: exactMultiply, divide: exactDivide, min: (a, b) => exactCompare(a, b) <= 0 ? a : b, max: (a, b) => exactCompare(a, b) >= 0 ? a : b })[n.op](a, b);
         }
         const isReference = n.op === 'concept' || n.op === 'auxiliary';
-        trace.push({ operation: n.op, reference: n.op === 'input' ? n.key : isReference ? referenceIdentity(n, namespaced) : null, stage: isReference ? n.stage : null, result: typeof value === 'boolean' ? value : exactEvidence(value) }); return value;
+        trace.push({ operation: n.op, reference: n.op === 'input'||n.op==='match' ? n.key : isReference ? referenceIdentity(n, namespaced) : null, stage: isReference ? n.stage : null, result: typeof value === 'boolean' ? value : exactEvidence(value) }); return value;
       }
       const exact = evaluate(rule.expression), rounded = quantize(exact, rule.rounding);
       const calculated = { value: rounded.value, exact, row: { contractId: employee.contractId, employeeNumber: employee.employeeNumber, agreementCode: employee.agreementCode, departmentCode: employee.departmentCode, conceptCode: rule.code, nature: rule.nature, unit: rule.unit, amount: rounded.amount, exactValue: exactEvidence(exact), rounding: { ...rule.rounding }, ruleReference: rule.ruleReference, dependencies, trace } }; values.set(code, calculated); return calculated;

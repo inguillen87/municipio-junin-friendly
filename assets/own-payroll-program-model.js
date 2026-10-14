@@ -2,6 +2,9 @@ import { ownProgramParticipation, participationPolicy, participationRules } from
 import { salaryItems, salaryExact, salaryHash, salaryUuid, salaryKey, salarySerialized } from './native-salary-catalog-model.js';
 import { validateOwnPayrollRulePeriods, OWN_PAYROLL_NAMESPACE_VERSION, ownPayrollRuleIdentity } from './own-payroll-engine.js';
 import { payrollRequire as require } from './own-payroll-exact.js';
+import {ownPayrollConditions,CONDITION_FIELD_UNITS,CLASSIFICATION_FIELD_UNITS,conditionUnit,OWN_PAYROLL_CONDITIONS_VERSION} from './own-payroll-conditions.js';
+export const ownProgramConditions=ownPayrollConditions;
+export {OWN_PAYROLL_CONDITIONS_VERSION};
 export const OWN_PROGRAM_VERSION = 'own-payroll-program.v1';
 export const OWN_PROGRAM_MAX_BYTES = 4 * 1024 * 1024;
 export const OWN_PROGRAM_SENIORITY_VERSION = 'own-salary-seniority.v1';
@@ -12,10 +15,10 @@ const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 export const ownProgramRuleKey = (r, namespaceVersion = null) => [r.agreementCode, ownPayrollRuleIdentity(r, namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION), r.validFrom, r.liquidationTypes.join(',')].join(':');
 export const ownProgramNamespaced = p => p?.namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION;
-export const ownProgramFields = p => [...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), 'rules', 'bindings', 'totalsPrecision'];
+export const ownProgramFields = p => [...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), 'rules', 'bindings', 'totalsPrecision'];
 const bindingKey = b => b.agreementCode + ':' + b.key;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
-function inputNodes(n) { if (n.op === 'input') return [n]; return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
+function inputNodes(n) { if (n.op === 'input') return [n]; if(n.op==='match')return[{key:n.key,unit:n.type}];return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
 function coverage(rows, rule, predicate) {
   let cursor = rule.validFrom; const until = rule.validUntil ?? '9999-12';
   for (const row of rows.filter(predicate).sort((a, b) => a.validFrom.localeCompare(b.validFrom))) {
@@ -27,25 +30,26 @@ function coverage(rows, rule, predicate) {
 }
 export function ownProgramStructure(raw) {
   require(salaryExact(raw, ownProgramFields(raw)), 'PROGRAM_INVALID', 'El programa debe declarar reglas, entradas, precisión y, cuando corresponda, referencias separadas de auxiliares.');
-  const namespaced = ownProgramNamespaced(raw), rules = validateOwnPayrollRulePeriods(raw.rules, { namespaced });
+  const namespaced = ownProgramNamespaced(raw), conditions=ownProgramConditions(raw), rules = validateOwnPayrollRulePeriods(raw.rules, { namespaced, typedConditions:conditions });
   require(Number.isInteger(raw.totalsPrecision) && raw.totalsPrecision >= 0 && raw.totalsPrecision <= 8 && Array.isArray(raw.bindings) && raw.bindings.length <= 1000, 'PROGRAM_INVALID', 'Revisá la precisión de totales y las entradas del programa.');
   const seniority = ownProgramSeniority(raw), participation = ownProgramParticipation(raw), workingTime = ownProgramWorkingTime(raw);
   require(!workingTime || namespaced, 'PROGRAM_INVALID', 'La jornada contractual propia requiere referencias separadas de conceptos y auxiliares.');
   require(!participation || namespaced, 'PROGRAM_INVALID', 'Los períodos parciales requieren referencias separadas.');
   require(!seniority || namespaced, 'PROGRAM_INVALID', 'La antigüedad propia requiere referencias separadas de conceptos y auxiliares.');
+  require(!conditions||namespaced,'PROGRAM_INVALID','Las condiciones propias necesitan referencias separadas y su versión explícita.');
   const bindings = raw.bindings.map(b => {
-    const fact = ['employment_fact','period_fact','working_time_fact'].includes(b?.sourceKind);
+    const fact = ['employment_fact','period_fact','working_time_fact','salary_condition_fact','classification_fact'].includes(b?.sourceKind);
     const fields = ['agreementCode', 'key', 'unit', 'sourceKind', fact ? 'sourceField' : 'sourceCode', 'onMissing', 'combine', 'ruleReference'];
     if (b?.sourceKind === 'scale_reference') fields.push('sourceAgreementCode', 'sourceCategoryCode');
-    require(salaryExact(b, fields) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && ['money', 'hours', 'minutes', 'days', 'percent', 'units', 'coefficient'].includes(b.unit) && [...(namespaced ? ['auxiliary_parameter'] : []), ...(seniority ? ['employment_fact'] : []), ...(participation ? ['period_fact'] : []), ...(workingTime ? ['working_time_fact'] : []), 'parameter', 'scale', 'scale_reference', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && (fact ? (b.sourceKind === 'period_fact' ? ['recognizedUnits','baseUnits'] : b.sourceKind === 'working_time_fact' ? ['dailyHours','monthlyHours'] : ['seniorityYears', 'seniorityMonths']).includes(b.sourceField) : code(b.sourceCode)) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180) && (b.sourceKind !== 'scale_reference' || code(b.sourceAgreementCode) && code(b.sourceCategoryCode)), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos. La escala de referencia necesita su convenio y clase.');
-    require(!fact || b.unit === (b.sourceKind === 'working_time_fact' ? 'hours' : 'units') && b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'El hecho aprobado necesita su unidad exacta y un único componente. No se convierte ni se supone cero.');
+    require(salaryExact(b, fields) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && (['money', 'hours', 'minutes', 'days', 'percent', 'units', 'coefficient'].includes(b.unit)||conditions&&['salary_condition_fact','classification_fact'].includes(b.sourceKind)&&conditionUnit(b.unit)) && [...(namespaced ? ['auxiliary_parameter'] : []), ...(seniority ? ['employment_fact'] : []), ...(participation ? ['period_fact'] : []), ...(workingTime ? ['working_time_fact'] : []), ...(conditions?['salary_condition_fact','classification_fact']:[]), 'parameter', 'scale', 'scale_reference', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && (fact ? (b.sourceKind==='classification_fact'?Object.keys(CLASSIFICATION_FIELD_UNITS):b.sourceKind === 'salary_condition_fact'?Object.keys(CONDITION_FIELD_UNITS):b.sourceKind === 'period_fact' ? ['recognizedUnits','baseUnits'] : b.sourceKind === 'working_time_fact' ? ['dailyHours','monthlyHours'] : ['seniorityYears', 'seniorityMonths']).includes(b.sourceField) : code(b.sourceCode)) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180) && (b.sourceKind !== 'scale_reference' || code(b.sourceAgreementCode) && code(b.sourceCategoryCode)), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos. La escala de referencia necesita su convenio y clase.');
+    require(!fact || b.unit === (b.sourceKind==='classification_fact'?CLASSIFICATION_FIELD_UNITS[b.sourceField]:b.sourceKind==='salary_condition_fact'?CONDITION_FIELD_UNITS[b.sourceField]:b.sourceKind === 'working_time_fact' ? 'hours' : 'units') && b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'El hecho aprobado necesita su unidad exacta y un único componente. No se convierte ni se supone cero.');
     require(!['parameter', 'auxiliary_parameter', 'scale', 'scale_reference'].includes(b.sourceKind) || b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'Un parámetro o escala debe ser único e informado; no se suma ni se supone cero.');
     require(!['scale', 'scale_reference', 'monthly_amount', 'fixed_amount'].includes(b.sourceKind) || b.unit === 'money', 'BINDING_INVALID', 'Los importes y escalas se expresan en dinero.'); return { ...b };
   }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.key, b.key));
   require(new Set(bindings.map(bindingKey)).size === bindings.length, 'BINDING_DUPLICATE', 'Hay entradas repetidas en un convenio.');
   const policy = participation ? participationPolicy({...raw,rules,bindings}) : null;
-  if (policy) validateOwnPayrollRulePeriods(participationRules({...raw,rules,bindings}), {namespaced:true});
-  return { ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), rules, bindings, totalsPrecision: raw.totalsPrecision };
+  if (policy) validateOwnPayrollRulePeriods(participationRules({...raw,rules,bindings}), {namespaced:true,typedConditions:conditions});
+  return { ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), rules, bindings, totalsPrecision: raw.totalsPrecision };
 }
 export function ownProgramDefinition(raw, catalogItems) {
   const program = ownProgramStructure(raw), { rules, bindings } = program, namespaced = ownProgramNamespaced(program), catalog = salaryItems(catalogItems);
@@ -55,7 +59,7 @@ export function ownProgramDefinition(raw, catalogItems) {
     for (const n of inputNodes(r.expression)) {
       const id = r.agreementCode + ':' + n.key, b = byBinding.get(id); used.add(id);
       require(b && b.unit === n.unit, 'BINDING_MISSING', 'Falta una entrada con unidad compatible para la regla.');
-      if (['employment_fact','period_fact','working_time_fact'].includes(b.sourceKind)) continue;
+      if (['employment_fact','period_fact','working_time_fact','salary_condition_fact','classification_fact'].includes(b.sourceKind)) continue;
       require(coverage(catalog, r, d => d.active && d.agreementCode === (b.sourceKind === 'scale_reference' ? b.sourceAgreementCode : b.agreementCode) && d.code === b.sourceCode && d.kind === (['scale', 'scale_reference'].includes(b.sourceKind) ? 'scale' : b.sourceKind === 'auxiliary_parameter' ? 'auxiliary' : 'concept') && (!namespaced || d.kind !== 'concept' || d.nature !== 'auxiliary') && (b.sourceKind !== 'scale_reference' || d.categoryCode === b.sourceCategoryCode) && (['monthly_amount', 'fixed_amount', 'scale', 'scale_reference'].includes(b.sourceKind) || d.unit === b.unit) && (!['parameter', 'auxiliary_parameter'].includes(b.sourceKind) || d.value !== null)), 'SOURCE_DEFINITION_MISSING', 'La fuente declarada no cubre toda la vigencia o tiene un valor ausente.');
     }
   }
@@ -67,6 +71,7 @@ export function ownProgramHistory(before, after) {
   require(!ownProgramNamespaced(before) || ownProgramNamespaced(after), 'PROGRAM_HISTORY_REQUIRED', 'Un programa con auxiliares separados no puede volver a referencias ambiguas.');
   require(!ownProgramSeniority(before) || ownProgramSeniority(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la versión explícita de la fuente propia de antigüedad.');
   require(!ownProgramWorkingTime(before) || ownProgramWorkingTime(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la fuente explícita de jornada contractual propia.');
+  require(!ownProgramConditions(before)||ownProgramConditions(after),'PROGRAM_HISTORY_REQUIRED','Conservá la versión explícita de las condiciones salariales propias.');
   require(!ownProgramParticipation(before) || ownProgramParticipation(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la política explícita de períodos parciales.');
   const version = after.namespaceVersion, keys = new Set(after.rules.map(r => ownProgramRuleKey(r, version)));
   require(before.rules.every(r => keys.has(ownProgramRuleKey(r, version))), 'PROGRAM_HISTORY_REQUIRED', 'Conservá las reglas anteriores; cerrá su vigencia en lugar de retirarlas.');

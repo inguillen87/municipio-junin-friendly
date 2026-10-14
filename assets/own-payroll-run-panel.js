@@ -1,4 +1,5 @@
 import {ownRunBootstrap,ownRunCommand,OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
+import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
 import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
 import {mountPositionCapture} from './position-capture-panel.js';
@@ -113,9 +114,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   async function request(url,options={}){
     if(!live())throw Object.assign(Error('Pantalla no visible.'),{name:'AbortError'});
-    const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:controller?.signal});
-    const text=await response.text();if(new TextEncoder().encode(text).byteLength>OWN_RUN_MAX_RESPONSE)throw Error('La respuesta completa supera la capacidad. No se mostraron filas parciales.');
-    let payload;try{payload=JSON.parse(text);}catch{throw Error('La respuesta no pudo verificarse. Consultá el mismo intento.');}
+    const full=url===endpoint||url.startsWith(endpoint+'?');
+    const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:full?OWN_RUN_FULL_JSON:'application/json',...options.headers},signal:controller?.signal});
+    let payload;try{payload=await readOwnPayrollResponse(response,{maxBytes:full?OWN_RUN_FULL_MAX_BYTES:OWN_RUN_MAX_RESPONSE,signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error(e.message||'La respuesta no pudo verificarse. Consultá el mismo intento.');}
     if(!response.ok||payload?.ok!==true){const error=Error(errors[payload?.code]??(response.status===401?'La sesión venció. Volvé a ingresar.':response.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=response.status;error.code=payload?.code;throw error;}
     return payload;
   }
