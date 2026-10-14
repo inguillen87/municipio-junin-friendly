@@ -356,3 +356,4 @@ local-agents/
 # Reviewed encuadre-use code required by the deployment build checks.
 !scripts/migrations/167-classification-registration-use.sql
 !scripts/migrations/168-catalog-storage-capacity.sql
+!scripts/migrations/169-fixed-novelty-storage-capacity.sql
