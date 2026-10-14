@@ -23,6 +23,54 @@ CREATE FUNCTION public.own_period_classification_immutable_v1() RETURNS trigger 
 CREATE TRIGGER own_period_classification_immutable BEFORE UPDATE OR DELETE ON public.own_period_classification_event FOR EACH ROW EXECUTE FUNCTION public.own_period_classification_immutable_v1();
 CREATE TRIGGER own_period_classification_no_truncate BEFORE TRUNCATE ON public.own_period_classification_event FOR EACH STATEMENT EXECUTE FUNCTION public.own_period_classification_immutable_v1();
 
+-- Exact SQL138 ownership/lifecycle subject. Salary consumers retain their
+-- separately pinned jurisdiction guard before an eligible range returns true.
+CREATE FUNCTION public.own_period_classification_lifecycle_subject_v1(ctx jsonb,target uuid,hold_lock boolean DEFAULT false) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+DECLARE c public.employment_contract;i public.person_identity;n public.native_employee_registration;
+ a public.employment_adoption_application;d public.employment_adoption_decision;r public.employment_adoption_proposal;
+ subject jsonb;state_value jsonb;binding uuid;
+BEGIN
+ IF ctx->>'sourceBindingId' IS NOT NULL AND ctx->>'certifiedBindingId' IS NOT NULL
+  AND ctx->>'sourceBindingId'<>ctx->>'certifiedBindingId' THEN RAISE EXCEPTION 'PAYROLL_FIXED_IDENTITY_CHANGED'; END IF;
+ binding:=coalesce(ctx->>'certifiedBindingId',ctx->>'sourceBindingId')::uuid;
+ IF hold_lock THEN LOCK TABLE public.employment_contract,public.person_identity,public.native_employee_registration,
+  public.platform_tenant_source_binding,public.employment_adoption_application,public.employment_adoption_decision,
+  public.employment_adoption_proposal,public.native_employment_lifecycle_review IN SHARE MODE NOWAIT; END IF;
+ SELECT * INTO c FROM public.employment_contract WHERE id=target AND tenant_id=(ctx->>'tenantId')::uuid
+  AND legacy_company_id=(ctx->>'sourceCompanyId')::bigint AND source_system='MUNICONTROL' AND source_batch_id IS NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'PAYROLL_FIXED_NOT_FOUND'; END IF;
+ SELECT reg.* INTO n FROM public.native_employee_registration reg
+  JOIN public.platform_tenant_source_binding b ON b.id=reg.source_binding_id AND b.tenant_id=reg.tenant_id
+  WHERE reg.contract_id=c.id AND reg.person_id=c.person_id AND reg.tenant_id=c.tenant_id AND reg.source_binding_id=binding
+   AND b.source_system='GRH' AND b.verified AND b.source_company_id=c.legacy_company_id AND b.source_database=ctx->>'sourceDatabase';
+ IF NOT FOUND OR c.source_payload#>>'{native,registrationId}' IS DISTINCT FROM n.id::text
+ THEN RAISE EXCEPTION 'PAYROLL_FIXED_IDENTITY_CHANGED'; END IF;
+ SELECT * INTO a FROM public.employment_adoption_application WHERE contract_id=c.id;
+ SELECT * INTO d FROM public.employment_adoption_decision WHERE id=a.decision_id AND decision='approve'
+  AND tenant_id=c.tenant_id AND source_binding_id=binding;
+ SELECT * INTO r FROM public.employment_adoption_proposal WHERE id=d.proposal_id AND tenant_id=d.tenant_id AND source_binding_id=d.source_binding_id;
+ IF a.contract_id IS NULL OR d.id IS NULL OR r.id IS NULL OR a.registration_id<>n.id
+  OR c.source_payload#>>'{native,adoptionProposalId}' IS DISTINCT FROM r.id::text
+  OR c.source_payload#>>'{native,adoptionReviewId}' IS DISTINCT FROM d.id::text
+  OR a.before_contract->>'person_id' IS DISTINCT FROM c.person_id::text
+  OR a.before_person->>'id' IS DISTINCT FROM c.person_id::text
+  OR a.before_contract->>'legacy_legajo' IS DISTINCT FROM c.legacy_legajo
+  OR (a.before_contract->>'legacy_company_id')::bigint IS DISTINCT FROM c.legacy_company_id
+ THEN RAISE EXCEPTION 'PAYROLL_FIXED_IDENTITY_CHANGED'; END IF;
+ SELECT * INTO i FROM public.person_identity WHERE id=c.person_id AND identity_state IN('active','provisional');
+ IF NOT FOUND OR c.legacy_legajo IS NULL OR length(c.legacy_legajo) NOT BETWEEN 1 AND 64 OR c.legacy_legajo~'[[:cntrl:]]'
+  OR i.full_name IS NULL OR length(btrim(i.full_name)) NOT BETWEEN 1 AND 300 THEN RAISE EXCEPTION 'PAYROLL_FIXED_IDENTITY_CHANGED'; END IF;
+ subject:=jsonb_build_object('contractId',c.id,'legajo',c.legacy_legajo,'employeeName',i.full_name,
+  'identityToken',encode(sha256(convert_to(jsonb_build_object('domain','fixed-adopted-identity.v1','tenant',c.tenant_id,
+   'binding',binding,'registration',to_jsonb(n),'native',c.source_payload->'native','person',to_jsonb(i)-ARRAY['created_at','updated_at'])::text,'UTF8')),'hex'),
+  'sourceCutoff',NULL,'origin','MUNICONTROL','registrationId',n.id,'registeredAt',n.created_at);
+ state_value:=public.native_employment_lifecycle_adopted_state_v2(ctx||jsonb_build_object('sourceBindingId',binding),target,subject);
+ IF state_value->>'datesVerified' IS DISTINCT FROM 'true' OR state_value->>'status'='state_error'
+ THEN RAISE EXCEPTION 'PAYROLL_FIXED_DATES_INVALID'; END IF;
+ RETURN jsonb_build_object('personId',c.person_id,'subject',subject);
+EXCEPTION WHEN lock_not_available OR deadlock_detected THEN RAISE EXCEPTION 'PAYROLL_FIXED_SESSION_BUSY'; END $$;
+
 CREATE FUNCTION public.own_period_classification_context_v1(p jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE ctx jsonb;BEGIN
  ctx:=public.native_salary_administrative_context_v1(p);
@@ -313,7 +361,7 @@ DECLARE ctx jsonb;fresh jsonb;cmd text;target uuid;period_value text;c jsonb;s j
 END $$;
 
 -- Same resolver for fresh capture and authoritative close. The unchanged
--- employment range/subject readers must admit the employee separately.
+-- employment interval and strict salary subject readers admit it separately.
 CREATE FUNCTION public.own_period_classification_resolve_v1(ctx jsonb,target uuid,period_value text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE c public.employment_contract;n public.native_employee_registration;configuration jsonb;s jsonb;e public.own_period_classification_event;r public.own_period_classification_event;d jsonb;BEGIN
  SELECT * INTO c FROM public.employment_contract WHERE id=target AND tenant_id=(ctx->>'tenantId')::uuid AND source_system='MUNICONTROL' AND source_batch_id IS NULL AND legacy_company_id=(ctx->>'sourceCompanyId')::bigint;
@@ -349,5 +397,5 @@ END $$;
 
 REVOKE ALL ON FUNCTION public.own_period_classification_immutable_v1(),public.own_period_classification_context_v1(jsonb),public.own_period_classification_scope_v1(jsonb,uuid,text),public.own_period_classification_lock_v1(jsonb),public.own_period_classification_definition_v1(jsonb,text),public.own_period_classification_catalogue_v1(jsonb,jsonb),public.own_period_classification_catalogue_source_v1(jsonb),public.own_period_classification_full_period_v1(jsonb,text,jsonb),public.own_period_classification_source_v1(jsonb,uuid,text),public.own_period_classification_configuration_v1(jsonb,uuid,text,integer,uuid,jsonb,jsonb,jsonb),public.own_period_classification_current_v1(jsonb,uuid,text),public.own_period_classification_summary_v1(jsonb,public.own_period_classification_event),public.own_period_classification_bootstrap_v1(jsonb,uuid,text),public.own_period_classification_detail_v1(jsonb,uuid),public.own_period_classification_attempt_v1(jsonb,uuid),public.own_period_classification_command_v1(jsonb,jsonb,uuid),public.own_period_classification_resolve_v1(jsonb,uuid,text),public.own_period_classification_close_match_v1(jsonb,public.own_payroll_run_capture,uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;
 REVOKE ALL ON FUNCTION public.own_period_classification_capture_row_v1(jsonb,jsonb,text) FROM PUBLIC,municontrol_actions_runtime_app;
-REVOKE ALL ON FUNCTION public.own_period_classification_catalogue_reference_v1(jsonb,jsonb),public.own_period_classification_catalogue_read_v1(jsonb,jsonb) FROM PUBLIC,municontrol_actions_runtime_app;
+REVOKE ALL ON FUNCTION public.own_period_classification_catalogue_reference_v1(jsonb,jsonb),public.own_period_classification_catalogue_read_v1(jsonb,jsonb),public.own_period_classification_lifecycle_subject_v1(jsonb,uuid,boolean) FROM PUBLIC,municontrol_actions_runtime_app;
 GRANT EXECUTE ON FUNCTION public.own_period_classification_bootstrap_v1(jsonb,uuid,text),public.own_period_classification_detail_v1(jsonb,uuid),public.own_period_classification_attempt_v1(jsonb,uuid),public.own_period_classification_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;

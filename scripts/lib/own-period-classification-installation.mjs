@@ -12,7 +12,7 @@ import {READINESS_PRIOR,READINESS_FINAL,CAPTURE_PRIOR,CAPTURE_FINAL} from './wor
 import {CATALOG_STORAGE_AFTER_SHA256,CATALOG_STORAGE_SQL_SHA256} from './catalog-storage-capacity-installation.mjs';
 
 export const OWN_PERIOD_CLASSIFICATION_MIGRATION='scripts/migrations/177-own-period-classification.sql';
-export const OWN_PERIOD_CLASSIFICATION_SQL_SHA256='987ed2761b4bccb3f64798957b8c6bc74e1b0c390101e2ecb1100b1861d6f1c9';
+export const OWN_PERIOD_CLASSIFICATION_SQL_SHA256='d99fede293297f1c1e8876188a39cd24eac568b12ad84fea026b10a459131291';
 const table='own_period_classification_event',prefix='municontrol_period_classification.';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",lf=v=>v.replace(/\r\n?/g,'\n'),hash=v=>createHash('sha256').update(v).digest('hex');
 const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'PERIOD_CLASSIFICATION_SOURCE_ANCHOR: '+a.slice(0,90));return s.replace(a,()=>b);};
@@ -21,6 +21,10 @@ const normalized=s=>{const at=s.search(/\bAS\s+\$/);assert.ok(at>=0);return s.sl
 const facadeNames=new Set(['own_period_classification_bootstrap_v1','own_period_classification_detail_v1','own_period_classification_attempt_v1','own_period_classification_command_v1']);
 const pin=(s,runtime=false)=>({...ownInstallationFunctionPin(normalized(s)),runtime});
 const SOURCE_PINS=Object.freeze({
+ 'scripts/migrations/110-native-employment-lifecycle.sql':'e31ee11235b8ac2579e2d0d4c863627a146d062e883faef48420e4d39fb66219',
+ 'scripts/migrations/136-adopted-employment-lifecycle.sql':'577f0c7aee2d594ec67153810e052190b1a055b17d4d0a6ba96065f68ea1870a',
+ 'scripts/migrations/138-adopted-fixed-novelties.sql':'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469',
+ 'scripts/lib/adoption-inactive-jurisdiction-installation.mjs':'8e6984708f43be776ca49e318f461bb436ce9cf12f3714438057b158d446f6ac',
  'scripts/migrations/125-own-payroll-close.sql':'443127dd55b9be5f37da47af303fcdd599b4d5dc0aad0a319a18253f8f139af5',
  'scripts/migrations/141-adopted-own-payroll-close.sql':'96cd6fd2a2f81b023a8481b89b0a8fb7bd0971011fcef49498e93f4a9bab82a3',
  'scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql':'1486014334a5e70d8c1bb7dbb4025cdddfb3a741dc299d51cfc2803a938aa5fe',
@@ -35,6 +39,27 @@ const SOURCE_PINS=Object.freeze({
  'scripts/migrations/165-working-time-adoption-readiness.sql':'d1e6a4c16eb875f5e8d9b47d029a5664f923a676e537c0cb54ddb80da578fe48',
 });
 const capacityPin=Object.freeze({name:'native_employment_catalog_capacity_v1',signature:'public.native_employment_catalog_capacity_v1(integer)',sha256:CATALOG_STORAGE_AFTER_SHA256,argNames:['extra_bytes'],defaults:'',resultType:'void',language:'plpgsql',returnsSet:false,strict:false,definer:true,volatility:'v',config:['search_path=pg_catalog, public, pg_temp'],runtime:false});
+const rangePriorSha256='30afb71e97988bd4862d98d3d56d84603252bbb600812d5f40c63a5596a69546';
+const lifecycleSubjectSha256='83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa';
+const salarySubjectSha256='47aa5dda0e474a3efa9279d526d86855d670dce0f0c47097cd6d97e7e4e32672';
+
+function publishedLifecycleSources(texts){
+ const original=get(texts['scripts/migrations/138-adopted-fixed-novelties.sql'],'payroll_fixed_registry_adopted_subject_v1');
+ assert.equal(pin(original).sha256,lifecycleSubjectSha256,'PERIOD_CLASSIFICATION_LIFECYCLE_SUBJECT_SOURCE_CHANGED');
+ const helper=once(original,'public.payroll_fixed_registry_adopted_subject_v1(','public.own_period_classification_lifecycle_subject_v1(');
+ const jurisdictionGuard=" IF c.jurisdiction_code IS NULL THEN RAISE EXCEPTION 'PAYROLL_FIXED_JURISDICTION_REQUIRED';END IF;";
+ assert.ok(texts['scripts/lib/adoption-inactive-jurisdiction-installation.mjs'].includes(jurisdictionGuard.trim()),'PERIOD_CLASSIFICATION_SALARY_GUARD_SOURCE_CHANGED');
+ const salary=once(original,' subject:=jsonb_build_object',jurisdictionGuard+'\n subject:=jsonb_build_object');
+ assert.equal(pin(salary).sha256,salarySubjectSha256,'PERIOD_CLASSIFICATION_SALARY_SUBJECT_SOURCE_CHANGED');
+ const dependencies=[
+  ['scripts/migrations/136-adopted-employment-lifecycle.sql','native_employment_lifecycle_adopted_state_v2','aff53f86b7a8479a24d39a641065f1e9292f35e179c007539def449516ee3d18'],
+  ['scripts/migrations/136-adopted-employment-lifecycle.sql','native_employment_lifecycle_adopted_intervals_v2','d8d902f0d917fd3d22ee0d07d0b7d7dc5ca74d86de94d18c64f5b35cfffe5517'],
+  ['scripts/migrations/136-adopted-employment-lifecycle.sql','native_employment_lifecycle_adopted_date_v2','db5ec0dbcb2fb5b95f474e589eb493680da875b6a5e4a98c55ceac34fdebf9e7'],
+  ['scripts/migrations/136-adopted-employment-lifecycle.sql','native_employment_lifecycle_adopted_activity_v2','b1dfc81b4a26601529d34122873a1344a268ed95bed486c3728b8f2d647f06a4'],
+  ['scripts/migrations/110-native-employment-lifecycle.sql','native_employment_lifecycle_version_v1','44b8e2f32e6f55b9fbd994657e3a69f5de17991cc4680307734c48302f72d2f3'],
+ ].map(([file,name,expected])=>{const definition=get(texts[file],name);assert.equal(pin(definition).sha256,expected,'PERIOD_CLASSIFICATION_LIFECYCLE_DEPENDENCY_CHANGED: '+name);return definition;});
+ return{helper,prerequisiteDefinitions:[salary,...dependencies]};
+}
 
 function priorRoster(source){
  let s=get(source,'own_close_roster_v1');assert.equal(pin(s).sha256,'63dcc6cb15f921d5c36ef9510ad9bceb4b4160d8cb69fcf51c1d0ee5ec750996');
@@ -51,9 +76,17 @@ function priorRoster(source){
  return s;
 }
 
-export function deriveOwnPeriodClassificationConsumers({capture,roster,detail,jurisdictions,ready}){
+export function deriveOwnPeriodClassificationConsumers({capture,roster,detail,jurisdictions,range,ready}){
  assert.equal(pin(capture,true).sha256,'ab89246306b8b5b337b40b8508f0d36e4890a5f6c5aef3ea997cff6e396e3af3','PERIOD_CLASSIFICATION_CAPTURE_BASE_CHANGED');
  assert.equal(pin(ready).sha256,READINESS_FINAL,'PERIOD_CLASSIFICATION_READINESS_BASE_CHANGED');
+ assert.equal(pin(range).sha256,rangePriorSha256,'PERIOD_CLASSIFICATION_RANGE_BASE_CHANGED');
+ let nextRange=once(range,'DECLARE subject jsonb;state_value jsonb;','DECLARE subject jsonb;state_value jsonb;covered boolean;');
+ nextRange=once(nextRange," subject:=public.payroll_fixed_registry_adopted_subject_v1(ctx,target,true)->'subject';"," IF ctx->>'sourceBindingId' IS NOT NULL AND ctx->>'certifiedBindingId' IS NOT NULL AND ctx->>'sourceBindingId'<>ctx->>'certifiedBindingId' THEN RAISE EXCEPTION 'PAYROLL_FIXED_IDENTITY_CHANGED'; END IF;\n ctx:=ctx||jsonb_build_object('sourceBindingId',coalesce(ctx->>'sourceBindingId',ctx->>'certifiedBindingId'));\n subject:=public.own_period_classification_lifecycle_subject_v1(ctx,target,true)->'subject';");
+ nextRange=once(nextRange,"ctx||jsonb_build_object('sourceBindingId',ctx->>'certifiedBindingId'),target,subject","ctx,target,subject");
+ nextRange=once(nextRange,' IF continuous THEN RETURN EXISTS(',' IF continuous THEN covered:=EXISTS(');
+ nextRange=once(nextRange,"(r->>'endDate')::date>=last_date))); END IF;","(r->>'endDate')::date>=last_date))); ELSE");
+ nextRange=once(nextRange,' RETURN EXISTS(',' covered:=EXISTS(');
+ nextRange=once(nextRange,'END $$'," END IF;\n IF NOT covered THEN RETURN false; END IF;\n PERFORM public.payroll_fixed_registry_adopted_subject_v1(ctx,target,true);\n RETURN true;\nEND $$");
  let nextCapture=once(capture,'DECLARE condition_facts jsonb;','DECLARE classification_value jsonb;classifications jsonb:=\'[]\';condition_facts jsonb;');
  nextCapture=once(nextCapture,"AND(kind='all' OR kind='contracts' AND body#>'{selection,values}' ? ec.id::text OR kind='agreements' AND body#>'{selection,values}' ? ec.agreement_code OR kind='departments' AND body#>'{selection,values}' ? ec.sector_source_id)","AND(kind<>'contracts' OR body#>'{selection,values}' ? ec.id::text)");
  // The complete eligible population must be classified before group filtering.
@@ -92,10 +125,10 @@ export function deriveOwnPeriodClassificationConsumers({capture,roster,detail,ju
  nextJurisdictions=once(nextJurisdictions,'  registrations:=array_append(registrations,', "  classification_row:=NULL;\n  IF classification_block IS NOT NULL THEN\n   SELECT r INTO classification_row FROM jsonb_array_elements(classification_block->'rows') r WHERE r->'contractId'=row_value->'contractId';\n   PERFORM public.own_period_classification_capture_row_v1(classification_row,employee,capture#>>'{body,period}');\n   IF classification_row->'registrationId' IS DISTINCT FROM row_value->'registrationId' OR classification_row#>'{definition,jurisdictionCode}' IS DISTINCT FROM row_value->'jurisdictionCode' THEN RAISE EXCEPTION 'OWN_CLOSE_JURISDICTION_INVALID';END IF;\n  END IF;\n  registrations:=array_append(registrations,");
  nextJurisdictions=once(nextJurisdictions,"'basis','captured_own_registration'","'basis',CASE WHEN classification_row->>'basis'='approved_own_period_classification' THEN 'captured_own_period_classification' ELSE 'captured_own_registration' END");
  let nextReady=ready;
- for(const [before,after]of[[CAPTURE_FINAL,pin(nextCapture,true).sha256],[pin(roster).sha256,pin(nextRoster).sha256],[pin(jurisdictions).sha256,pin(nextJurisdictions).sha256]]){
+ for(const [before,after]of[[CAPTURE_FINAL,pin(nextCapture,true).sha256],[pin(roster).sha256,pin(nextRoster).sha256],[pin(jurisdictions).sha256,pin(nextJurisdictions).sha256],[rangePriorSha256,pin(nextRange).sha256]]){
   assert.ok(nextReady.includes(before),'PERIOD_CLASSIFICATION_READY_PIN_MISSING');nextReady=nextReady.replaceAll(before,after);
  }
- const originals=[capture,roster,detail,jurisdictions,ready],changed=[nextCapture,nextRoster,nextDetail,nextJurisdictions,nextReady].map(s=>s.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '));
+ const originals=[capture,roster,detail,jurisdictions,range,ready],changed=[nextCapture,nextRoster,nextDetail,nextJurisdictions,nextRange,nextReady].map(s=>s.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '));
  originals.forEach((s,i)=>assert.deepEqual({...pin(s,i===0||i===2),sha256:null},{...pin(changed[i],i===0||i===2),sha256:null},'PERIOD_CLASSIFICATION_PRIOR_METADATA_CHANGED'));
  return{originals,changed};
 }
@@ -143,6 +176,8 @@ export function buildOwnPeriodClassificationInstallation({read,sourceCommit}){
  const source=lf(read(OWN_PERIOD_CLASSIFICATION_MIGRATION)),migration=splitPostgresStatements(source).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim());sourceHashes[OWN_PERIOD_CLASSIFICATION_MIGRATION]=hash(source);
  assert.equal(sourceHashes[OWN_PERIOD_CLASSIFICATION_MIGRATION],OWN_PERIOD_CLASSIFICATION_SQL_SHA256,'PERIOD_CLASSIFICATION_REVIEWED_SQL_CHANGED');
  assert.ok(migration.every(s=>!/^\s*(BEGIN|COMMIT|ROLLBACK)\b/i.test(s)));
+ const lifecycle=publishedLifecycleSources(texts),lifecyclePrerequisiteDefinitions=lifecycle.prerequisiteDefinitions;
+ assert.equal(get(source,'own_period_classification_lifecycle_subject_v1'),lifecycle.helper,'PERIOD_CLASSIFICATION_LIFECYCLE_SUBJECT_DERIVATION_CHANGED');
  const streaming=buildAdoptionSourceStreamingInstallation(options),jurisdiction=buildOwnJurisdictionInstallation(options);
  Object.assign(sourceHashes,streaming.sourceHashes);
  // The published final source also includes administrative adoption and
@@ -154,15 +189,16 @@ export function buildOwnPeriodClassificationInstallation({read,sourceCommit}){
   capture:get(lf(read('scripts/migrations/172-own-salary-conditions-program-source.sql')),'own_run_capture_v1'),
   roster:priorRoster(texts['scripts/migrations/125-own-payroll-close.sql']),
   detail:jurisdiction.migration.find(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.own_close_detail_v1(')),
-  jurisdictions:get(texts['scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql'],'own_run_jurisdictions_v1'),ready,
+  jurisdictions:get(texts['scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql'],'own_run_jurisdictions_v1'),
+  range:get(texts['scripts/migrations/138-adopted-fixed-novelties.sql'],'payroll_fixed_registry_range_v2'),ready,
  });
- const newPins=migration.filter(s=>/^CREATE FUNCTION public\./.test(s)).map(s=>pin(s,facadeNames.has(pin(s).name)));assert.equal(newPins.length,21);assert.equal(newPins.filter(p=>p.runtime).length,4);
+ const newPins=migration.filter(s=>/^CREATE FUNCTION public\./.test(s)).map(s=>pin(s,facadeNames.has(pin(s).name)));assert.equal(newPins.length,22);assert.equal(newPins.filter(p=>p.runtime).length,4);
  const beforePins=consumers.originals.map((s,i)=>pin(s,i===0||i===2)),afterConsumerPins=consumers.changed.map((s,i)=>pin(s,i===0||i===2)),targetNames=new Set(beforePins.map(p=>p.name));
- const prerequisitePins=[...previous.prerequisitePins,...previous.afterPins].filter(p=>!targetNames.has(p.name)&&p.name!==capacityPin.name).concat(capacityPin);
+ const prerequisitePins=[...previous.prerequisitePins,...previous.afterPins].filter(p=>!targetNames.has(p.name)&&p.name!==capacityPin.name).concat(capacityPin,...lifecyclePrerequisiteDefinitions.map(s=>pin(s)));
  assert.equal(new Set(prerequisitePins.map(p=>p.signature)).size,prerequisitePins.length,'PERIOD_CLASSIFICATION_DUPLICATE_PREREQUISITE');
  // These publication pins are canonical, not a before/after-only promise.
  for(const [name,expected]of Object.entries({own_run_complete_v1:'f303a27603c035919449d05a1b4af9228a512a79b7667a4ede34011c2f334dc7',own_run_complete_full_v1:'1b2198ac93bd66ed5f7191ffabb69000de340e20d115cbddd1e32e85db6a8d37'}))assert.equal(prerequisitePins.find(p=>p.name===name)?.sha256,expected,'PERIOD_CLASSIFICATION_FINALIZER_CHANGED');
- const afterPins=[...afterConsumerPins,...newPins],beforeCheck=pinsCheck([...prerequisitePins,...beforePins],'PERIOD_CLASSIFICATION_PREREQUISITE_CHANGED'),afterCheck=pinsCheck([...prerequisitePins,...afterPins],'PERIOD_CLASSIFICATION_FUNCTION_CHANGED')+';'+ownPeriodClassificationTableCheck()+";DO $count$ BEGIN IF(SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_period_classification_%')<>21 THEN RAISE EXCEPTION 'PERIOD_CLASSIFICATION_FUNCTION_COUNT';END IF;END $count$";
+ const afterPins=[...afterConsumerPins,...newPins],beforeCheck=pinsCheck([...prerequisitePins,...beforePins],'PERIOD_CLASSIFICATION_PREREQUISITE_CHANGED'),afterCheck=pinsCheck([...prerequisitePins,...afterPins],'PERIOD_CLASSIFICATION_FUNCTION_CHANGED')+';'+ownPeriodClassificationTableCheck()+";DO $count$ BEGIN IF(SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_period_classification_%')<>22 THEN RAISE EXCEPTION 'PERIOD_CLASSIFICATION_FUNCTION_COUNT';END IF;END $count$";
  const ids=beforePins.map(p=>q(p.signature)+'::regprocedure').join(','),newNames=newPins.map(p=>q(p.name)).join(',');
  const snapshot=slot=>{
   let s=preservationSnapshot(slot).replaceAll('native_leave_event',table).replaceAll('municontrol_sql111.',prefix);
@@ -178,14 +214,14 @@ export function buildOwnPeriodClassificationInstallation({read,sourceCommit}){
  const conservation="DO $conservation$ BEGIN IF current_setting('"+prefix+"before')::jsonb IS DISTINCT FROM current_setting('"+prefix+"after')::jsonb THEN RAISE EXCEPTION 'PERIOD_CLASSIFICATION_PRIOR_STATE_CHANGED';END IF;END $conservation$";
  const priorMetadata="encode(public.digest(jsonb_build_object('objects',current_setting('"+prefix+"after')::jsonb-'tables'-'sequences','tables',(SELECT jsonb_agg(v-'rows'-'rowsSha256' ORDER BY v->>'schema',v->>'name') FROM jsonb_array_elements(current_setting('"+prefix+"after')::jsonb->'tables') v),'sequences',(SELECT jsonb_agg(jsonb_build_object('definition',to_jsonb(s),'owner',c.relowner,'acl',c.relacl,'options',c.reloptions) ORDER BY s.seqrelid) FROM pg_sequence s JOIN pg_class c ON c.oid=s.seqrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'))::text,'sha256'),'hex')";
  const objectFingerprint="encode(public.digest(jsonb_build_object('table',(SELECT jsonb_build_object('oid',c.oid,'owner',c.relowner,'acl',c.relacl,'kind',c.relkind,'persistence',c.relpersistence,'options',c.reloptions,'rls',c.relrowsecurity,'forceRls',c.relforcerowsecurity,'replicaIdentity',c.relreplident) FROM pg_class c WHERE c.oid='public."+table+"'::regclass),'attributes',(SELECT jsonb_agg(jsonb_build_object('attribute',to_jsonb(a),'default',pg_get_expr(d.adbin,d.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid='public."+table+"'::regclass),'constraints',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.oid) FROM pg_constraint c WHERE c.conrelid='public."+table+"'::regclass),'indexes',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.indexrelid) FROM pg_index i WHERE i.indrelid='public."+table+"'::regclass),'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid='public."+table+"'::regclass),'policies',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid='public."+table+"'::regclass),'functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p WHERE p.oid IN("+ids+") OR p.pronamespace='public'::regnamespace AND p.proname IN("+newNames+")))::text,'sha256'),'hex')";
- const proof=(modeValue,tx)=>"SELECT jsonb_build_object('version','own-period-classification-installation.v1','sourceCommit',"+q(sourceCommit)+",'sourceHashes',"+q(JSON.stringify(sourceHashes))+"::jsonb,'mode',"+modeValue+",'newTables',1,'newFunctions',21,'runtimeFacades',4,'adaptedFunctions',5,'roleAssignmentsAdded',0,'existingAclChanges',0,'associationWrites',0,'businessWrites',0,'nominalRowsReturned',0,'eventRows',(SELECT count(*) FROM public."+table+"),'transactionDataPreserved',"+tx+",'preservationSha256',encode(public.digest(current_setting('"+prefix+"after')::jsonb::text,'sha256'),'hex'),'priorMetadataSha256',"+priorMetadata+",'objectFingerprint',"+objectFingerprint+") AS proof";
- return{sourceCommit,sourceHashes,previous,migration,mutations,originals:consumers.originals,changed:consumers.changed,beforePins,afterPins,afterConsumerPins,newPins,prerequisitePins,beforeCheck,afterCheck,before,after,mode,choose,apply,conservation,statements:[mode,choose,before,apply,afterCheck,after,conservation,proof("current_setting('"+prefix+"mode')",true)],verification:[afterCheck,after,proof("'verify'",false)],connects:false,executesSql:false};
+ const proof=(modeValue,tx)=>"SELECT jsonb_build_object('version','own-period-classification-installation.v1','sourceCommit',"+q(sourceCommit)+",'sourceHashes',"+q(JSON.stringify(sourceHashes))+"::jsonb,'mode',"+modeValue+",'newTables',1,'newFunctions',22,'runtimeFacades',4,'adaptedFunctions',6,'roleAssignmentsAdded',0,'existingAclChanges',0,'associationWrites',0,'businessWrites',0,'nominalRowsReturned',0,'eventRows',(SELECT count(*) FROM public."+table+"),'transactionDataPreserved',"+tx+",'preservationSha256',encode(public.digest(current_setting('"+prefix+"after')::jsonb::text,'sha256'),'hex'),'priorMetadataSha256',"+priorMetadata+",'objectFingerprint',"+objectFingerprint+") AS proof";
+ return{sourceCommit,sourceHashes,previous,migration,mutations,originals:consumers.originals,changed:consumers.changed,beforePins,afterPins,afterConsumerPins,newPins,prerequisitePins,lifecyclePrerequisiteDefinitions,beforeCheck,afterCheck,before,after,mode,choose,apply,conservation,statements:[mode,choose,before,apply,afterCheck,after,conservation,proof("current_setting('"+prefix+"mode')",true)],verification:[afterCheck,after,proof("'verify'",false)],connects:false,executesSql:false};
 }
 
 export function assertOwnPeriodClassificationDurability({installed,durable,batch}){
  for(const p of[installed,durable]){
   assert.equal(p.version,'own-period-classification-installation.v1');assert.equal(p.sourceCommit,batch.sourceCommit);assert.deepEqual(p.sourceHashes,batch.sourceHashes);
-  for(const [k,v]of Object.entries({newTables:1,newFunctions:21,runtimeFacades:4,adaptedFunctions:5,roleAssignmentsAdded:0,existingAclChanges:0,associationWrites:0,businessWrites:0,nominalRowsReturned:0}))assert.equal(p[k],v);
+  for(const [k,v]of Object.entries({newTables:1,newFunctions:22,runtimeFacades:4,adaptedFunctions:6,roleAssignmentsAdded:0,existingAclChanges:0,associationWrites:0,businessWrites:0,nominalRowsReturned:0}))assert.equal(p[k],v);
   for(const k of['preservationSha256','priorMetadataSha256','objectFingerprint'])assert.match(p[k],/^[a-f0-9]{64}$/);
   assert.ok(Number.isSafeInteger(p.eventRows)&&p.eventRows>=0,'PERIOD_CLASSIFICATION_EVENT_COUNT_INVALID');
  }
