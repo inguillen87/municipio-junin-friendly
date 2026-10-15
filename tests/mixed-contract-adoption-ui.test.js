@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {mixedAdoptionOperatorSummary} from '../assets/municipal-adoption-operator-ui.js';
+import {mixedAdoptionRaw} from './fixtures/mixed-contract-adoption-synthetic.js';
+import {sealAdoptionReview,verifiedAdoptionReview} from '../assets/employment-adoption-review-model.js';
+test('independent v8 summary displays complete source records separately from identified and selected contracts',async()=>{const review=await verifiedAdoptionReview(await sealAdoptionReview(mixedAdoptionRaw())),text=mixedAdoptionOperatorSummary(review.source.operationalCohort);for(const part of ['63 registros de origen','58 contratos identificados','5 identidades pendientes','37 contratos a incorporar','15 inactivos','4 sin fecha de ingreso','2 ya adoptados'])assert.ok(text.includes(part),part);assert.ok(!text.includes('63 contratos'));assert.ok(!text.includes('independencia aprobada'));});
+test('mixed summary never relabels legacy all-known or operational cohort snapshots',()=>{for(const cohort of [null,undefined,{version:'active-contracts.v1',sourceTotal:63,archivedTotal:15},{version:'active-with-entry.v1',sourceTotal:63,archivedTotal:15,deferredTotal:4}])assert.equal(mixedAdoptionOperatorSummary(cohort),null);});

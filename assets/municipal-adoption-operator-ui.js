@@ -2,6 +2,12 @@ import {municipalAdoptionQueue,municipalAdoptionDetail,municipalAdoptionCommand,
 import {REGISTRY_ADOPTION_INPUT_VERSION,originalRegistryFactsCounts} from './employment-adoption-original-facts.js';
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 import {operationalAdoptionCohort} from './employment-adoption-operational-cohort.js';
+import {MIXED_ADOPTION_COHORT} from './employment-adoption-mixed-cohort.js';
+// Display only, after municipalAdoptionDetail verified the complete source.
+export function mixedAdoptionOperatorSummary(cohort){
+ if(cohort?.version!==MIXED_ADOPTION_COHORT)return null;
+ return `${cohort.sourceTotal} registros de origen: ${cohort.knownTotal} contratos identificados y ${cohort.pendingTotal} identidades pendientes. La propuesta conserva ${cohort.selectedTotal} contratos a incorporar. Quedan fuera de esta propuesta ${cohort.archivedTotal} inactivos, ${cohort.deferredTotal} sin fecha de ingreso y ${cohort.adoptedTotal} ya adoptados. Ninguna identidad pendiente recibió un contrato ficticio.`;
+}
 import {appendAdoptionChanges} from './employment-adoption-changes-ui.js';
 import {municipalAdoptionReviewHref,shortMunicipalAdoptionId,resolveMunicipalAdoptionNavigation} from './municipal-adoption-navigation-model.js';
 const API='/api/internal-municipal-adoption',issue=(message,status,code)=>Object.assign(Error(message),{status,code});
@@ -61,7 +67,7 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  function paintDetail(){
   const cohort=detail.review.source.operationalCohort;
   $('detail-id').textContent='Propuesta '+shortMunicipalAdoptionId(detail.proposal.proposalId)+' · '+detail.proposal.total+' contratos';$('detail-id').title=detail.proposal.proposalId;
-  const scopeText=cohort?`${detail.proposal.total} contratos activos seleccionados para esta propuesta. ${operationalAdoptionCohort(cohort)?`${cohort.deferredTotal} registros diferidos sin fecha de ingreso y `:''}${cohort.archivedTotal} contratos inactivos se conservan como antecedentes fuera de esta propuesta. La fuente completa conserva ${cohort.sourceTotal} contratos.`:`${detail.proposal.total} contratos en esta propuesta · ${detail.review.counts.active} activos · ${detail.review.counts.inactive} inactivos · ${detail.review.counts.state_error} con estado a revisar.`;
+  const scopeText=mixedAdoptionOperatorSummary(cohort)??(cohort?`${detail.proposal.total} contratos activos seleccionados para esta propuesta. ${operationalAdoptionCohort(cohort)?`${cohort.deferredTotal} registros diferidos sin fecha de ingreso y `:''}${cohort.archivedTotal} contratos inactivos se conservan como antecedentes fuera de esta propuesta. La fuente completa conserva ${cohort.sourceTotal} contratos.`:`${detail.proposal.total} contratos en esta propuesta · ${detail.review.counts.active} activos · ${detail.review.counts.inactive} inactivos · ${detail.review.counts.state_error} con estado a revisar.`);
   $('detail').hidden=false;$('summary').textContent=`${scopeText} ${detail.proposal.status!=='pending'?'Decisión registrada; se conservan los antecedentes revisados.':detail.current?'Antecedentes vigentes.':'Los antecedentes cambiaron: sólo se puede rechazar esta versión.'}${detail.review.source.finalRevision?' Corte final: '+detail.review.source.finalRevision.cutoff.replace('T',' ')+'.':''}`;
   const original=detail.body.version===REGISTRY_ADOPTION_INPUT_VERSION;$('original-status').hidden=!original;
   if(original){const c=originalRegistryFactsCounts(detail.review.rows);$('original-status').textContent=`Incorporación con datos originales: ${c.total} activos, ${c.pending} con antecedentes pendientes (${c.startDate} fechas de ingreso, ${c.classification} encuadres y ${c.jurisdiction} jurisdicciones; las cantidades se superponen). Aprobar conserva esos faltantes. Los cálculos que los requieran seguirán bloqueados hasta su rectificación.`;}
