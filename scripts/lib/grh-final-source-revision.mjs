@@ -9,6 +9,11 @@ import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints
 import {verifyCoreManifestProvenance,coreManifestProvenanceMatches} from './grh-core-manifest-provenance.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
+// Both are immutable, registered source tuples. Package verification below
+// still checks the exact logical hash and declared cutoff for the chosen one.
+// Admission to SQL is separately constrained by migration 183; this list never
+// selects the effective source or grants employee adoption authority.
+export const FINAL_SOURCE_REVISION_PROFILES=Object.freeze(['grh-junin-2026-10-01','grh-junin-2026-10-14']);
 // Neon raised existing Free projects to 1 GiB on 2026-10-02. The live server
 // limit still clamps this ceiling; reserve and per-revision growth stay intact.
 // https://neon.com/blog/neon-free-plan-1-gb-per-project
@@ -37,7 +42,7 @@ const preserved=report=>({target:report.target,packageSha256:report.packageSha25
 
 export function validateFinalSourceRevisionInput(prepared,targetInput,expectedPackageSha256){
  const pack=verifySuccessorPackage(structuredClone(prepared));
- if(pack.candidate.profileId!=='grh-junin-2026-10-01')fail('GRH_FINAL_REVISION_PROFILE');
+ if(!FINAL_SOURCE_REVISION_PROFILES.includes(pack.candidate.profileId))fail('GRH_FINAL_REVISION_PROFILE');
  if(typeof expectedPackageSha256!=='string'||pack.payloadSha256!==expectedPackageSha256)fail('GRH_FINAL_REVISION_PACKAGE_CHANGED');
  const target=validateSuccessorTarget(targetInput);
  return freeze({pack,target});

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';import path from 'node:path';import {fileURLTo
 import {Pool,neonConfig} from '@neondatabase/serverless';
 import {prepareSuccessorPackage} from './lib/grh-successor-package-source.mjs';
 import {validateSuccessorTarget} from './lib/grh-successor-operational-read.mjs';
-import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput} from './lib/grh-final-source-revision.mjs';
+import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput,FINAL_SOURCE_REVISION_PROFILES} from './lib/grh-final-source-revision.mjs';
 import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTransition} from './lib/grh-final-contract-transition.mjs';
 import {verifyCoreManifestProvenance} from './lib/grh-core-manifest-provenance.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code});};
@@ -13,11 +13,12 @@ export function parseFinalSourceRevisionArgs(args){
  let values;try{({values}=parseArgs({args,strict:true,allowPositionals:false,options:{target:{type:'string'},
   'baseline-core':{type:'string'},'candidate-core':{type:'string'},'baseline-curated':{type:'string'},'candidate-curated':{type:'string'},
   'expect-package':{type:'string'},'install-schema':{type:'boolean'},rehearse:{type:'boolean'},'save-revision':{type:'boolean'},
-  'review-contracts':{type:'boolean'},'verify-predecessor-manifest':{type:'boolean'}}}));}
+  'review-contracts':{type:'boolean'},'verify-predecessor-manifest':{type:'boolean'},'candidate-profile':{type:'string'}}}));}
  catch{fail('GRH_FINAL_REVISION_ARGUMENT');}
  if(!['target','baseline-core','candidate-core','baseline-curated','candidate-curated'].every(k=>typeof values[k]==='string'&&path.isAbsolute(values[k]))
   ||!/^[a-f0-9]{64}$/.test(values['expect-package']??'')||Number(values.rehearse===true)+Number(values['save-revision']===true)!==1)
   fail('GRH_FINAL_REVISION_ARGUMENT');
+ if(values['candidate-profile']!==undefined&&!FINAL_SOURCE_REVISION_PROFILES.includes(values['candidate-profile']))fail('GRH_FINAL_REVISION_ARGUMENT');
  return values;
 }
 export async function executeFinalSourceRevision({connect,prepared,target,expectedPackageSha256,installSchema=false,commit=false,reviewContracts=false,baselineCoreManifestBytes,signal}={}){
@@ -55,7 +56,8 @@ async function main(){
  if(url.protocol!=='postgresql:'||!url.hostname.endsWith('.neon.tech')||url.pathname!=='/'+target.databaseName)
   fail('GRH_FINAL_REVISION_CONNECTION_REQUIRED');
  const prepared=await prepareSuccessorPackage({baselineCore:args['baseline-core'],candidateCore:args['candidate-core'],
-  baselineCurated:args['baseline-curated'],candidateCurated:args['candidate-curated'],candidateProfileId:'grh-junin-2026-10-01'});
+  baselineCurated:args['baseline-curated'],candidateCurated:args['candidate-curated'],
+  candidateProfileId:args['candidate-profile']??'grh-junin-2026-10-01'});
  // Validate before creating a pool or opening any connection.
  validateFinalSourceRevisionInput(prepared,target,args['expect-package']);
  let baselineCoreManifestBytes;
