@@ -38,9 +38,10 @@ export async function readAgreementWorkingTimeReportQa({api,period,detail}){
 }
 
 export async function verifyOwnAgreementWorkingTime(options){
+ assert.equal(options.browser,'chromium','AGREEMENT_COMPLETE_FOUNDATION_BROWSER_REQUIRED');
  return verifySalaryConditionsProgram({...options,browser:'none',continuation:async h=>{
   const administrative=await runOwnPayrollAdministrativeOperatorQa(h);assert.equal(administrative.ok,true);
-  const classification=await runOwnPeriodClassificationQa(h,{browser:'none',finalAdoptedFixture:args=>finalAdoptedHistory({...args,major:options.major,transport:options.transport})});assert.equal(classification.ok,true);
+  const classification=await runOwnPeriodClassificationQa(h,{browser:options.browser,finalAdoptedFixture:args=>finalAdoptedHistory({...args,major:options.major,transport:options.transport})});assert.equal(classification.ok,true);
   return runOwnAgreementWorkingTimeQa(h,options);
  }});
 }
