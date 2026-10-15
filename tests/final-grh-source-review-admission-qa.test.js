@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {buildFinalGrhSourceReviewAdmissionInstallation} from '../scripts/lib/final-grh-source-review-admission-installation.mjs';
 import {finalReviewAdmissionQaFoundation,relocateFinalReviewAdmissionInstallation,finalReviewAdmissionQaGlobalSnapshot,finalReviewAdmissionQaOptions,finalReviewAdmissionQaTransaction,finalReviewAdmissionQaSeed,finalReviewAdmissionQaDirectory,finalReviewAdmissionQaDirectoryPredicate,finalReviewAdmissionQaCleanup} from '../scripts/lib/final-grh-source-review-admission-qa.mjs';
 import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
+import {finalReviewAdmissionQaPsqlArguments} from '../scripts/verify-final-grh-source-review-admission.mjs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),hash=s=>createHash('sha256').update(s).digest('hex');
 
 test('183 QA relocates all nine canonical144 bodies without replacing metadata or source tuples',()=>{
@@ -63,11 +65,32 @@ test('local directory guard normalizes separators only and still refuses another
 
 test('fixed psql transport suppresses command tags and projects OID as a JSON-safe integer without parser coercion',()=>{
  const runner=read('scripts/verify-final-grh-source-review-admission.mjs');
- assert.ok(runner.includes("args=['-X','--quiet','--set','ON_ERROR_STOP=1','--host','127.0.0.1','--port',String(55400+major),'--username','postgres','--dbname','own_payroll_run_qa','--no-password','--tuples-only','--no-align']"));
+ for(const major of[17,18]){
+  const args=finalReviewAdmissionQaPsqlArguments(major),value=flag=>{assert.equal(args.filter(x=>x===flag).length,1);return args[args.indexOf(flag)+1];};
+  assert.equal(args[0],'--no-password');
+  assert.equal(value('--username'),'postgres');
+  assert.equal(value('--host'),'127.0.0.1');assert.equal(value('--port'),String(55400+major));assert.equal(value('--dbname'),'own_payroll_run_qa');assert.equal(value('--set'),'ON_ERROR_STOP=1');
+  for(const flag of['-X','--quiet','--tuples-only','--no-align'])assert.equal(args.filter(x=>x===flag).length,1);
+  assert.equal(args.length,15);assert.ok(!args.some(x=>/^postgres(?:ql)?:\/\//.test(x)));assert.notEqual(finalReviewAdmissionQaPsqlArguments(major),args);
+ }
+ for(const invalid of[16,19,'17',undefined,null,NaN])assert.throws(()=>finalReviewAdmissionQaPsqlArguments(invalid));
+ assert.ok(runner.includes('args=finalReviewAdmissionQaPsqlArguments(major)'));
  assert.ok(runner.includes("'databaseOid',(SELECT oid::bigint FROM pg_database WHERE datname=current_database())"));
  assert.ok(runner.includes('Number.isSafeInteger(identity.databaseOid)'));assert.ok(runner.includes('databaseOid:identity.databaseOid'));assert.ok(!runner.includes('Number(identity.databaseOid)'));
  assert.ok(Number.isSafeInteger(JSON.parse('{"databaseOid":4294967295}').databaseOid));assert.equal(Number.isSafeInteger(JSON.parse('{"databaseOid":"23117"}').databaseOid),false);assert.throws(()=>JSON.parse('{"databaseOid":23117}\nCOMMIT'));
  assert.ok(runner.includes('run(protocol(local.transactions.rehearsal,mutation),error)'));assert.ok(!runner.includes('local.preflight.filter'));
+});
+
+test('deployment package includes exact183 and all canonical prerequisites while private sources remain excluded',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
+ const included=(file,activeRules=rules)=>{let keep=true;for(const rule of activeRules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
+ const migration='scripts/migrations/183-final-grh-source-review-admission.sql';
+ assert.equal(included(migration,rules.filter(rule=>rule!=='!'+migration)),false);
+ for(const major of[17,18]){
+  const batch=buildFinalGrhSourceReviewAdmissionInstallation({read:file=>{assert.ok(included(file),'Excluded build dependency: '+file);return read(file);},major,sourceCommit:'a'.repeat(40)});
+  assert.equal(batch.sourceHashes[migration],'a85c01c1bf2ae620b1af32a2e1564c52544562f39235557ee5e5549717f47e94');
+ }
+ for(const file of['.handoff/private.sql','verification/result.json','source.sql','source.sql.gz','source.backup','data-rrhh/private.txt','.env.local','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md'])assert.equal(included(file),false,file);
 });
 
 test('cleanup permits only internally linked owner TOAST objects while retaining external-dependency rejection',()=>{

@@ -13,12 +13,17 @@ import {finalReviewAdmissionQaFoundation,relocateFinalReviewAdmissionInstallatio
 const root=fileURLToPath(new URL('../',import.meta.url)),q=v=>"'"+String(v).replaceAll("'","''")+"'",hash=v=>createHash('sha256').update(v).digest('hex');
 const files=['scripts/migrations/183-final-grh-source-review-admission.sql','scripts/lib/final-grh-source-review-admission-installation.mjs','scripts/lib/final-grh-source-review-admission-qa.mjs','scripts/verify-final-grh-source-review-admission.mjs'];
 
+export function finalReviewAdmissionQaPsqlArguments(major){
+ assert.ok([17,18].includes(major),'FINAL_REVIEW_QA_LOCAL_MAJOR');
+ return ['--no-password','--username','postgres','-X','--quiet','--set','ON_ERROR_STOP=1','--host','127.0.0.1','--port',String(55400+major),'--dbname','own_payroll_run_qa','--tuples-only','--no-align'];
+}
+
 export async function verifyFinalReviewAdmission({major,sourceCommit,output}){
  const processIdentity=await verifyDocumentaryQaProcess(root,major,{transport:'local'}),runtime=noeliaCircuitRuntime({root,major,browser:'none',transport:'local'}),qa=finalReviewAdmissionQaFoundation(major),read=p=>fs.readFileSync(path.join(root,p),'utf8');
  const batch=buildFinalGrhSourceReviewAdmissionInstallation({read,major,sourceCommit}),bookendFiles=[...new Set([...files,...Object.keys(batch.sourceHashes),'scripts/lib/final-contract-adoption-qa.mjs'])],sourceHashes=Object.fromEntries(bookendFiles.map(p=>[p,hash(fs.readFileSync(path.join(root,p)))])),destination=path.resolve(root,output);
  assert.equal(path.dirname(destination),path.join(root,'verification'));assert.equal(fs.existsSync(destination),false,'FINAL_REVIEW_QA_EVIDENCE_EXISTS');fs.mkdirSync(destination);
  const applicationName='mc-fr183:'+qa.schema;assert.ok(Buffer.byteLength(applicationName)<=63);
- const environment={...runtime.environment,PGAPPNAME:applicationName},args=['-X','--quiet','--set','ON_ERROR_STOP=1','--host','127.0.0.1','--port',String(55400+major),'--username','postgres','--dbname','own_payroll_run_qa','--no-password','--tuples-only','--no-align'];
+ const environment={...runtime.environment,PGAPPNAME:applicationName},args=finalReviewAdmissionQaPsqlArguments(major);
  let step=0,seeded=false,prior,report,local;const checks=[],pass=label=>{checks.push(label);fs.writeFileSync(path.join(destination,'progress.json'),JSON.stringify({checks,checkCount:checks.length},null,2));};
  const run=(sql,expected)=>{
   const file=path.join(destination,String(++step).padStart(3,'0')+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});

@@ -373,3 +373,13 @@ local-agents/
 # Reviewed documentary adapter source required by build verification.
 !scripts/migrations/178-adopted-documentary-read.sql
 !scripts/migrations/181-documentary-roster-shared-subjects.sql
+
+# Reviewed own agreement-hours code sources; no municipal input or decisions.
+!scripts/migrations/179-own-agreement-working-time.sql
+!scripts/migrations/180-own-agreement-working-time-program.sql
+
+# Reviewed declared-period context code; no municipal input or decisions.
+!scripts/migrations/182-own-payroll-period-context.sql
+
+# Exact review-admission source required by build tests; no municipal input.
+!scripts/migrations/183-final-grh-source-review-admission.sql
