@@ -8,6 +8,15 @@ test('program browser serves the actual model and every transitive local depende
  assert.ok(assets.has('/assets/own-payroll-exact.js'));assert.ok(assets.has('/assets/own-payroll-engine.js'));
  for(const [route,body]of assets)assert.ok(body.equals(fs.readFileSync(new URL('..'+route,import.meta.url))));
 });
+
+test('run browser serves the complete real capture and engine graph before parity checks',()=>{
+ const source=fs.readFileSync(new URL('../scripts/verify-own-payroll-run-browser.mjs',import.meta.url),'utf8');
+ assert.match(source,/files\s*=\s*ownProgramBrowserAssets\(/);
+ const entries=['own-payroll-run-model.js','own-payroll-engine.js'];
+ const assets=ownProgramBrowserAssets(name=>fs.readFileSync(new URL('../assets/'+name,import.meta.url)),entries);
+ for(const name of [...entries,'own-agreement-working-time-model.js','own-agreement-working-time-program.js'])assert.ok(assets.has('/assets/'+name),name);
+ for(const [route,body]of assets)assert.ok(body.equals(fs.readFileSync(new URL('..'+route,import.meta.url))));
+});
 test('fixture graph follows static import, side effect and export dependencies once, including cycles',()=>{
  const sources={'a.js':"import {x} from './b.js';import './c.js';export {y} from './d.js';export * from './e.js';",'b.js':"import './a.js';",'c.js':'','d.js':'','e.js':''},reads=[];
  const assets=ownProgramBrowserAssets(name=>{reads.push(name);return bytes(sources[name]);},['a.js']);
