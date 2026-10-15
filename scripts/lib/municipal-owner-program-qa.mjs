@@ -1,0 +1,84 @@
+// Pure fictional190 foundation. No SQL connection, runtime authority substitute,
+// original-source edit or implicit approval is performed by this module.
+import assert from 'node:assert/strict';
+import {buildOwnerSalaryQa} from './municipal-owner-salary-qa.mjs';
+import {buildMunicipalOwnerProgramInstallation} from './municipal-owner-program-installation.mjs';
+import {ownerDecisionQaHash as hash,ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
+import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
+import {splitPostgresStatements} from './sql-statements.mjs';
+import {pinsCheck} from './native-leave-installation.mjs';
+import {monthlyQaPrivateDateSource} from './own-monthly-participation-qa.mjs';
+import {ownProgramBootstrap,ownProgramCommand,ownProgramStructure} from '../../assets/own-payroll-program-model.js';
+import {programOwnerQaItems,programOwnerQaDefinition} from '../../tests/fixtures/municipal-owner-program-synthetic.js';
+
+const body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(d);assert.ok(m,'OWNER_PROGRAM_QA_BODY_REQUIRED');return m[2];};
+const validSchema=s=>assert.match(s,/^mc_qa_fixed_092_[a-f0-9]{32}$/);
+const programmeFacades=['public.own_program_bootstrap_v1(jsonb)','public.own_program_attempt_v1(jsonb,uuid)','public.own_program_command_v1(jsonb,jsonb,uuid)'];
+const functionSignatures=s=>[...s.matchAll(/\b(?:public\.|mc_qa_fixed_092_[a-f0-9]{32}\.)?[a-z0-9_]+\([^)]*\)/g)].map(m=>m[0].replace(/\s+/g,''));
+export function ownerProgramQaPublishedGrant({read,sourceHashes}){
+ const file='scripts/migrations/122-own-payroll-programs.sql',source=read(file).replace(/\r\n?/g,'\n');assert.equal(hash(source),'edaf70ef87f9ac3de170e079c460d38c4188b36de349b5c58808f5a09a9f9785','OWNER_PROGRAM_QA122_SOURCE_CHANGED');assert.equal(hash(source),sourceHashes[file]);
+ const acl=splitPostgresStatements(source).map(s=>/^(GRANT EXECUTE|REVOKE ALL) ON FUNCTION ([\s\S]+) (TO|FROM) ([a-zA-Z_,]+)$/.exec(s.trim())).filter(Boolean),grants=acl.filter(m=>m[1]==='GRANT EXECUTE'&&functionSignatures(m[2]).includes(programmeFacades[0]));assert.equal(grants.length,1);const grant=grants[0];assert.equal(grant[3],'TO');assert.equal(grant[4],'municontrol_actions_runtime_app');assert.deepEqual(functionSignatures(grant[2]),programmeFacades);
+ for(const signature of programmeFacades){const touching=acl.filter(m=>functionSignatures(m[2]).includes(signature));assert.equal(touching.at(-1),grant);assert.ok(touching.some(m=>m[1]==='REVOKE ALL'&&m[4].split(',').includes('PUBLIC')));}
+ return{file,sourceSha256:hash(source),statement:grant[0],signatures:[...programmeFacades]};
+}
+export function ownerProgramQaReachableFunctions(definitions,{schema,roots,tables=[]}){
+ validSchema(schema);assert.ok(Array.isArray(roots)&&roots.every(n=>/^[a-z0-9_]+$/.test(n)));const latest=new Map();for(const statement of definitions){const d=statement.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim(),m=/^CREATE(?: OR REPLACE)? FUNCTION (?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?([a-z0-9_]+)\(/.exec(d);if(m)latest.set(m[1],d);}
+ const tableNames=new Set(tables);assert.ok(tables.every(n=>/^[a-z0-9_]+$/.test(n)));const queue=[...roots],seen=new Set(),missing=new Map(),calls={},dynamicSql=[];for(let i=0;i<queue.length;i++){const name=queue[i];if(seen.has(name))continue;seen.add(name);const d=latest.get(name);if(!d){missing.set(name,new Set(['root']));continue;}const executable=body(d).replace(/'(?:[^']|'')*'/g,"''").replace(/--[^\n]*(?:\n|$)/g,'\n');if(/\bEXECUTE\b/.test(executable))dynamicSql.push(name);const qualified=[...executable.matchAll(new RegExp('(?:'+schema+'|public)\\.([a-z0-9_]+)\\(','g'))].map(m=>m[1]),unqualified=[...executable.matchAll(/(?<![.a-zA-Z0-9_])([a-z][a-z0-9_]*)\s*\(/g)].map(m=>m[1]).filter(n=>latest.has(n)||/^(?:action_center_|native_|tenant_iam_|payroll_|employment_adoption_|own_|municipal_|grh_)/.test(n));const children=[...new Set([...qualified,...unqualified])].filter(n=>n!==name&&n!=='digest'&&!tableNames.has(n));calls[name]=children;
+  for(const child of children){if(!latest.has(child)){if(!missing.has(child))missing.set(child,new Set());missing.get(child).add(name);}else if(!seen.has(child))queue.push(child);}
+ }return{roots:[...roots],defined:latest.size,reached:[...seen].sort(),calls,missing:[...missing].map(([name,parents])=>({name,parents:[...parents].sort()})).sort((a,b)=>a.name.localeCompare(b.name)),dynamicSql:[...new Set(dynamicSql)].sort(),overloadResolutionProven:false,dynamicSqlResolutionProven:false,scope:'explicit schema-qualified and unqualified owned-function calls in source-derived executable bodies; catalogue signature strings and INSERT target tables are not calls'};
+}
+export function buildOwnerProgramQa({major,sourceCommit,read,schema,operationalPairBaseline='pre107'}){
+ const foundation=buildOwnerSalaryQa({major,sourceCommit,read,...(schema?{schema}:{}),operationalPairBaseline}),batch=buildMunicipalOwnerProgramInstallation({read,sourceCommit,operationalPairBaseline});
+ const administrativeSupportDefinitions=batch.supportDefinitions.filter(d=>/^CREATE OR REPLACE FUNCTION public\.own_program_(?:proposal|bootstrap|attempt)_v1\(/.test(d)),administrativeSupportPins=batch.supportPins.filter(p=>administrativeSupportDefinitions.some(d=>ownInstallationFunctionPin(d).signature===p.signature));
+ assert.deepEqual(administrativeSupportPins.map(p=>p.name).sort(),['own_program_attempt_v1','own_program_bootstrap_v1','own_program_proposal_v1'],'OWNER_PROGRAM_QA_ADMINISTRATIVE_SUPPORT_REQUIRED');assert.equal(administrativeSupportDefinitions.length,3);for(const d of administrativeSupportDefinitions)assert.deepEqual(ownInstallationFunctionPin(d),administrativeSupportPins.find(p=>p.signature===ownInstallationFunctionPin(d).signature));
+ const privateDate=monthlyQaPrivateDateSource(read),hashes={...foundation.hashes,[privateDate.pin.sha256]:hash(body(foundation.normalized(privateDate.definition)))};
+ for(const definition of [...administrativeSupportDefinitions,...batch.newDefinitions,batch.adapted])hashes[hash(body(definition))]=hash(body(foundation.normalized(definition)));
+ const rollbackHeader=sql=>{
+  if(sql!==batch.original)return sql;
+  const at=/\bAS\s+\$/.exec(sql)?.index;assert.ok(Number.isInteger(at),'OWNER_PROGRAM_QA_ROLLBACK_HEADER_REQUIRED');
+  const header=sql.slice(0,at),setting="SET search_path TO 'pg_catalog', 'public', 'pg_temp'";assert.equal(header.split(setting).length,2,'OWNER_PROGRAM_QA_ROLLBACK_SEARCH_PATH_CHANGED');
+  return header.replace(setting,'SET search_path=pg_catalog,public,pg_temp')+sql.slice(at);
+ };
+ const normalized=sql=>{let value=foundation.normalized(rollbackHeader(sql));for(const[from,to]of Object.entries(hashes))value=value.replaceAll(from,to);return value;};
+ const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback','rollbackVerification'].map(k=>[k,batch[k].map(normalized)]));
+ // These five pieces have ALREADY been relocalized by their own canonical
+ // builders. Rewriting them again changes embedded readiness and metadata SQL.
+ const predecessorInstallation=[...foundation.predecessorInstallation,foundation.nativeSeed,...foundation.local.installation];
+ // The conservative185 seed has the legacy122 supports. Restore only the
+ // three administrative definitions already required by190; CREATE OR REPLACE
+ // keeps their existing ACL, and the full canonical pins check that contract.
+ const administrativeSupportSeed=[...administrativeSupportDefinitions.map(normalized),normalized(pinsCheck(administrativeSupportPins,'OWNER_PROGRAM_QA_ADMINISTRATIVE_SUPPORT_CHANGED'))].join(';\n');
+ const runtimeGrant=ownerProgramQaPublishedGrant({read,sourceHashes:foundation.sourceHashes}),privateDateSeed=[normalized(privateDate.definition.replace(/^CREATE OR REPLACE FUNCTION /,'CREATE FUNCTION ')),normalized('REVOKE ALL ON FUNCTION '+privateDate.pin.signature+' FROM PUBLIC,municontrol_actions_runtime_app'),normalized(pinsCheck([privateDate.pin],'OWNER_PROGRAM_QA_PRIVATE_DATE_METADATA_CHANGED'))].join(';\n'),seed=foundation.seed+';\n'+privateDateSeed+';\n'+normalized(runtimeGrant.statement)+';\n'+administrativeSupportSeed;
+ const mixed=foundation.foundation.foundation,owner=mixed.owner,definitions=[...splitPostgresStatements(seed),owner.graph.batch.authority.newDefinition,...owner.graph.batch.definitions,owner.graph.batch.guard,owner.graph.batch.ready,...mixed.batch.afterDefinitions,...mixed.batch.newDefinitions,mixed.batch.ready,...foundation.foundation.batch.newDefinitions,foundation.foundation.batch.adapted,...splitPostgresStatements(foundation.nativeSeed),...foundation.batch.newDefinitions,foundation.batch.adapted,...batch.newDefinitions,batch.adapted],tableSource=[seed,...foundation.foundation.batch.mutations,...foundation.batch.mutations,...batch.mutations].join(';\n'),tables=[...new Set([...tableSource.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?([a-z0-9_]+)\s*\(/g)].map(m=>m[1]))];
+ const roots=['native_employee_context_v1','native_salary_administrative_context_v1','municipal_adoption_ready_v1','native_salary_bootstrap_v1','native_salary_command_v1','own_program_bootstrap_v1','own_program_attempt_v1','own_program_command_v1','municipal_owner_program_authority_v1','municipal_owner_program_preview_v1','municipal_owner_program_command_v1','municipal_owner_program_attempt_v1'],reachableFunctions=ownerProgramQaReachableFunctions(definitions,{schema:foundation.schema,roots,tables});assert.deepEqual(reachableFunctions.missing,[],'OWNER_PROGRAM_QA_REACHABLE_FUNCTION_MISSING');
+ const definition=programOwnerQaDefinition(),{periodContextVersion,...base}=definition,priorDefinition=ownProgramStructure({...base,rules:base.rules.filter(r=>r.nature!=='auxiliary'),bindings:[]});
+ return{major,sourceCommit,operationalPairBaseline,schema:foundation.schema,foundation,batch,hashes,normalized,local,seed,predecessorInstallation,runtimeGrant,privateDate,privateDateSeed,administrativeSupportDefinitions,administrativeSupportPins,administrativeSupportSeed,reachableFunctions,ids:foundation.ids,actor:foundation.actor,checker:foundation.checker,items:programOwnerQaItems(),definition,priorDefinition,sourceHashes:{...foundation.sourceHashes,...batch.sourceHashes,[privateDate.file]:privateDate.sourceSha256},fixture:{...foundation.fixture,sourceData:'complete_fictional_184_185_186_187_188_and_current182_programme',programmeRules:definition.rules.length,programmeBindings:definition.bindings.length,municipalFormula:false},connects:false,executesSql:false};
+}
+
+export function ownerProgramQaQuery(text,args,schema){
+ validSchema(schema);const allowed={authority:['jsonb'],preview:['jsonb','uuid'],command:['jsonb','jsonb','uuid'],attempt:['jsonb','uuid']},m=/^SELECT public\.municipal_owner_program_(authority|preview|command|attempt)_v1\(([^)]*)\) AS result$/.exec(text);assert.ok(m,'OWNER_PROGRAM_QA_RPC_REQUIRED');assert.equal(m[2],allowed[m[1]].map((t,n)=>'$'+(n+1)+'::'+t).join(','));assert.equal(args.length,allowed[m[1]].length);assert.ok(args.every(a=>typeof a==='string'));return text.replaceAll('public.',schema+'.').replace(/\$(\d+)\b/g,(_,n)=>q(args[Number(n)-1]));
+}
+export function ownerProgramQaOrdinaryQuery(text,args,schema){
+ validSchema(schema);const signatures={bootstrap:['jsonb'],attempt:['jsonb','uuid'],command:['jsonb','jsonb','uuid']},m=/^SELECT public\.own_program_(bootstrap|attempt|command)_v1\(([^)]*)\) AS result$/.exec(text);assert.ok(m,'OWNER_PROGRAM_QA_ORDINARY_RPC_REQUIRED');const types=signatures[m[1]];assert.equal(m[2],types.map((t,n)=>'$'+(n+1)+'::'+t).join(','));assert.equal(args.length,types.length);assert.ok(args.every(a=>typeof a==='string'));return text.replace('public.',schema+'.').replace(/\$(\d+)\b/g,(_,n)=>q(args[Number(n)-1]));
+}
+export function ownerProgramQaRpcTrace(row){
+ const command=row.kind==='owner'&&row.text==='SELECT public.municipal_owner_program_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result';
+ if(command){assert.equal(row.values.length,3);assert.equal(typeof row.values[1],'string');}
+ return{phase:row.phase,kind:row.kind,sql:row.text,bodySha256:command?hash(row.values[1]):null};
+}
+export function ownerProgramQaIndependentReview(query,checker,proposal){
+ const bootstrap=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)',checker));
+ return ownProgramCommand({command:'approve',scopeVersion:bootstrap.scopeVersion,baseVersion:proposal.baseVersion,salaryVersion:proposal.salaryVersion,proposalId:proposal.id,proposalSha256:proposal.requestSha256,program:null,reason:'Revisión independiente exclusivamente ficticia QA190',reviewConfirmed:true});
+}
+export function assertOwnerProgramQaPublication(bootstrap,receipt,definition,salaryVersion){
+ const b=ownProgramBootstrap(bootstrap);assert.equal(b.program.version,receipt.programVersion,'OWNER_PROGRAM_QA_PUBLICATION_VERSION');assert.equal(b.program.revision,receipt.revision,'OWNER_PROGRAM_QA_PUBLICATION_REVISION');assert.deepEqual(b.program.definition,definition,'OWNER_PROGRAM_QA_PUBLICATION_FULL_DEFINITION');assert.equal(b.program.salaryVersion,salaryVersion,'OWNER_PROGRAM_QA_PUBLICATION_SALARY_VERSION');assert.equal(definition.rules.length,receipt.rulesTotal);assert.equal(definition.bindings.length,receipt.bindingsTotal);return{passed:true,version:b.program.version,revision:b.program.revision,rulesTotal:definition.rules.length,bindingsTotal:definition.bindings.length,salaryVersion};
+}
+export function ownerProgramQaUnrelatedSnapshot(schema){
+ validSchema(schema);return `DO $unrelated$ DECLARE t record;n bigint;h text;rows jsonb:='[]';BEGIN FOR t IN SELECT c.relname FROM pg_class c JOIN pg_namespace ns ON ns.oid=c.relnamespace WHERE ns.nspname=${q(schema)} AND c.relkind IN('r','p','m') AND c.relname NOT IN('own_payroll_program_event','municipal_owner_program_provenance') ORDER BY c.relname LOOP EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${q(schema)},t.relname) INTO n,h;rows:=rows||jsonb_build_array(jsonb_build_object('table',t.relname,'rows',n,'sha256',h));END LOOP;PERFORM set_config('municontrol_program190_qa.unrelated',rows::text,true);END $unrelated$;SELECT jsonb_build_object('tables',jsonb_array_length(current_setting('municontrol_program190_qa.unrelated')::jsonb),'sha256',encode(public.digest(current_setting('municontrol_program190_qa.unrelated')::jsonb::text,'sha256'),'hex'))`;
+}
+export function ownerProgramQaAccessSql(schema,actor){
+ validSchema(schema);return `SELECT jsonb_build_object('identityVersion',u.identity_version,'authLevel',se.auth_level,'expiresAt',se.expires_at,'sessionId',se.id,'sessionVersion',se.session_version,'roles',(SELECT jsonb_agg(pr.role_key) FROM ${schema}.platform_user_role pr WHERE pr.user_email=u.email AND pr.active),'platformCapabilities',(SELECT jsonb_agg(DISTINCT rc.capability_key) FROM ${schema}.platform_user_role pr JOIN ${schema}.iam_role r ON r.role_key=pr.role_key AND r.scope_kind='platform' JOIN ${schema}.iam_role_capability rc ON rc.role_key=r.role_key JOIN ${schema}.iam_capability c ON c.capability_key=rc.capability_key AND c.scope_kind='platform' WHERE pr.user_email=u.email AND pr.active),'tenantCapabilities',(SELECT jsonb_agg(capability_key) FROM ${schema}.tenant_iam_effective_capabilities(${q(actor.membershipId)})),'ready',policy.tenant_data_plane_ready,'release',policy.certified_release_sha,'sourceDatabase',binding.source_database,'companyId',binding.source_company_id,'verified',binding.verified) FROM ${schema}.internal_users u JOIN ${schema}.tenant_identity_session se ON se.user_email=u.email JOIN ${schema}.tenant_identity_policy policy ON policy.tenant_id=${q(actor.tenantId)} JOIN ${schema}.platform_tenant_source_binding binding ON binding.id=policy.certified_source_binding_id AND binding.tenant_id=policy.tenant_id WHERE u.email=${q(actor.actorEmail)} AND se.id=${q(actor.actorSessionId)}`;
+}
+export function ownerProgramQaAccess(value,actor){
+ assert.ok(value);return{mode:'managed',session:{id:value.sessionId,email:actor.actorEmail,version:value.sessionVersion},principal:{authorized:true,user:{email:actor.actorEmail,identityVersion:value.identityVersion},platform:{roles:value.roles??[],capabilities:value.platformCapabilities??[]},session:{id:value.sessionId,version:value.sessionVersion,mfa:['mfa','recovery'].includes(value.authLevel),authLevel:value.authLevel,expiresAt:value.expiresAt},tenant:{id:actor.tenantId,membershipId:actor.membershipId,source:'membership',dataPlaneReady:value.ready,certifiedReleaseSha:value.release,effectiveCapabilities:value.tenantCapabilities??[],sourceBindings:[{system:'GRH',database:value.sourceDatabase,companyId:value.companyId,verified:value.verified}]}}};
+}
