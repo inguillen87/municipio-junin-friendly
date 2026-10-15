@@ -4,7 +4,7 @@ import {stableJson} from './canonical-import.mjs';
 import {validateSuccessorTarget} from './grh-successor-operational-read.mjs';
 import {planMunicipalContinuity,CONTINUITY_TABLES_SQL,CONTINUITY_FOREIGN_KEYS_SQL} from './grh-successor-continuity.mjs';
 import {summarizeNativeContinuity} from './grh-successor-native-summary.mjs';
-import {municipalContinuityProfile,FINAL_MUNICIPAL_CONTINUITY_PROFILE} from './grh-municipal-continuity-schema.mjs';
+import {municipalContinuityProfile,FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE} from './grh-municipal-continuity-schema.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>createHash('sha256').update(stableJson(value)).digest('hex');
 const emptySha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -75,12 +75,14 @@ export async function readMunicipalFootprint({catalog,target,transaction,signal,
 }
 // SELECT-only inspection inside the maintenance caller's SERIALIZABLE owner
 // transaction. It never opens a connection, starts a transaction or changes data.
-export async function inspectMunicipalConservationWithinTransaction({client,target,signal}={}){
+export async function inspectMunicipalConservationWithinTransaction({client,target,signal,profileId=FINAL_MUNICIPAL_CONTINUITY_PROFILE}={}){
  if(typeof client?.query!=='function')fail('MUNICIPAL_FOOTPRINT_TRANSACTION_REQUIRED');
  validateSuccessorTarget(target);
+ const profile=municipalContinuityProfile(profileId);
+ if(![FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE].includes(profile.id))fail('MUNICIPAL_FOOTPRINT_PROFILE_INVALID');
  const query=async(text,values)=>{signal?.throwIfAborted();const r=await client.query(text,values);signal?.throwIfAborted();if(!Array.isArray(r?.rows))fail('MUNICIPAL_FOOTPRINT_RESULT_INVALID');return r.rows;};
  const catalog={tables:await query(CONTINUITY_TABLES_SQL,[]),foreignKeys:await query(CONTINUITY_FOREIGN_KEYS_SQL,[])};
- const plan=footprintPlan(catalog,target,FINAL_MUNICIPAL_CONTINUITY_PROFILE,true),results=[];
+ const plan=footprintPlan(catalog,target,profile.id,true),results=[];
  for(const q of plan.queries)results.push(await query(q.text,q.values));
  return evaluateMunicipalFootprint(plan,results);
 }
@@ -90,7 +92,7 @@ function verifyReport(value){
  if(!value||Object.keys(value).sort().join('|')!==(ownerWrite?[...expectedKeys.split('|'),'callerOwnedTransaction'].sort().join('|'):expectedKeys)
   ||(!ownerWrite&&value.version!=='grh-municipal-footprint.v1')||(ownerWrite&&value.callerOwnedTransaction!==true))fail('MUNICIPAL_FOOTPRINT_RECEIPT_INVALID');
  let profile;try{profile=municipalContinuityProfile(value.profileId);}catch{fail('MUNICIPAL_FOOTPRINT_RECEIPT_INVALID');}
- if(ownerWrite&&profile.id!==FINAL_MUNICIPAL_CONTINUITY_PROFILE)fail('MUNICIPAL_FOOTPRINT_RECEIPT_INVALID');
+ if(ownerWrite&&![FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE].includes(profile.id))fail('MUNICIPAL_FOOTPRINT_RECEIPT_INVALID');
  const {reportSha256,...report}=value;if(!/^[a-f0-9]{64}$/.test(reportSha256??'')||hash(report)!==reportSha256)fail('MUNICIPAL_FOOTPRINT_RECEIPT_CHANGED');
  validateSuccessorTarget(value.target);
  if(!/^[a-f0-9]{64}$/.test(value.catalogPlanSha256??'')||!/^\d+:\d+:(?:\d+(?:,\d+)*)?$/.test(value.snapshot??'')||value.normalization!=='postgres-jsonb-utc-sha256.v1'||value.readOnly!==!ownerWrite||value.writeStatements!==0||['containsPersonalRecords','semanticConflictsReviewed','attachmentBytesVerified','sourcePromotionAuthorized'].some(key=>value[key]!==false))fail('MUNICIPAL_FOOTPRINT_RECEIPT_INVALID');

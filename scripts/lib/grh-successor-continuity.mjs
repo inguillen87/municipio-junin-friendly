@@ -2,7 +2,7 @@
 import {createHash} from 'node:crypto';
 import {NATIVE_READ_DOMAINS} from './grh-successor-operational-read.mjs';
 import {stableJson} from './canonical-import.mjs';
-import {municipalContinuityProfile} from './grh-municipal-continuity-schema.mjs';
+import {municipalContinuityProfile,OWN_MUNICIPAL_CONTINUITY_PROFILE} from './grh-municipal-continuity-schema.mjs';
 export const continuityHash=value=>createHash('sha256').update(stableJson(value)).digest('hex');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const name=value=>typeof value==='string'&&/^[a-z_][a-z0-9_]{0,62}$/.test(value);
@@ -53,6 +53,15 @@ function planContinuity(catalog,municipal,profile){
  const links=catalog.foreignKeys.filter(f=>f.child_schema==='public'&&selected.has(f.child));
  for(const f of links){if(f.parent_schema!=='public'||!f.validated)fail('SUCCESSOR_CONTINUITY_UNVERIFIED_FOREIGN_KEY');
   if(f.child_columns.some(c=>!tables.get(f.child)?.columns.includes(c))||f.parent_columns.some(c=>!tables.get(f.parent)?.columns.includes(c)))fail('SUCCESSOR_CONTINUITY_CATALOG');}
+ // These fourteen canonical SQL146–179 roots declare the same composite FK.
+ // This stricter contract belongs only to the new profile; historical receipts
+ // and their reviewed SQL131/144 catalog semantics remain unchanged.
+ if(municipal&&profile.id===OWN_MUNICIPAL_CONTINUITY_PROFILE)for(const child of profile.bindingReferences){
+  if(!links.some(f=>f.child===child&&f.parent==='platform_tenant_source_binding'
+   &&f.child_schema==='public'&&f.parent_schema==='public'&&f.validated
+   &&sameColumns(f.child_columns,['tenant_id','source_binding_id'])&&sameColumns(f.parent_columns,['tenant_id','id'])))
+   fail('SUCCESSOR_CONTINUITY_BINDING_REFERENCE_REQUIRED');
+ }
  const scoped=[...selected].sort().map(n=>{const t=tables.get(n);if(t?.kind!=='r'||(!t.columns.includes('tenant_id')&&!(municipal&&profile.inheritance.some(p=>p.child===n))))fail('SUCCESSOR_CONTINUITY_UNSUPPORTED_TABLE');
   const bindings=['source_binding_id','certified_binding_id'].filter(c=>t.columns.includes(c));if(bindings.length>1)fail('SUCCESSOR_CONTINUITY_AMBIGUOUS_BINDING');return {name:t.name,kind:t.kind,columns:[...t.columns],binding:bindings[0]??null};});
  for(const table of scoped){
@@ -75,3 +84,4 @@ function planContinuity(catalog,municipal,profile){
   roots:[...roots.keys()].sort(),tables:scoped,links:links.toSorted((a,b)=>(a.child+'.'+a.name).localeCompare(b.child+'.'+b.name))};
  return freeze(structuredClone({...plan,planSha256:continuityHash(plan)}));
 }
+const sameColumns=(actual,expected)=>actual.length===expected.length&&actual.every((value,index)=>value===expected[index]);

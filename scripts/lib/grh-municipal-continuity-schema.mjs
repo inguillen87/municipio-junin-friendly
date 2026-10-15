@@ -72,12 +72,27 @@ const finalInheritance=Object.freeze([...MUNICIPAL_CONTINUITY_INHERITANCE,
 const finalTables=Object.freeze([...MUNICIPAL_CONTINUITY_TABLES,'employment_adoption_proposal','employment_adoption_decision',
  'employment_adoption_seal','employment_adoption_application'].sort());
 const finalBindings=Object.freeze({...MUNICIPAL_CONTINUITY_BINDINGS,employment_adoption_proposal:'source_binding_id',employment_adoption_decision:'source_binding_id'});
+// SQL146–179 add fourteen independently scoped municipal event histories.
+// Keep the earlier profiles immutable: a new installed domain must never be
+// silently omitted from a conservation receipt produced for the current writer.
+export const OWN_MUNICIPAL_CONTINUITY_PROFILE='municipal-sql179';
+const ownAdditions=Object.freeze([
+ 'own_payroll_annul_event','own_payroll_accounting_event','own_payroll_imputation_event','own_bank_account_event',
+ 'own_payroll_journal_event','own_payroll_reconciliation_event','own_seniority_event','own_participation_event',
+ 'own_art_days_event','own_fiscal_facts_event','own_working_time_event','own_salary_conditions_event',
+ 'own_period_classification_event','own_agreement_working_time_event'
+]);
+const ownTables=Object.freeze([...finalTables,...ownAdditions].sort());
+const ownBindings=Object.freeze({...finalBindings,...Object.fromEntries(ownAdditions.map(name=>[name,'source_binding_id']))});
+const finalExclusions=Object.freeze([...MUNICIPAL_CONTINUITY_EXCLUSIONS,
+ 'grh_final_source_revision','grh_final_source_delta','grh_final_source_seal']);
 const profiles=Object.freeze({
  [MUNICIPAL_CONTINUITY_PROFILE]:Object.freeze({id:MUNICIPAL_CONTINUITY_PROFILE,tables:MUNICIPAL_CONTINUITY_TABLES,
   bindings:MUNICIPAL_CONTINUITY_BINDINGS,inheritance:MUNICIPAL_CONTINUITY_INHERITANCE,exclusions:MUNICIPAL_CONTINUITY_EXCLUSIONS}),
  [FINAL_MUNICIPAL_CONTINUITY_PROFILE]:Object.freeze({id:FINAL_MUNICIPAL_CONTINUITY_PROFILE,tables:finalTables,
-  bindings:finalBindings,inheritance:finalInheritance,exclusions:Object.freeze([...MUNICIPAL_CONTINUITY_EXCLUSIONS,
-   'grh_final_source_revision','grh_final_source_delta','grh_final_source_seal'])})
+  bindings:finalBindings,inheritance:finalInheritance,exclusions:finalExclusions}),
+ [OWN_MUNICIPAL_CONTINUITY_PROFILE]:Object.freeze({id:OWN_MUNICIPAL_CONTINUITY_PROFILE,tables:ownTables,
+  bindings:ownBindings,inheritance:finalInheritance,exclusions:finalExclusions,bindingReferences:ownAdditions})
 });
 export function municipalContinuityProfile(id=MUNICIPAL_CONTINUITY_PROFILE){
  if(typeof id!=='string'||!Object.hasOwn(profiles,id))throw Object.assign(new Error('SUCCESSOR_CONTINUITY_PROFILE_INVALID'),{code:'SUCCESSOR_CONTINUITY_PROFILE_INVALID'});
