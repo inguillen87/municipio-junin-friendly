@@ -1,12 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import {buildAdoptedDocumentaryInstallation,assertAdoptedDocumentaryDurability,documentaryInstallationSnapshot,DOCUMENTARY_INSTALL_FILE,DOCUMENTARY_INSTALL_SQL_SHA256,DOCUMENTARY_INSTALL_HELPER_SHA256} from '../scripts/lib/adopted-documentary-installation.mjs';
 
 const sourceCommit='a'.repeat(40),read=file=>fs.readFileSync(file,'utf8');
 const build=major=>buildAdoptedDocumentaryInstallation({read,sourceCommit,major});
 const proof=(mode='first',major=17)=>({version:'adopted-documentary-installation.v1',sourceCommit,sqlSha256:DOCUMENTARY_INSTALL_SQL_SHA256,targetMajor:major,allChecksPassed:true,mode,newTables:0,newFunctions:1,adaptedReaders:3,runtimeHelpers:0,nominalRowsReturned:0,priorTableCount:96,...(mode==='verify'?{}:{beforeFingerprint:'b'.repeat(64)}),priorFingerprint:'b'.repeat(64),objectsFingerprint:'c'.repeat(64),dataFingerprint:'d'.repeat(64)});
 const attest=(changes={},major=17)=>assertAdoptedDocumentaryDurability({installed:proof('first',major),durable:proof('verify',major),repeated:proof('repeat',major),sourceCommit,major,...changes});
+
+test('deployment build includes reviewed178 while private municipal sources stay excluded',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(r=>r.trim()).filter(r=>r&&!r.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
+ const packagedRead=file=>{assert.ok(included(file),'Build dependency excluded: '+file);return read(file);};
+ for(const major of [17,18])assert.equal(buildAdoptedDocumentaryInstallation({read:packagedRead,sourceCommit,major}).sqlSha256,DOCUMENTARY_INSTALL_SQL_SHA256);
+ for(const file of ['.handoff/review.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/proof.json','data-rrhh/private.json','source.txt','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
+});
 
 test('review builder reads only pinned178 and never connects or executes SQL',()=>{
  for(const major of [17,18]){

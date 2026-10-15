@@ -369,3 +369,6 @@ local-agents/
 
 # Reviewed period classification source required by deployment build tests.
 !scripts/migrations/177-own-period-classification.sql
+
+# Reviewed documentary adapter source required by build verification.
+!scripts/migrations/178-adopted-documentary-read.sql

@@ -16,7 +16,7 @@ export function batchFixture(size=62){
  const calls=[];let rosterReads=0,deniedAfter=null;
  const sql={query:async(text,values)=>{calls.push({text,values});if(text.includes('payroll-batch:metadata'))return [structuredClone(metadata)];throw Error('UNEXPECTED_TEST_QUERY');}};
  const readRoster=async()=>{rosterReads++;if(deniedAfter!==null&&rosterReads>=deniedAfter)return{status:403,payload:{ok:false,error:'Denied QA'}};
-  const projection={version:'payroll-document-assignments.v1',scope:{tenantId:BATCH_TENANT,bindingId:BATCH_BINDING,database:batchBinding.database,companyId:batchBinding.companyId,datasetId:BATCH_DATASET},cutoff:metadata.directoryCutoff,records:structuredClone(records)};
+  const projection={version:'payroll-document-assignments.v1',scope:{tenantId:BATCH_TENANT,bindingId:BATCH_BINDING,database:batchBinding.database,companyId:batchBinding.companyId,datasetId:metadata.id},cutoff:metadata.directoryCutoff,records:structuredClone(records)};
   const documentaryDirectory={...projection,readVersion:createHash('sha256').update(stableBatchValue(projection)).digest('hex')};
   return{status:200,documentaryDirectory,payload:{ok:true,data:structuredClone(roster)}};};
  return{records,metadata,roster,sql,calls,readRoster,get rosterReads(){return rosterReads;},set deniedAfter(n){deniedAfter=n;}};
