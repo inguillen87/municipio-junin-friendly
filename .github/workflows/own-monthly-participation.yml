@@ -122,13 +122,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    name: Native monthly participation / PG${{ matrix.pg }}
+    name: Native monthly participation / PG${{ matrix.pg }} / ${{ matrix.operational_pair_baseline }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         pg: [17, 18]
+        operational_pair_baseline: [pre107, published107]
     services:
       postgres:
         image: postgres:${{ matrix.pg }}
@@ -155,12 +156,12 @@ jobs:
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
       - name: Complete canonical 189 preparation, lifecycle, independent participation commands and SQL protocol
-        run: node scripts/verify-own-monthly-participation.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --output=verification/monthly-participation-pg${{ matrix.pg }}
+        run: node scripts/verify-own-monthly-participation.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.operational_pair_baseline }} --output=verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: own-monthly-participation-pg${{ matrix.pg }}-${{ github.sha }}
+          name: own-monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}-${{ github.sha }}
           path: |
-            verification/monthly-participation-pg${{ matrix.pg }}/*.json
-            verification/monthly-participation-pg${{ matrix.pg }}/*failure.txt
+            verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}/*.json
+            verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}/*failure.txt
           retention-days: 5

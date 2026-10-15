@@ -5,7 +5,7 @@ import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
 import{pinsCheck,preservationSnapshot}from'./native-leave-installation.mjs';
 import{installationPriorMetadataFingerprint}from'./installation-prior-metadata.mjs';
 import{SALARY_ADMINISTRATIVE_CONTEXT}from'./salary-administrative-identity-installation.mjs';
-import{buildMunicipalOwnerAdoptionAuthorityInstallation}from'./municipal-owner-adoption-authority-installation.mjs';
+import{buildMunicipalOwnerAdoptionAuthorityInstallation,ownerAdoptionAuthorityInstallationOptions}from'./municipal-owner-adoption-authority-installation.mjs';
 import{buildOwnPeriodClassificationInstallation}from'./own-period-classification-installation.mjs';
 export const MONTHLY189_SQL='scripts/migrations/189-own-monthly-participation-source.sql';
 export const MONTHLY189_SIGNATURE='public.own_monthly_participation_source_v1(jsonb,uuid,text)';
@@ -27,7 +27,7 @@ export const MONTHLY189_SOURCE_PINS=Object.freeze({
  "scripts/lib/own-payroll-installation.mjs": "6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0",
  "scripts/lib/sql-statements.mjs": "d81477c5aed918e944aefe16d05015080acc4fe543059cbf15e2c69e9f5201c2",
  "scripts/lib/installation-prior-metadata.mjs": "b86d85a76a3c61bf963f61b9a991df65b1caec6056a74fe0c7396db4e808f8c9",
- "scripts/lib/municipal-owner-adoption-authority-installation.mjs":"ee0bcb9e151a01b4b582c970f76662f6664e61ab1be2fcd7569cc79f75ebe231",
+ "scripts/lib/municipal-owner-adoption-authority-installation.mjs":"10f5fb42aef999deebb9d43deb0fcc903cb6913a973a93a9ebad95f4f76eb012",
  "scripts/lib/own-period-classification-installation.mjs":"fc256e947a505dcb6606c95372575b9755af4a426888db783573e1737e95def6",
  "scripts/migrations/137-adopted-operator-context.sql":"b1db803f7d50d6a744cfdf8bf5fcc8af08395ca9b6d67f8704cde4b7eab64d0f"
 });
@@ -49,7 +49,7 @@ export function monthlyParticipationSnapshot(slot){
  s=once(s,"p.relkind IN ('r','p')","p.relkind IN ('r','p','m')");return s.replaceAll('municontrol_sql111.',prefix);
 }
 export function buildOwnMonthlyParticipationInstallation(options){
- assert.ok(options&&typeof options==='object');assert.deepEqual(Object.keys(options).sort(),['read','sourceCommit']);const{read,sourceCommit}=options;assert.equal(typeof read,'function');assert.equal(typeof sourceCommit,'string');assert.equal(sourceCommit.length,40);assert.match(sourceCommit,/^[a-f0-9]{40}$/);
+ const{read,sourceCommit,operationalPairBaseline}=ownerAdoptionAuthorityInstallationOptions(options);
  const sources={},sourceHashes={};for(const[f,pin]of Object.entries(MONTHLY189_SOURCE_PINS)){const v=read(f);assert.equal(typeof v,'string');sources[f]=lf(v);sourceHashes[f]=hash(sources[f]);assert.equal(sourceHashes[f],pin,'MONTHLY189_SOURCE_CHANGED:'+f);}
  const migration=splitPostgresStatements(sources[MONTHLY189_SQL]).map(s=>s.replace(/^(?:\s*--[^\n]*\n)+\s*/,''));assert.equal(migration.length,3);const newDefinition=definition(sources[MONTHLY189_SQL],'own_monthly_participation_source_v1'),newPin={...ownInstallationFunctionPin(newDefinition),runtime:true};newPin.config.push('lock_timeout=2s');assert.equal(newPin.signature,MONTHLY189_SIGNATURE);
  assert.equal(migration[0],newDefinition);assert.equal(migration[1],'REVOKE ALL ON FUNCTION '+MONTHLY189_SIGNATURE+' FROM PUBLIC,municontrol_actions_runtime_app');assert.equal(migration[2],'GRANT EXECUTE ON FUNCTION '+MONTHLY189_SIGNATURE+' TO municontrol_actions_runtime_app');
@@ -67,7 +67,7 @@ export function buildOwnMonthlyParticipationInstallation(options){
  };
  // The184 builder derives published IAM bytes only. Neither its owner RPC nor
  // its authority policy is called by189 or required from an operator of157.
- const checkedRead=f=>{const v=lf(read(f));sourceHashes[f]=hash(v);return v;},iam=buildMunicipalOwnerAdoptionAuthorityInstallation({read:checkedRead,sourceCommit}),classification=buildOwnPeriodClassificationInstallation({read:checkedRead,sourceCommit});
+ const checkedRead=f=>{const v=lf(read(f));sourceHashes[f]=hash(v);return v;},iam=buildMunicipalOwnerAdoptionAuthorityInstallation({read:checkedRead,sourceCommit,operationalPairBaseline}),classification=buildOwnPeriodClassificationInstallation({read:checkedRead,sourceCommit});
  Object.assign(sourceHashes,iam.sourceHashes,classification.sourceHashes);
  const changeOriginal=definition(sources['scripts/migrations/104-native-employment-changes.sql'],'native_employment_change_context_v1'),patch137=sources['scripts/migrations/137-adopted-operator-context.sql'];
  const calls=[...patch137.matchAll(/(?:old_call|new_call) text:='((?:[^']|'')*)';/g)].map(m=>m[1].replaceAll("''","'"));assert.equal(calls.length,2,'MONTHLY189_OPERATOR137_SOURCE_CHANGED');
@@ -91,7 +91,7 @@ export function buildOwnMonthlyParticipationInstallation(options){
  const proof=(m,preserved)=>`SELECT jsonb_build_object('version','own-monthly-participation-installation.v1','sourceCommit',${q(sourceCommit)},'sourceHashes',${q(JSON.stringify(sourceHashes))}::jsonb,'mode',${m},'newFunctions',1,'newTables',0,'adaptedFunctions',0,'businessWrites',0,'identityWrites',0,'iamWrites',0,'existingAclChanges',0,'nominalRowsReturned',0,'transactionDataPreserved',${preserved},'preservationSha256',encode(public.digest(current_setting('${prefix}after')::jsonb::text,'sha256'),'hex'),'priorMetadataSha256',${installationPriorMetadataFingerprint(prefix+'after')},'objectSha256',encode(public.digest((SELECT to_jsonb(p)::text FROM pg_proc p WHERE p.oid=to_regprocedure(${q(MONTHLY189_SIGNATURE)})),'sha256'),'hex')) AS proof`;
  const sequence=m=>[mode,required(m),choose,before,apply,afterCheck,after,audit,proof("current_setting('"+prefix+"mode')",true)],readOnly="DO $readonly$ BEGIN IF current_setting('transaction_read_only')<>'on' THEN RAISE EXCEPTION 'MONTHLY189_READONLY_REQUIRED';END IF;END $readonly$";
  const noConsumers=`DO $consumers$ BEGIN IF EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema' AND p.oid<>to_regprocedure(${q(MONTHLY189_SIGNATURE)}) AND position('own_monthly_participation_source_v1' in p.prosrc)>0) THEN RAISE EXCEPTION 'MONTHLY189_IN_USE';END IF;END $consumers$`;
- return{version:'own-monthly-participation-installation.v1',sourceCommit,sourceHashes,migration,newDefinition,newPin,prerequisitePins,prerequisiteDefinitions,beforeCheck,afterCheck,mode,choose,apply,before,after,audit,rehearsal:sequence('install'),installation:sequence('install'),repetition:sequence('verify'),verification:[readOnly,afterCheck,after,proof("'verify'",false)],rollback:[afterCheck,noConsumers,before,'DROP FUNCTION '+MONTHLY189_SIGNATURE,beforeCheck,after,audit],rollbackVerification:[readOnly,beforeCheck],transactionContract:{technical:'REPEATABLE READ',runtime:'READ COMMITTED',runtimeReadOnlyCompatible:false},newFunctions:1,newTables:0,adaptedFunctions:0,businessWrites:0,identityWrites:0,iamWrites:0,connects:false,executesSql:false};
+ return{version:'own-monthly-participation-installation.v1',sourceCommit,operationalPairBaseline,sourceHashes,migration,newDefinition,newPin,prerequisitePins,prerequisiteDefinitions,beforeCheck,afterCheck,mode,choose,apply,before,after,audit,rehearsal:sequence('install'),installation:sequence('install'),repetition:sequence('verify'),verification:[readOnly,afterCheck,after,proof("'verify'",false)],rollback:[afterCheck,noConsumers,before,'DROP FUNCTION '+MONTHLY189_SIGNATURE,beforeCheck,after,audit],rollbackVerification:[readOnly,beforeCheck],transactionContract:{technical:'REPEATABLE READ',runtime:'READ COMMITTED',runtimeReadOnlyCompatible:false},newFunctions:1,newTables:0,adaptedFunctions:0,businessWrites:0,identityWrites:0,iamWrites:0,connects:false,executesSql:false};
 }
 export function assertOwnMonthlyParticipationDurability({installed,durable,repeated,batch}){
  const counters={newFunctions:1,newTables:0,adaptedFunctions:0,businessWrites:0,identityWrites:0,iamWrites:0,existingAclChanges:0,nominalRowsReturned:0},keys=['version','sourceCommit','sourceHashes','mode',...Object.keys(counters),'preservationSha256','priorMetadataSha256','objectSha256','transactionDataPreserved'].sort();

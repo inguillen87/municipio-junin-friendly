@@ -1,3 +1,4 @@
+import {OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES} from './municipal-owner-adoption-authority-installation.mjs';
 // Pure SQL/fixture preparation. No connection, process, HTTP call or SQL execution.
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
@@ -53,17 +54,18 @@ export function monthlyQaReachableFunctions(sql,{schema,roots}){
  return{kind:'static_named_executable_call_closure',roots:[...roots],reached:[...seen].sort(),calls,missing:[...missing].map(([name,parents])=>({name,parents:[...parents].sort()})),dynamicSql:dynamicSql.sort(),overloadResolutionProven:false,dynamicSqlResolutionProven:false,extensionFunctions:['public.digest']};
 }
 export function monthlyQaOptions(argv){
- const a={};for(const v of argv){const m=/^--(major|source-commit|output|transport)=(.+)$/.exec(v);assert.ok(m&&!Object.hasOwn(a,m[1]),'MONTHLY_QA_ARGUMENT_INVALID');a[m[1]]=m[2];}
+ const a={};for(const v of argv){const m=/^--(major|source-commit|output|transport|operational-pair-baseline)=(.+)$/.exec(v);assert.ok(m&&!Object.hasOwn(a,m[1]),'MONTHLY_QA_ARGUMENT_INVALID');a[m[1]]=m[2];}
  assert.ok(['17','18'].includes(a.major));assert.match(a['source-commit']??'',/^[a-f0-9]{40}$/);assert.match(a.output??'',/^verification[\\/][A-Za-z0-9_.-]+$/);assert.ok(a.transport===undefined||['local','ci'].includes(a.transport));
- return{major:Number(a.major),sourceCommit:a['source-commit'],output:a.output,transport:a.transport??'local'};
+ assert.ok(a['operational-pair-baseline']===undefined||OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES.includes(a['operational-pair-baseline']),'OWNER_AUTHORITY184_OPERATIONAL_PAIR_BASELINE_REQUIRED');
+ return{major:Number(a.major),sourceCommit:a['source-commit'],output:a.output,transport:a.transport??'local',...(a['operational-pair-baseline']===undefined?{}:{operationalPairBaseline:a['operational-pair-baseline']})};
 }
 export function monthlyQaQuery(text,args,schema){
  assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.match(text,/^SELECT public\.(?:own_monthly_participation_source_v1|own_participation_(?:bootstrap|detail|attempt|command)_v1)\([^;]*\) AS result$/);assert.ok(Array.isArray(args));
  const used=new Set(),result=text.replaceAll('public.',schema+'.').replace(/\$(\d+)\b/g,(_,n)=>{const i=Number(n)-1;assert.ok(i>=0&&i<args.length);assert.equal(typeof args[i],'string');used.add(i);return q(args[i]);});assert.equal(used.size,args.length);return result;
 }
-export function buildMonthlyParticipationQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-','')}){
+export function buildMonthlyParticipationQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),operationalPairBaseline='pre107'}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.equal(typeof read,'function');assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);
- const base=buildOwnerDecisionQa({major,sourceCommit,read,schema}),batch=buildOwnMonthlyParticipationInstallation({read,sourceCommit}),privateDate=monthlyQaPrivateDateSource(read);assert.equal(base.definitions.some(d=>/FUNCTION (?:public\.)?payroll_fixed_registry_date_v1\(/.test(d)),false,'MONTHLY_QA_DATE_ALREADY_PRESENT');
+ const base=buildOwnerDecisionQa({major,sourceCommit,read,schema,operationalPairBaseline}),batch=buildOwnMonthlyParticipationInstallation({read,sourceCommit,operationalPairBaseline}),privateDate=monthlyQaPrivateDateSource(read);assert.equal(base.definitions.some(d=>/FUNCTION (?:public\.)?payroll_fixed_registry_date_v1\(/.test(d)),false,'MONTHLY_QA_DATE_ALREADY_PRESENT');
  const bySignature=new Map(base.definitions.map(d=>{try{return[ownInstallationFunctionPin(d).signature,d];}catch{return[null,null];}}));
  for(const p of batch.prerequisitePins){const d=bySignature.get(p.signature);assert.ok(d,'MONTHLY_QA_CANONICAL_PREREQUISITE_MISSING:'+p.signature);const actual=ownInstallationFunctionPin(d);assert.deepEqual({...actual,runtime:p.runtime},p,'MONTHLY_QA_CANONICAL_PREREQUISITE_CHANGED:'+p.signature);}
  const sourceHashes={...base.sourceHashes,...batch.sourceHashes,[privateDate.file]:privateDate.sourceSha256},newHash=monthlyQaHash(body(base.normalized(batch.newDefinition))),hashes={...base.hashes,[batch.newPin.sha256]:newHash,[privateDate.pin.sha256]:monthlyQaHash(body(base.normalized(privateDate.definition)))};
@@ -94,7 +96,7 @@ export function buildMonthlyParticipationQa({major,sourceCommit,read,schema='mc_
  for(const signature of['public.employment_adoption_source_v1(jsonb)','public.employment_adoption_hash_v1(jsonb)'])assert.equal(access.has(signature.replace('public.',schema+'.')),false,'MONTHLY_QA_PRIVATE_SOURCE_EXPOSED');
  assert.equal(batch.migration.at(-1),'GRANT EXECUTE ON FUNCTION public.own_monthly_participation_source_v1(jsonb,uuid,text) TO municontrol_actions_runtime_app');
  const callRoots=[...runtimeFacades.map(s=>s.slice('public.'.length,s.indexOf('('))),'own_monthly_participation_source_v1','employment_adoption_source_v1','employment_adoption_hash_v1','employment_adoption_bootstrap_v1','employment_adoption_propose_v1','employment_adoption_decision_source_v1','employment_adoption_decide_v1'],reachableFunctions=monthlyQaReachableFunctions(seed+';\n'+normalized(batch.newDefinition),{schema,roots:callRoots});assert.deepEqual(reachableFunctions.missing,[],'MONTHLY_QA_REACHABLE_FUNCTION_MISSING');assert.equal(access.has(privateDate.pin.signature.replace('public.',schema+'.')),false,'MONTHLY_QA_DATE_RUNTIME_EXPOSED');
- return{version:'own-monthly-participation-qa.v1',major,sourceCommit,schema,base,batch,normalized,hashes,sourceHashes,seed,local,privateDate,reachableFunctions,runtimeGrants,runtimeFacades,runtimeAclAudit:{prerequisites:batch.prerequisitePins.length,seedFacades:runtimeFacades.length,installed189Facade:true,privateAdoptionSourcesExposed:false},actor:a,checker:c,unknownContract:unknown.contractId,knownContract:base.rows.find(r=>r.active&&r!==unknown).contractId,canonicalGuardCount:batch.prerequisitePins.length,installsOwnerAuthority:false,ownerAuthorityRequired:false,sqlAuthorityStubs:false,connects:false,executesSql:false};
+ return{version:'own-monthly-participation-qa.v1',major,sourceCommit,operationalPairBaseline,schema,base,batch,normalized,hashes,sourceHashes,seed,local,privateDate,reachableFunctions,runtimeGrants,runtimeFacades,runtimeAclAudit:{prerequisites:batch.prerequisitePins.length,seedFacades:runtimeFacades.length,installed189Facade:true,privateAdoptionSourcesExposed:false},actor:a,checker:c,unknownContract:unknown.contractId,knownContract:base.rows.find(r=>r.active&&r!==unknown).contractId,canonicalGuardCount:batch.prerequisitePins.length,installsOwnerAuthority:false,ownerAuthorityRequired:false,sqlAuthorityStubs:false,connects:false,executesSql:false};
 }
 export function monthlyQaFreshDraft(index,startDate){
  assert.ok(Number.isInteger(index)&&index>=0&&index<50);const dni=String(97018900+index),prefix='20'+dni,remainder=11-[5,4,3,2,7,6,5,4,3,2].reduce((n,w,i)=>n+w*Number(prefix[i]),0)%11,cuil=prefix+(remainder===11?'0':remainder===10?'9':String(remainder));
