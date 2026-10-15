@@ -377,3 +377,6 @@ local-agents/
 # Reviewed own agreement-hours code sources; no municipal input or decisions.
 !scripts/migrations/179-own-agreement-working-time.sql
 !scripts/migrations/180-own-agreement-working-time-program.sql
+
+# Exact review-admission source required by build tests; no municipal input.
+!scripts/migrations/183-final-grh-source-review-admission.sql
