@@ -35,16 +35,16 @@ function deriveConsumerPatches(pool,add,load){const byName=n=>{const expected=CO
 
 /** Match installed bodies against reviewed source, never against observed DB
  * hashes. Published067 replacements and literal167/168 patches are explicit. */
-export function buildOwnerDecisionQaDefinitions({read,sourceCommit,batch=buildMunicipalOwnerAdoptionDecisionInstallation({read,sourceCommit})}){
+export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPairBaseline='pre107',batch=buildMunicipalOwnerAdoptionDecisionInstallation({read,sourceCommit,operationalPairBaseline})}){
+ assert.equal(batch.authority.operationalPairBaseline,operationalPairBaseline,'OWNER_DECISION_QA_BASELINE_CHANGED');
  const sources={},load=file=>{if(!Object.hasOwn(sources,file))sources[file]=lf(read(file));return sources[file];};
  const prior=buildOwnAgreementWorkingTimeInstallation({read:load,sourceCommit}),streaming=buildAdoptionSourceStreamingInstallation({read:load,sourceCommit}),pool=new Map(),latest=new Map(),seen=new Set(),pinHints=new Map();
  function add(value){const d=fixed(clean(value));if(!/^CREATE FUNCTION /.test(d))return;let p;try{p=identity(d);}catch{return;}if(p.name.startsWith('municipal_owner_adoption_'))return;pool.set(p.signature+'|'+p.sha256,d);latest.set(p.signature,d);}
  function visit(value){if(typeof value==='string')add(value);else if(value&&typeof value==='object'&&!seen.has(value)){seen.add(value);if(typeof value.signature==='string'&&typeof value.sha256==='string'&&typeof value.runtime==='boolean')pinHints.set(value.signature+'|'+value.sha256,value);Object.values(value).forEach(visit);}}
  const files=[...new Set([...Object.keys(batch.sourceHashes),...Object.keys(prior.sourceHashes),...extraSources])];
  for(const file of files)load(file);
- // Provenance captures are not migrations to install:107's replacement pair
- // is not the deployed one. Only the exact authority/support definitions below
- // enter the fixture from these three reviewed sources.
+ // Never install107 wholesale. Only the explicitly selected pre107 or
+ // published107 authority/support definition enters this isolated fixture.
  const authorityProvenance=new Set(['scripts/migrations/107-operational-profile-catalog.sql','scripts/migrations/113-native-employee-self-access.sql','scripts/fixtures/operational-profile-before.sql']);
  for(const file of files.filter(p=>p.endsWith('.sql')&&!p.includes('/185-')&&!authorityProvenance.has(p)).sort()){
   const source=load(file);for(const s of splitPostgresStatements(source))add(s);
@@ -53,7 +53,7 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,batch=buildMu
  visit(prior);visit(streaming);visit(batch.operational);visit(batch.period);add(SALARY_ADMINISTRATIVE_CONTEXT);add(ADOPTION_ADMINISTRATIVE_CONTEXT);
  const published=JSON.parse(load('tests/fixtures/native-employee-installed-067.json'));assert.equal(published.version,'native-employee-installed-067.v1');
  for(const f of published.functions){assert.equal(ownerDecisionQaHash(f.body),f.sha256);const d=[...pool.values()].find(d=>name(d)===f.name);assert.ok(d,'OWNER_DECISION_QA_PUBLISHED_HEADER:'+f.name);add(replaceBody(d,f.body));}
- const authority=buildOwnerAuthorityQa({major:17,sourceCommit,read:load,schema:'mc_qa_fixed_092_'+'a'.repeat(32)});
+ const authority=buildOwnerAuthorityQa({major:17,sourceCommit,read:load,schema:'mc_qa_fixed_092_'+'a'.repeat(32),operationalPairBaseline});
  for(const d of [...authority.originals,...authority.supportDefinitions])add(d);
  const use=load('scripts/migrations/167-classification-registration-use.sql');let count=0;
  for(const m of use.matchAll(/WHEN '(\w+)' THEN after_body:=(\$body\d+\$)([\s\S]*?)\2;/g)){const d=[...pool.values()].find(s=>name(s)===m[1]);assert.ok(d,'OWNER_DECISION_QA167_HEADER:'+m[1]);add(replaceBody(d,m[3]));count++;}assert.equal(count,5,'OWNER_DECISION_QA167_BODY_SET');
@@ -107,9 +107,9 @@ export function ownerDecisionQaColumnAudit(seed,definitions=[]){
  return{tables:Object.fromEntries([...tables].map(([table,columns])=>[table,[...columns].sort()])),checkedReferences:bindingsChecked.length,unknown,scope:'physical inserts and unambiguous aliases; not dynamic SQL or PostgreSQL catalogue aliases'};
 }
 
-export function buildOwnerDecisionQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-','')}){
+export function buildOwnerDecisionQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),operationalPairBaseline='pre107'}){
  assert.ok([17,18].includes(major));assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);
- const graph=buildOwnerDecisionQaDefinitions({read,sourceCommit}),base=buildOwnerAuthorityQa({major,sourceCommit,read,schema});
+ const graph=buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPairBaseline}),base=buildOwnerAuthorityQa({major,sourceCommit,read,schema,operationalPairBaseline});
  const existing=new Set([...base.seed.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? (?:\w+\.)?(\w+)\s*\(/g)].map(m=>m[1]));
  const tables=ownerDecisionQaTablePlan(graph.sources,existing);
  // Authority relocation also maps explicit public namespace predicates and

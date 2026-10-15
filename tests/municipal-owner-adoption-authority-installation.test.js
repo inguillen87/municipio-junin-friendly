@@ -7,6 +7,17 @@ import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
 const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8'),sourceCommit='a'.repeat(40),hash=value=>createHash('sha256').update(value).digest('hex');
 const build=()=>buildMunicipalOwnerAdoptionAuthorityInstallation({read,sourceCommit});
 
+test('184 selects one exact pre107 or published107 private helper without changing its default or any migration',()=>{
+ const original=build(),pre=buildMunicipalOwnerAdoptionAuthorityInstallation({read,sourceCommit,operationalPairBaseline:'pre107'}),post=buildMunicipalOwnerAdoptionAuthorityInstallation({read,sourceCommit,operationalPairBaseline:'published107'});
+ assert.deepEqual(original,pre);assert.equal(pre.operationalPairBaseline,'pre107');assert.equal(post.operationalPairBaseline,'published107');
+ const before=pre.supportPins[0],after=post.supportPins[0];assert.equal(before.sha256,'53e1c2b9cbfcd287fa4c0cdb1333bcd25d8a224e9f222ab3badefe1e601888dd');assert.equal(after.sha256,'0da6f93827fc83001121e191e17885eae2ffc73814178e6e26ca8efe7276f759');assert.deepEqual({...before,sha256:null},{...after,sha256:null});assert.equal(after.definer,false);assert.equal(after.runtime,false);assert.deepEqual(after.config,['search_path=public, pg_temp']);
+ for(const [batch,selected,rejected]of[[pre,before.sha256,after.sha256],[post,after.sha256,before.sha256]]){assert.ok(batch.beforeCheck.includes(selected));assert.ok(!batch.beforeCheck.includes(rejected));assert.ok(batch.afterCheck.includes(selected));assert.match(batch.beforeCheck,/aclexplode/);assert.match(batch.beforeCheck,/has_function_privilege/);}
+ const canonical=splitPostgresStatements(read('scripts/migrations/107-operational-profile-catalog.sql')).find(s=>/CREATE OR REPLACE FUNCTION public\.tenant_iam_reviewed_operational_pair_v1\(/.test(s)),body=s=>/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(s)[2];assert.equal(body(post.supportDefinitions[0]),body(canonical));
+ for(const key of['sourceHashes','prerequisitePins','prerequisiteDefinitions','policy','newPin','newDefinition','migration','apply','before','after','audit'])assert.deepEqual(pre[key],post[key],key);assert.doesNotMatch(post.migration.join('\n'),/CREATE OR REPLACE FUNCTION public\.tenant_iam_|ALTER ROLE|GRANT .*tenant_iam_/);
+ for(const value of[undefined,null,true,'auto','PRE107','published107\n',{}])assert.throws(()=>buildMunicipalOwnerAdoptionAuthorityInstallation({read,sourceCommit,operationalPairBaseline:value}),/OWNER_AUTHORITY184_OPERATIONAL_PAIR_BASELINE_REQUIRED/);
+ assert.throws(()=>buildMunicipalOwnerAdoptionAuthorityInstallation({read:p=>read(p)+(p==='scripts/migrations/107-operational-profile-catalog.sql'?'\n-- modified source':''),sourceCommit,operationalPairBaseline:'published107'}),/OWNER_AUTHORITY184_SOURCE_CHANGED/);
+});
+
 test('184 requires the published 113 session and pre107 operational SoD, with their private transitive guards',()=>{
  const batch=build(),byName=new Map(batch.prerequisitePins.map(p=>[p.name,p]));
  assert.equal(byName.get('action_center_assert_tenant_read_session_v2').sha256,'bf2c0d9114c1c3f66636ba8d89f49a96133c9f4addcb49cee32cd5d17cc0e0bc');
