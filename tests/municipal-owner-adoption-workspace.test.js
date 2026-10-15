@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import {OWNER_ADOPTION_AUTHORITY_SOURCE_PINS} from '../scripts/lib/municipal-owner-adoption-authority-installation.mjs';
 import {createOwnerAdoptionWorkspace,ownerWorkspaceAuthority,ownerWorkspaceJson,OWNER_SOURCE_MODES} from '../assets/municipal-owner-adoption-workspace-model.js';
 import {ownerAdoptionFixture} from './fixtures/municipal-owner-adoption-synthetic.js';
 import {preparationEnvelope} from './fixtures/employment-adoption-preparation-synthetic.js';
@@ -57,3 +59,11 @@ test('authority wire rejects client role switches and malformed server contexts'
 test('bounded JSON rejects oversized content header, streaming overflow and malformed or raw SQL errors',async()=>{await assert.rejects(ownerWorkspaceJson(new Response('{}',{headers:{'content-length':'9000000'}})),/capacidad/);let cancelled=false;const stream=new ReadableStream({start(c){c.enqueue(new Uint8Array(5));},cancel(){cancelled=true;}});await assert.rejects(ownerWorkspaceJson(new Response(stream),4),/capacidad/);assert.equal(cancelled,true);await assert.rejects(ownerWorkspaceJson(new Response('invalid JSON')),/respuesta completa/);await assert.rejects(ownerWorkspaceJson(new Response(JSON.stringify({ok:false,code:'ANY',error:'private SQL salary secret'}),{status:500})),e=>!e.message.includes('private SQL'));});
 test('PERSONAL and deployment build include the separate owner workspace without changing independent permission rules',()=>{const core=fs.readFileSync(new URL('../assets/employment-adoption-review-ui.js',import.meta.url),'utf8'),build=fs.readFileSync(new URL('../scripts/build-friendly.mjs',import.meta.url),'utf8'),operator=fs.readFileSync(new URL('../assets/municipal-adoption-operator-ui.js',import.meta.url),'utf8');for(const file of ['municipal-adoption-owner-decision-model.js','municipal-owner-adoption-workspace-model.js','municipal-owner-adoption-workspace.js'])assert.ok(build.includes("'assets/"+file+"'"));assert.match(core,/data-ar-owner/);assert.match(core,/mountMunicipalOwnerAdoption/);assert.match(operator,/employee\.record\.approve/);assert.doesNotMatch(operator,/approve_owner|municipal-owner-adoption/);assert.deepEqual(OWNER_SOURCE_MODES.map(([m])=>m),['mixed-bootstrap','operational-bootstrap','registry-bootstrap','final-active-bootstrap','final-bootstrap']);});
 test('deployment packaging includes only reviewed owner SQL sources and preserves private exclusions',()=>{const ignore=fs.readFileSync(new URL('../.vercelignore',import.meta.url),'utf8'),lines=ignore.split(/\r?\n/),api=fs.readFileSync(new URL('../api/internal-municipal-owner-adoption.js',import.meta.url),'utf8');for(const file of ['184-municipal-owner-adoption-authority.sql','185-municipal-owner-adoption-decision.sql'])assert.ok(lines.includes('!scripts/migrations/'+file));for(const item of ['*.sql','.handoff/','*.sql.gz','*.backup*','.env*','verification/'])assert.ok(lines.includes(item),'private exclusion retained: '+item);assert.doesNotMatch(ignore,/(?:^|\n)!.*\.handoff/);assert.match(api,/bodyParser:false/);assert.match(api,/assertOwnerAdoptionAccess/);});
+
+test('deployment packaging retains every pinned owner authority source while private backups stay excluded',()=>{
+ const rules=fs.readFileSync(new URL('../.vercelignore',import.meta.url),'utf8').split(/\r?\n/).map(v=>v.trim()).filter(v=>v&&!v.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const negated=rule.startsWith('!'),pattern=negated?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=negated;}return keep;};
+ for(const file of Object.keys(OWNER_ADOPTION_AUTHORITY_SOURCE_PINS))assert.ok(included(file),'PINNED_OWNER_SOURCE_EXCLUDED:'+file);
+ for(const file of ['.handoff/private.json','private.sql','private.sql.gz','private.backup','verification/private.json','.env.production'])assert.equal(included(file),false,file);
+ assert.ok(!rules.includes('!*.sql'));
+});
