@@ -60,6 +60,15 @@ test('retorno al acceso conserva la dirección completa y rechaza otro origen', 
   assert.equal(routes.loginHref('/acceso', base), '/acceso');
 });
 
+test('el ingreso municipal conserva la intención de adopción completa sin ampliar el contexto de Plataforma',()=>{
+ for(const intent of ['pendientes','55555555-5555-4555-8555-000000000001']){
+  const destination='/personal?adopcion='+intent+'#legajos',base='https://municipio.invalid'+destination;
+  const login=new URL(routes.loginHref(base,base),'https://municipio.invalid');assert.equal(login.pathname,'/acceso');assert.equal(login.searchParams.get('next'),destination);
+  assert.equal(routes.safeDestination(login.searchParams.get('next'),tenant,'internal-dashboard.html'),destination);
+  assert.equal(routes.safeDestination(login.searchParams.get('next'),platform,'administracion-plataforma.html'),'/administracion');
+ }
+});
+
 test('capability-gate aplica exactamente las mismas capacidades a aliases y anclas', () => {
   const appended = [], window = { MuniControlRoutes: routes, location: { href: 'https://municipio.invalid/relojes' } };
   const document = { head: { appendChild(node) { appended.push(node); } }, getElementById() { return null; }, createElement() { return {}; } };

@@ -3,6 +3,7 @@ import {ownProgramBootstrap} from './own-payroll-program-model.js';
 import {programWorkspaceGuidance} from './own-payroll-program-workspace-model.js';
 import {nativeRoster,nativeRosterFilters} from './native-roster-model.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
+import {MUNICIPAL_ADOPTION_PENDING_HREF} from './municipal-adoption-navigation-model.js';
 
 // An unfiltered, complete own roster proves registration, not eligibility for
 // a particular month. Historical references and pending proposals never count.
@@ -10,7 +11,7 @@ export const OWN_PAYROLL_READINESS_FILTERS=Object.freeze(nativeRosterFilters({st
 export const OWN_PAYROLL_READINESS_ROSTER_URL='/api/internal-data?'+new URLSearchParams({resource:'nativeroster',schema:'2',...OWN_PAYROLL_READINESS_FILTERS});
 const verified=new WeakSet();
 const messages=Object.freeze({
- roster_required:{title:'Primero: incorporar el padrón propio',description:'No hay legajos registrados o adoptados en el padrón propio consultado. En Personas podés revisar la propuesta de adopción o registrar un alta propia. Los registros históricos se conservan; todavía no integran este cálculo.',href:'/personal#legajos',action:'Abrir padrón en Personas'},
+ roster_required:{title:'Primero: incorporar el padrón propio',description:'No hay legajos registrados o adoptados en el padrón propio consultado. Revisá las propuestas de adopción en Personas o registrá un alta propia. Los registros históricos se conservan; todavía no integran este cálculo.',href:MUNICIPAL_ADOPTION_PENDING_HREF,action:'Revisar adopción del padrón en Personas'},
  catalog_required:{title:'Siguiente paso: aprobar el maestro salarial',description:'El maestro salarial propio todavía no tiene una aprobación registrada. Revisá conceptos, valores y vigencias en Parámetros antes de preparar las reglas.',href:'/nomina#parametros',action:'Revisar parámetros salariales'},
  program_required:{title:'Siguiente paso: aprobar las reglas de cálculo',description:'No hay un programa de cálculo propio aprobado. Las propuestas pendientes necesitan una revisión independiente antes de calcular.',href:'/nomina#reglas',action:'Revisar reglas de cálculo'},
  catalog_changed:{title:'Actualizar las reglas con el maestro vigente',description:'El programa aprobado usa otra revisión del maestro salarial. Revisá la propuesta de reglas con los valores actuales; se conserva el programa anterior.',href:'/nomina#reglas',action:'Revisar reglas de cálculo'},

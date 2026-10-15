@@ -61,6 +61,7 @@ const shellFiles = [
   'assets/employment-adoption-review-ui.js',
   'assets/employment-adoption-review.css',
   'assets/municipal-adoption-operator-model.js',
+  'assets/municipal-adoption-navigation-model.js',
   'assets/municipal-adoption-operator-ui.js',
   'assets/position-assignment-model.js',
   'assets/position-assignment-client.js',

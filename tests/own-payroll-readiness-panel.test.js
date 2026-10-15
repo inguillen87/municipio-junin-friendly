@@ -69,7 +69,7 @@ function harness(t){
 
 test('permiso de calcular con cero legajos propios no habilita el botón ni una captura',async t=>{
  const h=harness(t);h.state.roster=ownRoster(0);h.state.program=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await h.start();
- assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('send').hidden,true);assert.match(h.q('readiness-title').textContent,/incorporar el padrón propio/);assert.equal(h.q('readiness-link').href,'/personal#legajos');assert.match(h.q('readiness-facts').textContent,/0 legajos propios/);
+ assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('send').hidden,true);assert.match(h.q('readiness-title').textContent,/incorporar el padrón propio/);assert.equal(h.q('readiness-link').href,'/personal?adopcion=pendientes#legajos');assert.match(h.q('readiness-facts').textContent,/0 legajos propios/);
  await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('recover').hidden,true);
 });
 test('maestro pendiente y programa pendiente muestran su paso real, sin aprobarlos en pantalla',async t=>{
@@ -97,7 +97,7 @@ test('consulta y reintento existentes conservan clave y cuerpo aunque el padrón
  assert.equal(h.q('recover').disabled,false);assert.equal(h.q('send').disabled,false);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('readiness').hidden,true);
  await h.q('recover').emit('click');await h.idle();assert.equal(h.requests.at(-1).url,'/api/internal-own-payroll-run?resource=attempt&key='+first.key);
  const before=h.requests.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].key,first.key);assert.equal(posts[1].body,first.body);assert.equal(h.requests.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length,before);
- await h.q('revise').emit('click');await h.idle();assert.equal(h.q('recover').hidden,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('readiness-link').href,'/personal#legajos');
+ await h.q('revise').emit('click');await h.idle();assert.equal(h.q('recover').hidden,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('readiness-link').href,'/personal?adopcion=pendientes#legajos');
 });
 test('respuesta tardía después de ocultar la página no restituye datos ni preparación',async t=>{
  const h=harness(t);await h.start();let resolve;h.state.hold={url:'/api/internal-own-payroll-program?resource=bootstrap',wait:new Promise(r=>{resolve=r;})};const pending=h.refresh();await settle();h.document.hidden=true;h.event('visibilitychange');resolve();await pending;

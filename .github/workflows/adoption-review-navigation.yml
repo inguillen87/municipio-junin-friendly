@@ -1,0 +1,45 @@
+name: Adoption review navigation
+on:
+  push:
+    branches: ['master']
+    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
+  pull_request:
+    branches: ['master']
+    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  navigation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify navigation, readiness and preserved login destination
+        run: node --test tests/municipal-adoption-navigation.test.js tests/municipal-adoption-operator.test.js tests/own-payroll-readiness.test.js tests/own-payroll-readiness-panel.test.js tests/app-routes.test.js
+      - run: npx --no-install playwright install-deps chromium
+      - name: Verify the project Chromium runtime
+        run: |
+          mkdir -p verification
+          node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Open the correct complete proposal without deciding or replacing a pending attempt
+        # Source frontend with fictional HTTP responses. Login is simulated;
+        # this does not authenticate accounts or execute municipal decisions.
+        run: node --import ./scripts/lib/project-chromium.mjs scripts/verify-adoption-review-navigation-browser.mjs --output=verification/adoption-review-navigation-ci
+      - name: Preserve synthetic evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: adoption-review-navigation-${{ github.sha }}
+          path: |
+            verification/adoption-review-navigation-ci
+            verification/release-chromium-157.0.8098.0/installation.json
+          if-no-files-found: warn
+          retention-days: 7
