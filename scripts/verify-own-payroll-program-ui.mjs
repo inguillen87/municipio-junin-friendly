@@ -14,6 +14,8 @@ import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
+import {createInternalDataHandler} from '../api/internal-data.js';
+import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {PROGRAM_READ,PROGRAM_CAPS} from '../lib/internal-own-payroll-program.js';
 import {RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
 import {exactProgram as syntheticProgram} from '../tests/fixtures/own-payroll-exact-program-synthetic.js';
@@ -49,6 +51,7 @@ const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(ac
 try{
  const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
  await db.run(ownPayrollFullQaInstallation(qa.schema));
+ const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa),readinessSql=createOwnPayrollReadinessSql(db,qa);
  const precision=buildExactProgramPrecisionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit:'a'.repeat(40)});
  await db.run(precision.changed.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replace('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${qa.schema},public,pg_temp`)+"; SELECT '{}'::jsonb");
  let referenceInstallation=null;
@@ -79,12 +82,14 @@ try{
  await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.maker)+"::uuid,'payroll.parameter.approve')");
  const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const handlers={'/api/internal-own-payroll-program':createOwnProgramHandler(deps),'/api/internal-own-payroll-run':createOwnRunHandler(deps),'/api/internal-employment-catalog':createEmploymentCatalogHandler(deps)};
+ const directoryHandler=createInternalDataHandler({env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:async()=>readinessSql});
  server=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://local.invalid');res.setHeader('Cache-Control','no-store');const json=(status,value)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(value));
   if(req.method==='GET'&&url.pathname==='/api/internal-auth'){
    const key=actorKey(req),a=qa.actors[key];json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:changedSession?'another-qa-session':a.actorSessionId,email:a.actorEmail},access:{context:'tenant',tenant:{id:a.tenantId,roleKey:'QA'},tenantCapabilities:permissions(key),platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+(expired?-3600000:3600000)).toISOString()});return;
   }
   if(req.method==='GET'&&url.pathname==='/api/internal-data'){
+   if(url.searchParams.get('resource')==='nativeroster'){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
    if(url.searchParams.get('resource')==='employees'){const page=Number(url.searchParams.get('page'));json(200,{ok:true,version:'employee-picker.v1',data:page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'}]:[],pagination:{page,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}});return;}
    json(503,{ok:false,error:'Synthetic historical dashboard unavailable'});return;
   }
@@ -212,7 +217,7 @@ try{
  check(await select('content').isHidden()&&await select('send').isDisabled(),'actual SQL revocation withdraws program despite stale HTTP capability fixture');
  check(await page.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('own-payroll-program')||v.includes('19041')||v.includes('coeficiente inventado'))),'rules and nominal results are not stored in browser storage');
  check(errors.length===0,'no unhandled browser errors: '+errors.join(';'));
- report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:expected110,...(referenceInstallation?{referenceScale:true,referenceInstallation}:{}),...(copiedDefinition?{multiCopy:{sources:6,targets:2,rules:18,bindings:6,exactDefinitionDurable:true}}:{}),separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
+ report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:expected110,...(referenceInstallation?{referenceScale:true,referenceInstallation}:{}),...(copiedDefinition?{multiCopy:{sources:6,targets:2,rules:18,bindings:6,exactDefinitionDurable:true}}:{}),separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true,productiveInstallation:false};if(diagnosticPage){report.browserDiagnostic=await diagnosticPage.evaluate(()=>({status:document.querySelector('[data-program-status]')?.textContent,busy:document.querySelector('.own-program')?.getAttribute('aria-busy'),url:location.pathname+location.hash,contentHidden:document.querySelector('[data-program-content]')?.hidden})).catch(()=>null);await diagnosticPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
  held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));

@@ -121,6 +121,7 @@ jobs:
             verification/adoption-source-streaming-ci/streaming-browser/*.png
             verification/noelia-circuit-ci/result.json
             verification/noelia-payroll-readiness-ci/result.json
+            verification/noelia-payroll-readiness-ci/failure.json
             verification/noelia-payroll-readiness-ci/*.png
             verification/noelia-circuit-ci/*-proof.json
             verification/noelia-circuit-ci/*-browser.json
