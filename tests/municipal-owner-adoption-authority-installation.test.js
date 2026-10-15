@@ -7,6 +7,27 @@ import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
 const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8'),sourceCommit='a'.repeat(40),hash=value=>createHash('sha256').update(value).digest('hex');
 const build=()=>buildMunicipalOwnerAdoptionAuthorityInstallation({read,sourceCommit});
 
+test('184 requires the published 113 session and pre107 operational SoD, with their private transitive guards',()=>{
+ const batch=build(),byName=new Map(batch.prerequisitePins.map(p=>[p.name,p]));
+ assert.equal(byName.get('action_center_assert_tenant_read_session_v2').sha256,'bf2c0d9114c1c3f66636ba8d89f49a96133c9f4addcb49cee32cd5d17cc0e0bc');
+ assert.equal(byName.get('tenant_iam_assert_no_sod_conflict').sha256,'64fa3435a21de7151ee5c6c71ada0e78afcc088621601a7f9e6a7083a1de148c');
+ assert.deepEqual(batch.supportPins.map(p=>[p.name,p.sha256,p.runtime]),[
+  ['tenant_iam_reviewed_operational_pair_v1','53e1c2b9cbfcd287fa4c0cdb1333bcd25d8a224e9f222ab3badefe1e601888dd',false],
+  ['native_account_contract_v1','09afd04c00e7c6e2ac726cf18b277889e20b9019085b00080f4f3a169ffe79bc',false],
+ ]);
+ for(const p of [...batch.prerequisitePins,...batch.supportPins])assert.ok(batch.prerequisiteCheck.includes(p.sha256),p.name);
+ for(const obsolete of ['3efaa78aa8a792b7701ac3f6981d1478101040dc0f1e26e10911117fba4bc1df','05356fbaae5942586a6cae77161dc3d198757083de0544033c6d19d66dc93069'])assert.ok(!batch.prerequisiteCheck.includes(obsolete));
+ assert.match(batch.prerequisiteDefinitions[2],/native_account_contract_v1\(membership_row\.tenant_id,binding_row\.id,employment_id,true\)/);
+ assert.match(batch.prerequisiteDefinitions[4],/tenant_iam_reviewed_operational_pair_v1\(membership_role,conflict\.capability_key,conflict\.conflicts_with_key\)/);
+ assert.doesNotMatch(batch.supportDefinitions[0],/employee\.catalog\.approve/);
+ assert.deepEqual(batch.supportPins[0].config,['search_path=public, pg_temp']);assert.equal(batch.supportPins[0].definer,false);assert.equal(batch.supportPins[0].language,'sql');assert.equal(batch.supportPins[0].volatility,'i');
+ assert.deepEqual(batch.supportPins[1].config,['search_path=pg_catalog, public, pg_temp','TimeZone=UTC']);assert.equal(batch.supportPins[1].definer,true);assert.equal(batch.supportPins[1].defaults,'false');
+ assert.equal(batch.sourceHashes['scripts/migrations/107-operational-profile-catalog.sql'],'39dc65af0105c7c407a20d13a3d70f4220d873e00f94602a42f6f4ed9c7062fe');
+ assert.equal(batch.sourceHashes['scripts/migrations/113-native-employee-self-access.sql'],'9c896bcdfeec974e665243460783dfb0d936c51fcb7f327b6b0b2aeea651b1d7');
+ assert.equal(batch.sourceHashes['scripts/fixtures/operational-profile-before.sql'],'2550ca71cec7a46948b255e113e564ac1c8272eef6dab76b2bef1c07b7ae7b00');
+ assert.equal(batch.newFunctions,1);assert.equal(batch.adaptedFunctions,0);assert.equal(batch.iamWrites,0);assert.equal(batch.existingAclChanges,0);
+});
+
 test('184 server policy is immutable, canonical and shared without importing development scripts into the API',()=>{
  assert.deepEqual(MUNICIPAL_OWNER_ADOPTION_POLICY,{version:'tenant-owner-adoption-policy.v1',sha256:hash(MUNICIPAL_OWNER_ADOPTION_POLICY_CANONICAL)});
  assert.equal(salarySerialized(MUNICIPAL_OWNER_ADOPTION_POLICY_DESCRIPTION),MUNICIPAL_OWNER_ADOPTION_POLICY_CANONICAL);

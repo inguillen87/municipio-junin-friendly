@@ -42,15 +42,19 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,batch=buildMu
  function visit(value){if(typeof value==='string')add(value);else if(value&&typeof value==='object'&&!seen.has(value)){seen.add(value);if(typeof value.signature==='string'&&typeof value.sha256==='string'&&typeof value.runtime==='boolean')pinHints.set(value.signature+'|'+value.sha256,value);Object.values(value).forEach(visit);}}
  const files=[...new Set([...Object.keys(batch.sourceHashes),...Object.keys(prior.sourceHashes),...extraSources])];
  for(const file of files)load(file);
- for(const file of files.filter(p=>p.endsWith('.sql')&&!p.includes('/185-')).sort()){
+ // Provenance captures are not migrations to install:107's replacement pair
+ // is not the deployed one. Only the exact authority/support definitions below
+ // enter the fixture from these three reviewed sources.
+ const authorityProvenance=new Set(['scripts/migrations/107-operational-profile-catalog.sql','scripts/migrations/113-native-employee-self-access.sql','scripts/fixtures/operational-profile-before.sql']);
+ for(const file of files.filter(p=>p.endsWith('.sql')&&!p.includes('/185-')&&!authorityProvenance.has(p)).sort()){
   const source=load(file);for(const s of splitPostgresStatements(source))add(s);
   for(const m of source.matchAll(/CREATE(?: OR REPLACE)? FUNCTION (?:public\.)?\w+\s*\([\s\S]*?\bAS\s+(\$[\w]*\$)[\s\S]*?\1/g))add(m[0]);
  }
  visit(prior);visit(streaming);visit(batch.operational);visit(batch.period);add(SALARY_ADMINISTRATIVE_CONTEXT);add(ADOPTION_ADMINISTRATIVE_CONTEXT);
  const published=JSON.parse(load('tests/fixtures/native-employee-installed-067.json'));assert.equal(published.version,'native-employee-installed-067.v1');
  for(const f of published.functions){assert.equal(ownerDecisionQaHash(f.body),f.sha256);const d=[...pool.values()].find(d=>name(d)===f.name);assert.ok(d,'OWNER_DECISION_QA_PUBLISHED_HEADER:'+f.name);add(replaceBody(d,f.body));}
- const authorityOriginals=buildOwnerAuthorityQa({major:17,sourceCommit,read:load,schema:'mc_qa_fixed_092_'+'a'.repeat(32)}).originals;
- for(const d of authorityOriginals)add(d);
+ const authority=buildOwnerAuthorityQa({major:17,sourceCommit,read:load,schema:'mc_qa_fixed_092_'+'a'.repeat(32)});
+ for(const d of [...authority.originals,...authority.supportDefinitions])add(d);
  const use=load('scripts/migrations/167-classification-registration-use.sql');let count=0;
  for(const m of use.matchAll(/WHEN '(\w+)' THEN after_body:=(\$body\d+\$)([\s\S]*?)\2;/g)){const d=[...pool.values()].find(s=>name(s)===m[1]);assert.ok(d,'OWNER_DECISION_QA167_HEADER:'+m[1]);add(replaceBody(d,m[3]));count++;}assert.equal(count,5,'OWNER_DECISION_QA167_BODY_SET');
  const capacity=[...pool.values()].find(d=>identity(d).sha256==='d0be23b2b5f275b9ba91179bc2f303cf6828c33b5007b01cb68dc225512cb6cf');assert.ok(capacity);assert.equal(body(capacity).split('520093696').length,2);add(replaceBody(capacity,body(capacity).replace('520093696','1056964608')));
@@ -63,7 +67,7 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,batch=buildMu
  state.definition=state.definition.replace('\nBEGIN','\n-- native-fixed093\nBEGIN');assert.equal(identity(state.definition).sha256,pin[3],'OWNER_DECISION_QA093_SHA:'+pin[1]);add(state.definition);}
  const patch110=splitPostgresStatements(load('scripts/migrations/110-native-employment-lifecycle.sql')).find(s=>s.startsWith('DO $fixed_export$'));assert.ok(patch110);const anchor110=/anchor text:=('(?:[^']|'')*');/.exec(patch110),call110=/d:=replace\(d,anchor,([\s\S]*?)\);\n EXECUTE d;/.exec(patch110);assert.ok(anchor110&&call110);const anchor=constantExpression(anchor110[1],{}),next=constantExpression(call110[1],{anchor});for(const d of [...pool.values()].filter(d=>name(d)==='payroll_fixed_registry_export_v1'&&d.includes(anchor)))add(d.replace(anchor,()=>next));
  deriveConsumerPatches(pool,add,load);
- const desired=new Map([...ownerDecisionQaEmbeddedPins(batch.originalReady),...batch.period.prerequisites,...batch.period.afterPins,...batch.authority.prerequisitePins,...batch.beforePins,identity(batch.legacyWriter)].map(p=>[p.signature,p]));
+ const desired=new Map([...ownerDecisionQaEmbeddedPins(batch.originalReady),...batch.period.prerequisites,...batch.period.afterPins,...batch.authority.prerequisitePins,...batch.authority.supportPins,...batch.beforePins,identity(batch.legacyWriter)].map(p=>[p.signature,p]));
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));

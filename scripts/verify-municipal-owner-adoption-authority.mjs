@@ -60,7 +60,8 @@ export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,s
  assert.ok([17,18].includes(major));assert.match(schema,schemaPattern);const batch=buildMunicipalOwnerAdoptionAuthorityInstallation({read:sourceRead,sourceCommit});
  const sources=Object.fromEntries(sourceFiles.map(p=>[p,lf(sourceRead(p))]));
  const from=(number,name)=>definition(sources[Object.keys(sources).find(p=>p.startsWith('scripts/migrations/'+number+'-'))],name);
- const originals=[ADOPTION_ADMINISTRATIVE_CONTEXT,from('067','native_employee_context_v1'),from('007','action_center_assert_tenant_read_session_v2'),from('007','action_center_context_has_capability'),from('004','tenant_iam_assert_no_sod_conflict'),from('136','native_employee_read_projection_v1'),from('006','tenant_iam_effective_capabilities')];
+ const originals=[...batch.prerequisiteDefinitions,from('006','tenant_iam_effective_capabilities')],supportDefinitions=batch.supportDefinitions;
+ const obsoleteDefinitions=[from('007','action_center_assert_tenant_read_session_v2'),from('004','tenant_iam_assert_no_sod_conflict')];
  const published=JSON.parse(sources['tests/fixtures/native-employee-installed-067.json']);assert.equal(published.version,'native-employee-installed-067.v1');
  const contexts=published.functions.filter(f=>f.name==='native_employee_context_v1');assert.equal(contexts.length,1);assert.equal(hash(contexts[0].body),batch.prerequisitePins[1].sha256);
  const originalContext=body(originals[1]);originals[1]=originals[1].replace(originalContext,()=>contexts[0].body);
@@ -71,7 +72,7 @@ export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,s
   .replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp')
   .replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp')
   .replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
- const hashes=Object.fromEntries([...originals,batch.newDefinition].map(d=>[hash(body(d)),hash(body(relocate(d)))]));
+ const hashes=Object.fromEntries([...originals,...supportDefinitions,batch.newDefinition].map(d=>[hash(body(d)),hash(body(relocate(d)))]));
  const normalized=sql=>{let s=relocate(sql);for(const[from,to]of Object.entries(hashes))s=s.replaceAll(from,to);return s;};
  const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback','rollbackVerification'].map(k=>[k,batch[k].map(normalized)]));
  for(const [phase,values]of Object.entries(local)){assert.equal(values.length,batch[phase].length);assert.ok(values.every(s=>!s.includes('public.municipal_owner_adoption_authority_v1')));}
@@ -89,8 +90,8 @@ export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,s
   table(migration('067'),'native_employee_registration'),table(migration('132'),'employment_adoption_proposal'),...['employment_adoption_seal','employment_adoption_decision','employment_adoption_application'].map(n=>table(migration('133'),n)),
   ...['tenant_action_authority','tenant_action_employment_link','tenant_action_area_scope'].map(n=>table(migration('006'),n))];
  const utilities=['normalize_digits','is_valid_cuil'].map(n=>from('002',n));
- const canonicalFunctions=originals.map(d=>relocate(d).replace(/CREATE(?: OR REPLACE)? FUNCTION (?!mc_qa_)(\w+)\(/,'CREATE FUNCTION '+schema+'.$1('));
- const signatures=batch.prerequisitePins.map(p=>p.signature).concat('public.tenant_iam_effective_capabilities(uuid)');
+ const canonicalFunctions=[...supportDefinitions,...originals].map(d=>relocate(d).replace(/CREATE(?: OR REPLACE)? FUNCTION (?!mc_qa_)(\w+)\(/,'CREATE FUNCTION '+schema+'.$1('));
+ const signatures=batch.prerequisitePins.map(p=>p.signature).concat('public.tenant_iam_effective_capabilities(uuid)',...batch.supportPins.map(p=>p.signature));
  const acl=signatures.map((s,n)=>'REVOKE ALL ON FUNCTION '+s.replace('public.',schema+'.')+' FROM PUBLIC,municontrol_actions_runtime_app'+(n===5?';GRANT EXECUTE ON FUNCTION '+s.replace('public.',schema+'.')+' TO municontrol_actions_runtime_app':''));
  const fixtureRows=[];
  for(const[a,foreignFlag]of[[actor,false],[foreign,true]]){const t=foreignFlag?ids.foreignTenant:ids.tenant,b=foreignFlag?ids.foreignBinding:ids.binding,pi=foreignFlag?ids.foreignPerson:ids.person,c=foreignFlag?ids.foreignContract:ids.contract,sb=foreignFlag?ids.foreignBatch:ids.batch,company=foreignFlag?202:101;
@@ -114,7 +115,37 @@ export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,s
   "INSERT INTO iam_capability(capability_key,label,description,scope_kind) VALUES('platform.tenants.manage','QA','Ficticio','platform')",
   ...caps.map(c=>`INSERT INTO iam_role_capability VALUES('QA_AUTHORITY_OPERATOR',${q(c)})`),"INSERT INTO iam_role_capability VALUES('PLATFORM_OWNER','platform.tenants.manage')","INSERT INTO data_import_runs VALUES(1)",...fixtureRows,...canonicalFunctions,...acl,
   "CREATE TABLE qa_prior_event(id integer PRIMARY KEY,payload jsonb NOT NULL)","INSERT INTO qa_prior_event VALUES(1,'{\"source\":\"fictional immutable sentinel\"}')","CREATE MATERIALIZED VIEW qa_prior_materialized AS SELECT * FROM qa_prior_event"].join(';\n');
- return{major,schema,ids,actor,foreign,batch,local,originals,hashes,normalized,relocate,sourceHashes:Object.fromEntries(Object.entries(sources).map(([p,s])=>[p,hash(s)])),seed:'CREATE SCHEMA '+schema+';GRANT USAGE ON SCHEMA '+schema+' TO municontrol_actions_runtime_app;SET LOCAL search_path='+schema+',pg_catalog,public,pg_temp;'+seed};
+ return{major,schema,ids,actor,foreign,batch,local,originals,supportDefinitions,obsoleteDefinitions,hashes,normalized,relocate,sourceHashes:Object.fromEntries(Object.entries(sources).map(([p,s])=>[p,hash(s)])),seed:'CREATE SCHEMA '+schema+';GRANT USAGE ON SCHEMA '+schema+' TO municontrol_actions_runtime_app;SET LOCAL search_path='+schema+',pg_catalog,public,pg_temp;'+seed};
+}
+
+export function ownerAuthorityQaPrerequisiteCases(qa){
+ const changed=qa.originals[4].replace(body(qa.originals[4]),()=>body(qa.originals[4])+'\n-- deliberately altered QA body\n');
+ const error='OWNER_AUTHORITY184_PREREQUISITE_CHANGED';
+ return[
+  ...[['obsoleteSession007',qa.obsoleteDefinitions[0]],['obsoleteSoD004',qa.obsoleteDefinitions[1]],['alteredPublishedSoD',changed]].map(([label,d])=>[label,qa.relocate(d.replace(/^CREATE(?: OR REPLACE)? FUNCTION (?:public\.)?/,'CREATE OR REPLACE FUNCTION public.')),error]),
+  ['privateReviewedPairAclChanged',`GRANT EXECUTE ON FUNCTION ${qa.schema}.tenant_iam_reviewed_operational_pair_v1(text,text,text) TO municontrol_actions_runtime_app`,error],
+  ['privateNativeAccountConfigChanged',`ALTER FUNCTION ${qa.schema}.native_account_contract_v1(uuid,uuid,uuid,boolean) SET search_path=public,pg_temp`,error],
+ ];
+}
+
+// These fictional role rows exercise the published SoD implementation itself.
+// Every scenario rolls back; no role assignment or permission is changed outside
+// the isolated fixture, and the resolver's independent denial cases stay intact.
+export function ownerAuthorityQaOperationalSodCases(qa){
+ return[
+  ['reviewedOperationalPair','MUNICIPIO_ADMIN_OPERATIVO','absence.enter','absence.validate',null],
+  ['catalogPairStillIndependent','MUNICIPIO_ADMIN_OPERATIVO','employee.catalog.approve','employee.catalog.propose','TENANT_IAM_SOD_CONFLICT'],
+  ['publishedIntegralPair','PLATFORM_OWNER_OPERATIVO_INTEGRAL','payroll.novelty.approve','payroll.novelty.prepare',null],
+  ['unreviewedIntegralPair','PLATFORM_OWNER_OPERATIVO_INTEGRAL','employee.record.approve','employee.record.propose','TENANT_IAM_SOD_CONFLICT'],
+ ].map(([label,role,left,right,error])=>[label,[
+  `INSERT INTO iam_role(role_key,label,description,scope_kind) VALUES(${q(role)},'QA','Ficticio','tenant')`,
+  ...[left,right].map(c=>`INSERT INTO iam_capability(capability_key,label,description,scope_kind) VALUES(${q(c)},'QA','Ficticio','tenant') ON CONFLICT(capability_key) DO NOTHING`),
+  ...[left,right].map(c=>`INSERT INTO iam_role_capability(role_key,capability_key) VALUES(${q(role)},${q(c)})`),
+  `UPDATE tenant_membership SET role_key=${q(role)} WHERE id=${q(qa.ids.membership)}`,
+  `INSERT INTO iam_capability_conflict VALUES(${q(left)},${q(right)},'Prueba ficticia de separación')`,
+  `SELECT ${qa.schema}.tenant_iam_assert_no_sod_conflict(${q(qa.ids.membership)})`,
+  "SELECT jsonb_build_object('validated',true)",
+ ],error]);
 }
 
 export function ownerAuthorityQaCases(qa){const a=qa.actor,i=qa.ids,mid=q(i.membership),email=q(a.actorEmail),sid=q(i.session),sc=q(i.tenant),override=c=>`INSERT INTO tenant_membership_capability_override(membership_id,capability_key,deny_override,reason,granted_by_user_email) VALUES(${mid},${q(c)},true,'Prueba ficticia',${email})`;
@@ -175,8 +206,9 @@ export async function verifyMunicipalOwnerAdoptionAuthority(options){
  const ok=label=>checks.push(label),call=(actor=qa.actor)=>`SELECT ${qa.schema}.municipal_owner_adoption_authority_v1(${j(actor)})`;
  try{
   beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,destinationIdentity,beforeGuard,outerBefore,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore},null,2));
-  run(tx([qa.seed]));seeded=true;run(tx([qa.normalized(qa.batch.beforeCheck)]));ok('all six scalar and TABLE capability prerequisites have exact canonical bodies, metadata and ACL');
+  run(tx([qa.seed]));seeded=true;run(tx([qa.normalized(qa.batch.beforeCheck)]));ok('all six scalar, two private transitive and TABLE capability prerequisites have exact canonical bodies, metadata and ACL');
   const fixtureBaseline=snapshot();
+  for(const[label,mutation,error]of ownerAuthorityQaPrerequisiteCases(qa)){run(tx([mutation,...qa.local.installation]),error);assert.deepEqual(snapshot(),fixtureBaseline);ok(label+' is rejected before installation without changing the canonical baseline');}
   run(tx([`GRANT EXECUTE ON FUNCTION ${qa.schema}.tenant_iam_effective_capabilities(uuid) TO municontrol_actions_runtime_app`,...qa.local.installation]),'OWNER_AUTHORITY184_CAPABILITY_SOURCE_CHANGED');assert.deepEqual(snapshot(),fixtureBaseline);ok('broadened private TABLE capability ACL is rejected before installing the resolver');
   run(tx([`ALTER FUNCTION ${qa.schema}.tenant_iam_assert_no_sod_conflict(uuid) SET search_path=public,pg_temp`,...qa.local.installation]),'OWNER_AUTHORITY184_PREREQUISITE_CHANGED');assert.deepEqual(snapshot(),fixtureBaseline);ok('modified canonical SoD metadata is rejected before installing the resolver');
   const rehearsal=run(tx(qa.local.rehearsal,{end:'ROLLBACK'}));assert.equal(rehearsal.mode,'install');run(tx(qa.local.rollbackVerification,{readOnly:true}));assert.deepEqual(snapshot(),fixtureBaseline);ok('rehearsal rolls back and a separate connection proves absence and the complete prior state');
@@ -187,6 +219,7 @@ export async function verifyMunicipalOwnerAdoptionAuthority(options){
   assert.deepEqual(resolved.scope,{tenantId:qa.ids.tenant,membershipId:qa.ids.membership,bindingId:qa.ids.binding,companyId:101});assert.equal(resolved.authority.actor.personId,qa.ids.person);assert.equal(resolved.authority.actor.identityVersion,4);assert.deepEqual(snapshot(),authorityBaseline);ok('runtime resolves a real PLATFORM_OWNER and an existing inactive administrative person with current MFA without data writes');
   const session={id:qa.actor.actorSessionId,version:3,email:qa.actor.actorEmail,releaseSha:qa.actor.releaseSha};const access={mode:'managed',session:{id:session.id,version:3,email:session.email},principal:{authorized:true,user:{email:session.email,identityVersion:4},platform:{roles:['PLATFORM_OWNER'],capabilities:['platform.tenants.manage']},session:{id:session.id,version:3,mfa:true,authLevel:'mfa',expiresAt:new Date(Date.now()+3600000).toISOString()},tenant:{id:qa.ids.tenant,membershipId:qa.ids.membership,source:'membership',dataPlaneReady:true,certifiedReleaseSha:session.releaseSha,effectiveCapabilities:['workforce.employee.read','employee.record.propose'],sourceBindings:[{system:'GRH',database:'owner_qa_source',companyId:101,verified:true}]}}};
   assert.deepEqual(ownerAdoptionAuthorityFromDatabase(access,session,resolved,qa.batch.policy),resolved);ok('the real backend authority boundary validates the database result and pinned server policy');
+  for(const[label,statements,error]of ownerAuthorityQaOperationalSodCases(qa)){const value=run(tx(statements.map(qa.relocate),{end:'ROLLBACK'}),error);if(!error)assert.deepEqual(value,{validated:true});assert.deepEqual(snapshot(),authorityBaseline);ok(label+' uses the actual published effective-capability and SoD guards without durable changes');}
   for(const[label,mutation,error,actor]of ownerAuthorityQaCases(qa)){run(tx([...(mutation?[qa.relocate(mutation)]:[]),call(actor)],{end:'ROLLBACK'}),error);assert.deepEqual(snapshot(),authorityBaseline);ok(label+' is rejected without any durable mutation');}
   for(const mutation of [v=>v.authority.actor.personId='00000000-0000-0000-0000-000000000000',v=>v.authority.policySha256='b'.repeat(64),v=>v.authority.actor.identityVersion=5,v=>v.scope.companyId=202]){const changed=structuredClone(resolved);mutation(changed);assert.throws(()=>ownerAdoptionAuthorityFromDatabase(access,session,changed,qa.batch.policy),{code:'OWNER_ADOPTION_AUTHORITY_REQUIRED'});}ok('backend rejects forged actor, policy, identity-version and company results');
   const recovery=run(tx([qa.relocate(`UPDATE tenant_identity_session SET auth_level='recovery' WHERE id=${q(qa.ids.session)}`),call()],{end:'ROLLBACK'}));assert.deepEqual(recovery,resolved);ok('current recovery MFA is accepted without changing authority identity');
@@ -198,7 +231,7 @@ export async function verifyMunicipalOwnerAdoptionAuthority(options){
   }finally{try{const exitCode=await exited;fs.writeFileSync(path.join(destination,'serialization-holder.stdout.log'),lockOutput);fs.writeFileSync(path.join(destination,'serialization-holder.stderr.log'),lockError);assert.equal(exitCode,0,lockError||lockOutput);}finally{pins=ownerAdoptionQaDestinationGuard(destinationIdentity);}}
   assert.deepEqual(snapshot(),authorityBaseline);run(tx([call()],{readOnly:true}),'read-only');ok('resolver is intentionally incompatible with READ ONLY transactions while its separate durability verifier is READ ONLY');
   run(tx(qa.local.rollback));run(tx(qa.local.rollbackVerification,{readOnly:true}));assert.deepEqual(snapshot(),fixtureBaseline);ok('technical rollback removes only the resolver and independently restores complete fixture metadata and rows');
-  report={version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit,transport,destinationIdentity,serialization,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,resolverExecuted:true,canonicalAuthorityFunctions:7,fixtureAdministrationStatus:'inactive',actorDataSynthetic:true,productionWrites:0,municipalAcceptance:false,existingApiConnected:false};
+  report={version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit,transport,destinationIdentity,serialization,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,resolverExecuted:true,canonicalAuthorityFunctions:7,canonicalPrivateSupportFunctions:2,fixtureAdministrationStatus:'inactive',actorDataSynthetic:true,productionWrites:0,municipalAcceptance:false,existingApiConnected:false};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack??String(e));}
  finally{
   try{if(seeded)run(tx(finalReviewAdmissionQaCleanup(qa.schema)));}catch(e){cleanupFailure=e;fs.writeFileSync(path.join(destination,'cleanup-failure.txt'),e.stack??String(e));}

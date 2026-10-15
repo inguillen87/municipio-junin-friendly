@@ -22,7 +22,10 @@ test('wire previews require client verification after HTTP serialization and rej
 test('source-derived fixture resolves every reviewed readiness/authority prerequisite without an observed pin',()=>{
  assert.ok(qa.graph.desired.length>200);for(const p of qa.graph.desired)assert.ok(qa.graph.pool.has(p.signature+'|'+p.sha256),p.signature);
  assert.equal(qa.connects,false);assert.equal(qa.executesSql,false);assert.equal(qa.base.connects,undefined);
- for(const d of qa.base.originals)assert.ok(qa.definitions.some(s=>body(s)===body(d)),'canonical authority body retained');
+ for(const d of [...qa.base.originals,...qa.base.supportDefinitions])assert.ok(qa.definitions.some(s=>body(s)===body(d)),'canonical authority and support body retained');
+ for(const p of [...qa.graph.batch.authority.prerequisitePins,...qa.graph.batch.authority.supportPins]){const d=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.'+p.name+'('));assert.ok(d,p.signature);assert.equal(ownInstallationFunctionPin(d).signature,p.signature);assert.equal(ownerDecisionQaHash(body(d)),p.sha256);}
+ assert.equal(qa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.tenant_iam_reviewed_operational_pair_v1(')).length,1);
+ assert.doesNotMatch(qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.tenant_iam_reviewed_operational_pair_v1(')),/employee\.catalog\.approve/);
  assert.equal(qa.definitions.filter(d=>/FUNCTION public\.own_novelty_/.test(d)).length,16);
  assert.equal(qa.definitions.filter(d=>/FUNCTION public\.grh_final_source_/.test(d)).length,9);
 });

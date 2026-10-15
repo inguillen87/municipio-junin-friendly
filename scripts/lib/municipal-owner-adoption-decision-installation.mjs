@@ -11,7 +11,7 @@ export const OWNER_ADOPTION_DECISION_SQL='scripts/migrations/185-municipal-owner
 export const OWNER_ADOPTION_DECISION_SOURCE_PINS=Object.freeze({
  'scripts/lib/installation-prior-metadata.mjs':'b86d85a76a3c61bf963f61b9a991df65b1caec6056a74fe0c7396db4e808f8c9',
  [OWNER_ADOPTION_DECISION_SQL]:'d224acd070abc1a0b4e0a813cb75a67e910a8045eda3b7cb339a8302b55eb7c3',
- 'scripts/lib/municipal-owner-adoption-authority-installation.mjs':'536b681a677d583b9783a9a1b49b9f3f8a78f4cf25b8a8a788aea792adb507d9',
+ 'scripts/lib/municipal-owner-adoption-authority-installation.mjs':'ee0bcb9e151a01b4b582c970f76662f6664e61ab1be2fcd7569cc79f75ebe231',
  'scripts/lib/own-payroll-period-context-installation.mjs':'d7f3194379165102f3e1432b09700e5387d3102cb5a3d2d6a42ad30b4158546d',
  'scripts/lib/operational-contract-adoption-installation.mjs':'34d02464f43eb2cd3964ab073e080f9ff843d2b21c225b76e1e20ea0a09f6234',
  'scripts/lib/native-leave-installation.mjs':'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',

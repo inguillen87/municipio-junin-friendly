@@ -2,10 +2,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
-import {buildOwnerAuthorityQa,ownerAuthorityQaOptions,ownerAuthorityQaCases,assertOwnerAuthoritySqlDestination,ownerAuthorityQaSourceClosure,assertOwnerAuthorityQaSourceBookend} from '../scripts/verify-municipal-owner-adoption-authority.mjs';
+import {buildOwnerAuthorityQa,ownerAuthorityQaOptions,ownerAuthorityQaCases,ownerAuthorityQaPrerequisiteCases,ownerAuthorityQaOperationalSodCases,assertOwnerAuthoritySqlDestination,ownerAuthorityQaSourceClosure,assertOwnerAuthorityQaSourceBookend} from '../scripts/verify-municipal-owner-adoption-authority.mjs';
 import {finalReviewAdmissionQaCleanup} from '../scripts/lib/final-grh-source-review-admission-qa.mjs';
 const sourceCommit='a42be22e543a6aa49439d9f982e7038e6c72a921',schema='mc_qa_fixed_092_'+'1'.repeat(32),read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),fixture=()=>buildOwnerAuthorityQa({major:17,sourceCommit,schema,read});
 const hash=s=>createHash('sha256').update(s).digest('hex');
+
+test('foundation uses only the current published session and SoD, with exact private dependency ACL and relocated body hashes',()=>{
+ const qa=fixture(),body=d=>/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(d)[2];
+ assert.equal(hash(body(qa.originals[2])),'bf2c0d9114c1c3f66636ba8d89f49a96133c9f4addcb49cee32cd5d17cc0e0bc');
+ assert.equal(hash(body(qa.originals[4])),'64fa3435a21de7151ee5c6c71ada0e78afcc088621601a7f9e6a7083a1de148c');assert.equal(qa.supportDefinitions.length,2);
+ for(const d of qa.supportDefinitions){assert.ok(qa.seed.includes(qa.relocate(d)));assert.equal(qa.hashes[hash(body(d))],hash(body(qa.relocate(d))));}
+ for(const p of qa.batch.supportPins){const signature=p.signature.replace('public.',schema+'.');assert.ok(qa.seed.includes('REVOKE ALL ON FUNCTION '+signature+' FROM PUBLIC,municontrol_actions_runtime_app'));assert.ok(!qa.seed.includes('GRANT EXECUTE ON FUNCTION '+signature));}
+ const cases=ownerAuthorityQaPrerequisiteCases(qa);assert.deepEqual(cases.map(c=>c[0]),['obsoleteSession007','obsoleteSoD004','alteredPublishedSoD','privateReviewedPairAclChanged','privateNativeAccountConfigChanged']);
+ assert.equal(hash(body(cases[0][1])),hash(body(qa.relocate(qa.obsoleteDefinitions[0]))));assert.equal(hash(body(cases[1][1])),hash(body(qa.relocate(qa.obsoleteDefinitions[1]))));assert.notEqual(hash(body(cases[2][1])),hash(body(qa.relocate(qa.originals[4]))));
+ for(const[,sql]of cases.slice(0,3))assert.ok(sql.startsWith('CREATE OR REPLACE FUNCTION '+schema+'.'));
+ for(const[,,error]of cases)assert.equal(error,'OWNER_AUTHORITY184_PREREQUISITE_CHANGED');
+ assert.equal(cases[3][1],'GRANT EXECUTE ON FUNCTION '+schema+'.tenant_iam_reviewed_operational_pair_v1(text,text,text) TO municontrol_actions_runtime_app');assert.equal(cases[4][1],'ALTER FUNCTION '+schema+'.native_account_contract_v1(uuid,uuid,uuid,boolean) SET search_path=public,pg_temp');
+ const runner=read('scripts/verify-municipal-owner-adoption-authority.mjs');assert.match(runner,/ownerAuthorityQaPrerequisiteCases\(qa\)[\s\S]*assert\.deepEqual\(snapshot\(\),fixtureBaseline\)/);
+});
+
+test('published SoD cases keep the pre107 catalog independence and reject conflicts outside exact reviewed pairs',()=>{
+ const qa=fixture(),cases=ownerAuthorityQaOperationalSodCases(qa);assert.deepEqual(cases.map(c=>[c[0],c[2]]),[['reviewedOperationalPair',null],['catalogPairStillIndependent','TENANT_IAM_SOD_CONFLICT'],['publishedIntegralPair',null],['unreviewedIntegralPair','TENANT_IAM_SOD_CONFLICT']]);
+ for(const[,sql]of cases){assert.ok(sql.some(s=>s.includes('SELECT '+schema+'.tenant_iam_assert_no_sod_conflict(')));assert.ok(sql.some(s=>s.includes('INSERT INTO iam_capability_conflict')));assert.ok(!sql.join('\n').includes('GRANT'));}
+ assert.match(qa.originals[4],/tenant_iam_effective_capabilities\(p_membership_id\)/);assert.match(qa.originals[4],/PLATFORM_OWNER_OPERATIVO_INTEGRAL/);assert.match(qa.originals[4],/NOMINA_GESTION_INTEGRAL/);
+ const runner=read('scripts/verify-municipal-owner-adoption-authority.mjs');assert.match(runner,/ownerAuthorityQaOperationalSodCases\(qa\)[\s\S]*end:'ROLLBACK'[\s\S]*assert\.deepEqual\(snapshot\(\),authorityBaseline\)/);
+});
 test('QA imports and pure fixture construction use exact canonical authority sources rather than mock authorization',()=>{const qa=fixture();assert.equal(qa.originals.length,7);assert.equal(hash(/AS \$\$([\s\S]*)\$\$/.exec(qa.originals[1])[1]),'0511c6a642c569791839195fb36b61ff5aa22acf0a360980e7ad45458c28cf7c');assert.match(qa.seed,/RETURNS TABLE \(capability_key varchar\(96\)\)/);assert.match(qa.seed,/JOIN tenant_membership_capability_override override_row/);assert.match(qa.seed,/TENANT_IAM_SOD_CONFLICT/);assert.match(qa.seed,/FOR SHARE NOWAIT/);assert.doesNotMatch(qa.seed,/SELECT NULL::void|CREATE TABLE capabilities\(|RETURNS TABLE\(capability_key text\)/);});
 test('relocation preserves every exact body guard, TABLE metadata, strict phase and source declaration',()=>{const qa=fixture();for(const phase of ['rehearsal','installation','repetition','verification'])assert.equal(qa.local[phase].length,qa.batch[phase].length);assert.match(qa.local.installation.join('\n'),/p\.proargmodes IS DISTINCT FROM ARRAY\['i','t'\]/);assert.match(qa.local.installation.join('\n'),/lock_timeout=2s/);assert.match(qa.local.repetition[1],/mode'\)<>'verify'/);assert.match(qa.local.installation[1],/mode'\)<>'install'/);for(const original of qa.originals)assert.ok(qa.local.installation.join('\n').includes(qa.hashes[hash(/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(original)[2])]))});
 test('repeat choose audits the same QA namespace inside quoted dynamic SQL as direct metadata checks',()=>{const qa=fixture();for(const phase of ['rehearsal','installation','repetition','verification','rollback','rollbackVerification'])for(const sql of qa.local[phase])assert.doesNotMatch(sql,/\b[ns]\.nspname=('+)public\1/);assert.ok(qa.local.repetition[2].includes("n.nspname=''"+schema+"''"));assert.ok(qa.local.verification[1].includes("n.nspname='"+schema+"'"));});
