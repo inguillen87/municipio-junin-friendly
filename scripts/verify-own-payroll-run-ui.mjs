@@ -98,7 +98,7 @@ try{
   async function calculate(){await select('confirm').check();await select('send').click();await select('result').waitFor({state:'visible',timeout:20000});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');}
   await select('prerequisites').locator('summary').click();
   const guidanceLinks=await select('prerequisites').locator('a').evaluateAll(links=>links.map(a=>a.getAttribute('href')));
-  assert.deepEqual(guidanceLinks,['/personal#legajos','/nomina#parametros','/nomina#reglas']);checks++;
+  assert.deepEqual(guidanceLinks,['/personal?adopcion=pendientes#legajos','/nomina#parametros','/nomina#reglas']);checks++;
   check(posts===0,'first-calculation guidance does not adopt employees, approve parameters or calculate');
   await prepare('contracts');directoryOrigin='GRH';await select('picker').click();
   const picker=page.locator('#ownRunPicker'),adoptionHelp=picker.locator('[data-picker-adoption-help]'),adoptionLink=adoptionHelp.getByRole('link',{name:'Revisar incorporación del padrón'});
