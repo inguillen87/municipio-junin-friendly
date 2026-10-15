@@ -79,6 +79,8 @@ export async function revalidateDocumentCollection(value,{request,signal}={}){
 export function collectionErrorMessage(error){
  if([401,403].includes(error?.status))return 'La sesión ya no autoriza la descarga. Se retiró el paquete completo.';
  if(['AbortError','TimeoutError'].includes(error?.name))return 'Preparación interrumpida. No se descargaron documentos parciales; podés reintentar la selección.';
+ if(error?.status===409&&error?.code==='ACTION_SESSION_BUSY')return 'Otra consulta mantiene ocupada la sesión. Volvé a preparar el conjunto en unos segundos; no se descargaron documentos parciales.';
+ if(['PAYROLL_BATCH_SELECTION_CHANGED','PAYROLL_BATCH_PAGE_CHANGED','GRH_SOURCE_CHANGED'].includes(error?.code))return 'Cambió la selección o su fuente. Aplicá nuevamente los rangos antes de generar; no se descargaron documentos parciales.';
  const messages={COLLECTION_EMPTY:'No hay legajos en la selección.',COLLECTION_IDENTITY_REVIEW:'Hay vínculos sin resolver. Revisalos o acotá el rango; no se omitirán agentes para generar un PDF parcial.',COLLECTION_LIMIT:'El conjunto supera el límite de esta preparación. Acotá el rango de legajos y reintentá.',COLLECTION_DETAIL_MISSING:'Un documento no tiene detalle disponible. No se generó un paquete parcial.',COLLECTION_SELECTION_CHANGED:'Cambió la selección o el padrón. Aplicá nuevamente los rangos antes de generar.',COLLECTION_DETAIL_CHANGED:'Cambió un documento o su fuente durante la revisión. No se descargó el paquete.',COLLECTION_TEXT_UNSUPPORTED:'Un texto del origen no se puede representar fielmente en este PDF. No se reemplazó ni omitió.'};
  return messages[error?.code]??'No se pudo preparar el conjunto completo. No se descargaron archivos parciales.';
 }

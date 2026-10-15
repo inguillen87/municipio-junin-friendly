@@ -11,6 +11,8 @@ on:
       - 'lib/internal-payroll-document-batch.js'
       - 'assets/payroll-document-batch*'
       - 'assets/payroll-document-collection.js'
+      - 'tests/payroll-document-read-retry.test.js'
+      - 'scripts/verify-document-session-contention-browser.mjs'
       - 'assets/payroll-document-export-panel.js'
       - 'assets/payroll-document-payment-date.js'
       - 'assets/payroll-document-payment-field.js'
@@ -94,6 +96,8 @@ on:
     paths:
       - 'assets/payroll-document-batch*'
       - 'assets/payroll-document-collection.js'
+      - 'tests/payroll-document-read-retry.test.js'
+      - 'scripts/verify-document-session-contention-browser.mjs'
       - 'assets/payroll-document-export-panel.js'
       - 'assets/payroll-document-payment-date.js'
       - 'assets/payroll-document-payment-field.js'
@@ -174,6 +178,8 @@ jobs:
         run: node scripts/verify-payroll-document-filters-browser.mjs
       - name: Complete PDF download with local synthetic readers
         run: node scripts/verify-payroll-document-download-local.mjs
+      - name: Complete PDF under temporary session contention
+        run: node scripts/verify-document-session-contention-browser.mjs --output=verification/document-session-contention --browser=chromium
       - name: Declared document dates with synthetic readers
         run: node scripts/verify-document-payment-date-browser.mjs
       - name: Verify published document filters
@@ -200,6 +206,7 @@ jobs:
             verification/payroll-document-selection/
             verification/document-filters/
             verification/document-download/
+            verification/document-session-contention/
             verification/document-payment-date/
             verification/payroll-selection-qa.log
             verification/absence-window-qa.log
