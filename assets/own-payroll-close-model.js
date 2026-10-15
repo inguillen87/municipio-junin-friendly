@@ -3,7 +3,7 @@ import {ownRunCapture} from './own-payroll-run-model.js';
 import {ownPayrollEmployeeNumber,OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_TYPES,ownRunWorkspaceResult,verifiedWorkspaceCapture} from './own-payroll-run-workspace-model.js';
 import {decimal,rational,exactAdd,exactSubtract,exactCompare,quantize,payrollRequire as require} from './own-payroll-exact.js';
-import {ownRunJurisdictions,ownClosedJurisdiction} from './own-payroll-jurisdiction-model.js';
+import {ownRunJurisdictions,ownClosedJurisdiction,ownJurisdictionMapForCapture} from './own-payroll-jurisdiction-model.js';
 
 export const OWN_CLOSE_READ=Object.freeze([...OWN_RUN_READ]);
 export const OWN_CLOSE_NOMINAL=Object.freeze([...OWN_RUN_NOMINAL,'payroll.calculation.approve']);
@@ -69,7 +69,7 @@ export function selectedOwnCloseRows(detail,selection){
 // Mechanical exact aggregation of saved amounts; never evaluates a salary rule.
 export function ownCloseSnapshot(detail,selection){
  const chosen=ownCloseSelection(selection),rows=selectedOwnCloseRows(detail,chosen),captures=new Map(detail.captures.map(c=>[c.id,c])),jurisdictions=new Map();
- if(detail.version==='own-close-detail.v2')for(const c of detail.captures){const value=ownRunJurisdictions(c);jurisdictions.set(c.id,value===null?null:new Map(value.rows.map(r=>[r.contractId,{code:r.jurisdictionCode,basis:'captured_own_registration',sourceSha256:c.payloadSha256}])));}
+ if(detail.version==='own-close-detail.v2')for(const c of detail.captures)jurisdictions.set(c.id,ownJurisdictionMapForCapture(c));
  const totals=Object.fromEntries(OWN_CLOSE_TOTAL_KEYS.map(k=>[k,rational(0n)]));let precision=0;const employees=[],concepts=[],namespaced=rows.some(row=>captures.get(row.runId).saved.input.version==='own-payroll-input.v2');
  for(const row of rows){
   const capture=captures.get(row.runId),saved=capture.saved,employeeTotal=saved.result.employeeTotals.find(e=>e.contractId===row.contractId);

@@ -1,0 +1,122 @@
+name: Own period classification
+on:
+  pull_request:
+    paths:
+      - 'api/internal-own-period-classification.js'
+      - 'lib/internal-own-period-classification.js'
+      - 'assets/own-period-classification*'
+      - 'assets/own-payroll-period-classification.js'
+      - 'assets/own-payroll-jurisdiction-model.js'
+      - 'assets/own-payroll-close-model.js'
+      - 'assets/own-payroll-receipt-planilla-model.js'
+      - 'assets/own-bank-output-model.js'
+      - 'assets/payroll-navigation.js'
+      - 'scripts/migrations/177-own-period-classification.sql'
+      - 'scripts/verify-own-period-classification.mjs'
+      - 'scripts/lib/own-period-classification*'
+      - 'scripts/lib/own-receipt-recovery-browser.mjs'
+      - 'assets/own-payroll-receipt-panel.*'
+      - 'tests/own-payroll-receipt-panel.test.js'
+      - 'scripts/lib/own-payroll-administrative-operator*'
+      - 'scripts/lib/own-contract-salary-conditions*'
+      - 'scripts/lib/own-contract-working-time*'
+      - 'scripts/lib/own-payroll-durable-qa.mjs'
+      - 'scripts/lib/noelia-circuit-runtime.mjs'
+      - 'scripts/build-friendly.mjs'
+      - 'tests/own-period-classification*'
+      - 'tests/own-payroll-period-classification*'
+      - 'tests/own-payroll-jurisdiction.test.js'
+      - 'tests/own-bank-output.test.js'
+      - 'tests/own-payroll-receipt-planilla.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.vercelignore'
+      - '.github/workflows/own-period-classification.yml'
+  push:
+    branches: ['master']
+    paths:
+      - 'api/internal-own-period-classification.js'
+      - 'lib/internal-own-period-classification.js'
+      - 'assets/own-period-classification*'
+      - 'assets/own-payroll-period-classification.js'
+      - 'assets/own-payroll-jurisdiction-model.js'
+      - 'assets/own-payroll-close-model.js'
+      - 'assets/own-payroll-receipt-planilla-model.js'
+      - 'assets/own-bank-output-model.js'
+      - 'assets/payroll-navigation.js'
+      - 'scripts/migrations/177-own-period-classification.sql'
+      - 'scripts/verify-own-period-classification.mjs'
+      - 'scripts/lib/own-period-classification*'
+      - 'scripts/lib/own-receipt-recovery-browser.mjs'
+      - 'assets/own-payroll-receipt-panel.*'
+      - 'tests/own-payroll-receipt-panel.test.js'
+      - 'scripts/lib/own-payroll-administrative-operator*'
+      - 'scripts/lib/own-contract-salary-conditions*'
+      - 'scripts/lib/own-contract-working-time*'
+      - 'scripts/lib/own-payroll-durable-qa.mjs'
+      - 'scripts/lib/noelia-circuit-runtime.mjs'
+      - 'scripts/build-friendly.mjs'
+      - 'tests/own-period-classification*'
+      - 'tests/own-payroll-period-classification*'
+      - 'tests/own-payroll-jurisdiction.test.js'
+      - 'tests/own-bank-output.test.js'
+      - 'tests/own-payroll-receipt-planilla.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.vercelignore'
+      - '.github/workflows/own-period-classification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: period-classification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sql-browser:
+    name: Period classification / PG${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare disposable synthetic PostgreSQL
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Approved classification, capture, close and built UI on synthetic loopback
+        run: node scripts/verify-own-period-classification.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --output=verification/period-classification-pg${{ matrix.pg }} --browser=chromium
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: period-classification-pg${{ matrix.pg }}-${{ github.sha }}
+          path: |
+            verification/period-classification-pg${{ matrix.pg }}/result.json
+            verification/period-classification-pg${{ matrix.pg }}/*proof.json
+            verification/period-classification-pg${{ matrix.pg }}/partial-checks.json
+            verification/period-classification-pg${{ matrix.pg }}/failure.txt
+            verification/period-classification-pg${{ matrix.pg }}/*failure.json
+            verification/period-classification-pg${{ matrix.pg }}/*failure.png
+            verification/period-classification-pg${{ matrix.pg }}/period-classification-mobile-*.png
+            verification/period-classification-pg${{ matrix.pg }}/period-classification-desktop.png
+            verification/period-classification-pg${{ matrix.pg }}/receipt-recovery-*.png
+          retention-days: 5

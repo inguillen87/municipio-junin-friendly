@@ -366,3 +366,6 @@ local-agents/
 
 # Reviewed administrative-operator code required by deployment build tests.
 !scripts/migrations/176-own-payroll-administrative-operator.sql
+
+# Reviewed period classification source required by deployment build tests.
+!scripts/migrations/177-own-period-classification.sql

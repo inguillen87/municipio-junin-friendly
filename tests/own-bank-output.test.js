@@ -4,6 +4,13 @@ import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {prepareBankOutput,bankOutputCents,bankOutputProfile,createBankOutputTxt,createBankOutputCsv,bankOutputPage,sameBankOutput} from '../assets/own-bank-output-model.js';
 const prepare=f=>prepareBankOutput(f.batch,f.accounts,f.profile,f.closes),decode=bytes=>new TextDecoder().decode(bytes);
 
+test('an approved period jurisdiction preserves the same exact complete bank file without requiring current registration classification',async()=>{
+ const original=bankOutputFixture(3),expected=await prepare(original),f=structuredClone(original);
+ for(const employee of f.closes[0].snapshot.employees)employee.jurisdiction.basis='captured_own_period_classification';
+ f.closes[0].snapshotSha256=ownRunHash(f.closes[0].snapshot);f.batch.snapshot.sources[0].snapshotSha256=f.closes[0].snapshotSha256;f.batch.snapshotSha256=ownRunHash(f.batch.snapshot);
+ const actual=await prepare(f);assert.equal(actual.ready,true);assert.equal(actual.totalCents,expected.totalCents);assert.deepEqual(createBankOutputTxt(actual).bytes,createBankOutputTxt(expected).bytes);assert.equal(actual.paymentExecuted,false);
+});
+
 test('complete approved native source: all pages and search preserve every literal payment',async()=>{
  const f=bankOutputFixture(35),r=await prepare(f),page=bankOutputPage(r,'sintético 3',2);assert.equal(r.ready,true);assert.equal(r.recordCount,35);assert.equal(page.total,35);assert.ok(page.filtered<35);
  const lines=decode(createBankOutputTxt(r).bytes).split('\r\n');assert.equal(lines.length,38);assert.equal(lines.at(-1),'');assert.ok(lines.slice(0,-1).every(l=>l.length===200));
