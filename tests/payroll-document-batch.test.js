@@ -39,11 +39,35 @@ test('same names and leading-zero references never merge contracts',async()=>{
  const f=batchFixture(2);f.records[0].number='1';f.roster.rows[0].legajo='1';f.records[1].number='01';f.roster.rows[1].legajo='01';f.records.forEach(r=>r.assignments[0].name='Same synthetic name');
  const d=(await batchPreview({fromNumber:'1',toNumber:'1'},f)).payload.data;assert.equal(d.counts.selected,2);assert.deepEqual(d.rows.map(r=>r.number),['01','1']);assert.notEqual(d.rows[0].contractId,d.rows[1].contractId);
 });
-test('SQL is explicitly tenant, company, database, source-binding and literal-legajo scoped',async()=>{
- const f=batchFixture();await batchPreview({},f);assert.equal(f.calls.length,2);
+test('metadata SQL is scoped and directory comes only from the authenticated facade',async()=>{
+ const f=batchFixture();await batchPreview({},f);assert.equal(f.calls.length,1);
  for(const c of f.calls){assert.match(c.text,/b\.tenant_id/);assert.match(c.text,/source_database/);assert.match(c.text,/source_company_id/);assert.match(c.text,/verified IS TRUE/);assert.deepEqual(c.values.slice(0,4),[BATCH_DATASET,batchBinding.tenantId,batchBinding.database,batchBinding.companyId]);assert.doesNotMatch(c.text,/\b(?:UPDATE|DELETE|INSERT|ALTER|GRANT)\b/);}
- assert.match(f.calls[1].text,/c\.legacy_legajo=numbers\.number/);assert.match(f.calls[1].text,/b\.id=\(SELECT source_binding_id/);
+ assert.match(f.calls[0].text,/d\.source_binding_id::text AS "bindingId"/);assert.equal(f.rosterReads,2);
+ assert.doesNotMatch(f.calls[0].text,/payroll-batch:directory|FROM employment_contract/);
  assert.deepEqual(new Set(capabilitiesForInternalDataResource('payrolldocumentbatch')),new Set(['workforce.employee.read','payroll.read']));
+});
+
+test('multi-dataset synthetic catalogues seal each selected dataset, period, type and closure independently',async()=>{
+ const seenVersions=new Set();
+ for(const [index,date,type,closureStatus]of [[1,'2026-08-31','M','closed'],[2,'2026-08-31','P','open'],[3,'2025-12-31','M','unknown'],[4,'2026-08-31','M','unknown']]){
+  const datasetId='55555555-5555-4555-8555-'+String(index).padStart(12,'0'),f=batchFixture(),responses=[],read=f.readRoster;
+  Object.assign(f.metadata,{id:datasetId,date,period:Number(date.slice(0,4)),month:Number(date.slice(5,7)),type,closureStatus});Object.assign(f.roster,{datasetId,date,type,closureStatus});
+  f.readRoster=async()=>{const result=await read();responses.push(structuredClone(result));return result;};
+  const result=await batchPreview({datasetId},f);assert.equal(result.status,200);
+  assert.equal(result.payload.data.dataset.id,datasetId);assert.equal(result.payload.data.dataset.date,date);assert.equal(result.payload.data.dataset.type,type);assert.equal(result.payload.data.dataset.closureStatus,closureStatus);
+  assert.deepEqual(result.payload.data.counts,{dataset:62,selected:62,eligible:59,review:3,unclassifiedSector:3});assert.equal(f.calls.length,1);assert.equal(f.rosterReads,2);
+  for(const response of responses){assert.equal(response.documentaryDirectory.scope.datasetId,datasetId);assert.deepEqual(response.documentaryDirectory.records,f.records);}
+  assert.equal(responses[0].documentaryDirectory.readVersion,responses[1].documentaryDirectory.readVersion);seenVersions.add(responses[0].documentaryDirectory.readVersion);
+ }
+ assert.equal(seenVersions.size,4,'Each different dataset must have its own private directory content hash');
+});
+
+test('a changed dataset cannot reuse the old private directory hash or mismatched public roster',async()=>{
+ const datasetId='55555555-5555-4555-8555-000000000002';
+ const wrongRoster=batchFixture();wrongRoster.metadata.id=datasetId;await assert.rejects(batchPreview({datasetId},wrongRoster),{code:'PAYROLL_BATCH_ROSTER_DRIFT'});
+ const f=batchFixture(),original=await f.readRoster(),read=f.readRoster;f.metadata.id=datasetId;f.roster.datasetId=datasetId;
+ f.readRoster=async()=>{const response=await read();response.documentaryDirectory.readVersion=original.documentaryDirectory.readVersion;return response;};
+ await assert.rejects(batchPreview({datasetId},f),{code:'PAYROLL_BATCH_DIRECTORY_DRIFT'});
 });
 for(const mutate of [d=>d.signatureApplied=true,d=>d.officialReceipt=true,d=>d.paymentDate='2026-08-31',d=>d.departmentBasis='historical',d=>d.counts.selected++,d=>d.groups[0].selected++,d=>d.rows[0].contractId=null,d=>d.rows[0].bankAccount='PRIVATE_ACCOUNT',d=>d.rows[0].number='9000'])test('inconsistent selection DTO is not rendered',async()=>{
  const d=(await batchPreview({fromNumber:'1',toNumber:'25'})).payload.data;mutate(d);assert.throws(()=>verifyBatchPreview(d));

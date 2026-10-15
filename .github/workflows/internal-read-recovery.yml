@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           mkdir -p verification
           npm run build 2>&1 | tee verification/internal-read-recovery-build.log
-      - name: Isolated PostgreSQL selection scope
+      - name: Isolated PostgreSQL metadata scope and authenticated selection projection
         run: |
           set -euo pipefail
           node scripts/verify-payroll-selection-postgres.mjs --write-sql=verification/payroll-selection-qa.sql
