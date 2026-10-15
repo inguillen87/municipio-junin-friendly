@@ -11,6 +11,12 @@ export function municipalFootprintCatalog(profileId){
   const parent=tables.find(t=>t.name===p.parent);parent.columns=[...new Set([...parent.columns,...p.parentColumns])];
   return {child:p.child,parent:p.parent,name:'synthetic_scope_fk_'+index,child_schema:'public',parent_schema:'public',validated:true,child_columns:[...p.childColumns],parent_columns:[...p.parentColumns]};
  });
+ if(profile.bindingReferences){
+  tables.push({name:'platform_tenant_source_binding',kind:'r',columns:['id','tenant_id']});
+  for(const child of profile.bindingReferences)foreignKeys.push({child,parent:'platform_tenant_source_binding',
+   name:child+'_binding_fk',child_schema:'public',parent_schema:'public',validated:true,
+   child_columns:['tenant_id','source_binding_id'],parent_columns:['tenant_id','id']});
+ }
  return {tables,foreignKeys};
 }
 export function municipalFootprintResults(catalog=municipalFootprintCatalog(),target=municipalFootprintTarget,profileId){

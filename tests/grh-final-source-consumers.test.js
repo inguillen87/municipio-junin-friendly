@@ -2,7 +2,37 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {bindFinalSourceConsumersWithinTransaction,FINAL_CONSUMER_CONTEXT_SQL,FINAL_CONSUMER_ROWS_SQL} from '../scripts/lib/grh-final-source-consumers.mjs';
 import {SUCCESSOR_ENTITIES} from '../scripts/lib/grh-successor-package.mjs';
 import {finalConsumerFixture} from './fixtures/final-source-consumer-synthetic.js';
+import {getGrhSourceProfile} from '../scripts/lib/grh-source-profile.mjs';
 const consume=async(reader,e)=>{const rows=[];for await(const r of reader.readRows(e,{pageSize:2}))rows.push(r);return rows;};
+const october14=getGrhSourceProfile('grh-junin-2026-10-14',{allowCandidateRead:true});
+const octoberFixture=edit=>finalConsumerFixture({editContext:(r,n)=>{
+ Object.assign(r,{source_profile:october14.id,source_sha256:october14.source.sha256.toLowerCase(),source_cutoff:october14.source.cutoff});edit?.(r,n);
+}});
+
+test('a new sealed revision requires its explicit registered profile; the old reader default stays unchanged',async()=>{
+ const old=finalConsumerFixture(),legacy=await bindFinalSourceConsumersWithinTransaction(old.input);assert.equal(legacy.context.source_profile,'grh-junin-2026-10-01');
+ const implicit=octoberFixture();await assert.rejects(bindFinalSourceConsumersWithinTransaction(implicit.input),{code:'GRH_FINAL_CONSUMER_CONTEXT'});
+ for(const sourceProfileId of['latest',null,'grh-junin-2026-09-22','grh-junin-2026-10-14 ']){
+  const f=octoberFixture();await assert.rejects(bindFinalSourceConsumersWithinTransaction({...f.input,sourceProfileId}),{code:'GRH_FINAL_CONSUMER_ARGUMENT'});assert.equal(f.calls.length,0);
+ }
+});
+test('explicit October14 certifies all ten original streams without selecting a source or coercing numeric JSON',async()=>{
+ const f=octoberFixture(),reader=await bindFinalSourceConsumersWithinTransaction({...f.input,sourceProfileId:october14.id});
+ for(const entity of SUCCESSOR_ENTITIES){const rows=await consume(reader,entity);assert.equal(rows.length,f.data[entity].length);assert.deepEqual(rows.map(r=>r.recordJson),f.data[entity].map(r=>r.record_json));}
+ const proof=await reader.assertComplete();assert.equal(proof.entities,10);assert.equal(proof.sourceSelected,false);assert.equal(proof.municipalWrites,0);assert.equal(f.cursors.size,0);
+ assert.equal(reader.context.source_sha256,october14.source.sha256.toLowerCase());assert.equal(reader.context.source_cutoff,october14.source.cutoff);
+});
+test('October14 cannot borrow the previous source hash, cutoff or profile',async()=>{
+ const before=getGrhSourceProfile('grh-junin-2026-10-01',{allowCandidateRead:true});
+ for(const[field,value]of[['source_profile',before.id],['source_sha256',before.source.sha256.toLowerCase()],['source_cutoff',before.source.cutoff]]){
+  const f=octoberFixture(r=>{r[field]=value;});await assert.rejects(bindFinalSourceConsumersWithinTransaction({...f.input,sourceProfileId:october14.id}),{code:'GRH_FINAL_CONSUMER_CONTEXT'});
+  assert.equal(f.calls.length,1);
+ }
+});
+test('an explicit newer source cannot change after the initial read or hide a same-count changed row',async()=>{
+ const f=octoberFixture((r,n)=>{if(n>1)r.source_sha256='a'.repeat(64);}),reader=await bindFinalSourceConsumersWithinTransaction({...f.input,sourceProfileId:october14.id});
+ await assert.rejects(consume(reader,'core/payrollRuns'),{code:'GRH_FINAL_CONSUMER_CONTEXT'});assert.equal(f.cursors.size,0);
+});
 test('all ten consumer sets must be exhausted, including empty sets and more than two pages',async()=>{
  const fixture=finalConsumerFixture(),reader=await bindFinalSourceConsumersWithinTransaction(fixture.input);
  await assert.rejects(reader.assertComplete(),{code:'GRH_FINAL_CONSUMER_INCOMPLETE'});

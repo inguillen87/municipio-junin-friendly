@@ -6,6 +6,7 @@ import {stableJson} from './canonical-import.mjs';
 import {readSourceCapacity} from './grh-source-capacity.mjs';
 import {GRH_VERSION_STORAGE_BUDGET} from './grh-core-source-version.mjs';
 import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './grh-municipal-footprint.mjs';
+import {FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE} from './grh-municipal-continuity-schema.mjs';
 import {verifyCoreManifestProvenance,coreManifestProvenanceMatches} from './grh-core-manifest-provenance.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
@@ -14,6 +15,11 @@ export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-g
 // Admission to SQL is separately constrained by migration 183; this list never
 // selects the effective source or grants employee adoption authority.
 export const FINAL_SOURCE_REVISION_PROFILES=Object.freeze(['grh-junin-2026-10-01','grh-junin-2026-10-14']);
+export const FINAL_SOURCE_CONSERVATION_PROFILES=Object.freeze([FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE]);
+export function validateFinalSourceConservationProfile(profileId=FINAL_MUNICIPAL_CONTINUITY_PROFILE){
+ if(!FINAL_SOURCE_CONSERVATION_PROFILES.includes(profileId))fail('GRH_FINAL_REVISION_ARGUMENT');
+ return profileId;
+}
 // Neon raised existing Free projects to 1 GiB on 2026-10-02. The live server
 // limit still clamps this ceiling; reserve and per-revision growth stay intact.
 // https://neon.com/blog/neon-free-plan-1-gb-per-project
@@ -48,7 +54,8 @@ export function validateFinalSourceRevisionInput(prepared,targetInput,expectedPa
  return freeze({pack,target});
 }
 export async function prepareFinalSourceRevisionWithinTransaction({client,prepared,target:targetInput,
- expectedPackageSha256,installSchema=false,baselineCoreManifestBytes,signal}={}){
+ expectedPackageSha256,installSchema=false,baselineCoreManifestBytes,signal,conservationProfileId=FINAL_MUNICIPAL_CONTINUITY_PROFILE}={}){
+ const profileId=validateFinalSourceConservationProfile(conservationProfileId);
  const {pack,target}=validateFinalSourceRevisionInput(prepared,targetInput,expectedPackageSha256);
  const manifestProvenance=verifyCoreManifestProvenance(baselineCoreManifestBytes,pack.baseline);
  if(typeof client?.query!=='function'||typeof installSchema!=='boolean')fail('GRH_FINAL_REVISION_ARGUMENT');
@@ -67,7 +74,7 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
   if(!before.baselineCompatible||!before.manifests.curatedExact
    ||(!before.manifests.coreExact&&!coreManifestProvenanceMatches(manifestProvenance,before.manifests.coreStored)))
    fail('GRH_FINAL_REVISION_BASELINE_CHANGED');
-  const municipalBefore=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
+  const municipalBefore=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal,profileId});
   const existing=s.installed?(await query(storedSql,[target.tenantId,target.bindingId,pack.candidate.sourceSha256])).rows:[];
   if(!Array.isArray(existing)||existing.length>1)fail('GRH_FINAL_REVISION_STORED');
   const capacityBefore=await readSourceCapacity({query},FINAL_SOURCE_REVISION_STORAGE_BUDGET,
@@ -130,7 +137,7 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
    if(result.rows?.length!==1||!same(result.rows[0].fingerprint,fingerprints[entity]))fail('GRH_FINAL_REVISION_REPLAY_DRIFT');
   }
   const after=await read();if(!same(preserved(before),preserved(after)))fail('GRH_FINAL_REVISION_PRESERVATION');
-  const municipalAfter=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
+  const municipalAfter=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal,profileId});
   const municipalConservation=compareMunicipalFootprints(municipalBefore,municipalAfter);
   if(!municipalConservation.preserved)fail('GRH_FINAL_REVISION_MUNICIPAL_PRESERVATION');
   const capacityAfter=await readSourceCapacity({query},FINAL_SOURCE_REVISION_STORAGE_BUDGET,0);

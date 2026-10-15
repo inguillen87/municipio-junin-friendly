@@ -5,7 +5,7 @@ import {stableJson} from './canonical-import.mjs';
 import {SUCCESSOR_ENTITIES} from './grh-successor-package.mjs';
 import {validateSuccessorTarget} from './grh-successor-operational-read.mjs';
 import {getGrhSourceProfile} from './grh-source-profile.mjs';
-const sourceProfile=getGrhSourceProfile('grh-junin-2026-10-01',{allowCandidateRead:true});
+const sourceProfileIds=Object.freeze(['grh-junin-2026-10-01','grh-junin-2026-10-14']);
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
@@ -53,7 +53,9 @@ export const FINAL_CONSUMER_FINGERPRINT_SQL='/* final-consumer:fingerprint */ SE
  * caller-owned transaction. The binding token excludes transport/transaction IDs.
  */
 export async function bindFinalSourceConsumersWithinTransaction({client,target:input,revisionId,
- expectedPackageSha256,signal}={}){
+ expectedPackageSha256,sourceProfileId='grh-junin-2026-10-01',signal}={}){
+ if(!sourceProfileIds.includes(sourceProfileId))fail('GRH_FINAL_CONSUMER_ARGUMENT');
+ const sourceProfile=getGrhSourceProfile(sourceProfileId,{allowCandidateRead:true});
  const target=validateSuccessorTarget(input);
  if(typeof client?.query!=='function'||!uuid(revisionId)||!sha(expectedPackageSha256))fail('GRH_FINAL_CONSUMER_ARGUMENT');
  const values=[revisionId,target.tenantId,target.bindingId];
@@ -69,9 +71,9 @@ export async function bindFinalSourceConsumersWithinTransaction({client,target:i
    ||r.parent_core_version_id!==target.coreVersionId||r.parent_curated_version_id!==target.curatedVersionId
    ||r.parent_publication_sha256!==target.publicationSha256||r.source_database!==sourceProfile.source.database
    ||r.verified!==true||r.tenant_data_plane_ready!==true||!/^\d+$/.test(r.source_company_id??'')
-   ||r.source_profile!=='grh-junin-2026-10-01'
-   ||r.source_sha256!=='50a4cc2673be5e275dc5850aa8779f46de82dd81733a87e4b2cfa2aec49e025f'
-   ||r.source_cutoff!=='2026-10-01T15:17:29'
+   ||r.source_profile!==sourceProfile.id
+   ||r.source_sha256!==sourceProfile.source.sha256.toLowerCase()
+   ||r.source_cutoff!==sourceProfile.source.cutoff
    ||r.parent_source_sha256!=='5a604acfe5ea32832b630d8aab29e494038d4c8940b231e283a53d14112665c7'
    ||r.parent_cutoff!=='2026-09-10T15:17:30'||r.package_sha256!==expectedPackageSha256
    ||![r.core_manifest_sha256,r.curated_manifest_sha256].every(sha)
