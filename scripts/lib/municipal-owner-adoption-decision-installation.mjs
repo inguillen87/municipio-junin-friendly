@@ -4,14 +4,14 @@ import{splitPostgresStatements}from'./sql-statements.mjs';import{ownInstallation
 import{pinsCheck,preservationSnapshot}from'./native-leave-installation.mjs';
 import{buildOperationalContractAdoptionInstallation}from'./operational-contract-adoption-installation.mjs';
 import{buildPayrollPeriodContextInstallation}from'./own-payroll-period-context-installation.mjs';
-import{buildMunicipalOwnerAdoptionAuthorityInstallation}from'./municipal-owner-adoption-authority-installation.mjs';
+import{buildMunicipalOwnerAdoptionAuthorityInstallation,ownerAdoptionAuthorityInstallationOptions}from'./municipal-owner-adoption-authority-installation.mjs';
 import{installationPriorMetadataFingerprint}from'./installation-prior-metadata.mjs';
 
 export const OWNER_ADOPTION_DECISION_SQL='scripts/migrations/185-municipal-owner-adoption-decision.sql';
 export const OWNER_ADOPTION_DECISION_SOURCE_PINS=Object.freeze({
  'scripts/lib/installation-prior-metadata.mjs':'b86d85a76a3c61bf963f61b9a991df65b1caec6056a74fe0c7396db4e808f8c9',
  [OWNER_ADOPTION_DECISION_SQL]:'d224acd070abc1a0b4e0a813cb75a67e910a8045eda3b7cb339a8302b55eb7c3',
- 'scripts/lib/municipal-owner-adoption-authority-installation.mjs':'ee0bcb9e151a01b4b582c970f76662f6664e61ab1be2fcd7569cc79f75ebe231',
+ 'scripts/lib/municipal-owner-adoption-authority-installation.mjs':'10f5fb42aef999deebb9d43deb0fcc903cb6913a973a93a9ebad95f4f76eb012',
  'scripts/lib/own-payroll-period-context-installation.mjs':'d7f3194379165102f3e1432b09700e5387d3102cb5a3d2d6a42ad30b4158546d',
  'scripts/lib/operational-contract-adoption-installation.mjs':'34d02464f43eb2cd3964ab073e080f9ff843d2b21c225b76e1e20ea0a09f6234',
  'scripts/lib/native-leave-installation.mjs':'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',
@@ -82,10 +82,10 @@ export function ownerDecision185Snapshot(slot,newPins,changedPins){
 }
 
 export function buildMunicipalOwnerAdoptionDecisionInstallation(options){
- assert.ok(options&&typeof options==='object');assert.deepEqual(Object.keys(options).sort(),['read','sourceCommit']);assert.equal(typeof options.read,'function');assert.equal(options.sourceCommit?.length,40);assert.match(options.sourceCommit,/^[a-f0-9]{40}$/);
+ const{operationalPairBaseline}=ownerAdoptionAuthorityInstallationOptions(options);
  const sourceHashes={},read=file=>{const value=lf(options.read(file));sourceHashes[file]=hash(value);if(OWNER_ADOPTION_DECISION_SOURCE_PINS[file])assert.equal(sourceHashes[file],OWNER_ADOPTION_DECISION_SOURCE_PINS[file],'OWNER_DECISION185_SOURCE_CHANGED:'+file);return value;};
  for(const file of Object.keys(OWNER_ADOPTION_DECISION_SOURCE_PINS))read(file);
- const opts={read,sourceCommit:options.sourceCommit},operational=buildOperationalContractAdoptionInstallation(opts),period=buildPayrollPeriodContextInstallation(opts),authority=buildMunicipalOwnerAdoptionAuthorityInstallation(opts);
+ const opts={read,sourceCommit:options.sourceCommit},operational=buildOperationalContractAdoptionInstallation(opts),period=buildPayrollPeriodContextInstallation(opts),authority=buildMunicipalOwnerAdoptionAuthorityInstallation({...opts,operationalPairBaseline});
  const legacyWriter=find(operational.afterDefinitions,'employment_adoption_decide_v1'),derived=deriveMunicipalOwnerAdoptionDecisionWriter(legacyWriter);
  const source=read(OWNER_ADOPTION_DECISION_SQL),statements=splitPostgresStatements(source).map(clean),sourceDefinitions=statements.filter(s=>/^CREATE FUNCTION public\./.test(s));assert.equal(sourceDefinitions.length,10);
  const definitions=[...sourceDefinitions,derived.sourceRouter,derived.afterRouter,derived.writer],newPins=definitions.map(pin);assert.equal(newPins.length,13);assert.equal(new Set(newPins.map(p=>p.signature)).size,13);assert.equal(newPins.filter(p=>p.runtime).length,3);

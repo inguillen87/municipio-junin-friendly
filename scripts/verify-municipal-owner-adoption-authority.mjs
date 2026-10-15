@@ -7,7 +7,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {spawnSync,execFileSync,spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import {buildMunicipalOwnerAdoptionAuthorityInstallation,assertMunicipalOwnerAdoptionAuthorityDurability,OWNER_ADOPTION_AUTHORITY_SOURCE_PINS} from './lib/municipal-owner-adoption-authority-installation.mjs';
+import {buildMunicipalOwnerAdoptionAuthorityInstallation,assertMunicipalOwnerAdoptionAuthorityDurability,OWNER_ADOPTION_AUTHORITY_SOURCE_PINS,OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES} from './lib/municipal-owner-adoption-authority-installation.mjs';
 import {ADOPTION_ADMINISTRATIVE_CONTEXT} from './lib/adoption-administrative-identity-installation.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 import {ownerAdoptionQaTransport,OWNER_ADOPTION_QA_IDENTITY_SQL,captureOwnerAdoptionQaDestination,assertOwnerAdoptionQaDestination,ownerAdoptionQaDestinationGuard,ownerAdoptionQaCiInitialGuard} from './lib/municipal-owner-adoption-qa-transport.mjs';
@@ -20,7 +20,7 @@ import {ownerAdoptionAuthorityFromDatabase} from '../lib/internal-municipal-owne
 const root=path.resolve(import.meta.dirname,'..'),lf=s=>s.replace(/\r\n?/g,'\n'),read=p=>lf(fs.readFileSync(path.join(root,p),'utf8'));
 const hash=s=>createHash('sha256').update(s).digest('hex'),q=s=>"'"+String(s).replaceAll("'","''")+"'",j=s=>q(JSON.stringify(s))+'::jsonb';
 const schemaPattern=/^mc_qa_fixed_092_[a-f0-9]{32}$/;
-export function ownerAuthorityQaOptions(argv){const args={};for(const arg of argv){const m=/^--(major|output|source-commit|transport)=(.+)$/.exec(arg);assert.ok(m&&!Object.hasOwn(args,m[1]),'OWNER_QA_ARGUMENT_INVALID');args[m[1]]=m[2];}assert.ok(['17','18'].includes(args.major));assert.match(args['source-commit']??'',/^[a-f0-9]{40}$/);assert.match(args.output??'',/^verification[\\/][A-Za-z0-9_.-]+$/);assert.ok(args.transport===undefined||['local','ci'].includes(args.transport),'OWNER_QA_TRANSPORT_REQUIRED');return{major:Number(args.major),sourceCommit:args['source-commit'],output:args.output,transport:args.transport??'local'};}
+export function ownerAuthorityQaOptions(argv){const args={};for(const arg of argv){const m=/^--(major|output|source-commit|transport|operational-pair-baseline)=(.+)$/.exec(arg);assert.ok(m&&!Object.hasOwn(args,m[1]),'OWNER_QA_ARGUMENT_INVALID');args[m[1]]=m[2];}assert.ok(['17','18'].includes(args.major));assert.match(args['source-commit']??'',/^[a-f0-9]{40}$/);assert.match(args.output??'',/^verification[\\/][A-Za-z0-9_.-]+$/);assert.ok(args.transport===undefined||['local','ci'].includes(args.transport),'OWNER_QA_TRANSPORT_REQUIRED');assert.ok(args['operational-pair-baseline']===undefined||OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES.includes(args['operational-pair-baseline']),'OWNER_AUTHORITY184_OPERATIONAL_PAIR_BASELINE_REQUIRED');return{major:Number(args.major),sourceCommit:args['source-commit'],output:args.output,transport:args.transport??'local',...(args['operational-pair-baseline']===undefined?{}:{operationalPairBaseline:args['operational-pair-baseline']})};}
 const sourceFiles=[...Object.keys(OWNER_ADOPTION_AUTHORITY_SOURCE_PINS),'scripts/lib/municipal-owner-adoption-authority-installation.mjs','scripts/migrations/002-canonical-integration.sql','scripts/migrations/132-employment-adoption-preparation.sql','scripts/migrations/133-employment-adoption-application.sql','tests/fixtures/native-employee-installed-067.json','lib/internal-municipal-owner-decision-authority.js','lib/internal-platform-owner-policy.js','lib/internal-native-employees.js','assets/municipal-adoption-owner-decision-model.js','package.json','package-lock.json'];
 const runnerFile='scripts/verify-municipal-owner-adoption-authority.mjs',testFile='tests/municipal-owner-adoption-authority-qa.test.js';
 // The existing Playwright SDK bundles its JavaScript parser. Parse syntax only;
@@ -56,8 +56,9 @@ const definition=(source,name)=>statement(source,new RegExp('CREATE(?: OR REPLAC
 const table=(source,name)=>statement(source,new RegExp('CREATE TABLE(?: IF NOT EXISTS)? (?:public\\.)?'+name+'\\s*\\('));
 const body=definition=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(definition);assert.ok(m);return m[2];};
 
-export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-','')}){
- assert.ok([17,18].includes(major));assert.match(schema,schemaPattern);const batch=buildMunicipalOwnerAdoptionAuthorityInstallation({read:sourceRead,sourceCommit});
+export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),operationalPairBaseline='pre107'}){
+ assert.ok([17,18].includes(major));assert.match(schema,schemaPattern);const batch=buildMunicipalOwnerAdoptionAuthorityInstallation({read:sourceRead,sourceCommit,operationalPairBaseline});
+ const alternateOperationalPairDefinition=buildMunicipalOwnerAdoptionAuthorityInstallation({read:sourceRead,sourceCommit,operationalPairBaseline:operationalPairBaseline==='pre107'?'published107':'pre107'}).supportDefinitions[0];
  const sources=Object.fromEntries(sourceFiles.map(p=>[p,lf(sourceRead(p))]));
  const from=(number,name)=>definition(sources[Object.keys(sources).find(p=>p.startsWith('scripts/migrations/'+number+'-'))],name);
  const originals=[...batch.prerequisiteDefinitions,from('006','tenant_iam_effective_capabilities')],supportDefinitions=batch.supportDefinitions;
@@ -115,16 +116,20 @@ export function buildOwnerAuthorityQa({major,sourceCommit,read:sourceRead=read,s
   "INSERT INTO iam_capability(capability_key,label,description,scope_kind) VALUES('platform.tenants.manage','QA','Ficticio','platform')",
   ...caps.map(c=>`INSERT INTO iam_role_capability VALUES('QA_AUTHORITY_OPERATOR',${q(c)})`),"INSERT INTO iam_role_capability VALUES('PLATFORM_OWNER','platform.tenants.manage')","INSERT INTO data_import_runs VALUES(1)",...fixtureRows,...canonicalFunctions,...acl,
   "CREATE TABLE qa_prior_event(id integer PRIMARY KEY,payload jsonb NOT NULL)","INSERT INTO qa_prior_event VALUES(1,'{\"source\":\"fictional immutable sentinel\"}')","CREATE MATERIALIZED VIEW qa_prior_materialized AS SELECT * FROM qa_prior_event"].join(';\n');
- return{major,schema,ids,actor,foreign,batch,local,originals,supportDefinitions,obsoleteDefinitions,hashes,normalized,relocate,sourceHashes:Object.fromEntries(Object.entries(sources).map(([p,s])=>[p,hash(s)])),seed:'CREATE SCHEMA '+schema+';GRANT USAGE ON SCHEMA '+schema+' TO municontrol_actions_runtime_app;SET LOCAL search_path='+schema+',pg_catalog,public,pg_temp;'+seed};
+ return{major,schema,ids,actor,foreign,batch,local,originals,supportDefinitions,alternateOperationalPairDefinition,obsoleteDefinitions,hashes,normalized,relocate,sourceHashes:Object.fromEntries(Object.entries(sources).map(([p,s])=>[p,hash(s)])),seed:'CREATE SCHEMA '+schema+';GRANT USAGE ON SCHEMA '+schema+' TO municontrol_actions_runtime_app;SET LOCAL search_path='+schema+',pg_catalog,public,pg_temp;'+seed};
 }
 
 export function ownerAuthorityQaPrerequisiteCases(qa){
  const changed=qa.originals[4].replace(body(qa.originals[4]),()=>body(qa.originals[4])+'\n-- deliberately altered QA body\n');
+ const unknownPair=qa.supportDefinitions[0].replace(body(qa.supportDefinitions[0]),()=>body(qa.supportDefinitions[0])+'\n-- deliberately unrecognized QA helper body\n');
  const error='OWNER_AUTHORITY184_PREREQUISITE_CHANGED';
  return[
   ...[['obsoleteSession007',qa.obsoleteDefinitions[0]],['obsoleteSoD004',qa.obsoleteDefinitions[1]],['alteredPublishedSoD',changed]].map(([label,d])=>[label,qa.relocate(d.replace(/^CREATE(?: OR REPLACE)? FUNCTION (?:public\.)?/,'CREATE OR REPLACE FUNCTION public.')),error]),
   ['privateReviewedPairAclChanged',`GRANT EXECUTE ON FUNCTION ${qa.schema}.tenant_iam_reviewed_operational_pair_v1(text,text,text) TO municontrol_actions_runtime_app`,error],
   ['privateNativeAccountConfigChanged',`ALTER FUNCTION ${qa.schema}.native_account_contract_v1(uuid,uuid,uuid,boolean) SET search_path=public,pg_temp`,error],
+  ['differentOperationalPairBaseline',qa.relocate(qa.alternateOperationalPairDefinition.replace(/^CREATE(?: OR REPLACE)? FUNCTION (?:public\.)?/,'CREATE OR REPLACE FUNCTION public.')),error],
+  ['unknownOperationalPairBody',qa.relocate(unknownPair.replace(/^CREATE(?: OR REPLACE)? FUNCTION (?:public\.)?/,'CREATE OR REPLACE FUNCTION public.')),error],
+  ['mixedOperationalPairMetadata',`ALTER FUNCTION ${qa.schema}.tenant_iam_reviewed_operational_pair_v1(text,text,text) SECURITY DEFINER`,error],
  ];
 }
 
@@ -134,7 +139,7 @@ export function ownerAuthorityQaPrerequisiteCases(qa){
 export function ownerAuthorityQaOperationalSodCases(qa){
  return[
   ['reviewedOperationalPair','MUNICIPIO_ADMIN_OPERATIVO','absence.enter','absence.validate',null],
-  ['catalogPairStillIndependent','MUNICIPIO_ADMIN_OPERATIVO','employee.catalog.approve','employee.catalog.propose','TENANT_IAM_SOD_CONFLICT'],
+  [qa.batch.operationalPairBaseline==='published107'?'published107CatalogCapabilityPair':'catalogPairStillIndependent','MUNICIPIO_ADMIN_OPERATIVO','employee.catalog.approve','employee.catalog.propose',qa.batch.operationalPairBaseline==='published107'?null:'TENANT_IAM_SOD_CONFLICT'],
   ['publishedIntegralPair','PLATFORM_OWNER_OPERATIVO_INTEGRAL','payroll.novelty.approve','payroll.novelty.prepare',null],
   ['unreviewedIntegralPair','PLATFORM_OWNER_OPERATIVO_INTEGRAL','employee.record.approve','employee.record.propose','TENANT_IAM_SOD_CONFLICT'],
  ].map(([label,role,left,right,error])=>[label,[
@@ -192,9 +197,9 @@ export function ownerAuthorityQaHolderIdentity(stdout){
 }
 
 export async function verifyMunicipalOwnerAdoptionAuthority(options){
- const{major,output,sourceCommit,transport}=ownerAuthorityQaOptions(['--major='+options.major,'--output='+options.output,'--source-commit='+options.sourceCommit,...(options.transport===undefined?[]:['--transport='+options.transport])]);
+ const{major,output,sourceCommit,transport,operationalPairBaseline='pre107'}=ownerAuthorityQaOptions(['--major='+options.major,'--output='+options.output,'--source-commit='+options.sourceCommit,...(options.transport===undefined?[]:['--transport='+options.transport]),...(options.operationalPairBaseline===undefined?[]:['--operational-pair-baseline='+options.operationalPairBaseline])]);
  const connection=ownerAdoptionQaTransport({root,major,sourceCommit,transport,browser:'none'});
- const destination=path.join(root,output);assert.ok(!fs.existsSync(destination));const sourceClosure=ownerAuthorityQaSourceClosure(),sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes:file=>execFileSync('git',['-C',root,'show',sourceCommit+':'+file],{maxBuffer:16*1024*1024})}),qa=buildOwnerAuthorityQa({major,sourceCommit});
+ const destination=path.join(root,output);assert.ok(!fs.existsSync(destination));const sourceClosure=ownerAuthorityQaSourceClosure(),sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes:file=>execFileSync('git',['-C',root,'show',sourceCommit+':'+file],{maxBuffer:16*1024*1024})}),qa=buildOwnerAuthorityQa({major,sourceCommit,operationalPairBaseline});
  for(const[file,expected]of Object.entries(qa.sourceHashes)){const committed=lf(execFileSync('git',['-C',root,'show',sourceCommit+':'+file],{maxBuffer:16*1024*1024}).toString('utf8'));assert.equal(hash(committed),expected,'OWNER_QA_COMMITTED_SOURCE_CHANGED:'+file);}
  const identity=connection.processGuardRequired?await processGuard(major):null,{runtime,args}=connection;
  fs.mkdirSync(destination);let sequence=0,seeded=false,failure,cleanupFailure,outerFailure,sourceFailure,report,beforeGuard,outerBefore,destinationIdentity=null,serialization=null;const checks=[];
@@ -231,7 +236,7 @@ export async function verifyMunicipalOwnerAdoptionAuthority(options){
   }finally{try{const exitCode=await exited;fs.writeFileSync(path.join(destination,'serialization-holder.stdout.log'),lockOutput);fs.writeFileSync(path.join(destination,'serialization-holder.stderr.log'),lockError);assert.equal(exitCode,0,lockError||lockOutput);}finally{pins=ownerAdoptionQaDestinationGuard(destinationIdentity);}}
   assert.deepEqual(snapshot(),authorityBaseline);run(tx([call()],{readOnly:true}),'read-only');ok('resolver is intentionally incompatible with READ ONLY transactions while its separate durability verifier is READ ONLY');
   run(tx(qa.local.rollback));run(tx(qa.local.rollbackVerification,{readOnly:true}));assert.deepEqual(snapshot(),fixtureBaseline);ok('technical rollback removes only the resolver and independently restores complete fixture metadata and rows');
-  report={version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit,transport,destinationIdentity,serialization,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,resolverExecuted:true,canonicalAuthorityFunctions:7,canonicalPrivateSupportFunctions:2,fixtureAdministrationStatus:'inactive',actorDataSynthetic:true,productionWrites:0,municipalAcceptance:false,existingApiConnected:false};
+  report={version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit,transport,operationalPairBaseline,destinationIdentity,serialization,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,resolverExecuted:true,canonicalAuthorityFunctions:7,canonicalPrivateSupportFunctions:2,fixtureAdministrationStatus:'inactive',actorDataSynthetic:true,productionWrites:0,municipalAcceptance:false,existingApiConnected:false};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack??String(e));}
  finally{
   try{if(seeded)run(tx(finalReviewAdmissionQaCleanup(qa.schema)));}catch(e){cleanupFailure=e;fs.writeFileSync(path.join(destination,'cleanup-failure.txt'),e.stack??String(e));}

@@ -107,10 +107,10 @@ export function mixedQaAdmissionPhase(phase){
  return{statements:phase.statements.filter(s=>!characteristics.includes(s)),options:{readOnly:phase.readOnly,end:phase.completion}};
 }
 
-export function buildMixedContractAdoptionQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),profile='october01'}){
+export function buildMixedContractAdoptionQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),profile='october01',operationalPairBaseline='pre107'}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.equal(typeof read,'function');
  assert.ok(['october01','october14'].includes(profile),'MIXED_QA_PROFILE_REQUIRED');
- const owner=buildOwnerDecisionQa({major,sourceCommit,read,schema}),batch=buildMixedContractAdoptionInstallation({read,sourceCommit});
+ const owner=buildOwnerDecisionQa({major,sourceCommit,read,schema,operationalPairBaseline}),batch=buildMixedContractAdoptionInstallation({read,sourceCommit,operationalPairBaseline});
  const hashes={...owner.hashes},definitions=[...owner.definitions,owner.graph.batch.authority.newDefinition,...owner.graph.batch.definitions,owner.graph.batch.guard,owner.graph.batch.ready,...batch.newDefinitions,...batch.afterDefinitions];
  let stable=false;for(let pass=0;pass<16;pass++){let changed=false;for(const d of definitions){let relocated=owner.relocate(d);for(const[a,b]of Object.entries(hashes))relocated=relocated.replaceAll(a,b);const key=hash(body(d)),value=hash(body(relocated));if(hashes[key]!==value){hashes[key]=value;changed=true;}}if(!changed){stable=true;break;}}assert.ok(stable,'MIXED_QA_HASH_GRAPH_CYCLE');
  const normalized=sql=>{let result=owner.relocate(sql);for(const[a,b]of Object.entries(hashes))result=result.replaceAll(a,b);return result;};

@@ -10,6 +10,15 @@ import {installationPriorMetadataFingerprint} from './installation-prior-metadat
 
 export const OWNER_ADOPTION_AUTHORITY_SQL='scripts/migrations/184-municipal-owner-adoption-authority.sql';
 export const OWNER_ADOPTION_AUTHORITY_SIGNATURE='public.municipal_owner_adoption_authority_v1(jsonb)';
+export const OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES=Object.freeze(['pre107','published107']);
+export function ownerAdoptionAuthorityInstallationOptions(options){
+ assert.ok(options&&typeof options==='object'&&!Array.isArray(options));
+ assert.deepEqual(Object.keys(options).filter(key=>key!=='operationalPairBaseline').sort(),['read','sourceCommit']);
+ const operationalPairBaseline=Object.hasOwn(options,'operationalPairBaseline')?options.operationalPairBaseline:'pre107';
+ assert.ok(OWNER_ADOPTION_OPERATIONAL_PAIR_BASELINES.includes(operationalPairBaseline),'OWNER_AUTHORITY184_OPERATIONAL_PAIR_BASELINE_REQUIRED');
+ assert.equal(typeof options.read,'function');assert.match(options.sourceCommit??'',/^[a-f0-9]{40}$/);
+ return{read:options.read,sourceCommit:options.sourceCommit,operationalPairBaseline};
+}
 export const OWNER_ADOPTION_AUTHORITY_SOURCE_PINS=Object.freeze({
  'scripts/lib/installation-prior-metadata.mjs':'b86d85a76a3c61bf963f61b9a991df65b1caec6056a74fe0c7396db4e808f8c9',
  'lib/municipal-owner-adoption-policy.js':'8534ccdbd89d9b21c144e7fe3e3362a54a202e88bc58360564399a08c6a68f3c',
@@ -43,18 +52,21 @@ function definition(source,functionName){
 // pure preparation: none of these existing functions is installed or replaced.
 // The captured pg_get_functiondef headers use SET ... TO; normalize that syntax
 // only for the closed metadata parser, preserving every byte of each body.
-function publishedAuthorityDependencies(sources){
+function publishedAuthorityDependencies(sources,operationalPairBaseline){
  const oldSession='3efaa78aa8a792b7701ac3f6981d1478101040dc0f1e26e10911117fba4bc1df',sessionSha='bf2c0d9114c1c3f66636ba8d89f49a96133c9f4addcb49cee32cd5d17cc0e0bc';
  const source113=sources['scripts/migrations/113-native-employee-self-access.sql'],fixture=sources['scripts/fixtures/operational-profile-before.sql'],source107=sources['scripts/migrations/107-operational-profile-catalog.sql'];
  let session=definition(sources['scripts/migrations/007-action-center-read-facades.sql'],'action_center_assert_tenant_read_session_v2');
  assert.equal(ownInstallationFunctionPin(session).sha256,oldSession);
  const patches=[...source113.matchAll(/\('public\.action_center_assert_tenant_read_session_v2\([^']+\)','3efaa78aa8a792b7701ac3f6981d1478101040dc0f1e26e10911117fba4bc1df',\s*\$old\$([\s\S]*?)\$old\$,\s*\$new\$([\s\S]*?)\$new\$\)/g)];
  assert.equal(patches.length,1,'OWNER_AUTHORITY184_SESSION113_SOURCE_CHANGED');session=once(session,patches[0][1],patches[0][2]);assert.equal(ownInstallationFunctionPin(session).sha256,sessionSha);
- const captured=name=>{const value=definition(fixture,name),at=value.search(/\bAS\s+\$[\w]*\$/);assert.ok(at>0);return once(value.slice(0,at),"SET search_path TO 'public', 'pg_temp'",'SET search_path=public,pg_temp').replace(/\s+/g,' ')+value.slice(at);};
+ const captured=(name,source=fixture)=>{const value=definition(source,name),at=value.search(/\bAS\s+\$[\w]*\$/);assert.ok(at>0);return once(value.slice(0,at),"SET search_path TO 'public', 'pg_temp'",'SET search_path=public,pg_temp').replace(/\s+/g,' ')+value.slice(at);};
  for(const [signature,sha]of[['tenant_iam_assert_no_sod_conflict(uuid)','60e5a0b4cd6dc1d70621b260ebaaa9077bd42fb36548c36bc69704ed844671e9'],['tenant_iam_reviewed_operational_pair_v1(text,text,text)','15541c633ec2a356dbab8931cf4f0ca60258ab823dc8930cafab40d7098732fa']])assert.ok(source107.includes("pg_get_functiondef('public."+signature+"'::regprocedure),'UTF8')),'hex') IS DISTINCT FROM '"+sha+"'"),'OWNER_AUTHORITY184_PRE107_SOURCE_CHANGED:'+signature);
- const sod=captured('tenant_iam_assert_no_sod_conflict'),reviewedPair=captured('tenant_iam_reviewed_operational_pair_v1'),nativeAccount=definition(source113,'native_account_contract_v1');
+ const sod=captured('tenant_iam_assert_no_sod_conflict'),pre107Pair=captured('tenant_iam_reviewed_operational_pair_v1'),published107Pair=captured('tenant_iam_reviewed_operational_pair_v1',source107),nativeAccount=definition(source113,'native_account_contract_v1');
  assert.equal(ownInstallationFunctionPin(sod).sha256,'64fa3435a21de7151ee5c6c71ada0e78afcc088621601a7f9e6a7083a1de148c');
- assert.equal(ownInstallationFunctionPin(reviewedPair).sha256,'53e1c2b9cbfcd287fa4c0cdb1333bcd25d8a224e9f222ab3badefe1e601888dd');
+ assert.equal(ownInstallationFunctionPin(pre107Pair).sha256,'53e1c2b9cbfcd287fa4c0cdb1333bcd25d8a224e9f222ab3badefe1e601888dd');
+ assert.equal(ownInstallationFunctionPin(published107Pair).sha256,'0da6f93827fc83001121e191e17885eae2ffc73814178e6e26ca8efe7276f759');
+ const reviewedPair=operationalPairBaseline==='pre107'?pre107Pair:published107Pair;
+ const pairPin=ownInstallationFunctionPin(reviewedPair);assert.equal(pairPin.definer,false);assert.equal(pairPin.runtime,false);assert.deepEqual(pairPin.config,['search_path=public, pg_temp']);
  assert.equal(ownInstallationFunctionPin(nativeAccount).sha256,'09afd04c00e7c6e2ac726cf18b277889e20b9019085b00080f4f3a169ffe79bc');
  return{session,sod,supportDefinitions:[reviewedPair,nativeAccount]};
 }
@@ -88,8 +100,7 @@ function capabilitySourceCheck(source){
 }
 
 export function buildMunicipalOwnerAdoptionAuthorityInstallation(options){
- assert.ok(options&&typeof options==='object'&&!Array.isArray(options));assert.deepEqual(Object.keys(options).sort(),['read','sourceCommit']);
- const {read,sourceCommit}=options;assert.equal(typeof read,'function');assert.equal(typeof sourceCommit,'string');assert.equal(sourceCommit.length,40);assert.match(sourceCommit,/^[a-f0-9]{40}$/);
+ const {read,sourceCommit,operationalPairBaseline}=ownerAdoptionAuthorityInstallationOptions(options);
  const sources={},sourceHashes={};for(const[file,pin]of Object.entries(OWNER_ADOPTION_AUTHORITY_SOURCE_PINS)){const value=read(file);assert.equal(typeof value,'string');sources[file]=lf(value);sourceHashes[file]=hash(sources[file]);assert.equal(sourceHashes[file],pin,'OWNER_AUTHORITY184_SOURCE_CHANGED:'+file);}
  assert.equal(MUNICIPAL_OWNER_ADOPTION_POLICY.version,'tenant-owner-adoption-policy.v1');assert.equal(hash(MUNICIPAL_OWNER_ADOPTION_POLICY_CANONICAL),MUNICIPAL_OWNER_ADOPTION_POLICY.sha256,'OWNER_AUTHORITY184_POLICY_CHANGED');
  const migration=splitPostgresStatements(sources[OWNER_ADOPTION_AUTHORITY_SQL]).map(s=>s.replace(/^(?:\s*--[^\n]*\n)+\s*/,''));assert.equal(migration.length,3);
@@ -100,7 +111,7 @@ export function buildMunicipalOwnerAdoptionAuthorityInstallation(options){
  assert.ok(newDefinition.includes("SET timezone='UTC' SET lock_timeout='2s' AS $$"));newPin.config.push('lock_timeout=2s');
  assert.ok(newDefinition.includes("'policySha256',"+q(MUNICIPAL_OWNER_ADOPTION_POLICY.sha256)));assert.ok(newDefinition.includes("'policyVersion',"+q(MUNICIPAL_OWNER_ADOPTION_POLICY.version)));
  assert.equal(migration[0],newDefinition);assert.equal(migration[1],'REVOKE ALL ON FUNCTION '+OWNER_ADOPTION_AUTHORITY_SIGNATURE+' FROM PUBLIC,municontrol_actions_runtime_app');assert.equal(migration[2],'GRANT EXECUTE ON FUNCTION '+OWNER_ADOPTION_AUTHORITY_SIGNATURE+' TO municontrol_actions_runtime_app');
- const published=publishedAuthorityDependencies(sources),dependencies=[
+ const published=publishedAuthorityDependencies(sources,operationalPairBaseline),dependencies=[
   ADOPTION_ADMINISTRATIVE_CONTEXT,
   definition(sources['scripts/migrations/067-native-employee-registration.sql'],'native_employee_context_v1'),
   published.session,
@@ -136,7 +147,7 @@ export function buildMunicipalOwnerAdoptionAuthorityInstallation(options){
  // Rollback is technical only and refuses a later SQL integration. Never use
  // CASCADE, delete a receipt, or loosen a prerequisite to make removal succeed.
  const noConsumers=`DO $consumers$ BEGIN IF EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema' AND p.oid<>to_regprocedure(${q(OWNER_ADOPTION_AUTHORITY_SIGNATURE)}) AND position(${q(name)} in p.prosrc)>0) THEN RAISE EXCEPTION 'OWNER_AUTHORITY184_IN_USE';END IF;END $consumers$`;
- return{version:'municipal-owner-adoption-authority-installation.v1',sourceCommit,sourceHashes,policy:MUNICIPAL_OWNER_ADOPTION_POLICY,prerequisitePins,prerequisiteDefinitions:dependencies,supportPins,supportDefinitions,newPin,newDefinition,migration,prerequisiteCheck,beforeCheck,afterCheck,mode,choose,apply,before,after,audit,
+ return{version:'municipal-owner-adoption-authority-installation.v1',sourceCommit,sourceHashes,operationalPairBaseline,policy:MUNICIPAL_OWNER_ADOPTION_POLICY,prerequisitePins,prerequisiteDefinitions:dependencies,supportPins,supportDefinitions,newPin,newDefinition,migration,prerequisiteCheck,beforeCheck,afterCheck,mode,choose,apply,before,after,audit,
   rehearsal:sequence('install'),installation:sequence('install'),repetition:sequence('verify'),verification:[readOnly,afterCheck,after,proof("'verify'",false)],
   rollback:[afterCheck,noConsumers,before,'DROP FUNCTION '+OWNER_ADOPTION_AUTHORITY_SIGNATURE,beforeCheck,after,audit],rollbackVerification:[readOnly,beforeCheck],
   transactionContract:{rehearsal:'ROLLBACK',installation:'COMMIT',repetition:'COMMIT',verification:'READ ONLY',resolverReadOnlyTransactionCompatible:false},

@@ -1,6 +1,7 @@
 // Pure technical preparation. No identities are invented and no business command runs here.
 import assert from'node:assert/strict';import{createHash}from'node:crypto';
 import{buildMunicipalOwnerAdoptionDecisionInstallation}from'./municipal-owner-adoption-decision-installation.mjs';
+import{ownerAdoptionAuthorityInstallationOptions}from'./municipal-owner-adoption-authority-installation.mjs';
 import{buildAdoptionSourceStreamingInstallation}from'./adoption-source-streaming-installation.mjs';
 import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
 import{pinsCheck,preservationSnapshot}from'./native-leave-installation.mjs';
@@ -23,10 +24,10 @@ export function extendMixedAdoptionConsumer(definition){
  assert.notEqual(next,definition,'MIXED_ADOPTION_CONSUMER_HAS_NO_VERSION_BRANCH');return next;
 }
 export function buildMixedContractAdoptionInstallation(options){
- assert.ok(options&&typeof options==='object');assert.deepEqual(Object.keys(options).sort(),['read','sourceCommit']);assert.equal(typeof options.read,'function');assert.match(options.sourceCommit,/^[a-f0-9]{40}$/);
+ const{operationalPairBaseline}=ownerAdoptionAuthorityInstallationOptions(options);
  const sourceHashes={},cache=new Map(),read=p=>{if(!cache.has(p)){const value=options.read(p).replace(/\r\n?/g,'\n');cache.set(p,value);sourceHashes[p]=hash(value);}return cache.get(p);};
  for(const p of['scripts/lib/mixed-contract-adoption-installation.mjs','scripts/lib/mixed-contract-adoption-source.mjs','assets/employment-adoption-mixed-cohort.js'])read(p);
- const opts={read,sourceCommit:options.sourceCommit},previous=buildMunicipalOwnerAdoptionDecisionInstallation(opts),streaming=buildAdoptionSourceStreamingInstallation(opts);
+ const opts={read,sourceCommit:options.sourceCommit},previous=buildMunicipalOwnerAdoptionDecisionInstallation({...opts,operationalPairBaseline}),streaming=buildAdoptionSourceStreamingInstallation(opts);
  const finalSource=streaming.changed[0];assert.equal(ownInstallationFunctionPin(finalSource).name,'employment_adoption_final_source_v1');
  const available=streaming.administrative.final.newDefinitions.find(d=>/^CREATE FUNCTION public.employment_adoption_final_available_v1\(/.test(d));assert.ok(available);
  const newDefinitions=[mixedContractPartitionDefinition(),deriveMixedContractSourceDefinition(finalSource),mixedContractBootstrapDefinition(),deriveMixedContractAvailableDefinition(available)];
