@@ -47,7 +47,9 @@ jobs:
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium
       - name: Verify the project Chromium runtime
-        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+        run: |
+          mkdir -p verification
+          node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Preserve original documents across actual adoption and reader178
         # Every case executes the complete regression, installation replay,
         # rollback, ACL/snapshot preservation and SQL-backed existing UI. The
