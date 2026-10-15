@@ -372,3 +372,4 @@ local-agents/
 
 # Reviewed documentary adapter source required by build verification.
 !scripts/migrations/178-adopted-documentary-read.sql
+!scripts/migrations/181-documentary-roster-shared-subjects.sql
