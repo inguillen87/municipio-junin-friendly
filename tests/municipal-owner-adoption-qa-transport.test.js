@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {ownerAdoptionQaTransport,captureOwnerAdoptionQaDestination,assertOwnerAdoptionQaDestination,ownerAdoptionQaDestinationGuard,ownerAdoptionQaCiInitialGuard,OWNER_ADOPTION_QA_IDENTITY_SQL,OWNER_ADOPTION_QA_REPOSITORY} from '../scripts/lib/municipal-owner-adoption-qa-transport.mjs';
 const sha='a'.repeat(40),env={CI:'true',GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'1001',GITHUB_SHA:sha,GITHUB_WORKSPACE:'/qa',GITHUB_REPOSITORY:OWNER_ADOPTION_QA_REPOSITORY,PGHOST:'remote.invalid',PGDATABASE:'neondb',PGOPTIONS:'-c role=unknown'},context={platform:'linux',env,realpath:p=>p==='/usr/bin/psql'?'/usr/share/postgresql-common/pg_wrapper':p};
 const proof=(major=17)=>({database:'own_payroll_run_qa',role:'postgres',sessionRole:'postgres',databaseOwner:'postgres',databaseOid:16384,major,address:'172.18.0.2',port:5432,directory:major===17?'/var/lib/postgresql/data':'/var/lib/postgresql/18/docker',startEpoch:1792025447,neonProject:null,neonBranch:null,otherClients:0,publicTables:0,runtimeRole:{oid:16385,login:false,superuser:false,bypassRls:false,createRole:false,createDatabase:false,replication:false}});
@@ -11,3 +12,37 @@ test('every observed server identity field is immutable across fixture phases an
 test('identity probe is read-only metadata and contains no source/employee values or arbitrary SQL input',()=>{assert.match(OWNER_ADOPTION_QA_IDENTITY_SQL,/oid::bigint/);assert.match(OWNER_ADOPTION_QA_IDENTITY_SQL,/pg_postmaster_start_time/);assert.match(OWNER_ADOPTION_QA_IDENTITY_SQL,/publicTables/);assert.doesNotMatch(OWNER_ADOPTION_QA_IDENTITY_SQL,/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b|query\s*,|query\s+FROM|employment_contract|person_identity|password/i);});
 test('only an internally observed exact serialization holder can be exempted; default and aggregate guards retain zero clients',()=>{const id=captureOwnerAdoptionQaDestination(proof(),{major:17,transport:'ci'}),holder={pid:12345,applicationName:'owner184-serialization-holder',backendStart:'2026-10-15T15:00:00.123456Z'},normal=ownerAdoptionQaDestinationGuard(id),specific=ownerAdoptionQaDestinationGuard(id,{allowedClient:holder});assert.ok(!normal.includes('application_name='));for(const marker of ['pid=12345',"application_name='owner184-serialization-holder'","backend_start='2026-10-15T15:00:00.123456Z'::timestamptz","usename='postgres'","datname='own_payroll_run_qa'",'AND NOT(pid=12345','OR NOT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid<>pg_backend_pid()'])assert.ok(specific.includes(marker),marker);assert.throws(()=>assertOwnerAdoptionQaDestination({...proof(),otherClients:1},id));for(const patch of [{pid:0},{pid:'12345'},{pid:2147483648},{applicationName:'any-client'},{backendStart:'now()'},{backendStart:'2026-10-15T15:00:00Z'},{backendStart:"2026-10-15T15:00:00.123456Z' OR true"},{host:'other.invalid'}])assert.throws(()=>ownerAdoptionQaDestinationGuard(id,{allowedClient:{...holder,...patch}}));assert.throws(()=>ownerAdoptionQaDestinationGuard(id,{skipClients:true}));});
 test('CI initial metadata guard permits only the fixed private service and invents no observed OID or process proof',()=>{for(const major of [17,18]){const guard=ownerAdoptionQaCiInitialGuard({major});for(const marker of ['own_payroll_run_qa','postgres',String(major),'5432','10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','data_directory','neon.project_id','neon.branch_id','pg_stat_activity',"n.nspname='public'",'NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls'])assert.ok(guard.includes(marker));assert.doesNotMatch(guard,/5988|34448|1792025447|1792025448|16384|databaseOid/);}assert.throws(()=>ownerAdoptionQaCiInitialGuard({major:16}));});
+
+test('rejection adds an explicitly later bounded observation without changing the exception or allowing arbitrary diagnostics',()=>{
+ const id=captureOwnerAdoptionQaDestination(proof(),{major:17,transport:'ci'}),guard=ownerAdoptionQaDestinationGuard(id);
+ assert.match(guard,/THEN RAISE EXCEPTION 'OWNER_ADOPTION_QA_DESTINATION_CHANGED' USING DETAIL =/);
+ const detail=guard.split(' USING DETAIL =')[1];assert.ok(detail.includes("'observation','post_rejection_observation'"));
+ assert.ok(detail.includes('observed_clients AS MATERIALIZED'));assert.ok(detail.includes('ORDER BY pid LIMIT 8'));
+ assert.ok(detail.includes("'total',(SELECT count(*) FROM observed_clients)"));assert.ok(detail.includes("'truncated',(SELECT count(*) FROM observed_clients)>8"));
+ assert.ok(detail.includes("WHERE backend_type='client backend' AND pid<>pg_backend_pid()"));
+ assert.doesNotMatch(detail,/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|pg_sleep)\b/i);
+ for(const options of [{includeQuery:true},{maxClients:0},{skipClients:true},{allowedClient:{pid:1,applicationName:'pg_isready',backendStart:'2026-10-15T15:00:00.123456Z'}}])assert.throws(()=>ownerAdoptionQaDestinationGuard(id,options));
+});
+
+test('all original IF/OR predicates and initial guards keep their exact pre-diagnostic bytes for CI, local and the existing serialization holder',()=>{
+ // Reviewed bytes from the original guard, before THEN RAISE. A diagnostic
+ // change must never quietly admit another server, role, or client.
+ const expected={ci17:'fb2c8b69d553a2714d600fa006d1d1dddacb5e4c3f10cb53b44f4442d38e494b',holder17:'25d3bea45e354cdbfaa43841e512da6b50a4a0fbbe9a4f58179b308c0e9d8cfd',local17:'fee2589724bed954a89bf1d71de54564e082525765771e26140d8ac2c7b13592',initial17:'98ff0325d6d127bba985fbb14ffea434d8b5ead7ee151aa38c5cdd5a7f000a56',ci18:'8bd24116151105d5a62507daddd14827aef99f16d17c6a6a9d50024a7c0bda74',holder18:'a35397f58b6ddb077fdeb235d5a8276f9ecdbfeab0b6f3f4ffd40bccfb53b283',local18:'9ea6a6fb2d886b25fe06e3c7b5156d3949101068a2957eb9e2552b5de6cf7678',initial18:'9f7d752307314f3c867eee1ea1745be20f2c769cd29f88c101144e3b70c7be9a'};
+ const hash=s=>createHash('sha256').update(s).digest('hex'),holder={pid:12345,applicationName:'owner184-serialization-holder',backendStart:'2026-10-15T15:00:00.123456Z'};
+ for(const major of [17,18]){
+  let id=captureOwnerAdoptionQaDestination(proof(major),{major,transport:'ci'});
+  for(const [mode,options]of [['ci',{}],['holder',{allowedClient:holder}]]){const g=ownerAdoptionQaDestinationGuard(id,options);assert.equal(hash(g.slice(0,g.indexOf('THEN RAISE'))),expected[mode+major]);}
+  const p={...proof(major),address:'127.0.0.1',port:55400+major,directory:'C:/qa/verification/postgresql-qa-20261004/pg'+major+'-data',startEpoch:major===17?1792025447:1792025448};
+  id=captureOwnerAdoptionQaDestination(p,{major,localIdentity:{major,processId:major===17?5988:34448,postmasterStartEpoch:p.startEpoch,port:p.port,host:p.address,database:p.database,directory:p.directory}});
+  const g=ownerAdoptionQaDestinationGuard(id);assert.equal(hash(g.slice(0,g.indexOf('THEN RAISE'))),expected['local'+major]);assert.equal(hash(ownerAdoptionQaCiInitialGuard({major})),expected['initial'+major]);
+ }
+});
+
+test('post-rejection detail exposes match booleans and only hashes and lengths for application names',()=>{
+ const id=captureOwnerAdoptionQaDestination(proof(18),{major:18,transport:'ci'}),detail=ownerAdoptionQaDestinationGuard(id).split(' USING DETAIL =')[1];assert.ok(detail);
+ for(const key of ['databaseMatches','roleMatches','sessionRoleMatches','majorMatches','databaseOidMatches','databaseOwnerMatches','addressMatches','portMatches','directoryMatches','startEpochMatches','noNeonProject','noNeonBranch','noUnexpectedClients','serializationHolderPresent','publicTablesMatches','runtimeRolePresent','runtimeRoleOidMatches','runtimeNoLogin','runtimeNoSuperuser','runtimeNoBypassRls','runtimeNoCreateRole','runtimeNoCreateDatabase','runtimeNoReplication'])assert.ok(detail.includes("'"+key+"',"),key);
+ assert.ok(detail.includes("'applicationNameMD5',md5(coalesce(application_name,''))"));assert.ok(detail.includes("'applicationNameLength',length(coalesce(application_name,''))"));
+ for(const key of ['pid','backendStart','state'])assert.ok(detail.includes("'"+key+"',"));
+ assert.doesNotMatch(detail,/'(?:applicationName|application_name|query|query_id|username|usename|datname|email|password|database|directory)'\s*,/i);
+ assert.ok(detail.includes("coalesce((SELECT jsonb_agg("));assert.ok(detail.includes("'[]'::jsonb"));
+});

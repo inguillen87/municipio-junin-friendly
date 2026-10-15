@@ -100,6 +100,39 @@ function allowedSerializationClient(value){
  return value;
 }
 
+// This observation runs only after the unchanged guard rejects. A transient
+// client may already have gone; the detail does not claim an atomic cause.
+function destinationRejectionDetail(identity,holderPredicate){
+ const runtimeCondition=condition=>`EXISTS(SELECT 1 FROM pg_roles WHERE rolname=${literal(runtimeRole)}${condition?' AND '+condition:''})`;
+ return `jsonb_build_object('observation','post_rejection_observation','matches',jsonb_build_object(
+ 'databaseMatches',current_database() IS NOT DISTINCT FROM ${literal(identity.database)},
+ 'roleMatches',current_user IS NOT DISTINCT FROM ${literal(identity.role)},
+ 'sessionRoleMatches',session_user IS NOT DISTINCT FROM ${literal(identity.sessionRole)},
+ 'majorMatches',current_setting('server_version_num')::integer/10000 IS NOT DISTINCT FROM ${identity.major},
+ 'databaseOidMatches',(SELECT oid FROM pg_database WHERE datname=current_database()) IS NOT DISTINCT FROM ${identity.databaseOid}::oid,
+ 'databaseOwnerMatches',(SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) IS NOT DISTINCT FROM ${literal(identity.databaseOwner)},
+ 'addressMatches',host(inet_server_addr()) IS NOT DISTINCT FROM ${literal(identity.address)},
+ 'portMatches',inet_server_port() IS NOT DISTINCT FROM ${identity.port},
+ 'directoryMatches',current_setting('data_directory') IS NOT DISTINCT FROM ${literal(identity.directory)},
+ 'startEpochMatches',floor(extract(epoch FROM pg_postmaster_start_time()))::bigint IS NOT DISTINCT FROM ${identity.startEpoch},
+ 'noNeonProject',nullif(current_setting('neon.project_id',true),'') IS NULL,
+ 'noNeonBranch',nullif(current_setting('neon.branch_id',true),'') IS NULL,
+ 'noUnexpectedClients',NOT EXISTS(SELECT 1 FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid()${holderPredicate?' AND NOT('+holderPredicate+')':''}),
+ 'serializationHolderPresent',${holderPredicate?'EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid<>pg_backend_pid() AND '+holderPredicate+')':'true'},
+ 'publicTablesMatches',(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p','m','f')) IS NOT DISTINCT FROM ${identity.publicTables},
+ 'runtimeRolePresent',${runtimeCondition('')},'runtimeRoleOidMatches',${runtimeCondition('oid='+identity.runtimeRole.oid+'::oid')},
+ 'runtimeNoLogin',${runtimeCondition('NOT rolcanlogin')},'runtimeNoSuperuser',${runtimeCondition('NOT rolsuper')},
+ 'runtimeNoBypassRls',${runtimeCondition('NOT rolbypassrls')},'runtimeNoCreateRole',${runtimeCondition('NOT rolcreaterole')},
+ 'runtimeNoCreateDatabase',${runtimeCondition('NOT rolcreatedb')},'runtimeNoReplication',${runtimeCondition('NOT rolreplication')}),
+ 'otherClients',(WITH observed_clients AS MATERIALIZED (
+ SELECT pid,backend_start,state,application_name FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid()
+ ),bounded_clients AS (SELECT * FROM observed_clients ORDER BY pid LIMIT 8)
+ SELECT jsonb_build_object('total',(SELECT count(*) FROM observed_clients),
+ 'clients',coalesce((SELECT jsonb_agg(jsonb_build_object('pid',pid,'backendStart',backend_start,'state',state,
+ 'applicationNameMD5',md5(coalesce(application_name,'')),'applicationNameLength',length(coalesce(application_name,''))) ORDER BY pid) FROM bounded_clients),'[]'::jsonb),
+ 'truncated',(SELECT count(*) FROM observed_clients)>8)))::text`;
+}
+
 // Include this predicate before every fixture statement and cleanup transaction.
 // It pins the observed Docker identity, including NAT's server port and address.
 export function ownerAdoptionQaDestinationGuard(identity,options={}){
@@ -119,5 +152,5 @@ export function ownerAdoptionQaDestinationGuard(identity,options={}){
  ${holderPredicate?'OR NOT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid<>pg_backend_pid() AND '+holderPredicate+')':''}
  OR (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p','m','f'))<>${identity.publicTables}
  OR NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=${literal(runtimeRole)} AND oid=${identity.runtimeRole.oid}::oid AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreaterole AND NOT rolcreatedb AND NOT rolreplication)
- THEN RAISE EXCEPTION 'OWNER_ADOPTION_QA_DESTINATION_CHANGED';END IF;`;
+ THEN RAISE EXCEPTION 'OWNER_ADOPTION_QA_DESTINATION_CHANGED' USING DETAIL = ${destinationRejectionDetail(identity,holderPredicate)};END IF;`;
 }

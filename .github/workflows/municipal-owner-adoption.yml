@@ -96,8 +96,11 @@ jobs:
           POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
           POSTGRES_DB: own_payroll_run_qa
         ports: ['554${{ matrix.pg }}:5432']
+        # Readiness opens a PostgreSQL client. Probe quickly during startup,
+        # then keep the admitted test interval free of periodic probe clients.
+        # Every canonical QA transaction still requires its original guard.
         options: >-
-          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-interval 5s --health-timeout 5s --health-retries 12
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
