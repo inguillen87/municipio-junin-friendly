@@ -8,6 +8,15 @@ const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),sourceCom
 const qa=buildMixedContractAdoptionQa({major:17,sourceCommit,read,schema});
 const laterFixtures=new Map(),laterFixture=major=>{if(!laterFixtures.has(major))laterFixtures.set(major,buildMixedContractAdoptionQa({major,sourceCommit,read,schema,profile:'october14'}));return laterFixtures.get(major);};
 const body=d=>/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(d)[2];
+const assertPendingFinalSourcePlacement=(owner,fixture)=>{
+ for(const p of fixture.pendingSourceRows){
+  assert.ok(!owner.rows.some(r=>r.legajo===p.legajo),'PENDING_EMPLOYEE_IN_PARENT');
+  assert.ok(!owner.rows.some(r=>r.sourcePersonId===p.person_id),'PENDING_PERSON_IN_PARENT');
+ }
+ const sourceRows=[...fixture.seed.matchAll(/\bWITH source_rows AS\(SELECT value AS record FROM jsonb_array_elements\('((?:''|[^'])*)'::jsonb\)\),\s*pending_rows AS\(/g)];
+ assert.equal(sourceRows.length,1,'PENDING_SOURCE_CTE_REQUIRED');
+ assert.deepEqual(JSON.parse(sourceRows[0][1].replaceAll("''","'")),fixture.pendingSourceRows,'PENDING_SOURCE_ROWS_CHANGED');
+};
 
 test('the complete fictional source partitions71 rows without assigning UUIDs to its6 unknown identities',()=>{
  assert.deepEqual(qa.counts,{source:71,known:65,selected:49,deferred:14,archived:2,pending:6,adopted:0});
@@ -28,7 +37,24 @@ test('the published parent remains65 real known contracts; all pending and missi
  assert.ok(qa.seed.indexOf('INSERT INTO grh_final_source_delta')<qa.seed.indexOf('INSERT INTO grh_final_source_seal'));
  assert.ok(qa.seed.includes("'fecha_ingreso',NULL"));assert.ok(!qa.seed.includes('UPDATE '+schema+'.employment_contract SET start_date=NULL'));
  assert.ok(qa.seed.includes('jsonb_array_length(mixed_deltas)<>26'));assert.ok(qa.seed.includes('public.grh_final_source_entities_v1')===false);
- for(const p of qa.pendingSourceRows){assert.ok(!qa.owner.seed.includes(p.legajo));assert.ok(qa.seed.includes(p.legajo));}
+ assertPendingFinalSourcePlacement(qa.owner,qa);
+});
+
+test('pending-source membership ignores unrelated colliding schema identifiers, UUIDs and hashes but rejects actual parent rows or altered delta JSON',()=>{
+ const uuid='00099001-0000-4000-8000-000000000001',digest=hash('QA186 unrelated digest 27918');
+ assert.match(uuid,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);assert.ok(digest.includes('99001'));
+ const collidingSchema='mc_qa_fixed_092_99001'+'a'.repeat(27),colliding=buildMixedContractAdoptionQa({major:17,sourceCommit,read,schema:collidingSchema});
+ const owner={...colliding.owner,seed:colliding.owner.seed+'\n-- unrelated UUID '+uuid+' and SHA256 '+digest},fixture=mixedQaFinalSourceSeed(owner);
+ assert.equal(owner.rows.length,65);assert.ok(!owner.rows.some(r=>r.legajo==='99001'));assert.ok(owner.seed.includes(collidingSchema));assert.ok(owner.seed.includes(uuid));assert.ok(owner.seed.includes(digest));
+ assert.doesNotThrow(()=>assertPendingFinalSourcePlacement(owner,fixture));
+ const pending=fixture.pendingSourceRows[0],known=owner.rows[0];
+ assert.throws(()=>assertPendingFinalSourcePlacement({...owner,rows:[...owner.rows,{...known,legajo:pending.legajo}]},fixture),/PENDING_EMPLOYEE_IN_PARENT/);
+ assert.throws(()=>assertPendingFinalSourcePlacement({...owner,rows:[...owner.rows,{...known,sourcePersonId:pending.person_id}]},fixture),/PENDING_PERSON_IN_PARENT/);
+ const exact=JSON.stringify(fixture.pendingSourceRows),changed=JSON.stringify(fixture.pendingSourceRows.slice(1));
+ assert.equal(fixture.seed.split(exact).length,2);
+ assert.throws(()=>assertPendingFinalSourcePlacement(owner,{...fixture,seed:fixture.seed.replace(exact,changed)}),/PENDING_SOURCE_ROWS_CHANGED/);
+ const altered=structuredClone(fixture.pendingSourceRows);altered[0].source_payload.personId++;
+ assert.throws(()=>assertPendingFinalSourcePlacement(owner,{...fixture,seed:fixture.seed.replace(exact,JSON.stringify(altered))}),/PENDING_SOURCE_ROWS_CHANGED/);
 });
 
 test('all10 final domains retain complete baseline/candidate fingerprints, exact delta counts and the original seal validation',()=>{
