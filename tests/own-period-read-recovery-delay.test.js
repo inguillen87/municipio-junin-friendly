@@ -23,3 +23,8 @@ test('successful and other failed reads never pause or authorize again',async()=
 test('POST, commands and an invalid pause dependency are rejected before any action',async()=>{
  for(const patch of [{method:'POST'},{operation:'command'},{waitForRecovery:1000}]){let calls=0;await assert.rejects(recoverOwnPeriodRead({...options,read:async()=>{calls++;},reauthorize:async()=>{calls++;return true;},waitForRecovery:async()=>{calls++;},...patch}),/RECOVERY_INVALID/);assert.equal(calls,0);}
 });
+test('classification recovery admits only its exact409, one1000ms wait and fresh authorization before a second read',async()=>{
+ const error=Object.assign(Error('synthetic occupied classification read'),{status:409,code:'PERIOD_CLASSIFICATION_BUSY'}),events=[];let reads=0;
+ const value=await recoverOwnPeriodRead({method:'GET',operation:'bootstrap',busyCode:error.code,read:async()=>{events.push('read');if(++reads===1)throw error;return 'unchanged verified classification';},waitForRecovery:async ms=>{assert.equal(ms,1000);events.push('wait');},reauthorize:async()=>{events.push('authorize');return true;}});
+ assert.equal(value,'unchanged verified classification');assert.deepEqual(events,['read','wait','authorize','read']);
+});
