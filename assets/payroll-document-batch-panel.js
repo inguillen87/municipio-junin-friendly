@@ -3,14 +3,44 @@ import {payrollSourceReport,sourceReportTypeLabel} from './payroll-source-report
 import {mountDocumentCatalogFilters} from './payroll-document-catalog-filters.js';
 import {mountPayrollDocumentExport} from './payroll-document-export-panel.js';
 import {openPayrollDetail} from './payroll-detail-panel.js';
-export async function readPayrollBatch(url,{signal}={}){
- const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(25000)]):AbortSignal.timeout(25000)});
- if(!response.ok)throw Object.assign(Error([401,403].includes(response.status)?'Tu sesión no habilita esta consulta.':'No se pudo completar la lectura. Reintentá la selección.'),{status:response.status});
+export const PAYROLL_BATCH_READ_POLICY=Object.freeze({deadlineMs:25000,retryDelaysMs:Object.freeze([150,450,900])});
+async function readBatchJson(response,limit,signal){
  if(!response.headers.get('content-type')?.includes('application/json')||!response.headers.get('cache-control')?.includes('no-store'))throw Error('La respuesta no pudo verificarse.');
  const reader=response.body.getReader(),parts=[];let size=0,complete=false;
- try{for(;;){const r=await reader.read();if(r.done){complete=true;break;}size+=r.value.length;if(size>4*1024*1024)throw Error('Respuesta fuera del límite de consulta.');parts.push(r.value);}}finally{if(!complete)await reader.cancel().catch(()=>{});reader.releaseLock();}
+ try{for(;;){signal.throwIfAborted();const r=await reader.read();signal.throwIfAborted();if(r.done){complete=true;break;}size+=r.value.length;if(size>limit)throw Error('Respuesta fuera del límite de consulta.');parts.push(r.value);}}finally{if(!complete)await reader.cancel().catch(()=>{});reader.releaseLock();}
  const bytes=new Uint8Array(size);let at=0;for(const p of parts){bytes.set(p,at);at+=p.length;}
- const body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(body.ok!==true)throw Error('La respuesta no confirmó la lectura.');return body;
+ signal.throwIfAborted();return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+}
+function batchReadError(status,body){
+ const error=Object.assign(Error([401,403].includes(status)?'Tu sesión no habilita esta consulta.':'No se pudo completar la lectura. Reintentá la selección.'),{status});
+ // Only diagnostic identifiers cross the boundary; never display raw SQL,
+ // source values or an arbitrary server-supplied message.
+ if(body?.ok===false){
+  if(typeof body.code==='string'&&/^[A-Z][A-Z0-9_]{2,95}$/.test(body.code))error.code=body.code;
+  if(typeof body.retryable==='boolean')error.retryable=body.retryable;
+  if(typeof body.requestId==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.requestId))error.requestId=body.requestId;
+ }
+ return error;
+}
+function waitBatchRetry(delay,signal){
+ signal.throwIfAborted();return new Promise((resolve,reject)=>{
+  const abort=()=>{clearTimeout(timer);reject(signal.reason);},timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},delay);
+  signal.addEventListener('abort',abort,{once:true});
+ });
+}
+export async function readPayrollBatch(url,{signal}={}){
+ // One deadline covers the original GET, every retry, response body and wait.
+ // The caller retains its selection deadline and cancellation authority.
+ const target=String(url),scope=signal?AbortSignal.any([signal,AbortSignal.timeout(PAYROLL_BATCH_READ_POLICY.deadlineMs)]):AbortSignal.timeout(PAYROLL_BATCH_READ_POLICY.deadlineMs);
+ const options={method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:scope};
+ for(let attempt=0;;attempt++){
+  scope.throwIfAborted();const response=await fetch(target,options);scope.throwIfAborted();
+  if(response.ok){const body=await readBatchJson(response,4*1024*1024,scope);if(body.ok!==true)throw Error('La respuesta no confirmó la lectura.');return body;}
+  let body=null;try{body=await readBatchJson(response,8192,scope);}catch{scope.throwIfAborted();}
+  const error=batchReadError(response.status,body);
+  if(error.status!==409||error.code!=='ACTION_SESSION_BUSY'||error.retryable!==true||attempt>=PAYROLL_BATCH_READ_POLICY.retryDelaysMs.length)throw error;
+  await waitBatchRetry(PAYROLL_BATCH_READ_POLICY.retryDelaysMs[attempt],scope);
+ }
 }
 export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
  host.classList.add('pdb');const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
