@@ -11,6 +11,9 @@ import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable
 import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
+import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
+import {createInternalDataHandler} from '../api/internal-data.js';
+import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {RUN_CALCULATE,ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
@@ -27,6 +30,7 @@ let report;
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
   await db.run(ownPayrollFullQaInstallation(qa.schema));
+  const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa),readinessSql=createOwnPayrollReadinessSql(db,qa);
   const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
   const actor=qa.actors.maker,principal={user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:[...RUN_CALCULATE,'payroll.read']}},session={email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha},env={};
   const deps={env,requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{
@@ -42,6 +46,9 @@ try{
     assert.equal(query,'SELECT public.native_employment_catalog_bootstrap_v1($1::jsonb) AS result');
     return [{result:await db.run(query.replace('public.native_employment_catalog_',qa.schema+'.native_employment_catalog_').replace('$1',q(values[0])),true)}];
   }})});
+  const programHandler=createOwnProgramHandler({...deps,getSql:async()=>readinessSql});
+  const directoryHandler=createInternalDataHandler({env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:async()=>readinessSql});
+  const handlers={'/api/internal-own-payroll-run':runHandler,'/api/internal-employment-catalog':catalogHandler,'/api/internal-own-payroll-program':programHandler};
   server=http.createServer((req,res)=>{
     const url=new URL(req.url,'http://local.invalid');res.setHeader('Cache-Control','no-store');
     const json=(status,value)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(value));
@@ -50,13 +57,14 @@ try{
       json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:otherSession?qa.ids.checker:actor.actorSessionId,email:actor.actorEmail},access:{context:'tenant',tenant:{id:actor.tenantId,roleKey:'QA'},tenantCapabilities:principal.tenant.effectiveCapabilities,platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+(expireAuth?-3600000:3600000)).toISOString()});return;
     }
     if(req.method==='GET'&&url.pathname==='/api/internal-data'){
+      if(url.searchParams.get('resource')==='nativeroster'){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
       if(url.searchParams.get('resource')==='employees'){
         const page=Number(url.searchParams.get('page')),rows=page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:directoryOrigin}]:[];
         json(200,{ok:true,version:'employee-picker.v1',data:rows,pagination:{page,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}});return;
       }
       json(503,{ok:false,error:'Synthetic historical dashboard unavailable'});return;
     }
-    if(url.pathname==='/api/internal-own-payroll-run'||url.pathname==='/api/internal-employment-catalog'){
+    if(handlers[url.pathname]){
       req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};
       if(delay&&req.method==='GET'&&url.searchParams.get('resource')==='attempt'){
         // Hold the actual already-authorized response after SQL has finished.
@@ -67,7 +75,7 @@ try{
       }
       res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
       if(req.method==='POST')posts++;
-      (url.pathname==='/api/internal-own-payroll-run'?runHandler:catalogHandler)(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
+      handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
     if(req.method!=='GET'){json(405,{ok:false});return;}
     if(url.pathname==='/personal'){res.writeHead(200,{'Content-Type':'text/html'}).end('<!doctype html><title>Personas QA</title><h1>Revisión voluntaria del padrón</h1>');return;}
@@ -77,7 +85,7 @@ try{
     res.writeHead(200,{'Content-Type':mime}).end(fs.readFileSync(file));
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
-  browser=await chromium.launch({headless:true,...(args.browser==='chromium'?{}:{channel:args.browser})});
+  browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:args.browser==='chromium'?{}:{channel:args.browser})});
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage(),errors=[];
   testPage=page;
   page.on('pageerror',e=>errors.push(e.message));
@@ -222,7 +230,7 @@ try{
   const reviewStored=await db.run("SELECT jsonb_build_object('captures',(SELECT count(*) FROM own_payroll_run_capture),'results',(SELECT count(*) FROM own_payroll_run_result))");
   check(reviewStored.captures===4&&reviewStored.results===3&&posts===reviewPosts+1,'review preserves exact retry and never creates an extra capture or result');
   check(await reviewPage.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('19041')||v.includes('own-run-source-review'))),'source review is not persisted in browser storage');check(errors.length===0,'source review has no browser errors');
-  report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,actualProgramAndMonthlySources:true,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
+  report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,actualProgramAndMonthlySources:true,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true,productiveInstallation:false};if(testPage){report.browserDiagnostic=await testPage.evaluate(()=>{const link=document.querySelector('[data-own-login]');return {url:location.pathname+location.hash,status:document.querySelector('[data-own-status]')?.textContent,loginHidden:link?.hidden,loginMarkup:link?.outerHTML,loginStyle:link?getComputedStyle(link).display:null,busy:document.querySelector('.own-run')?.getAttribute('aria-busy'),documentHidden:document.hidden};}).catch(()=>null);await testPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
   held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));

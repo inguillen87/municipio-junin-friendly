@@ -133,3 +133,21 @@ test('a late recovered batch after actor withdrawal stays hidden and keeps its o
 test('recovery history remains private to the current view and does not persist browser data',()=>{
  const js=fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.js',import.meta.url),'utf8');assert.doesNotMatch(js,/localStorage|sessionStorage|indexedDB/);assert.match(js,/data-receipt-correct/);assert.match(js,/data-receipt-previous/);
 });
+
+test('unconsulted receipt scope does not claim zero documents or a signature failure',async t=>{
+ const h=harness(t);assert.equal(h.q('empty').hidden,true);assert.equal(h.q('signature').hidden,true);h.event('taskchange',{id:'recibos'});await h.settled();assert.equal(h.q('empty').hidden,true);assert.equal(h.q('signature').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.posts().length,0);
+});
+
+test('verified empty scope explains the missing own closure and offers separate documentary consultation',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/0 liquidaciones propias cerradas/);assert.match(h.q('empty').textContent,/cálculo propio confirmado y cerrado/);assert.match(h.q('empty').textContent,/no son recibos propios/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#cierre');assert.equal(h.q('empty').querySelector('a[href="/reportes#seleccion-documental"]').textContent,'Consultar documentos del respaldo');assert.equal(h.q('result').hidden,true);assert.equal(h.q('signature').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+ h.q('scope').value='employee';await h.act('scope','change');assert.equal(h.q('empty').hidden,true,'The empty state belongs only to its verified selection');assert.equal(h.q('emptyScope').textContent,'');
+});
+
+test('an unsigned nonempty preview keeps its review PDF available and explains its copy status',async t=>{
+ const h=harness(t);await h.start();assert.equal(h.q('signature').hidden,false);assert.match(h.q('signature').textContent,/no requiere firma digital/);assert.match(h.q('signature').textContent,/COPIA PARA REVISIÓN/);assert.match(h.q('signature').textContent,/no acredita una firma ni un pago/);assert.equal(h.q('empty').hidden,true);assert.ok(!h.q('pdf').disabled);assert.equal(h.posts().length,0);
+ h.hide();assert.equal(h.q('signature').hidden,true);assert.equal(h.q('result').hidden,true);assert.equal(h.q('pdf').disabled,true);
+});
+
+test('signature guidance never enables a review PDF whose closed source is no longer current',async t=>{
+ const h=harness(t);await h.start();h.state.postError=null;await h.act('prepare');const b=[...h.batches.values()][0];b.sourceCurrent=false;b.permissions.canDownload=false;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();assert.equal(h.q('signature').hidden,false);assert.match(h.q('state').textContent,/fuentes cambiadas; descarga retirada/);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('empty').hidden,true);assert.equal(h.posts().length,1,'A source change is neither a new preparation nor a review decision');
+});

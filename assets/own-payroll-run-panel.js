@@ -12,6 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
+import {OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -40,6 +41,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN · MOTOR PROPIO</p><h2>Calcular nómina</h2><p>Elegí el período y el alcance. Se conservan el programa aprobado, las novedades y el resultado de cada cálculo.</p></div><button class="button" type="button" data-own-refresh>Actualizar acceso y corridas</button></header>
   <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><p data-own-readiness-facts></p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice" data-own-prerequisites><summary>Antes del primer cálculo: padrón, valores y reglas</summary><ol><li>Revisá y adoptá el padrón preparado en <a href="/personal#legajos">Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Prepará y aprobá el programa en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
     <label for="ownRunPeriod">Período<input id="ownRunPeriod" data-own-period type="month" required></label>
@@ -71,21 +73,24 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const $=s=>host.querySelector('[data-own-'+s+']');
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
-  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
+  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
   const canPrepare=()=>can(OWN_RUN_PREPARE)&&boot?.canCalculate===true;
+  const canStart=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsNew(readiness);
   const individual=mountOwnPayrollIndividual($('individual'),{id:'ownRunIndividual',canUse:()=>can(OWN_RUN_NOMINAL),returnFocus:()=>$('result').querySelector('h3')});
-  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
+  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canStart()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
+    renderReadiness();
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
-    $('fields').disabled=busy||!canPrepare()||!!attempt;$('refresh').disabled=busy||!live();
-    $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&!$('confirm').checked||!!attempt&&!attempt.body;
+    $('fields').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
+    $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
     $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
-    $('send').hidden=!!current?.saved;
+    $('send').hidden=!!current?.saved||!attempt&&!canStart();
     $('recover').hidden=!attempt;$('recover').disabled=busy||!can(OWN_RUN_NOMINAL);
     $('recover').textContent=current?.saved?'Actualizar este resultado':'Consultar este intento';
     $('new').hidden=!current?.saved;$('new').disabled=busy||!canPrepare();
@@ -102,11 +107,22 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     for(const button of $('history').querySelectorAll('button'))button.disabled=busy||!can(OWN_RUN_NOMINAL)||!!attempt&&!current?.saved;
     host.setAttribute('aria-busy',String(busy));
   }
+  function renderReadiness(){
+    $('readiness').hidden=!!attempt&&attempt.key!==knownSavedKey;
+    $('readiness').dataset.state=readiness.state==='linked'?'success':'warning';
+    $('readiness-title').textContent=readiness.title;$('readiness-description').textContent=readiness.description;
+    $('readiness-facts').textContent=readiness.rosterTotal===null?'Padrón y aprobaciones: sin verificar.':readiness.rosterTotal+' legajos propios en la consulta completa · '+(readiness.catalogRevision?'maestro aprobado, revisión '+readiness.catalogRevision:'maestro sin aprobación')+' · '+(readiness.programRevision?'programa aprobado, revisión '+readiness.programRevision:'programa sin aprobación')+'.';
+    $('readiness-link').hidden=!readiness.href;
+    if(readiness.href){$('readiness-link').href=readiness.href;$('readiness-link').textContent=readiness.action;}else $('readiness-link').removeAttribute('href');
+    $('readiness-check').hidden=readiness.state!=='unverified';$('readiness-check').disabled=busy||!can(OWN_RUN_READ);
+  }
+  function invalidateReadiness(){readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;$('confirm').checked=false;picker.close();}
   function clearViews(){
     clearSourceReview();
     individual.clear();
     positionCapture.clear();
     picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;
+    invalidateReadiness();
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
@@ -123,10 +139,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     return payload;
   }
   async function session(required){
-    const next=ownRunWorkspaceAccess(await request('/api/internal-auth'));
+    const payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
     if(!hasOwnRunAccess(next.caps,required))throw Object.assign(Error('Tu cuenta no permite esta operación sobre la nómina.'),{status:403});
     if(attempt&&attempt.accessKey!==next.key||access&&access.key!==next.key)throw Object.assign(Error('Cambió la sesión. Recuperá el intento desde su cuenta original.'),{status:403});
-    access=next;$('login').hidden=true;
+    access=next;accessTenantId=payload.access.tenant.id;$('login').hidden=true;
   }
   async function perform(work){
     if(!live()||busy)return;
@@ -177,6 +193,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh(){return perform(async valid=>{
+    invalidateReadiness();
     clearSourceReview();
     individual.clear();
     await session(OWN_RUN_READ);
@@ -188,10 +205,20 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!valid())return;
     if(boot&&(boot.scopeVersion!==next.scopeVersion||boot.programVersion!==next.programVersion))$('confirm').checked=false;
     boot=next;catalog=nextCatalog;
+    renderKind();renderHistory();controls();
+    try{await verifyPreparation(next,valid);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
+    if(!valid())return;
     if(queuedPreparation){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;renderHistory();controls();return;}
     renderKind();renderHistory();controls();
-    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':canPrepare()?'Elegí el período, el tipo y todo el alcance antes de calcular.':'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.');
+    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
+  async function verifyPreparation(run,valid,required=OWN_RUN_READ){
+    const [program,roster]=await Promise.all([request('/api/internal-own-payroll-program?resource=bootstrap'),request(OWN_PAYROLL_READINESS_ROSTER_URL)]);
+    if(!valid())return;
+    const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
+    await session(required);if(!valid())return;
+    readiness=next;readinessAccessKey=access.key;
+  }
   function openIndividual(contractId,trigger){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;individual.clear();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
     const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(original.id))).data);
@@ -201,6 +228,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   async function acceptPreparation(context,valid){
     await session(OWN_RUN_PREPARE);if(!valid())return;
     if(access.key!==context.accessKey||!boot.canCalculate||attempt&&attempt.key!==knownSavedKey)throw Error('Hay un intento pendiente o cambió el acceso. Recuperalo antes de preparar otro cálculo.');
+    if(!canStart())throw Error(readiness.title+'. '+readiness.description);
     let preparation;
     if(context.kind==='consolidated'){
       const receipt=await verifiedOwnAnnulReceipt((await request('/api/internal-own-payroll-annulment?resource=attempt&key='+encodeURIComponent(context.key))).data);
@@ -225,10 +253,16 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     try{const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(key))).data,attempt?.key===key?attempt:null);if(valid())showCapture(value);}
     catch(error){if(valid()&&error.status===404&&attempt?.key===key)notFound=true;throw error;}
   });}
-  async function send(){if(!canPrepare()||busy||current?.saved)return;return perform(async valid=>{
+  async function send(){if(!canPrepare()||!attempt&&!canStart()||busy||current?.saved)return;return perform(async valid=>{
     await session(OWN_RUN_PREPARE);if(!valid())return;
     if(!attempt){
       if(!$('confirm').checked)throw Error('Revisá y confirmá todo el alcance antes de calcular.');
+      const previous=readiness;readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;controls();
+      const latest=ownRunBootstrap((await request(endpoint+'?resource=bootstrap&contractVersion=2')).data);
+      if(!valid())return;
+      try{await verifyPreparation(latest,valid,OWN_RUN_PREPARE);}catch(error){if(!valid())return;invalidateReadiness();throw error;}
+      if(!valid())return;boot=latest;
+      if(!canStart()||!ownPayrollReadinessUnchanged(previous,readiness)){$('confirm').checked=false;throw Error(ownPayrollReadinessAllowsNew(readiness)?'Cambió el padrón o el programa consultado. Revisá nuevamente el alcance antes de calcular.':readiness.title+'. '+readiness.description);}
       const kind=$('kind').value,values=kind==='all'?[]:kind==='contracts'?chosen.map(e=>e.contractId):[...$('codes').selectedOptions].map(o=>o.value);
       const body=ownRunCommand({version:OWN_RUN_COMMAND_VERSION,liquidationDate:$('date').value,period:$('period').value,liquidationType:$('type').value,selection:{kind,values},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'});
       attempt=ownRunWorkspaceAttempt(crypto.randomUUID(),body,access.key);
@@ -264,13 +298,14 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('form').addEventListener('submit',event=>{event.preventDefault();send();});
   $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
+  $('readiness-check').addEventListener('click',refresh);
   $('source-review-button').addEventListener('click',()=>reviewSources());$('source-download').addEventListener('click',()=>reviewSources(true));
   $('source-search').addEventListener('input',()=>{sourcePage=1;renderSourceReview();});$('source-prev').addEventListener('click',()=>{sourcePage--;renderSourceReview();});$('source-next').addEventListener('click',()=>{sourcePage++;renderSourceReview();});
   $('review').addEventListener('click',()=>{if(busy||!current?.saved||!can(OWN_RUN_NOMINAL))return;if(onReview?.({runId:current.id,resultSha256:current.saved.resultSha256,accessKey:access.key,contractId:individual.selected})!==true)status('Hay una decisión pendiente en Confirmar y anular. Consultala antes de cambiar de corrida.','warning');});
   $('picker').addEventListener('click',()=>picker.open({multiple:true,maximum:500,excluded:chosen.map(e=>e.legajo),onUse:items=>{chosen.push(...items);$('confirm').checked=false;renderChosen();controls();}}));
   $('new').addEventListener('click',()=>{if(!canPrepare()||busy||!current?.saved)return;attempt=null;clearViews();refresh();});
-  $('revise').addEventListener('click',()=>{if(!notFound||busy||!canPrepare())return;attempt=null;notFound=false;$('confirm').checked=false;controls();status('El intento consultado no estaba registrado. Revisá la preparación antes de otro envío.');});
-  $('period-end').addEventListener('click',()=>{if(attempt||busy||!canPrepare())return;try{$('date').value=ownRunPeriodEnd($('period').value);$('confirm').checked=false;$('date').focus();controls();}catch(error){status(error.message,'warning');}});
+  $('revise').addEventListener('click',()=>{if(!notFound||busy||!canPrepare())return;attempt=null;notFound=false;refresh();});
+  $('period-end').addEventListener('click',()=>{if(attempt||busy||!canStart())return;try{$('date').value=ownRunPeriodEnd($('period').value);$('confirm').checked=false;$('date').focus();controls();}catch(error){status(error.message,'warning');}});
   for(const field of ['period','date','type','kind','codes'])$(field).addEventListener('change',()=>{if(attempt)return;$('confirm').checked=false;if(field==='kind')renderKind();controls();});
   $('confirm').addEventListener('change',controls);$('search').addEventListener('input',()=>{page=1;renderRows();});$('prev').addEventListener('click',()=>{page--;renderRows();});$('next').addEventListener('click',()=>{page++;renderRows();});
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};
