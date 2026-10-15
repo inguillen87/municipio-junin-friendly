@@ -101,3 +101,57 @@ test('SQL errors remain specific and safe without exposing database details or p
   const a=setup({getSql:async()=>({query:async()=>{throw Error(message);}})}),res=response();await a.handler(request(),res);assert.equal(res.statusCode,status);assert.equal(res.value.code,'PERIOD_CLASSIFICATION_'+code);assert.ok(!JSON.stringify(res.value).includes('secret'));assert.ok(!JSON.stringify(res.value).includes('@'));
  }
 });
+
+function recoverySetup({persistent=false,after,sqlError,result=bootstrap(),nextSession}={}){
+ const stats={authorizations:0,connections:0,calls:[],accessOptions:[]};
+ const handler=createOwnPeriodClassificationHandler({env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireAccess:async(req,res,options)=>{
+  stats.authorizations++;stats.accessOptions.push(options);const next={mode:'managed',principal:structuredClone(principal)};
+  return stats.authorizations>1&&after?after(next,req,res):next;
+ },sessionFor:access=>{const value={...session,email:access.principal.user.email};return stats.authorizations>1&&nextSession?nextSession(value):value;},getSql:async()=>{stats.connections++;return{query:async(query,values)=>{
+  stats.calls.push({query,values:structuredClone(values)});if(sqlError)throw Error(sqlError);
+  if(stats.calls.length===1||persistent)throw Error('PERIOD_CLASSIFICATION_BUSY synthetic-private@example.invalid');
+  return[{result}];
+ }};}});
+ return{handler,stats};
+}
+test('occupied classification bootstrap reauthorizes once and preserves the exact original SQL and complete source',async()=>{
+ const a=recoverySetup(),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);
+ assert.equal(res.statusCode,200);assert.equal(a.stats.authorizations,2);assert.equal(a.stats.connections,1);assert.equal(a.stats.calls.length,2);assert.deepEqual(a.stats.calls[0],a.stats.calls[1]);assert.deepEqual(a.stats.accessOptions[0],a.stats.accessOptions[1]);
+ assert.equal(a.stats.accessOptions[1].allowLegacy,false);assert.equal(a.stats.accessOptions[1].requireDataPlaneReady,true);assert.equal(a.stats.accessOptions[1].requireCertifiedDataBinding,true);assert.deepEqual(res.value.data,bootstrap());assert.equal(res.value.data.configuration.definition,null);assert.match(res.headers['Cache-Control'],/no-store/);
+});
+test('classification detail and attempt recovery keep their immutable proposal or body/key and issue no command',async()=>{
+ for(const [query,value]of [[{resource:'detail',id:id(6)},detail()],[{resource:'attempt',key:id(20)},receipt(command(),id(20),{replayed:true})]]){
+  const a=recoverySetup({result:value}),res=response();await a.handler(readRequest(query),res);assert.equal(res.statusCode,200);assert.equal(a.stats.calls.length,2);assert.deepEqual(a.stats.calls[0],a.stats.calls[1]);assert.deepEqual(res.value.data,value);assert.ok(a.stats.calls.every(call=>!call.query.includes('_command_')));
+ }
+});
+test('two occupied classification reads remain an observable safe409 without a third query',async()=>{
+ const a=recoverySetup({persistent:true}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,409);assert.equal(res.value.code,'PERIOD_CLASSIFICATION_BUSY');assert.equal(a.stats.calls.length,2);assert.equal(a.stats.authorizations,2);assert.equal(res.value.data,undefined);assert.ok(!JSON.stringify(res.value).includes('@'));
+});
+test('classification read permission withdrawal during recovery prevents the second query',async()=>{
+ const a=recoverySetup({after:next=>{next.principal.tenant.effectiveCapabilities=[];return next;}}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,403);assert.equal(a.stats.calls.length,1);assert.equal(a.stats.authorizations,2);assert.equal(res.value.data,undefined);
+});
+test('classification gateway denial is emitted only once and prevents the second query',async()=>{
+ let responses=0;const a=recoverySetup({after:(next,req,res)=>{res.status(401).json({ok:false,code:'SESSION_INVALID'});return null;}}),res=response(),send=res.json;res.json=function(value){responses++;return send.call(this,value);};await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,401);assert.equal(responses,1);assert.equal(a.stats.calls.length,1);assert.equal(a.stats.authorizations,2);
+});
+test('classification recovery rejects changed user, person, tenant, membership, binding or capability scope',async()=>{
+ for(const change of [p=>p.user.email='other@example.invalid',p=>p.user.id=id(99),p=>p.tenant.id=id(99),p=>p.tenant.membershipId=id(99),p=>p.tenant.sourceBindingId=id(99),p=>p.tenant.effectiveCapabilities.push('synthetic.extra')]){
+  const a=recoverySetup({after:next=>{change(next.principal);return next;}}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,409);assert.equal(res.value.code,'PERIOD_CLASSIFICATION_SCOPE_CHANGED');assert.equal(a.stats.calls.length,1);assert.equal(a.stats.authorizations,2);assert.equal(res.value.data,undefined);
+ }
+});
+test('classification recovery rejects replaced session id, version or release before its second query',async()=>{
+ for(const patch of [{id:id(99)},{version:2},{releaseSha:'b'.repeat(40)}]){const a=recoverySetup({nextSession:s=>({...s,...patch})}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,409);assert.equal(res.value.code,'PERIOD_CLASSIFICATION_SCOPE_CHANGED');assert.equal(a.stats.calls.length,1);}
+});
+test('classification recovery still requires managed membership and a valid session',async()=>{
+ for(const options of [{after:next=>({...next,mode:'legacy'})},{after:next=>{next.principal.tenant.source='legacy';return next;}},{nextSession:s=>({...s,id:null})}]){
+  const a=recoverySetup(options),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.ok([401,403].includes(res.statusCode));assert.equal(a.stats.calls.length,1);assert.equal(a.stats.authorizations,2);
+ }
+});
+test('classification source changes, forbidden reads and other SQL errors never acquire a recovery attempt',async()=>{
+ for(const [sqlError,status]of [['PERIOD_CLASSIFICATION_SOURCE_CHANGED',409],['PERIOD_CLASSIFICATION_FORBIDDEN',403],['PERIOD_CLASSIFICATION_SESSION_INVALID',401],['unexpected private secret',503]]){const a=recoverySetup({sqlError}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,status);assert.equal(a.stats.calls.length,1);assert.equal(a.stats.authorizations,1);assert.ok(!JSON.stringify(res.value).includes('secret'));}
+});
+test('a corrupt second classification result fails closed without another read',async()=>{
+ const corrupt=bootstrap();corrupt.preparation.contractId=id(99);corrupt.preparation.source.subject.contractId=id(99);const a=recoverySetup({result:corrupt}),res=response();await a.handler(readRequest({resource:'bootstrap',contractId:id(3),period}),res);assert.equal(res.statusCode,503);assert.equal(a.stats.calls.length,2);assert.equal(res.value.data,undefined);
+});
+test('classification occupied POST never enters recovery or repeats the original command',async()=>{
+ const a=recoverySetup({persistent:true}),req=request(),original=req.body,res=response();await a.handler(req,res);assert.equal(res.statusCode,409);assert.equal(a.stats.authorizations,1);assert.equal(a.stats.calls.length,1);assert.match(a.stats.calls[0].query,/own_period_classification_command_v1/);assert.equal(req.body,original);assert.deepEqual(JSON.parse(a.stats.calls[0].values[1]),command());assert.equal(a.stats.calls[0].values[2],id(20));
+});
