@@ -6,7 +6,8 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {chromium} from 'playwright';
 import {buildOwnLiquidationQa,createOwnLiquidationPsqlQa} from './lib/own-payroll-liquidation-qa.mjs';
 import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
@@ -27,23 +28,40 @@ if(existingHeadless)assert.ok(args.browser==='chromium'&&path.isAbsolute(existin
 const qa=buildOwnLiquidationQa(major,{employees:6,declaredDate:true}),executable=args.psql??'psql',db=createOwnLiquidationPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins}),prefix=output.replace(/\.json$/,''),seed=prefix+'-seed.sql';fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 const identity=(actor,caps)=>({actor,principal:{user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:[...caps,'payroll.read']}},session:{email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha}});
 let installed=false,server,browser,testPage,report,checks=0,posts=0,lose=false,loseBefore=false,loseCalculation=false,expire=false;const writes=[],calculationWrites=[],diagnostics=[],check=(v,label)=>{assert.ok(v,label);checks++;};
+// Passive harness diagnostics: no SQL, response bodies, keys or command changes.
+// In-flight overlap identifies candidates; it does not prove a database lock owner.
+const requestContext=new AsyncLocalStorage(),activeSql=new Map(),trace={version:1,phase:'setup',events:[],recalculation:null,lockHolderAttribution:'not_measured'},traceStart=performance.now();let traceId=0;
+const elapsed=()=>Math.round((performance.now()-traceStart)*1000)/1000;
+const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{1,95}$/.test(value)?value:null;
+const sqlCode=error=>safeCode(error.message)||safeCode(/\bERROR:\s+([A-Z][A-Z0-9_]+)/.exec(error.message??'')?.[1])||safeCode(error.code);
+function failedBackendPid(error){const line=error.cause?.stdout?.split(/\r?\n/).find(value=>value.startsWith('{"qaConnectionPid"'));if(!line)return null;try{const pid=JSON.parse(line).qaConnectionPid;return Number.isSafeInteger(pid)&&pid>0?pid:null;}catch{return null;}}
+async function tracedSql(channel,query,operation){
+ const request=requestContext.getStore(),event={id:++traceId,kind:'sql',phase:trace.phase,channel,requestId:request?.id??null,operation:/\bpublic\.([a-z][a-z0-9_]+)\(/.exec(query)?.[1]??'native-roster-v2',querySha256:createHash('sha256').update(query).digest('hex'),startedMs:elapsed()};
+ trace.events.push(event);activeSql.set(event.id,event);
+ try{const rows=await operation();event.ok=true;return rows;}
+ catch(error){event.ok=false;event.code=sqlCode(error);event.backendPid=failedBackendPid(error);event.concurrentSqlIds=[...activeSql.keys()].filter(id=>id!==event.id);throw error;}
+ finally{event.finishedMs=elapsed();event.durationMs=Math.round((event.finishedMs-event.startedMs)*1000)/1000;activeSql.delete(event.id);}
+}
+const responseDiagnostic=(event,value)=>{if(event){event.ok=value?.ok===true;event.code=safeCode(value?.code);event.retryable=typeof value?.retryable==='boolean'?value.retryable:null;}};
 try{
  const r=await execute(executable,[...db.args,'-f',seed],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});installed=true;fs.writeFileSync(prefix+'-seed.log',r.stdout+r.stderr);
  await db.run(ownPayrollFullQaInstallation(qa.schema));
- const readinessInstallation=await installOwnPayrollReadinessUiQa(db,qa),readinessSql=createOwnPayrollReadinessSql(db,qa);
+ const readinessInstallation=await installOwnPayrollReadinessUiQa(db,qa),canonicalReadinessSql=createOwnPayrollReadinessSql(db,qa),readinessSql={query:(query,values)=>tracedSql('readiness',query,()=>canonicalReadinessSql.query(query,values))};
  const maker=identity(qa.actors.maker,RUN_CALCULATE),reviewer=identity(qa.actors.checker,OWN_LIQ_REVIEW);let current=reviewer;
  const run=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),boot=await run('bootstrap'),period=await db.run("SELECT to_jsonb(greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const body={period,liquidationType:'monthly',selection:{kind:'all',values:[]},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'};let capture,original;
- const env={},deps={env,requireAccess:async()=>({mode:'managed',principal:current.principal}),sessionFor:()=>current.session,getSql:async()=>({query:async(query,values)=>{
+ const env={},deps={env,requireAccess:async()=>({mode:'managed',principal:current.principal}),sessionFor:()=>current.session,getSql:async()=>({query:(query,values)=>tracedSql('run-or-decision',query,async()=>{
   if(query.includes('own_liquidation_command_v1')){writes.push({key:values[2],body:JSON.parse(values[1])});if(loseBefore){loseBefore=false;throw Error('QA_UNSENT_DECISION');}}
   if(query.includes('own_run_capture_v1'))calculationWrites.push({key:values[2],body:JSON.parse(values[1])});
   try{const rows=await db.query(query,values);if(lose&&query.includes('own_liquidation_command_v1')){lose=false;throw Error('QA_ACK_LOST_AFTER_COMMIT');}if(loseCalculation&&/own_run_complete(?:_full)?_v1\(/.test(query)){loseCalculation=false;throw Error('QA_CALCULATION_ACK_LOST_AFTER_COMMIT');}return rows;}catch(e){diagnostics.push(e.message);throw e;}
- }})};
- const handler=createOwnLiquidationHandler(deps),runHandler=createOwnRunHandler(deps),catalogHandler=createEmploymentCatalogHandler({...deps,getSql:async()=>({query:async(query,values)=>{assert.equal(query,'SELECT public.native_employment_catalog_bootstrap_v1($1::jsonb) AS result');return [{result:await db.run(query.replace('public.native_employment_catalog_',qa.schema+'.native_employment_catalog_').replace('$1',q(values[0])),true)}];}})}),programHandler=createOwnProgramHandler({...deps,getSql:async()=>readinessSql}),dataHandler=createInternalDataHandler({env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:async()=>readinessSql});
+ })})};
+ const handler=createOwnLiquidationHandler(deps),runHandler=createOwnRunHandler(deps),catalogHandler=createEmploymentCatalogHandler({...deps,getSql:async()=>({query:(query,values)=>tracedSql('catalog',query,async()=>{assert.equal(query,'SELECT public.native_employment_catalog_bootstrap_v1($1::jsonb) AS result');return [{result:await db.run(query.replace('public.native_employment_catalog_',qa.schema+'.native_employment_catalog_').replace('$1',q(values[0])),true)}];})})}),programHandler=createOwnProgramHandler({...deps,getSql:async()=>readinessSql}),dataHandler=createInternalDataHandler({env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:async()=>readinessSql});
  server=http.createServer((req,res)=>{
-  const url=new URL(req.url,'http://local.invalid');res.setHeader('Cache-Control','no-store');const json=(status,value)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(value));
+  const url=new URL(req.url,'http://local.invalid'),event=url.pathname.startsWith('/api/')?{id:++traceId,kind:'http',phase:trace.phase,method:req.method,path:url.pathname,resource:url.searchParams.get('resource'),startedMs:elapsed()}:null;
+  if(event){trace.events.push(event);res.once('finish',()=>{event.status=res.statusCode;event.finishedMs=elapsed();});res.once('close',()=>{event.closedBeforeFinish=!res.writableFinished;});}
+  res.setHeader('Cache-Control','no-store');const json=(status,value)=>{responseDiagnostic(event,value);return res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(value));};
   if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.actor.actorSessionId,email:current.actor.actorEmail},access:{context:'tenant',tenant:{id:current.actor.tenantId,roleKey:'QA'},tenantCapabilities:current.principal.tenant.effectiveCapabilities,platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+(expire?-3600000:3600000)).toISOString()});return;}
-  const privateHandler={'/api/internal-own-payroll-liquidation':handler,'/api/internal-own-payroll-run':runHandler,'/api/internal-employment-catalog':catalogHandler,'/api/internal-own-payroll-program':programHandler,...(url.searchParams.get('resource')==='nativeroster'?{'/api/internal-data':dataHandler}:{})}[url.pathname];if(privateHandler){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};if(req.method==='POST')posts++;privateHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
+  const privateHandler={'/api/internal-own-payroll-liquidation':handler,'/api/internal-own-payroll-run':runHandler,'/api/internal-employment-catalog':catalogHandler,'/api/internal-own-payroll-program':programHandler,...(url.searchParams.get('resource')==='nativeroster'?{'/api/internal-data':dataHandler}:{})}[url.pathname];if(privateHandler){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{responseDiagnostic(event,value);res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};if(req.method==='POST')posts++;requestContext.run(event,()=>privateHandler(req,res)).catch(e=>json(500,{ok:false,error:e.message}));return;}
   if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'Synthetic unrelated dashboard is unavailable'});return;}
   if(req.method!=='GET'){json(405,{ok:false});return;}
   const publicRoot=path.join(root,'public'),file=path.resolve(publicRoot,'.'+decodeURIComponent(url.pathname));if(!(file===path.join(publicRoot,'nomina-control.html')||file.startsWith(path.join(publicRoot,'assets')+path.sep)&&/\.(js|css|png|svg|webp)$/.test(file))||!fs.existsSync(file)){res.writeHead(404).end();return;}
@@ -99,8 +117,11 @@ try{
  await calc('period-end').click();check((await calc('date').inputValue()).startsWith(period+'-')&&!(await calc('confirm').isChecked()),'explicit period-end shortcut selects a real calendar day and requires fresh review');
  const chosenDate=await calc('date').inputValue();
  check(await calc('period-end').evaluate(el=>el.getBoundingClientRect().height>=44)&&await calc('date').evaluate(el=>el.labels.length===1&&el.getAttribute('aria-describedby')==='ownRunDateHelp'),'mobile date control has an explicit label, explanation and accessible shortcut target');
+ trace.phase='lost-recalculation-ack';const recalculationTraceStart=traceId;
  loseCalculation=true;await calc('confirm').check();await calc('send').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+ trace.recalculation={afterEventId:recalculationTraceStart,recoverVisible:await calc('recover').isVisible(),resultVisible:await calc('result').isVisible(),beforePosts:beforeCalculation,afterPosts:posts,calculationWrites:calculationWrites.length,lossInjectionStillArmed:loseCalculation,readinessState:await calc('readiness').getAttribute('data-state'),status:await calc('status').innerText()};
  check(await calc('recover').isVisible()&&!(await calc('result').isVisible())&&posts===beforeCalculation+1,'lost committed recalculation acknowledgement stays uncertain with one explicit POST');
+ trace.phase='calculation-recovery';
  const pendingCalculation=structuredClone(calculationWrites.at(-1));check(pendingCalculation.body.version==='own-payroll-run-command.v2'&&pendingCalculation.body.liquidationDate===chosenDate,'new explicit calculation persists the chosen date in its immutable body');
  await calc('date').evaluate(el=>{el.value='2026-10-15';el.dispatchEvent(new Event('change',{bubbles:true}));});await page.getByRole('tab',{name:'Confirmar y anular',exact:true}).click();await settled();await select('recover').click();await settled();await select('recalculate').click();await settled();
  check((await select('status').innerText()).includes('cálculo pendiente')&&calculationWrites.length===1,'another preparation cannot replace a pending calculation body/key');
@@ -123,4 +144,4 @@ try{
  const preservedAfter=await db.run("SET LOCAL TIMEZONE='UTC'; SELECT "+qa.schema+'.own_run_saved_v1(r) FROM '+qa.schema+'.own_payroll_run_result r WHERE capture_id='+q(capture.id)+'::uuid');assert.deepEqual(preservedAfter,original);checks++;
  report={passed:true,checks,serverMajor:major,synthetic:true,committed:true,productUiVerified:true,browser:args.browser,actualHttpHandler:true,authenticationPrincipalFixture:true,fullLegajoCount:6,conceptCount:36,desktopAndMobile:true,individualSummary:true,voluntaryContinuation:true,partialRunNeverWidened:true,pendingCalculationPreserved:true,immutableRetry:true,pageInvalidation:true,sqlRevocation:true,productiveBusinessOperations:0,posts,readinessInstallation};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics:diagnostics,synthetic:true};process.exitCode=1;if(testPage){try{await testPage.screenshot({path:prefix+'-failure.png',fullPage:true});fs.writeFileSync(prefix+'-failure.txt',await testPage.locator('body').innerText());}catch{}}}
-finally{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));if(installed){try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));}
+finally{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));if(installed){try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}report.harnessDiagnostics={traceFile:path.relative(root,prefix+'-diagnostics.json'),httpRequests:trace.events.filter(event=>event.kind==='http').length,sqlQueries:trace.events.filter(event=>event.kind==='sql').length,sqlFailures:trace.events.filter(event=>event.kind==='sql'&&event.ok===false).map(({id,operation,code,backendPid,concurrentSqlIds})=>({id,operation,code,backendPid,concurrentSqlIds})),recalculation:trace.recalculation,lockHolderAttribution:trace.lockHolderAttribution};fs.writeFileSync(prefix+'-diagnostics.json',JSON.stringify(trace,null,2));fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));}

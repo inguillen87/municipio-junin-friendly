@@ -213,7 +213,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
-    const [program,roster]=await Promise.all([request('/api/internal-own-payroll-program?resource=bootstrap'),request(OWN_PAYROLL_READINESS_ROSTER_URL)]);
+    const program=await request('/api/internal-own-payroll-program?resource=bootstrap');
+    if(!valid())return;
+    const roster=await request(OWN_PAYROLL_READINESS_ROSTER_URL);
     if(!valid())return;
     const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
     await session(required);if(!valid())return;
