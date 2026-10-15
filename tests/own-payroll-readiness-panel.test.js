@@ -2,6 +2,7 @@
 // Synthetic HTTP only; layout and real SQL remain separate release checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {setTimeout as delay} from 'node:timers/promises';
 import {mountOwnPayrollRun} from '../assets/own-payroll-run-panel.js';
 import {OWN_RUN_PREPARE} from '../assets/own-payroll-run-workspace-model.js';
 import {CATALOG_VERSION} from '../assets/native-employment-catalog-model.js';
@@ -58,7 +59,7 @@ function harness(t){
   return new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json'}});
  };
  const mounted=mountOwnPayrollRun(host),q=key=>{const value=host.querySelector('[data-own-'+key+']');assert.ok(value,'Actual panel control '+key);return value;};
- const idle=async()=>{for(let i=0;i<40;i++){await settle();if(host.getAttribute('aria-busy')==='false')return;}assert.fail('Panel did not settle');};
+ const idle=async()=>{const deadline=performance.now()+5000;while(host.getAttribute('aria-busy')!=='false'){if(performance.now()>=deadline)assert.fail('Panel did not settle within 5s; status: '+q('status').textContent+'; preparation: '+q('readiness-title').textContent);await delay(5);}};
  const start=async()=>{docEvents.dispatch('taskchange',{id:'calculo'});await idle();};
  const prepare=async()=>{q('period').value='2026-10';q('date').value='2026-10-31';q('type').value='monthly';q('kind').value='all';await q('kind').emit('change');q('confirm').checked=true;await q('confirm').emit('change');};
  const submit=async()=>{await q('form').emit('submit');await idle();};
