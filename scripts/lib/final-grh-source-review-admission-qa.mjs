@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {buildFinalAdoptionQa} from './final-contract-adoption-qa.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 import {finalReviewAdmissionSnapshot} from './final-grh-source-review-admission-installation.mjs';
+import {ownerAdoptionQaDestinationGuard} from './municipal-owner-adoption-qa-transport.mjs';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",hash=s=>createHash('sha256').update(s).digest('hex');
 
 export function finalReviewAdmissionQaDirectory(value){
@@ -34,8 +35,9 @@ export function finalReviewAdmissionQaTransaction({statements,schema,guard,end='
  return`BEGIN ISOLATION LEVEL REPEATABLE READ${characteristics.length?' READ ONLY':''};SET LOCAL statement_timeout='160s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${schema},public,pg_temp;${guard};${statements.filter(s=>!characteristics.includes(s)).join(';\n')};${end};`;
 }
 
-export function relocateFinalReviewAdmissionInstallation(batch,qa,{databaseOid,read}){
+export function relocateFinalReviewAdmissionInstallation(batch,qa,{databaseOid,read,transport='local',destinationIdentity}){
  assert.ok(Number.isSafeInteger(databaseOid)&&databaseOid>0&&databaseOid<=4294967295);assert.equal(typeof read,'function');
+ assert.ok(['local','ci'].includes(transport));if(transport==='ci')assert.ok(destinationIdentity);if(destinationIdentity){assert.equal(destinationIdentity.transport,transport);assert.equal(destinationIdentity.major,batch.major);assert.equal(destinationIdentity.databaseOid,databaseOid);}
  assert.match(qa.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.ok([17,18].includes(batch.major));
  const source=read('scripts/migrations/144-final-grh-source-revision.sql').replace(/\r\n?/g,'\n'),definitions=splitPostgresStatements(source).filter(s=>s.startsWith('CREATE FUNCTION public.grh_final_source_'));
  assert.equal(definitions.length,9);const n=qa.normalized,pins=[];
@@ -43,7 +45,8 @@ export function relocateFinalReviewAdmissionInstallation(batch,qa,{databaseOid,r
  let metadata=n(batch.sourcePrerequisite.check);for(const old of batch.sourcePrerequisite.pins){const pin=pins.find(p=>p.name===old.name);assert.equal(metadata.split(old.sha256).length,2);metadata=metadata.replace(old.sha256,pin.sha256);}
  const inverse=`replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(qa.schema+'.')},'public'||'.')`;
  assert.equal(metadata.split(inverse).length,2,'FINAL_REVIEW_QA_HASH_ADAPTER_CHANGED');metadata=metadata.replace(inverse,"replace(p.prosrc,E'\\r\\n',E'\\n')");
- const guard=`DO $final_review_qa_destination$ BEGIN ${qa.pins}
+ const guard=transport==='ci'?`DO $final_review_qa_destination$ BEGIN ${qa.pins}
+ ${ownerAdoptionQaDestinationGuard(destinationIdentity)} END $final_review_qa_destination$`:`DO $final_review_qa_destination$ BEGIN ${qa.pins}
  IF current_user<>'postgres' OR host(inet_server_addr()) IS DISTINCT FROM '127.0.0.1' OR inet_server_port()<>${55400+batch.major} OR(SELECT oid FROM pg_database WHERE datname=current_database())<>${databaseOid}::oid THEN RAISE EXCEPTION 'FINAL_REVIEW_QA_DESTINATION_CHANGED';END IF;END $final_review_qa_destination$`;
  const transform=s=>{
   if(s===batch.destination)return guard;
@@ -53,7 +56,7 @@ export function relocateFinalReviewAdmissionInstallation(batch,qa,{databaseOid,r
   return relocated;
  };
  const transactions=Object.fromEntries(Object.entries(batch.transactions).map(([name,t])=>[name,{...t,statements:t.statements.map(transform)}]));
- const relocated={...batch,destination:guard,sourcePrerequisite:{pins,check:metadata},preflight:batch.preflight.map(transform),transactions,guardedRollback:{...batch.guardedRollback,statements:batch.guardedRollback.statements.map(transform)},productionCompatible:false,transport:'existing-loopback-only',schema:qa.schema,relocation:{originalPins:batch.sourcePrerequisite.pins,relocatedPins:pins,originalMigrationSha256:batch.sourceHashes['scripts/migrations/183-final-grh-source-review-admission.sql'],relocatedMigrationSha256:hash(n(batch.migration[0])),functionSemanticsChanged:false,metadataChecksRemoved:0,sourceTuplesChanged:false}};
+ const relocated={...batch,destination:guard,sourcePrerequisite:{pins,check:metadata},preflight:batch.preflight.map(transform),transactions,guardedRollback:{...batch.guardedRollback,statements:batch.guardedRollback.statements.map(transform)},productionCompatible:false,transport:transport==='ci'?'github-actions-service-only':'existing-loopback-only',schema:qa.schema,relocation:{originalPins:batch.sourcePrerequisite.pins,relocatedPins:pins,originalMigrationSha256:batch.sourceHashes['scripts/migrations/183-final-grh-source-review-admission.sql'],relocatedMigrationSha256:hash(n(batch.migration[0])),functionSemanticsChanged:false,metadataChecksRemoved:0,sourceTuplesChanged:false}};
  assert.equal(relocated.sourcePrerequisite.pins.length,9);assert.ok(metadata.includes('FINAL_ADOPTION_SOURCE_METADATA')&&metadata.includes('FINAL_ADOPTION_SOURCE_PROTECTION'));
  for(const t of Object.values(transactions)){assert.ok(t.statements.includes(guard));assert.ok(t.statements.includes(metadata));assert.doesNotMatch(t.statements.join('\n'),/\b(?:CREATE|ALTER|DROP)\s+(?:ROLE|DATABASE)\b/i);}
  return relocated;

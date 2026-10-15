@@ -4,6 +4,7 @@ import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
 import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
 
+import {ownProgramPeriodContext,verifiedPeriodContextCapture} from './own-payroll-period-context.js';
 export const OWN_RUN_READ = Object.freeze(['workforce.employee.read','payroll.parameter.read','payroll.calculation.read']);
 export const OWN_RUN_NOMINAL = Object.freeze([...OWN_RUN_READ,'payroll.calculation.nominal.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export']);
 export const OWN_RUN_PREPARE = Object.freeze([...OWN_RUN_NOMINAL,'payroll.calculation.prepare']);
@@ -27,6 +28,7 @@ export function ownRunWorkspaceAttempt(key, body, accessKey) {
 }
 export async function verifiedWorkspaceCapture(value, attempt = null) {
   ownRunCapture(value,attempt);ownRunJurisdictions(value);
+  if(ownProgramPeriodContext(value.payload.programState.program.definition))await verifiedPeriodContextCapture(value.payload.periodContext,value.body.period);
   const hash = async v => [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(v))))].map(b=>b.toString(16).padStart(2,'0')).join('');
   if(await hash(value.body)!==value.bodySha256 || await hash(value.payload)!==value.payloadSha256
     || value.saved && (await hash(value.saved.input)!==value.saved.inputSha256 || await hash(value.saved.result)!==value.saved.resultSha256))

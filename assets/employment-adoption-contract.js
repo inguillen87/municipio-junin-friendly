@@ -1,6 +1,7 @@
 import {sourceDeclarations,DECLARED_ADOPTION_INPUT_VERSION} from './employment-source-declarations.js';
 import {REGISTRY_ADOPTION_INPUT_VERSION,REGISTRY_SOURCE_FACTS_POLICY} from './employment-adoption-original-facts.js';
 import {OPERATIONAL_ADOPTION_INPUT_VERSION,OPERATIONAL_ADOPTION_COHORT} from './employment-adoption-operational-cohort.js';
+import {MIXED_ADOPTION_INPUT_VERSION,MIXED_ADOPTION_COHORT} from './employment-adoption-mixed-cohort.js';
 // Ownership-adoption wire contract. No identity lookup, source parsing or writes.
 export const ADOPTION_VERSION = 'employment-adoption.v1';
 export const ADOPTION_PENDING_INPUT_VERSION = 'employment-adoption-input.v2';
@@ -28,11 +29,11 @@ function text(value, min, max) {
   return result;
 }
 export function adoptionProposalInput(value) {
-  const operative=value?.version===OPERATIONAL_ADOPTION_INPUT_VERSION,registry=value?.version===REGISTRY_ADOPTION_INPUT_VERSION,declared=value?.version===DECLARED_ADOPTION_INPUT_VERSION,active=operative||registry||declared||value?.version===ADOPTION_ACTIVE_INPUT_VERSION,final=active||value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
+  const mixed=value?.version===MIXED_ADOPTION_INPUT_VERSION,operative=value?.version===OPERATIONAL_ADOPTION_INPUT_VERSION,registry=value?.version===REGISTRY_ADOPTION_INPUT_VERSION,declared=value?.version===DECLARED_ADOPTION_INPUT_VERSION,active=mixed||operative||registry||declared||value?.version===ADOPTION_ACTIVE_INPUT_VERSION,final=active||value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
   if (!exact(value, ['sourceContextVersion', 'selectionVersion', 'catalogVersion', 'rows', 'legalReference', 'reason',...(pending?['version']:[]),...(final?['finalSource']:[]),...(active?['cohort']:[]),...(declared?['declarations']:[]),...(registry?['sourceFactsPolicy']:[])])
     || ![value.sourceContextVersion, value.selectionVersion, value.catalogVersion].every(sha) || !Array.isArray(value.rows)) fail();
   if(final&&(!exact(value.finalSource,['revisionId','packageSha256'])||!adoptionUuid(value.finalSource.revisionId)||!sha(value.finalSource.packageSha256)))fail();
-  if(active&&value.cohort!==(operative?OPERATIONAL_ADOPTION_COHORT:ADOPTION_ACTIVE_COHORT))fail();
+  if(active&&value.cohort!==(mixed?MIXED_ADOPTION_COHORT:operative?OPERATIONAL_ADOPTION_COHORT:ADOPTION_ACTIVE_COHORT))fail();
   if(registry&&value.sourceFactsPolicy!==REGISTRY_SOURCE_FACTS_POLICY)fail();
   if (value.rows.length < 1 || value.rows.length > ADOPTION_MAX_ROWS) fail('LIMIT', 'La selección completa requiere entre uno y diez mil contratos. No se omitieron filas.');
   const seen = new Set(), rows = [];
@@ -45,7 +46,7 @@ export function adoptionProposalInput(value) {
     rows.push({contractId: row.contractId, contractVersion: row.contractVersion, jurisdictionCode: row.jurisdictionCode});
   }
   let declarations;if(declared){try{declarations=sourceDeclarations(value.declarations);}catch{fail();}if(declarations.some(d=>!seen.has(d.contractId.toLowerCase())))fail();}
-  return freeze({...(pending?{version:operative?OPERATIONAL_ADOPTION_INPUT_VERSION:registry?REGISTRY_ADOPTION_INPUT_VERSION:declared?DECLARED_ADOPTION_INPUT_VERSION:active?ADOPTION_ACTIVE_INPUT_VERSION:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),...(active?{cohort:operative?OPERATIONAL_ADOPTION_COHORT:ADOPTION_ACTIVE_COHORT}:{}),...(declared?{declarations}:{}),...(registry?{sourceFactsPolicy:REGISTRY_SOURCE_FACTS_POLICY}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
+  return freeze({...(pending?{version:mixed?MIXED_ADOPTION_INPUT_VERSION:operative?OPERATIONAL_ADOPTION_INPUT_VERSION:registry?REGISTRY_ADOPTION_INPUT_VERSION:declared?DECLARED_ADOPTION_INPUT_VERSION:active?ADOPTION_ACTIVE_INPUT_VERSION:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),...(active?{cohort:mixed?MIXED_ADOPTION_COHORT:operative?OPERATIONAL_ADOPTION_COHORT:ADOPTION_ACTIVE_COHORT}:{}),...(declared?{declarations}:{}),...(registry?{sourceFactsPolicy:REGISTRY_SOURCE_FACTS_POLICY}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
     catalogVersion: value.catalogVersion, rows, legalReference: text(value.legalReference, 3, 180), reason: text(value.reason, 10, 1000)});
 }
 export function adoptionReviewInput(value) {
