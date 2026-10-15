@@ -5,6 +5,7 @@ import {schoolCertificateHttp} from './internal-family-certificates.js';
 import {schoolCertificateSafeError} from '../lib/internal-family-certificates.js';
 import {readRawPrivateJson} from '../lib/private-json-body.js';
 import {employeeContext} from '../lib/internal-native-employees.js';
+import {ownPeriodReadScopeKey, recoverOwnPeriodRead} from '../lib/own-period-read-recovery.js';
 import {salaryExact, salaryKey, salaryUuid} from '../assets/native-salary-catalog-model.js';
 import {periodClassificationCommand, periodClassificationPeriod, PERIOD_CLASSIFICATION_MAX_BYTES} from '../assets/own-period-classification-model.js';
 import {PERIOD_CLASSIFICATION_READ, PERIOD_CLASSIFICATION_CAPS, periodClassificationFail, periodClassificationError, periodClassificationOperation} from '../lib/internal-own-period-classification.js';
@@ -30,10 +31,12 @@ export function createOwnPeriodClassificationHandler(deps = {}) {
    else if (query.resource === 'detail' && Object.keys(query).sort().join('|') === 'id|resource') {operation = 'detail'; input = {id:query.id};}
    else if (query.resource === 'attempt' && Object.keys(query).sort().join('|') === 'key|resource') {operation = 'attempt'; input = {key:query.key};}
    else periodClassificationFail('QUERY_INVALID', 400, 'Consulta inválida.');
-   const access = await authorize(req, res, {env, requiredCapabilities:PERIOD_CLASSIFICATION_READ, capabilityMode:'all', requireDataPlaneReady:true, requireCertifiedDataBinding:true, allowLegacy:false});
+   const accessOptions = {env, requiredCapabilities:PERIOD_CLASSIFICATION_READ, capabilityMode:'all', requireDataPlaneReady:true, requireCertifiedDataBinding:true, allowLegacy:false};
+   let access = await authorize(req, res, accessOptions);
    if (!access) return;
-   if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, PERIOD_CLASSIFICATION_READ)) periodClassificationFail('FORBIDDEN', 403, 'La membresía no permite consultar encuadres propios por período.');
-   const session = sessionFor(access, env); employeeContext(access.principal, session);
+   const assertAccess = value => {if (value.mode !== 'managed' || value.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(value.principal, PERIOD_CLASSIFICATION_READ)) periodClassificationFail('FORBIDDEN', 403, 'La membresía no permite consultar encuadres propios por período.');};
+   assertAccess(access);
+   let session = sessionFor(access, env); employeeContext(access.principal, session);
    if (method === 'POST') {
     const envelope = await readRawPrivateJson(req, {maxBytes:PERIOD_CLASSIFICATION_MAX_BYTES, maxDepth:8, timeoutMs:10000, declaredLength:schoolCertificateHttp.header(req, 'content-length'), fail:kind => {
      if (kind === 'large') periodClassificationFail('LIMIT', 413, 'El formulario completo supera el tamaño permitido.');
@@ -47,7 +50,14 @@ export function createOwnPeriodClassificationHandler(deps = {}) {
    }
    if (operation === 'bootstrap' && (!salaryUuid(input.contractId) || !periodClassificationPeriod(input.period)) || operation === 'detail' && !salaryUuid(input.id)) periodClassificationFail('INPUT_INVALID', 400, 'Elegí un contrato, propuesta y período válidos.');
    if (['attempt', 'command'].includes(operation) && !salaryKey(input.key)) periodClassificationFail('INPUT_INVALID', 428, 'La operación requiere una referencia de intento.');
-   const sql = await getSql(env), data = await periodClassificationOperation(sql, access.principal, session, operation, input);
+   const sql = await getSql(env), read = () => periodClassificationOperation(sql, access.principal, session, operation, input), scope = method === 'GET' ? ownPeriodReadScopeKey(access.principal, session) : null;
+   const data = method === 'GET' ? await recoverOwnPeriodRead({method, operation, busyCode:'PERIOD_CLASSIFICATION_BUSY', read, reauthorize:async() => {
+    const next = await authorize(req, res, accessOptions); if (!next) return false;
+    assertAccess(next); const nextSession = sessionFor(next, env);
+    if (ownPeriodReadScopeKey(next.principal, nextSession) !== scope) periodClassificationFail('SCOPE_CHANGED', 409, 'Cambió la cuenta, la sesión o el ámbito municipal. Volvé a abrir la consulta.');
+    access = next; session = nextSession; return true;
+   }}) : await read();
+   if (data === null) return;
    if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
    return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ok:true, data});
   } catch (error) {

@@ -378,8 +378,5 @@ local-agents/
 !scripts/migrations/179-own-agreement-working-time.sql
 !scripts/migrations/180-own-agreement-working-time-program.sql
 
-# Reviewed declared-period context code; no municipal input or decisions.
-!scripts/migrations/182-own-payroll-period-context.sql
-
 # Exact review-admission source required by build tests; no municipal input.
 !scripts/migrations/183-final-grh-source-review-admission.sql

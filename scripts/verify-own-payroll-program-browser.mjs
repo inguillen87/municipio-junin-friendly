@@ -10,10 +10,11 @@ import { ownProgramCommand } from '../assets/own-payroll-program-model.js';
 import { prepareOwnPayrollInput } from '../lib/own-payroll-approved-input.js';
 import { calculateOwnPayroll } from '../assets/own-payroll-engine.js';
 import { approvedSources } from '../tests/fixtures/own-payroll-approved-synthetic.js';
+import { ownProgramBrowserAssets } from './lib/own-program-browser-assets.mjs';
 const root = path.resolve(import.meta.dirname, '..'), args = process.argv.slice(2), log = args.find(a => a.startsWith('--sql-log='))?.slice(10), channel = args.find(a => a.startsWith('--channel='))?.slice(10);
 assert.ok(log); assert.ok(channel === undefined || ['chrome', 'msedge'].includes(channel)); assert.equal(args.length, channel ? 2 : 1);
 const data = readOwnProgramSqlFixture(log);
-const allowed = new Map(['own-payroll-engine.js', 'own-payroll-exact.js', 'own-payroll-conditions.js', 'own-payroll-program-model.js', 'native-salary-catalog-model.js', 'own-period-participation-program.js'].map(name => ['/assets/' + name, fs.readFileSync(path.join(root, 'assets', name))]));
+const allowed = ownProgramBrowserAssets(name => fs.readFileSync(path.join(root, 'assets', name)));
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET') { res.writeHead(405).end(); return; }
   if (req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }).end('<!doctype html><html lang="es"><title>QA sintético C2</title></html>'); return; }
