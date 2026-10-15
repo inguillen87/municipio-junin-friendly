@@ -2,10 +2,10 @@ name: Adoption review navigation
 on:
   push:
     branches: ['master']
-    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
+    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/verify-own-adoption-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
   pull_request:
     branches: ['master']
-    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
+    paths: ['assets/**', 'scripts/verify-adoption-review-navigation-browser.mjs', 'scripts/verify-own-adoption-navigation-browser.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/install-project-chromium.mjs', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/adoption-review-navigation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Verify navigation, readiness and preserved login destination
-        run: node --test tests/municipal-adoption-navigation.test.js tests/municipal-adoption-operator.test.js tests/own-payroll-readiness.test.js tests/own-payroll-readiness-panel.test.js tests/app-routes.test.js
+        run: node --test tests/municipal-adoption-navigation.test.js tests/municipal-adoption-own-navigation.test.js tests/municipal-adoption-operator.test.js tests/own-payroll-readiness.test.js tests/own-payroll-readiness-panel.test.js tests/app-routes.test.js
       - run: npx --no-install playwright install-deps chromium
       - name: Verify the project Chromium runtime
         run: |
@@ -33,6 +33,8 @@ jobs:
         # Source frontend with fictional HTTP responses. Login is simulated;
         # this does not authenticate accounts or execute municipal decisions.
         run: node --import ./scripts/lib/project-chromium.mjs scripts/verify-adoption-review-navigation-browser.mjs --output=verification/adoption-review-navigation-ci
+      - name: Read the preparer's saved proposal receipts without decision authority
+        run: node --import ./scripts/lib/project-chromium.mjs scripts/verify-own-adoption-navigation-browser.mjs --output=verification/own-adoption-navigation-ci
       - name: Preserve synthetic evidence including failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -40,6 +42,7 @@ jobs:
           name: adoption-review-navigation-${{ github.sha }}
           path: |
             verification/adoption-review-navigation-ci
+            verification/own-adoption-navigation-ci
             verification/release-chromium-157.0.8098.0/installation.json
           if-no-files-found: warn
           retention-days: 7

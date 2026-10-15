@@ -33,3 +33,16 @@ export function resolveMunicipalAdoptionNavigation(queue,intent){
  if(reviewable.length===1)return Object.freeze({kind:'review',proposalId:reviewable[0].proposal.proposalId});
  return Object.freeze({kind:'list',reason:reviewable.length>1?'multiple':pending.length?'own':'none'});
 }
+// This receives a canonically validated preparation bootstrap. Its receipts
+// describe the original preparation, never the current decision or roster.
+export function resolveOwnAdoptionNavigation(bootstrap,intent){
+ verifiedIntent(intent);
+ if(!bootstrap||!Array.isArray(bootstrap.attempts)||bootstrap.attempts.length>500||bootstrap.applicationAvailable!==false||!bootstrap.review?.scope)invalid();
+ const ids=[],seen=new Set();for(const attempt of bootstrap.attempts){
+  const receipt=attempt?.receipt,id=receipt?.proposalId;
+  if(attempt?.version!=='employment-adoption-preparation.v1'||attempt.applicationAvailable!==false||!uuid(id)||seen.has(id.toLowerCase())||receipt.operation!=='propose'||receipt.status!=='pending'||!Number.isSafeInteger(receipt.total)||receipt.total<1||receipt.total>10000)invalid();
+  seen.add(id.toLowerCase());ids.push(id.toLowerCase());
+ }
+ if(intent.kind==='proposal')return Object.freeze({kind:seen.has(intent.proposalId.toLowerCase())?'proposal':'unavailable',proposalIds:Object.freeze(ids.filter(id=>id===intent.proposalId.toLowerCase()))});
+ return Object.freeze({kind:'list',proposalIds:Object.freeze(ids)});
+}
