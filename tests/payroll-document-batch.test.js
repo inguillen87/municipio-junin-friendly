@@ -39,10 +39,11 @@ test('same names and leading-zero references never merge contracts',async()=>{
  const f=batchFixture(2);f.records[0].number='1';f.roster.rows[0].legajo='1';f.records[1].number='01';f.roster.rows[1].legajo='01';f.records.forEach(r=>r.assignments[0].name='Same synthetic name');
  const d=(await batchPreview({fromNumber:'1',toNumber:'1'},f)).payload.data;assert.equal(d.counts.selected,2);assert.deepEqual(d.rows.map(r=>r.number),['01','1']);assert.notEqual(d.rows[0].contractId,d.rows[1].contractId);
 });
-test('SQL is explicitly tenant, company, database, source-binding and literal-legajo scoped',async()=>{
- const f=batchFixture();await batchPreview({},f);assert.equal(f.calls.length,2);
+test('metadata SQL is scoped and directory comes only from the authenticated facade',async()=>{
+ const f=batchFixture();await batchPreview({},f);assert.equal(f.calls.length,1);
  for(const c of f.calls){assert.match(c.text,/b\.tenant_id/);assert.match(c.text,/source_database/);assert.match(c.text,/source_company_id/);assert.match(c.text,/verified IS TRUE/);assert.deepEqual(c.values.slice(0,4),[BATCH_DATASET,batchBinding.tenantId,batchBinding.database,batchBinding.companyId]);assert.doesNotMatch(c.text,/\b(?:UPDATE|DELETE|INSERT|ALTER|GRANT)\b/);}
- assert.match(f.calls[1].text,/c\.legacy_legajo=numbers\.number/);assert.match(f.calls[1].text,/b\.id=\(SELECT source_binding_id/);
+ assert.match(f.calls[0].text,/d\.source_binding_id::text AS "bindingId"/);assert.equal(f.rosterReads,2);
+ assert.doesNotMatch(f.calls[0].text,/payroll-batch:directory|FROM employment_contract/);
  assert.deepEqual(new Set(capabilitiesForInternalDataResource('payrolldocumentbatch')),new Set(['workforce.employee.read','payroll.read']));
 });
 for(const mutate of [d=>d.signatureApplied=true,d=>d.officialReceipt=true,d=>d.paymentDate='2026-08-31',d=>d.departmentBasis='historical',d=>d.counts.selected++,d=>d.groups[0].selected++,d=>d.rows[0].contractId=null,d=>d.rows[0].bankAccount='PRIVATE_ACCOUNT',d=>d.rows[0].number='9000'])test('inconsistent selection DTO is not rendered',async()=>{

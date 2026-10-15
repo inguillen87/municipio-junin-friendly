@@ -20,7 +20,10 @@ const check=(value,label)=>{assert.ok(value,label);checks.push(label);};
 const fail=code=>{throw Object.assign(Error(code),{code:code==='ACTION_SESSION_BUSY'?'P0001':code});};
 const payrollSql={query:async(query,values)=>{
  if(query.includes('payroll_source_report_v1('))return[{result:fixture.catalogue().data}];
- if(query.includes('payroll_export_roster_v1('))return[{result:structuredClone(fixture.fixture.roster)}];
+ if(query.includes('payroll_export_roster_v1(')){
+  const {documentaryDirectory}=await fixture.fixture.readRoster();
+  return[{result:{...structuredClone(fixture.fixture.roster),documentaryDirectory}}];
+ }
  assert.ok(query.includes('employee_payroll_detail_v1('),'Unexpected synthetic payroll SQL');
  const url='/api/internal-data?'+new URLSearchParams({resource:'employeepayrolldetail',contractId:values[6],date:values[7],type:values[8],period:String(values[9]),month:String(values[10])});
  const count=(reads.get(url)??0)+1;reads.set(url,count);activeReads++;maxReads=Math.max(maxReads,activeReads);

@@ -1,0 +1,68 @@
+name: Adopted documentary readers
+on:
+  push:
+    branches: ['master']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'contracts/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/**']
+  pull_request:
+    branches: ['master']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'contracts/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  documentary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        major: [17, 18]
+        baseline: [canonical, observed]
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: own_payroll_run_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+        ports:
+          - 554${{ matrix.major }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGPASSWORD: noelia-circuit-synthetic-qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Verify documentary contracts and fixed QA destinations
+        run: node --test tests/adopted-documentary-qa.test.js tests/documentary-adoption-installation.test.js tests/documentary-adoption-contract.test.js tests/payroll-document-batch.test.js tests/payroll-document-collection.test.js
+      - name: Prepare the disposable synthetic database
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Preserve original documents across actual adoption and reader178
+        # Every case executes the complete regression, installation replay,
+        # rollback, ACL/snapshot preservation and SQL-backed existing UI. The
+        # observedPG18 baseline deliberately retains its pre105 read guard.
+        run: node scripts/verify-adopted-documentary-read.mjs --transport=ci --major=${{ matrix.major }} --baseline=${{ matrix.baseline }} --source-commit=${{ github.sha }} --output=verification/adopted-documentary-ci
+      - name: Preserve synthetic evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: adopted-documentary-pg${{ matrix.major }}-${{ matrix.baseline }}-${{ github.sha }}
+          path: |
+            verification/adopted-documentary-ci/result.json
+            verification/adopted-documentary-ci/failure.json
+            verification/adopted-documentary-ci/browser-proof.json
+            verification/adopted-documentary-ci/installation-protocol-proof.json
+            verification/adopted-documentary-ci/browser-failure.json
+            verification/adopted-documentary-ci/*.png
+            verification/adopted-documentary-ci/*.pdf
+          if-no-files-found: warn
+          retention-days: 7
