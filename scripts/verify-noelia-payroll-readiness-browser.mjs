@@ -6,7 +6,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
-import {chromium} from 'playwright';
+import {chromium,firefox} from 'playwright';
 import {launchOwnSyntheticBrowser} from './lib/own-synthetic-browser.mjs';
 import {OWN_RUN_PREPARE} from '../assets/own-payroll-run-workspace-model.js';
 import {OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,ownReceiptParams} from '../assets/own-payroll-receipt-model.js';
@@ -24,7 +24,7 @@ import {createOwnReceiptPdf} from '../assets/own-payroll-receipt-pdf.js';
 
 const build=path.resolve('public'),argument=process.argv.find(a=>a.startsWith('--output=')),browserArgument=process.argv.find(a=>a.startsWith('--browser='));
 assert.ok(process.argv.slice(2).every(a=>a===argument||a===browserArgument)&&process.argv.filter(a=>a.startsWith('--output=')).length<=1&&process.argv.filter(a=>a.startsWith('--browser=')).length<=1,'Only --output= and --browser= are supported; this verifier never uses live browser or published APIs.');
-const browserMode=browserArgument?.slice('--browser='.length)??'chromium';assert.ok(['chrome','chromium'].includes(browserMode),'Browser must be chrome or chromium.');
+const browserMode=browserArgument?.slice('--browser='.length)??'chromium';assert.ok(['chrome','chromium','firefox'].includes(browserMode),'Browser must be chrome, chromium or firefox.');
 const output=path.resolve(argument?.slice('--output='.length)||'verification/noelia-payroll-readiness-browser-'+new Date().toISOString().replace(/[^0-9]/g,''));
 assert.ok(!fs.existsSync(path.join(output,'result.json')),'Use a new output directory to preserve prior evidence.');
 fs.mkdirSync(output,{recursive:true});
@@ -116,7 +116,7 @@ async function responsive(scenario){
 let outcome;
 try{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origin='http://127.0.0.1:'+server.address().port;
- if(browserMode==='chrome'){browser=await chromium.launch({channel:'chrome',headless:true});driverName='repository Playwright '+createRequire(import.meta.url)('playwright/package.json').version+' / isolated headless Chrome channel';}else ({browser,driverName}=await launchOwnSyntheticBrowser());
+ if(browserMode==='firefox'){browser=await firefox.launch({headless:true});driverName='repository Playwright '+createRequire(import.meta.url)('playwright/package.json').version+' / isolated headless Firefox '+browser.version();}else if(browserMode==='chrome'){browser=await chromium.launch({channel:'chrome',headless:true});driverName='repository Playwright '+createRequire(import.meta.url)('playwright/package.json').version+' / isolated headless Chrome channel';}else ({browser,driverName}=await launchOwnSyntheticBrowser());
  const context=await browser.newContext({viewport:{width:1366,height:1000},locale:'es-AR',serviceWorkers:'block',acceptDownloads:true});
  // No routing interception: Playwright turns predicate routes into a global
  // CDP interception pattern. This isolated server instead constrains resource

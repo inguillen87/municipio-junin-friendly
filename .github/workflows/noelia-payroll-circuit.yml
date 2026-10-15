@@ -44,9 +44,12 @@ jobs:
         run: npm run build
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
-      - run: npx --no-install playwright install --with-deps chromium
+      - run: npx --no-install playwright install --with-deps chromium firefox
       - name: Verify prerequisites, empty receipts and complete unsigned PDF on desktop and mobile
-        run: node scripts/verify-noelia-payroll-readiness-browser.mjs --output=verification/noelia-payroll-readiness-ci
+        # Preserve the strict no-store stream and zero-failure assertions. The
+        # separate full SQL/UI circuit still runs in Chromium. See upstream
+        # microsoft/playwright#42742 for the bundled Linux Chromium diagnostic.
+        run: node scripts/verify-noelia-payroll-readiness-browser.mjs --browser=firefox --output=verification/noelia-payroll-readiness-ci
       - name: Complete adoption declarations, mixed jurisdictions and immutable recovery
         run: node scripts/verify-employment-adoption-preparation-browser.mjs --output-prefix=verification/adoption-jurisdictions-ci
       - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
