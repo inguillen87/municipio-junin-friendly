@@ -3,12 +3,13 @@ import {mountAdoptionPreparation} from './employment-adoption-preparation-ui.js'
 import {mountMunicipalAdoptionOperator} from './municipal-adoption-operator-ui.js';
 import {adoptionFinalSources,adoptionPreparationBootstrap} from './employment-adoption-preparation-model.js';
 import {appendAdoptionChanges} from './employment-adoption-changes-ui.js';
-import {parseMunicipalAdoptionNavigation} from './municipal-adoption-navigation-model.js';
+import {parseMunicipalAdoptionNavigation,resolveOwnAdoptionNavigation,shortMunicipalAdoptionId} from './municipal-adoption-navigation-model.js';
 export function mountAdoptionReview(root){
  if(!root||root.dataset.mounted)return;root.dataset.mounted='true';
  root.innerHTML=`<summary><strong>Revisar el padrón antes de su adopción</strong><span>Antecedentes pendientes para trabajar con el circuito propio</span></summary><div class="ar-body">
  <p>Revisá el personal activo del respaldo final preparado para trabajar con el padrón diario. Los inactivos se conservan en los antecedentes históricos. La consulta de la fuente instalada también sigue disponible. Revisar no adopta contratos ni habilita liquidaciones.</p>
- <button type="button" class="button primary" data-ar-consult>Revisar padrón completo</button><details data-ar-cuts-panel><summary>Revisar un respaldo final preparado</summary><p>Consultar su disponibilidad no lo incorpora al padrón. Elegí el corte expresamente para comparar sus antecedentes completos antes de proponer una adopción.</p><button type="button" class="button" data-ar-cuts>Consultar respaldos finales disponibles</button><div data-ar-cut-options></div></details><p role="status" aria-live="polite" data-ar-status>La revisión es voluntaria. Abrir este panel no consulta datos personales.</p><div data-ar-operator></div>
+ <button type="button" class="button primary" data-ar-consult>Revisar padrón completo</button><details data-ar-cuts-panel><summary>Revisar un respaldo final preparado</summary><p>Consultar su disponibilidad no lo incorpora al padrón. Elegí el corte expresamente para comparar sus antecedentes completos antes de proponer una adopción.</p><button type="button" class="button" data-ar-cuts>Consultar respaldos finales disponibles</button><div data-ar-cut-options></div></details><p role="status" aria-live="polite" data-ar-status>La revisión es voluntaria. Abrir este panel no consulta datos personales.</p>
+ <section data-ar-own hidden aria-labelledby="adoption-own-heading"><h4 id="adoption-own-heading" data-ar-own-heading tabindex="-1">Mis propuestas guardadas</h4><p>Estos comprobantes corresponden a tu cuenta en este municipio. Informan la preparación original; no muestran decisiones posteriores. La revisión y la decisión requieren otra persona autorizada.</p><button type="button" class="button" data-ar-own-load>Volver a consultar mis propuestas guardadas</button><ol data-ar-own-items></ol></section><div data-ar-operator></div>
  <section data-ar-result hidden><p data-ar-counts></p><p data-ar-source></p><button type="button" class="button" data-ar-download>Descargar observaciones sin datos personales</button>
  <p>El CSV contiene fila de esta revisión, estado y acción sugerida. Incluye todas las observaciones, aunque haya búsqueda o cambio de página. No contiene nombres, legajos, documentos, identificadores o importes. La fila corresponde al padrón revisado, no a un TXT.</p>
  <label>Buscar en esta revisión por nombre o legajo<input type="search" maxlength="100" autocomplete="off" data-ar-search></label><p data-ar-visible></p>
@@ -16,7 +17,7 @@ export function mountAdoptionReview(root){
  <div class="ar-table-wrap"><table><caption data-ar-caption>Contratos pendientes de adopción municipal</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Situación</th><th>Observaciones</th><th>Ficha</th></tr></thead><tbody data-ar-rows></tbody></table></div>
  <div data-ar-preparation></div></section></div>`;
  const $=key=>root.querySelector('[data-ar-'+key+']'),pages=root.querySelector('.ar-pages').cloneNode(true);pages.setAttribute('aria-label','Páginas de revisión · final');$('result').append(pages);
- let snapshot=null,selectedSource=null,page=1,allowed=false,busy=false,generation=0,controller=null,navigation=null,navigationError=null,navigationConsumed=false;
+ let snapshot=null,selectedSource=null,page=1,allowed=false,canDecide=false,busy=false,generation=0,controller=null,navigation=null,navigationError=null,navigationConsumed=false,ownNavigationMode=false,lastPermissions=null;
  try{navigation=parseMunicipalAdoptionNavigation(window.location.href);}catch(error){navigationError=error.message;}
  const message=text=>{$('status').textContent=text;},live=()=>allowed&&!document.hidden&&root.open&&root.isConnected;
  const preparation=mountAdoptionPreparation($('preparation'),{isLive:live,onAuthorityLost:()=>invalidate('Cambió el acceso o el ámbito. Consultá nuevamente el padrón completo.')});
@@ -25,11 +26,13 @@ export function mountAdoptionReview(root){
   if(navigationConsumed||!navigation&&!navigationError||!allowed||document.hidden||!root.isConnected||root.closest('[data-section]')?.hidden)return;
   navigationConsumed=true;root.open=true;controls();operator.refreshControls();
   if(navigationError){message(navigationError);$('status').setAttribute('tabindex','-1');$('status').focus();return;}
-  operator.openNavigation(navigation).catch(()=>message('No se pudo abrir esta revisión. Consultá nuevamente las propuestas.'));
+  if(canDecide)operator.openNavigation(navigation).catch(()=>message('No se pudo abrir esta revisión. Consultá nuevamente las propuestas.'));
+  else{ownNavigationMode=true;readOwnProposals();}
  }
- const view=root.closest('[data-section]');if(view&&typeof MutationObserver!=='undefined')new MutationObserver(openNavigation).observe(view,{attributes:true,attributeFilter:['hidden']});
+ const view=root.closest('[data-section]');if(view&&typeof MutationObserver!=='undefined')new MutationObserver(()=>{if(view.hidden&&ownNavigationMode)invalidate('Datos retirados al cambiar de sección. Volvé a consultar tus propuestas guardadas.');else openNavigation();}).observe(view,{attributes:true,attributeFilter:['hidden']});
  const filtered=()=>snapshot?snapshot.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('search').value.toLocaleLowerCase('es')))):[];
  function controls(){
+  $('own').hidden=!ownNavigationMode||!allowed||canDecide;$('own-load').disabled=busy||!live()||view?.hidden===true;
   $('consult').disabled=busy||!allowed||document.hidden;$('download').disabled=busy||!snapshot||!live();$('search').disabled=busy||!snapshot||!live();
   $('cuts').disabled=busy||!live();$('cut-options').querySelectorAll('button').forEach(n=>n.disabled=busy||!live());
   const total=filtered().length;root.querySelectorAll('[data-ar-prev]').forEach(n=>n.disabled=busy||!live()||!snapshot||page<=1);root.querySelectorAll('[data-ar-next]').forEach(n=>n.disabled=busy||!live()||!snapshot||page*25>=total);root.setAttribute('aria-busy',String(busy));
@@ -37,7 +40,7 @@ export function mountAdoptionReview(root){
  function invalidate(text='Revisión retirada. Consultá nuevamente el padrón completo.',withdrawOperator=true){
   preparation.invalidate();
   if(withdrawOperator)operator.invalidate();
-  generation++;controller?.abort();snapshot=null;selectedSource=null;busy=false;page=1;$('cut-options').replaceChildren();$('search').value='';$('result').hidden=true;$('rows').replaceChildren();$('counts').textContent='';$('source').textContent='';$('visible').textContent='';root.querySelectorAll('[data-ar-page]').forEach(n=>n.textContent='');message(text);controls();
+  generation++;controller?.abort();snapshot=null;selectedSource=null;busy=false;page=1;$('own-items').replaceChildren();$('cut-options').replaceChildren();$('search').value='';$('result').hidden=true;$('rows').replaceChildren();$('counts').textContent='';$('source').textContent='';$('visible').textContent='';root.querySelectorAll('[data-ar-page]').forEach(n=>n.textContent='');message(text);controls();
  }
  function paint(){
   preparation.setReview(snapshot);
@@ -55,6 +58,29 @@ export function mountAdoptionReview(root){
  async function authority(signal){
   const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json();
   if(!response.ok||value.ok!==true||value.authenticated!==true||!value.access?.tenantCapabilities?.includes('workforce.employee.read'))throw Object.assign(Error('Tu acceso ya no permite revisar el padrón. Se retiraron los datos.'),{status:response.status===401?401:403});
+ }
+ async function ownAuthority(signal){
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json(),access=value.access;
+  if(!response.ok||value.ok!==true||value.authenticated!==true||!Array.isArray(access?.tenantCapabilities)||!access.tenantCapabilities.includes('workforce.employee.read')||access.context!=='tenant'||typeof access.tenant?.id!=='string'||typeof value.user?.email!=='string'||!value.user.email.trim())throw Object.assign(Error('Tu sesión o permiso cambió. Se retiraron tus comprobantes.'),{status:response.status===401?401:403});
+  return{actor:value.user.email.trim().toLowerCase(),tenantId:access.tenant.id};
+ }
+ async function readOwnProposals(){
+  if(busy||!live()||!ownNavigationMode||canDecide||view?.hidden)return;
+  const token=++generation;controller?.abort();controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]);busy=true;$('own-items').replaceChildren();controls();message('Consultando los comprobantes de preparación de tu cuenta…');
+  const current=()=>token===generation&&live()&&!view?.hidden;
+  try{
+   const before=await ownAuthority(signal);if(!current())return;
+   const value=await adoptionPreparationBootstrap(await adoptionRequest('?resource=bootstrap',signal));if(!current())return;
+   const after=await ownAuthority(signal);if(!current())return;
+   if(before.actor!==after.actor||before.tenantId!==after.tenantId||value.review.scope.tenantId!==before.tenantId)throw Object.assign(Error('Cambió la cuenta o el municipio. Se retiraron los comprobantes; consultá nuevamente con tu acceso vigente.'),{status:403});
+   const target=resolveOwnAdoptionNavigation(value,navigation);
+   for(const id of target.proposalIds){
+    const receipt=value.attempts.find(a=>a.receipt.proposalId.toLowerCase()===id).receipt,li=document.createElement('li'),heading=document.createElement('strong'),quantity=document.createElement('p'),state=document.createElement('p');
+    heading.textContent='Propuesta guardada · '+shortMunicipalAdoptionId(id);heading.title=id;quantity.textContent=receipt.total+' contratos en la propuesta original.';state.textContent='Estado al prepararla: registrada para revisión. No se adoptaron contratos al guardarla.';li.append(heading,quantity,state);$('own-items').append(li);
+   }
+   message(target.kind==='unavailable'?'Esta propuesta no figura entre los comprobantes guardados por tu cuenta en este municipio. No se abrió otra propuesta.':target.proposalIds.length?'Comprobantes propios consultados. El estado al prepararlos no informa si hubo una decisión posterior.':'Tu cuenta no tiene comprobantes de propuestas guardadas en este municipio.');$('own-heading').focus();
+  }catch(e){if(current()){if([401,403].includes(e.status)){allowed=false;invalidate(e.message);}else{$('own-items').replaceChildren();message(['AbortError','TimeoutError'].includes(e.name)?'La consulta se interrumpió. Volvé a consultar tus propuestas guardadas.':e instanceof TypeError?'No se pudo consultar. Revisá la conexión y volvé a consultar tus propuestas guardadas.':e.message||'No se pudieron verificar tus comprobantes completos.');}}}
+  finally{if(token===generation){busy=false;controls();}}
  }
  async function read(signal,selected=null){
   if(selected){await authority(signal);const active=selected.cohort==='active-contracts.v1',value=await adoptionPreparationBootstrap(await adoptionRequest('?'+new URLSearchParams({resource:active?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}),signal));if(value.review.source.finalRevision?.revisionId!==selected.revisionId||value.review.source.finalRevision?.packageSha256!==selected.packageSha256||active!==Boolean(value.review.source.operationalCohort))throw Error('No se obtuvo el mismo respaldo y alcance. Consultá nuevamente.');return value.review;}
@@ -93,10 +119,11 @@ export function mountAdoptionReview(root){
   finally{if(token===generation){busy=false;controls();}}
  }
  $('cuts').addEventListener('click',cuts);
+ $('own-load').addEventListener('click',readOwnProposals);
  $('consult').addEventListener('click',()=>run());$('download').addEventListener('click',()=>run(true));$('search').addEventListener('input',()=>{if(snapshot){page=1;paint();}});
  root.querySelectorAll('[data-ar-prev]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page>1){page--;paint();}}));root.querySelectorAll('[data-ar-next]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page*25<filtered().length){page++;paint();}}));
  root.addEventListener('toggle',()=>{if(!root.open)invalidate();else{controls();operator.refreshControls();}});document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidate('Datos retirados al ocultar la pantalla. Consultá nuevamente.');else{controls();operator.refreshControls();openNavigation();}});window.addEventListener('pagehide',()=>invalidate());document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;invalidate('Sesión cerrada.');});
- const permissions=event=>{const caps=event?.detail?.tenantCapabilities;allowed=caps instanceof Set&&caps.has('workforce.employee.read');if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else{controls();operator.refreshControls();openNavigation();}};
+ const permissions=event=>{const caps=event?.detail?.tenantCapabilities,nextAllowed=caps instanceof Set&&caps.has('workforce.employee.read'),nextCanDecide=caps instanceof Set&&caps.has('employee.record.approve');if(event?.detail===lastPermissions&&allowed===nextAllowed&&canDecide===nextCanDecide)return;lastPermissions=event?.detail;allowed=nextAllowed;canDecide=nextCanDecide;if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else{if(ownNavigationMode)invalidate('Consultá nuevamente tus propuestas guardadas con el acceso vigente.');controls();operator.refreshControls();openNavigation();}};
  document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(result=>permissions({detail:result}));
  for(const event of ['mc:native-employee-created','mc:native-employment-changed','mc:native-employment-lifecycle-changed'])document.addEventListener(event,()=>invalidate('Cambió un legajo o su situación. Consultá nuevamente la revisión completa.'));controls();
  document.addEventListener('mc:municipal-adoption-decided',event=>{if(event.detail?.status==='approved')invalidate('Se adoptó el padrón. Consultá nuevamente el padrón propio para continuar.',false);});
