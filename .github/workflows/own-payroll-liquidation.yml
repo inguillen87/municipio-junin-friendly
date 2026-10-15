@@ -2,9 +2,9 @@ name: Own payroll liquidation decisions
 on:
   push:
     branches: ['master', 'codex/own-liquidation-decisions-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/verify-own-payroll-preparation-sequencing.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/own-payroll-preparation-sequencing-qa.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+    paths: ['scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'tests/project-chromium-workflow.test.js', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/verify-own-payroll-preparation-sequencing.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/own-payroll-preparation-sequencing-qa.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/verify-own-payroll-preparation-sequencing.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/own-payroll-preparation-sequencing-qa.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+    paths: ['scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/lib/own-synthetic-browser.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'tests/project-chromium-workflow.test.js', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/verify-own-payroll-preparation-sequencing.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/own-payroll-individual*.test.js', 'tests/own-payroll-preparation-sequencing-qa.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
 permissions:
   contents: read
 jobs:
@@ -45,10 +45,19 @@ jobs:
         run: node scripts/verify-own-payroll-liquidation-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-liquidation-installation.json
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Actual built product UI and HTTP handler, mobile, all pages and immutable retries
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-payroll-liquidation-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-liquidation-ui.json
       - name: Deterministic preparation-read sequencing with the actual panel
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-payroll-preparation-sequencing.mjs --browser=chromium --output=verification/own-preparation-sequencing.json
+      - name: Native fragmented EOF and unchanged rejection guards
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-source-preview-fragmented-transport.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -61,4 +70,6 @@ jobs:
             verification/own-liquidation-ui-failure.txt
             verification/own-liquidation-ui-failure.png
             verification/own-preparation-sequencing.json
+            verification/release-chromium-157.0.8098.0/installation.json
+            verification/payroll-formula-transport/fragmented-regression
           retention-days: 5
