@@ -9,6 +9,7 @@ import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-pa
 import {prepareProgramScaleReference,applyProgramScaleReference} from './own-payroll-program-scale-reference-model.js';
 import {mountProgramScaleReference} from './own-payroll-program-scale-reference-panel.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
+import {ownPayrollProgramSummary} from './own-payroll-readiness-model.js';
 import {PROGRAM_READ,PROGRAM_UNITS,PROGRAM_SOURCES,PROGRAM_ROUNDING,PROGRAM_OPERATIONS,PROGRAM_COMPARE,programWorkspaceAccess,programWorkspaceGuidance,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,expressionChildren,expressionSize,changeExpressionOperation,describeProgramExpression,programWorkspaceChanges} from './own-payroll-program-workspace-model.js';
 
 const endpoint='/api/internal-own-payroll-program',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
@@ -259,7 +260,7 @@ export function mountOwnPayrollProgram(container){
  function renderBoot(value){
   if(!value.permissions.canPropose)scaleReference.clear();
   coverage.setSource(value);
-  boot=ownProgramBootstrap(value);$('content').hidden=false;$('current').textContent=`Programa aprobado: revisión ${boot.program.revision}. Catálogo salarial: revisión ${boot.salaryCatalog.revision}.`;
+  boot=ownProgramBootstrap(value);$('content').hidden=false;$('current').textContent=ownPayrollProgramSummary(boot);
   const guidance=programWorkspaceGuidance(boot),messages={
    catalog_required:['Primero: aprobar el maestro salarial propio','Todavía no hay una revisión aprobada de conceptos y escalas. Prepará el maestro con sus vigencias y respaldo; otra persona debe revisarlo antes de preparar reglas.'],
    program_required:['Siguiente paso: preparar y revisar las reglas','El maestro salarial tiene una revisión aprobada. Todavía no hay un programa propio aprobado. Prepará las fórmulas, entradas, unidades y vigencias para su revisión independiente.'],
