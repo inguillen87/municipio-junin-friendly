@@ -387,3 +387,7 @@ local-agents/
 # Reviewed owner authority/decision code sources; no municipal input or approval.
 !scripts/migrations/184-municipal-owner-adoption-authority.sql
 !scripts/migrations/185-municipal-owner-adoption-decision.sql
+
+# Explicit owner catalog code; no municipal proposal, backup or decision data.
+!scripts/migrations/187-municipal-owner-catalog-decision.sql
+!api/internal-municipal-owner-catalog.js
