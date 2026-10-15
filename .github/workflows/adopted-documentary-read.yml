@@ -46,10 +46,14 @@ jobs:
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium
+      - name: Verify the project Chromium runtime
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Preserve original documents across actual adoption and reader178
         # Every case executes the complete regression, installation replay,
         # rollback, ACL/snapshot preservation and SQL-backed existing UI. The
         # observedPG18 baseline deliberately retains its pre105 read guard.
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-adopted-documentary-read.mjs --transport=ci --major=${{ matrix.major }} --baseline=${{ matrix.baseline }} --source-commit=${{ github.sha }} --output=verification/adopted-documentary-ci
       - name: Preserve synthetic evidence including failures
         if: always()
@@ -61,6 +65,7 @@ jobs:
             verification/adopted-documentary-ci/failure.json
             verification/adopted-documentary-ci/browser-proof.json
             verification/adopted-documentary-ci/installation-protocol-proof.json
+            verification/release-chromium-157.0.8098.0/installation.json
             verification/adopted-documentary-ci/browser-failure.json
             verification/adopted-documentary-ci/*.png
             verification/adopted-documentary-ci/*.pdf
