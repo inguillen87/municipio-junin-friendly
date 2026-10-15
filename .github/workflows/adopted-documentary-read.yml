@@ -42,7 +42,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify documentary contracts and fixed QA destinations
-        run: node --test tests/adopted-documentary-qa.test.js tests/documentary-adoption-installation.test.js tests/documentary-adoption-contract.test.js tests/payroll-document-batch.test.js tests/payroll-document-collection.test.js
+        run: node --test tests/adopted-documentary-qa.test.js tests/documentary-adoption-installation.test.js tests/documentary-adoption-contract.test.js tests/payroll-document-batch.test.js tests/payroll-document-collection.test.js tests/documentary-roster-shared-subjects.test.js tests/documentary-roster-performance-qa.test.js
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium
@@ -57,6 +57,13 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-adopted-documentary-read.mjs --transport=ci --major=${{ matrix.major }} --baseline=${{ matrix.baseline }} --source-commit=${{ github.sha }} --output=verification/adopted-documentary-ci
+      - name: Preserve the complete documentary regression after reader181
+        # The original178 suite above remains independent. This second run
+        # installs181 after178's own guard checks and repeats every existing
+        # adoption, original-document, authorization and browser assertion.
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-documentary-shared-subjects-regression.mjs --transport=ci --major=${{ matrix.major }} --baseline=${{ matrix.baseline }} --source-commit=${{ github.sha }} --output=verification/documentary-shared-subjects-ci
       - name: Preserve synthetic evidence including failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -71,5 +78,13 @@ jobs:
             verification/adopted-documentary-ci/browser-failure.json
             verification/adopted-documentary-ci/*.png
             verification/adopted-documentary-ci/*.pdf
+            verification/documentary-shared-subjects-ci/shared-subjects-result.json
+            verification/documentary-shared-subjects-ci/shared-subjects-installation-proof.json
+            verification/documentary-shared-subjects-ci/result.json
+            verification/documentary-shared-subjects-ci/failure.json
+            verification/documentary-shared-subjects-ci/browser-proof.json
+            verification/documentary-shared-subjects-ci/browser-failure.json
+            verification/documentary-shared-subjects-ci/*.png
+            verification/documentary-shared-subjects-ci/*.pdf
           if-no-files-found: warn
           retention-days: 7
