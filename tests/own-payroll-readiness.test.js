@@ -18,7 +18,7 @@ test('consulta completa propia sin filtros; cero histórico o de una búsqueda n
 });
 test('cero real registrado o adoptado guía a Personas, sin inventar empleados o aprobar propuestas',()=>{
  const values=sources({roster:roster(0)}),before=structuredClone(values),result=read(values);
- assert.equal(result.state,'roster_required');assert.equal(result.rosterTotal,0);assert.equal(result.href,'/personal#legajos');assert.equal(ownPayrollReadinessAllowsNew(result),false);assert.deepEqual(values,before);
+ assert.equal(result.state,'roster_required');assert.equal(result.rosterTotal,0);assert.equal(result.href,'/personal?adopcion=pendientes#legajos');assert.equal(ownPayrollReadinessAllowsNew(result),false);assert.deepEqual(values,before);
  assert.doesNotMatch(result.description,/855|860|adoptado automáticamente/);
 });
 test('cero activos hoy no implica cero registros elegibles para otro período',()=>{

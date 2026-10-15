@@ -3,14 +3,15 @@ import {REGISTRY_ADOPTION_INPUT_VERSION,originalRegistryFactsCounts} from './emp
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 import {operationalAdoptionCohort} from './employment-adoption-operational-cohort.js';
 import {appendAdoptionChanges} from './employment-adoption-changes-ui.js';
+import {municipalAdoptionReviewHref,shortMunicipalAdoptionId,resolveMunicipalAdoptionNavigation} from './municipal-adoption-navigation-model.js';
 const API='/api/internal-municipal-adoption',issue=(message,status,code)=>Object.assign(Error(message),{status,code});
 export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  if(!host)return;
  host.innerHTML=`<button type="button" class="button" data-ao-open aria-expanded="false" aria-controls="municipal-adoption-review-body">Revisar propuestas de adopción</button><section id="municipal-adoption-review-body" data-ao-panel hidden>
- <h4>Decisión independiente sobre esta propuesta</h4><p>Otra persona revisa el conjunto completo de contratos de esta propuesta y su respaldo. Aprobar conserva identidades, números e historial y adopta ese conjunto en MuniControl. Cuando se revisó un corte final, aplica también sus fechas y encuadre propuestos. No calcula sueldos, confirma liquidaciones ni ejecuta pagos.</p>
- <button type="button" class="button" data-ao-load>Consultar propuestas</button><p role="status" aria-live="polite" data-ao-status>Consulta voluntaria. Abrir este apartado no guarda decisiones.</p>
+ <h4 tabindex="-1" data-ao-heading>Decisión independiente sobre esta propuesta</h4><p>Otra persona revisa el conjunto completo de contratos de esta propuesta y su respaldo. Aprobar conserva identidades, números e historial y adopta ese conjunto en MuniControl. Cuando se revisó un corte final, aplica también sus fechas y encuadre propuestos. No calcula sueldos, confirma liquidaciones ni ejecuta pagos.</p>
+ <button type="button" class="button" data-ao-load>Consultar propuestas</button><p role="status" aria-live="polite" tabindex="-1" data-ao-status>Consulta voluntaria. Abrir este apartado no guarda decisiones.</p>
  <section data-ao-pending hidden><h4>Decisión sin confirmar</h4><p>Se conserva el mismo contenido y clave de intento en esta página. Consultá su resultado antes de decidir nuevamente.</p><button type="button" class="button" data-ao-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ao-retry disabled>Reenviar la misma decisión</button></section>
- <ol data-ao-queue></ol><section data-ao-detail hidden><p data-ao-summary></p><p data-ao-original-status role="status" hidden></p><p data-ao-reference></p><p data-ao-reason></p>
+ <ol data-ao-queue></ol><section data-ao-detail hidden><p tabindex="-1" data-ao-detail-id data-ao-id></p><p data-ao-summary></p><p data-ao-original-status role="status" hidden></p><p data-ao-reference></p><p data-ao-reason></p>
  <label>Buscar en los contratos de esta propuesta<input type="search" autocomplete="off" maxlength="100" data-ao-search></label><p data-ao-counts></p>
  <div class="ar-pages" role="navigation" aria-label="Contratos de esta propuesta"><button type="button" class="button" data-ao-prev>Anterior</button><span data-ao-page></span><button type="button" class="button" data-ao-next>Siguiente</button></div>
  <div class="ar-table-wrap"><table><caption>Antecedentes completos de esta propuesta</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Situación y observaciones</th><th>Fechas y encuadre</th><th>Jurisdicción declarada</th></tr></thead><tbody data-ao-rows></tbody></table></div>
@@ -23,6 +24,7 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  function controls(){
   const enabled=live()&&!busy;$('open').disabled=!allowed||busy||document.hidden||!isLive?.();$('load').disabled=!enabled||!!pending;
   host.querySelectorAll('[data-ao-proposal]').forEach(b=>b.disabled=!enabled||!!pending||b.dataset.eligible!=='true');
+  host.querySelectorAll('[data-ao-link]').forEach(a=>{a.setAttribute('aria-disabled',String(!enabled||!!pending));a.tabIndex=enabled&&!pending?0:-1;});
   for(const e of $('form').querySelectorAll('select,textarea,input,button'))e.disabled=!enabled||!!pending||!detail||detail.proposal.status!=='pending';
   $('decision').querySelector('[value="approve"]').disabled=!detail?.current;
   $('send').disabled||=!$('confirm').checked||!detail?.current&&$('decision').value!=='reject';$('search').disabled=!enabled||!detail;$('prev').disabled=!enabled||!detail||page<=1;$('next').disabled=!enabled||!detail||page*25>=filtered().length;
@@ -30,7 +32,7 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  }
  function withdraw(text='Consultá nuevamente las propuestas.'){
   ++epoch;controller?.abort();busy=false;queue=null;detail=null;actor=null;retryReady=false;page=1;$('queue').replaceChildren();$('rows').replaceChildren();$('detail').hidden=true;
-  for(const k of ['search','decision','decision-reason'])$(k).value='';$('confirm').checked=false;for(const k of ['summary','reference','reason','counts','page'])$(k).textContent='';say(text);controls();
+  for(const k of ['search','decision','decision-reason'])$(k).value='';$('confirm').checked=false;for(const k of ['detail-id','summary','reference','reason','counts','page'])$(k).textContent='';say(text);controls();
  }
  const start=t=>{controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(t);return{token,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)])};},current=t=>t===epoch&&live();
  async function authority(signal,expectedActor=null){
@@ -50,13 +52,15 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  }
  function paintQueue(){
   $('queue').replaceChildren();for(const[r,index]of queue.rows.map((r,i)=>[r,i])){
-   const li=document.createElement('li'),p=r.proposal;li.textContent=`Propuesta ${index+1}: ${p.total} contratos · ${({pending:'pendiente',approved:'aprobada',rejected:'rechazada'})[p.status]} · ${p.effects.contractsAdopted} adoptados. `;
+   const li=document.createElement('li'),p=r.proposal;li.textContent=`Propuesta ${index+1} · `;const identifier=document.createElement('span');identifier.dataset.aoId='';identifier.textContent=shortMunicipalAdoptionId(p.proposalId);identifier.title=p.proposalId;li.append(identifier,document.createTextNode(`: ${p.total} contratos · ${({pending:'pendiente',approved:'aprobada',rejected:'rechazada'})[p.status]} · ${p.effects.contractsAdopted} adoptados. ${r.independent?'Revisión independiente disponible.':'Requiere otra persona para decidirla.'} `));
    const b=document.createElement('button');b.type='button';b.className='button';b.dataset.aoProposal=p.proposalId;b.dataset.eligible=String(r.independent);b.textContent=r.independent?'Revisar antecedentes':'Requiere otro operador';b.addEventListener('click',()=>loadDetail(p.proposalId));li.append(b);$('queue').append(li);
+   const a=document.createElement('a');a.className='button';a.dataset.aoLink='';a.href=municipalAdoptionReviewHref(p.proposalId);a.textContent='Abrir esta revisión';a.setAttribute('aria-label','Abrir revisión de la propuesta '+p.proposalId);a.addEventListener('click',e=>{if(!live()||busy||pending)e.preventDefault();});li.append(a);
   }
   if(!queue.total){const li=document.createElement('li');li.textContent='No hay propuestas registradas en este municipio.';$('queue').append(li);}controls();
  }
  function paintDetail(){
   const cohort=detail.review.source.operationalCohort;
+  $('detail-id').textContent='Propuesta '+shortMunicipalAdoptionId(detail.proposal.proposalId)+' · '+detail.proposal.total+' contratos';$('detail-id').title=detail.proposal.proposalId;
   const scopeText=cohort?`${detail.proposal.total} contratos activos seleccionados para esta propuesta. ${operationalAdoptionCohort(cohort)?`${cohort.deferredTotal} registros diferidos sin fecha de ingreso y `:''}${cohort.archivedTotal} contratos inactivos se conservan como antecedentes fuera de esta propuesta. La fuente completa conserva ${cohort.sourceTotal} contratos.`:`${detail.proposal.total} contratos en esta propuesta · ${detail.review.counts.active} activos · ${detail.review.counts.inactive} inactivos · ${detail.review.counts.state_error} con estado a revisar.`;
   $('detail').hidden=false;$('summary').textContent=`${scopeText} ${detail.proposal.status!=='pending'?'Decisión registrada; se conservan los antecedentes revisados.':detail.current?'Antecedentes vigentes.':'Los antecedentes cambiaron: sólo se puede rechazar esta versión.'}${detail.review.source.finalRevision?' Corte final: '+detail.review.source.finalRevision.cutoff.replace('T',' ')+'.':''}`;
   const original=detail.body.version===REGISTRY_ADOPTION_INPUT_VERSION;$('original-status').hidden=!original;
@@ -66,11 +70,29 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  function failure(e,token){if(!current(token))return;if([401,403].includes(e.status)){allowed=false;withdraw('Tu sesión, cuenta o permiso cambió. Recuperá cualquier intento con su acceso original.');return;}say(e instanceof TypeError||['AbortError','TimeoutError'].includes(e.name)?'La conexión se interrumpió. Consultá el mismo intento si quedó pendiente.':e.message||'No se confirmó la operación.');}
  async function load(){
   if(busy||!live()||pending)return;const{token,signal}=start('Consultando todas las propuestas…');
-  try{const email=await authority(signal),value=municipalAdoptionQueue(await request('?resource=queue',signal));if(!current(token))return;actor=email;queue=value;detail=null;$('detail').hidden=true;paintQueue();say('Todas las propuestas consultadas. Tu propia propuesta requiere otro operador.');}catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
+  try{const email=await authority(signal),value=municipalAdoptionQueue(await request('?resource=queue',signal));if(!current(token))return;actor=email;queue=value;detail=null;$('detail').hidden=true;paintQueue();say(!value.total?'No hay propuestas registradas en este municipio.':value.rows.every(r=>!r.independent)?'Estas propuestas requieren otra persona independiente para decidirlas.':'Propuestas consultadas. Elegí los antecedentes que necesitás revisar; la decisión siempre abarca el conjunto completo.');return value;}catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
  async function loadDetail(id){
   if(busy||!live()||pending||!queue)return;const{token,signal}=start('Verificando todos los antecedentes de la propuesta…');
   try{await authority(signal,actor);const value=await municipalAdoptionDetail(await request('?'+new URLSearchParams({resource:'review',id}),signal));if(!current(token))return;if(value.proposal.proposalId!==id||adoptionReviewScope(value.scope)!==adoptionReviewScope(queue.scope))throw issue('Cambió el ámbito de la consulta.',403);detail=value;page=1;$('search').value='';paintDetail();say(value.proposal.status!=='pending'?'Decisión registrada. Podés consultar los antecedentes y el resultado conservados.':value.current?'Revisá todos los contratos de esta propuesta y su respaldo antes de elegir la decisión.':'La propuesta conserva sus antecedentes anteriores. Podés rechazarla; para aprobar necesitás otra propuesta vigente.');}catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
+ }
+ async function openNavigation(intent){
+  if(busy)return false;
+  $('panel').hidden=false;$('open').setAttribute('aria-expanded','true');controls();
+  if(pending){say('Hay una decisión sin confirmar. Consultá el resultado del mismo intento antes de abrir otra revisión.');$('status').focus();return false;}
+  if(!allowed){say('Tu cuenta no tiene permiso para revisar y decidir adopciones.');$('status').focus();return false;}
+  if(!live())return false;$('heading').focus();const loaded=await load();
+  if(!loaded||loaded!==queue||!live()||pending||host.closest('[data-section]')?.hidden)return false;
+  const target=resolveMunicipalAdoptionNavigation(loaded,intent);
+  if(target.kind==='review'){
+   await loadDetail(target.proposalId);
+   if(detail?.proposal.proposalId===target.proposalId&&live()){
+    if(intent.kind==='pending')window.history.replaceState(window.history.state,'',municipalAdoptionReviewHref(target.proposalId));
+    $('detail-id').focus();return true;
+   }
+   return false;
+  }
+  say(target.kind==='own'?'Esta propuesta requiere otra persona independiente para decidirla. Tu vínculo con su preparación impide que la revises desde esta cuenta.':target.kind==='unavailable'?'La propuesta no está disponible en este municipio. Consultá las propuestas que muestra esta página.':target.reason==='multiple'?'Hay varias propuestas pendientes para revisar. Elegí sus antecedentes por identificador; no se seleccionó ninguna automáticamente.':target.reason==='own'?'Las propuestas pendientes requieren otra persona independiente para decidirlas.':'No hay propuestas pendientes para revisar. Podés consultar las decisiones conservadas.');$('status').focus();return true;
  }
  async function send(recover=false,retry=false){
   if(busy||!live()||!recover&&!retry&&(!detail||pending||!$('confirm').checked))return;const{token,signal}=start(recover?'Consultando la misma decisión…':'Verificando el acceso y la decisión completa…');
@@ -98,5 +120,5 @@ export function mountMunicipalAdoptionOperator(host,{isLive}={}){
  document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(v=>permissions({detail:v}));document.addEventListener('visibilitychange',()=>{if(document.hidden)withdraw('Datos retirados al ocultar la pantalla. Consultá el mismo intento si quedó pendiente.');else controls();});window.addEventListener('pagehide',()=>withdraw());
  document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;withdraw('Sesión cerrada.');});window.addEventListener('beforeunload',e=>{if(pending){e.preventDefault();e.returnValue='';}});
  for(const event of ['mc:native-employee-created','mc:native-employment-changed','mc:native-employment-lifecycle-changed'])document.addEventListener(event,()=>withdraw('Cambió un contrato. Consultá sus antecedentes nuevamente.'));
- controls();return{invalidate:withdraw,refreshControls:controls};
+ controls();return{invalidate:withdraw,refreshControls:controls,openNavigation};
 }

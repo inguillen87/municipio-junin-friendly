@@ -3,6 +3,7 @@ import {mountAdoptionPreparation} from './employment-adoption-preparation-ui.js'
 import {mountMunicipalAdoptionOperator} from './municipal-adoption-operator-ui.js';
 import {adoptionFinalSources,adoptionPreparationBootstrap} from './employment-adoption-preparation-model.js';
 import {appendAdoptionChanges} from './employment-adoption-changes-ui.js';
+import {parseMunicipalAdoptionNavigation} from './municipal-adoption-navigation-model.js';
 export function mountAdoptionReview(root){
  if(!root||root.dataset.mounted)return;root.dataset.mounted='true';
  root.innerHTML=`<summary><strong>Revisar el padrón antes de su adopción</strong><span>Antecedentes pendientes para trabajar con el circuito propio</span></summary><div class="ar-body">
@@ -15,10 +16,18 @@ export function mountAdoptionReview(root){
  <div class="ar-table-wrap"><table><caption data-ar-caption>Contratos pendientes de adopción municipal</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Situación</th><th>Observaciones</th><th>Ficha</th></tr></thead><tbody data-ar-rows></tbody></table></div>
  <div data-ar-preparation></div></section></div>`;
  const $=key=>root.querySelector('[data-ar-'+key+']'),pages=root.querySelector('.ar-pages').cloneNode(true);pages.setAttribute('aria-label','Páginas de revisión · final');$('result').append(pages);
- let snapshot=null,selectedSource=null,page=1,allowed=false,busy=false,generation=0,controller=null;
+ let snapshot=null,selectedSource=null,page=1,allowed=false,busy=false,generation=0,controller=null,navigation=null,navigationError=null,navigationConsumed=false;
+ try{navigation=parseMunicipalAdoptionNavigation(window.location.href);}catch(error){navigationError=error.message;}
  const message=text=>{$('status').textContent=text;},live=()=>allowed&&!document.hidden&&root.open&&root.isConnected;
  const preparation=mountAdoptionPreparation($('preparation'),{isLive:live,onAuthorityLost:()=>invalidate('Cambió el acceso o el ámbito. Consultá nuevamente el padrón completo.')});
  const operator=mountMunicipalAdoptionOperator($('operator'),{isLive:live});
+ function openNavigation(){
+  if(navigationConsumed||!navigation&&!navigationError||!allowed||document.hidden||!root.isConnected||root.closest('[data-section]')?.hidden)return;
+  navigationConsumed=true;root.open=true;controls();operator.refreshControls();
+  if(navigationError){message(navigationError);$('status').setAttribute('tabindex','-1');$('status').focus();return;}
+  operator.openNavigation(navigation).catch(()=>message('No se pudo abrir esta revisión. Consultá nuevamente las propuestas.'));
+ }
+ const view=root.closest('[data-section]');if(view&&typeof MutationObserver!=='undefined')new MutationObserver(openNavigation).observe(view,{attributes:true,attributeFilter:['hidden']});
  const filtered=()=>snapshot?snapshot.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('search').value.toLocaleLowerCase('es')))):[];
  function controls(){
   $('consult').disabled=busy||!allowed||document.hidden;$('download').disabled=busy||!snapshot||!live();$('search').disabled=busy||!snapshot||!live();
@@ -86,8 +95,8 @@ export function mountAdoptionReview(root){
  $('cuts').addEventListener('click',cuts);
  $('consult').addEventListener('click',()=>run());$('download').addEventListener('click',()=>run(true));$('search').addEventListener('input',()=>{if(snapshot){page=1;paint();}});
  root.querySelectorAll('[data-ar-prev]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page>1){page--;paint();}}));root.querySelectorAll('[data-ar-next]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page*25<filtered().length){page++;paint();}}));
- root.addEventListener('toggle',()=>{if(!root.open)invalidate();else{controls();operator.refreshControls();}});document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidate('Datos retirados al ocultar la pantalla. Consultá nuevamente.');else{controls();operator.refreshControls();}});window.addEventListener('pagehide',()=>invalidate());document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;invalidate('Sesión cerrada.');});
- const permissions=event=>{const caps=event?.detail?.tenantCapabilities;allowed=caps instanceof Set&&caps.has('workforce.employee.read');if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else{controls();operator.refreshControls();}};
+ root.addEventListener('toggle',()=>{if(!root.open)invalidate();else{controls();operator.refreshControls();}});document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidate('Datos retirados al ocultar la pantalla. Consultá nuevamente.');else{controls();operator.refreshControls();openNavigation();}});window.addEventListener('pagehide',()=>invalidate());document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;invalidate('Sesión cerrada.');});
+ const permissions=event=>{const caps=event?.detail?.tenantCapabilities;allowed=caps instanceof Set&&caps.has('workforce.employee.read');if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else{controls();operator.refreshControls();openNavigation();}};
  document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(result=>permissions({detail:result}));
  for(const event of ['mc:native-employee-created','mc:native-employment-changed','mc:native-employment-lifecycle-changed'])document.addEventListener(event,()=>invalidate('Cambió un legajo o su situación. Consultá nuevamente la revisión completa.'));controls();
  document.addEventListener('mc:municipal-adoption-decided',event=>{if(event.detail?.status==='approved')invalidate('Se adoptó el padrón. Consultá nuevamente el padrón propio para continuar.',false);});
