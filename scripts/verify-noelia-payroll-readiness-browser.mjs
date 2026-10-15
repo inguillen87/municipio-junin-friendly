@@ -132,7 +132,7 @@ try{
 
  state.roster=ownRoster(0);state.programme=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await open('calculation');
  check(await c('fields').evaluate(e=>e.disabled)&&await c('send').isDisabled(),'New calculation fields and command are locked despite prepare permission when own roster is zero');
- check(await c('readiness-link').getAttribute('href')==='/personal#legajos','Zero complete own roster directs the operator to existing Personas route');
+ check(await c('readiness-link').getAttribute('href')==='/personal?adopcion=pendientes#legajos','Zero complete own roster directs the operator to the pending adoption review in Personas');
  check((await c('readiness-facts').innerText()).includes('0 legajos propios'),'Zero shown only from verified unfiltered complete own roster');
  await responsive('calculation-own-roster-empty');
 
