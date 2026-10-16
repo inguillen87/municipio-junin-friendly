@@ -20,6 +20,9 @@ export function nativeRosterScope(scope){if(!exact(scope,['tenantId','membership
 const timestamp=v=>typeof v==='string'&&isoDay(v.slice(0,10))&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(v)&&Number.isFinite(Date.parse(v));
 const nullableText=v=>v===null||typeof v==='string'&&v.length<=180&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v);
 const civilDay=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+// Adopted identity labels are preserved by the canonical varchar(16) reader;
+// own hires keep their original closed creation vocabulary.
+const sexValid=(v,adopted)=>adopted?v===null||typeof v==='string'&&v.length<=16&&!/[\u0000-\u001f\u007f]/.test(v):['F','M','X',null].includes(v);
 function identityValid(r,adopted){
  if(adopted)return typeof r.legajo==='string'&&r.legajo.trim().length>0&&r.legajo.length<=64&&!/[\u0000-\u001f\u007f]/.test(r.legajo)
   &&['name','dni','cuil'].every(k=>nullableText(r[k]))&&[r.birthDate,r.startDate,r.endDate].every(v=>v===null||civilDay(v));
@@ -34,7 +37,7 @@ export function nativeRoster(value,expectedFilters=null){
  for(const items of Object.values(value.facets))if(!Array.isArray(items)||items.some(v=>typeof v!=='string'||!v||v.length>160)||new Set(items).size!==items.length)fail();
  const ids=new Set(),counts={active:0,pending_start:0,inactive:0,state_error:0,...(v2?{unknown:0}:{})};
  for(const r of value.rows){
-  if(!exact(r,[...NATIVE_ROSTER_FIELDS,...(v2?['recordKind']:[])])||!uuid(r.contractId)||!uuid(r.registrationId)||ids.has(r.contractId.toLowerCase())||v2&&!Object.hasOwn(NATIVE_ROSTER_KINDS,r.recordKind)||!identityValid(r,v2&&r.recordKind==='adopted')||!['F','M','X',null].includes(r.sexCode)||!['42','55',null].includes(r.jurisdictionCode)||!Object.hasOwn(counts,r.status)||!timestamp(r.registeredAt)||!['agreement','category','organization','sector','jobTitle','legalReference'].every(k=>nullableText(r[k])))fail();
+  if(!exact(r,[...NATIVE_ROSTER_FIELDS,...(v2?['recordKind']:[])])||!uuid(r.contractId)||!uuid(r.registrationId)||ids.has(r.contractId.toLowerCase())||v2&&!Object.hasOwn(NATIVE_ROSTER_KINDS,r.recordKind)||!identityValid(r,v2&&r.recordKind==='adopted')||!sexValid(r.sexCode,v2&&r.recordKind==='adopted')||!['42','55',null].includes(r.jurisdictionCode)||!Object.hasOwn(counts,r.status)||!timestamp(r.registeredAt)||!['agreement','category','organization','sector','jobTitle','legalReference'].every(k=>nullableText(r[k])))fail();
   if(filters.status!=='all'&&r.status!==filters.status||filters.jurisdiction&&(filters.jurisdiction==='not_reported'?r.jurisdictionCode!==null:r.jurisdictionCode!==filters.jurisdiction)||['organization','sector','agreement'].some(k=>filters[k]&&r[k]!==filters[k])||r.status==='pending_start'&&(!r.startDate||r.startDate<=value.today)||r.status==='active'&&(!r.startDate||r.startDate>value.today||r.endDate!==null&&r.endDate<value.today))fail();
   ids.add(r.contractId.toLowerCase());counts[r.status]++;
  }
