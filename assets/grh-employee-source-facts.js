@@ -1,5 +1,5 @@
 // Original source evidence only. No jurisdiction assignment or payroll eligibility.
-export const EMPLOYEE_SOURCE_FIELDS=Object.freeze(['iddepartamento','NOLI_12','CODI_02','CODI_07','CODI_10','FING_12','FEGR_12','ANTA_12','ANTM_12','SUEL_12','CODI_19','concursado','REGI_12','CUEN_12','NORD_05','IDREVISTA']);
+export const EMPLOYEE_SOURCE_FIELDS=Object.freeze(['iddepartamento','NOLI_12','CODI_02','CODI_07','CODI_10','FING_12','FEGR_12','ANTA_12','ANTM_12','HDIA_12','HMES_12','SUEL_12','CODI_19','concursado','REGI_12','CUEN_12','NORD_05','IDREVISTA']);
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&[Object.prototype,null].includes(Object.getPrototypeOf(v))&&Object.values(Object.getOwnPropertyDescriptors(v)).every(d=>Object.hasOwn(d,'value'));
 const exact=(v,keys)=>object(v)&&Reflect.ownKeys(v).length===keys.length&&Reflect.ownKeys(v).every(k=>typeof k==='string'&&keys.includes(k));
 const fault=()=>{throw Object.assign(new Error('GRH_CURATED_REVIEW_EMPLOYEE_FACTS_INVALID'),{code:'GRH_CURATED_REVIEW_EMPLOYEE_FACTS_INVALID'});};
