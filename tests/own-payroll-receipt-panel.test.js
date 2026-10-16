@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
+import {OWN_RUN_TYPES} from '../assets/own-payroll-run-workspace-model.js';
 import {mountOwnPayrollReceipts} from '../assets/own-payroll-receipt-panel.js';
 import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
 import {receiptPreview,receiptBatch} from './fixtures/own-payroll-receipt-synthetic.js';
@@ -14,7 +15,7 @@ import {receiptError} from '../lib/internal-own-payroll-receipts.js';
 import {municipalDocumentIssuerProfile} from '../lib/municipal-document-issuer.js';
 
 class Element{
- constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.dataset={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this._value=undefined;this._text='';this.isConnected=true;}
+ constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.dataset={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;}
  append(...items){for(const item of items){item.parentElement=this;this.children.push(item);}}
  replaceChildren(...items){this.children=[];this._text='';this.append(...items);}
  setAttribute(name,value){this.attributes[name.toLowerCase()]=String(value);if(name==='hidden')this.hidden=true;if(name==='disabled')this.disabled=true;}
@@ -68,11 +69,12 @@ function harness(t){
  const q=key=>{const element=host.querySelector('[data-receipt-'+key+']');assert.ok(element,'Actual receipt control '+key);return element;};
  const settled=async()=>{const deadline=Date.now()+5000;while(host.getAttribute('aria-busy')==='true'&&Date.now()<deadline)await delay(1);assert.notEqual(host.getAttribute('aria-busy'),'true','Panel operation must finish');};
  const act=async(key,type='click')=>{await q(key).emit(type);await settled();};
- const start=async()=>{docEvents.dispatch('taskchange',{id:'recibos'});await settled();q('period').value=receiptPreview(1).snapshot.params.period;for(const option of q('types').options)option.selected=option.value==='monthly';q('scope').value='all';await act('scope','change');await act('query','submit');assert.equal(q('prepare').disabled,false);q('reason').value='Conservación de recibo exclusivamente sintético QA';};
+ const chooseTypes=types=>{for(const type of Object.keys(OWN_RUN_TYPES))q('type-'+type).checked=types.includes(type);};
+ const start=async()=>{docEvents.dispatch('taskchange',{id:'recibos'});await settled();q('period').value=receiptPreview(1).snapshot.params.period;chooseTypes(['monthly']);q('scope').value='all';await act('scope','change');await act('query','submit');assert.equal(q('prepare').disabled,false);q('reason').value='Conservación de recibo exclusivamente sintético QA';};
  const missingAfterRejection=async(code='OWN_RECEIPT_STATE_CHANGED')=>{state.postError=code;await act('prepare');assert.equal(q('correct').hidden,true);await act('recover');assert.equal(q('correct').hidden,false);};
  const posts=()=>requests.filter(r=>r.body?.operation==='command');
  mountOwnPayrollReceipts(host);
- return{host,q,state,requests,saved,batches,start,act,settled,missingAfterRejection,posts,commit,hide:()=>{document.hidden=true;docEvents.dispatch('visibilitychange');},show:()=>{document.hidden=false;docEvents.dispatch('visibilitychange');},event:docEvents.dispatch};
+ return{host,q,state,requests,saved,batches,start,act,chooseTypes,settled,missingAfterRejection,posts,commit,hide:()=>{document.hidden=true;docEvents.dispatch('visibilitychange');},show:()=>{document.hidden=false;docEvents.dispatch('visibilitychange');},event:docEvents.dispatch};
 }
 
 for(const code of ['OWN_RECEIPT_STATE_CHANGED','OWN_RECEIPT_IDENTITY_REQUIRED'])test('definitive '+code+' and same-key404 offer explicit correction with fresh full preview',async t=>{
@@ -138,8 +140,8 @@ test('unconsulted receipt scope does not claim zero documents or a signature fai
  const h=harness(t);assert.equal(h.q('empty').hidden,true);assert.equal(h.q('signature').hidden,true);h.event('taskchange',{id:'recibos'});await h.settled();assert.equal(h.q('empty').hidden,true);assert.equal(h.q('signature').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.posts().length,0);
 });
 
-test('verified empty scope explains the missing own closure and offers separate documentary consultation',async t=>{
- const h=harness(t);await h.start();h.state.zero=true;await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/0 liquidaciones propias cerradas/);assert.match(h.q('empty').textContent,/cálculo propio confirmado y cerrado/);assert.match(h.q('empty').textContent,/no son recibos propios/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#cierre');assert.equal(h.q('empty').querySelector('a[href="/reportes#seleccion-documental"]').textContent,'Consultar documentos del respaldo');assert.equal(h.q('result').hidden,true);assert.equal(h.q('signature').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+test('verified empty scope explains the missing own closure and retains exact filters and offers preparation before closure',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/0 liquidaciones propias cerradas/);assert.match(h.q('empty').textContent,/cálculo propio confirmado y cerrado/);assert.match(h.q('empty').textContent,/no son recibos propios/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#calculo');assert.equal(h.q('empty').querySelector('a[href="/reportes#seleccion-documental"]').textContent,'Consultar documentos del respaldo');assert.equal(h.q('result').hidden,true);assert.equal(h.q('signature').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
  h.q('scope').value='employee';await h.act('scope','change');assert.equal(h.q('empty').hidden,true,'The empty state belongs only to its verified selection');assert.equal(h.q('emptyScope').textContent,'');
 });
 
@@ -150,4 +152,28 @@ test('an unsigned nonempty preview keeps its review PDF available and explains i
 
 test('signature guidance never enables a review PDF whose closed source is no longer current',async t=>{
  const h=harness(t);await h.start();h.state.postError=null;await h.act('prepare');const b=[...h.batches.values()][0];b.sourceCurrent=false;b.permissions.canDownload=false;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();assert.equal(h.q('signature').hidden,false);assert.match(h.q('state').textContent,/fuentes cambiadas; descarga retirada/);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('empty').hidden,true);assert.equal(h.posts().length,1,'A source change is neither a new preparation nor a review decision');
+});
+
+
+test('receipt types start explicit and unchecked, with monthly visible and six secondary native choices',async t=>{
+ const h=harness(t);assert.equal(h.q('types').tagName,'fieldset');assert.equal(h.q('types').querySelector('legend').textContent,'Tipos de liquidación');assert.equal(h.q('typeDetails').tagName,'details');assert.equal(h.q('typeDetails').open,false);
+ for(const [type,label]of Object.entries(OWN_RUN_TYPES)){assert.equal(h.q('type-'+type).tagName,'input');assert.equal(h.q('type-'+type).type,'checkbox');assert.equal(h.q('type-'+type).checked,false);assert.equal(h.q('type-'+type).parentElement.getAttribute('for'),'ownReceiptType-'+type);assert.match(h.q('type-'+type).parentElement.textContent,new RegExp(label));}
+ assert.equal(h.q('type-monthly').parentElement.parentElement,h.q('types'));assert.equal(h.q('typeCount').textContent,'0 tipos seleccionados');assert.match(h.q('all').textContent,/Seleccionar los 7 tipos/);assert.equal(h.q('all').parentElement,h.q('typeDetails'));assert.equal(h.posts().length,0);
+});
+test('choosing a new type removes prior PDF and ACK while preserving period, ranges and emission draft',async t=>{
+ const h=harness(t);await h.start();h.q('date').value='2026-09-30';h.q('legend').value='Leyenda sintética conservada';h.q('confirm').checked=true;assert.ok(!h.q('pdf').disabled);
+ const period=h.q('period').value,scope=h.q('scope').value;h.q('type-vacation').checked=true;await h.act('type-vacation','change');assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('result').hidden,true);assert.equal(h.q('period').value,period);assert.equal(h.q('scope').value,scope);assert.equal(h.q('date').value,'2026-09-30');assert.equal(h.q('legend').value,'Leyenda sintética conservada');assert.equal(h.q('typeCount').textContent,'2 tipos seleccionados');assert.equal(h.q('status').dataset.state,'neutral');assert.match(h.q('status').textContent,/Tipos actualizados/);assert.equal(h.posts().length,0);
+ await h.act('query','submit');assert.deepEqual(h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.types,ownReceiptParams({...h.state.lastPreview.snapshot.params,types:['monthly','vacation']}).types);assert.ok(!h.q('pdf').disabled);
+});
+test('select all remains a secondary explicit action and cannot retain an old review',async t=>{
+ const h=harness(t);await h.start();h.q('confirm').checked=true;await h.act('all');assert.ok(Object.keys(OWN_RUN_TYPES).every(type=>h.q('type-'+type).checked));assert.equal(h.q('typeCount').textContent,'7 tipos seleccionados');assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('status').dataset.state,'neutral');assert.ok(!h.q('status').textContent.includes('Elegiste todos'));assert.equal(h.posts().length,0);await h.act('query','submit');assert.deepEqual(h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.types,Object.keys(OWN_RUN_TYPES).sort());
+});
+test('no selected type cannot issue a preview, prepare a body or silently restore monthly/all',async t=>{
+ const h=harness(t);await h.start();h.q('type-monthly').checked=false;await h.act('type-monthly','change');const before=h.requests.filter(r=>r.body?.operation==='preview').length;await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,before);assert.match(h.q('status').textContent,/Elegí al menos un tipo/);assert.equal(h.q('typeCount').textContent,'0 tipos seleccionados');assert.ok(Object.keys(OWN_RUN_TYPES).every(type=>!h.q('type-'+type).checked));assert.equal(h.posts().length,0);
+});
+test('multi-type uncertain command retains its original body/key and is not altered by the chooser',async t=>{
+ const h=harness(t);await h.start();h.q('type-vacation').checked=true;await h.act('type-vacation','change');await h.act('query','submit');h.q('reason').value='Preparación múltiple exclusivamente sintética';h.state.network=true;await h.act('prepare');const original=structuredClone(h.posts()[0]);assert.equal(h.q('fields').disabled,true);await h.act('all');assert.equal(h.q('typeCount').textContent,'2 tipos seleccionados');assert.equal(h.posts().length,1);h.state.network=false;await h.act('retry');assert.deepEqual(h.posts()[1],original);assert.equal(h.q('recover').hidden,true);assert.deepEqual(h.posts()[1].body.payload.params.types,['monthly','vacation']);
+});
+test('zero closed receipts retains the exact department filter and points to preparation rather than only closing',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;h.q('scope').value='department';await h.act('scope','change');h.q('departmentFrom').value='35';h.q('departmentTo').value='35';await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/Repartición 35/);assert.match(h.q('emptyScope').textContent,/Mensual/);assert.match(h.q('empty').textContent,/preparación y el cálculo/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#calculo');assert.equal(h.q('scope').value,'department');assert.equal(h.q('departmentFrom').value,'35');assert.equal(h.q('departmentTo').value,'35');assert.equal(h.q('type-monthly').checked,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.posts().length,0);
 });

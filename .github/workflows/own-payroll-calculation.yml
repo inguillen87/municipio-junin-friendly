@@ -123,3 +123,13 @@ jobs:
       - run: node scripts/verify-own-payroll-program-browser.mjs --sql-log=verification/own-program-sql.log
       - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-run-sql.log
       - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-monthly-sql.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: own-payroll-calculation-pg${{ matrix.major }}-${{ github.sha }}
+          path: |
+            verification/own-run-ui.json
+            verification/own-run-ui-*.png
+            verification/own-run-ui-failure.log
+          if-no-files-found: error
+          retention-days: 5
