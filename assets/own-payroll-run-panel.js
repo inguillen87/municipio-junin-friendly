@@ -74,7 +74,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
-  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,suspendedPreparation=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
@@ -126,7 +126,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
-  function suspend(message){
+  function suspend(message,{preservePreparation=false}={}){
+    if(!preservePreparation)suspendedPreparation=null;
+    else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
     queuedPreparation=null;
     seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message,'warning');controls();
   }
@@ -139,9 +141,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     return payload;
   }
   async function session(required){
-    const payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
+    const version=seq,payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
+    if(version!==seq||!live())throw Object.assign(Error('La consulta de acceso quedó desactualizada.'),{name:'AbortError'});
     if(!hasOwnRunAccess(next.caps,required))throw Object.assign(Error('Tu cuenta no permite esta operación sobre la nómina.'),{status:403});
     if(attempt&&attempt.accessKey!==next.key||access&&access.key!==next.key)throw Object.assign(Error('Cambió la sesión. Recuperá el intento desde su cuenta original.'),{status:403});
+    if(suspendedPreparation&&suspendedPreparation.accessKey!==next.key)suspendedPreparation=null;
     access=next;accessTenantId=payload.access.tenant.id;$('login').hidden=true;
   }
   async function perform(work){
@@ -150,7 +154,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const timeout=setTimeout(()=>operationController.abort(),45000);
     try{await work(()=>version===seq&&live());}
     catch(error){if(version===seq&&live()){
-      if([401,403].includes(error.status)){access=null;clearViews();$('login').hidden=error.status!==401;}
+      if([401,403].includes(error.status)){access=null;suspendedPreparation=null;clearViews();$('login').hidden=error.status!==401;}
       status(error.name==='AbortError'?'No se confirmó la respuesta. Consultá este mismo intento; no se inició otro.':error.message,'warning');
     }}
     finally{clearTimeout(timeout);if(version===seq){busy=false;controller=null;controls();}}
@@ -192,13 +196,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('trace').append(node('dt','Integridad del resultado'),node('dd',value.saved.resultSha256));page=1;renderRows();
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
-  async function refresh(){return perform(async valid=>{
+  async function refresh({metadataOnly=false}={}){return perform(async valid=>{
     invalidateReadiness();
     clearSourceReview();
     individual.clear();
     await session(OWN_RUN_READ);
     if(!valid())return;
-    if(!hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))clearViews();
+    if(!hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)){suspendedPreparation=null;clearViews();}
     const next=ownRunBootstrap((await request(endpoint+'?resource=bootstrap&contractVersion=2')).data);
     if(!valid())return;
     const nextCatalog=validateCatalogBootstrap((await request('/api/internal-employment-catalog?resource=bootstrap')).data);
@@ -206,10 +210,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(boot&&(boot.scopeVersion!==next.scopeVersion||boot.programVersion!==next.programVersion))$('confirm').checked=false;
     boot=next;catalog=nextCatalog;
     renderKind();renderHistory();controls();
-    try{await verifyPreparation(next,valid);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
+    let preparationRoster;try{preparationRoster=await verifyPreparation(next,valid);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
     if(!valid())return;
-    if(queuedPreparation){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;renderHistory();controls();return;}
-    renderKind();renderHistory();controls();
+    if(!metadataOnly&&queuedPreparation){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;renderHistory();controls();return;}
+    renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
+    renderHistory();controls();
+    if(draftIssue){status(draftIssue,'warning');return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
@@ -220,6 +226,22 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
     await session(required);if(!valid())return;
     readiness=next;readinessAccessKey=access.key;
+    return roster.data;
+  }
+  function restoreSuspendedPreparation(roster){
+    const draft=suspendedPreparation;
+    if(!draft||attempt||draft.accessKey!==access?.key||!can(OWN_RUN_NOMINAL))return null;
+    suspendedPreparation=null;
+    $('period').value=draft.period;$('date').value=draft.date;$('type').value=draft.type;$('kind').value=draft.kind;
+    // Rebuild names only from this freshly validated complete own roster.
+    // No stale nominal label is retained while the page is hidden.
+    const selected=draft.contracts.map(id=>roster.rows.find(row=>row.contractId===id));
+    const validCodes=draft.codes.every(code=>catalog.catalog.items.some(item=>item.kind===(draft.kind==='departments'?'sectors':'agreements')&&item.code===code));
+    const complete=selected.every(Boolean)&&validCodes;
+    chosen=complete?selected.map(row=>({contractId:row.contractId,legajo:row.legajo,nombre:row.name,recordOrigin:'MUNICONTROL'})):[];
+    renderKind();for(const option of $('codes').options)option.selected=complete&&draft.codes.includes(option.value);
+    $('confirm').checked=false;
+    return complete?null:'Se conservó el período y la fecha. La selección anterior cambió: elegí nuevamente el alcance completo antes de calcular. No se seleccionó una parte.';
   }
   function openIndividual(contractId,trigger){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;individual.clear();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
@@ -311,7 +333,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   for(const field of ['period','date','type','kind','codes'])$(field).addEventListener('change',()=>{if(attempt)return;$('confirm').checked=false;if(field==='kind')renderKind();controls();});
   $('confirm').addEventListener('change',controls);$('search').addEventListener('input',()=>{page=1;renderRows();});$('prev').addEventListener('click',()=>{page--;renderRows();});$('next').addEventListener('click',()=>{page++;renderRows();});
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};
-  const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Actualizá para verificar el acceso y recuperar el intento.');else controls();};
+  const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Al volver se verificará el acceso antes de continuar.',{preservePreparation:true});else if(live())refresh({metadataOnly:true});else controls();};
   const capability=event=>{const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
     if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
     else{queuedPreparation=null;access.caps=new Set([...access.caps].filter(c=>caps.has(c)));if(!canPrepare())picker.close();$('confirm').checked=false;controls();}

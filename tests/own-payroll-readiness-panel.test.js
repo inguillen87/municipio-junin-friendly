@@ -41,18 +41,18 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
- const state={caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,postFailure:true,hold:null,receipt:null};
+ const state={caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
  const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
  Object.assign(globalThis,{document,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){}});
  globalThis.fetch=async(url,options={})=>{
   const method=options.method??'GET',request={url,method,body:options.body??null,key:options.headers?.['Idempotency-Key']??null};requests.push(request);
   if(state.hold?.url===url)await state.hold.wait;
   let status=200,payload;
-  if(url==='/api/internal-auth')payload={ok:true,authenticated:true,sessionVersion:2,user:{id:state.sessionId,email:'synthetic-readiness@example.invalid'},access:{context:'tenant',tenant:{id:roster(1).scope.tenantId,roleKey:'QA'},tenantCapabilities:state.caps},expiresAt:new Date(Date.now()+3600000).toISOString()};
+  if(url==='/api/internal-auth'){if(state.authFailure){status=state.authFailure;payload={ok:false,code:'SYNTHETIC_SESSION_UNAVAILABLE'};}else payload={ok:true,authenticated:true,sessionVersion:2,user:{id:state.sessionId,email:'synthetic-readiness@example.invalid'},access:{context:'tenant',tenant:{id:roster(1).scope.tenantId,roleKey:'QA'},tenantCapabilities:state.caps},expiresAt:new Date(Date.now()+3600000).toISOString()};}
   else if(method==='POST'){if(state.postFailure){status=503;payload={ok:false,code:'OWN_RUN_BUSY'};}else{const body=JSON.parse(options.body).payload,c=capture({version:'own-payroll-run.v2',key:request.key,body,bodySha256:ownRunHash(body)});state.receipt=c;payload={ok:true,data:c};}}
   else if(url.startsWith('/api/internal-own-payroll-run?resource=attempt')){if(state.receipt)payload={ok:true,data:state.receipt};else{status=404;payload={ok:false,code:'OWN_RUN_NOT_FOUND'};}}
   else if(url.startsWith('/api/internal-own-payroll-run?'))payload={ok:true,data:{version:'own-payroll-bootstrap.v2',scopeVersion:hash('a'),programVersion:hash('b'),canCalculate:true,runs:[],complete:true}};
-  else if(url==='/api/internal-employment-catalog?resource=bootstrap')payload={ok:true,data:{version:CATALOG_VERSION,scopeVersion:hash('a'),catalog:{items:classification.items.map((r,i)=>({...r,key:'synthetic-'+i,agreementCode:r.agreementCode??null})),version:hash('d'),origin:'GRH',revision:0,publishedAt:null},permissions:{canPropose:true,canReview:true},proposals:[],historyTruncated:false}};
+  else if(url==='/api/internal-employment-catalog?resource=bootstrap')payload={ok:true,data:{version:CATALOG_VERSION,scopeVersion:hash('a'),catalog:{items:state.catalogItems.map((r,i)=>({...r,key:'synthetic-'+i,agreementCode:r.agreementCode??null})),version:hash('d'),origin:'GRH',revision:0,publishedAt:null},permissions:{canPropose:true,canReview:true},proposals:[],historyTruncated:false}};
   else if(url==='/api/internal-own-payroll-program?resource=bootstrap')payload={ok:true,data:state.program};
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
@@ -64,7 +64,7 @@ function harness(t){
  const prepare=async()=>{q('period').value='2026-10';q('date').value='2026-10-31';q('type').value='monthly';q('kind').value='all';await q('kind').emit('change');q('confirm').checked=true;await q('confirm').emit('change');};
  const submit=async()=>{await q('form').emit('submit');await idle();};
  t.after(()=>{winEvents.dispatch('pagehide');for(const [key,descriptor]of before)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];});
- return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,event:docEvents.dispatch,document};
+ return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document};
 }
 
 test('permiso de calcular con cero legajos propios no habilita el botón ni una captura',async t=>{
@@ -106,4 +106,44 @@ test('respuesta tardía después de ocultar la página no restituye datos ni pre
 test('otra sesión o permiso retirado no recupera la habilitación de preparar',async t=>{
  const h=harness(t);await h.start();h.state.sessionId=uid(31);await h.refresh();assert.equal(h.q('fields').disabled,true);assert.match(h.q('readiness-facts').textContent,/sin verificar/);
  h.state.sessionId=uid(30);await h.refresh();h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);
+});
+
+test('volver visible revalida sólo GET y restaura fecha y reparticiones del borrador después del permiso fresco',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');assert.ok(h.q('codes').options.length);h.q('codes').options[0].selected=true;const selected=h.q('codes').selectedOptions.map(o=>o.value),before=h.requests.length;h.q('confirm').checked=true;
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('result').hidden,true);assert.equal(h.q('history').children.length,0);assert.equal(h.q('date').value,'');assert.equal(h.q('readiness-check').disabled,true);
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('fields').disabled,false);assert.equal(h.q('readiness-check').disabled,false);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),selected);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
+ const reads=h.requests.slice(before);assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.ok(reads.some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));assert.ok(reads.every(r=>r.method==='GET'));assert.ok(reads.every(r=>!r.url.includes('resource=attempt')&&!r.url.includes('resource=detail')));
+});
+test('un envío incierto conserva cuerpo y clave al volver visible y nunca se reintenta automáticamente',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);const count=h.requests.length;
+ h.document.hidden=true;h.event('visibilitychange');h.state.roster=ownRoster(0);h.state.program=bootstrap();h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ const automatic=h.requests.slice(count);assert.ok(automatic.every(r=>r.method==='GET'));assert.ok(automatic.every(r=>!r.url.includes('resource=attempt')&&!r.url.includes('resource=detail')));assert.equal(h.requests.filter(r=>r.method==='POST').length,1);assert.equal(h.q('recover').disabled,false);assert.equal(h.q('fields').disabled,true);
+ await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].key,first.key);assert.equal(posts[1].body,first.body);
+});
+test('fallo de acceso al regresar deja alternativa manual y restaura el borrador sólo tras otra respuesta autorizada',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.document.hidden=true;h.event('visibilitychange');h.state.authFailure=503;h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('fields').disabled,true);assert.equal(h.q('readiness-check').disabled,true);assert.equal(h.q('refresh').disabled,false);assert.match(h.q('readiness-facts').textContent,/sin verificar/);assert.equal(h.q('date').value,'');
+ h.state.authFailure=null;await h.q('refresh').emit('click');await h.idle();assert.equal(h.q('fields').disabled,false);assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+test('otra cuenta o permiso nominal retirado no restaura el borrador de la sesión anterior',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.document.hidden=true;h.event('visibilitychange');h.state.sessionId=uid(31);h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('date').value,'');assert.equal(h.q('confirm').checked,false);assert.equal(h.q('chips').children.length,0);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+ await h.prepare();h.document.hidden=true;h.event('visibilitychange');h.state.caps=h.state.caps.filter(c=>c!=='payroll.calculation.nominal.read');h.document.hidden=false;h.event('visibilitychange');await h.idle();assert.equal(h.q('fields').disabled,true);assert.equal(h.q('date').value,'');assert.equal(h.q('download').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+test('respuesta anterior al ocultamiento no sobrescribe una revalidación nueva ni publica datos fuera de la tarea',async t=>{
+ const h=harness(t);await h.start();await h.prepare();let release;h.state.hold={url:'/api/internal-auth',wait:new Promise(resolve=>{release=resolve;})};const prior=h.refresh();await settle();h.document.hidden=true;h.event('visibilitychange');h.document.hidden=false;h.event('visibilitychange');release();await prior;await h.idle();
+ assert.equal(h.q('fields').disabled,false);assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+ const before=h.requests.length;h.event('taskchange',{id:'recibos'});h.document.hidden=true;h.event('visibilitychange');h.document.hidden=false;h.event('visibilitychange');await settle();assert.equal(h.requests.length,before);assert.equal(h.q('result').hidden,true);
+});
+
+test('un código retirado del catálogo fresco impide restaurar una parte de la selección anterior',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');assert.ok(h.q('codes').options.length);const removed=h.q('codes').options[0].value;h.q('codes').options[0].selected=true;
+ h.document.hidden=true;h.event('visibilitychange');h.state.catalogItems=h.state.catalogItems.filter(item=>item.kind!=='sectors'||item.code!==removed);h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'departments');assert.equal(h.q('codes').selectedOptions.length,0);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.match(h.q('status').textContent,/selección anterior cambió/);assert.match(h.q('status').textContent,/No se seleccionó una parte/);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+
+test('una preparación encolada mientras está oculta no provoca lectura nominal automática al regresar',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.document.hidden=true;h.event('visibilitychange');const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:null,key:uid(61),accessKey}),true);const before=h.requests.length;
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();const automatic=h.requests.slice(before);assert.ok(automatic.length>0);assert.ok(automatic.every(r=>r.method==='GET'));assert.ok(automatic.every(r=>!r.url.includes('resource=attempt')&&!r.url.includes('resource=detail')));assert.ok(automatic.every(r=>!r.url.includes('internal-own-payroll-annulment')&&!r.url.includes('internal-own-payroll-liquidation')));assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('confirm').checked,false);
 });

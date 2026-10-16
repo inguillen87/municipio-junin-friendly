@@ -93,23 +93,25 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('form').hidden=true;$('history').hidden=true;$('attempts').replaceChildren();$('counts').textContent='';
   for(const key of ['reference','reason','jurisdiction'])$(key).value='';clearJurisdictions();clearFacts();$('confirm').checked=false;say(text);controls();
  }
- function start(text){controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(text);return{token,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)])};}
+ function start(text){controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(text);return{token,signal:controller.signal};}
+ const operationSignal=signal=>AbortSignal.any([signal,AbortSignal.timeout(30000)]);
  const current=token=>token===epoch&&live();
  async function request(url,signal,init={}){
-  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...init,headers:{Accept:'application/json',...init.headers},signal});
+  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...init,headers:{Accept:'application/json',...init.headers},signal:operationSignal(signal)});
   const bytes=await response.text();if(new TextEncoder().encode(bytes).length>7000000)throw issue('La respuesta supera la capacidad completa. Consultá el mismo intento.');
   let value;try{value=JSON.parse(bytes);}catch{throw issue('No se pudo verificar la respuesta. Consultá el mismo intento.');}
   if(!response.ok||value.ok!==true)throw issue(typeof value.error==='string'?value.error:'No se confirmó la operación. Consultá el mismo intento.',response.status,value.code);return value.data;
  }
  async function authority(signal){
-  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json(),caps=value.access?.tenantCapabilities;
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:operationSignal(signal)}),value=await response.json(),caps=value.access?.tenantCapabilities;
   if(!response.ok||value.ok!==true||!value.authenticated||!Array.isArray(caps)||!caps.includes('workforce.employee.read')||typeof value.user?.email!=='string')throw issue('Tu sesión o permiso cambió. Volvé a consultar con acceso autorizado.',response.status===401?401:403);
   return{actor:value.user.email.toLowerCase(),canPrepare:caps.includes('employee.record.propose')};
  }
- async function fresh(signal,historyOnly=false){
+ async function fresh(signal,historyOnly=false,phase=()=>{}){
   const selected=!historyOnly&&review?.source.finalRevision;
   const query=selected?'?'+new URLSearchParams({resource:review.source.operationalCohort?.version===MIXED_ADOPTION_COHORT?'mixed-bootstrap':operationalMode?'operational-bootstrap':registryMode?'registry-bootstrap':review.source.operationalCohort?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
-  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(prepared&&!historyOnly?API:API+query,signal,prepared&&!historyOnly?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview-declarations',payload:previewInput})}:{}));
+  phase('access');const access=await authority(signal);phase('roster');
+  const value=await adoptionPreparationBootstrap(await request(prepared&&!historyOnly?API:API+query,signal,prepared&&!historyOnly?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview-declarations',payload:previewInput})}:{}));
   return{...access,value,scope:adoptionReviewScope(value.review.scope)};
  }
  function sameScope(freshValue,attempt){
@@ -162,10 +164,12 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   }
   $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}paintFacts();paintJurisdictions();controls();
  }
- function failure(e,token){
+ function failure(e,token,stage=null){
   if(!current(token))return;
   if([401,403].includes(e.status)){readAllowed=false;withdraw('Tu sesión o permiso cambió. Los datos fueron retirados; el intento original se conserva.');onAuthorityLost?.();return;}
-  say(e instanceof TypeError||['AbortError','TimeoutError'].includes(e.name)?'La consulta se interrumpió. Consultá el mismo intento antes de preparar otra propuesta.':e.message||'No se confirmó la operación. Consultá el mismo intento.');
+  const interrupted=e instanceof TypeError||['AbortError','TimeoutError'].includes(e.name);
+  if(interrupted&&stage&&!pending){say(`No se completó ${stage==='access'?'la verificación del acceso':'la verificación del padrón completo'}. No se envió ninguna propuesta. El formulario se conserva para volver a verificar.`);return;}
+  say(interrupted?'La consulta se interrumpió. Consultá el mismo intento antes de preparar otra propuesta.':e.message||'No se confirmó la operación. Consultá el mismo intento.');
  }
  async function load(){
   if(busy||!live()||!review)return;const {token,signal}=start('Consultando condiciones y propuestas del padrón completo…');
@@ -176,10 +180,14 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
  async function send(recover=false,retry=false){
-  if(busy||!live()||!review)return;const {token,signal}=start(recover?'Consultando el resultado del mismo intento…':'Verificando el padrón y el acceso antes del envío…');let started=false;
+  if(busy||!live()||!review)return;const {token,signal}=start('Verificando el acceso…');let started=false,stage='access';
+  const phase=(part,confirming=false)=>{stage=part;if(current(token))say(confirming?(part==='access'?'Confirmando el mismo intento: verificando el acceso…':'Confirmando el mismo intento en el registro completo…'):(part==='access'?'Verificando el acceso…':'Verificando el padrón completo antes del envío…'));};
   try{
-   const f=await fresh(signal,recover);if(!current(token))return;sameScope(f,pending?.attempt);
-   if(recover||retry)paint(f);
+   let f;
+   if(recover){
+    if(!pending)return;const access=await authority(signal);if(!current(token))return;
+    if(access.actor!==pending.attempt.actor)throw issue('Cambió la cuenta. Recuperá el intento con su acceso original.',403);
+   }else{f=await fresh(signal,false,phase);if(!current(token))return;sameScope(f,pending?.attempt);if(retry)paint(f);}
    if(!recover&&(!f.value.canPrepare||!f.canPrepare)){prepareAllowed=false;bootstrap=null;$('form').hidden=true;throw issue('Tu cuenta ya no permite preparar propuestas. Podés consultar el resultado de un intento pendiente.');}
    if(!recover&&!retry){
     if(pending)return;
@@ -190,22 +198,30 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
     if(!current(token))return;
     pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
    }
-   if(!pending)return;const attempt=pending.attempt;started=!recover;
+   if(!pending)return;const attempt=pending.attempt;started=!recover;stage=recover?'recovery':'send';
+   say(recover?'Consultando el resultado de la misma referencia de envío…':'Enviando la propuesta completa. Conservá esta página hasta confirmar el resultado…');
    const raw=await request(recover?API+'?'+new URLSearchParams({resource:'attempt',key:attempt.key}):API,signal,recover?{}:{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes});
    const receipt=await adoptionPreparationReceipt(raw,{key:attempt.key,body:attempt.body});
    if(!current(token))return;
    // An acknowledgement alone is insufficient after a scope/authority change.
    // A completed adoption no longer has an imported cohort. Confirm the saved
    // attempt through the ordinary scoped history, without rebuilding that cut.
-   const confirmed=await fresh(signal,true);if(!current(token))return;sameScope(confirmed,attempt);
+   const confirmed=await fresh(signal,true,part=>phase(part,true));if(!current(token))return;sameScope(confirmed,attempt);
    if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
    pending=null;retryReady=false;registryMode=false;operationalMode=false;operativeReview=null;$('original-ack').checked=false;clearFacts();clearJurisdictions();for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;paint(confirmed);
    if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}
    say(attempt.body.version===MIXED_ADOPTION_INPUT_VERSION?`Propuesta completa guardada: ${receipt.receipt.total} contratos conocidos, 0 adoptados al prepararla. Los pendientes conservan su fuente. Consultá las opciones de decisión autorizadas en esta pantalla.`:`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados al prepararla. Requiere una decisión independiente en la bandeja de revisión.`);
   }catch(e){
    if(!current(token))return;
-   if(pending){retryReady=recover&&e.status===404;if(started&&['SOURCE_CHANGED','CATALOG_CHANGED','SELECTION_CHANGED','LIMIT','INPUT_INVALID'].some(code=>e.code==='EMPLOYMENT_ADOPTION_'+code))pending=null;}
-   failure(e,token);
+   if(pending&&recover&&e.status===404){
+    // A scoped 404 alone must not authorize a resend under another municipality.
+    // Recheck the original account and full scope before enabling the same bytes.
+    try{const f=await fresh(signal,true,part=>phase(part,true));if(!current(token))return;sameScope(f,pending.attempt);paint(f);retryReady=true;failure(e,token);}
+    catch(checkError){retryReady=false;failure(checkError,token);}
+    return;
+   }
+   if(pending){retryReady=false;if(started&&['SOURCE_CHANGED','CATALOG_CHANGED','SELECTION_CHANGED','LIMIT','INPUT_INVALID'].some(code=>e.code==='EMPLOYMENT_ADOPTION_'+code))pending=null;}
+   failure(e,token,stage);
   }finally{if(token===epoch){busy=false;controls();}}
  }
  $('preview').addEventListener('click',previewFacts);
