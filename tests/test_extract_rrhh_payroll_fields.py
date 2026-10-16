@@ -167,11 +167,36 @@ class PayrollFieldsTests(unittest.TestCase):
                 result.pop(key)
         self.assertEqual(rows, legacy)
 
+    def test_working_hours_lexemes_are_retained_without_changing_legacy_projection(self):
+        raw = employee(HDIA_12='0.100000000000000001', HMES_12='00031')
+        _, rows = fixture_extract(self.folder, tables([raw]))
+        row = rows[0]
+        self.assertEqual(row['sourceFields']['HDIA_12'], raw['HDIA_12'])
+        self.assertEqual(row['sourceFields']['HMES_12'], raw['HMES_12'])
+        self.assertEqual(row['employment']['dailyHours'], float(raw['HDIA_12']))
+        self.assertEqual(row['employment']['monthlyHours'], float(raw['HMES_12']))
+        self.assertIsInstance(row['employment']['dailyHours'], float)
+        self.assertIsInstance(row['employment']['monthlyHours'], float)
+
+    def test_working_hours_null_blank_zero_and_padding_remain_distinct(self):
+        values = [None, '', '0', ' 0 ', '000.50']
+        original = [employee(LEGA_12=str(1100+n), HDIA_12=v, HMES_12=v) for n, v in enumerate(values)]
+        _, rows = fixture_extract(self.folder, tables(original))
+        for field in ['HDIA_12', 'HMES_12']:
+            self.assertEqual([row['sourceFields'][field] for row in rows], values)
+        self.assertEqual([row['employment']['dailyHours'] for row in rows], [None, None, 0.0, 0.0, 0.5])
+        self.assertEqual([row['employment']['monthlyHours'] for row in rows], [None, None, 0.0, 0.0, 0.5])
+
+    def test_missing_required_working_hour_columns_still_rejects_the_source(self):
+        for field in ['HDIA_12', 'HMES_12']:
+            with self.subTest(field=field), self.assertRaisesRegex(MODULE.ExtractionError, 'missing required columns'):
+                fixture_extract(self.folder, omit={'legajo': [field]})
+
 if __name__ == '__main__':
     if sys.argv[1:] == ['--emit-projection-fixture']:
         (ROOT / 'verification').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='payroll-fields-projection-', dir=ROOT / 'verification') as folder:
-            raw = [employee(LEGA_12=f'{n:06d}', iddepartamento='7' if n % 2 else '8', NOLI_12='1' if n % 3 else None) for n in range(901, 958)]
+            raw = [employee(LEGA_12=f'{n:06d}', iddepartamento='7' if n % 2 else '8', NOLI_12='1' if n % 3 else None, HDIA_12='0.100000000000000001', HMES_12='00031') for n in range(901, 958)]
             _, rows = fixture_extract(Path(folder), tables(raw))
             print(json.dumps(rows, ensure_ascii=False))
     else:

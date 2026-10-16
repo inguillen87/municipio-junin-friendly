@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {summarizeEmployeeSourceFacts,verifiedEmployeeSourceSummary} from '../assets/grh-employee-source-facts.js';
+import {EMPLOYEE_SOURCE_FIELDS,employeeSourceFacts,summarizeEmployeeSourceFacts,verifiedEmployeeSourceSummary} from '../assets/grh-employee-source-facts.js';
 import {localGrhReviewBytes} from '../assets/grh-backup-review.js';
 import {employee,employeeFactsFixture,coordinatedEmployeeFactsFixture} from './fixtures/grh-employee-source-synthetic.js';
 const encode=value=>new TextEncoder().encode(JSON.stringify(value));
@@ -31,4 +31,22 @@ for(const fixture of [employeeFactsFixture,coordinatedEmployeeFactsFixture])test
 test('new original-facts contract cannot be substituted for an old or partial coordinated report',()=>{
  const modern=employeeFactsFixture();modern.version='grh-curated-successor-comparison.v1';assert.throws(()=>localGrhReviewBytes(encode(modern)));
  const joint=coordinatedEmployeeFactsFixture();joint.version='grh-coordinated-successor-review.v1';assert.throws(()=>localGrhReviewBytes(encode(joint)));
+});
+
+
+test('the closed source allowlist accepts exact hour lexemes without leaking them into review aggregates',()=>{
+ const row=employee(1),before=employeeSourceFacts(row),summary=summarizeEmployeeSourceFacts([row]);
+ row.sourceFields.HDIA_12='0.100000000000000001';row.sourceFields.HMES_12='00031';
+ assert.deepEqual(employeeSourceFacts(row),before);assert.deepEqual(summarizeEmployeeSourceFacts([row]),summary);
+ assert.equal(row.sourceFields.HDIA_12,'0.100000000000000001');assert.equal(row.sourceFields.HMES_12,'00031');
+ assert.equal(EMPLOYEE_SOURCE_FIELDS.filter(k=>['HDIA_12','HMES_12'].includes(k)).length,2);
+ assert.doesNotMatch(JSON.stringify(summary),/HDIA_12|HMES_12|0\.100000000000000001|00031/);
+ const absent=employee(2);assert.doesNotThrow(()=>employeeSourceFacts(absent));
+ for(const value of [null,'','0',' 0 ','000.50']){row.sourceFields.HDIA_12=value;row.sourceFields.HMES_12=value;assert.doesNotThrow(()=>employeeSourceFacts(row));}
+});
+
+test('adding only two hour fields does not permit other source keys, numbers or getters',()=>{
+ for(const key of ['UNKNOWN_FIELD','XDIA_12','CBU','NOMB_12','NUDO_12','EMIA_12']){const row=employee(1);row.sourceFields[key]='synthetic-private';assert.throws(()=>employeeSourceFacts(row),e=>e.code==='GRH_CURATED_REVIEW_EMPLOYEE_FACTS_INVALID');}
+ for(const value of [0,1,{},[],true]){const row=employee(1);row.sourceFields.HDIA_12=value;assert.throws(()=>employeeSourceFacts(row));}
+ let invoked=0;const row=employee(1);Object.defineProperty(row.sourceFields,'HDIA_12',{enumerable:true,get(){invoked++;return'1';}});assert.throws(()=>employeeSourceFacts(row));assert.equal(invoked,0);
 });
