@@ -4,6 +4,7 @@ import {preparationFixture,preparationProbe,preparationProgramUrl,deferred} from
 import {OWN_RUN_READ,OWN_RUN_PREPARE} from '../assets/own-payroll-run-workspace-model.js';
 import {OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadinessAllowsNew} from '../assets/own-payroll-readiness-model.js';
 import {hash,uid} from './fixtures/own-payroll-program-synthetic.js';
+import {nativeRosterScope} from '../assets/native-roster-model.js';
 
 const reply=data=>({data});
 function setup({request,session=async()=>{},source}={}){const fixture=preparationFixture();return {fixture,probe:preparationProbe({request,session,tenantId:fixture.tenantId,source})};}
@@ -14,7 +15,7 @@ test('actual preparation waits for programme completion before entering the shar
  const pending=probe.verify(fixture.run,()=>true);pending.catch(()=>{});
  try{assert.deepEqual(reads,[preparationProgramUrl],'The programme promise must resolve before the roster request starts');}
  finally{gate.resolve();await Promise.allSettled([pending]);}
- await pending;assert.deepEqual(reads,[preparationProgramUrl,OWN_PAYROLL_READINESS_ROSTER_URL]);assert.deepEqual(sessions,[OWN_RUN_READ]);assert.equal(ownPayrollReadinessAllowsNew(probe.state().readiness),true);assert.equal(probe.state().readinessAccessKey,'synthetic-access');
+ await pending;assert.deepEqual(reads,[preparationProgramUrl,OWN_PAYROLL_READINESS_ROSTER_URL]);assert.deepEqual(sessions,[OWN_RUN_READ]);assert.equal(ownPayrollReadinessAllowsNew(probe.state().readiness),true);assert.equal(probe.state().readinessAccessKey,'synthetic-access');assert.equal(probe.rosterScope(),nativeRosterScope(fixture.roster.scope));assert.equal(Object.hasOwn(globalThis,'readinessRosterScope'),false);
 });
 
 test('invalidation during programme reading prevents the subsequent roster GET and publication',async()=>{
@@ -43,5 +44,5 @@ test('a final authorization failure cannot publish preparation even after two su
 });
 
 test('invalidation during final authorization keeps the verified data unpublished',async()=>{
- const fixture=preparationFixture();let valid=true;const {probe}=setup({request:async url=>reply(url===preparationProgramUrl?fixture.program:fixture.roster),session:async()=>{valid=false;}});await probe.verify(fixture.run,()=>valid);assert.deepEqual(probe.state(),{readiness:null,readinessAccessKey:null});
+ const fixture=preparationFixture();let valid=true;const {probe}=setup({request:async url=>reply(url===preparationProgramUrl?fixture.program:fixture.roster),session:async()=>{valid=false;}});await probe.verify(fixture.run,()=>valid);assert.deepEqual(probe.state(),{readiness:null,readinessAccessKey:null});assert.equal(probe.rosterScope(),null);
 });

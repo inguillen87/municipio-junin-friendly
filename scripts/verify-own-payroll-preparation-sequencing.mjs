@@ -9,6 +9,7 @@ import {chromium} from 'playwright';
 import {launchOwnSyntheticBrowser} from './lib/own-synthetic-browser.mjs';
 import {OWN_RUN_READ,OWN_RUN_PREPARE} from '../assets/own-payroll-run-workspace-model.js';
 import {ownPayrollReadiness,OWN_PAYROLL_READINESS_ROSTER_URL} from '../assets/own-payroll-readiness-model.js';
+import {nativeRosterScope} from '../assets/native-roster-model.js';
 import {bootstrap,program,uid,hash} from '../tests/fixtures/own-payroll-program-synthetic.js';
 import {roster} from '../tests/fixtures/native-roster-synthetic.js';
 import {catalog as classification} from '../tests/fixtures/native-employee-synthetic.js';
@@ -27,8 +28,8 @@ export function preparationProbe({request,session,tenantId,accessKey='synthetic-
  const start='  async function verifyPreparation(',end='  function openIndividual(',parts=source.split(start);assert.equal(parts.length,2,'Preparation function must remain unique');
  const tail=parts[1].split(end);assert.equal(tail.length,2,'Preparation boundary changed');
  const exactFunction='async function verifyPreparation('+tail[0];
- const factory=new Function('request','session','accessTenantId','access','OWN_RUN_READ','OWN_PAYROLL_READINESS_ROSTER_URL','ownPayrollReadiness','let readiness=null,readinessAccessKey=null;'+exactFunction+';return {verify:verifyPreparation,state:()=>({readiness,readinessAccessKey})};');
- return factory(request,session,tenantId,{key:accessKey},OWN_RUN_READ,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness);
+ const factory=new Function('request','session','accessTenantId','access','OWN_RUN_READ','OWN_PAYROLL_READINESS_ROSTER_URL','ownPayrollReadiness','nativeRosterScope','let readiness=null,readinessAccessKey=null,readinessRosterScope=null;'+exactFunction+';return {verify:verifyPreparation,state:()=>({readiness,readinessAccessKey}),rosterScope:()=>readinessRosterScope};');
+ return factory(request,session,tenantId,{key:accessKey},OWN_RUN_READ,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,nativeRosterScope);
 }
 
 function json(res,status,payload){const bytes=Buffer.from(JSON.stringify(payload));res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':String(bytes.length),'X-Municontrol-Json-Bytes':String(bytes.length)});res.end(bytes);}
