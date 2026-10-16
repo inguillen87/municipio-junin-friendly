@@ -1,6 +1,6 @@
 import * as classificationModel from './own-period-classification-model.js';
 import { ownRunWorkspaceAccess } from './own-payroll-run-workspace-model.js';
-import { createEmployeePicker } from './employee-picker.js';
+import { createEmployeePicker,createNativeEmployeePickerReader } from './employee-picker.js';
 import { salarySerialized } from './native-salary-catalog-model.js';
 
 const endpoint='/api/internal-own-period-classification';
@@ -40,7 +40,8 @@ export function mountOwnPeriodClassification(container,{createPicker=createEmplo
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
  const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
- const picker=createPicker({instanceId:'periodClassificationPicker',canUse:()=>can(readCaps)&&!busy&&!attemptDraft,historicalAdoptionHelp:true,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'El encuadre requiere un legajo propio. Revisá su incorporación en Personas; el antecedente histórico se conserva.',onDirectoryInvalidated:()=>suspend('Cambió el padrón. Volvé a verificar el contrato y período.')});
+ const readPickerRoster=createNativeEmployeePickerReader({getAccess:()=>access,canUse:()=>can(readCaps)&&!busy&&!attemptDraft,required:readCaps,onInvalidated:message=>suspend(message)});
+ const picker=createPicker({instanceId:'periodClassificationPicker',readNativeRoster:readPickerRoster,canUse:()=>can(readCaps)&&!busy&&!attemptDraft,historicalAdoptionHelp:true,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'El encuadre requiere un legajo propio. Revisá su incorporación en Personas; el antecedente histórico se conserva.',onDirectoryInvalidated:()=>suspend('Cambió el padrón. Volvé a verificar el contrato y período.')});
  function controls(){
   $('access').disabled=busy||!live();$('access').hidden=!!access;
   $('target').disabled=busy||!!attemptDraft||!can(readCaps);
@@ -111,7 +112,7 @@ export function mountOwnPeriodClassification(container,{createPicker=createEmplo
    previousReferences();status(definition?'El envío anterior no está registrado. Revisá el borrador contra la consulta actual antes de registrar otra preparación.':'El envío anterior no está registrado. Consultá la fuente actual y prepará otra declaración; su contenido anterior se conserva para comparar.','warning');controls();
   });
  }
- $('picker').addEventListener('click',()=>picker.open({multiple:false,maximum:1,onUse:items=>{if(busy||attemptDraft||!items[0])return;const period=$('period').value;draft=null;draftTarget=null;clearVisible();chosen=structuredClone(items[0]);selectionAccessKey=access.key;$('period').value=period;$('subject').textContent='Legajo '+chosen.legajo+' · '+(chosen.nombre??'Nombre sin informar');controls();}}));
+ $('picker').addEventListener('click',()=>{readPickerRoster.reset();picker.open({multiple:false,maximum:1,onUse:items=>{if(busy||attemptDraft||!items[0])return;const period=$('period').value;draft=null;draftTarget=null;clearVisible();chosen=structuredClone(items[0]);selectionAccessKey=access.key;$('period').value=period;$('subject').textContent='Legajo '+chosen.legajo+' · '+(chosen.nombre??'Nombre sin informar');controls();}});});
  $('period').addEventListener('change',()=>{if(busy||attemptDraft)return;const period=$('period').value;draft=null;draftTarget=null;clearVisible();$('period').value=period;if(chosen)$('subject').textContent='Legajo '+chosen.legajo+' · '+(chosen.nombre??'Nombre sin informar');controls();});
  $('access').addEventListener('click',()=>perform(async valid=>{if(await session(attemptDraft?capsFor(attemptDraft.body.command):readCaps,valid))status(attemptDraft?'Acceso verificado. Consultá el mismo intento.':'Acceso verificado. Elegí un legajo propio y el período.');}));
  $('refresh').addEventListener('click',refresh);

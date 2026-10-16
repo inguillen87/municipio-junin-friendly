@@ -1,3 +1,50 @@
+import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
+import {readOwnPayrollResponse} from './own-payroll-response.js';
+import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
+import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL} from './own-payroll-readiness-model.js';
+import {OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
+
+// Read the same complete, authorised own roster as Calcular. Pins are kept in
+// memory for one opening; rows are fetched again before applying a selection.
+export function createNativeEmployeePickerReader({getAccess,canUse,required,onInvalidated=()=>{}}={}) {
+  if(typeof getAccess!=='function'||typeof canUse!=='function'||typeof onInvalidated!=='function'||!Array.isArray(required)||!required.length||required.some(c=>typeof c!=='string'))throw Error('Acceso de búsqueda propia inválido.');
+  let source=null;
+  const readNativeRoster=async({signal}={})=>{
+    const key=getAccess()?.key;
+    const current=()=>{
+      if(signal?.aborted||!canUse())throw Object.assign(Error('La búsqueda quedó desactualizada.'),{name:'AbortError'});
+      if(!key||getAccess()?.key!==key)throw Object.assign(Error('Cambió la cuenta o el ámbito de la búsqueda.'),{status:403});
+    };
+    const read=async url=>{
+      current();const http=new AbortController(),timer=setTimeout(()=>http.abort(),url===OWN_PAYROLL_READINESS_ROSTER_URL?25000:10000),httpSignal=signal?AbortSignal.any([signal,http.signal]):http.signal;
+      try{
+        const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:httpSignal});
+        const payload=await readOwnPayrollResponse(response,{maxBytes:OWN_RUN_MAX_RESPONSE,signal:httpSignal});current();
+        if(!response.ok||payload?.ok!==true)throw Object.assign(Error(response.status===401?'La sesión venció. Ingresá nuevamente.':response.status===403?'Tu cuenta ya no permite consultar estos legajos.':'No se pudo consultar el padrón propio completo.'),{status:response.status});
+        return payload;
+      }finally{clearTimeout(timer);}
+    };
+    const check=async()=>{
+      const payload=await read('/api/internal-auth'),fresh=ownRunWorkspaceAccess(payload);
+      if(fresh.key!==key||!required.every(c=>fresh.caps.has(c)))throw Object.assign(Error('Cambió la cuenta o el permiso para esta búsqueda.'),{status:403});
+      return payload.access.tenant.id;
+    };
+    try{
+      const tenant=await check(),payload=await read(OWN_PAYROLL_READINESS_ROSTER_URL),roster=nativeRoster(payload.data,OWN_PAYROLL_READINESS_FILTERS);
+      if(roster.version!=='native-roster.v2'||roster.scope.tenantId.toLowerCase()!==tenant.toLowerCase())throw Object.assign(Error('Cambió el ámbito del padrón propio.'),{code:'NATIVE_PICKER_CHANGED'});
+      await check();current();
+      const next={key,scope:nativeRosterScope(roster.scope),snapshot:roster.snapshot,total:roster.total,today:roster.today};
+      if(source&&JSON.stringify(source)!==JSON.stringify(next))throw Object.assign(Error('Cambió el padrón propio. Cerrá la búsqueda y verificá nuevamente el acceso.'),{code:'NATIVE_PICKER_CHANGED'});
+      source=next;return payload;
+    }catch(error){
+      if([401,403].includes(error.status)||error.code==='NATIVE_PICKER_CHANGED'){source=null;onInvalidated(error.message);}
+      throw error;
+    }
+  };
+  readNativeRoster.reset=()=>{source=null;};
+  return readNativeRoster;
+}
+
 import { pickerSearch, pickerQuery, pickerResult, addPickerSelection, nativePayrollPickerView, nativePayrollPickerSelection, addNativePickerSelection } from './employee-picker-model.js';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const dateLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'fecha no informada';
