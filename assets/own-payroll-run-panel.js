@@ -12,7 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
-import {OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
+import {OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -47,7 +47,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <label for="ownRunPeriod">Período<input id="ownRunPeriod" data-own-period type="month" required></label>
     <div class="own-run-date"><label for="ownRunDate">Fecha de liquidación<input id="ownRunDate" data-own-date type="date" min="1900-01-01" max="2099-12-31" required aria-describedby="ownRunDateHelp"></label><small id="ownRunDateHelp">Fecha declarada de este cálculo. Las reglas aprobadas se aplican al período; esta fecha no es una fecha de pago.</small><button class="button" type="button" data-own-period-end>Usar último día del período</button></div>
     <label for="ownRunType">Tipo de liquidación<select id="ownRunType" data-own-type required><option value="">Elegí el tipo</option></select></label>
-    <label for="ownRunKind">Alcance<select id="ownRunKind" data-own-kind required><option value="">Elegí el alcance</option><option value="contracts">Legajos seleccionados</option><option value="departments">Reparticiones</option><option value="agreements">Convenios</option><option value="all">Todos los legajos propios elegibles</option></select></label></div>
+    <label for="ownRunKind">Alcance<select id="ownRunKind" data-own-kind required><option value="">Elegí el alcance</option><option value="contracts">Legajos seleccionados</option><option value="departments">Reparticiones</option><option value="agreements">Convenios</option><option value="all">Todos los legajos propios</option></select></label></div>
     <div data-own-contracts hidden><button class="button" type="button" data-own-picker>Buscar y agregar legajos</button><div class="own-run-chips" data-own-chips></div></div>
     <label data-own-codes-box hidden for="ownRunCodes">Opciones del encuadre municipal<select id="ownRunCodes" data-own-codes multiple size="5" aria-describedby="ownRunCodesHelp"></select><small id="ownRunCodesHelp">Podés elegir varias opciones. El cálculo vuelve a verificar el conjunto completo.</small></label>
     <p data-own-scope>Elegí expresamente el alcance.</p>
@@ -79,18 +79,19 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
   const canPrepare=()=>can(OWN_RUN_PREPARE)&&boot?.canCalculate===true;
+  const canSelect=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsPreparation(readiness);
   const canStart=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsNew(readiness);
   const individual=mountOwnPayrollIndividual($('individual'),{id:'ownRunIndividual',canUse:()=>can(OWN_RUN_NOMINAL),returnFocus:()=>$('result').querySelector('h3')});
-  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canStart()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
+  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canSelect()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
     renderReadiness();
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
-    $('fields').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
+    $('fields').disabled=busy||!canSelect()||!!attempt;$('confirm').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
     $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
-    $('send').hidden=!!current?.saved||!attempt&&!canStart();
+    $('send').hidden=!!current?.saved||!attempt&&!canSelect();
     $('recover').hidden=!attempt;$('recover').disabled=busy||!can(OWN_RUN_NOMINAL);
     $('recover').textContent=current?.saved?'Actualizar este resultado':'Consultar este intento';
     $('new').hidden=!current?.saved;$('new').disabled=busy||!canPrepare();
@@ -126,9 +127,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
+  const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
     if(!preservePreparation)suspendedPreparation=null;
-    else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
+    else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();
     queuedPreparation=null;
     seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message,'warning');controls();
   }
@@ -161,7 +163,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function renderChosen(){
     $('chips').replaceChildren(...chosen.map(item=>{const chip=node('span');chip.append(node('span','Legajo '+item.legajo+' · '+(item.nombre??'Nombre no informado')));const remove=node('button','Quitar');remove.type='button';remove.className='button';remove.setAttribute('aria-label','Quitar legajo '+item.legajo);remove.addEventListener('click',()=>{if(attempt||busy)return;chosen=chosen.filter(e=>e.contractId!==item.contractId);$('confirm').checked=false;renderChosen();controls();});chip.append(remove);return chip;}));
-    $('scope').textContent=$('kind').value==='all'?'Se incluirán todos los legajos propios elegibles del período. No se limita a una búsqueda o página.':$('kind').value==='contracts'?chosen.length+' legajos propios elegidos.':'Se incluirá el conjunto completo de las opciones elegidas.';
+    $('scope').textContent=$('kind').value==='all'?'Alcance elegido: todo el padrón propio. El cálculo verificará la elegibilidad para el período; una búsqueda o página no reduce este alcance.':$('kind').value==='contracts'?chosen.length+' legajos propios elegidos.':'Se incluirá el conjunto completo de las opciones elegidas.';
   }
   function renderKind(){
     const kind=$('kind').value;$('contracts').hidden=kind!=='contracts';$('codes-box').hidden=!['departments','agreements'].includes(kind);$('codes').replaceChildren();
@@ -197,6 +199,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh({metadataOnly=false}={}){return perform(async valid=>{
+    if(!suspendedPreparation&&!attempt&&canSelect())suspendedPreparation=preparationDraft();
     invalidateReadiness();
     clearSourceReview();
     individual.clear();
@@ -212,11 +215,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     renderKind();renderHistory();controls();
     let preparationRoster;try{preparationRoster=await verifyPreparation(next,valid);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
     if(!valid())return;
-    if(!metadataOnly&&queuedPreparation){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;renderHistory();controls();return;}
+    if(!metadataOnly&&queuedPreparation&&canStart()){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;suspendedPreparation=null;renderHistory();controls();return;}
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
     renderHistory();controls();
     if(draftIssue){status(draftIssue,'warning');return;}
-    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
+    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta aprobar las reglas antes de confirmar el alcance y calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
     const program=await request('/api/internal-own-payroll-program?resource=bootstrap');
@@ -329,7 +332,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('picker').addEventListener('click',()=>picker.open({multiple:true,maximum:500,excluded:chosen.map(e=>e.legajo),onUse:items=>{chosen.push(...items);$('confirm').checked=false;renderChosen();controls();}}));
   $('new').addEventListener('click',()=>{if(!canPrepare()||busy||!current?.saved)return;attempt=null;clearViews();refresh();});
   $('revise').addEventListener('click',()=>{if(!notFound||busy||!canPrepare())return;attempt=null;notFound=false;refresh();});
-  $('period-end').addEventListener('click',()=>{if(attempt||busy||!canStart())return;try{$('date').value=ownRunPeriodEnd($('period').value);$('confirm').checked=false;$('date').focus();controls();}catch(error){status(error.message,'warning');}});
+  $('period-end').addEventListener('click',()=>{if(attempt||busy||!canSelect())return;try{$('date').value=ownRunPeriodEnd($('period').value);$('confirm').checked=false;$('date').focus();controls();}catch(error){status(error.message,'warning');}});
   for(const field of ['period','date','type','kind','codes'])$(field).addEventListener('change',()=>{if(attempt)return;$('confirm').checked=false;if(field==='kind')renderKind();controls();});
   $('confirm').addEventListener('change',controls);$('search').addEventListener('input',()=>{page=1;renderRows();});$('prev').addEventListener('click',()=>{page--;renderRows();});$('next').addEventListener('click',()=>{page++;renderRows();});
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};

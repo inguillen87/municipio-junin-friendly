@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessUnchanged,ownPayrollProgramSummary} from '../assets/own-payroll-readiness-model.js';
+import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged,ownPayrollProgramSummary} from '../assets/own-payroll-readiness-model.js';
 import {bootstrap,program,uid,hash,definitions,command} from './fixtures/own-payroll-program-synthetic.js';
 import {roster} from './fixtures/native-roster-synthetic.js';
 
@@ -55,4 +55,13 @@ test('revisión cero se presenta como pendiente y no como programa aprobado',()=
  assert.equal(ownPayrollProgramSummary(bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}})),'Sin programa aprobado. Maestro salarial pendiente de aprobación.');
  assert.equal(ownPayrollProgramSummary(bootstrap()),'Sin programa aprobado. Maestro salarial aprobado: revisión 1.');
  assert.equal(ownPayrollProgramSummary(bootstrap({program:approved()})),'Programa aprobado: revisión 1. Maestro salarial aprobado: revisión 1.');
+});
+
+
+test('borrador requiere padrón completo y maestro aprobado; programa pendiente no autoriza cálculo',()=>{
+ const input=sources({program:bootstrap()}),original=structuredClone(input),result=read(input);
+ assert.equal(result.state,'program_required');assert.equal(ownPayrollReadinessAllowsPreparation(result),true);assert.equal(ownPayrollReadinessAllowsNew(result),false);assert.deepEqual(input,original);assert.match(result.description,/borrador/);assert.match(result.description,/no certifica la elegibilidad/);
+ assert.equal(ownPayrollReadinessAllowsPreparation(read(sources())),true);
+ for(const denied of [ownPayrollReadinessUnavailable(),{...result},read(sources({roster:roster(0)})),read(sources({program:bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}})})),read(sources({program:bootstrap({program:approved(),salaryCatalog:{version:hash('e'),revision:2,items:definitions()}})}))])assert.equal(ownPayrollReadinessAllowsPreparation(denied),false);
+ for(const alter of [v=>v.roster.complete=false,v=>v.roster.rows.pop(),v=>v.roster.filters.search='QA',v=>v.program.scopeVersion=hash('e')]){const value=sources({program:bootstrap()});alter(value);assert.throws(()=>read(value));}
 });

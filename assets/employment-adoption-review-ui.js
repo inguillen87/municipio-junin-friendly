@@ -61,18 +61,19 @@ export function mountAdoptionReview(root){
   if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent=d.total?'No hay coincidencias para esta búsqueda. El reporte conserva toda la revisión.':mixed?'No hay contratos conocidos listos en este alcance. Los pendientes, inactivos y ya adoptados conservan sus cantidades; no se generará una propuesta vacía.':cohort?'El respaldo completo no contiene contratos activos. No se inventaron observaciones.':'No hay contratos históricos pendientes en la fuente instalada. No se inventaron observaciones.';tr.append(td);$('rows').append(tr);}
   root.querySelectorAll('[data-ar-page]').forEach(n=>n.textContent=`Página ${page} de ${Math.max(1,Math.ceil(rows.length/25))}`);controls();
  }
+ const operationSignal=signal=>AbortSignal.any([signal,AbortSignal.timeout(30000)]);
  async function authority(signal){
-  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json();
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:operationSignal(signal)}),value=await response.json();
   if(!response.ok||value.ok!==true||value.authenticated!==true||!value.access?.tenantCapabilities?.includes('workforce.employee.read'))throw Object.assign(Error('Tu acceso ya no permite revisar el padrón. Se retiraron los datos.'),{status:response.status===401?401:403});
  }
  async function ownAuthority(signal){
-  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json(),access=value.access;
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:operationSignal(signal)}),value=await response.json(),access=value.access;
   if(!response.ok||value.ok!==true||value.authenticated!==true||!Array.isArray(access?.tenantCapabilities)||!access.tenantCapabilities.includes('workforce.employee.read')||access.context!=='tenant'||typeof access.tenant?.id!=='string'||typeof value.user?.email!=='string'||!value.user.email.trim())throw Object.assign(Error('Tu sesión o permiso cambió. Se retiraron tus comprobantes.'),{status:response.status===401?401:403});
   return{actor:value.user.email.trim().toLowerCase(),tenantId:access.tenant.id};
  }
  async function readOwnProposals(){
   if(busy||!live()||!ownNavigationMode||canDecide||view?.hidden)return;
-  const token=++generation;controller?.abort();controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]);busy=true;$('own-items').replaceChildren();controls();message('Consultando los comprobantes de preparación de tu cuenta…');
+  const token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;$('own-items').replaceChildren();controls();message('Consultando los comprobantes de preparación de tu cuenta…');
   const current=()=>token===generation&&live()&&!view?.hidden;
   try{
    const before=await ownAuthority(signal);if(!current())return;
@@ -90,13 +91,13 @@ export function mountAdoptionReview(root){
  }
  async function read(signal,selected=null){
   if(selected){await authority(signal);const mixed=selected.cohort===MIXED_ADOPTION_COHORT,active=mixed||selected.cohort==='active-contracts.v1',value=await adoptionPreparationBootstrap(await adoptionRequest('?'+new URLSearchParams({resource:mixed?'mixed-bootstrap':active?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}),signal));if(value.review.source.finalRevision?.revisionId!==selected.revisionId||value.review.source.finalRevision?.packageSha256!==selected.packageSha256||active!==Boolean(value.review.source.operationalCohort)||mixed!==(value.review.source.operationalCohort?.version===MIXED_ADOPTION_COHORT))throw Error('No se obtuvo el mismo respaldo y alcance. Consultá nuevamente.');return value.review;}
-  await authority(signal);const response=await fetch('/api/internal-data?resource=employmentadoptionreview',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal}),bytes=await response.text();
+  await authority(signal);const response=await fetch('/api/internal-data?resource=employmentadoptionreview',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:operationSignal(signal)}),bytes=await response.text();
   if(new TextEncoder().encode(bytes).length>ADOPTION_REVIEW_MAX_BYTES+1024)throw Error('La respuesta completa supera la capacidad de revisión. No se descargaron filas parciales.');
   let value;try{value=JSON.parse(bytes);}catch{throw Error('No se pudo verificar la revisión completa. Consultá nuevamente.');}
   if(!response.ok||value.ok!==true)throw Object.assign(Error(value.error??'No se obtuvo el padrón completo.'),{status:response.status});return verifiedAdoptionReview(value.data);
  }
  async function run(download=false,selected=null){
-  if(busy||!live())return;const old=snapshot,source=download?selectedSource:selected,token=++generation;controller?.abort();controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(25000)]);busy=true;controls();message(download?'Verificando el padrón completo y el acceso antes de descargar…':source?'Comparando todos los contratos del respaldo final…':'Revisando todos los contratos de la fuente instalada…');
+  if(busy||!live())return;const old=snapshot,source=download?selectedSource:selected,token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;controls();message(download?'Verificando el padrón completo y el acceso antes de descargar…':source?'Comparando todos los contratos del respaldo final…':'Revisando todos los contratos de la fuente instalada…');
   try{
    let fresh=await read(signal,source);if(token!==generation||!live())return;
    if(download){
@@ -110,13 +111,13 @@ export function mountAdoptionReview(root){
   finally{if(token===generation){busy=false;controls();}}
  }
  async function adoptionRequest(query,signal){
-  const response=await fetch('/api/internal-employment-adoption'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal}),bytes=await response.text();
+  const response=await fetch('/api/internal-employment-adoption'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:operationSignal(signal)}),bytes=await response.text();
   if(new TextEncoder().encode(bytes).length>7000000)throw Error('La respuesta completa supera la capacidad. No se mostraron filas parciales.');
   let value;try{value=JSON.parse(bytes);}catch{throw Error('No se verificó la respuesta completa. Consultá nuevamente.');}
   if(!response.ok||value.ok!==true)throw Object.assign(Error(value.error??'No se obtuvo el respaldo preparado.'),{status:response.status});return value.data;
  }
  async function cuts(){
-  if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(25000)]);busy=true;controls();message('Consultando referencias de respaldos preparados…');
+  if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;controls();message('Consultando referencias de respaldos preparados…');
   try{await authority(signal);const value=adoptionFinalSources(await adoptionRequest('?resource=final-sources',signal));if(token!==generation||!live())return;
    if(snapshot&&adoptionReviewScope(value.scope)!==adoptionReviewScope(snapshot.scope)){invalidate('Cambió el ámbito. Consultá nuevamente el padrón.');return;}
    $('cut-options').replaceChildren();for(const row of value.rows){const button=document.createElement('button');button.type='button';button.className='button primary';button.textContent='Revisar personal activo · '+row.cutoff.replace('T',' ');button.addEventListener('click',()=>run(false,{...row,cohort:'active-contracts.v1'}));$('cut-options').append(button);const history=document.createElement('details'),summary=document.createElement('summary'),legacy=document.createElement('button');summary.textContent='Consultar antecedentes históricos';legacy.type='button';legacy.className='button';legacy.textContent='Revisar fuente histórica completa';legacy.addEventListener('click',()=>run(false,row));history.append(summary,legacy);$('cut-options').append(history);}
@@ -126,7 +127,7 @@ export function mountAdoptionReview(root){
  }
  $('cuts').addEventListener('click',cuts);
  async function mixedCuts(){
-  if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(25000)]);busy=true;controls();message('Consultando cortes preparados para revisar el padrón mixto…');
+  if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;controls();message('Consultando cortes preparados para revisar el padrón mixto…');
   try{await authority(signal);const value=adoptionMixedSources(await adoptionRequest('?resource=mixed-sources',signal));if(token!==generation||!live())return;if(snapshot&&adoptionReviewScope(value.scope)!==adoptionReviewScope(snapshot.scope)){invalidate('Cambió el ámbito. Consultá nuevamente el padrón.');return;}
    $('mixed-options').replaceChildren();for(const row of value.rows){const button=document.createElement('button');button.type='button';button.className='button primary';button.textContent='Revisar activos conocidos · '+row.cutoff.replace('T',' ');button.addEventListener('click',()=>run(false,{...row,cohort:MIXED_ADOPTION_COHORT}));$('mixed-options').append(button);}
    message(value.total?'Elegí expresamente un corte. La revisión mostrará todos los registros conocidos y las cantidades conservadas de los pendientes; no se eligió el último respaldo automáticamente.':'No hay cortes mixtos preparados en este ámbito. Las propuestas y revisiones anteriores conservan su propio circuito.');
