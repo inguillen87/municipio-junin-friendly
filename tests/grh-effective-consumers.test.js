@@ -80,8 +80,11 @@ function handlerFixture({rotate=false,revoke=false}={}){
  const calls=[];let snapshots=0;
  const sql={query:async(query)=>{query=String(query);calls.push(query);
   if(query.includes('effective-source:snapshot')){snapshots++;if(revoke&&snapshots===2)return[];return[{token:(rotate&&snapshots===2?'b':'a').repeat(64)}];}
-  if(query.includes('AS historical_records'))return[{historical_records:2,active:1,inactive:1}];
-  if(query.includes('FROM data_import_runs')){assert.match(query,/id IN \(SELECT legacy_import_run_id FROM grh_effective_source_batch_v1\)/);return[{id:7,source_name:'Synthetic publication',source_cutoff:'2026-09-10T00:00:00',source_sha256:'a'.repeat(64),status:'completed'}];}
+  if(query.includes('AS historical_records')){
+   assert.match(query,/id IN \(SELECT legacy_import_run_id FROM grh_effective_source_batch_v1\)/);
+   return[{historical_records:2,active:1,inactive:1,absence_events:0,leave_records:0,family_records:0,sectors:1,categories:0,unions:0,agreements:0,active_without_sector:0,absence_orphans:0,leave_orphans:0,suspicious_early_absences:0,suspicious_early_leaves:0,absences_after_source_cutoff:0,
+    __sourceId:7,__sourceName:'Synthetic publication',__sourceCutoff:'2026-09-10T00:00:00',__sourceSha256:'a'.repeat(64),__sourceCompletedAt:null,__sourceStatus:'completed',__sourceTableCounts:{},__sourceQualityFlags:{},__sectors:[{label:'Synthetic sector',value:2}],__absenceYearly:[]}];
+  }
   return[];
  }};
  const handler=createInternalDataHandler({getInternalSql:async()=>sql,requireCompatibleInternalAccess:async()=>({mode:'managed',principal:{tenant:{id:binding.tenantId}}}),env:{FRIENDLY_GRH_SOURCE_DATABASE:binding.database,FRIENDLY_GRH_COMPANY_ID:'1'}});
@@ -90,15 +93,19 @@ function handlerFixture({rotate=false,revoke=false}={}){
 test('authorized API revalidates publication after every assembled query before sending',async()=>{
  const {handler,calls}=handlerFixture();const res=response();await handler({method:'GET',query:{resource:'summary'}},res);
  assert.equal(res.statusCode,200);assert.equal(res.body.source.importId,7);
- assert.match(calls[0],/effective-source:snapshot/);assert.match(calls.at(-1),/effective-source:snapshot/);assert.equal(calls.length,6);
+ assert.deepEqual(res.body.workforce,{historicalRecords:2,active:1,inactive:1,sectors:[{label:'Synthetic sector',value:2}]});
+ assert.deepEqual(res.body.absence,{totalEvents:0,yearly:[]});
+ assert.match(calls[0],/effective-source:snapshot/);assert.match(calls[1],/AS historical_records/);assert.match(calls.at(-1),/effective-source:snapshot/);assert.equal(calls.length,3);
 });
 test('API discards assembled data when publication changes during the read',async()=>{
- const {handler}=handlerFixture({rotate:true});const res=response();await handler({method:'GET',query:{resource:'summary'}},res);
+ const {handler,calls}=handlerFixture({rotate:true});const res=response();await handler({method:'GET',query:{resource:'summary'}},res);
  assert.equal(res.statusCode,503);assert.equal(res.body.code,'GRH_SOURCE_CHANGED');assert.equal('workforce'in res.body,false);assert.equal('source'in res.body,false);
+ assert.equal(calls.length,3);assert.match(calls.at(-1),/effective-source:snapshot/);
 });
 test('API discards assembled data when source authority is revoked during the read',async()=>{
- const {handler}=handlerFixture({revoke:true});const res=response();await handler({method:'GET',query:{resource:'summary'}},res);
+ const {handler,calls}=handlerFixture({revoke:true});const res=response();await handler({method:'GET',query:{resource:'summary'}},res);
  assert.equal(res.statusCode,503);assert.equal(res.body.code,'INTERNAL_DATA_UNAVAILABLE');assert.equal('workforce'in res.body,false);
+ assert.equal(calls.length,3);assert.match(calls.at(-1),/effective-source:snapshot/);
 });
 
 test('consumer SQL generator is bounded to an empty disposable loopback database and preserves exact migration pins',()=>{
