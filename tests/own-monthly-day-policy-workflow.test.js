@@ -64,3 +64,27 @@ test('failed synthetic runs retain their result and native logs without uploadin
  assert.doesNotMatch(block,/\.handoff|\.private|\.sql\b|\.gz|\.ogg|verification\/\*\*/);
  assert.match(block,/\/\*\.json/);assert.match(block,/\/\*failure\.txt/);assert.match(block,/\/\*\.log/);
 });
+
+
+test('the nine unique pure composition suites run before synthetic SQL preparation and its guarded runner',()=>{
+ const expected=['tests/own-monthly-day-policy.test.js','tests/own-monthly-day-policy-installation.test.js','tests/own-monthly-day-policy-commands.test.js','tests/own-monthly-day-policy-qa.test.js','tests/own-monthly-day-policy-runner.test.js','tests/own-monthly-day-policy-workflow.test.js','tests/own-payroll-programme-source-preparation.test.js','tests/own-payroll-program.test.js','tests/own-payroll-approved-input.test.js'];
+ const title='      - name: Validate the monthly-day model, protocol and transport before SQL';
+ const prepare='      - name: Prepare only the disposable synthetic service';
+ const compile='      - name: Compile and verify installation, ordinary approval, capture and recovery in the same synthetic source';
+ const validate=value=>{
+  const start=value.indexOf(title),sql=value.indexOf(prepare),runner=value.indexOf(compile);
+  assert.ok(start>=0&&start<sql&&sql<runner,'MONTHLY_DAY_CI_PURE_ORDER');
+  assert.equal(value.split(title).length,2);
+  const end=value.indexOf('\n      - ',start+title.length),block=value.slice(start,end);
+  const commands=[...block.matchAll(/^        run: node --test ([^\n]+)$/gm)];
+  assert.equal(commands.length,1,'MONTHLY_DAY_CI_PURE_COMMAND');
+  const actual=commands[0][1].trim().split(/\s+/);
+  assert.equal(actual.length,9);assert.equal(new Set(actual).size,9,'MONTHLY_DAY_CI_PURE_DUPLICATE');
+  assert.deepEqual(actual,expected,'MONTHLY_DAY_CI_PURE_SUITES');
+ };
+ validate(workflow);
+ for(const suite of expected)assert.throws(()=>validate(workflow.replace(' '+suite,'')));
+ assert.throws(()=>validate(workflow.replace('run: node --test ','run: node --test '+expected[0]+' ')));
+ const start=workflow.indexOf(title),end=workflow.indexOf(prepare,start),pure=workflow.slice(start,end),without=workflow.slice(0,start)+workflow.slice(end);
+ assert.throws(()=>validate(without.replace(compile,pure+compile)),/MONTHLY_DAY_CI_PURE_ORDER/);
+});
