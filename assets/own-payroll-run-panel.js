@@ -2,6 +2,7 @@ import {ownRunBootstrap,ownRunCommand,OWN_RUN_MAX_RESPONSE} from './own-payroll-
 import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
 import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
+import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
@@ -12,7 +13,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
-import {OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
+import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -74,7 +75,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
-  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,suspendedPreparation=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
@@ -82,7 +83,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const canSelect=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsPreparation(readiness);
   const canStart=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsNew(readiness);
   const individual=mountOwnPayrollIndividual($('individual'),{id:'ownRunIndividual',canUse:()=>can(OWN_RUN_NOMINAL),returnFocus:()=>$('result').querySelector('h3')});
-  const picker=createEmployeePicker({instanceId:'ownRunPicker',historicalAdoptionHelp:true,canUse:()=>canSelect()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
+  const picker=createEmployeePicker({instanceId:'ownRunPicker',readNativeRoster:readPickerRoster,canUse:()=>canSelect()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();controls();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
@@ -117,7 +118,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(readiness.href){$('readiness-link').href=readiness.href;$('readiness-link').textContent=readiness.action;}else $('readiness-link').removeAttribute('href');
     $('readiness-check').hidden=readiness.state!=='unverified';$('readiness-check').disabled=busy||!can(OWN_RUN_READ);
   }
-  function invalidateReadiness(){readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;$('confirm').checked=false;picker.close();}
+  function invalidateReadiness(){readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;readinessRosterScope=null;$('confirm').checked=false;picker.close();}
   function clearViews(){
     clearSourceReview();
     individual.clear();
@@ -228,8 +229,27 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!valid())return;
     const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
     await session(required);if(!valid())return;
-    readiness=next;readinessAccessKey=access.key;
+    readiness=next;readinessAccessKey=access.key;readinessRosterScope=nativeRosterScope(roster.data.scope);
     return roster.data;
+  }
+  async function readPickerRoster({signal}){
+    const version=seq,key=access?.key,tenant=accessTenantId,snapshot=readiness.rosterSnapshot,binding=readinessRosterScope;
+    const valid=()=>version===seq&&live()&&access?.key===key&&canSelect()&&!busy&&!attempt&&!signal.aborted;
+    const current=()=>{if(!valid())throw Object.assign(Error('La búsqueda quedó desactualizada.'),{name:'AbortError'});};
+    // Three bounded reads:10s auth +25s complete roster +10s fresh auth (45s total).
+    // The modal signal also aborts each read on close, account or visibility change.
+    const read=async url=>{current();const http=new AbortController(),timer=setTimeout(()=>http.abort(),url===OWN_PAYROLL_READINESS_ROSTER_URL?25000:10000),httpSignal=AbortSignal.any([signal,http.signal]);
+      try{const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:httpSignal});const payload=await readOwnPayrollResponse(response,{maxBytes:OWN_RUN_MAX_RESPONSE,signal:httpSignal});current();if(!response.ok||payload?.ok!==true)throw Object.assign(Error(response.status===401?'La sesión venció. Ingresá nuevamente.':response.status===403?'Tu cuenta ya no permite consultar estos legajos.':'No se pudo consultar el padrón propio. No se inició ningún cálculo.'),{status:response.status});return payload;}finally{clearTimeout(timer);}
+    };
+    const check=async()=>{const fresh=ownRunWorkspaceAccess(await read('/api/internal-auth'));if(fresh.key!==key||!hasOwnRunAccess(fresh.caps,OWN_RUN_PREPARE))throw Object.assign(Error('Cambió la cuenta o el permiso para preparar esta selección.'),{status:403});};
+    try{
+      await check();current();const payload=await read(OWN_PAYROLL_READINESS_ROSTER_URL),roster=nativeRoster(payload.data,OWN_PAYROLL_READINESS_FILTERS);
+      if(roster.version!=='native-roster.v2'||roster.scope.tenantId!==tenant||nativeRosterScope(roster.scope)!==binding||roster.snapshot!==snapshot||roster.total!==readiness.rosterTotal)throw Object.assign(Error('Cambió el padrón propio. Actualizá la preparación y elegí nuevamente el alcance completo.'),{code:'NATIVE_PICKER_CHANGED'});
+      await check();current();return payload;
+    }catch(error){
+      if(version===seq&&live()&&access?.key===key){if([401,403].includes(error.status))suspend('Se retiró la selección por un cambio de cuenta o permisos. Actualizá el acceso antes de buscar nuevamente.');else if(error.code==='NATIVE_PICKER_CHANGED'){chosen=[];invalidateReadiness();renderChosen();controls();status(error.message,'warning');}}
+      throw error;
+    }
   }
   function restoreSuspendedPreparation(roster){
     const draft=suspendedPreparation;
@@ -329,7 +349,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('source-review-button').addEventListener('click',()=>reviewSources());$('source-download').addEventListener('click',()=>reviewSources(true));
   $('source-search').addEventListener('input',()=>{sourcePage=1;renderSourceReview();});$('source-prev').addEventListener('click',()=>{sourcePage--;renderSourceReview();});$('source-next').addEventListener('click',()=>{sourcePage++;renderSourceReview();});
   $('review').addEventListener('click',()=>{if(busy||!current?.saved||!can(OWN_RUN_NOMINAL))return;if(onReview?.({runId:current.id,resultSha256:current.saved.resultSha256,accessKey:access.key,contractId:individual.selected})!==true)status('Hay una decisión pendiente en Confirmar y anular. Consultala antes de cambiar de corrida.','warning');});
-  $('picker').addEventListener('click',()=>picker.open({multiple:true,maximum:500,excluded:chosen.map(e=>e.legajo),onUse:items=>{chosen.push(...items);$('confirm').checked=false;renderChosen();controls();}}));
+  $('picker').addEventListener('click',()=>{
+    if(!canSelect()||busy||attempt)return;
+    if(chosen.length>=500){status('Alcanzaste el máximo de 500 legajos seleccionados. Podés quitar alguno o elegir otro alcance completo.','warning');return;}
+    picker.open({multiple:true,maximum:500-chosen.length,excluded:chosen.map(e=>e.contractId),onUse:items=>{if(!canSelect()||busy||attempt||chosen.length+items.length>500||items.some(r=>chosen.some(e=>e.contractId===r.contractId)))throw Error('Cambió la capacidad o el acceso a la selección. No se agregó una parte.');chosen.push(...items);$('confirm').checked=false;renderChosen();controls();}});
+  });
   $('new').addEventListener('click',()=>{if(!canPrepare()||busy||!current?.saved)return;attempt=null;clearViews();refresh();});
   $('revise').addEventListener('click',()=>{if(!notFound||busy||!canPrepare())return;attempt=null;notFound=false;refresh();});
   $('period-end').addEventListener('click',()=>{if(attempt||busy||!canSelect())return;try{$('date').value=ownRunPeriodEnd($('period').value);$('confirm').checked=false;$('date').focus();controls();}catch(error){status(error.message,'warning');}});
