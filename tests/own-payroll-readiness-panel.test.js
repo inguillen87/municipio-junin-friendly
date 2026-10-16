@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setTimeout as delay} from 'node:timers/promises';
 import {mountOwnPayrollRun} from '../assets/own-payroll-run-panel.js';
+import {createEmployeePicker} from '../assets/employee-picker.js';
 import {OWN_RUN_PREPARE} from '../assets/own-payroll-run-workspace-model.js';
 import {CATALOG_VERSION} from '../assets/native-employment-catalog-model.js';
 import {bootstrap,program,uid,hash} from './fixtures/own-payroll-program-synthetic.js';
@@ -43,10 +44,12 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
  const state={annul:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
+ let clock=0,timerId=0;const deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
  const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
- Object.assign(globalThis,{document,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){}});
+ Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:()=>1,clearInterval(){}});
  globalThis.fetch=async(url,options={})=>{
   const method=options.method??'GET',request={url,method,body:options.body??null,key:options.headers?.['Idempotency-Key']??null};requests.push(request);
+  if(state.readStepMs?.length){advance(state.readStepMs.shift());if(options.signal?.aborted)throw new DOMException('Synthetic single HTTP deadline','AbortError');}
   if(state.hold?.url===url)await state.hold.wait;
   let status=200,payload;
   if(url==='/api/internal-auth'){if(state.authFailure){status=state.authFailure;payload={ok:false,code:'SYNTHETIC_SESSION_UNAVAILABLE'};}else payload={ok:true,authenticated:true,sessionVersion:2,user:{id:state.sessionId,email:'synthetic-readiness@example.invalid'},access:{context:'tenant',tenant:{id:roster(1).scope.tenantId,roleKey:'QA'},tenantCapabilities:state.caps},expiresAt:new Date(Date.now()+3600000).toISOString()};}
@@ -68,7 +71,7 @@ function harness(t){
  const prepare=async()=>{q('period').value='2026-10';q('date').value='2026-10-31';q('type').value='monthly';q('kind').value='all';await q('kind').emit('change');q('confirm').checked=true;await q('confirm').emit('change');};
  const submit=async()=>{await q('form').emit('submit');await idle();};
  t.after(()=>{winEvents.dispatch('pagehide');for(const [key,descriptor]of before)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];});
- return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document};
+ return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document,now:()=>clock};
 }
 
 test('permiso de calcular con cero legajos propios no habilita el botón ni una captura',async t=>{
@@ -162,11 +165,12 @@ test('851 propios verificados y programa cero permiten borrador completo sin cla
  h.q('kind').value='all';await h.q('kind').emit('change');assert.match(h.q('scope').textContent,/verificará la elegibilidad/);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
 });
 
-test('picker real selecciona un legajo propio sin programa; histórico sigue bloqueado y no calcula',async t=>{
- const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);const r=h.state.roster.rows[0];
- h.state.lookup={ok:true,version:'employee-picker.v1',data:[{contractId:r.contractId,legajo:r.legajo,nombre:r.name,sector:r.sector,convenio:r.agreement,activo:true,statusSnapshotDate:'2026-10-14',recordOrigin:'MUNICONTROL'},{contractId:uid(888),legajo:'99999',nombre:'HISTÓRICO SINTÉTICO QA',sector:'REPARTICIÓN QA',convenio:'CONVENIO QA',activo:true,statusSnapshotDate:'2026-10-14',recordOrigin:'GRH'}],pagination:{page:1,limit:20,total:2,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-10-14',sourceCutoffTo:'2026-10-14'}};
- await h.start();h.q('kind').value='contracts';await h.q('kind').emit('change');await h.q('picker').emit('click');const dialog=h.document.body.querySelector('dialog');assert.equal(dialog.open,true);dialog.querySelector('#ownRunPickerSearch').value='QA';await dialog.querySelector('[data-picker-form]').emit('submit');for(let i=0;i<20&&dialog.querySelector('[data-picker-form]').getAttribute('aria-busy')!=='false';i++)await settle();
- const rows=dialog.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,2);assert.equal(rows[0].disabled,false);assert.equal(rows[1].disabled,true);rows[0].checked=true;await rows[0].emit('change');assert.equal(dialog.querySelector('[data-picker-apply]').disabled,false);await dialog.querySelector('[data-picker-apply]').emit('click');assert.equal(dialog.open,false);assert.match(h.q('chips').textContent,new RegExp(r.legajo));assert.match(h.q('scope').textContent,/1 legajos propios elegidos/);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').disabled,true);await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+test('picker de Calcular busca1339sobre851propios completos sin programa ni directorio histórico y no calcula',async t=>{
+ const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);const r=h.state.roster.rows[850];Object.assign(r,{legajo:'1339',name:'PERSONA1339SINTÉTICA QA',recordKind:'adopted',sexCode:'Femenino'});
+ await h.start();const before=h.requests.length;const dialog=await searchOwnPicker(h,'1339'),rows=dialog.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1);assert.equal(rows[0].value,r.contractId);assert.equal(rows[0].disabled,false);
+ assert.match(dialog.querySelector('[data-picker-source]').textContent,/851 legajos consultados/);assert.doesNotMatch(dialog.querySelector('[data-picker-source]').textContent,/Fuente incorporada/);
+ rows[0].checked=true;await rows[0].emit('change');assert.equal(dialog.querySelector('[data-picker-apply]').disabled,false);await dialog.querySelector('[data-picker-apply]').emit('click');assert.equal(dialog.open,false);assert.match(h.q('chips').textContent,/1339/);assert.match(h.q('scope').textContent,/1 legajos propios elegidos/);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').disabled,true);await h.submit();
+ const reads=h.requests.slice(before);assert.ok(reads.every(r=>r.method==='GET'));assert.equal(reads.filter(r=>r.url.startsWith('/api/internal-data?resource=employees')).length,0);assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,4);assert.equal(reads.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length,2);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 
 test('aprobación posterior conserva borrador completo y exige revisión manual antes de POST fresco',async t=>{
@@ -196,4 +200,40 @@ test('contexto externo espera reglas y, tras aceptación real, reemplaza el borr
  await h.start();await h.prepare();h.q('period').value='2026-11';h.q('date').value='2026-11-30';const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:'2026-10-31',key:r.key,accessKey}),true);await h.refresh();assert.equal(h.q('period').value,'2026-11');assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,0);
  h.state.program=bootstrap({program:approved()});await h.refresh();assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,2);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
  await h.refresh();assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(req=>req.method==='POST').length,0);
+});
+
+async function searchOwnPicker(h,term){
+ h.q('kind').value='contracts';await h.q('kind').emit('change');await h.q('picker').emit('click');const dialog=h.document.body.querySelector('dialog');assert.equal(dialog.open,true);dialog.querySelector('#ownRunPickerSearch').value=term;await dialog.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(dialog);return dialog;
+}
+async function settleOwnPicker(dialog){const deadline=performance.now()+5000;while(dialog.open&&dialog.querySelector('[data-picker-form]').getAttribute('aria-busy')!=='false'){if(performance.now()>deadline)assert.fail('Synthetic picker did not settle: '+dialog.querySelector('[data-picker-state]').textContent);await settle();}}
+
+test('la selección nativa conserva varias búsquedas y revalida acceso y fuente al aplicar',async t=>{
+ const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);await h.start();let d=await searchOwnPicker(h,'5001');let rows=d.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1);rows[0].checked=true;await rows[0].emit('change');const input=d.querySelector('#ownRunPickerSearch');input.value='5851';await input.emit('input');await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);rows=d.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1);rows[0].checked=true;await rows[0].emit('change');await d.querySelector('[data-picker-apply]').emit('click');assert.match(h.q('scope').textContent,/2 legajos propios elegidos/);assert.match(h.q('chips').textContent,/5001/);assert.match(h.q('chips').textContent,/5851/);assert.equal(h.requests.some(r=>r.method==='POST'),false);
+});
+
+for(const[label,change]of[['snapshot',r=>r.snapshot=hash('e')],['membership',r=>r.scope.membershipId=uid(990)],['binding',r=>r.scope.bindingId=uid(991)]])test('cambio de '+label+'durante búsqueda retira todo y exige actualización explícita',async t=>{
+  const h=harness(t);h.state.program=bootstrap();await h.start();change(h.state.roster);const d=await searchOwnPicker(h,'5001');assert.equal(d.open,false);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);assert.match(h.q('readiness-facts').textContent,/sin verificar/);assert.match(h.q('status').textContent,/Cambió el padrón/);assert.equal(h.requests.some(r=>r.method==='POST'),false);
+});
+
+for(const[label,change]of[['cuenta',s=>s.sessionId=uid(31)],['permiso',s=>s.caps=s.caps.filter(c=>c!=='payroll.calculation.prepare')],['401',s=>s.authFailure=401]])test('cambio de '+label+'antes de aplicar nunca usa selección vieja',async t=>{
+  const h=harness(t);h.state.program=bootstrap();await h.start();const d=await searchOwnPicker(h,'5001'),row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');change(h.state);await d.querySelector('[data-picker-apply]').emit('click');assert.equal(d.open,false);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);assert.equal(h.requests.some(r=>r.method==='POST'),false);
+});
+
+for(const mode of['hidden','account','closed'])test('respuesta tardía tras '+mode+'no restituye nombres',async t=>{const h=harness(t);h.state.program=bootstrap();await h.start();let resolve;h.state.hold={url:'/api/internal-data?resource=nativeroster&schema=2&search=&status=all&jurisdiction=&organization=&sector=&agreement=',wait:new Promise(r=>resolve=r)};
+  h.q('kind').value='contracts';await h.q('kind').emit('change');await h.q('picker').emit('click');const d=h.document.body.querySelector('dialog');d.querySelector('#ownRunPickerSearch').value='5001';await d.querySelector('[data-picker-form]').emit('submit');for(let i=0;i<20&&!h.requests.at(-1)?.url.includes('nativeroster');i++)await settle();
+  if(mode==='hidden'){h.document.hidden=true;h.event('visibilitychange');}else if(mode==='closed')await d.querySelector('[data-picker-close]').emit('click');else h.state.sessionId=uid(31);resolve();await settleOwnPicker(d);await settle();assert.equal(d.open,false);assert.equal(d.querySelector('[data-picker-results]').children.length,0);assert.equal(h.q('chips').children.length,0);assert.equal(h.requests.some(r=>r.method==='POST'),false);
+});
+
+test('fallo del padrón nativo no deriva al histórico ni muestra recuperación de un cálculo inexistente',async t=>{
+ const h=harness(t);h.state.program=bootstrap();await h.start();h.state.readFailure={status:503,code:'NATIVE_ROSTER_CHANGED'};const d=await searchOwnPicker(h,'5001');assert.equal(d.querySelector('[data-picker-results]').children.length,0);assert.match(d.querySelector('[data-picker-state]').textContent,/padrón propio/);assert.match(d.querySelector('[data-picker-state]').textContent,/No se inició ningún cálculo/);assert.equal(h.q('recover').hidden,true);assert.equal(h.requests.some(r=>r.url.includes('resource=employees')||r.method==='POST'),false);
+});
+
+test('tresHTTPdentro de10/25/10s completan cadena40s sin presupuesto global20s ni POST',async t=>{const h=harness(t);h.state.program=bootstrap();await h.start();h.state.readStepMs=[8000,24000,8000];const d=await searchOwnPicker(h,'5001');assert.equal(h.now(),40000);assert.equal(d.querySelectorAll('[data-picker-results] input').length,1);assert.equal(h.state.readStepMs.length,0);assert.equal(h.requests.some(r=>r.method==='POST'),false);});
+test('un auth que supera10s aborta su lectura y no consulta padrón ni prepara un cálculo',async t=>{const h=harness(t);h.state.program=bootstrap();await h.start();const before=h.requests.length;h.state.readStepMs=[10001];const d=await searchOwnPicker(h,'5001');assert.equal(h.now(),10001);assert.equal(d.querySelector('[data-picker-results]').children.length,0);assert.match(d.querySelector('[data-picker-state]').textContent,/interrumpió/);assert.equal(h.requests.slice(before).length,1);assert.equal(h.requests.some(r=>r.method==='POST'),false);});
+
+for(const failure of['onUse','selectionIssue'])test('legacy '+failure+'retiene selección y resultados tras error de aplicación',async t=>{
+ const h=harness(t);let issue=false;const employee={contractId:uid(750),legajo:'1339',nombre:'PERSONA LEGACY SINTÉTICA QA',sector:'ÁREA QA',convenio:'CONVENIO QA',activo:true,statusSnapshotDate:'2026-10-01',recordOrigin:'GRH'};
+ h.state.lookup={ok:true,version:'employee-picker.v1',data:[employee],pagination:{page:1,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-10-01',sourceCutoffTo:'2026-10-01'}};
+ const picker=createEmployeePicker({instanceId:'legacyQaPicker',canUse:()=>true,selectionIssue:()=>issue?'Revisión legacy sintética requerida':null});picker.open({onUse:()=>{throw Object.assign(Error('Aplicación legacy sintética fallida'),{name:'AbortError'});}});const d=h.document.body.querySelectorAll('dialog').at(-1);d.querySelector('#legacyQaPickerSearch').value='1339';await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);const row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');const results=d.querySelector('[data-picker-results]').children[0],chips=d.querySelector('[data-picker-chips]').children[0];issue=failure==='selectionIssue';await d.querySelector('[data-picker-apply]').emit('click');
+ assert.equal(d.open,true);assert.equal(d.querySelector('[data-picker-results]').children[0],results);assert.equal(d.querySelector('[data-picker-chips]').children[0],chips);assert.match(d.querySelector('[data-picker-count]').textContent,/1 legajo seleccionado/);assert.equal(d.querySelector('[data-picker-apply]').disabled,false);assert.match(d.querySelector('[data-picker-state]').textContent,failure==='onUse'?/Aplicación legacy sintética fallida/:/Revisión legacy sintética requerida/);assert.equal(h.requests.some(r=>r.method==='POST'),false);picker.close();
 });

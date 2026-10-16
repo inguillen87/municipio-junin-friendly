@@ -1,8 +1,10 @@
-import { pickerSearch, pickerQuery, pickerResult, addPickerSelection } from './employee-picker-model.js';
+import { pickerSearch, pickerQuery, pickerResult, addPickerSelection, nativePayrollPickerView, nativePayrollPickerSelection, addNativePickerSelection } from './employee-picker-model.js';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const dateLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'fecha no informada';
 /** One modal reused by individual, agile and native-sheet entry. All state is in memory. */
-export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker',selectionIssue=()=>null,historicalAdoptionHelp=false}={}) {
+export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker',selectionIssue=()=>null,historicalAdoptionHelp=false,readNativeRoster=null}={}) {
+  if(readNativeRoster!==null&&typeof readNativeRoster!=='function')throw Error('Fuente propia de búsqueda inválida.');
+  const native=typeof readNativeRoster==='function';
   if(!/^[A-Za-z][A-Za-z0-9]{1,60}$/.test(instanceId))throw Error('Identificador de búsqueda inválido.');
   const dialog=node('dialog',undefined,'employee-picker');dialog.id=instanceId;dialog.setAttribute('aria-labelledby',instanceId+'Title');
   dialog.innerHTML=`<header class="picker-header"><div><p class="picker-eyebrow">DIRECTORIO MUNICIPAL · SELECCIÓN ASISTIDA</p><h2 id="employeePickerTitle">Buscar legajos activos</h2><p>Elegí personas por nombre o legajo. No hace falta copiar datos de un Excel.</p></div><button class="button" type="button" data-picker-close aria-label="Cerrar búsqueda de legajos">Cerrar</button></header>
@@ -28,20 +30,20 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     apply.textContent=selected.length===1?'Usar este legajo':selected.length?`Usar ${selected.length} legajos`:'Usar selección';
     apply.disabled=busy||!options||!selected.length||!canUse();
     $('[data-picker-chosen]').hidden=!selected.length;
-    $('[data-picker-chips]').replaceChildren(...selected.map(item=>{const chip=node('span',undefined,'picker-chip'),remove=node('button','×');remove.type='button';remove.setAttribute('aria-label','Quitar legajo '+item.legajo+' de la selección');chip.append(node('span',(item.nombre||'Nombre no informado')+' · '+item.legajo),remove);remove.addEventListener('click',()=>{selected=selected.filter(x=>x.contractId!==item.contractId);renderSelection();renderRows();});return chip;}));
+    $('[data-picker-chips]').replaceChildren(...selected.map(item=>{const chip=node('span',undefined,'picker-chip'),remove=node('button','×');remove.type='button';remove.disabled=busy||!canUse();remove.setAttribute('aria-label','Quitar legajo '+item.legajo+' de la selección');chip.append(node('span',(item.nombre||'Nombre no informado')+' · '+item.legajo),remove);remove.addEventListener('click',()=>{if(busy||!options||!canUse())return;selected=selected.filter(x=>x.contractId!==item.contractId);renderSelection();renderRows();});return chip;}));
   }
   function renderRows(){
     $('[data-picker-adoption-help]').hidden=historicalAdoptionHelp!==true||!view||busy||!canUse()||!view.rows.some(item=>item.recordOrigin!=='MUNICONTROL'&&Boolean(selectionIssue(item)));
     if(!view){results.replaceChildren();return;}
     results.replaceChildren(...view.rows.map(item=>{
       const label=node('label',undefined,'picker-row'),control=node('input');control.type=options.multiple?'checkbox':'radio';control.name='picker-employee';control.value=item.contractId;
-      const excluded=options.excluded.includes(item.legajo);
+      const excluded=options.excluded.includes(native?item.contractId:item.legajo);
       const issue=selectionIssue(item),own=item.recordOrigin==='MUNICONTROL';
       control.checked=selected.some(x=>x.contractId===item.contractId);control.disabled=excluded||Boolean(issue)||busy||!canUse();control.setAttribute('aria-label','Seleccionar '+(item.nombre||'legajo')+' · '+item.legajo);
       const text=node('span',undefined,'picker-person');text.append(node('strong',item.nombre||'Nombre no informado'),node('span','Legajo '+item.legajo+' · '+(item.sector||'Sector no informado')),node('small',(item.convenio||'Convenio no informado')+' · '+(own?'Registro propio de MuniControl':'Estado al '+dateLabel(item.statusSnapshotDate))));
       if(issue){const reason=node('small',issue,'picker-selection-issue');reason.id=instanceId+'Issue'+item.contractId;control.setAttribute('aria-describedby',reason.id);text.append(reason);}
       label.append(control,text,node('span',excluded?'Ya incluido':own?'Registro propio activo':'Activo al corte',excluded?'picker-pill muted':'picker-pill'));
-      control.addEventListener('change',()=>{if(!options||!canUse())return;try{const currentIssue=selectionIssue(item);if(currentIssue)throw Error(currentIssue);if(!control.checked)selected=selected.filter(x=>x.contractId!==item.contractId);else selected=addPickerSelection(options.multiple?selected:[],item,options);status.textContent='Selección actualizada. Usá el botón inferior para llevarla a la carga.';}catch(error){status.textContent=error.message;}renderSelection();renderRows();results.querySelector(`input[value="${item.contractId}"]`)?.focus();});
+      control.addEventListener('change',()=>{if(!options||!canUse())return;try{const currentIssue=selectionIssue(item);if(currentIssue)throw Error(currentIssue);if(!control.checked)selected=selected.filter(x=>x.contractId!==item.contractId);else selected=(native?addNativePickerSelection:addPickerSelection)(options.multiple?selected:[],item,options);status.textContent='Selección actualizada. Usá el botón inferior para llevarla a la carga.';}catch(error){status.textContent=error.message;}renderSelection();renderRows();results.querySelector(`input[value="${item.contractId}"]`)?.focus();});
       return label;
     }));
   }
@@ -57,9 +59,11 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     // A different query or page still cancels the previous request. No response cache.
     if(busy&&query===text&&pendingPage===page)return;
     stop();const version=requestVersion;query=text;pendingPage=page;busy=true;clearResults();results.setAttribute('aria-busy','true');renderSelection();status.textContent='Consultando legajos activos…';$('[data-picker-login]').hidden=true;
-    controller=new AbortController();const activeController=controller;const timer=setTimeout(()=>activeController.abort(),20000);
+    controller=new AbortController();const activeController=controller;const timer=native?null:setTimeout(()=>activeController.abort(),20000);
     try{
-      const response=await fetch(pickerQuery(text,page),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:activeController.signal});
+      let next;
+      if(native){const payload=await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();next=nativePayrollPickerView(payload,text,page);}
+      else{const response=await fetch(pickerQuery(text,page),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:activeController.signal});
       if(version!==requestVersion||!dialog.open||!options)return;
       if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');
       requireCurrentAccess();
@@ -68,17 +72,18 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
       const payload=await response.json();if(version!==requestVersion||!dialog.open||!options)return;
       if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');
       requireCurrentAccess();
-      const next=pickerResult(payload,page),nextKey=JSON.stringify(next.scope);let changed=false;
+      next=pickerResult(payload,page);}
+      const nextKey=JSON.stringify(next.scope);let changed=false;
       if(scopeKey!==null&&scopeKey!==nextKey){onDirectoryInvalidated();selected=[];changed=true;}
       scopeKey=nextKey;view=next;
       const p=next.pagination;const start=(p.page-1)*p.limit+1,end=start+next.rows.length-1;
-      $('[data-picker-source]').hidden=false;$('[data-picker-source]').textContent='Fuente incorporada: '+dateLabel(next.scope.sourceCutoffFrom)+(next.scope.sourceCutoffTo!==next.scope.sourceCutoffFrom?' a '+dateLabel(next.scope.sourceCutoffTo):'')+'. Se muestran solamente legajos activos al corte; el padrón no se actualiza por abrir esta ventana.';
+      $('[data-picker-source]').hidden=false;$('[data-picker-source]').textContent=native?'Padrón propio completo: '+next.scope.total+' legajos consultados. Situación al '+dateLabel(next.scope.today)+'. La búsqueda muestra contratos activos y no certifica su elegibilidad para liquidar.':'Fuente incorporada: '+dateLabel(next.scope.sourceCutoffFrom)+(next.scope.sourceCutoffTo!==next.scope.sourceCutoffFrom?' a '+dateLabel(next.scope.sourceCutoffTo):'')+'. Se muestran solamente legajos activos al corte; el padrón no se actualiza por abrir esta ventana.';
       $('[data-picker-range]').textContent=next.rows.length?`${start}–${end} de ${p.total} coincidencias · página ${p.page} de ${p.pages}`:'Sin resultados en esta página';
       $('[data-picker-pages]').hidden=p.pages<=1;$('[data-picker-previous]').disabled=p.page<=1;$('[data-picker-next]').disabled=p.page>=p.pages;
       status.textContent=(changed?'Cambió el corte de datos. Volvé a seleccionar los legajos. ':'')+(next.rows.length?`${p.total} coincidencia${p.total===1?'':'s'}. Elegí los legajos que necesitás.`:'No hay coincidencias activas para esta búsqueda. Revisá el nombre o legajo; no se agregaron históricos.');
     }catch(error){
       if(version!==requestVersion||!dialog.open)return;
-      selected=[];clearResults();status.textContent=error.name==='AbortError'?'La consulta demoró demasiado. Volvé a buscar.':error instanceof TypeError?'No se pudo consultar el directorio. Revisá la conexión y reintentá.':error.message;
+      selected=[];clearResults();status.textContent=error.name==='AbortError'?(native?'La consulta del padrón propio se interrumpió. Volvé a buscar; no se inició ningún cálculo.':'La consulta demoró demasiado. Volvé a buscar.'):error instanceof TypeError?'No se pudo consultar el directorio. Revisá la conexión y reintentá.':error.message;
     }finally{clearTimeout(timer);if(version===requestVersion){busy=false;pendingPage=null;controller=null;results.removeAttribute('aria-busy');renderSelection();renderRows();}}
   }
   input.addEventListener('input',()=>{stop();clearResults();status.textContent='Presioná Buscar o Enter para consultar. Tu selección anterior no agrega nuevos resultados.';renderSelection();});
@@ -89,7 +94,18 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
   // Search inputs consume Escape natively; close the active modal consistently.
   dialog.addEventListener('keydown',e=>{if(e.key==='Escape'&&dialog.open){e.preventDefault();e.stopPropagation();close();}});
-  apply.addEventListener('click',()=>{if(!options||busy||!canUse()||!selected.length)return;try{for(const item of selected){const issue=selectionIssue(item);if(issue)throw Error(issue);}const use=options.onUse;use([...selected]);close();}catch(error){status.textContent=error.message;}});
+  apply.addEventListener('click',async()=>{
+    if(!options||busy||!canUse()||!selected.length)return;
+    const version=requestVersion;
+    try{
+      let items=[...selected];
+      if(native){busy=true;controller=new AbortController();const activeController=controller;renderSelection();renderRows();status.textContent='Verificando el padrón completo y el acceso antes de usar la selección…';
+        const payload=await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();items=nativePayrollPickerSelection(payload,items,options);
+      }
+      for(const item of items){const issue=selectionIssue(item);if(issue)throw Error(issue);}const use=options.onUse;use(items);close();
+    }catch(error){if(version!==requestVersion||!dialog.open)return;if(native){selected=[];clearResults();}status.textContent=native&&error.name==='AbortError'?'La verificación se interrumpió. Volvé a buscar; no se inició ningún cálculo.':error.message;}
+    finally{if(native&&version===requestVersion){busy=false;controller=null;renderSelection();renderRows();}}
+  });
   window.addEventListener('pagehide',close);
   return {close,open({multiple=false,maximum=1,excluded=[],onUse,initialSearch=''}={}){
     if(!canUse())return false;if(typeof onUse!=='function'||!Number.isSafeInteger(maximum)||maximum<1||maximum>500)throw Error('No quedan lugares disponibles en la carga.');

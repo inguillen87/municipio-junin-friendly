@@ -1,4 +1,6 @@
 /** Minimal, source-bound directory projection. Selecting an employee does not certify payroll eligibility. */
+import {nativeRoster,nativeRosterScope,nativeRosterFilters} from './native-roster-model.js';
+const payrollPickerFilters=nativeRosterFilters({status:'all'});
 export const EMPLOYEE_PICKER_VERSION = 'employee-picker.v1';
 export const EMPLOYEE_PICKER_PAGE_SIZE = 20;
 const digits = /^(?:0|[1-9]\d{0,19})$/;
@@ -58,4 +60,33 @@ export function addPickerSelection(selected, employee, {maximum=500,excluded=[]}
   if(selected.some(x=>x.legajo===item.legajo || x.contractId===item.contractId))throw Error('Ese legajo ya está seleccionado.');
   if(selected.length>=maximum)throw Error('Alcanzaste el máximo de '+maximum+' legajos de esta selección.');
   return [...selected,item];
+}
+// Local view over an already authorised complete native response, not a new API DTO.
+function nativePayrollRows(payload){
+  if(payload?.ok!==true||payload.data?.version!=='native-roster.v2')throw Error('No se verificó el padrón propio completo.');
+  const roster=nativeRoster(payload.data,payrollPickerFilters),rows=[];
+  for(const r of roster.rows){
+    if(r.status!=='active')continue;
+    const item=pickerEmployee({contractId:r.contractId,legajo:r.legajo,nombre:r.name,sector:r.sector,convenio:r.agreement,activo:true,statusSnapshotDate:roster.today,recordOrigin:'MUNICONTROL'});
+    rows.push(item);
+  }
+  return{rows,scope:Object.freeze({kind:'native_payroll',nativeScope:nativeRosterScope(roster.scope),snapshot:roster.snapshot,today:roster.today,total:roster.total,payrollEligibilityCertified:false})};
+}
+export function nativePayrollPickerView(payload,search,page=1){
+  const text=pickerSearch(search);if(!Number.isSafeInteger(page)||page<1||page>100000)throw Error('Página de búsqueda inválida.');
+  const {rows,scope}=nativePayrollRows(payload),fold=s=>s.normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('es'),term=fold(text),tokens=term.split(/\s+/);
+  const found=rows.filter(r=>fold(r.legajo).includes(term)||r.nombre!==null&&tokens.every(t=>fold(r.nombre).includes(t))),total=found.length,pages=Math.max(1,Math.ceil(total/EMPLOYEE_PICKER_PAGE_SIZE));
+  if(page>pages)throw Error('La página ya no pertenece al resultado. Volvé a buscar.');
+  return Object.freeze({rows:Object.freeze(found.slice((page-1)*EMPLOYEE_PICKER_PAGE_SIZE,page*EMPLOYEE_PICKER_PAGE_SIZE)),pagination:Object.freeze({page,limit:EMPLOYEE_PICKER_PAGE_SIZE,total,pages}),scope});
+}
+export function nativePayrollPickerSelection(payload,selected,options){
+  const{rows}=nativePayrollRows(payload),byId=new Map(rows.map(r=>[r.contractId,r]));
+  if(!Array.isArray(selected)||!selected.length)throw Error('Elegí al menos un legajo propio.');
+  let result=[];for(const old of selected){const fresh=byId.get(old.contractId);if(!fresh||JSON.stringify(fresh)!==JSON.stringify(pickerEmployee(old)))throw Error('Cambió un legajo seleccionado. Volvé a revisar la selección completa.');result=addNativePickerSelection(result,fresh,options);}return result;
+}
+// Own payroll selects canonical contract UUIDs; two distinct contracts never collapse by legajo.
+export function addNativePickerSelection(selected,employee,{maximum=500,excluded=[]}={}){
+  const item=pickerEmployee(employee);if(item.recordOrigin!=='MUNICONTROL'||!Array.isArray(selected)||!Number.isSafeInteger(maximum)||maximum<1||maximum>500)throw Error('Capacidad de selección propia inválida.');
+  if(excluded.includes(item.contractId)||selected.some(r=>r.contractId===item.contractId))throw Error('Ese contrato ya está incluido o seleccionado.');
+  if(selected.length>=maximum)throw Error('Alcanzaste el máximo de '+maximum+' legajos de esta selección.');return[...selected,item];
 }
