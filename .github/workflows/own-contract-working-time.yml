@@ -1,10 +1,10 @@
 name: Own contract working time
 on:
   pull_request:
-    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
+    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/verify-collective-working-time*', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
+    paths: ['assets/own-contract-working-time*', 'assets/own-payroll-program*', 'assets/own-payroll-run-model.js', 'assets/payroll-navigation.js', 'api/internal-own-contract-working-time.js', 'lib/internal-own-contract-working-time.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'lib/own-period-read-recovery.js', 'scripts/verify-own-contract-working-time.mjs', 'scripts/verify-collective-working-time*', 'scripts/prepare-own-contract-working-time-installation.mjs', 'scripts/build-friendly.mjs', '.vercelignore', 'scripts/lib/own-contract-working-time*', 'scripts/migrations/163-own-contract-working-time.sql', 'scripts/migrations/164-own-working-time-program-source.sql', 'tests/own-contract-working-time*', 'tests/fixtures/own-contract-working-time*', '.github/workflows/own-contract-working-time.yml']
 permissions:
   contents: read
 concurrency:
@@ -44,6 +44,11 @@ jobs:
       - run: npx --no-install playwright install-deps chromium
       - name: Use the project browser already admitted for release verification
         run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Verify complete collective declarations and recoverable individual decisions
+        # Source frontend and fictional HTTP envelopes only; no municipal session or SQL.
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-collective-working-time-ci.mjs --output=verification/collective-working-time-pg${{ matrix.pg }}
       - name: Complete documented hours, immutable attempts, actual SQL and desktop/mobile browser
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
@@ -53,6 +58,7 @@ jobs:
         with:
           name: native-working-time-pg${{ matrix.pg }}-${{ github.sha }}
           path: |
+            verification/collective-working-time-pg${{ matrix.pg }}
             verification/native-working-time-pg${{ matrix.pg }}/result.json
             verification/native-working-time-pg${{ matrix.pg }}/partial-checks.json
             verification/native-working-time-pg${{ matrix.pg }}/failure.txt
