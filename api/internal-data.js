@@ -305,9 +305,16 @@ export function budgetApproved(source = JUNIN_BUDGET_2026) {
 export async function summary(sql) {
   const [totals] = await sql.query(`
     /* The effective views reconstruct a sealed source from its immutable delta.
-       Reuse these narrow projections within this statement instead of expanding
-       that reconstruction for every count and orphan join. */
-    WITH summary_employees AS MATERIALIZED (
+       Read each narrow projection once for the complete aggregate response;
+       the handler still verifies the effective source before and after it. */
+    WITH summary_source AS MATERIALIZED (
+      SELECT id, source_name, source_sha256, source_cutoff, completed_at, status, table_counts, quality_flags
+      FROM data_import_runs
+      WHERE status = 'completed'
+        AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
+      ORDER BY completed_at DESC NULLS LAST, id DESC
+      LIMIT 1
+    ), summary_employees AS MATERIALIZED (
       SELECT company_id, legajo, activo, sector FROM grh_effective_employees_v1
     ), summary_absences AS MATERIALIZED (
       SELECT company_id, legajo, fecha FROM grh_effective_absences_v1
@@ -315,6 +322,19 @@ export async function summary(sql) {
       SELECT company_id, legajo, fecha_inicio FROM grh_effective_leaves_v1
     ), summary_catalog AS MATERIALIZED (
       SELECT catalog FROM grh_effective_catalog_rows_v1
+    ), summary_sectors AS (
+      SELECT COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado') AS label,
+             count(*)::int AS value
+      FROM summary_employees
+      GROUP BY COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado')
+    ), summary_absence_yearly AS (
+      SELECT extract(year FROM fecha)::int AS year,
+             count(*)::int AS events,
+             count(DISTINCT (company_id, legajo))::int AS employees_affected
+      FROM summary_absences
+      WHERE fecha >= DATE '1990-01-01'
+        AND fecha <= COALESCE((SELECT source_cutoff::date FROM summary_source), DATE '9999-12-31')
+      GROUP BY extract(year FROM fecha)
     )
     SELECT
       (SELECT count(*)::int FROM summary_employees) AS historical_records,
@@ -332,43 +352,31 @@ export async function summary(sql) {
       (SELECT count(*)::int FROM summary_leaves l LEFT JOIN summary_employees e USING (company_id, legajo) WHERE e.legajo IS NULL) AS leave_orphans,
       (SELECT count(*)::int FROM summary_absences WHERE fecha < DATE '1990-01-01') AS suspicious_early_absences,
       (SELECT count(*)::int FROM summary_leaves WHERE fecha_inicio < DATE '1990-01-01') AS suspicious_early_leaves,
-      (SELECT count(*)::int
-         FROM summary_absences
-        WHERE fecha > COALESCE(
-          (SELECT source_cutoff::date
-             FROM data_import_runs
-            WHERE status = 'completed'
-      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
-            ORDER BY completed_at DESC NULLS LAST, id DESC
-            LIMIT 1),
-          DATE '9999-12-31'
-        )) AS absences_after_source_cutoff
+      (SELECT count(*)::int FROM summary_absences
+        WHERE fecha > COALESCE((SELECT source_cutoff::date FROM summary_source), DATE '9999-12-31')) AS absences_after_source_cutoff,
+      summary_source.id AS "__sourceId",
+      summary_source.source_name AS "__sourceName",
+      summary_source.source_sha256 AS "__sourceSha256",
+      summary_source.source_cutoff AS "__sourceCutoff",
+      summary_source.completed_at AS "__sourceCompletedAt",
+      summary_source.status AS "__sourceStatus",
+      summary_source.table_counts AS "__sourceTableCounts",
+      summary_source.quality_flags AS "__sourceQualityFlags",
+      (SELECT COALESCE(jsonb_agg(to_jsonb(s) ORDER BY s.value DESC, s.label), '[]'::jsonb)
+        FROM summary_sectors s) AS "__sectors",
+      (SELECT COALESCE(jsonb_agg(to_jsonb(y) ORDER BY y.year), '[]'::jsonb)
+        FROM summary_absence_yearly y) AS "__absenceYearly"
+    FROM (SELECT 1) summary_row
+    LEFT JOIN summary_source ON true
   `);
-  const [latestImport = null] = await sql.query(`
-    SELECT id, source_name, source_sha256, source_cutoff, completed_at, status, table_counts, quality_flags
-    FROM data_import_runs
-    WHERE status = 'completed'
-      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
-    ORDER BY completed_at DESC NULLS LAST, id DESC
-    LIMIT 1
-  `);
-  const sectors = await sql.query(`
-    SELECT COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado') AS label,
-           count(*)::int AS value
-    FROM grh_effective_employees_v1
-    GROUP BY COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado')
-    ORDER BY value DESC, label
-  `);
-  const absenceYearly = await sql.query(`
-    SELECT extract(year FROM fecha)::int AS year,
-           count(*)::int AS events,
-           count(DISTINCT (company_id, legajo))::int AS employees_affected
-    FROM grh_effective_absences_v1
-    WHERE fecha >= DATE '1990-01-01'
-      AND fecha <= COALESCE($1::date, DATE '9999-12-31')
-    GROUP BY extract(year FROM fecha)
-    ORDER BY year
-  `, [latestImport?.source_cutoff ?? null]);
+  // Keep source dates and identifiers as typed driver values, outside JSON aggregates.
+  const latestImport = totals.__sourceId == null ? null : {
+    id: totals.__sourceId, source_name: totals.__sourceName, source_sha256: totals.__sourceSha256,
+    source_cutoff: totals.__sourceCutoff, completed_at: totals.__sourceCompletedAt,
+    status: totals.__sourceStatus, table_counts: totals.__sourceTableCounts, quality_flags: totals.__sourceQualityFlags
+  };
+  const sectors = totals.__sectors;
+  const absenceYearly = totals.__absenceYearly;
 
   return {
     ok: true,
