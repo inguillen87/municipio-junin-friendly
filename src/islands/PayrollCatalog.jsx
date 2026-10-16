@@ -4,7 +4,6 @@ import {AGREEMENT_LABELS,parameterMoney,PARAMETER_CONTRACT,PARAMETER_SOURCE_SHA}
 import {catalogScope,catalogActivationReview,sameCatalogActivationReview,catalogActivationAttempt,assertCatalogActivationReceipt} from '../../lib/payroll-catalog-review.js';
 import {parameterRequest,ParameterRequestError} from './payroll-parameter-client.js';
 import {catalogRequest} from './payroll-catalog-client.js';
-import {catalogArtifact} from './payroll-catalog-export.js';
 const style=`
 [data-payroll-catalog] .pc-heading{display:flex;gap:18px;justify-content:space-between;align-items:start;flex-wrap:wrap}
 [data-payroll-catalog] .pc-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin:16px 0}
@@ -93,7 +92,9 @@ export default function PayrollCatalog({proposal,revoked=false,onDenied,request=
   });}
   async function resend(){await act(async()=>{const attempt=attemptRef.current,g=generation.current;await authority(g,attempt.scopeKey,true);await send(attempt,g);});}
   async function download(format){await act(async()=>{
-    const g=generation.current;await authority(g);
+    const g=generation.current;
+    const {catalogArtifact}=await import('./payroll-catalog-export.js');
+    insist(g);await authority(g);
     const old=data.catalog,result=verifyCatalogResponse(await request({resource:'catalog',period:old.period,revision:String(old.revision)}));
     insist(g);
     if(result.catalog.revision!==old.revision||JSON.stringify(result.catalog.rows)!==JSON.stringify(old.rows))throw Error('La consulta no coincide con la revisión mostrada. Volvé a consultar antes de descargar.');

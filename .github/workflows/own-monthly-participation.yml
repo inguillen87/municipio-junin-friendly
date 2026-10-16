@@ -1,0 +1,167 @@
+name: Native monthly participation
+on:
+  pull_request:
+    paths:
+      - 'assets/**'
+      - 'api/**'
+      - 'lib/**'
+      - 'contracts/**'
+      - 'tests/**'
+      - 'scripts/lib/**'
+      - 'scripts/migrations/**'
+      - 'scripts/fixtures/**'
+      - 'src/islands/**'
+      - 'scripts/apply-email-otp-mfa-schema.mjs'
+      - 'scripts/apply-existing-identity-membership-governance-schema.mjs'
+      - 'scripts/apply-friendly-social-metadata.mjs'
+      - 'scripts/apply-governed-overtime-actions-schema.mjs'
+      - 'scripts/apply-governed-source-binding-provisioning-schema.mjs'
+      - 'scripts/apply-governed-time-source-registry-schema.mjs'
+      - 'scripts/apply-platform-owner-governance-schema.mjs'
+      - 'scripts/apply-tenant-lifecycle-hardening-schema.mjs'
+      - 'scripts/apply-versioned-time-catalog-schema.mjs'
+      - 'scripts/build-clock-fleet.mjs'
+      - 'scripts/build-document-reader.mjs'
+      - 'scripts/build-legal-registry.mjs'
+      - 'scripts/build-payroll-parameters.mjs'
+      - 'scripts/build-react-islands.mjs'
+      - 'scripts/build-release-identity.mjs'
+      - 'scripts/complete-approved-email-factor.mjs'
+      - 'scripts/import-grh-core-canonical.mjs'
+      - 'scripts/import-rrhh-neon.mjs'
+      - 'scripts/internal-schema.sql'
+      - 'scripts/payroll-detail-synthetic.mjs'
+      - 'scripts/prepare-own-payroll-installation.mjs'
+      - 'scripts/promote-canonical-grh.mjs'
+      - 'scripts/provision-email-mfa-factor.mjs'
+      - 'scripts/verify-agreement-hours-independent.mjs'
+      - 'scripts/verify-documentary-roster-performance.mjs'
+      - 'scripts/verify-municipal-owner-adoption-authority.mjs'
+      - 'scripts/verify-municipal-owner-adoption-decision.mjs'
+      - 'scripts/verify-own-monthly-participation.mjs'
+      - 'scripts/verify-native-employment-catalog-sql.mjs'
+      - 'scripts/verify-native-fixed-novelties-sql.mjs'
+      - 'scripts/verify-native-jurisdiction-sql.mjs'
+      - 'scripts/verify-own-agreement-working-time.mjs'
+      - 'scripts/verify-own-contract-salary-conditions.mjs'
+      - 'scripts/verify-own-contract-working-time.mjs'
+      - 'scripts/verify-own-period-participation.mjs'
+      - 'scripts/verify-own-salary-conditions-program.mjs'
+      - 'scripts/verify-own-salary-seniority.mjs'
+      - 'scripts/verify-payroll-fixed-novelties-sql.mjs'
+      - 'scripts/verify-salary-auxiliary-namespace.mjs'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/install-project-chromium.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.vercelignore'
+      - '.github/workflows/own-monthly-participation.yml'
+  push:
+    branches: ['master']
+    paths:
+      - 'assets/**'
+      - 'api/**'
+      - 'lib/**'
+      - 'contracts/**'
+      - 'tests/**'
+      - 'scripts/lib/**'
+      - 'scripts/migrations/**'
+      - 'scripts/fixtures/**'
+      - 'src/islands/**'
+      - 'scripts/apply-email-otp-mfa-schema.mjs'
+      - 'scripts/apply-existing-identity-membership-governance-schema.mjs'
+      - 'scripts/apply-friendly-social-metadata.mjs'
+      - 'scripts/apply-governed-overtime-actions-schema.mjs'
+      - 'scripts/apply-governed-source-binding-provisioning-schema.mjs'
+      - 'scripts/apply-governed-time-source-registry-schema.mjs'
+      - 'scripts/apply-platform-owner-governance-schema.mjs'
+      - 'scripts/apply-tenant-lifecycle-hardening-schema.mjs'
+      - 'scripts/apply-versioned-time-catalog-schema.mjs'
+      - 'scripts/build-clock-fleet.mjs'
+      - 'scripts/build-document-reader.mjs'
+      - 'scripts/build-legal-registry.mjs'
+      - 'scripts/build-payroll-parameters.mjs'
+      - 'scripts/build-react-islands.mjs'
+      - 'scripts/build-release-identity.mjs'
+      - 'scripts/complete-approved-email-factor.mjs'
+      - 'scripts/import-grh-core-canonical.mjs'
+      - 'scripts/import-rrhh-neon.mjs'
+      - 'scripts/internal-schema.sql'
+      - 'scripts/payroll-detail-synthetic.mjs'
+      - 'scripts/prepare-own-payroll-installation.mjs'
+      - 'scripts/promote-canonical-grh.mjs'
+      - 'scripts/provision-email-mfa-factor.mjs'
+      - 'scripts/verify-agreement-hours-independent.mjs'
+      - 'scripts/verify-documentary-roster-performance.mjs'
+      - 'scripts/verify-municipal-owner-adoption-authority.mjs'
+      - 'scripts/verify-municipal-owner-adoption-decision.mjs'
+      - 'scripts/verify-own-monthly-participation.mjs'
+      - 'scripts/verify-native-employment-catalog-sql.mjs'
+      - 'scripts/verify-native-fixed-novelties-sql.mjs'
+      - 'scripts/verify-native-jurisdiction-sql.mjs'
+      - 'scripts/verify-own-agreement-working-time.mjs'
+      - 'scripts/verify-own-contract-salary-conditions.mjs'
+      - 'scripts/verify-own-contract-working-time.mjs'
+      - 'scripts/verify-own-period-participation.mjs'
+      - 'scripts/verify-own-salary-conditions-program.mjs'
+      - 'scripts/verify-own-salary-seniority.mjs'
+      - 'scripts/verify-payroll-fixed-novelties-sql.mjs'
+      - 'scripts/verify-salary-auxiliary-namespace.mjs'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/install-project-chromium.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.vercelignore'
+      - '.github/workflows/own-monthly-participation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: own-monthly-participation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: Native monthly participation / PG${{ matrix.pg }} / ${{ matrix.operational_pair_baseline }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+        operational_pair_baseline: [pre107, published107]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        # Startup probes establish readiness. The later interval exceeds this
+        # job's complete deadline, preserving every zero-other-client guard.
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Prepare only the disposable synthetic service
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Complete canonical 189 preparation, lifecycle, independent participation commands and SQL protocol
+        run: node scripts/verify-own-monthly-participation.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.operational_pair_baseline }} --output=verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: own-monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}-${{ github.sha }}
+          path: |
+            verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}/*.json
+            verification/monthly-participation-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}/*failure.txt
+          retention-days: 5

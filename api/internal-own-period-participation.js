@@ -9,6 +9,7 @@ import { ownPeriodReadScopeKey, recoverOwnPeriodRead } from '../lib/own-period-r
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
 import { participationCommand, PARTICIPATION_MAX_BYTES } from '../assets/own-period-participation-model.js';
 import { PARTICIPATION_READ, PARTICIPATION_CAPS, participationFail, participationError, participationOperation } from '../lib/internal-own-period-participation.js';
+import {nativeMonthlyPreparationInput,prepareNativeMonthlyParticipation} from '../lib/own-monthly-participation-source.js';
 export const config = { api: { bodyParser: false } };
 export function createOwnPeriodParticipationHandler(deps = {}) {
  const env = deps.env ?? process.env, authorize = deps.requireAccess ?? requireCompatibleInternalAccess, getSql = deps.getSql ?? getActionCenterSql, sessionFor = deps.sessionFor ?? actionMutationSession;
@@ -41,12 +42,17 @@ export function createOwnPeriodParticipationHandler(deps = {}) {
      if (kind === 'unavailable') participationFail('UNAVAILABLE', 503, 'No se pudo leer el envío completo. Consultá el mismo intento.');
      participationFail('INPUT_INVALID', 400, 'El formulario contiene datos ambiguos o inválidos.');
     } });
-    if (!salaryExact(body, ['operation', 'payload']) || body.operation !== 'command') participationFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
-    const command = participationCommand(body.payload);
-    if (!principalHasCapabilities(access.principal, PARTICIPATION_CAPS[command.command])) participationFail('FORBIDDEN', 403, 'La membresía no permite esta operación.');
-    operation = 'command'; input = { body: command, key: schoolCertificateHttp.header(req, 'idempotency-key') };
+    if (!salaryExact(body, ['operation', 'payload']) || !['command','prepare_monthly'].includes(body.operation)) participationFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
+    if(body.operation==='prepare_monthly'){
+     if(!principalHasCapabilities(access.principal,PARTICIPATION_CAPS.propose))participationFail('FORBIDDEN',403,'La membresía no permite preparar participación.');
+     operation='prepare_monthly';input=nativeMonthlyPreparationInput(body.payload);
+    }else{
+     const command = participationCommand(body.payload);
+     if (!principalHasCapabilities(access.principal, PARTICIPATION_CAPS[command.command])) participationFail('FORBIDDEN', 403, 'La membresía no permite esta operación.');
+     operation = 'command'; input = { body: command, key: schoolCertificateHttp.header(req, 'idempotency-key') };
+    }
    }
-   const sql = await getSql(env), read = () => participationOperation(sql, access.principal, session, operation, input), scope = method === 'GET' ? ownPeriodReadScopeKey(access.principal, session) : null;
+   const sql = await getSql(env), read = () => operation==='prepare_monthly'?prepareNativeMonthlyParticipation(sql,access.principal,session,input):participationOperation(sql, access.principal, session, operation, input), scope = method === 'GET' ? ownPeriodReadScopeKey(access.principal, session) : null;
    const data = method === 'GET' ? await recoverOwnPeriodRead({ method, operation, busyCode: 'PARTICIPATION_BUSY', read, reauthorize: async () => {
     const next = await authorize(req, res, { env, requiredCapabilities: PARTICIPATION_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
     if (!next) return false;
@@ -57,7 +63,7 @@ export function createOwnPeriodParticipationHandler(deps = {}) {
    } }) : await read();
    if (data === null) return;
    if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
-   return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ ok: true, data });
+   return res.status(method === 'POST' && operation==='command' && !data.replayed ? 201 : 200).json({ ok: true, data });
   } catch (e) {
    const safe = String(e?.code ?? '').startsWith('SCHOOL_CERTIFICATE_') ? schoolCertificateSafeError(e) : participationError(e);
    return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message });

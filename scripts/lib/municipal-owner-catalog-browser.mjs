@@ -1,0 +1,38 @@
+// This is the existing catalog dialog and its real owner widget, served from
+// workspace assets. Only fictional SQL-backed handlers may be supplied.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createServer} from 'node:http';
+import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
+import {ownerDecisionQaHash as hash} from './municipal-owner-adoption-decision-qa.mjs';
+export function ownerCatalogQaHtml(){return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Catálogo sintético QA187</title><link rel="stylesheet" href="/assets/native-employment-catalog.css"><style>body{font:16px sans-serif;margin:8px}button{min-height:44px}</style><button type="button" data-employment-catalog>Consultar catálogo</button><script type="module">import{mountEmploymentCatalog}from'/assets/native-employment-catalog.js';mountEmploymentCatalog(document.querySelector('[data-employment-catalog]'));window.__mounted=true;</script></html>`;}
+export async function waitForOwnerCatalogQaRefresh(page){
+ // The widget's acknowledgement starts an asynchronous parent refresh. Server
+ // inflight=0 between its GETs is insufficient; wait for the existing dialog's
+ // final proposal render before taking evidence or closing its real browser.
+ await page.locator('[data-ec-proposal-summary]').filter({hasText:'Aprobada y publicada'}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('[data-ec-status]')?.textContent==='Comparación consultada. Todavía no se cambió el catálogo.');
+}
+export async function ownerCatalogQaBrowser({root,output,proposalId,total,handlers,auth,env,afterSave}){
+ const inflight=new Set(),errors=[],requestFailures=[],assets=new Map(),rpc=[],server=createServer((req,res)=>{const task=(async()=>{
+  const url=new URL(req.url,'http://fixture.invalid');res.setHeader('Cache-Control','no-store');res.setHeader('Connection','close');
+  const json=(status,value)=>res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}).end(JSON.stringify(value));
+  if(req.method==='GET'&&url.pathname.startsWith('/assets/')){const file=path.resolve(root,'.'+decodeURIComponent(url.pathname));assert.ok(file.startsWith(path.join(root,'assets')+path.sep)&&/\.(?:js|css)$/.test(file));const bytes=fs.readFileSync(file);assets.set(path.relative(root,file).replaceAll('\\','/'),hash(bytes));return res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':'text/javascript'}).end(bytes);}
+  if(req.method==='GET'&&url.pathname==='/personal')return res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}).end(ownerCatalogQaHtml());
+  if(req.method==='GET'&&url.pathname==='/api/internal-auth')return json(200,await auth());
+  const handler=handlers[url.pathname];if(!handler)return json(404,{ok:false});req.query=Object.fromEntries(url.searchParams);res.status=code=>{res.statusCode=code;return res;};res.json=value=>{rpc.push({method:req.method,path:url.pathname,resource:url.searchParams.get('resource'),status:res.statusCode,value});res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(value));return res;};await handler(req,res);assert.equal(res.writableEnded,true,'OWNER_CATALOG_QA_HANDLER_INCOMPLETE');
+ })();inflight.add(task);task.catch(error=>{errors.push({server:error.message});if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'}).end('{"ok":false}');else res.destroy();}).finally(()=>inflight.delete(task));});
+ const drain=async()=>{const deadline=performance.now()+15000;while(inflight.size){assert.ok(performance.now()<deadline,'OWNER_CATALOG_QA_HTTP_DRAIN');await new Promise(r=>setTimeout(r,10));}};
+ let browser,page,proof;
+ try{
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});env.INTERNAL_APP_ORIGIN='http://127.0.0.1:'+server.address().port;
+  ({browser}=await launchOwnSyntheticBrowser());page=await browser.newPage({viewport:{width:1366,height:1100}});page.on('pageerror',error=>errors.push({page:error.message}));page.on('requestfailed',r=>requestFailures.push({path:new URL(r.url()).pathname,error:r.failure()?.errorText}));
+  await page.goto(env.INTERNAL_APP_ORIGIN+'/personal');await page.waitForFunction(()=>window.__mounted===true);await page.locator('[data-employment-catalog]').click();await page.locator('[data-ec-proposal="'+proposalId+'"]').waitFor();await page.locator('[data-ec-proposal="'+proposalId+'"]').click();await page.locator('[data-oc-load]').click();await page.locator('[data-oc-preview]').waitFor({state:'visible'});await drain();
+  assert.match(await page.locator('[data-oc-summary]').textContent(),new RegExp('^'+total+' opciones completas'));assert.match(await page.locator('[data-owner-catalog]').innerText(),/sin revisión independiente/);assert.equal(await page.locator('[data-oc-approve]').isDisabled(),true);
+  assert.equal(rpc.filter(r=>r.method==='POST').length,0,'OWNER_CATALOG_QA_NO_IMPLICIT_DECISION');
+  const viewports=[];for(const width of[1366,390,320]){await page.setViewportSize({width,height:1100});await page.locator('[data-oc-load]').scrollIntoViewIfNeeded();const geometry=await page.locator('[data-owner-catalog]').evaluate(host=>({viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,hostWidth:host.getBoundingClientRect().width,controls:[...host.querySelectorAll('button,textarea')].filter(e=>e.getClientRects().length).map(e=>({height:e.getBoundingClientRect().height,width:e.getBoundingClientRect().width}))}));assert.ok(geometry.documentWidth<=width,'OWNER_CATALOG_QA_HORIZONTAL_OVERFLOW:'+width);assert.ok(geometry.controls.every(c=>c.height>=44&&c.width<=width),'OWNER_CATALOG_QA_CONTROL_SIZE:'+width);viewports.push({width,...geometry});await page.screenshot({path:path.join(output,'catalog-owner-'+width+'.png'),fullPage:true});}
+  await page.setViewportSize({width:1366,height:1100});await page.locator('[data-oc-reason]').fill('Aprobación exclusivamente ficticia y explícita QA187');await page.locator('[data-oc-confirm]').check();assert.equal(await page.locator('[data-oc-approve]').isDisabled(),false);await page.locator('[data-oc-approve]').click();await page.locator('[data-oc-result]').filter({hasText:total+' opciones aprobadas'}).waitFor();await waitForOwnerCatalogQaRefresh(page);await drain();
+  const posts=rpc.filter(r=>r.method==='POST');assert.equal(posts.length,1);assert.equal(posts[0].status,201);assert.equal(posts[0].value.data.receipt.independence,false);assert.equal(posts[0].value.data.receipt.total,total);await afterSave(posts[0].value.data);await drain();assert.equal(errors.length,0);assert.equal(requestFailures.length,0);await page.screenshot({path:path.join(output,'catalog-owner-confirmed.png'),fullPage:true});
+  proof={passed:true,sourceMode:'workspace_source_assets',existingCatalogDialog:true,actualOwnerWidget:true,actualHttpHandlers:true,actualSql:true,authenticationFixture:true,completeAuthenticationHandler:false,implicitCommands:0,explicitCommands:1,viewports,assets:Object.fromEntries([...assets].sort()),errors,requestFailures,browserVersion:browser.version(),saved:posts[0].value.data};
+ }catch(error){await page?.screenshot({path:path.join(output,'browser-failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'browser-failure.json'),JSON.stringify({errors,requestFailures,rpc,assets:Object.fromEntries(assets),message:error.message},null,2));throw error;}
+ finally{await page?.close().catch(()=>{});await browser?.close();await drain();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+ return proof;
+}

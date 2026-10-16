@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AGREEMENT_LABELS, PARAMETER_RULES, PARAMETER_STATUSES, PARAMETER_COMMANDS, PARAMETER_REASONS, PARAMETER_REASON_LABELS, PARAMETER_ROUNDING_LABELS, parameterRule, parseParameterMoney, parameterMoney, parameterPreview, verifiedParameterProposal } from '../../lib/payroll-parameter-contract.js';
 import { parameterRequest, parameterAttempt } from './payroll-parameter-client.js';
-import { parameterArtifact } from './payroll-parameter-export.js';
 import PayrollCatalog from './PayrollCatalog.jsx';
 import NativeSalaryCatalog from './NativeSalaryCatalog.jsx';
 const css = `
@@ -98,8 +97,11 @@ export default function PayrollParameters({ request = parameterRequest }) {
     catch (e) { if (e.code === 'PAYROLL_PARAMETER_ATTEMPT_NOT_FOUND') message('No hay confirmación todavía. Podés consultar otra vez o reenviar exactamente el mismo intento.', true); else throw e; }
   }); }
   async function download(extension) { await transaction(async () => {
+    const generation = ticket.current;
+    const { parameterArtifact } = await import('./payroll-parameter-export.js');
+    if (!mounted.current || generation !== ticket.current) return;
     const result = await request({ resource: 'detail', id: selected.id });
-    if (!mounted.current) return;
+    if (!mounted.current || generation !== ticket.current) return;
     const current = verifiedParameterProposal(result.proposal); setSelected(current);
     if (current.version !== selected.version) { message('La propuesta cambió. Revisá la nueva versión y volvé a descargar.', true); return; }
     const artifact = parameterArtifact(current, extension, new Date().toISOString()), url = URL.createObjectURL(new Blob([artifact.content], { type: artifact.type })), a = document.createElement('a'); a.href = url; a.download = artifact.filename; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); message('Documento generado desde la versión guardada y reconsultada.');
