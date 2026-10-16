@@ -150,9 +150,9 @@ try{
  check(requests.some(q=>q.pathname==='/api/internal-own-payroll-run'&&q.query.resource==='attempt'&&q.query.key===calculated.key),'Recovery consults exactly the original request key');assert.deepEqual(calculated,conservedCapture);
 
  state.receiptCount=0;await open('receipt');check(await r('empty').isHidden()&&await r('signature').isHidden(),'Unconsulted receipt scope claims neither zero documents nor a signature problem');
- await r('period').fill('2026-10');await r('types').selectOption(['monthly']);await r('scope').selectOption('all');await r('consult').click();await idle('.own-receipt');
+ await r('period').fill('2026-10');await r('type-monthly').check();await r('scope').selectOption('all');await r('consult').click();await idle('.own-receipt');
  check(await r('empty').isVisible()&&await r('result').isHidden()&&await r('pdf').isDisabled()&&await r('prepare').isDisabled(),'Verified empty receipt preview has no PDF or persistence command');
- check(await r('empty').locator('a.primary').getAttribute('href')==='/nomina#cierre'&&await r('signature').isHidden(),'Missing own closed results lead to closure; signature information is hidden for zero documents');
+ check(await r('empty').locator('a.primary').getAttribute('href')==='/nomina#calculo'&&await r('signature').isHidden(),'Missing own closed results lead to preparation and calculation; signature information is hidden for zero documents');
  check(/no son recibos propios/.test(await r('empty').innerText()),'Backup documentary consultation stays distinct from own receipt issuance');await responsive('receipt-own-closed-results-empty');
 
  state.receiptCount=2;await r('consult').click();await idle('.own-receipt');check(await r('empty').isHidden()&&await r('signature').isVisible()&&!await r('pdf').isDisabled(),'Nonempty unsigned preview preserves the real review-PDF action');

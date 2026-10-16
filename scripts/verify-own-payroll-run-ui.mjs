@@ -1,5 +1,5 @@
 // Real product page + real HTTP handlers + committed isolated PostgreSQL.
-// Auth gateway, directory projection and historical dashboard response are QA fixtures.
+// Auth gateway and unavailable historical dashboard are QA fixtures; the own picker uses the real SQL-backed roster handler.
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -24,8 +24,8 @@ const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(roo
 const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
-let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,directoryOrigin='MUNICONTROL',checks=0,posts=0;
-const writes=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;};
+let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
+const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
@@ -56,11 +56,11 @@ try{
       if(denyAuth){json(401,{ok:false});return;}
       json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:otherSession?qa.ids.checker:actor.actorSessionId,email:actor.actorEmail},access:{context:'tenant',tenant:{id:actor.tenantId,roleKey:'QA'},tenantCapabilities:principal.tenant.effectiveCapabilities,platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+(expireAuth?-3600000:3600000)).toISOString()});return;
     }
+    if(url.pathname==='/api/employee-lookup'||url.pathname==='/api/internal-data'&&url.searchParams.get('resource')==='employees')legacyDirectoryRequests.push({method:req.method,path:url.pathname,resource:url.searchParams.get('resource')});
     if(req.method==='GET'&&url.pathname==='/api/internal-data'){
-      if(url.searchParams.get('resource')==='nativeroster'){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
-      if(url.searchParams.get('resource')==='employees'){
-        const page=Number(url.searchParams.get('page')),rows=page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:directoryOrigin}]:[];
-        json(200,{ok:true,version:'employee-picker.v1',data:rows,pagination:{page,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}});return;
+      if(url.searchParams.get('resource')==='nativeroster'){
+        nativeRosterRequests.push(Object.fromEntries(url.searchParams));req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};
+        res.json=value=>{const data=value?.data;nativeRosterResponses.push({ok:value?.ok===true,version:data?.version,complete:data?.complete,total:data?.total,rows:data?.rows?.length,snapshot:data?.snapshot,ownContractPresent:data?.rows?.some(row=>row.contractId===sources.contractId)});res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
       }
       json(503,{ok:false,error:'Synthetic historical dashboard unavailable'});return;
     }
@@ -100,26 +100,31 @@ try{
   const guidanceLinks=await select('prerequisites').locator('a').evaluateAll(links=>links.map(a=>a.getAttribute('href')));
   assert.deepEqual(guidanceLinks,['/personal?adopcion=pendientes#legajos','/nomina#parametros','/nomina#reglas']);checks++;
   check(posts===0,'first-calculation guidance does not adopt employees, approve parameters or calculate');
-  await prepare('contracts');directoryOrigin='GRH';await select('picker').click();
-  const picker=page.locator('#ownRunPicker'),adoptionHelp=picker.locator('[data-picker-adoption-help]'),adoptionLink=adoptionHelp.getByRole('link',{name:'Revisar incorporación del padrón'});
-  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
-  check(await picker.locator('[data-picker-results] input').isDisabled()&&await picker.locator('[data-picker-apply]').isDisabled(),'historical active contract remains unselectable for own payroll');
-  check((await picker.locator('.picker-selection-issue').innerText()).includes('revisión de adopción en Personas'),'historical exclusion identifies the missing incorporation and its review');
-  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});await adoptionLink.focus();const box=await adoptionLink.boundingBox();check(box?.height>=48&&box.x>=0&&box.x+box.width<=width,'adoption review link is accessible and fits viewport '+width);}
-  check(await adoptionLink.getAttribute('href')==='/personal#legajos'&&posts===0,'recovery link has a fixed internal route and never carries employee data or executes a write');
-  await picker.locator('input[type=search]').fill('otro');check(!(await adoptionHelp.isVisible()),'changing search withdraws recovery guidance from the previous directory response');
-  await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  await prepare('contracts');const legacyBeforePicker=legacyDirectoryRequests.length,readsBeforePicker=nativeRosterRequests.length;check(legacyBeforePicker===0,'opening own calculation never consults the legacy employee directory');await select('picker').click();
+  const picker=page.locator('#ownRunPicker'),adoptionHelp=picker.locator('[data-picker-adoption-help]'),pickerRow=picker.locator('[data-picker-results] input'),pickerApply=picker.locator('[data-picker-apply]');
+  async function searchOwnContract(){await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await pickerRow.waitFor({state:'visible'});assert.equal(await pickerRow.count(),1);}
+  const completeRosterProof=()=>{const proof=nativeRosterResponses.at(-1),query=nativeRosterRequests.at(-1);assert.ok(proof?.ok&&proof.version==='native-roster.v2'&&proof.complete&&proof.total===proof.rows&&proof.ownContractPresent);assert.equal(query.resource,'nativeroster');assert.equal(query.schema,'2');assert.equal(query.status,'all');for(const[key,value]of Object.entries(query))if(!['resource','schema','status'].includes(key))assert.equal(value,'','picker must consult the unfiltered complete own roster');return proof;};
+  await searchOwnContract();const firstOwnSource=completeRosterProof();
+  check(nativeRosterRequests.length===readsBeforePicker+1&&!await pickerRow.isDisabled()&&!await adoptionHelp.isVisible(),'own native contract is selectable from one complete real SQL-backed roster read without historical adoption guidance');
+  check(legacyDirectoryRequests.length===legacyBeforePicker&&posts===0,'own picker search sends no legacy employee lookup and executes zero calculation writes');
+  await pickerRow.check();
+  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});await pickerApply.focus();const box=await pickerApply.boundingBox();check(box?.height>=44&&box.x>=0&&box.x+box.width<=width,'own selection control meets its canonical44px touch target and fits viewport '+width);}
+  const readsBeforeApply=nativeRosterRequests.length;await pickerApply.click();await picker.waitFor({state:'hidden'});const appliedOwnSource=completeRosterProof();
+  check(nativeRosterRequests.length===readsBeforeApply+1&&appliedOwnSource.snapshot===firstOwnSource.snapshot,'applying selected own contract re-reads the complete real SQL roster instead of reusing the search response');
+  check((await select('chips').innerText()).includes('19041')&&!await select('confirm').isChecked()&&posts===0&&legacyDirectoryRequests.length===legacyBeforePicker,'fresh own selection preserves unchecked review and never calculates or calls the historical directory');
+  await select('picker').click();await searchOwnContract();
+  await picker.locator('input[type=search]').fill('otro');check(await pickerRow.count()===0&&!await adoptionHelp.isVisible(),'changing search immediately withdraws previous native results without historical guidance');
+  await searchOwnContract();
   await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:caps}})),principal.tenant.effectiveCapabilities.filter(c=>c!=='payroll.calculation.prepare'));
-  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&await select('picker').isDisabled()&&posts===0,'loss of calculation preparation alone closes historical guidance while preserving consultation');
+  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&await select('picker').isDisabled()&&posts===0,'loss of calculation preparation alone closes own selection while preserving consultation');
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
-  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
+  await searchOwnContract();completeRosterProof();
   await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));
-  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&posts===0,'permission revocation withdraws directory and recovery without adopting or calculating');
+  check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&posts===0,'permission revocation withdraws own directory and recovery without adopting or calculating');
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
-  await picker.locator('input[type=search]').fill('19041');await picker.locator('[data-picker-form] button').click();await adoptionHelp.waitFor({state:'visible'});
-  await adoptionLink.click();await page.waitForURL(origin+'/personal#legajos');
-  check(posts===0,'voluntary adoption link only navigates to review and does not save a decision');
-  directoryOrigin='MUNICONTROL';await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
+  await searchOwnContract();completeRosterProof();await picker.locator('[data-picker-close]').click();await picker.waitFor({state:'hidden'});
+  check(await select('picker').evaluate(el=>document.activeElement===el)&&posts===0&&legacyDirectoryRequests.length===legacyBeforePicker,'voluntary own-directory close returns accessible focus without a legacy query or municipal decision');
+  await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
   check((await select('totals').innerText()).includes('19041'),'totals use actual own employee reference');
@@ -133,7 +138,8 @@ try{
   await select('new').click();await settled();await prepare('contracts');await select('picker').click();
   await page.locator('#ownRunPickerSearch').fill('19041');await page.locator('#ownRunPicker [data-picker-form] button').click();
   await page.locator('#ownRunPicker [data-picker-results] input').waitFor({state:'visible'});check(!(await page.locator('#ownRunPicker [data-picker-adoption-help]').isVisible()),'an own contract stays selectable without historical adoption guidance');
-  await page.locator('#ownRunPicker [data-picker-results] input').check();await page.locator('#ownRunPicker [data-picker-apply]').click();
+  await page.locator('#ownRunPicker [data-picker-results] input').check();const readsBeforeCalculatedSelection=nativeRosterRequests.length;await page.locator('#ownRunPicker [data-picker-apply]').click();await picker.waitFor({state:'hidden'});completeRosterProof();
+  check(nativeRosterRequests.length===readsBeforeCalculatedSelection+1&&legacyDirectoryRequests.length===legacyBeforePicker,'the selected-legajo calculation also receives a fresh complete own roster without legacy lookup');
   check(posts===1,'directory selection never executes payroll');await calculate();
   check(writes.at(-1).body.selection.kind==='contracts'&&writes.at(-1).body.selection.values[0]===sources.contractId,'selected legajo is sent as verified own contract');
   await select('new').click();await settled();await prepare('departments');await select('codes').selectOption('20');
@@ -230,8 +236,9 @@ try{
   const reviewStored=await db.run("SELECT jsonb_build_object('captures',(SELECT count(*) FROM own_payroll_run_capture),'results',(SELECT count(*) FROM own_payroll_run_result))");
   check(reviewStored.captures===4&&reviewStored.results===3&&posts===reviewPosts+1,'review preserves exact retry and never creates an extra capture or result');
   check(await reviewPage.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('19041')||v.includes('own-run-source-review'))),'source review is not persisted in browser storage');check(errors.length===0,'source review has no browser errors');
-  report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,actualProgramAndMonthlySources:true,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
-}catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true,productiveInstallation:false};if(testPage){report.browserDiagnostic=await testPage.evaluate(()=>{const link=document.querySelector('[data-own-login]');return {url:location.pathname+location.hash,status:document.querySelector('[data-own-status]')?.textContent,loginHidden:link?.hidden,loginMarkup:link?.outerHTML,loginStyle:link?getComputedStyle(link).display:null,busy:document.querySelector('.own-run')?.getAttribute('aria-busy'),documentHidden:document.hidden};}).catch(()=>null);await testPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
+  check(legacyDirectoryRequests.length===0,'the complete own calculation and recovery circuit uses zero historical employee lookups');
+  report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,actualProgramAndMonthlySources:true,nativeOwnPickerVerified:true,nativePickerFreshApply:true,nativePickerRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:false,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
+}catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,nativePickerDiagnostics:{ownRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,lastOwnRoster:nativeRosterResponses.at(-1)??null},synthetic:true,productiveInstallation:false};fs.writeFileSync(prefix+'-failure.log',e.stack??String(e));if(testPage){report.browserDiagnostic=await testPage.evaluate(()=>{const link=document.querySelector('[data-own-login]');return {url:location.pathname+location.hash,status:document.querySelector('[data-own-status]')?.textContent,loginHidden:link?.hidden,loginMarkup:link?.outerHTML,loginStyle:link?getComputedStyle(link).display:null,busy:document.querySelector('.own-run')?.getAttribute('aria-busy'),documentHidden:document.hidden};}).catch(()=>null);await testPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
   held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));
   if(installed){try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');const state=await db.run("SELECT jsonb_build_object('removed',to_regnamespace("+q(qa.schema)+") IS NULL)");assert.equal(state.removed,true);report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}
