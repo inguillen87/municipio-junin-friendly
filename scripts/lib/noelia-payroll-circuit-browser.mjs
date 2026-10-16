@@ -2,10 +2,18 @@
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {unzipSync} from 'fflate';
 import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.js';
-import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.js';
+import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
 const root=path.resolve(import.meta.dirname,'../..');
+export async function selectNoeliaReceiptTypes(page,types){
+ const choices=Object.keys(OWN_RUN_TYPES);
+ assert.ok(Array.isArray(types)&&types.length>0&&new Set(types).size===types.length&&types.every(type=>choices.includes(type)),'QA_RECEIPT_TYPES_INVALID');
+ await page.locator('[data-receipt-types]').waitFor({state:'visible'});
+ const disclosure=page.locator('[data-receipt-typeDetails]');
+ if(!await disclosure.evaluate(element=>element.open))await disclosure.locator('summary').click();
+ for(const type of choices)await page.locator('[data-receipt-type-'+type+']').setChecked(types.includes(type));
+}
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
@@ -75,7 +83,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   }
   async function prepareReceipts({params}){
    await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
-   await p('period').waitFor({state:'visible'});await p('issuerEditor').waitFor({state:'visible'});await pidle();await p('scope').selectOption('all');await p('period').fill(params.period);await p('types').selectOption(params.types);await p('issuer').fill(params.issuer.name);await p('tax').fill(params.issuer.taxId);await p('address').fill(params.issuer.address);await p('legend').fill(params.legend);await p('consult').click();await pidle();assert.ok(await p('result').isVisible(),await p('status').innerText());
+   await p('period').waitFor({state:'visible'});await p('issuerEditor').waitFor({state:'visible'});await pidle();await p('scope').selectOption('all');await p('period').fill(params.period);await selectNoeliaReceiptTypes(page,params.types);await p('issuer').fill(params.issuer.name);await p('tax').fill(params.issuer.taxId);await p('address').fill(params.issuer.address);await p('legend').fill(params.legend);await p('consult').click();await pidle();assert.ok(await p('result').isVisible(),await p('status').innerText());
    check(await p('rows').locator('tr').count()===25,'actual receipt preview presents first 25 of all closed employees');await p('next').click();check(await p('rows').locator('tr').count()===4,'actual receipt preview retains remaining four employees');await p('search').fill('A/3501');check((await p('range').innerText()).includes('29 recibos'),'receipt search never reduces the preparation');await p('reason').fill('Preparación de recibos exclusivamente sintéticos QA');
    return commitAndRecover({kind:'receipt',send:p('prepare'),recover:p('recover'),idle:pidle,verify:r=>{assert.equal(r.body.command,'prepare');assert.deepEqual(r.body.params,params);}});
   }
