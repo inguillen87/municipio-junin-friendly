@@ -130,6 +130,11 @@ jobs:
             verification/noelia-circuit-ci/native-employee-receipt.pdf
             verification/noelia-circuit-ci/*-browser.json
             verification/noelia-circuit-ci/browser-transport.json
+            verification/noelia-circuit-ci/native-employee-bank-control.csv
+            verification/noelia-circuit-ci/native-employee-bank-control.xlsx
+            verification/noelia-circuit-ci/native-bank-tail-source-conservation.json
+            verification/noelia-circuit-ci/native-bank-installation-source-pins.json
+            verification/noelia-circuit-ci/native-bank-tail-failure.json
             verification/noelia-circuit-ci/*.png
             verification/published-adoption-ci/result.json
             verification/published-adoption-ci/installation-proof.json
