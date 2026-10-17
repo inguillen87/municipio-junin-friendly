@@ -8,6 +8,7 @@ import {prepareOwnPayrollInput} from '../lib/own-payroll-approved-input.js';
 import {createOwnPayrollSnapshot} from '../lib/own-payroll-snapshot.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {approvedSources} from './fixtures/own-payroll-approved-synthetic.js';
+import {fixedApprovedRecord} from './fixtures/payroll-fixed-novelties-synthetic.js';
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {OWN_PAYROLL_PERIOD_CONTEXT_VERSION} from '../assets/own-payroll-period-context.js';
 // All concepts, rules, quantities and references below are fictional. No municipal formula fixture.
@@ -94,6 +95,81 @@ test('current explicit source bindings are checked against native catalogue unit
  input.bindings=[{agreementCode:'71',reference:'N[9]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'Count',unit:'units',sourceKind:'monthly_quantity',sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Fuente ficticia'}}];
  const r=prepareOwnPayrollProgrammeSource(input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));
  input.definitions[0].expression.unit='hours';const bad=prepareOwnPayrollProgrammeSource(input);assert.ok(codes(bad).includes('SOURCE_BINDING_UNIT_MISMATCH'));
+});
+
+test('novelty references reject amount and quantity origin swaps even when units coincide',()=>{
+ for(const [reference,sourceKind]of[
+  ['I[301]','monthly_quantity'],['I[301]','fixed_quantity'],
+  ['N[301]','monthly_amount'],['N[301]','fixed_amount'],
+  ['I[301]','parameter'],['N[301]','parameter']
+ ]){
+  // Money is deliberately valid in the generic native catalogue here: matching
+  // units alone must not turn a quantity column into an imported amount.
+  const input=fixture([definition('301',{quantityUnit:'money',value:'1.00',expression:{op:'source',reference,unit:'money'}})]);
+  input.bindings=[{agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit:'money',sourceKind,sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Origen ficticio explícito'}}];
+  const before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);
+  assert.ok(codes(r).includes('SOURCE_BINDING_ORIGIN_MISMATCH'),`${reference} must reject ${sourceKind}`);
+  assert.equal(r.presentable.programme,false);assert.equal(r.draft.programme,null);assert.equal(r.draft.typedRules.length,0);
+  assert.ok(r.incidents.some(i=>i.code==='SOURCE_BINDING_ORIGIN_MISMATCH'&&i.sourceReference===reference&&i.path==='amount'));
+  assert.equal(r.approved,false);assert.equal(r.executable,false);assert.deepEqual(input,before);
+ }
+});
+
+test('monthly and fixed novelty origins remain explicit without selecting, summing or inventing absence policy',()=>{
+ for(const [reference,sourceKind,unit,onMissing,combine]of[
+  ['N[301]','monthly_quantity','days','error','single'],
+  ['N[301]','fixed_quantity','days','zero','sum'],
+  ['I[301]','monthly_amount','money','zero','single'],
+  ['I[301]','fixed_amount','money','error','sum']
+ ]){
+  const source={op:'source',reference,unit};
+  const expression=unit==='money'?source:{op:'multiply',left:literal('money','10.125'),right:{op:'divide',left:source,right:literal('days','1')}};
+  const input=fixture([definition('301',{expression})]);
+  input.bindings=[{agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit,sourceKind,sourceCode:'301',onMissing,combine,ruleReference:'Origen ficticio explícito'}}];
+  const before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);
+  assert.deepEqual(r.incidents,[],`${reference} from ${sourceKind}`);assert.equal(r.presentable.programme,true);
+  assert.deepEqual(r.draft.programme.bindings,[input.bindings[0].binding]);assert.deepEqual(input,before);
+  assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);
+ }
+});
+
+test('novelty origin conflicts in a conditional branch cannot hide behind a constant condition',()=>{
+ const bad={op:'source',reference:'I[301]',unit:'money'};
+ const expression={op:'choose',condition:{op:'compare',operator:'eq',left:literal('units','1'),right:literal('units','1')},then:literal('money','12.50'),else:bad};
+ const input=fixture([definition('301',{quantityUnit:'money',expression})]);
+ input.bindings=[{agreementCode:'71',reference:'I[301]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit:'money',sourceKind:'fixed_quantity',sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Origen ficticio explícito'}}];
+ const r=prepareOwnPayrollProgrammeSource(input);
+ assert.ok(r.incidents.some(i=>i.code==='SOURCE_BINDING_ORIGIN_MISMATCH'&&i.path==='amount/else'));
+ assert.equal(r.presentable.programme,false);assert.equal(r.draft.programme,null);
+});
+
+test('prepared N and I consume distinct approved columns through the real adapter and exact engine',()=>{
+ for(const [family,count,cents,expectedCount,expected]of[['monthly','3.25','2001','3.25000000','52.51'],['fixed','1.125','475','1.12500000','16.00']]){
+  const expression={op:'add',left:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'source',reference:'N[301]',unit:'days'},right:literal('days','1')}},right:{op:'source',reference:'I[301]',unit:'money'}};
+  const input=fixture([definition('301',{expression})]);input.period='2026-10';
+  input.bindings=[['N[301]','Count','days','quantity'],['I[301]','Amount','money','amount']].map(([reference,key,unit,field])=>({agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key,unit,sourceKind:family+'_'+field,sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Dos columnas ficticias revisadas'}}));
+  const prepared=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(prepared.incidents,[]);
+  const sources=approvedSources(1);sources.population.employees[0].agreementCode='71';
+  // Only this isolated fixture supplies an approved revision; preparation does not.
+  sources.programState={...input.programme,program:{version:h('5'),revision:1,definition:prepared.draft.programme,salaryVersion:prepared.pins.salaryVersion,proposalId:uid(8101),approvalId:uid(8102)}};
+  let values;
+  if(family==='monthly'){
+   values=sources.monthly.batches[0].rows[0];Object.assign(values,{conceptSourceId:'301',quantityDecimal:count,amountCents:cents});
+  }else{
+   const record=fixedApprovedRecord(1,{conceptSourceId:'301',quantityDecimal:count,amountCents:cents,validFrom:'2026-10-01',validTo:null});
+   record.subject=structuredClone(sources.monthly.batches[0].rows[0].subject);values=record.approved.values;
+   sources.monthly.batches=[];sources.fixed.list.data.rows=[record];sources.fixed.list.data.total=1;
+   sources.fixed.export.data.rows=[{recordId:record.id,version:record.version,proposalId:record.approved.id,subject:record.subject,values}];sources.fixed.export.data.total=1;
+  }
+  const native=prepareOwnPayrollInput(sources),snapshot=createOwnPayrollSnapshot(native);
+  assert.equal(native.employees[0].inputs.find(v=>v.key==='Count').value,expectedCount);
+  assert.equal(native.employees[0].inputs.find(v=>v.key==='Amount').value,family==='monthly'?'20.01000000':'4.75000000');
+  assert.equal(snapshot.result.rows[0].amount,expected);assert.equal(snapshot.result.employeeTotals[0].net,expected);
+  assert.equal(snapshot.result.paymentExecuted,false);assert.equal(snapshot.result.municipalApprovalVerified,false);
+  // An amount does not replace an absent quantity, or vice versa.
+  values.quantityDecimal=null;assert.throws(()=>prepareOwnPayrollInput(sources),e=>e.code==='SOURCE_VALUE_MISSING');
+  values.quantityDecimal=count;values.amountCents=null;assert.throws(()=>prepareOwnPayrollInput(sources),e=>e.code==='SOURCE_VALUE_MISSING');
+ }
 });
 
 test('explicit class, scale, agreement hours and contract hours preserve distinct current native bindings',()=>{
