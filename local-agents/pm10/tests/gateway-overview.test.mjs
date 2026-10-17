@@ -9,6 +9,7 @@ import {CaptureStore,hash} from '../store.mjs';
 import {DeliveryStore,partPayload} from '../delivery.mjs';
 import {SourceDeliveryStore} from '../../clock-fleet/source-delivery.mjs';
 import {fleetPartPayload,FleetDeliveryStore} from '../../clock-fleet/delivery.mjs';
+import {renderGatewayOverview} from '../../clock-fleet/overview.mjs';
 import {TARGET,PORT,SERIAL} from '../reader/lector-fichadas.mjs';
 const at='2026-09-21T12:00:00.000Z',ackAt='2026-09-21T12:10:00.123Z',now=()=>new Date('2026-09-23T12:00:00.000Z'),tenantId='11111111-1111-4111-8111-111111111111';
 const write=async(file,v)=>{await fs.mkdir(path.dirname(file),{recursive:true,mode:0o700});await fs.writeFile(file,JSON.stringify(v),{mode:0o600});};
@@ -44,6 +45,24 @@ async function fixture(fn){
  }finally{await fs.rm(root,{recursive:true,force:true});}
 }
 async function fingerprint(root){const rows=[];async function walk(dir){for(const e of await fs.readdir(dir,{withFileTypes:true})){const p=path.join(dir,e.name);if(e.isDirectory())await walk(p);else rows.push([path.relative(root,p),hash(await fs.readFile(p))]);}}await walk(root);return createHash('sha256').update(JSON.stringify(rows.sort())).digest('hex');}
+async function freshSyntheticCapture(p,newRecords=1){
+ const records=3+newRecords,raw=Buffer.alloc(4+records*40);raw.writeUInt32LE(records*40);for(let n=0;n<records;n++)raw.writeUInt16LE(n+1,4+n*40);
+ const store=await new CaptureStore(p.dir,{identity:p.c.clockId===null?null:{clockId:p.c.clockId,serial:p.c.serial},freeBytes:async()=>1e10}).init(),saved=await store.save(raw,{capturedAt:'2026-09-21T12:12:00.000Z'});
+ await write(path.join(p.dir,'status.json'),{...p.capture,lastAttemptAt:'2026-09-21T12:12:00.000Z',lastCaptureAt:'2026-09-21T12:12:00.000Z',lastCaptureSha256:saved.snapshotSha256,snapshotRecordCount:records,uniqueLocalRecords:records});return saved;
+}
+for(const index of[0,5])test('a new unacknowledged capture cannot retain zero pending parts from an older receipt: '+(index===5?'canonical':'source_only'),()=>fixture(async({config,prepared,root})=>{
+ const p=prepared[index],oldSender=await read(path.join(p.sender.root,'status.json'));await freshSyntheticCapture(p);const before=await fingerprint(root),value=await readGatewayOverview(config,{now}),clock=value.clocks[index];
+ assert.equal(clock.delivery.evidenceState,'verified');assert.equal(clock.delivery.confirmedRecords,3);assert.equal(clock.delivery.lastReceiptAt,ackAt);assert.equal(clock.delivery.pendingParts,1);assert.equal(clock.capture.records,4);assert.equal(value.counts.withReceipt,6);assert.ok(renderGatewayOverview(value).includes('Envíos pendientes'));assert.deepEqual(await read(path.join(p.sender.root,'status.json')),oldSender);assert.equal(await fingerprint(root),before);
+}));
+test('pending parts count every unacknowledged multipart manifest without resending or summing scopes',()=>fixture(async({config,prepared,root})=>{
+ await freshSyntheticCapture(prepared[0],501);const before=await fingerprint(root),value=await readGatewayOverview(config,{now});assert.equal(value.clocks[0].delivery.pendingParts,2);assert.equal(value.clocks[0].delivery.confirmedRecords,3);assert.equal(value.clocks[5].delivery.pendingParts,0);assert.equal(await fingerprint(root),before);
+}));
+test('a later capture timestamp with no new unique batch does not invent pending parts',()=>fixture(async({config,prepared})=>{
+ const p=prepared[0];await write(path.join(p.dir,'status.json'),{...p.capture,lastCaptureAt:'2026-09-21T12:12:00.000Z'});const c=(await readGatewayOverview(config,{now})).clocks[0];assert.equal(c.delivery.pendingParts,0);assert.equal(c.delivery.confirmedRecords,3);assert.equal(c.delivery.lastReceiptAt,ackAt);
+}));
+test('an unacknowledged corrupt manifest withdraws pending counts instead of showing a false zero',()=>fixture(async({config,prepared})=>{
+ const p=prepared[0],saved=await freshSyntheticCapture(p),file=path.join(p.dir,'pending',saved.batchId,'manifest.json');await write(file,{...await read(file),newUniqueRecords:0});const c=(await readGatewayOverview(config,{now})).clocks[0];assert.equal(c.delivery.evidenceState,'invalid');assert.equal(c.delivery.pendingParts,null);assert.equal(c.delivery.confirmedRecords,null);assert.equal(c.capture.records,4);
+}));
 test('six identities including Edificio Viejo share one collection; old capture and ACK remain distinct',()=>fixture(async({config})=>{
  const v=await readGatewayOverview(config,{now,desiredState:'running'});assert.equal(v.schema,'municipal-clock-overview.v1');assert.deepEqual(v.counts,{configured:6,captured:6,needsReview:0,withReceipt:6});
  const old=v.clocks.find(c=>c.clockId===null);assert.equal(old.label,'Edificio Viejo');assert.equal(old.capture.lastCaptureAt,at);assert.equal(old.delivery.lastReceiptAt,ackAt);assert.equal(old.delivery.scope,'canonical');assert.ok(v.clocks.slice(0,5).every(c=>c.delivery.scope==='source_only'));
