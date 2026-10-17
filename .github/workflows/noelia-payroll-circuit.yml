@@ -135,6 +135,13 @@ jobs:
             verification/noelia-circuit-ci/native-bank-tail-source-conservation.json
             verification/noelia-circuit-ci/native-bank-installation-source-pins.json
             verification/noelia-circuit-ci/native-bank-tail-failure.json
+            verification/noelia-circuit-ci/native-employee-imputation.csv
+            verification/noelia-circuit-ci/native-employee-journal.csv
+            verification/noelia-circuit-ci/native-accounting-tail-source-conservation.json
+            verification/noelia-circuit-ci/native-accounting-installation-147-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-installation-148-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-installation-152-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-tail-failure.json
             verification/noelia-circuit-ci/*.png
             verification/published-adoption-ci/result.json
             verification/published-adoption-ci/installation-proof.json

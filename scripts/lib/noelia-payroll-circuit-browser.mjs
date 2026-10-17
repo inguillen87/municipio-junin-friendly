@@ -11,7 +11,7 @@ import {verifiedOwnReceiptPreview,ownReceiptBatch,ownReceiptVerifyHash,ownReceip
 import {SALARY_UNITS} from '../../assets/native-salary-catalog-model.js';
 import {OWN_CLOSE_TOTAL_KEYS} from '../../assets/own-payroll-close-model.js';
 const root=path.resolve(import.meta.dirname,'../..');
-const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts']]);
+const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts'],['/api/internal-own-payroll-accounting','accounting'],['/api/internal-own-payroll-imputation','imputation'],['/api/internal-own-payroll-journal','journal']]);
 export const noeliaCircuitEndpoint=pathname=>endpoints.get(pathname)??null;
 export async function withNoeliaNativeEmployeeHandler(handlers,handler,operation){
  assert.equal(typeof handler,'function');assert.equal(typeof operation,'function');assert.ok(!Object.hasOwn(handlers,'nativeEmployee'),'QA_NATIVE_HANDLER_ALREADY_ACTIVE');
@@ -219,6 +219,44 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
      return {bankControlUi:true,accountCommandsUi:false,actualHttp:true,sameServer:true,authenticationFixture:true,receiptBatchId:journey.receiptBatchId,closeGroupId:journey.closeGroupId,closeIds:[...closeIds],contractId:journey.contractId,recordCount:1,downloads:files,reads:traffic,posts:0,viewports:[1440,390,320],bankSubmitted:false,paymentExecuted:false};
     }finally{page.off('request',observe);}
    }
+
+   // Accounting appendix: actual same-server HTTP writes; no new payroll command.
+   async function nativeAccountingHttp({kind,query=null,body=null,key=null,expected=200,ackLost=false}){
+    const endpoints={accounting:'/api/internal-own-payroll-accounting',imputation:'/api/internal-own-payroll-imputation',journal:'/api/internal-own-payroll-journal'},endpoint=endpoints[kind];assert.ok(endpoint,'QA_ACCOUNTING_ENDPOINT');
+    assert.ok(body===null||query===null);assert.equal(ackLost,!!(body&&expected===201));
+    if(body){assert.match(key,/^[a-f0-9-]{36}$/i);assert.ok((kind==='journal'?['propose','post','reject']:['propose','approve','reject']).includes(body.command));}
+    else assert.ok(query&&['bootstrap','source','detail','attempt'].includes(query.resource));
+    const before=writes.length,requests=[],observe=request=>{const u=new URL(request.url());if(u.origin===origin&&u.pathname===endpoint)requests.push(request);};page.on('request',observe);if(ackLost)drop=true;
+    try{
+     const packet=await page.evaluate(async input=>{const url=input.endpoint+(input.query?'?'+new URLSearchParams(input.query):''),bodyText=input.body?JSON.stringify({operation:'command',payload:input.body}):null,response=await fetch(url,{method:input.body?'POST':'GET',cache:'no-store',credentials:'same-origin',headers:input.body?{'content-type':'application/json','idempotency-key':input.key}:{},...(bodyText?{body:bodyText}:{})}),text=await response.text();if(new TextEncoder().encode(text).length>16*1024*1024)throw Error('QA_ACCOUNTING_HTTP_RESPONSE_LIMIT');return{status:response.status,value:JSON.parse(text),bodyText};},{endpoint,query,body,key});
+     if(!ackLost){assert.equal(packet.status,expected,JSON.stringify(packet.value));assert.equal(packet.value.ok,expected<400);assert.equal(writes.length,before);assert.equal(requests.length,1);assert.equal(requests[0].method(),body?'POST':'GET');if(body){assert.deepEqual(requests[0].postDataJSON(),{operation:'command',payload:body});assert.equal((await requests[0].allHeaders())['idempotency-key'],key);}return{status:packet.status,data:packet.value.data??null,envelope:packet.value,actualHttp:true,sameServer:true,authenticationFixture:true};}
+     assert.equal(packet.status,503);assert.equal(packet.value.ok,false);assert.equal(writes.length,before+1);const committed=writes.at(-1);assert.equal(committed.kind,kind);assert.equal(committed.key,key);assert.equal(committed.status,201);assert.deepEqual(committed.receipt.body,body);assert.equal(committed.receipt.replayed,false);
+     const recovered=await nativeAccountingHttp({kind,query:{resource:'attempt',key}});assert.deepEqual(recovered.data,{...committed.receipt,replayed:true});
+     const posts=requests.filter(r=>r.method()==='POST'),gets=requests.filter(r=>r.method()==='GET');assert.equal(requests.length,2);assert.equal(posts.length,1);assert.equal(gets.length,1);assert.deepEqual(posts[0].postDataJSON(),{operation:'command',payload:body});assert.equal((await posts[0].allHeaders())['idempotency-key'],key);assert.equal(new URL(gets[0].url()).searchParams.get('resource'),'attempt');assert.equal(new URL(gets[0].url()).searchParams.get('key'),key);
+     return{status:201,data:committed.receipt,recovered:recovered.data,key,bodyText:packet.bodyText,postStatus:503,committedStatus:201,browserPosts:1,recoveryGets:1,ackLostAfterCommit:true,actualHttp:true,sameServer:true,authenticationFixture:true};
+    }finally{page.off('request',observe);}
+   }
+   async function nativeAccountingReadExport({journey,imputation,journal,expectedFiles}){
+    const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length,traffic=[],downloads=[];
+    const observe=request=>{const u=new URL(request.url());if(u.origin===origin&&['/api/internal-own-payroll-imputation','/api/internal-own-payroll-journal'].includes(u.pathname))traffic.push({method:request.method(),path:u.pathname,resource:u.searchParams.get('resource'),id:u.searchParams.get('id')});};page.on('request',observe);
+    const locate=(prefix,key)=>page.locator('[data-'+prefix+'-'+key+']'),idle=prefix=>page.waitForFunction(p=>document.querySelector('[data-'+p+'-query]')?.disabled===false,prefix);
+    const download=async(prefix,key,kind)=>{const wait=page.waitForEvent('download');wait.catch(()=>{});await locate(prefix,key).click();const actual=await wait,file=path.join(output,'native-employee-'+kind+'.csv');await actual.saveAs(file);await idle(prefix);const bytes=fs.readFileSync(file),hash=createHash('sha256').update(bytes).digest('hex');assert.deepEqual({bytes:bytes.length,sha256:hash},expectedFiles[kind]);downloads.push({kind,path:file,bytes:bytes.length,sha256:hash});};
+    try{
+     await page.setViewportSize({width:1440,height:1100});await fresh('/nomina-control.html#imputacion');await locate('imputation','period').waitFor({state:'visible'});await idle('imputation');await locate('imputation','period').fill('2026-10');await locate('imputation','type').selectOption('monthly');await locate('imputation','consult').click();await idle('imputation');await locate('imputation','proposal').selectOption(imputation.proposal.id);await locate('imputation','open').click();await locate('imputation','review').waitFor({state:'visible'});await idle('imputation');
+     const rows=locate('imputation','rows').locator('article');assert.equal(await rows.count(),imputation.allocation.rows.length);assert.equal(imputation.allocation.rows.length,6);
+     for(const [i,row]of imputation.allocation.rows.entries()){const card=rows.nth(i),text=await card.innerText();assert.ok((await card.locator('h4').innerText()).includes('Legajo '+journey.legajo+' · concepto '+row.conceptCode));assert.ok(text.includes('importe/valor conservado '+row.amount+' · '+row.unit));if(row.destination){for(const k of ['budgetItemReference','institutionalReference','functionReference'])assert.ok(text.includes(row.destination[k]));}else assert.ok(text.includes('Auxiliar conservado; no es un movimiento monetario.'));}
+     await download('imputation','export-csv','imputation');
+     for(const width of [1440,390,320]){await page.setViewportSize({width,height:1100});await locate('imputation','summary').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'native-employee-imputation-'+width+'.png'),fullPage:false});}
+     await page.setViewportSize({width:1440,height:1100});await fresh('/nomina-control.html#asientos');await locate('journal','period').waitFor({state:'visible'});await idle('journal');await locate('journal','period').fill('2026-10');await locate('journal','type').selectOption('monthly');await locate('journal','consult').click();await idle('journal');await locate('journal','history').selectOption(journal.id);await locate('journal','open').click();await locate('journal','detail').waitFor({state:'visible'});await idle('journal');
+     const entryRows=locate('journal','entries').locator('tbody tr');assert.equal(await entryRows.count(),journal.journal.entries.length);
+     for(const [i,entry]of journal.journal.entries.entries())assert.deepEqual(await entryRows.nth(i).locator('td').allTextContents(),[String(entry.ordinal),entry.accountReference,entry.debit,entry.credit,entry.documentReference]);
+     await download('journal','csv','journal');
+     for(const width of [1440,390,320]){await page.setViewportSize({width,height:1100});await locate('journal','detail-note').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'native-employee-journal-'+width+'.png'),fullPage:false});}
+     assert.equal(writes.length,before);assert.deepEqual(errors.slice(beforeErrors),[]);assert.deepEqual(diagnostics.slice(beforeDiagnostics),[]);assert.ok(traffic.length>0&&traffic.every(r=>r.method==='GET'));
+     assert.ok(traffic.filter(r=>r.path==='/api/internal-own-payroll-imputation'&&r.resource==='detail'&&r.id===imputation.proposal.id).length>=2);assert.ok(traffic.filter(r=>r.path==='/api/internal-own-payroll-journal'&&r.resource==='detail'&&r.id===journal.id).length>=3);
+     return{actualHttp:true,sameServer:true,authenticationFixture:true,readExportUi:true,commandsUi:false,contractId:journey.contractId,closeGroupId:journey.closeGroupId,imputationProposalId:imputation.proposal.id,journalId:journal.id,conceptCount:6,entryCount:journal.journal.entries.length,posts:0,downloads,reads:traffic,viewports:[1440,390,320],paymentExecuted:false};
+    }finally{page.off('request',observe);}
+   }
   async function commitAndRecover({kind,send,recover,idle,verify}){
    const before=writes.length;drop=true;await send.click();await idle();
    assert.equal(writes.length,before+1,await page.locator('[role=status]:visible').allTextContents());const original=writes.at(-1);assert.equal(original.kind,kind);verify(original.receipt);
@@ -331,6 +369,6 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,close};
+  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,nativeAccountingHttp,nativeAccountingReadExport,close};
  }catch(e){await close();throw e;}
 }
