@@ -81,7 +81,7 @@ function positiveBody(kind,command){
 function positivePacket(kind,body,{key=ID,wireBody=body}={}){
  // Novedades' real receipt contract calls this field requestKey; the other
  // four command families call it key. Never add a fictitious key alias.
- const receipt={...(kind==='novelty'?{requestKey:key}:{key}),body:structuredClone(wireBody),replayed:false,id:positiveOtherContract};
+ const receipt={...(kind==='novelty'?{requestKey:key}:{key}),body:structuredClone(wireBody),replayed:false,id:positiveOtherContract,...(kind==='receipt'?{recordedAt:'2026-10-17T16:11:52.249052+00:00'}:{})};
  return {receipt,recovered:{...structuredClone(receipt),replayed:true},key,body:structuredClone(wireBody),
   bodyText:JSON.stringify({operation:kind==='run'?'calculate':'command',payload:wireBody}),
   browserPosts:1,recoveryGets:1,ackLostAfterCommit:true,committedStatus:201,postStatus:503,sameServer:true,authenticationFixture:true};
@@ -302,4 +302,81 @@ test('native UI receipt preview retains strict flags, params, record count, UUID
  const {params,target}=nativeUiPreviewCase(),state={commands:[],preview:null,download:null},failure=Error('synthetic preview callback failure');
  await assert.rejects(nativeEmployeeUiPreview({preview:async()=>{throw failure;}},params,target,state),error=>error===failure);
  assert.deepEqual(state,{commands:[],preview:null,download:null});
+});
+
+
+// Exact receipt-event instant regression. These are pure QA envelopes, not
+// stored municipal events. All cases invoke the actual positive validator.
+function nativeUiReceiptRecoveryCase(initial='2026-10-17T16:11:52.249052+00:00',recovered='2026-10-17T13:11:52.249052-03:00'){
+ const body=positiveBody('receipt','prepare'),packet=positivePacket('receipt',body);
+ Object.assign(packet.receipt,{recordedAt:initial,batchId:positiveOtherContract,bodySha256:'a'.repeat(64),version:'own-receipt-event.v1'});
+ packet.recovered={...structuredClone(packet.receipt),recordedAt:recovered,replayed:true};
+ return {body,packet};
+}
+const nativeUiValidateReceiptRecovery=({body,packet})=>validateNativeEmployeeUiPositiveCommand(packet,{kind:'receipt',body,target:positiveTarget});
+
+test('native UI receipt event recovery accepts offset-equivalent instants with every fractional digit intact',()=>{
+ for(const [initial,recovered]of [
+  ['2026-10-17T16:11:52.249052+00:00','2026-10-17T13:11:52.249052-03:00'],
+  ['2026-10-17T16:11:36.46864+00:00','2026-10-17T13:11:36.46864-03:00'],
+  ['2026-01-01T00:00:00.000001Z','2025-12-31T21:00:00.000001-03:00'],
+  ['2024-03-01T00:00:00.100000Z','2024-02-29T21:00:00.1-03:00'],
+  ['2026-12-31T23:59:59.123456789012Z','2027-01-01T05:29:59.123456789012+05:30'],
+  ['1970-01-01T00:00:00.000001Z','1969-12-31T21:00:00.000001-03:00'],
+  ['2026-10-17T16:11:52Z','2026-10-17T16:11:52.000000+00:00'],
+  ['2026-10-17T16:11:52.249052Z','2026-10-17T21:56:52.249052+05:45'],
+ ]){
+  const value=nativeUiReceiptRecoveryCase(initial,recovered),before=structuredClone(value);
+  const evidence=nativeUiValidateReceiptRecovery(value);
+  assert.equal(evidence.key,ID);assert.equal(evidence.contractId,positiveTarget.contractId);assert.deepEqual(value,before);
+ }
+});
+
+test('native UI receipt event recovery rejects one microsecond and even a last fractional digit that Date milliseconds lose',()=>{
+ const initial='2026-10-17T16:11:52.249052+00:00',changed='2026-10-17T13:11:52.249053-03:00';
+ assert.equal(Date.parse(initial),Date.parse(changed),'a millisecond-only oracle would lose this difference');
+ for(const [first,second]of [
+  [initial,changed],
+  ['2026-10-17T16:11:52.123456789012Z','2026-10-17T13:11:52.123456789013-03:00'],
+  [initial,'2026-10-17T13:11:52.249051-03:00'],
+  [initial,'2026-10-17T13:11:53.249052-03:00'],
+  [initial,'2026-10-17T13:11:52.249052-02:00'],
+ ])assert.throws(()=>nativeUiValidateReceiptRecovery(nativeUiReceiptRecoveryCase(first,second)));
+});
+
+test('native UI receipt event recovery rejects absent, malformed or impossible timestamps instead of defaulting an instant',()=>{
+ for(const invalid of [
+  undefined,null,0,{},'', '2026-10-17T16:11:52', '2026-10-17 16:11:52Z',
+  '2026-02-29T16:11:52Z','2026-04-31T16:11:52Z','0000-01-01T00:00:00Z',
+  '2026-10-17T24:11:52Z','2026-10-17T16:60:52Z','2026-10-17T16:11:60Z',
+  '2026-10-17T16:11:52.Z','2026-10-17T16:11:52.12xZ',
+  '2026-10-17T16:11:52+24:00','2026-10-17T16:11:52+12:60',
+ ]){const value=nativeUiReceiptRecoveryCase();value.packet.receipt.recordedAt=value.packet.recovered.recordedAt=invalid;assert.throws(()=>nativeUiValidateReceiptRecovery(value));}
+ const value=nativeUiReceiptRecoveryCase();delete value.packet.receipt.recordedAt;delete value.packet.recovered.recordedAt;
+ assert.throws(()=>nativeUiValidateReceiptRecovery(value));
+});
+
+test('native UI receipt event recovery preserves exact event UUID, key, body, author-like fields, hashes, extras and replay status',()=>{
+ for(const mutate of [
+  packet=>{packet.recovered.id=ID;},packet=>{packet.recovered.key=positiveOtherContract;},
+  packet=>{packet.recovered.batchId=ID;},packet=>{packet.recovered.bodySha256='b'.repeat(64);},
+  packet=>{packet.recovered.version='own-receipt-event.v0';},packet=>{packet.recovered.replayed=false;},
+  packet=>{packet.receipt.replayed=true;},packet=>{packet.recovered.body.params.contracts=[positiveOtherContract];},
+  packet=>{packet.recovered.body.reviewConfirmed=true;},packet=>{packet.recovered.actorLabel='Unexpected actor';},
+  packet=>{packet.receipt.actorLabel='Original synthetic actor';packet.recovered.actorLabel='Changed synthetic actor';},
+  packet=>{packet.recovered.extra=true;},packet=>{delete packet.recovered.batchId;},
+ ]){
+  const value=nativeUiReceiptRecoveryCase(),before=structuredClone(value);mutate(value.packet);
+  const altered=structuredClone(value);assert.throws(()=>nativeUiValidateReceiptRecovery(value));assert.deepEqual(value,altered);assert.notDeepEqual(value,before);
+ }
+});
+
+test('native UI receipt event recovery leaves every other command family under its original literal replay comparison',()=>{
+ for(const [kind,command]of [['novelty','prepare'],['close','close'],['liquidation','confirm']]){
+  const body=positiveBody(kind,command),packet=positivePacket(kind,body);
+  packet.receipt.recordedAt=packet.recovered.recordedAt='2026-10-17T16:11:52.249052+00:00';
+  validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target:positiveTarget});
+  packet.recovered.recordedAt='2026-10-17T13:11:52.249052-03:00';
+  assert.throws(()=>validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target:positiveTarget}));
+ }
 });

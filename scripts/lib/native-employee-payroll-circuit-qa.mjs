@@ -42,6 +42,23 @@ export function nativeEmployeePositiveUiAdapter(value,createViaUi){
  for(const name of ['command','preview','download'])assert.equal(typeof value[name],'function','QA_NATIVE_UI_ADAPTER_INCOMPLETE');
  assert.equal(typeof createViaUi,'function','QA_NATIVE_UI_CREATION_REQUIRED');return value;
 }
+// Compare only receipt-event offset notation semantically. No Date/Number
+// conversion of its fractional seconds: every nonzero digit remains exact.
+function nativeEmployeeUiInstant(value){
+ assert.equal(typeof value,'string','QA_NATIVE_UI_RECORDED_AT_INVALID');
+ const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/.exec(value);assert.ok(m,'QA_NATIVE_UI_RECORDED_AT_INVALID');
+ const [year,month,day,hour,minute,second]=m.slice(1,7).map(Number),leap=year%4===0&&(year%100!==0||year%400===0),months=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+ assert.ok(year>=1&&month>=1&&month<=12&&day>=1&&day<=months[month-1]&&hour<=23&&minute<=59&&second<=59,'QA_NATIVE_UI_RECORDED_AT_INVALID');
+ const offsetHour=m[8]==='Z'?0:Number(m[10]),offsetMinute=m[8]==='Z'?0:Number(m[11]);assert.ok(offsetHour<=23&&offsetMinute<=59,'QA_NATIVE_UI_RECORDED_AT_INVALID');
+ const prior=year-1,days=365*prior+Math.floor(prior/4)-Math.floor(prior/100)+Math.floor(prior/400)+months.slice(0,month-1).reduce((sum,n)=>sum+n,0)+day-1-719162,offset=(m[9]==='-'?-1:1)*(offsetHour*60+offsetMinute);
+ return {seconds:BigInt(days)*86400n+BigInt(hour*3600+minute*60+second-offset*60),fraction:(m[7]??'').replace(/0+$/,'')};
+}
+function nativeEmployeeUiRecoveredReceipt(receipt,recovered,kind){
+ const expected={...receipt,replayed:true};
+ if(kind!=='receipt'){assert.deepEqual(recovered,expected);return;}
+ assert.deepEqual(nativeEmployeeUiInstant(recovered.recordedAt),nativeEmployeeUiInstant(receipt.recordedAt),'QA_NATIVE_UI_RECORDED_AT_CHANGED');
+ assert.deepEqual(recovered,{...expected,recordedAt:recovered.recordedAt});
+}
 export function validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target}){
  assert.ok(packet&&typeof packet==='object'&&!Array.isArray(packet),'QA_NATIVE_UI_COMMAND_REQUIRED');
  assert.deepEqual(Object.keys(packet).sort(),['receipt','recovered','key','body','bodyText','browserPosts','recoveryGets','ackLostAfterCommit','committedStatus','postStatus','sameServer','authenticationFixture'].sort(),'QA_NATIVE_UI_COMMAND_EVIDENCE_INVALID');
@@ -49,7 +66,7 @@ export function validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target
  assert.equal(packet.browserPosts,1);assert.equal(packet.recoveryGets,1);assert.equal(packet.committedStatus,201);assert.equal(packet.postStatus,503);
  assert.match(packet.key,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i);
  const envelope=JSON.parse(packet.bodyText);assert.deepEqual(Object.keys(envelope).sort(),['operation','payload']);assert.equal(envelope.operation,kind==='run'?'calculate':'command');assert.deepEqual(envelope.payload,packet.body);
- assert.deepEqual(packet.receipt.body,packet.body);assert.equal(kind==='novelty'?packet.receipt.requestKey:packet.receipt.key,packet.key);assert.equal(packet.receipt.replayed,false);assert.deepEqual(packet.recovered,{...packet.receipt,replayed:true});
+ assert.deepEqual(packet.receipt.body,packet.body);assert.equal(kind==='novelty'?packet.receipt.requestKey:packet.receipt.key,packet.key);assert.equal(packet.receipt.replayed,false);nativeEmployeeUiRecoveredReceipt(packet.receipt,packet.recovered,kind);
  if(kind==='run'){
   ownRunCommand(packet.body);const {version,liquidationDate,...common}=packet.body;assert.equal(version,OWN_RUN_COMMAND_VERSION);assert.ok(liquidationDate.startsWith(body.period+'-'));assert.deepEqual(common,body,'QA_NATIVE_UI_COMMAND_BODY_CHANGED');
  }else assert.deepEqual(packet.body,body,'QA_NATIVE_UI_COMMAND_BODY_CHANGED');
