@@ -8,6 +8,7 @@ on:
       - scripts/verify-fleet-local-panel.mjs
       - scripts/install-pm10-owner-generation.mjs
       - tests/pm10-owner-installation.test.mjs
+      - tests/clock-linux-installer.test.mjs
       - .github/workflows/unified-clock-fleet.yml
   push:
     branches: [master, internal-unified-clock-fleet-20260923]
@@ -17,6 +18,7 @@ on:
       - docs/clock-windows-installer/**
       - scripts/install-pm10-owner-generation.mjs
       - tests/pm10-owner-installation.test.mjs
+      - tests/clock-linux-installer.test.mjs
       - docs/CLOCK_FLEET_UNIFIED_20260923.md
       - .github/workflows/unified-clock-fleet.yml
 permissions:
@@ -31,7 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +46,8 @@ jobs:
         run: node scripts/verify-fleet-local-panel.mjs --manifest-only
       - name: Verify conservative owner-generation installation against actual clock source
         run: node --test tests/pm10-owner-installation.test.mjs
+      - name: Verify Linux installer scheduler inventory without host mutation
+        run: node --test tests/clock-linux-installer.test.mjs
       - run: node scripts/verify-platform-baseline.mjs
       - run: node scripts/verify-friendly-containment.mjs
       # Keep isolated PDF workers within their production deadline on shared runners.
