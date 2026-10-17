@@ -253,3 +253,88 @@ test('bank-only workflow preserves the exact synthetic financial-tail output pat
   assert.ok(upload.includes('uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'));
   assert.ok(upload.includes('name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}'));
 });
+
+async function failedBankInstallation(error, diagnosticAlreadyExists = false) {
+  const { verifyNativeEmployeeBankTail } = await import('../scripts/lib/native-employee-bank-tail-qa.mjs');
+  const cases = new URL('../verification/native-bank-failure-qa/', import.meta.url);
+  fs.mkdirSync(cases, { recursive: true });
+  const output = fs.mkdtempSync(new URL('case-', cases));
+  const failureFile = new URL('native-bank-tail-failure.json', new URL('file:///' + output.replaceAll('\\', '/') + '/'));
+  if (diagnosticAlreadyExists) fs.writeFileSync(failureFile, 'existing diagnostic', { flag: 'wx' });
+  const prior = { identity: 'original synthetic actor' }; let current = prior, calls = 0;
+  const unexpected = () => { throw Error('transport must not run after failed installation'); };
+  await assert.rejects(verifyNativeEmployeeBankTail({
+    db: { run: async () => { calls++; current = { identity: 'interrupted actor' }; throw error; } },
+    qa: { normalized: value => value }, sourceCommit: '9'.repeat(40),
+    maker: {}, checker: {}, getCurrent: () => current, setCurrent: value => { current = value; },
+    journey: tailFixture().journey, transport: { nativeBankHttp: unexpected, nativeBankSources: unexpected, nativeBankControl: unexpected },
+    output, ok: unexpected, preserveOriginal: async () => ({ syntheticOriginal: true }),
+  }), rejected => rejected === error);
+  assert.equal(calls, 1, 'only the first native call was stubbed; no SQL was executed');
+  assert.equal(current, prior);
+  return diagnosticAlreadyExists ? fs.readFileSync(failureFile, 'utf8') : JSON.parse(fs.readFileSync(failureFile, 'utf8'));
+}
+
+test('real bank failure catch preserves numeric execFile code and stdout/stderr without copying code into status', async () => {
+  const error = new Error('failed canonical installation', { cause: {
+    stdout: 'native stdout', stderr: 'BANK_ACCOUNTS_PREREQUISITE_METADATA', code: 3,
+    env: { PRIVATE_TOKEN: 'must-not-copy' }, args: ['--private-argument'], cmd: 'private-command',
+    connectionString: 'postgres://private-connection', signal: 'private-signal', stack: 'private-stack',
+  } });
+  const failure = await failedBankInstallation(error);
+  assert.deepEqual(failure.native, { stdout: 'native stdout', stderr: 'BANK_ACCOUNTS_PREREQUISITE_METADATA', code: 3, status: null });
+  assert.equal(failure.phase, 'installation'); assert.equal(failure.status, 'failed');
+  for (const secret of ['must-not-copy', '--private-argument', 'private-command', 'private-connection', 'private-signal', 'private-stack']) assert.ok(!JSON.stringify(failure).includes(secret));
+});
+
+test('real bank failure catch retains missing native data as null rather than fabricated zero', async () => {
+  const failure = await failedBankInstallation(new Error('no native cause'));
+  assert.deepEqual(failure.native, { stdout: null, stderr: null, code: null, status: null });
+});
+
+test('real bank failure catch preserves native status separately from a safe symbolic code and empty output', async () => {
+  const error = new Error('native launch failure', { cause: { stdout: '', stderr: '', code: 'ENOENT', status: 3 } });
+  const failure = await failedBankInstallation(error);
+  assert.deepEqual(failure.native, { stdout: '', stderr: '', code: 'ENOENT', status: 3 });
+});
+
+test('a diagnostic write failure cannot replace the original installation failure', async () => {
+  const original = new Error('same original native error', { cause: { code: 3 } });
+  assert.equal(await failedBankInstallation(original, true), 'existing diagnostic');
+});
+
+test('native capability ACL extraction preserves only the two exact canonical007 clauses and rejects tampering', async () => {
+  const { nativeFixedCapabilityAcl } = await import('../scripts/verify-native-fixed-novelties-sql.mjs');
+  const canonical = fs.readFileSync(new URL('../scripts/migrations/007-action-center-read-facades.sql', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
+  const expected = ['REVOKE ALL ON FUNCTION action_center_context_has_capability(jsonb, text) FROM PUBLIC;', 'REVOKE ALL PRIVILEGES ON FUNCTION action_center_context_has_capability(jsonb, text)\n  FROM municontrol_actions_runtime_app;'];
+  assert.deepEqual(nativeFixedCapabilityAcl(canonical), expected);
+  assert.deepEqual(nativeFixedCapabilityAcl(canonical.replaceAll('\n', '\r\n')), expected);
+  for (const clause of expected) {
+    for (const tampered of [canonical.replace(clause, ''), canonical + '\n' + clause, canonical.replace(clause, clause.replace('REVOKE', 'GRANT'))]) assert.throws(() => nativeFixedCapabilityAcl(tampered), /QA_NATIVE_CAPABILITY_CANONICAL_ACL_CHANGED/);
+  }
+});
+
+for (const serverMajor of [17, 18]) test('native fixed PG' + serverMajor + ' setup restores canonical007 ACL after CREATE and before any native operation', async () => {
+  const { buildNativeFixedQa } = await import('../scripts/verify-native-fixed-novelties-sql.mjs');
+  const { createHash } = await import('node:crypto');
+  const canonical = fs.readFileSync(new URL('../scripts/migrations/007-action-center-read-facades.sql', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
+  const name = 'action_center_context_has_capability', start = canonical.indexOf('CREATE OR REPLACE FUNCTION ' + name + '('), tag = canonical.indexOf('$$', start), end = canonical.indexOf(';', canonical.indexOf('$$', tag + 2));
+  const definition = canonical.slice(start, end + 1), qa = buildNativeFixedQa({ serverMajor });
+  const publicClause = 'REVOKE ALL ON FUNCTION ' + name + '(jsonb, text) FROM PUBLIC;';
+  const runtimeClause = 'REVOKE ALL PRIVILEGES ON FUNCTION ' + name + '(jsonb, text)\n  FROM municontrol_actions_runtime_app;';
+  const setup = qa.qaFoundation.setup, create = setup.indexOf('CREATE OR REPLACE FUNCTION ' + name + '(');
+  const revokedPublic = setup.indexOf(publicClause), revokedRuntime = setup.indexOf(runtimeClause), nextOperation = setup.indexOf('CREATE TRIGGER employment_contract_batch_system');
+  assert.ok(create >= 0 && revokedPublic > create && revokedRuntime > revokedPublic && nextOperation > revokedRuntime);
+  assert.equal(setup.split(publicClause).length, 2); assert.equal(setup.split(runtimeClause).length, 2);
+  assert.ok(setup.slice(create, revokedPublic).includes("SELECT COALESCE(p_context->'capabilities', '[]'::jsonb) ? p_capability"));
+  const report = qa.report.originalHelpers.find(helper => helper.name === name);
+  assert.equal(report.file, '007-action-center-read-facades.sql');
+  assert.equal(report.sha256, createHash('sha256').update(definition).digest('hex'));
+});
+
+test('native failure projection keeps only typed cause fields and distinguishes missing data from actual zero', async () => {
+  const { nativeBankFailureNative } = await import('../scripts/lib/native-employee-bank-tail-qa.mjs');
+  assert.deepEqual(nativeBankFailureNative(new Error('no cause')), { stdout: null, stderr: null, code: null, status: null });
+  assert.deepEqual(nativeBankFailureNative({ cause: { stdout: '', stderr: '', code: 0, status: 0 } }), { stdout: '', stderr: '', code: 0, status: 0 });
+  assert.deepEqual(nativeBankFailureNative({ cause: { stdout: {}, stderr: [], code: 'postgres://must-not-copy', status: '3', env: { secret: true }, args: ['private'] } }), { stdout: null, stderr: null, code: null, status: null });
+});

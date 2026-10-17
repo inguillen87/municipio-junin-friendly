@@ -18,6 +18,11 @@ function original(file,name){
  const a=s.indexOf('$$',m.index),b=s.indexOf('$$',a+2),e=s.indexOf(';',b+2);
  assert.ok(a>m.index&&b>a&&e>b);return s.slice(m.index,e+1);
 }
+export function nativeFixedCapabilityAcl(source){
+ assert.equal(typeof source,'string');const canonical=source.replace(/\r\n?/g,'\n');
+ const clauses=['REVOKE ALL ON FUNCTION action_center_context_has_capability(jsonb, text) FROM PUBLIC;','REVOKE ALL PRIVILEGES ON FUNCTION action_center_context_has_capability(jsonb, text)\n  FROM municontrol_actions_runtime_app;'];
+ return clauses.map(clause=>{assert.equal(canonical.split(clause).length,2,'QA_NATIVE_CAPABILITY_CANONICAL_ACL_CHANGED');const start=canonical.indexOf(clause);return canonical.slice(start,start+clause.length);});
+}
 export function buildNativeFixedQa({serverMajor,requireConcurrency=false}){
  const base=buildFixedNoveltiesQa({serverMajor,requireConcurrency});
  const {schema,ids}=base;
@@ -27,6 +32,7 @@ export function buildNativeFixedQa({serverMajor,requireConcurrency=false}){
   .replaceAll("'public'::regnamespace",q(schema)+'::regnamespace')
   .replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,`SET search_path=pg_catalog,${schema},public,pg_temp`);
  const originals=[['002-canonical-integration.sql','normalize_digits'],['002-canonical-integration.sql','is_valid_cuil'],['002-canonical-integration.sql','reject_immutable_source_change'],['002-canonical-integration.sql','validate_source_batch_system'],['007-action-center-read-facades.sql','action_center_assert_tenant_read_session_v2'],['007-action-center-read-facades.sql','action_center_context_has_capability']].map(([file,name])=>({file,name,sql:original(file,name)}));
+ const capabilityAcl=nativeFixedCapabilityAcl(fs.readFileSync(path.join(dir,'007-action-center-read-facades.sql'),'utf8'));
  const setup=`
  ALTER TABLE internal_users ADD COLUMN display_name text;
  ALTER TABLE person_identity ADD COLUMN dni text,ADD COLUMN cuil text UNIQUE,ADD COLUMN birth_date date,ADD COLUMN sex_code text,ADD COLUMN identity_state text DEFAULT 'active';
@@ -39,6 +45,7 @@ export function buildNativeFixedQa({serverMajor,requireConcurrency=false}){
  CREATE TABLE iam_role(role_key text,scope_kind text);
  CREATE TABLE iam_role_capability(role_key text,capability_key text);
  ${originals.map(x=>relocate(x.sql)).join('\n')}
+ ${capabilityAcl.map(relocate).join('\n')}
  CREATE TRIGGER employment_contract_batch_system BEFORE INSERT OR UPDATE ON employment_contract FOR EACH ROW EXECUTE FUNCTION validate_source_batch_system();
  INSERT INTO grh_catalog_rows VALUES
  (92001,'agreements','1','Convenio de ensayo','{"sourceKey":{"agreementCode":"1"}}'),

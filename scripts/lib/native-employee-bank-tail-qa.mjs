@@ -88,6 +88,10 @@ import {createBankControlCsv,createBankControlXlsx} from '../../assets/own-bank-
 import {syntheticBankAccountsDefinition} from '../../tests/fixtures/own-bank-accounts-synthetic.js';
 const bankHash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const bankRoot=path.resolve(import.meta.dirname,'../..');
+export function nativeBankFailureNative(error){
+ const cause=error?.cause,code=cause?.code;
+ return {stdout:typeof cause?.stdout==='string'?cause.stdout:null,stderr:typeof cause?.stderr==='string'?cause.stderr:null,code:Number.isSafeInteger(code)||typeof code==='string'&&/^[A-Z][A-Z0-9_]{0,63}$/.test(code)?code:null,status:Number.isSafeInteger(cause?.status)?cause.status:null};
+}
 export function createNativeBankQaSql(db,qa){
  assert.match(qa.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);
  const statements=new Map([['SELECT public.own_bank_accounts_bootstrap_v1($1::jsonb) AS result',1],['SELECT public.own_bank_accounts_detail_v1($1::jsonb,$2::uuid) AS result',2],['SELECT public.own_bank_accounts_attempt_v1($1::jsonb,$2::uuid) AS result',2],['SELECT public.own_bank_accounts_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',3]]);
@@ -140,5 +144,5 @@ export async function verifyNativeEmployeeBankTail({db,qa,sourceCommit,maker,che
   write('native-bank-tail-source-conservation.json',{before:first,after:finalSources,batchSnapshotUnchanged:true,allCloseSnapshotsUnchanged:true,original29Preserved:true});
   const proof={version:'native-employee-bank-tail-proof.v1',status:'assertions_completed_pending_outer_cleanup',outerResult:'result.json',contractId:journey.contractId,registrationId:journey.registrationId,runId:journey.secondRunId,liquidationVersion:2,closeGroupId:journey.closeGroupId,closeSnapshotSha256:selectedClose.snapshotSha256,receiptBatchId:journey.receiptBatchId,receiptSnapshotSha256:journey.receiptSnapshotSha256,receiptSources:sources.batch.snapshot.sources,sourceConservation:'native-bank-tail-source-conservation.json',sixTotals:sources.batch.snapshot.records[0].totals,recordCount:1,populationCount:selectedClose.snapshot.populationCount,populationComplete:selectedClose.snapshot.populationComplete,accountProposalId:proposed.data.proposalId,accountApprovalId:approved.data.eventId,accountConfigurationVersion:sources.accounts.configuration.version,accountConfigurationRevision:1,profile,commands,bankLedger,controlFingerprint:review.fingerprint,controlReady:review.ready,rowIssues:review.rows.map(r=>r.issues),totalCents:review.totalCents,expectedFiles,ui,installation,original29Preserved:true,additionalHire:false,authenticationFixture:true,accountCommandsUi:false,accountCommandsHttp:true,bankControlUi:true,bankControlHttp:true,bankSubmitted:false,paymentExecuted:false,municipalAcceptance:false};
   write('native-bank-tail-proof.json',proof);return proof;
- }catch(error){write('native-bank-tail-failure.json',{phase,message:error.message,status:'failed',contractId:journey.contractId,closeGroupId:journey.closeGroupId,receiptBatchId:journey.receiptBatchId,commands,municipalAcceptance:false});throw error;}finally{setCurrent(priorActor);}
+ }catch(error){try{write('native-bank-tail-failure.json',{phase,message:error.message,status:'failed',native:nativeBankFailureNative(error),contractId:journey.contractId,closeGroupId:journey.closeGroupId,receiptBatchId:journey.receiptBatchId,commands,municipalAcceptance:false});}finally{throw error;}}finally{setCurrent(priorActor);}
 }
