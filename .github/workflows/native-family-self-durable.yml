@@ -1,0 +1,114 @@
+name: Native family self service durable195
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**native-family**'
+      - 'scripts/verify-native-leave-sql.mjs'
+      - 'scripts/verify-native-self-sql.mjs'
+      - 'scripts/migrations/057-*.sql'
+      - 'scripts/migrations/064-*.sql'
+      - 'scripts/migrations/091-*.sql'
+      - 'scripts/migrations/094-*.sql'
+      - 'scripts/migrations/102-*.sql'
+      - 'scripts/migrations/113-*.sql'
+      - 'scripts/migrations/195-*.sql'
+      - 'scripts/lib/municipal-owner-adoption-qa-transport.mjs'
+      - 'scripts/lib/noelia-circuit-runtime.mjs'
+      - 'centro-acciones.html'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/lib/friendly-built-page-recipe.mjs'
+      - 'scripts/apply-friendly-social-metadata.mjs'
+      - 'assets/app-routes.js'
+      - 'assets/pwa/**'
+      - 'package*.json'
+      - '.github/workflows/native-family-self-durable.yml'
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: PostgreSQL ${{ matrix.pg }} durable195
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports:
+          - ${{ matrix.pg == 17 && '55417:5432' || '55418:5432' }}
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Synthetic service bootstrap only
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: >-
+          /usr/bin/psql --no-psqlrc --no-password --host=127.0.0.1
+          --port=${{ matrix.pg == 17 && 55417 || 55418 }} --username=postgres
+          --dbname=own_payroll_run_qa --set=ON_ERROR_STOP=1
+          --command="CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;"
+      - name: Focal and transport regression
+        run: >-
+          node --test tests/native-family-requests.test.js tests/native-family-requests-api.test.js
+          tests/native-family-self-installation.test.js tests/native-family-request-client.test.js
+          tests/native-family-request-panel.test.js tests/native-family-self-durable-qa.test.js
+          tests/native-family-self-built-recipe.test.js
+          tests/native-family-self-durable-workflow.test.js tests/native-family-self-durable-browser.test.js
+          tests/native-family-self-durable-http.test.js tests/municipal-owner-adoption-qa-transport.test.js
+      - name: Build exact product assets
+        run: node scripts/build-friendly.mjs
+      - name: Prepare and verify project Chromium
+        run: |
+          npx --no-install playwright install --with-deps chromium
+          mkdir -p verification
+          node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Retained710 and committed HTTP integration
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: >-
+          node scripts/verify-native-family-self-durable.mjs --transport=ci
+          --major=${{ matrix.pg }} --source-commit=${{ github.sha }}
+          --output=verification/native-family-durable-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: native-family-durable-pg${{ matrix.pg }}-${{ github.sha }}
+          path: |
+            verification/native-family-durable-pg${{ matrix.pg }}/
+            verification/release-chromium-*/installation.json
+          if-no-files-found: error
+  built-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-friendly.mjs
+      - run: node scripts/verify-native-family-self-built.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: native-family-built-${{ github.sha }}
+          path: verification/native-family-built/
+          if-no-files-found: error
