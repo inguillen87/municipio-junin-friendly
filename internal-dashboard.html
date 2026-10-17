@@ -2875,6 +2875,66 @@
         }
       }
 
+      function renderNativeEmployeeActions(employee) {
+        const section = create('section', 'employee-quick-actions');
+        section.setAttribute('aria-labelledby', 'nativeEmployeeActionsTitle');
+        const heading = create('h3', '', 'Continuar con este legajo');
+        heading.id = 'nativeEmployeeActionsTitle';
+        const help = create('p', '', 'Consultá o prepará las novedades de este legajo.');
+        help.id = 'nativeEmployeeActionsHelp';
+        const actions = create('div', 'button-row');
+        const contractId = employee.contractId;
+        const requiredRead = ['workforce.employee.read', 'payroll.novelty.read', 'payroll.novelty.nominal.read'];
+        let capabilities = new Set(state.tenantCapabilities);
+        let closed = false;
+        const identityCurrent = () => employee.recordOrigin === 'MUNICONTROL'
+          && typeof contractId === 'string' && employee.contractId === contractId
+          && /^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId);
+        const allowed = capability => !closed && !document.hidden && els.employeeDialog.open
+          && identityCurrent() && requiredRead.every(value => capabilities.has(value)) && capabilities.has(capability);
+        const entries = [
+          { label: 'Preparar novedad mensual', capability: 'payroll.novelty.prepare', parameter: 'monthlyContractId', fragment: 'nativeMonthlyPanel' },
+          { label: 'Abrir novedades fijas', capability: 'payroll.fixed.prepare', parameter: 'fixedContractId', fragment: 'fixedNovelties' }
+        ];
+        for (const entry of entries) {
+          const button = create('button', entry.parameter === 'monthlyContractId' ? 'button primary' : 'button', entry.label);
+          button.type = 'button';
+          button.setAttribute('aria-describedby', help.id);
+          button.dataset.nativeNovelty = entry.parameter;
+          button.addEventListener('click', function () {
+            if (!section.isConnected || !allowed(entry.capability)) return;
+            const target = 'novedades-nomina.html?' + entry.parameter + '=' + encodeURIComponent(contractId) + '#' + entry.fragment;
+            location.assign(target);
+          });
+          entry.button = button;
+          actions.appendChild(button);
+        }
+        function controls() {
+          for (const entry of entries) {
+            entry.button.disabled = !allowed(entry.capability);
+            entry.button.title = !identityCurrent() ? 'No se pudo verificar este legajo. Volvé a consultar su ficha.'
+              : closed || document.hidden || !els.employeeDialog.open ? 'Volvé a abrir la ficha para continuar.'
+              : entry.button.disabled ? 'Tu cuenta no permite abrir estas novedades.' : 'Abrir novedades de este legajo';
+          }
+        }
+        function permissionsChanged(event) {
+          const values = event.detail?.tenantCapabilities;
+          capabilities = values instanceof Set || Array.isArray(values) ? new Set(values) : new Set();
+          controls();
+        }
+        function close() {
+          closed = true;
+          controls();
+          document.removeEventListener('municontrol:capabilities-ready', permissionsChanged);
+          document.removeEventListener('mc:native-employment-change-close', close);
+        }
+        section.append(heading, help, actions);
+        document.addEventListener('municontrol:capabilities-ready', permissionsChanged);
+        document.addEventListener('mc:native-employment-change-close', close);
+        controls();
+        return section;
+      }
+
       function renderEmployeeQuickActions(employee) {
         const section = create('section', 'employee-quick-actions');
         section.setAttribute('aria-labelledby', 'employeeQuickActionsTitle');
@@ -3743,6 +3803,7 @@
           const adopted=detail.meta.history?.readOnly===true && employee.history?.readOnly===true;
           els.dialogSubtitle.textContent = 'Legajo ' + legajo + (adopted ? ' · Registro municipal con antecedentes migrados' : ' · Alta propia de MuniControl');
           if(adopted)els.dialogBody.appendChild(create('p','notice','El legajo pertenece al registro municipal. Los antecedentes migrados se conservan sólo para consulta; no generan novedades, certificados, derechos ni liquidaciones.'));
+          els.dialogBody.appendChild(renderNativeEmployeeActions(employee));
           els.dialogBody.appendChild(detailSection('Datos personales', adopted ? 'Identidad conservada en la adopción municipal, sin crear otra persona.' : 'Identidad declarada en el alta. No se generó un registro ficticio de GRH.', [
             detailField('Legajo',employee.legajo),detailField('Apellido y nombres',employee.nombre),detailField('DNI',employee.dni),detailField('CUIL',employee.cuil),
             detailField('Nacimiento',employee.fechaNacimiento,formatDate),detailField('Sexo registrado',employee.sexo)
