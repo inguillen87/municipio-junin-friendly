@@ -1,6 +1,6 @@
 import test from'node:test';import assert from'node:assert/strict';import{createHash}from'node:crypto';
-import{inventoryOwnPayrollSourceEvidenceV2,OWN_SOURCE_EVIDENCE_AGREEMENTS}from'../lib/own-payroll-source-evidence-inventory-v2.js';
-import{reviewOwnPayrollProgrammeSource,ownProgrammeSourceReviewHash as hash,OWN_PROGRAMME_SOURCE_REVIEW_VERSION as VERSION,OWN_PROGRAMME_SOURCE_REVIEW_LIMITS as LIMITS}from'../lib/own-payroll-programme-source-review.js';
+import{inventoryOwnPayrollSourceEvidenceV2,OWN_SOURCE_EVIDENCE_VERSION,OWN_SOURCE_EVIDENCE_AGREEMENTS}from'../lib/own-payroll-source-evidence-inventory-v2.js';
+import{reviewOwnPayrollProgrammeSource,verifyOwnPayrollProgrammeSourceProjection,ownProgrammeSourceReviewHash as hash,OWN_PROGRAMME_SOURCE_REVIEW_VERSION as VERSION,OWN_PROGRAMME_SOURCE_REVIEW_LIMITS as LIMITS}from'../lib/own-payroll-programme-source-review.js';
 import{OWN_PROGRAMME_SOURCE_VERSION}from'../lib/own-payroll-programme-source-preparation.js';
 import{salaryItems,SALARY_VERSION}from'../assets/native-salary-catalog-model.js';import{OWN_PROGRAM_VERSION}from'../assets/own-payroll-program-model.js';import{OWN_PAYROLL_NAMESPACE_VERSION}from'../assets/own-payroll-engine.js';
 const sha=s=>createHash('sha256').update(s).digest('hex'),h=c=>c.repeat(64),clone=structuredClone;
@@ -19,13 +19,31 @@ const rowDefinition=row=>({kind:row.table==='auxical'?'auxiliary':'concept',agre
 const salaryRow=d=>({kind:d.kind,agreementCode:d.agreementCode,categoryCode:null,code:d.code,label:d.label,active:d.active,nature:d.nature,unit:d.kind==='concept'?d.quantityUnit:d.outputUnit,precision:d.precision,validFrom:d.validFrom,validUntil:d.validUntil,value:d.value,dependencies:d.dependencies,ruleReference:d.ruleReference});
 function fixture(options={}){
  const companyId=options.companyId??'1',selectedAuxId=`auxical:${options.selectForeignAux?(companyId==='101'?'1':'101'):companyId}:1:2`;
- const cfg=configuration(options),e=inventoryOwnPayrollSourceEvidenceV2({configurationText:JSON.stringify(cfg),companyId,metadataSets:[]}),selected=e.rows.filter(r=>r.table==='codliq'&&(options.all14||r.agreement==='1')||options.selectedAux&&r.id===selectedAuxId),defs=selected.map(rowDefinition);if(options.selectedAux)defs[0].expression={op:'auxiliary',code:'2',stage:'exact'};const items=salaryItems(defs.map(salaryRow));
+ const cfg=configuration(options);if(options.metadataRows){const t=cfg.tables.find(t=>t.table==='concepto');for(let i=0;i<options.metadataRows;i++)t.rows.push({CODI_27:String(500+i),DETA_15:'x'.repeat(options.metadataTextBytes??1)});t.rowCount=t.rows.length;}const e=inventoryOwnPayrollSourceEvidenceV2({configurationText:JSON.stringify(cfg),companyId,metadataSets:[]}),selected=e.rows.filter(r=>r.table==='codliq'&&(options.all14||r.agreement==='1')||options.selectedAux&&r.id===selectedAuxId),defs=selected.map(rowDefinition);if(options.selectedAux)defs[0].expression={op:'auxiliary',code:'2',stage:'exact'};const items=salaryItems(defs.map(salaryRow));
  const p={version:OWN_PROGRAMME_SOURCE_VERSION,salary:{version:SALARY_VERSION,scopeVersion:h('b'),classification:{version:h('c'),items:[]},catalog:{version:h('d'),revision:1,items:clone(items)},proposals:[],complete:true,permissions:{canPropose:true,canReview:false},payrollCalculated:false,payrollPosted:false},programme:{version:OWN_PROGRAM_VERSION,scopeVersion:h('b'),salaryCatalog:{version:h('d'),revision:1,items:clone(items)},program:{version:h('e'),revision:0,definition:null,salaryVersion:null,proposalId:null,approvalId:null},proposals:[],permissions:{canPropose:true,canReview:false},payrollCalculated:false,payrollPosted:false},period:'2026-10',agreementCodes:[...new Set(defs.map(d=>d.agreementCode))],source:{sha256:e.sourceSha256,complete:true,expectedDefinitions:defs.length},definitions:defs,bindings:[],programmeOptions:{namespaceVersion:OWN_PAYROLL_NAMESPACE_VERSION},totalsPrecision:2};
  const selectedIds=new Set(selected.map(r=>r.id)),d={version:VERSION,period:p.period,scope:{kind:'explicit_complete_native_closure',complete:true,expectedDefinitions:defs.length,reason:'Alcance sintético expresamente limitado y revisado'},rows:e.rows.map(r=>({rowId:r.id,rowSha256:r.sourceMetadata.rowSha256,definitionSha256:r.definitionSha256,disposition:selectedIds.has(r.id)?'native_definition':['concepto','calauxi'].includes(r.table)?'metadata_only':'out_of_scope',reason:'Disposición de fila sintética explícita'})),representations:e.representations.map(c=>({id:c.rowId+'/'+c.infixField+'/'+c.postfixField,comparisonSha256:hash(c),selectedField:options.selectedAux&&c.rowId===selectedAuxId&&c.infixField==='ALGV_77'?'ALGV_77':null,reason:'Alternativas conservadas con decisión sintética expresa'})),definitions:selected.map((r,i)=>({rowId:r.id,nativeIdentity:`${defs[i].kind}:${r.agreement}:${defs[i].code}`,nativeDefinitionSha256:hash(defs[i]),reason:'Autoría tipada sintética; no adjudica el intérprete histórico',fields:e.expressions.filter(x=>x.rowId===r.id).map(x=>({field:x.field,state:x.state,sourceTextSha256:x.sourceTextSha256,sourceValueJsonSha256:x.sourceValueJsonSha256,astSha256:hash({rawAst:x.rawAst,normalizedAst:x.normalizedAst}),role:x.field===(r.table==='codliq'?'FOVM_27':'ALGV_77')?'amount':'not_used',reason:'Rol de campo sintético explícito'}))})),bindings:[],totalsPolicy:{precision:2,sourceSha256:h('f'),reason:'Política de totales sintética expresamente declarada'}};
  const evidenceText=JSON.stringify(e);return{version:VERSION,evidenceText,evidenceSha256:sha(evidenceText),sourcePins:{sourceSha256:e.sourceSha256,configurationSha256:e.configurationSha256,companyId:e.companyId},decisions:d,preparation:p};
 }
 function pinNative(f){for(const d of f.decisions.definitions)d.nativeDefinitionSha256=hash(f.preparation.definitions.find(n=>`${n.kind}:${n.agreementCode}:${n.code}`===d.nativeIdentity));}
-const codes=r=>r.incidents.map(i=>i.code),review=f=>reviewOwnPayrollProgrammeSource(f);
+const codes=r=>r.incidents.map(i=>i.code);
+const controlOf=f=>({version:f.version,evidenceSha256:f.evidenceSha256,sourcePins:f.sourcePins,decisions:f.decisions,preparation:f.preparation});
+const expectedPinsOf=f=>({sha256:f.evidenceSha256,bytes:Buffer.byteLength(f.evidenceText),version:OWN_SOURCE_EVIDENCE_VERSION,...f.sourcePins});
+const project=f=>reviewOwnPayrollProgrammeSource(f);
+const verify=(f,projection)=>verifyOwnPayrollProgrammeSourceProjection({evidenceText:f.evidenceText,expectedEvidencePins:expectedPinsOf(f),expectedControlSha256:hash(controlOf(f)),projection});
+function deepFreeze(v){if(v&&typeof v==='object'){Object.values(v).forEach(deepFreeze);Object.freeze(v);}return v;}
+// Resolve indexed source only inside synthetic tests, preserving the earlier
+// logical assertions without pretending the v2 product returns inline raw rows.
+function logicalView(f,p){
+ const e=JSON.parse(f.evidenceText),index=p.provenanceIndex;
+ const resolve=(values,refs)=>refs.map(ref=>{assert.equal(hash(values[ref.at]),ref.sha256);return values[ref.at];});
+ const rows=resolve(e.rows,index.rows).map((r,i)=>({...r,sourceRow:r.sourceMetadata.row,decision:index.rows[i].decision===null?null:p.controlRecord.decisions.rows[index.rows[i].decision]}));
+ const expressions=resolve(e.expressions,index.cells),comparisons=resolve(e.representations,index.comparisons);
+ for(const [key,ref]of Object.entries(index.componentRoots)){assert.equal(ref.pointer,'/'+key);assert.equal(ref.sha256,hash(e[key]));}
+ if(p.completeness.allControlEntriesAccounted)assert.equal(verify(f,p).verified,true);
+ return deepFreeze({...p,scope:p.controlRecord.decisions.scope,rows,expressions,comparisons,sourceAudit:e.audit,sourceCoverage:e.coverage,sourceSummary:e.summary,sourcePolicies:e.unresolvedPolicies,sourceCapacity:e.programmeCapacity,sourceMetadataSets:e.metadataSets,comparisonDecisions:p.controlRecord.decisions.representations,definitionDecisions:p.controlRecord.decisions.definitions,bindingDecisions:p.controlRecord.decisions.bindings,totalsPolicy:p.controlRecord.decisions.totalsPolicy,preparation:p.preparationResult});
+}
+const review=f=>logicalView(f,project(f));
+
 function replaceEvidence(f,fn){const e=JSON.parse(f.evidenceText);fn(e);f.evidenceText=JSON.stringify(e);f.evidenceSha256=sha(f.evidenceText);return e;}
 
 test('complete typed decisions yield only the existing immutable proposal draft and retain every last source row',()=>{
@@ -76,9 +94,63 @@ test('canonical changed bootstrap and revoked proposal permissions remain author
 test('12MiBcontrol/preparer and16MiBoutput limits stay fixed; a too-large complete input is rejected whole',()=>{
  assert.equal(LIMITS.preparationBytes,12*1024*1024);assert.equal(LIMITS.outputBytes,16*1024*1024);const f=fixture();f.preparation.unexpectedPadding='x'.repeat(12*1024*1024);assert.throws(()=>review(f),/SOURCE_REVIEW_CONTROL_LIMIT/);assert.equal(f.decisions.rows.length,30);assert.equal(f.decisions.representations.length,42);
 });
-test('a complete synthetic review exceeding16MiB fails as a whole and retains its last source row',()=>{
- const f=fixture();replaceEvidence(f,e=>{const template=e.rows.find(r=>r.table==='concepto');for(let i=0;i<270;i++){const row=clone(template),code=String(500+i);row.id='concepto:'+code;row.key={CODI_27:code};row.metadata={DETA_15:'x'.repeat(64000)};row.expressions={};row.sourceMetadata.row={CODI_27:code,DETA_15:row.metadata.DETA_15};row.sourceMetadata.rowSha256=hash(row.sourceMetadata.row);row.definitionSha256=hash({key:row.key,metadata:row.metadata,expressions:row.expressions});e.rows.push(row);f.decisions.rows.push({rowId:row.id,rowSha256:row.sourceMetadata.rowSha256,definitionSha256:row.definitionSha256,disposition:'metadata_only',reason:'Metadato sintético completo, sin recorte'});}e.summary.sourceRows=e.rows.length;});assert.throws(()=>review(f),/SOURCE_REVIEW_OUTPUT_LIMIT/);assert.equal(f.decisions.rows.length,300);assert.equal(f.decisions.rows.at(-1).rowId,'concepto:769');
+test('complete synthetic evidence above16MiB yields a bounded full index retaining the last source row',()=>{
+ const f=fixture({metadataRows:270,metadataTextBytes:64000}),e=JSON.parse(f.evidenceText),p=project(f);
+ assert.ok(Buffer.byteLength(f.evidenceText)>16*1024*1024);assert.equal(e.rows.length,300);assert.equal(p.provenanceIndex.rows.length,300);assert.equal(p.provenanceIndex.cells.length,e.expressions.length);assert.equal(p.provenanceIndex.comparisons.length,e.representations.length);assert.ok(Buffer.byteLength(JSON.stringify(p))<1024*1024);assert.equal(verify(f,p).verified,true);assert.equal(e.rows.at(-1).id,'calauxi:1:2');assert.equal(e.rows.find(r=>r.id==='concepto:769').sourceMetadata.row.DETA_15.length,64000);assert.equal(p.provenanceIndex.rows.at(-1).sha256,hash(e.rows.at(-1)));assert.equal(p.controlRecord.decisions.rows.length,e.rows.length);
 });
 test('duplicate JSON keys, accessors, toJSON and executable evidence flags fail without invoking supplied code',()=>{
  const a=fixture();a.evidenceText=a.evidenceText.replace('{','{"version":"fake",');a.evidenceSha256=sha(a.evidenceText);assert.throws(()=>review(a),/SOURCE_REVIEW_EVIDENCE_JSON_INVALID/);let calls=0;const b=fixture();Object.defineProperty(b.decisions,'trap',{enumerable:true,get(){calls++;throw Error('executed');}});assert.throws(()=>review(b),/SOURCE_REVIEW_CONTROL_INVALID/);assert.equal(calls,0);const c=fixture();c.decisions.toJSON=()=>{calls++;return{};};assert.throws(()=>review(c),/SOURCE_REVIEW_CONTROL_INVALID/);assert.equal(calls,0);const d=fixture();replaceEvidence(d,e=>e.approved=true);assert.throws(()=>review(d),/SOURCE_REVIEW_EVIDENCE_INVALID/);
 });
+
+test('v2 is explicit and all complete source and decision references resolve without copying raw source into the result',()=>{
+ const f=fixture({conflicts92:true,unresolvedOutside:true}),before=clone(f),p=project(f),e=JSON.parse(f.evidenceText);
+ assert.equal(p.version,'own-payroll-programme-source-review.v2');assert.equal(p.projectionVersion,'own-payroll-source-provenance-index.v1');
+ for(const field of['rows','expressions','comparisons','sourceAudit','sourceCoverage','preparation'])assert.equal(Object.hasOwn(p,field),false);
+ assert.equal(p.provenanceIndex.rows.length,e.rows.length);assert.equal(p.provenanceIndex.cells.length,e.expressions.length);assert.equal(p.provenanceIndex.comparisons.length,93);
+ assert.equal(p.provenanceIndex.audit.diagnostics.length,e.audit.diagnostics.length);assert.equal(p.provenanceIndex.cellDiagnostics.length,e.expressions.reduce((n,x)=>n+x.diagnostics.length,0));
+ const pointer=(doc,ref)=>ref.split('/').slice(1).reduce((v,key)=>v[key.replaceAll('~1','/').replaceAll('~0','~')],doc);
+ for(const ref of p.provenanceIndex.decisions)assert.equal(hash(pointer(p.controlRecord,ref.pointer)),ref.sha256);
+ for(const [key,refs]of Object.entries(p.provenanceIndex.audit))refs.forEach(ref=>assert.equal(ref.sha256,hash(e.audit[key][ref.at])));
+ for(const ref of p.provenanceIndex.cellDiagnostics)assert.equal(ref.sha256,hash(e.expressions[ref.cell].diagnostics[ref.at]));
+ assert.deepEqual(p.controlRecord,controlOf(f));assert.equal(p.pins.controlSha256,hash(controlOf(f)));assert.equal(verify(f,p).verified,true);assert.deepEqual(project(f),p);assert.deepEqual(f,before);assert.ok(Object.isFrozen(p.provenanceIndex.cells.at(-1)));assert.ok(Object.isFrozen(p.controlRecord.decisions));
+ assert.equal(JSON.stringify(p).includes('Sólo metadato sintético'),false);
+});
+test('the verifier recomputes all status, typed result, flags, pins, capacity and extras despite a recalculated exterior digest',()=>{
+ const f=fixture(),original=project(f),mutations=[
+  p=>p.status='not_presentable',p=>p.preparationResult.draft.definitions.at(-1).label='Resultado adulterado',
+  p=>p.preparationResult.draft.typedRules.at(-1).extra='adulterado',p=>p.preparationResult.status='not_presentable',
+  p=>p.pins.nativeInputSha256=h('0'),p=>p.capacity.preparationBytes++,p=>p.extra=true,
+  ...['approved','executable','payrollCalculated','payrollPosted','remoteAuthorization'].map(key=>p=>p[key]=true)
+ ];
+ for(const mutate of mutations){const forged=clone(original);mutate(forged);const recalculatedExterior=hash(forged);assert.notEqual(recalculatedExterior,hash(original));assert.throws(()=>verify(f,forged),/SOURCE_REVIEW_PROJECTION_CHANGED/);}
+});
+test('last source and native incidents cannot be removed or changed while source/control/index remain valid',()=>{
+ const f=fixture();f.preparation.definitions[0].rounding=null;pinNative(f);const p=project(f);assert.ok(p.incidents.length);assert.ok(p.preparationResult.incidents.length);
+ for(const mutate of[x=>x.incidents.at(-1).code='FORGED',x=>x.incidents.pop(),x=>x.preparationResult.incidents.at(-1).code='FORGED']){const forged=clone(p);mutate(forged);assert.notEqual(hash(forged),hash(p));assert.throws(()=>verify(f,forged),/SOURCE_REVIEW_PROJECTION_CHANGED/);}
+});
+test('every last reference and diagnostic is bound; a valid earlier record hash cannot substitute the omitted last one',()=>{
+ const f=fixture({unresolvedOutside:true}),p=project(f);
+ const mutations=[x=>x.provenanceIndex.rows.pop(),x=>x.provenanceIndex.cells.pop(),x=>x.provenanceIndex.comparisons.pop(),x=>x.provenanceIndex.decisions.pop(),x=>x.provenanceIndex.audit.expressions.pop(),x=>x.provenanceIndex.cellDiagnostics.pop(),x=>x.provenanceIndex.context.requestedAgreements.pop(),x=>{x.provenanceIndex.rows.at(-1).at=x.provenanceIndex.rows[0].at;x.provenanceIndex.rows.at(-1).sha256=x.provenanceIndex.rows[0].sha256;}];
+ for(const mutate of mutations){const forged=clone(p);mutate(forged);assert.notEqual(hash(forged),hash(p));assert.throws(()=>verify(f,forged),/SOURCE_REVIEW_PROJECTION_CHANGED/);}
+});
+test('missing source, raw hash/bytes/context changes, altered controls and incomplete controls reject whole verification',()=>{
+ const f=fixture(),p=project(f),input={evidenceText:f.evidenceText,expectedEvidencePins:expectedPinsOf(f),expectedControlSha256:hash(controlOf(f)),projection:p};
+ for(const mutate of[x=>x.evidenceText=null,x=>x.evidenceText+=' ',x=>x.expectedEvidencePins.bytes++,x=>x.expectedEvidencePins.companyId='101',x=>x.expectedControlSha256=h('0')]){const v=clone(input);mutate(v);assert.throws(()=>verifyOwnPayrollProgrammeSourceProjection(v),/SOURCE_REVIEW_(?:EVIDENCE_LIMIT|EVIDENCE_CHANGED|CONTEXT_CHANGED|CONTROL_CHANGED)/);}
+ const forged=clone(p);forged.controlRecord.decisions.rows.at(-1).reason='Otro motivo';assert.throws(()=>verify(f,forged),/SOURCE_REVIEW_CONTROL_CHANGED/);
+ const incomplete=fixture();incomplete.decisions.rows.pop();const blocked=project(incomplete);assert.equal(blocked.preparationResult,null);assert.equal(blocked.completeness.allControlEntriesAccounted,false);assert.throws(()=>verify(incomplete,blocked),/SOURCE_REVIEW_PROJECTION_INCOMPLETE/);
+});
+test('canonical UTF8 control hash accepts key order but rejects old review versions and accessor code without invocation',()=>{
+ const f=fixture(),p=project(f),ordered=clone(p);ordered.controlRecord=Object.fromEntries(Object.entries(ordered.controlRecord).reverse());assert.notEqual(JSON.stringify(ordered.controlRecord),JSON.stringify(p.controlRecord));assert.equal(hash(ordered.controlRecord),p.pins.controlSha256);assert.equal(verify(f,ordered).verified,true);
+ const old=fixture();old.version='own-payroll-programme-source-review.v1';assert.throws(()=>project(old),/SOURCE_REVIEW_CONTRACT_INVALID/);const oldDecisions=fixture();oldDecisions.decisions.version='own-payroll-programme-source-review.v1';assert.throws(()=>project(oldDecisions),/SOURCE_REVIEW_DECISIONS_INVALID/);
+ let calls=0;const forged=clone(p);Object.defineProperty(forged,'trap',{enumerable:true,get(){calls++;return true;}});assert.throws(()=>verify(f,forged),/SOURCE_REVIEW_CONTROL_INVALID/);assert.equal(calls,0);
+ const badRoot={expectedEvidencePins:expectedPinsOf(f),expectedControlSha256:hash(controlOf(f)),projection:p};Object.defineProperty(badRoot,'evidenceText',{enumerable:true,get(){calls++;return f.evidenceText;}});assert.throws(()=>verifyOwnPayrollProgrammeSourceProjection(badRoot),/SOURCE_REVIEW_VERIFICATION_CONTRACT_INVALID/);assert.equal(calls,0);
+});
+test('whole projected output above16MiB is rejected at the final guard despite valid complete controls below12MiB',()=>{
+ const f=fixture({metadataRows:35000,metadataTextBytes:1}),e=JSON.parse(f.evidenceText),controlBytes=Buffer.byteLength(JSON.stringify({...f,evidenceText:null}));
+ assert.equal(e.rows.length,35030);assert.equal(f.decisions.rows.length,e.rows.length);assert.equal(f.decisions.rows.at(-1).rowId,'calauxi:1:2');assert.ok(controlBytes<12*1024*1024);assert.ok(Buffer.byteLength(JSON.stringify(f.preparation))<12*1024*1024);assert.ok(Buffer.byteLength(f.evidenceText)<128*1024*1024);
+ assert.throws(()=>project(f),error=>error.code==='SOURCE_REVIEW_OUTPUT_LIMIT'&&error.actualBytes>16*1024*1024&&error.limitBytes===16*1024*1024&&error.controlBytes===controlBytes&&error.preparationBytes===Buffer.byteLength(JSON.stringify(f.preparation))&&!Object.hasOwn(error,'result'));assert.equal(f.decisions.rows.length,35030);
+});
+test('the verifier applies its whole16MiB byte bound before trusting output controls or recomputing a result',()=>{const f=fixture(),p=clone(project(f));p.padding='x'.repeat(16*1024*1024);assert.throws(()=>verify(f,p),/SOURCE_REVIEW_OUTPUT_LIMIT/);});
+test('the exact12MiB control boundary reaches the unchanged canonical contract while one additional byte rejects whole',()=>{const f=fixture();f.preparation.unexpectedPadding='';const bytes=()=>Buffer.byteLength(JSON.stringify({...f,evidenceText:null}));f.preparation.unexpectedPadding='x'.repeat(12*1024*1024-bytes());assert.equal(bytes(),12*1024*1024);assert.throws(()=>project(f),error=>error.code==='PREPARATION_CONTRACT_INVALID');f.preparation.unexpectedPadding+='x';assert.equal(bytes(),12*1024*1024+1);assert.throws(()=>project(f),error=>error.code==='SOURCE_REVIEW_CONTROL_LIMIT');assert.equal(f.decisions.rows.length,30);});
+test('missing complete source components reject before the native preparer even if its contract is also invalid',()=>{const f=fixture();replaceEvidence(f,e=>delete e.audit);f.preparation.unexpected=true;assert.throws(()=>project(f),/SOURCE_REVIEW_COMPONENT_INVALID/);});
+test('complete control provenance retains explicit NULL bindings and zero totals without substituting missing L15',()=>{const f=fixture();f.preparation.definitions[0].expression={op:'source',reference:'L[15]',unit:'money'};pinNative(f);f.preparation.bindings=[{agreementCode:'1',reference:'L[15]',sourceSha256:h('a'),binding:null}];f.decisions.bindings=[{agreementCode:'1',reference:'L[15]',sourceSha256:h('a'),bindingSha256:hash(null),reason:'NULL explícito de fixture, sin productor inventado'}];const p=project(f);assert.equal(p.controlRecord.preparation.bindings[0].binding,null);assert.notEqual(hash(null),hash(0));assert.ok(codes(p).includes('SOURCE_BINDING_UNRESOLVED'));assert.equal(p.preparationResult.draft.programme,null);assert.equal(verify(f,p).verified,true);const zero=fixture();zero.preparation.totalsPrecision=0;zero.decisions.totalsPolicy.precision=0;const zp=project(zero);assert.equal(zp.controlRecord.decisions.totalsPolicy.precision,0);assert.equal(zp.preparationResult.draft.programme.totalsPrecision,0);assert.equal(verify(zero,zp).verified,true);assert.equal(zp.approved,false);});
