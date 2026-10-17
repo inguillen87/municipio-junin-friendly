@@ -125,8 +125,11 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       if(target)target.disabled=locked||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare())||!editor.preview||editor.kind==='review'&&!editor.reviewed.checked;
       if(target&&isGroupKind(editor.kind))target.disabled=locked||editor.needsReview||!groupAuthority(editor.kind)||!editor.preview||!editor.reviewed.checked;
       editor.form.querySelector('[data-fn-preview]')?.toggleAttribute('disabled',locked||editor.needsReview||!allowedPrepare());
-      const lookup=editor.form.querySelector('[data-fn-lookup]');if(lookup)lookup.disabled=locked||!allowedPrepare()||Boolean(editor.row);
-      const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);}
+      const contractSelected=Boolean(editor.lookupContractId)||editor.subject?.origin==='MUNICONTROL';
+      const lookup=editor.form.querySelector('[data-fn-lookup]');if(lookup){lookup.hidden=contractSelected;lookup.disabled=locked||!allowedPrepare()||Boolean(editor.row)||contractSelected;}
+      const legacyNote=editor.form.querySelector('[data-fn-legacy-lookup-note]');if(legacyNote)legacyNote.hidden=contractSelected;
+      if(editor.fields?.legajo){editor.fields.legajo.inputMode=contractSelected?'text':'numeric';if(contractSelected)editor.fields.legajo.readOnly=true;}
+      const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);choose.textContent=editor.subject||editor.lookupContractId?'Cambiar persona':'Buscar y elegir persona';}
       editor.form.querySelector('[data-fn-cancel]').disabled=busy||externalBusy||Boolean(attempt);
       const retry=editor.form.querySelector('[data-fn-retry]');retry.hidden=!attempt;retry.disabled=busy||externalBusy||!(attempt?.command==='review'?allowedReview():allowedPrepare());
       if(isGroupKind(attempt?.command))retry.disabled=busy||externalBusy||!groupAuthority(attempt.command);
@@ -273,7 +276,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     const box=editorShell(operationKind==='annul'?'Proponer anulación':row?'Proponer corrección':'Registrar novedad fija'),fields={};
     const identity=node('fieldset'),legend=node('legend','1 · Legajo y respaldo');identity.append(legend);const grid=node('div',undefined,'fn-grid');
     grid.append(makeField(fields,'legajo','Legajo exacto','text',20));fields.legajo.inputMode='numeric';
-    const lookup=button('Verificar legajo GRH','lookup'),choose=button('Buscar y elegir persona','choose');grid.append(lookup,choose);identity.append(grid,node('p','Podés elegir un alta propia por su ficha. El número de legajo por sí solo consulta únicamente la fuente GRH.','fn-note'));box.form.append(identity);
+    const lookup=button('Verificar legajo GRH','lookup'),choose=button('Buscar y elegir persona','choose'),legacyNote=node('p','Podés elegir un alta propia por su ficha. El número de legajo por sí solo consulta únicamente la fuente GRH.','fn-note');legacyNote.dataset.fnLegacyLookupNote='';grid.append(lookup,choose);identity.append(grid,legacyNote);box.form.append(identity);
     if(operationKind==='set'){
       const fieldset=node('fieldset');fieldset.append(node('legend','2 · Valores y vigencia informados'));const inputs=node('div',undefined,'fn-grid');
       for(const[key,label,max]of [['conceptSourceId','Código del concepto',20],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
@@ -294,7 +297,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     if(row){fields.legajo.value=row.subject.legajo;fields.legajo.readOnly=true;const v=row.approved?.operation==='set'?row.approved.values:row.latest.values;
       if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=v[key]??'';}
       if(fields.forcedReason)fields.forcedReason.closest('label').hidden=!fields.forced.checked;showSubject();}
-    fields.legajo.addEventListener('input',()=>{if(editor&&!editor.row){editor.subject=null;editor.lookupContractId=null;box.subjectHost.replaceChildren();}});
+    fields.legajo.addEventListener('input',()=>{if(editor&&!editor.row&&!editor.lookupContractId&&editor.subject?.origin!=='MUNICONTROL'){editor.subject=null;editor.lookupContractId=null;box.subjectHost.replaceChildren();}});
     lookup.addEventListener('click',lookupEmployee);
     choose.addEventListener('click',()=>{
       if(busy||attempt||!editor||editor.row||!directoryAllowed||!allowedPrepare())return;const active=editor;
@@ -319,7 +322,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;});
   }
   async function lookupEmployee(){
-    if(!editor||editor.kind!=='propose'||editor.row||attempt)return;const active=editor,legajo=active.fields.legajo.value.trim();
+    if(!editor||editor.kind!=='propose'||editor.row||attempt||editor.subject?.origin==='MUNICONTROL'||editor.lookupContractId)return;const active=editor,legajo=active.fields.legajo.value.trim();
     if(!/^(?:0|[1-9]\d{0,19})$/.test(legajo)){active.feedback.textContent='Ingresá un legajo exacto, sin separadores ni ceros iniciales.';return;}
     active.lookupContractId=null;
     await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();const next=fixedEmployee(await request({resource:'employee',legajo}),legajo);if(!live()||editor!==active)return;active.subject=next;active.fields.legajo.readOnly=false;active.needsReview=false;showSubject();active.feedback.textContent='Legajo GRH verificado. Completá los valores y revisá la propuesta.';});
