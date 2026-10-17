@@ -6,6 +6,8 @@ import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-wo
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
 import {employeeReceipt,employeeScopeKey} from '../../assets/native-employee-confirmation-model.js';
+import {createHash} from 'node:crypto';
+import {verifiedOwnReceiptPreview} from '../../assets/own-payroll-receipt-model.js';
 const root=path.resolve(import.meta.dirname,'../..');
 const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee']]);
 export const noeliaCircuitEndpoint=pathname=>endpoints.get(pathname)??null;
@@ -36,11 +38,11 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
      const retain=chunk=>{if(chunk===undefined||chunk===null)return;const b=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);bytes+=b.length;assert.ok(bytes<=33554432,'QA_RESPONSE_TOO_LARGE');chunks.push(b);};
      res.write=chunk=>{retain(chunk);return true;};
      res.end=chunk=>{retain(chunk);res.write=write;res.end=end;const packet=Buffer.concat(chunks),value=JSON.parse(packet.toString('utf8'));
-      if(value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.removeHeader('X-MuniControl-JSON-Bytes');res.removeHeader('Content-Length');end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+      if(value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data,status:res.statusCode});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.removeHeader('X-MuniControl-JSON-Bytes');res.removeHeader('Content-Length');end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
       for(const c of chunks)write(c);end();return res;};
     }
     res.json=value=>{
-    if(kind!=='run'&&req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data,...(kind==='nativeEmployee'?{status:res.statusCode}:{})});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+    if(kind!=='run'&&req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data,status:res.statusCode});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};await handlers[kind](req,res);return;}
    if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'API ajena al circuito no disponible en esta prueba sintética.'});return;}
    const base=path.join(root,'public'),file=path.resolve(base,'.'+decodeURIComponent(url.pathname));if(req.method!=='GET'||!file.startsWith(base+path.sep)||!/\.(html|js|css|png|svg|webp)$/.test(file)||!fs.existsSync(file)){res.writeHead(404).end();return;}
@@ -73,6 +75,76 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
      return {receipt,recovered,key,scope,body,bodyText,networkHttpCreation:true,uiCreation:true,authenticationFixture:true,sameServer:true,ackLostAfterCommit:true,browserPosts:1,recoveryGets:1};
     }finally{page.off('request',observe);drop=false;}
    });
+  }
+  // Additional employee only. The original29 helpers below remain byte exact.
+  let nativeReceiptContext=null;
+  const nativeEndpoint=kind=>[...endpoints].find(([,value])=>value===kind)?.[0];
+  async function observeNativeCommand(kind,body,target,prepare){
+   const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length,requests=[],responses=[],endpoint=nativeEndpoint(kind);assert.ok(endpoint);assert.equal(drop,false,'QA_NATIVE_PENDING_DROP');
+   const relevant=request=>{const u=new URL(request.url());return u.origin===origin&&u.pathname===endpoint;},onRequest=request=>{if(relevant(request))requests.push(request);},onResponse=response=>{if(relevant(response.request()))responses.push(response);};
+   page.on('request',onRequest);page.on('response',onResponse);
+   try{
+    const controls=await prepare();const receipt=await commitAndRecover({kind,...controls,verify:value=>{assert.equal(value.body.command,body.command);controls.verify?.(value);}});
+    assert.equal(writes.length,before+1);const committed=writes.at(-1);assert.equal(committed.kind,kind);assert.equal(committed.status,201,'QA_NATIVE_UI_COMMITTED_STATUS');assert.equal(committed.receipt,receipt);
+    const posts=requests.filter(request=>request.method()==='POST'&&request.headers()['idempotency-key']);assert.equal(posts.length,1,'QA_NATIVE_UI_ONE_COMMAND_POST');const post=posts[0],key=post.headers()['idempotency-key'];assert.equal(committed.key,key);
+    const postResponse=responses.find(response=>response.request()===post);assert.ok(postResponse);assert.equal(postResponse.status(),503,'QA_NATIVE_UI_ACK_NOT_LOST');
+    const gets=requests.filter(request=>{const u=new URL(request.url());return request.method()==='GET'&&u.searchParams.get('resource')==='attempt'&&u.searchParams.get('key')===key;});assert.equal(gets.length,1,'QA_NATIVE_UI_ONE_RECOVERY_GET');const recoveredResponse=responses.find(response=>response.request()===gets[0]);assert.ok(recoveredResponse);assert.equal(recoveredResponse.status(),200);const recoveredEnvelope=await recoveredResponse.json();assert.equal(recoveredEnvelope.ok,true);
+    assert.deepEqual(errors.slice(beforeErrors),[],'QA_NATIVE_UI_PAGE_ERRORS');assert.deepEqual(diagnostics.slice(beforeDiagnostics),[],'QA_NATIVE_UI_HTTP_DIAGNOSTICS');
+    const bodyText=post.postData(),envelope=JSON.parse(bodyText);check(true,'additional native '+kind+'/'+(body.command??'calculate')+' uses actual product/HTTP, one committed command and same-key GET recovery');
+    return {receipt,recovered:recoveredEnvelope.data,key,body:envelope.payload,bodyText,browserPosts:1,recoveryGets:1,ackLostAfterCommit:true,committedStatus:committed.status,postStatus:postResponse.status(),sameServer:true,authenticationFixture:true};
+   }finally{page.off('request',onRequest);page.off('response',onResponse);drop=false;}
+  }
+  async function nativePayrollCommand({kind,body,target}){
+   assert.ok(target?.contractId&&target?.legajo);return observeNativeCommand(kind,body,target,async()=>{
+    if(kind==='novelty'){
+     await fresh('/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();assert.ok(await n('content').isVisible(),await n('status').innerText());
+     if(body.command==='prepare'){
+      assert.equal(body.rows.length,1);const row=body.rows[0];assert.equal(row.contractId,target.contractId);assert.equal(row.legajo,target.legajo);assert.equal(row.conceptSourceId,'120');assert.equal(row.amountCents,'2000');assert.equal(row.costCenterSourceId,'20');assert.equal(row.quantityDecimal,null);
+      await n('search').fill(target.legajo);const person=n('people').locator('input[type="checkbox"][data-contract="'+target.contractId+'"]');await person.waitFor();assert.equal(await n('people').locator('input').count(),1);await person.check();assert.ok((await n('selection').innerText()).startsWith('1 seleccionados'));
+      await n('period').fill(body.periodMonth.slice(0,7));await n('concept').fill(row.conceptSourceId);await n('amount').fill('20,00');await n('cost').fill(row.costCenterSourceId);await n('legal').fill(row.legalInstrument);await n('add').click();assert.ok((await n('count').innerText()).startsWith('1 filas'));assert.equal(await n('rows').locator('tbody tr').count(),1);
+      await n('review').click();await idle();await n('confirm-box').waitFor({state:'visible'});await n('confirm').check();
+     }else{
+      assert.ok(['submit','approve'].includes(body.command));await n('batch').selectOption(body.batchId);await n('open').click();await idle();assert.equal(await n('detail').locator('tbody tr').count(),1);await page.locator('[data-n-decisions] [data-command="'+body.command+'"]').click();await idle();assert.ok((await n('reviewed').innerText()).includes('1 filas'));await n('confirm').check();
+     }
+     return {send:n('send'),recover:n('recover'),idle,verify:value=>{assert.equal(value.snapshot.rowCount,1);assert.equal(value.snapshot.rows[0].values.contractId,target.contractId);}};
+    }
+    if(kind==='run'){
+     await fresh('/nomina-control.html#calculo');const r=k=>page.locator('[data-own-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+     await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(await page.locator('[data-own-fields]').evaluate(e=>!e.disabled),await r('status').innerText());assert.ok((await r('readiness-facts').innerText()).includes('30 legajos propios'));assert.equal(await r('readiness').getAttribute('data-state'),'success');
+     await r('period').fill(body.period);await r('type').selectOption(body.liquidationType);await r('period-end').click();assert.ok((await r('date').inputValue()).startsWith(body.period+'-'));assert.equal(await r('confirm').isChecked(),false);await r('kind').selectOption('contracts');await r('picker').click();const picker=page.locator('#ownRunPicker');await picker.locator('#ownRunPickerSearch').fill(target.legajo);await picker.locator('[data-picker-form] button[type=submit]').click();const selected=picker.locator('[data-picker-results] input[value="'+target.contractId+'"]');await selected.waitFor();assert.equal(await picker.locator('[data-picker-results] input').count(),1);await selected.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});assert.ok((await r('chips').innerText()).includes(target.legajo));await r('confirm').check();
+     return {send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.equal(value.saved.result.employeeCount,1);assert.deepEqual(value.saved.input.employees.map(row=>row.contractId),[target.contractId]);}};
+    }
+    if(kind==='liquidation'){
+     await fresh('/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('[data-liq-status]')?.closest('.own-liquidation').getAttribute('aria-busy')==='false',{},{timeout:30000});
+     await page.locator('[data-liq-run-id="'+body.runId+'"]').waitFor();await lidle();await page.locator('[data-liq-run-id="'+body.runId+'"]').click();await lidle();await l('command').selectOption(body.command);await l('kind').selectOption('contracts');await l('values').selectOption([target.contractId]);assert.ok((await l('review-summary').innerText()).includes('1 legajos afectados'));assert.equal(await l('review-rows').locator('tr').count(),1);await l('reason').fill(body.reason);await l('confirm').check();
+     return {send:l('send'),recover:l('recover'),idle:lidle,verify:value=>{assert.deepEqual(value.affected.map(row=>row.contractId),[target.contractId]);}};
+    }
+    if(kind==='close'){
+     await fresh('/nomina-control.html#cierre');const c=k=>page.locator('[data-close-'+k+']'),cidle=()=>page.waitForFunction(()=>document.querySelector('.own-close')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+     await c('period').waitFor({state:'visible'});await c('period').fill(body.period);await c('type').selectOption(body.liquidationType);await c('consult').click();await cidle();assert.ok(await c('detail').isVisible(),await c('status').innerText());await c('kind').selectOption('contracts');await c('values').selectOption([target.contractId]);await c('reason').fill(body.reason);await c('confirm').check();
+     return {send:c('send'),recover:c('recover'),idle:cidle,verify:value=>{assert.equal(value.snapshot.employeeCount,1);assert.equal(value.snapshot.populationCount,30);assert.equal(value.snapshot.employees[0].contractId,target.contractId);}};
+    }
+    assert.equal(kind,'receipt');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+    if(body.command==='prepare'){
+     assert.ok(nativeReceiptContext&&nativeReceiptContext.contractId===target.contractId,'QA_NATIVE_RECEIPT_PREVIEW_REQUIRED');assert.deepEqual(nativeReceiptContext.params,body.params);assert.equal(await p('rows').locator('tr').count(),1);await p('reason').fill(body.reason);
+    }else{
+     assert.equal(body.command,'approve');await fresh('/nomina-control.html#recibos');await p('period').waitFor({state:'visible'});await pidle();await p('period').fill(nativeReceiptContext.params.period);await p('history').click();await pidle();await page.locator('[data-receipt-open="'+body.batchId+'"]').click();await pidle();assert.ok((await p('summary').innerText()).startsWith('1 recibos'));await p('reason').fill(body.reason);await p('confirm').check();
+    }
+    return {send:p(body.command),recover:p('recover'),idle:pidle,verify:value=>{assert.equal(value.body.command,body.command);}};
+   });
+  }
+  async function nativeReceiptPreview({params,target}){
+   const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length;nativeReceiptContext=null;
+   await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await p('period').waitFor({state:'visible'});await p('issuerEditor').waitFor({state:'visible'});await pidle();await p('scope').selectOption('all');await p('period').fill(params.period);await selectNoeliaReceiptTypes(page,params.types);await p('issuer').fill(params.issuer.name);await p('tax').fill(params.issuer.taxId);await p('address').fill(params.issuer.address);await p('date').fill(params.paymentDate??'');await p('legend').fill(params.legend);await p('consult').click();await pidle();assert.ok(await p('result').isVisible(),await p('status').innerText());await p('contracts').selectOption([target.contractId]);
+   const response=page.waitForResponse(reply=>{const request=reply.request(),u=new URL(request.url());if(u.origin!==origin||u.pathname!=='/api/internal-own-payroll-receipts'||request.method()!=='POST')return false;const body=request.postDataJSON();return body.operation==='preview'&&body.params.contracts?.length===1&&body.params.contracts[0]===target.contractId;});response.catch(()=>{});await p('selected').click();const received=await response;assert.equal(received.status(),200);const envelope=await received.json();assert.equal(envelope.ok,true);const preview=await verifiedOwnReceiptPreview(envelope.data);await pidle();assert.deepEqual(preview.snapshot.params,params);assert.equal(preview.snapshot.recordCount,1);assert.equal(preview.snapshot.records[0].contractId,target.contractId);assert.equal(await p('rows').locator('tr').count(),1);assert.equal(writes.length,before);assert.deepEqual(errors.slice(beforeErrors),[]);assert.deepEqual(diagnostics.slice(beforeDiagnostics),[]);nativeReceiptContext={params:structuredClone(params),contractId:target.contractId};
+   check(true,'additional native receipt UI selects its exact UUID from the complete preview without a mutation');return {preview,sameServer:true,authenticationFixture:true,uiHttp:true};
+  }
+  async function nativeReceiptDownload({batchId,target,expectedSha256,output:destination}){
+   const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length;await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await p('period').waitFor({state:'visible'});await pidle();assert.ok(nativeReceiptContext?.contractId===target.contractId);await p('period').fill(nativeReceiptContext.params.period);await p('history').click();await pidle();await page.locator('[data-receipt-open="'+batchId+'"]').click();await pidle();assert.ok((await p('summary').innerText()).startsWith('1 recibos'));assert.ok((await p('state').innerText()).includes('disponibilidad aprobada'));assert.equal(await p('rows').locator('tr').count(),1);
+   const pending=page.waitForEvent('download');pending.catch(()=>{});await p('pdf').click();const download=await pending,filename=path.join(destination,'browser-native-employee-receipt.pdf');assert.equal(fs.existsSync(filename),false);await download.saveAs(filename);await pidle();const sha256=createHash('sha256').update(fs.readFileSync(filename)).digest('hex');assert.equal(sha256,expectedSha256);const pages=/en (\d+) páginas/.exec(await p('status').innerText());assert.ok(pages,'QA_NATIVE_PDF_PAGE_COUNT_REQUIRED');assert.equal(writes.length,before);assert.deepEqual(errors.slice(beforeErrors),[]);assert.deepEqual(diagnostics.slice(beforeDiagnostics),[]);
+   check(true,'additional native approved receipt downloads through the existing UI with exactly the original exporter bytes');return {path:filename,batchId,recordCount:1,pageCount:Number(pages[1]),sha256,uiHttp:true,sameServer:true,authenticationFixture:true};
   }
   async function commitAndRecover({kind,send,recover,idle,verify}){
    const before=writes.length;drop=true;await send.click();await idle();
@@ -186,6 +258,6 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,close};
+  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,close};
  }catch(e){await close();throw e;}
 }
