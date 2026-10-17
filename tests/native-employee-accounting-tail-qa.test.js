@@ -300,3 +300,63 @@ test('the same loopback browser server resolves all3 canonical accounting endpoi
  for(const kind of ['accounting','imputation','journal'])assert.equal(noeliaCircuitEndpoint('/api/internal-own-payroll-'+kind),kind);
  assert.equal(noeliaCircuitEndpoint('/api/internal-own-payroll-accounting-extra'),null);
 });
+
+// Execute the real panels and the exact opening statements used by the QA browser.
+// Synthetic DOM/auth only: this does not run Chromium, HTTP servers or SQL.
+import {PayrollPanelElement as AT_AccessElement,payrollPanelEvents as AT_accessEvents} from './fixtures/payroll-panel-dom.js';
+import {mountOwnPayrollImputation as AT_mountImputation} from '../assets/own-payroll-imputation-panel.js';
+import {mountOwnPayrollJournal as AT_mountJournal} from '../assets/own-payroll-journal-panel.js';
+import {OWN_RUN_NOMINAL as AT_accessCaps} from '../assets/own-payroll-run-workspace-model.js';
+import * as AT_browserQa from '../scripts/lib/noelia-payroll-circuit-browser.mjs';
+import {setImmediate as AT_accessTurn} from 'node:timers/promises';
+
+function AT_accountingAccessHarness(t,prefix){
+ const host=new AT_AccessElement(),events=AT_accessEvents(),windowEvents=AT_accessEvents(),requests=[],waits=[],clicks=[],fields=[];
+ const names=['document','window','fetch','setInterval','clearInterval'],prior=new Map(names.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ const document={...events,hidden:false,head:new AT_AccessElement('head'),documentElement:{dataset:{mcCapabilityState:'checking',mcCapabilityReady:'false'}},createElement:tag=>new AT_AccessElement(tag)};
+ document.querySelector=selector=>host.querySelector(selector)??document.head.querySelector(selector);
+ const state={caps:[...AT_accessCaps],allow:true};
+ Object.assign(globalThis,{document,window:windowEvents,setInterval:()=>1,clearInterval:()=>{},fetch:async(url,options={})=>{
+  requests.push({url,method:options.method??'GET'});assert.equal(url,'/api/internal-auth','Only real panel session reads are permitted in this synthetic regression');
+  return new Response(JSON.stringify({ok:true,authenticated:true,sessionVersion:2,user:{id:'accounting-synthetic-maker',email:'maker@example.test'},access:{context:'tenant',tenant:{id:'cccccccc-0000-4000-8000-000000000009',roleKey:'synthetic-maker'},tenantCapabilities:state.caps},expiresAt:'2099-01-01T00:00:00Z'}));
+ }});
+ const q=key=>{const node=host.querySelector('[data-'+prefix+'-'+key+']');assert.ok(node,'Actual '+prefix+' control '+key);return node;};
+ const settled=async()=>{for(let i=0;i<30;i++){if(host.querySelector('section')?.getAttribute('aria-busy')!=='true')return;await AT_accessTurn();}assert.fail('Synthetic panel operation did not settle');};
+ const page={waitForFunction:async(fn,arg)=>{waits.push(arg??'gate');for(let i=0;i<30;i++){if(fn(arg))return;await AT_accessTurn();}throw Error('SYNTHETIC_WAIT_REJECTED_'+(arg??'gate'));},locator:selector=>{
+  const node=document.querySelector(selector);assert.ok(node,selector);
+  return{waitFor:async({state:expected})=>{assert.equal(expected,'visible');assert.equal(node.hidden,false);},click:async()=>{assert.equal(node.disabled,false,'Real access button must be enabled');clicks.push(selector);await node.emit('click');await settled();},fill:async value=>{assert.equal(node.disabled,false);assert.equal(q('query').disabled,false);fields.push(value);node.value=value;}};
+ }};
+ (prefix==='imputation'?AT_mountImputation:AT_mountJournal)(host);
+ const invalidate=()=>{events.dispatch('municontrol:capabilities-ready',{tenantCapabilities:[...state.caps]});assert.equal(q('query').disabled,true);assert.equal(q('access').disabled,false);assert.equal(q('status').textContent,'Cambió el acceso. Volvé a consultar para verificar tu cuenta.');};
+ const fresh=async url=>{assert.equal(url,'/nomina-control.html#'+(prefix==='imputation'?'imputacion':'asientos'));events.dispatch('taskchange',{id:prefix==='imputation'?'imputacion':'asientos'});await settled();assert.equal(q('query').disabled,false);document.documentElement.dataset.mcCapabilityState='ready';document.documentElement.dataset.mcCapabilityReady='true';invalidate();};
+ t.after(()=>{windowEvents.dispatch('pagehide');for(const[key,descriptor]of prior)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];});
+ return{page,q,requests,waits,clicks,fields,state,fresh,invalidate,document};
+}
+function AT_actualAccountingOpening(prefix){
+ const source=AT_fs.readFileSync(AT_path.join(AT_testRoot,'scripts/lib/noelia-payroll-circuit-browser.mjs'),'utf8');
+ const hash=prefix==='imputation'?'imputacion':'asientos';
+ const opening=source.match(new RegExp("await fresh\\('/nomina-control.html#"+hash+"'\\);[\\s\\S]*?await locate\\('"+prefix+"','period'\\).fill\\('2026-10'\\);"));
+ assert.ok(opening,'Exact QA opening statements must exist for '+prefix);
+ return new Function('page','fresh','locate','idle','nativeAccountingPanelAccess','return(async()=>{'+opening[0]+'})();');
+}
+for(const prefix of ['imputation','journal'])test('accounting UI access '+prefix+' real opening revalidates after capabilities withdrawal',async t=>{
+ const h=AT_accountingAccessHarness(t,prefix),locate=(p,key)=>h.page.locator('[data-'+p+'-'+key+']'),idle=p=>h.page.waitForFunction(x=>document.querySelector('[data-'+x+'-query]')?.disabled===false,p);
+ await AT_actualAccountingOpening(prefix)(h.page,h.fresh,locate,idle,AT_browserQa.nativeAccountingPanelAccess);
+ assert.deepEqual(h.waits,['gate',prefix]);assert.deepEqual(h.clicks,['[data-'+prefix+'-access]']);assert.deepEqual(h.fields,['2026-10']);
+ assert.equal(h.requests.length,2);assert.ok(h.requests.every(r=>r.url==='/api/internal-auth'&&r.method==='GET'));
+ assert.equal(h.q('query').disabled,false);
+});
+for(const prefix of ['imputation','journal'])test('accounting UI access '+prefix+' rechecks real authority and remains blocked after capability revocation',async t=>{
+ const h=AT_accountingAccessHarness(t,prefix);await h.fresh('/nomina-control.html#'+(prefix==='imputation'?'imputacion':'asientos'));
+ await AT_browserQa.nativeAccountingPanelAccess(h.page,prefix);assert.equal(h.q('query').disabled,false);
+ h.state.caps=[];h.invalidate();
+ await assert.rejects(AT_browserQa.nativeAccountingPanelAccess(h.page,prefix),/SYNTHETIC_WAIT_REJECTED_/);
+ assert.equal(h.q('query').disabled,true);assert.match(h.q('status').textContent,/Tu cuenta no permite esta operación/);assert.equal(h.requests.length,3);
+ assert.ok(h.requests.every(r=>r.method==='GET'));assert.equal(h.fields.length,0);
+});
+for(const prefix of ['imputation','journal'])test('accounting UI access '+prefix+' waits for gate completion before the real access click',async t=>{
+ const h=AT_accountingAccessHarness(t,prefix);await h.fresh('/nomina-control.html#'+(prefix==='imputation'?'imputacion':'asientos'));
+ h.document.documentElement.dataset.mcCapabilityState='checking';h.document.documentElement.dataset.mcCapabilityReady='false';
+ await assert.rejects(AT_browserQa.nativeAccountingPanelAccess(h.page,prefix),/SYNTHETIC_WAIT_REJECTED_gate/);
+ assert.deepEqual(h.clicks,[]);assert.equal(h.requests.length,1);assert.equal(h.q('query').disabled,true);
+});
