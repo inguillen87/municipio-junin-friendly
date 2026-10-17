@@ -110,7 +110,20 @@ async function captureSnapshot(c){
 }
 const emptyDelivery=(evidenceState,enabled=false,scope=null)=>({state:'unknown',enabled,lastReceiptAt:null,confirmedRecords:null,pendingParts:null,nextAttemptAt:null,lastError:null,scope,checkedAt:null,evidenceState});
 async function receiptSummary(c,d,root,budget){
- const names=await directoryFiles(path.join(root,'receipts')),manifests=new Map();let records=0,lastReceiptAt=null;
+ const names=await directoryFiles(path.join(root,'receipts')),manifests=new Map(),acknowledged=new Set();let records=0,lastReceiptAt=null,pendingParts=0;
+ // The sender status describes its last reconciliation. A capture can append
+ // another batch before the shared delivery window; its old zero is not a
+ // statement about the current queue. Inspect every bounded manifest even if
+ // no receipt has been written yet. Raw records and credentials stay unopened.
+ for(const id of await directoryFiles(path.join(c.stateDir,'pending'))){
+  if(/^\.pending-[a-f0-9-]+$/.test(id))continue;need(HEX.test(id));
+  const {value:m}=await metadata(path.join(c.stateDir,'pending',id,'manifest.json'),4194304,budget);
+  need(HEX.test(m.snapshotSha256)&&HEX.test(m.recordsSha256)&&m.batchId===id&&m.cloudConfirmed===false&&count(m.snapshotRecordCount)&&count(m.newUniqueRecords)&&m.newUniqueRecords>0&&m.newUniqueRecords<=m.snapshotRecordCount&&m.snapshotBytes===4+m.snapshotRecordCount*40&&Array.isArray(m.ordinals)&&m.ordinals.length===m.newUniqueRecords&&m.ordinals.every((n,i)=>Number.isSafeInteger(n)&&n>=1&&n<=m.snapshotRecordCount&&(!i||n>m.ordinals[i-1])));
+  need(c.clockId===null?m.version==='pm10-local-batch.v1':m.version==='clock-local-batch.v1'&&m.clockId===c.clockId&&m.serial===c.serial);
+  need(hash((c.clockId===null?'':c.clockId+':'+c.serial+':')+m.snapshotSha256+':'+m.recordsSha256)===id);
+  const wireId=hash(m.snapshotSha256+':'+m.recordsSha256);need(!manifests.has(wireId));manifests.set(wireId,m);
+  pendingParts+=Math.ceil(m.newUniqueRecords/500);need(count(pendingParts));
+ }
  for(const name of names){
   // atomicJson may be publishing a receipt concurrently. Its incomplete file
   // is neither an ACK nor corruption of the previously committed receipts.
@@ -121,22 +134,13 @@ async function receiptSummary(c,d,root,budget){
   // Fleet wire batch IDs omit clockId/serial. Match its local manifest by the
   // same derivation, never by an ordinal, label, or a receipt from another queue.
   const localId=c.clockId===null?r.batchId:null;
-  if(!manifests.size){
-   for(const id of await directoryFiles(path.join(c.stateDir,'pending'))){
-    if(/^\.pending-[a-f0-9-]+$/.test(id))continue;need(HEX.test(id));
-    const {value:m}=await metadata(path.join(c.stateDir,'pending',id,'manifest.json'),4194304,budget);
-    need(HEX.test(m.snapshotSha256)&&HEX.test(m.recordsSha256)&&m.batchId===id&&m.cloudConfirmed===false&&count(m.snapshotRecordCount)&&count(m.newUniqueRecords)&&m.newUniqueRecords>0&&m.newUniqueRecords<=m.snapshotRecordCount&&m.snapshotBytes===4+m.snapshotRecordCount*40&&Array.isArray(m.ordinals)&&m.ordinals.length===m.newUniqueRecords&&m.ordinals.every((n,i)=>Number.isSafeInteger(n)&&n>=1&&n<=m.snapshotRecordCount&&(!i||n>m.ordinals[i-1])));
-    need(c.clockId===null?m.version==='pm10-local-batch.v1':m.version==='clock-local-batch.v1'&&m.clockId===c.clockId&&m.serial===c.serial);
-    need(hash((c.clockId===null?'':c.clockId+':'+c.serial+':')+m.snapshotSha256+':'+m.recordsSha256)===id);
-    const wireId=hash(m.snapshotSha256+':'+m.recordsSha256);need(!manifests.has(wireId));manifests.set(wireId,m);
-   }
-  }
   const m=manifests.get(localId??r.batchId);need(m&&r.snapshotSha256===m.snapshotSha256&&r.partStart<m.newUniqueRecords);
   const p={serial:c.serial,batchId:r.batchId,partStart:r.partStart,partSha256:r.partSha256,snapshotSha256:m.snapshotSha256,recordsSha256:m.recordsSha256,ordinals:m.ordinals.slice(r.partStart,r.partStart+500)};
   if(d.kind==='legacy-delivery')checkReceipt(r,p);else if(d.kind==='fleet-source-delivery')checkSourceReceipt(r,p,d.tenantId);else checkFleetReceipt(r,p);
+  const key=r.batchId+':'+r.partStart;need(!acknowledged.has(key));acknowledged.add(key);pendingParts--;need(count(pendingParts));
   need(stamp(r.receivedAt));records+=r.count;need(count(records));if(!lastReceiptAt||Date.parse(r.receivedAt)>Date.parse(lastReceiptAt))lastReceiptAt=r.receivedAt;
  }
- return{confirmedRecords:records,lastReceiptAt};
+ return{confirmedRecords:records,lastReceiptAt,pendingParts};
 }
 async function deliverySnapshot(c,d){
  if(!d)return emptyDelivery('missing');const source=d.kind==='fleet-source-delivery',legacy=d.kind==='legacy-delivery',scope=source?'source_only':'canonical',budget={bytes:0};
@@ -157,7 +161,7 @@ async function deliverySnapshot(c,d){
   const recorded=source?v.sourceStoredRecords:v.confirmedRecords;
   need(recorded==null||recorded<=receipts.confirmedRecords);
   need(v.lastReceiptAt==null||receipts.lastReceiptAt!==null&&Date.parse(v.lastReceiptAt)<=Date.parse(receipts.lastReceiptAt));
-  return{state:v.state,enabled:d.enabled,...receipts,pendingParts:v.remainingParts??null,nextAttemptAt:v.nextAttemptAt??null,lastError:safeObservation(v.code),scope,checkedAt:v.updatedAt,evidenceState:'verified'};
+  return{state:v.state,enabled:d.enabled,...receipts,nextAttemptAt:v.nextAttemptAt??null,lastError:safeObservation(v.code),scope,checkedAt:v.updatedAt,evidenceState:'verified'};
  }catch(e){return emptyDelivery(e.code==='ENOENT'?'missing':'invalid',d.enabled,scope);}
 }
 export async function readGatewayOverview(raw,{now=()=>new Date(),desiredState='unknown'}={}){

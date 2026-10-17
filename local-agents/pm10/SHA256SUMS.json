@@ -43,7 +43,7 @@
   "tests/fleet-source.test.mjs": "48d6b4e3ff2322bef2c0988c8313e07cf0787d7677ff3a28efa290b31762906d",
   "tests/fleet-summary.test.mjs": "011111ce3289ace62d6906b9790a66b17f05cf702726bc9b3af1d14b963d9fae",
   "tests/gateway-overview-publisher.test.mjs": "e1ae7137641e528e66b5e3fa04b4ae4dfd42cef1bd66da51f4afca04324104e0",
-  "tests/gateway-overview.test.mjs": "3f1e46ab558c7f98d450fa3383b83afe1f00e0fcc9b33f98e7d8ab3a06d5c192",
+  "tests/gateway-overview.test.mjs": "13143da953c1445eeb42afae33ed32a522b203c135e3af2c51d2741f126a505f",
   "tests/host-readiness.test.mjs": "76399ccb13efe947df22fb39fa99de3a0b59a5f50412e216cb05a37977fffa8d",
   "tests/metadata-inspection.test.mjs": "b1b5d1d591244334037eb5b5e64a01ed9bc8ce0b58572d3e2f0de79375937745",
   "tests/multi-clock-identity.test.mjs": "da12bd0cd4f1b5a47094d468f1e2d877c6a1f2edec4137826ebff54a0c07e7f2",
