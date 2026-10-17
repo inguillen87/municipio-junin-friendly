@@ -1,0 +1,47 @@
+// Source-pinned193 preparation only. No connection, SQL execution or business write.
+import assert from 'node:assert/strict';import{createHash}from'node:crypto';
+import{splitPostgresStatements}from'./sql-statements.mjs';
+import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
+import{pinsCheck,preservationSnapshot}from'./native-leave-installation.mjs';
+import{participationTableCheck}from'./own-period-participation-installation.mjs';
+import{installationPriorMetadataFingerprint}from'./installation-prior-metadata.mjs';
+export const MONTHLY193_SQL='scripts/migrations/193-own-monthly-day-declaration.sql';
+export const MONTHLY193_SHA256='767f0614e2ea4b29b9c7ced40eb2b5faed7f219661220c35ab8a46e5fe74b416';
+export const MONTHLY193_RUNTIME=Object.freeze(['own_monthly_days_bootstrap_v1','own_monthly_days_detail_v1','own_monthly_days_attempt_v1','own_monthly_days_command_v1']);
+export const MONTHLY193_PREREQUISITES=Object.freeze(['native_salary_administrative_context_v1','native_salary_lock_v1','native_salary_scope_v1','native_salary_serialized_v1','own_program_exact_v1','own_program_text_v1','own_participation_source_v1','action_center_context_has_capability']);
+const q=v=>"'"+String(v).replaceAll("'","''")+"'",hash=v=>createHash('sha256').update(v).digest('hex'),prefix='municontrol_monthly193.',table='own_monthly_days_event';
+export function monthly193Snapshot(slot){
+ let s=preservationSnapshot(slot).replaceAll('native_leave_event',table).replaceAll('native_leave_%','own_monthly_days_%').replaceAll('municontrol_sql111.',prefix);
+ const anchor="p.oid IS DISTINCT FROM to_regclass('public."+table+"')),";
+ assert.equal(s.split(anchor).length,2,'MONTHLY193_SNAPSHOT_ANCHOR_CHANGED');
+ s=s.replace(anchor,"p.oid IS DISTINCT FROM to_regclass('public."+table+"') AND NOT(t.tgisinternal AND t.tgconstraint IN(SELECT oid FROM pg_constraint WHERE conrelid=to_regclass('public."+table+"') AND contype='f'))),");
+ return s.replace("p.relkind IN ('r','p')","p.relkind IN ('r','p','m')");
+}
+export function buildOwnMonthlyDayDeclarationInstallation({read,sourceCommit,prerequisiteDefinitions,prerequisiteRuntime=[]}){
+ assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok(Array.isArray(prerequisiteDefinitions));
+ const source=read(MONTHLY193_SQL).replace(/\r\n?/g,'\n');assert.equal(hash(source),MONTHLY193_SHA256,'MONTHLY193_REVIEWED_SOURCE_CHANGED');
+ const migration=splitPostgresStatements(source).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim()),definitions=migration.filter(s=>/^CREATE FUNCTION public\.own_monthly_days_/.test(s));
+ const newPins=definitions.map(d=>({...ownInstallationFunctionPin(d),runtime:MONTHLY193_RUNTIME.includes(ownInstallationFunctionPin(d).name)}));assert.equal(newPins.length,12);assert.equal(newPins.filter(p=>p.runtime).length,4);assert.equal(new Set(newPins.map(p=>p.signature)).size,12);
+ assert.equal(migration.filter(s=>s.startsWith('CREATE TABLE ')).length,1);assert.ok(migration.every(s=>!/^CREATE OR REPLACE|CREATE ROLE|ALTER ROLE/.test(s)));
+ const candidates=prerequisiteDefinitions.filter(d=>MONTHLY193_PREREQUISITES.some(n=>new RegExp('CREATE(?: OR REPLACE)? FUNCTION (?:public\\.)?'+n+'\\(').test(d))).map(d=>({d,p:ownInstallationFunctionPin(d)})),byName=new Map();
+ for(const x of candidates){const previous=byName.get(x.p.name);if(previous)assert.deepEqual(previous.p,x.p,'MONTHLY193_AMBIGUOUS_PREREQUISITE');else byName.set(x.p.name,x);}
+ assert.deepEqual([...byName.keys()].sort(),[...MONTHLY193_PREREQUISITES].sort(),'MONTHLY193_MISSING_PREREQUISITE');
+ const prerequisitePins=[...byName.values()].map(x=>({...x.p,runtime:prerequisiteRuntime.includes(x.p.signature)})),prerequisiteCheck=pinsCheck(prerequisitePins,'MONTHLY193_PREREQUISITE_CHANGED');
+ const absent=`DO $absent$ BEGIN IF to_regclass('public.${table}') IS NOT NULL OR EXISTS(SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_monthly_days_%') THEN RAISE EXCEPTION 'MONTHLY193_EXPECTED_ABSENT';END IF;END $absent$`;
+ const shape=participationTableCheck().replaceAll('own_participation_','own_monthly_days_').replaceAll('PARTICIPATION_','MONTHLY193_');
+ const beforeCheck=prerequisiteCheck+';'+absent,afterCheck=prerequisiteCheck+';'+pinsCheck(newPins,'MONTHLY193_AFTER_CHANGED')+';'+shape+`;DO $count$ BEGIN IF(SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_monthly_days_%')<>12 THEN RAISE EXCEPTION 'MONTHLY193_UNEXPECTED_OVERLOAD';END IF;END $count$`;
+ const mode=`DO $mode$ BEGIN IF current_setting('transaction_isolation')<>'repeatable read' THEN RAISE EXCEPTION 'MONTHLY193_ISOLATION_REQUIRED';END IF;IF NOT pg_try_advisory_xact_lock(193) THEN RAISE EXCEPTION 'MONTHLY193_BUSY';END IF;PERFORM set_config('${prefix}mode',CASE WHEN to_regclass('public.${table}') IS NULL THEN 'install' ELSE 'verify' END,true);END $mode$`;
+ const phase=m=>`DO $phase$ BEGIN IF current_setting('${prefix}mode')<>${q(m)} THEN RAISE EXCEPTION 'MONTHLY193_PHASE_REQUIRED';END IF;END $phase$`;
+ const choose=`DO $choose$ BEGIN IF current_setting('${prefix}mode')='install' THEN EXECUTE ${q(beforeCheck)};ELSE EXECUTE ${q(afterCheck)};END IF;END $choose$`,apply=`DO $apply$ BEGIN IF current_setting('${prefix}mode')='install' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
+ const before=monthly193Snapshot('before'),after=monthly193Snapshot('after'),conservation=`DO $audit$ BEGIN IF current_setting('${prefix}before')::jsonb IS DISTINCT FROM current_setting('${prefix}after')::jsonb THEN RAISE EXCEPTION 'MONTHLY193_PRIOR_STATE_CHANGED';END IF;END $audit$`;
+ const objectFingerprint=`encode(public.digest(jsonb_build_object('class',(SELECT to_jsonb(c) FROM pg_class c WHERE oid='public.${table}'::regclass),'columns',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid='public.${table}'::regclass),'defaults',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.oid) FROM pg_attrdef d WHERE d.adrelid='public.${table}'::regclass),'constraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.oid) FROM pg_constraint k WHERE k.conrelid='public.${table}'::regclass),'indexes',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.indexrelid) FROM pg_index i WHERE i.indrelid='public.${table}'::regclass),'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid='public.${table}'::regclass OR t.tgconstraint IN(SELECT oid FROM pg_constraint WHERE conrelid='public.${table}'::regclass AND contype='f')),'functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname LIKE 'own_monthly_days_%'))::text,'sha256'),'hex')`;
+ const proof=(m,preserved)=>`SELECT jsonb_build_object('version','own-monthly-day-declaration-installation.v1','sourceCommit',${q(sourceCommit)},'sqlSha256',${q(MONTHLY193_SHA256)},'mode',${m},'newTables',1,'newFunctions',12,'runtimeFacades',4,'adaptedFunctions',0,'roleAssignmentsAdded',0,'existingAclChanges',0,'businessWrites',0,'nominalRowsReturned',0,'transactionDataPreserved',${preserved},'eventRows',(SELECT count(*) FROM public.${table}),'preservationSha256',encode(public.digest(current_setting('${prefix}after')::jsonb::text,'sha256'),'hex'),'priorMetadataSha256',${installationPriorMetadataFingerprint(prefix+'after')},'objectFingerprint',${objectFingerprint}) AS proof`;
+ const sequence=m=>[mode,phase(m),choose,before,apply,afterCheck,after,conservation,proof("current_setting('"+prefix+"mode')",true)],readOnly=`DO $readonly$ BEGIN IF current_setting('transaction_read_only')<>'on' THEN RAISE EXCEPTION 'MONTHLY193_READONLY_REQUIRED';END IF;END $readonly$`;
+ return{version:'own-monthly-day-declaration-installation.v1',sourceCommit,sqlSha256:MONTHLY193_SHA256,migration,definitions,newPins,prerequisitePins,beforeCheck,afterCheck,before,after,conservation,objectFingerprint,rehearsal:sequence('install'),installation:sequence('install'),repetition:sequence('verify'),verification:[readOnly,afterCheck,after,proof("'verify'",false)],transactionContract:{technical:'REPEATABLE READ',runtime:'READ COMMITTED'},newTables:1,newFunctions:12,runtimeFacades:4,adaptedFunctions:0,businessWrites:0,connects:false,executesSql:false};
+}
+export function assertOwnMonthlyDayDeclarationDurability({installed,durable,repeated,batch}){
+ const counters={newTables:1,newFunctions:12,runtimeFacades:4,adaptedFunctions:0,roleAssignmentsAdded:0,existingAclChanges:0,businessWrites:0,nominalRowsReturned:0,eventRows:0};
+ const keys=['version','sourceCommit','sqlSha256','mode',...Object.keys(counters),'transactionDataPreserved','preservationSha256','priorMetadataSha256','objectFingerprint'].sort();
+ for(const[p,mode,preserved]of[[installed,'install',true],[durable,'verify',false],[repeated,'verify',true]]){assert.deepEqual(Object.keys(p).sort(),keys);assert.equal(p.version,batch.version);assert.equal(p.sourceCommit,batch.sourceCommit);assert.equal(p.sqlSha256,batch.sqlSha256);assert.equal(p.mode,mode);assert.equal(p.transactionDataPreserved,preserved);for(const[k,v]of Object.entries(counters))assert.equal(p[k],v,k);for(const k of['preservationSha256','priorMetadataSha256','objectFingerprint'])assert.match(p[k],/^[a-f0-9]{64}$/);assert.equal(p.objectFingerprint,installed.objectFingerprint);assert.equal(p.priorMetadataSha256,installed.priorMetadataSha256);}
+ return{passed:true,objectFingerprint:installed.objectFingerprint,technicalWritesOnly:true,wholeDatabaseStaticAcrossConnections:false};
+}
