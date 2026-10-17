@@ -44,12 +44,14 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-own-payroll-receipt-types-browser.mjs --output=verification/own-receipt-types-operator-browser
+      - run: node scripts/verify-own-payroll-receipt-description-browser.mjs --output=verification/own-receipt-descriptions-operator-browser
       - run: node scripts/verify-own-payroll-receipt-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-receipts-ui.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: receipts-operator-ux-pg${{ matrix.major }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            verification/own-receipt-descriptions-operator-browser/
             verification/own-receipt-types-operator-browser/result.json
             verification/own-receipt-types-operator-browser/partial.json
             verification/own-receipt-types-operator-browser/failure.txt
