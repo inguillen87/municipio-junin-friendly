@@ -1,3 +1,4 @@
+import {mountF931PhysicalPackage} from './payroll-f931-physical-package-panel.js';
 import {
   PAYROLL_F931_MAX_SOURCE_BYTES,
   PAYROLL_F931_OBSERVED_PROFILE,
@@ -204,6 +205,7 @@ export function createPayrollF931Workbench(root, options = {}) {
   };
   if (!nodes.form || !nodes.mode || !nodes.scope || !nodes.file
       || !nodes.validate || !nodes.status || !nodes.result) return null;
+  mountF931PhysicalPackage(root, options.physicalPackage);
   const state = { busy: false, diagnostic: null };
 
   function setStatus(message, kind = '') {
