@@ -39,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: New engine-source contracts and composed predecessor regressions
-        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-sources-composition.test.js
+        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js
       - name: Prepare only the disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
@@ -55,5 +55,34 @@ jobs:
         with:
           name: monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}-${{ github.sha }}
           path: verification/monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
+          if-no-files-found: error
+          retention-days: 5
+  programme-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Platform tests and actual static build
+        run: npm run build
+      - name: Browser system dependencies using the existing project workflow
+        run: npx playwright install --with-deps chromium
+      - name: Install the project-pinned verification browser
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Actual built programme editor, source selection, recovery and review
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-monthly-declared-day-program-ui-browser.mjs --built
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: monthly-declared-day-program-ui-${{ github.sha }}
+          path: public/verification/declared-day-program-ui
           if-no-files-found: error
           retention-days: 5

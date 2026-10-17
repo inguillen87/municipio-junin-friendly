@@ -6,6 +6,7 @@ import{monthlyQaRuntimeGrants}from'./own-monthly-participation-qa.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';
 import{ownerDecisionQaLiteral as q}from'./municipal-owner-adoption-decision-qa.mjs';
 import{monthlyDaySqlFixture}from'../../tests/fixtures/own-monthly-day-policy-sql-synthetic.js';
+import{monthlyDayLegacyCompatibilityFixture,MONTHLY_DAY_LEGACY_FIXTURE_SOURCE}from'./monthly-day-policy-legacy-fixture.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex'),body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'MONTHLY192_BODY_REQUIRED');return m[2];};
 export function monthlyDayQaHeader(sql){return sql.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp').replaceAll("SET search_path TO ''pg_catalog'', ''public'', ''pg_temp''",'SET search_path=pg_catalog,public,pg_temp').replaceAll('SET "TimeZone" TO \'UTC\'',"SET timezone='UTC'").replaceAll('SET "TimeZone" TO \'\'UTC\'\'',"SET timezone=''UTC''");}
 export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operationalPairBaseline}){
@@ -28,7 +29,8 @@ export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operatio
  const makerCapabilities=['employee.record.create','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export'];
  const capabilitySeed=capabilitySources.map(row=>normalized(row.statement)).join(';\n')+`;\nINSERT INTO ${qa.schema}.iam_role_capability(role_key,capability_key) SELECT role_key,c.capability_key FROM ${qa.schema}.tenant_membership CROSS JOIN(VALUES${makerCapabilities.map(k=>'('+q(k)+')').join(',')}) c(capability_key) WHERE id=${q(qa.actor.membershipId)};`;
 
- return{major,sourceCommit,operationalPairBaseline,schema:qa.schema,qa,batch,normalized,local,hashes,runtimeGrants,capabilitySources,makerCapabilities,capabilitySeed,runtimeGrantSeed:runtimeGrants.map(r=>normalized(r.grant)).join(';\n'),actor:qa.actor,checker:qa.checker,ids:qa.ids,sourceHashes:{...qa.sourceHashes,...batch.sourceHashes},fixture:monthlyDaySqlFixture(),connects:false,executesSql:false};
+ const legacyFixture=monthlyDayLegacyCompatibilityFixture(read),legacyCompatibilitySeed=legacyFixture.statements.map(normalized).join(';\n');
+ return{major,sourceCommit,operationalPairBaseline,schema:qa.schema,qa,batch,normalized,local,hashes,runtimeGrants,capabilitySources,makerCapabilities,capabilitySeed,legacyCompatibilitySeed,runtimeGrantSeed:runtimeGrants.map(r=>normalized(r.grant)).join(';\n'),actor:qa.actor,checker:qa.checker,ids:qa.ids,sourceHashes:{...qa.sourceHashes,...batch.sourceHashes,[MONTHLY_DAY_LEGACY_FIXTURE_SOURCE]:legacyFixture.sourceSha256},fixture:monthlyDaySqlFixture(),connects:false,executesSql:false};
 }
 const signatures={
  'native_employment_catalog_bootstrap_v1':['jsonb'], 'native_employment_catalog_propose_v1':['jsonb','jsonb','uuid'], 'native_employment_catalog_review_v1':['jsonb','jsonb','uuid'], 'native_employment_catalog_attempt_v1':['jsonb','uuid'],

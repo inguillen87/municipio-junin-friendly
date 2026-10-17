@@ -65,7 +65,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Validate the monthly-day model, protocol and transport before SQL
-        run: node --test tests/own-monthly-day-policy.test.js tests/own-monthly-day-policy-installation.test.js tests/own-monthly-day-policy-commands.test.js tests/own-monthly-day-policy-qa.test.js tests/own-monthly-day-policy-runner.test.js tests/own-monthly-day-policy-workflow.test.js tests/own-payroll-programme-source-preparation.test.js tests/own-payroll-program.test.js tests/own-payroll-approved-input.test.js
+        run: node --test tests/own-monthly-day-policy.test.js tests/own-monthly-day-policy-installation.test.js tests/own-monthly-day-policy-commands.test.js tests/own-monthly-day-policy-qa.test.js tests/own-monthly-day-policy-runner.test.js tests/own-monthly-day-policy-workflow.test.js tests/own-monthly-day-policy-legacy-fixture.test.js tests/own-payroll-programme-source-preparation.test.js tests/own-payroll-program.test.js tests/own-payroll-approved-input.test.js
       - name: Prepare only the disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa

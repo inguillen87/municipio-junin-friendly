@@ -7,11 +7,19 @@ import {randomUUID} from 'node:crypto';
 import {salaryUuid,salaryExact} from '../../assets/native-salary-catalog-model.js';
 import {prepareMonthlyDayDeclaration,decideMonthlyDayDeclaration,monthlyDayDeclarationDetail} from '../../assets/own-monthly-day-declaration-model.js';
 import {approvedMonthlyDayInputs} from '../../lib/own-monthly-day-declaration-input.js';
+import {ownerDecisionQaLiteral} from './municipal-owner-adoption-decision-qa.mjs';
 
 export const MONTHLY_DAY_NATIVE_ONLY_PROOF_QUERY = `SELECT jsonb_build_object(
  'nativeRegistrations',(SELECT count(*) FROM public.native_employee_registration n JOIN public.employment_contract c ON c.id=n.contract_id WHERE c.id=$1::uuid AND c.source_system='MUNICONTROL' AND c.source_batch_id IS NULL),
  'legacyCounterparts',(SELECT count(*) FROM public.grh_employees WHERE company_id=$2::bigint AND legajo=$3::text),
  'adoptionApplications',(SELECT count(*) FROM public.employment_adoption_application WHERE contract_id=$1::uuid)) AS result`;
+
+export function monthlyDayNativeOnlyProofSql({contractId,sourceCompanyId,employeeNumber}){
+ assert.ok(salaryUuid(contractId));assert.match(String(sourceCompanyId),/^[1-9][0-9]*$/);
+ assert.equal(typeof employeeNumber,'string');assert.match(employeeNumber,/^[0-9]{1,12}$/);
+ const values=[contractId,String(sourceCompanyId),employeeNumber];
+ return MONTHLY_DAY_NATIVE_ONLY_PROOF_QUERY.replace(/\$(\d+)\b/g,(_,index)=>ownerDecisionQaLiteral(values[Number(index)-1]));
+}
 
 export async function verifyMonthlyDayNativeOnlyScenario({native,monthly,nativeProof,capture,draft,maker,checker}){
  assert.equal(typeof native,'function');assert.equal(typeof monthly,'function');assert.equal(typeof nativeProof,'function');assert.equal(typeof capture,'function');

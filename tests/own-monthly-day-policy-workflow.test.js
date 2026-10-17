@@ -66,8 +66,8 @@ test('failed synthetic runs retain their result and native logs without uploadin
 });
 
 
-test('the nine unique pure composition suites run before synthetic SQL preparation and its guarded runner',()=>{
- const expected=['tests/own-monthly-day-policy.test.js','tests/own-monthly-day-policy-installation.test.js','tests/own-monthly-day-policy-commands.test.js','tests/own-monthly-day-policy-qa.test.js','tests/own-monthly-day-policy-runner.test.js','tests/own-monthly-day-policy-workflow.test.js','tests/own-payroll-programme-source-preparation.test.js','tests/own-payroll-program.test.js','tests/own-payroll-approved-input.test.js'];
+test('the ten unique pure composition suites run before synthetic SQL preparation and its guarded runner',()=>{
+ const expected=['tests/own-monthly-day-policy.test.js','tests/own-monthly-day-policy-installation.test.js','tests/own-monthly-day-policy-commands.test.js','tests/own-monthly-day-policy-qa.test.js','tests/own-monthly-day-policy-runner.test.js','tests/own-monthly-day-policy-workflow.test.js','tests/own-monthly-day-policy-legacy-fixture.test.js','tests/own-payroll-programme-source-preparation.test.js','tests/own-payroll-program.test.js','tests/own-payroll-approved-input.test.js'];
  const title='      - name: Validate the monthly-day model, protocol and transport before SQL';
  const prepare='      - name: Prepare only the disposable synthetic service';
  const compile='      - name: Compile and verify installation, ordinary approval, capture and recovery in the same synthetic source';
@@ -79,7 +79,7 @@ test('the nine unique pure composition suites run before synthetic SQL preparati
   const commands=[...block.matchAll(/^        run: node --test ([^\n]+)$/gm)];
   assert.equal(commands.length,1,'MONTHLY_DAY_CI_PURE_COMMAND');
   const actual=commands[0][1].trim().split(/\s+/);
-  assert.equal(actual.length,9);assert.equal(new Set(actual).size,9,'MONTHLY_DAY_CI_PURE_DUPLICATE');
+  assert.equal(actual.length,10);assert.equal(new Set(actual).size,10,'MONTHLY_DAY_CI_PURE_DUPLICATE');
   assert.deepEqual(actual,expected,'MONTHLY_DAY_CI_PURE_SUITES');
  };
  validate(workflow);
