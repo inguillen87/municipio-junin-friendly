@@ -70,6 +70,8 @@ jobs:
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Prepare the synthetic evidence parent directory
+        run: mkdir -p verification
       - name: Compile and verify installation, ordinary approval, capture and recovery in the same synthetic source
         run: node scripts/verify-own-monthly-day-policy.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.baseline }} --output=verification/monthly-day-policy-pg${{ matrix.pg }}-${{ matrix.baseline }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
