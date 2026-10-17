@@ -24,8 +24,8 @@ test('Nómina expone una previsualización privada claramente separada de import
   assert.match(html, /data-source-preview-status role="status" aria-live="polite"/);
   assert.match(html, /no persiste el archivo ni el resultado/);
   assert.equal((html.match(/assets\/grh-source-preview\.js/g) || []).length, 1);
-  assert.match(html, /No se pudieron consultar las corridas de nómina/);
-  assert.match(html, /Las herramientas estructurales independientes permanecen visibles y conservan sus propios controles de acceso/);
+  assert.match(html, /No se pudo consultar la referencia histórica/);
+  assert.match(html, /Las corridas propias se consultan por separado en MuniControl/);
 });
 
 function validPayload(overrides = {}) {
