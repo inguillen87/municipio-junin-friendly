@@ -1,10 +1,10 @@
 name: Own bank output
 on:
   pull_request:
-    paths: ['assets/own-bank-output*', 'assets/payroll-bank-*', 'assets/payroll-transfers-var-review.js', 'assets/payroll-navigation.js', 'nomina-control.html', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'scripts/verify-transfers-var-review-ui.mjs', 'tests/own-bank-output*', 'tests/payroll-bank-*', 'tests/payroll-transfers-var-review.test.js', 'tests/fixtures/own-bank-output*', 'tests/fixtures/transferencias-varias-synthetic.js', '.github/workflows/own-bank-output.yml']
+    paths: ['assets/own-bank-output*', 'assets/payroll-bank-*', 'assets/payroll-transfers-var-review.js', 'assets/payroll-navigation.js', 'nomina-control.html', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'scripts/verify-transfers-var-review-ui.mjs', 'scripts/verify-own-transfers-var-output-ui.mjs', 'tests/own-bank-output*', 'tests/payroll-bank-*', 'tests/payroll-transfers-var-review.test.js', 'tests/fixtures/own-bank-output*', 'tests/fixtures/transferencias-varias-synthetic.js', '.github/workflows/own-bank-output.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-bank-output*', 'assets/payroll-bank-*', 'assets/payroll-transfers-var-review.js', 'assets/payroll-navigation.js', 'nomina-control.html', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'scripts/verify-transfers-var-review-ui.mjs', 'tests/own-bank-output*', 'tests/payroll-bank-*', 'tests/payroll-transfers-var-review.test.js', 'tests/fixtures/own-bank-output*', 'tests/fixtures/transferencias-varias-synthetic.js', '.github/workflows/own-bank-output.yml']
+    paths: ['assets/own-bank-output*', 'assets/payroll-bank-*', 'assets/payroll-transfers-var-review.js', 'assets/payroll-navigation.js', 'nomina-control.html', 'scripts/build-friendly.mjs', 'scripts/verify-own-bank-output-ui.mjs', 'scripts/verify-transfers-var-review-ui.mjs', 'scripts/verify-own-transfers-var-output-ui.mjs', 'tests/own-bank-output*', 'tests/payroll-bank-*', 'tests/payroll-transfers-var-review.test.js', 'tests/fixtures/own-bank-output*', 'tests/fixtures/transferencias-varias-synthetic.js', '.github/workflows/own-bank-output.yml']
 permissions:
   contents: read
 concurrency:
@@ -46,6 +46,8 @@ jobs:
         run: node scripts/verify-own-bank-output-ui.mjs --transport=ci --major=${{ matrix.pg }} --source-commit=${{ github.sha }} --browser=chromium --output=verification/bank-output-ci-pg${{ matrix.pg }}
       - name: Transferencias varias complete offline field review and incidence download
         run: node scripts/verify-transfers-var-review-ui.mjs --browser=chromium --output=verification/transfers-var-ci-pg${{ matrix.pg }}
+      - name: Own Transferencias varias complete review output, synthetic browser authority and byte custody
+        run: node scripts/verify-own-transfers-var-output-ui.mjs --browser=chromium --assets=built --output=verification/own-transfers-var-ci-pg${{ matrix.pg }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -53,4 +55,5 @@ jobs:
           path: |
             verification/bank-output-ci-*
             verification/transfers-var-ci-*
+            verification/own-transfers-var-ci-*
           retention-days: 5

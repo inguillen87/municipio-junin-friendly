@@ -249,6 +249,7 @@ const shellFiles = [
   'assets/own-bank-output-model.js',
   'assets/own-bank-output-export.js',
   'assets/own-bank-output-credicoop.js',
+  'assets/own-bank-output-transfers-var.js',
   'assets/own-bank-output-panel.js',
   'assets/own-bank-output-panel.css',
   'assets/own-payroll-accounting-panel.js',
