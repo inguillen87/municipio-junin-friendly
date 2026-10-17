@@ -3,6 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import{buildNativeFamilySelfQa}from'../verify-native-family-self-sql.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';
 import{nativeMonthlyQaInstallation}from'./native-monthly-qa-installation.mjs';
+import{nativeFamilyFixtureResolverGuard}from'./native-family-self-fixture-lifecycle-qa.mjs';
 export const familyQaLiteral=v=>"'"+String(v).replaceAll("'","''")+"'";
 const q=familyQaLiteral,j=v=>q(JSON.stringify(v))+'::jsonb',hash=s=>createHash('sha256').update(s).digest('hex');
 export function buildNativeFamilyDurableQa({major,sourceCommit,read=p=>fs.readFileSync(path.resolve(import.meta.dirname,'../..',p),'utf8')}){
@@ -31,6 +32,7 @@ export function buildNativeFamilyDurableQa({major,sourceCommit,read=p=>fs.readFi
  CREATE TABLE employee_family_member(id uuid PRIMARY KEY,contract_id uuid,employee_person_id uuid,tenant_id uuid,source_binding_id uuid,native_registration_id uuid,family_name text,birth_date date,valid_to date,identity_token text,identity_snapshot jsonb,valid_from date,recorded_at timestamptz,contract_identity_token text);
  ${original('102-native-family-schooling.sql','school_certificate_native_family_v5')}
  REVOKE ALL ON FUNCTION school_certificate_native_family_v5(jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;
+ ${nativeFamilyFixtureResolverGuard(schema,102)}
  ${install('110-native-employment-lifecycle.sql')}
  boot:=native_employment_catalog_bootstrap_v1(maker);
  receipt:=native_employment_catalog_propose_v1(maker,jsonb_build_object('baseVersion',boot#>>'{catalog,version}','scopeVersion',boot->>'scopeVersion','reason','Catálogo propio exclusivamente sintético195','items',boot#>'{catalog,items}'),gen_random_uuid());
