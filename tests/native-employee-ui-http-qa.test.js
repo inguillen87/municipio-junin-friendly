@@ -380,3 +380,65 @@ test('native UI receipt event recovery leaves every other command family under i
   assert.throws(()=>validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target:positiveTarget}));
  }
 });
+
+
+// QA-only raw-record/DOM/PDF binding. The fictional DTOs below are pure
+// inputs; no HTTP response, SQL row or native execution is substituted.
+import {nativeReceiptDescriptionExpected,assertNativeReceiptDescription,assertNativeReceiptDescriptionPdf} from '../scripts/lib/noelia-payroll-circuit-browser.mjs';
+import {receiptBatch as descriptiveReceiptBatchFixture} from './fixtures/own-payroll-receipt-synthetic.js';
+import {ownReceiptPresentation as descriptivePresentation} from '../assets/own-payroll-receipt-model.js';
+import {createOwnReceiptPdf as descriptivePdf} from '../assets/own-payroll-receipt-pdf.js';
+import {ownRunHash as descriptiveHash} from '../lib/internal-own-payroll-run.js';
+
+function descriptiveCase(){
+ const batch=descriptiveReceiptBatchFixture(1),record=batch.snapshot.records[0],first=record.concepts[0],fixed=value=>{const [whole,fraction='']=value.split('.');return whole+'.'+fraction.padEnd(8,'0');};
+ record.precision=8;for(const row of record.concepts)row.amount=fixed(row.amount);for(const key of Object.keys(record.totals))record.totals[key]=fixed(record.totals[key]);
+ first.label='Etiqueta histórica sintética completa con € y “texto conservado” '+('PalabraLargaSinSeparación'.repeat(4))+' final';
+ record.concepts.push({...first,code:'9997',nature:'auxiliary',unit:'constructor',amount:'0.00000000',label:'Dato técnico sintético sin unidad inferida'});batch.snapshot.conceptCount=record.concepts.length;batch.snapshotSha256=descriptiveHash(batch.snapshot);
+ batch.state='approved';batch.review={id:ID,decision:'approved',at:'2026-10-17T12:00:00Z',by:'Revisor exclusivamente sintético',reason:'Revisión exclusivamente sintética de la prueba'};batch.permissions={canApprove:false,canWithdraw:true,canDownload:true};
+ const target={contractId:record.contractId,legajo:record.employeeNumber},source=batch.snapshot.sources[0],view=descriptivePresentation(record);
+ const dom={groups:view.groups.map(group=>({title:group.title,explanation:group.explanation,caption:group.title,columns:['Código','Descripción conservada','Importe o valor'],rows:group.rows.map(row=>({code:row.code,label:row.label,unit:'Unidad: '+row.displayUnit,amount:row.displayAmount}))})),totals:view.totals.map(total=>({label:total.label,amount:total.displayAmount})),netExplanation:view.netExplanation};
+ return {batch,record,target,source,dom};
+}
+
+test('native descriptive receipt QA binds every original row, source field, exact amount and total without mutating the source',()=>{
+ const value=descriptiveCase(),before=structuredClone(value),expected=nativeReceiptDescriptionExpected(value.record,value.target);
+ assert.deepEqual(expected,value.dom);assert.equal(assertNativeReceiptDescription(value.dom,value.record,value.target),value.record.concepts.length);
+ for(const raw of value.record.concepts){const row=expected.groups.flatMap(group=>group.rows).find(row=>row.code===raw.code);assert.equal(row.label,raw.label);assert.ok(row.amount.endsWith(raw.amount.split('.')[1]));}
+ assert.equal(expected.groups.flatMap(group=>group.rows).find(row=>row.code==='9997').unit,'Unidad: constructor (unidad conservada)');assert.deepEqual(value,before);
+});
+
+test('native descriptive receipt QA rejects missing final rows, duplicates and changed displayed labels, units, decimals or totals',()=>{
+ for(const mutate of [
+  dom=>{dom.groups.at(-1).rows.pop();},dom=>{dom.groups[0].rows.push({...dom.groups[0].rows[0]});},
+  dom=>{dom.groups[0].rows[0].label+=' changed';},dom=>{dom.groups[0].rows[0].unit='Unidad: inventada';},
+  dom=>{const row=dom.groups[0].rows[0];row.amount=row.amount.slice(0,-1)+(row.amount.endsWith('1')?'2':'1');},
+  dom=>{dom.totals.at(-1).amount='0,00000000';},dom=>{dom.groups.pop();},dom=>{dom.extra=true;},
+ ]){const value=descriptiveCase();mutate(value.dom);const before=structuredClone(value);assert.throws(()=>assertNativeReceiptDescription(value.dom,value.record,value.target),/QA_NATIVE_DESCRIPTION_DOM_CHANGED/);assert.deepEqual(value,before);}
+});
+
+test('native descriptive receipt QA checks the real composed PDF with wrapped full labels, all rows, precision and source identity',async()=>{
+ const value=descriptiveCase(),before=structuredClone(value),pdf=await descriptivePdf(value.batch);
+ const result=assertNativeReceiptDescriptionPdf(pdf.bytes,{...value,batchId:value.batch.id});assert.equal(result.contractId,value.record.contractId);assert.equal(result.conceptCount,value.record.concepts.length);assert.match(result.recordSha256,/^[a-f0-9]{64}$/);assert.equal(pdf.recordCount,1);assert.deepEqual(value,before);
+ const source=Buffer.from(pdf.bytes).toString(),encoded=[...source.matchAll(/<([a-f0-9]+)> Tj/gi)],firstLabel=encoded.find(match=>new TextDecoder('windows-1252').decode(Buffer.from(match[1],'hex')).startsWith('Etiqueta'));
+ assert.ok(firstLabel);const labelChanged=source.replace(firstLabel[0],'<58'+firstLabel[1].slice(2)+'> Tj');assert.notEqual(labelChanged,source);assert.throws(()=>assertNativeReceiptDescriptionPdf(Buffer.from(labelChanged),{...value,batchId:value.batch.id}));
+ const unit=encoded.find(match=>new TextDecoder('windows-1252').decode(Buffer.from(match[1],'hex')).startsWith('Unidad:'));assert.ok(unit);const unitChanged=source.replace(unit[0],'<58'+unit[1].slice(2)+'> Tj');assert.throws(()=>assertNativeReceiptDescriptionPdf(Buffer.from(unitChanged),{...value,batchId:value.batch.id}));
+ for(const text of [value.record.concepts[0].code,value.dom.groups[0].rows[0].amount,'Emisión: '+value.batch.id,'Grupo cerrado: '+value.source.id,'Huella del cierre: '+value.source.snapshotSha256]){
+  const hex=Buffer.from(text,'latin1').toString('hex'),needle='<'+hex+'> Tj',changed=source.replace(needle,'<58'+hex.slice(2)+'> Tj');assert.notEqual(changed,source);assert.throws(()=>assertNativeReceiptDescriptionPdf(Buffer.from(changed),{...value,batchId:value.batch.id}));
+ }
+});
+
+test('native descriptive receipt QA never substitutes nulls, another UUID, inferred units or another closed source',async()=>{
+ for(const mutate of [record=>{record.concepts[0].amount=null;},record=>{record.concepts[0].unit=null;},record=>{record.concepts[0].labelSourceSha256=null;},record=>{record.totals.net=null;}]){
+  const value=descriptiveCase();mutate(value.record);const before=structuredClone(value);assert.throws(()=>nativeReceiptDescriptionExpected(value.record,value.target));assert.deepEqual(value,before);
+ }
+ const value=descriptiveCase(),other={...value.target,contractId:positiveOtherContract};assert.throws(()=>assertNativeReceiptDescription(value.dom,value.record,other),/QA_NATIVE_DESCRIPTION_TARGET/);
+ const pdf=await descriptivePdf(value.batch);assert.throws(()=>assertNativeReceiptDescriptionPdf(pdf.bytes,{...value,source:{...value.source,id:positiveOtherContract},batchId:value.batch.id}));
+});
+
+
+test('native descriptive receipt QA distinguishes a concept code from an equal label and auxiliary value in the real PDF',async()=>{
+ const value=descriptiveCase(),aux=value.record.concepts.at(-1);aux.code=aux.label=aux.amount='7';value.batch.snapshotSha256=descriptiveHash(value.batch.snapshot);
+ const before=structuredClone(value),pdf=await descriptivePdf(value.batch);
+ assert.equal(assertNativeReceiptDescriptionPdf(pdf.bytes,{...value,batchId:value.batch.id}).conceptCount,value.record.concepts.length);assert.deepEqual(value,before);
+});
