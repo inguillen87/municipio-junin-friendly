@@ -46,7 +46,7 @@ test('Nómina integra un conciliador poscierre agregado, local y accesible', () 
   assert.match(html, /data-label="Reporte GRH" data-post-close-total-observed/);
   assert.match(html, /\.post-close-results tbody td::before/);
   assert.match(html, /no genera F\.931 y no escribe en GRH, PostgreSQL o Neon/);
-  assert.match(html, /control poscierre y el precontrol mensual técnico/);
+  assert.match(html, /Cada tarea de nómina propia conserva su acceso y sus verificaciones/);
   assert.equal((html.match(/assets\/payroll-post-close-reconciler\.js/g) || []).length, 1);
   assert.doesNotMatch(html, /<script[^>]+payroll-post-close-exporter/);
   assert.match(reconciler, /function showFormErrors\(title, entries\)/);
