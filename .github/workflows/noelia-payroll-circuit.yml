@@ -127,6 +127,7 @@ jobs:
             verification/noelia-payroll-readiness-ci/failure.json
             verification/noelia-payroll-readiness-ci/*.png
             verification/noelia-circuit-ci/*-proof.json
+            verification/noelia-circuit-ci/native-employee-receipt.pdf
             verification/noelia-circuit-ci/*-browser.json
             verification/noelia-circuit-ci/browser-transport.json
             verification/noelia-circuit-ci/*.png
