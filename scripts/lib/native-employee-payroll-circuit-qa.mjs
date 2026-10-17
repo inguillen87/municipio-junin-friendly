@@ -67,8 +67,8 @@ export function nativeEmployeePositiveUiApi({directApi,adapter,getTarget,command
   const packet=await adapter.command({kind,body,target});const evidence=validateNativeEmployeeUiPositiveCommand(packet,{kind,body,target});commands.push(evidence);return packet.receipt;
  };
 }
-async function nativeEmployeeUiPreview(adapter,params,target,state){
- const packet=await adapter.preview({params,target});assert.deepEqual(Object.keys(packet).sort(),['preview','sameServer','authenticationFixture','uiHttp']);
+export async function nativeEmployeeUiPreview(adapter,params,target,state){
+ const packet=await adapter.preview({params,target});assert.deepEqual(Object.keys(packet).sort(),['preview','sameServer','authenticationFixture','uiHttp'].sort());
  assert.equal(packet.sameServer,true);assert.equal(packet.authenticationFixture,true);assert.equal(packet.uiHttp,true);assert.deepEqual(packet.preview.snapshot.params,params);assert.equal(packet.preview.snapshot.recordCount,1);assert.equal(packet.preview.snapshot.records[0].contractId,target.contractId);
  state.preview={uiHttp:true,contractId:target.contractId,snapshotSha256:packet.preview.snapshotSha256};return packet.preview;
 }

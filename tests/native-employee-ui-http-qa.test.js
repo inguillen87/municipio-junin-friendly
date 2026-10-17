@@ -247,3 +247,59 @@ test('calculation evidence rejects legacy, impossible, foreign-month and mutated
  const legacy=positivePacket('run',body);
  assert.throws(()=>validateNativeEmployeeUiPositiveCommand(legacy,{kind:'run',body,target:positiveTarget}));
 });
+
+
+// Causal preview-envelope regression: invoke the real QA helper, not a mirror
+// of its Object.keys assertion. These are existing wholly synthetic fixtures.
+import {nativeEmployeeUiPreview} from '../scripts/lib/native-employee-payroll-circuit-qa.mjs';
+import {receiptPreview as nativeUiReceiptPreviewFixture} from './fixtures/own-payroll-receipt-synthetic.js';
+
+function nativeUiPreviewCase(){
+ const preview=nativeUiReceiptPreviewFixture(1),target={contractId:preview.snapshot.records[0].contractId};
+ return {params:preview.snapshot.params,target,packet:{preview,sameServer:true,authenticationFixture:true,uiHttp:true}};
+}
+
+test('native UI receipt preview accepts exactly the valid fields in every tested insertion order and preserves its evidence',async()=>{
+ for(const order of [
+  ['preview','sameServer','authenticationFixture','uiHttp'],
+  ['uiHttp','authenticationFixture','sameServer','preview'],
+  ['authenticationFixture','preview','sameServer','uiHttp'],
+ ]){
+  const {params,target,packet}=nativeUiPreviewCase(),ordered=Object.fromEntries(order.map(key=>[key,packet[key]]));
+  const before=structuredClone({params,target,ordered}),commands=[{existing:true}],state={commands,preview:null,download:null};let calls=0;
+  const actual=await nativeEmployeeUiPreview({preview:async input=>{
+   calls++;assert.equal(input.params,params);assert.equal(input.target,target);return ordered;
+  }},params,target,state);
+  assert.equal(actual,packet.preview);assert.equal(calls,1);assert.equal(state.commands,commands);
+  assert.deepEqual(state,{commands:[{existing:true}],preview:{uiHttp:true,contractId:target.contractId,snapshotSha256:packet.preview.snapshotSha256},download:null});
+  assert.deepEqual({params,target,ordered},before);
+ }
+});
+
+test('native UI receipt preview rejects each missing field and every extra field without advancing preview state',async()=>{
+ for(const missing of ['preview','sameServer','authenticationFixture','uiHttp']){
+  const {params,target,packet}=nativeUiPreviewCase();delete packet[missing];
+  const state={commands:[{existing:true}],preview:null,download:null},before=structuredClone(state);
+  await assert.rejects(nativeEmployeeUiPreview({preview:async()=>packet},params,target,state));assert.deepEqual(state,before);
+ }
+ for(const extra of ['extra','recovered','fallback']){
+  const {params,target,packet}=nativeUiPreviewCase();packet[extra]=true;
+  const state={commands:[{existing:true}],preview:null,download:null},before=structuredClone(state);
+  await assert.rejects(nativeEmployeeUiPreview({preview:async()=>packet},params,target,state));assert.deepEqual(state,before);
+ }
+});
+
+test('native UI receipt preview retains strict flags, params, record count, UUID and callback failure with no state fallback',async()=>{
+ for(const mutate of [
+  packet=>{packet.sameServer=false;},packet=>{packet.authenticationFixture=false;},packet=>{packet.uiHttp=false;},
+  packet=>{packet.preview.snapshot.params={...packet.preview.snapshot.params,legend:'Changed synthetic legend'};},
+  packet=>{packet.preview.snapshot.recordCount=2;},packet=>{packet.preview.snapshot.records[0].contractId=positiveOtherContract;},
+  packet=>{delete packet.preview.snapshot;},
+ ]){
+  const {params,target,packet}=nativeUiPreviewCase(),state={commands:[{existing:true}],preview:null,download:null},before=structuredClone(state);
+  mutate(packet);await assert.rejects(nativeEmployeeUiPreview({preview:async()=>packet},params,target,state));assert.deepEqual(state,before);
+ }
+ const {params,target}=nativeUiPreviewCase(),state={commands:[],preview:null,download:null},failure=Error('synthetic preview callback failure');
+ await assert.rejects(nativeEmployeeUiPreview({preview:async()=>{throw failure;}},params,target,state),error=>error===failure);
+ assert.deepEqual(state,{commands:[],preview:null,download:null});
+});
