@@ -39,7 +39,7 @@ async function harness(count=63){
    const wrapper=JSON.parse(call.bytes);assert.equal(wrapper.operation,'approve_owner');const command=wrapper.payload;
    const prior=saved.get(call.key);if(prior)assert.deepEqual(prior.command,command);
    data=prior??{version:'municipal-adoption-owner-stored.v1',preview:{...fixture.stage.preview,review},command,attempt:{...clone(fixture.stored.attempt),requestKey:call.key,bodySha256:await adoptionReviewHash(command),receipt:{...clone(fixture.stored.attempt.receipt),reason:command.reason}}};
-   saved.set(call.key,data);status=201;
+   saved.set(call.key,data);status=201;step.onStored?.();
   }
   if(step.wait)await step.wait;
   if(step.afterCommit)step.afterCommit();
@@ -95,9 +95,9 @@ test('municipality change prevents lookup or resend and keeps immutable pending 
  h.state.authority.scope.tenantId='10000000-1000-4000-8000-000000099999';h.setPlan(()=>({elapsed:20000}));await assert.rejects(h.machine.recover(),{status:403});assert.deepEqual(h.calls.slice(at).map(r=>r.kind),['authority']);assert.equal(h.machine.getState().pending,pending);assert.equal(h.machine.getState().context,null);assert.equal(h.calls.filter(r=>r.kind==='post').length,1);await assert.rejects(h.machine.retry());
 });
 
-test('toggle invalidation cancels the same epoch, preserves committed pending bytes and enforces single flight',async()=>{
- const h=await harness();await h.ready();let release;const hold=new Promise(r=>release=r);h.setPlan(r=>r.kind==='post'?{wait:hold}:{});const sending=h.machine.send({reason,reviewConfirmed:true});
- for(let i=0;!h.saved.size;i++){assert.ok(i<1000);await new Promise(setImmediate);}const pending=h.machine.getState().pending;
+test('toggle invalidation cancels the same epoch, preserves committed pending bytes and enforces single flight',{timeout:10000},async()=>{
+ const h=await harness();await h.ready();let release,signalStored;const hold=new Promise(r=>release=r),stored=new Promise(r=>signalStored=r);h.setPlan(r=>r.kind==='post'?{wait:hold,onStored:signalStored}:{});const sending=h.machine.send({reason,reviewConfirmed:true});
+ await Promise.race([stored,sending.then(()=>{throw new Error('Synthetic send completed without the stored checkpoint');})]);assert.equal(h.saved.size,1);assert.equal(h.machine.getState().busy,true);const pending=h.machine.getState().pending;
  await assert.rejects(h.machine.send({reason,reviewConfirmed:true}));assert.equal(h.keys(),1);h.setLive(false);h.machine.invalidate('Datos retirados al cerrar el apartado.');assert.ok(h.calls.find(r=>r.kind==='post').signal.aborted);release();await assert.rejects(sending);
  assert.equal(h.machine.getState().busy,false);assert.equal(h.machine.getState().pending,pending);assert.equal(h.machine.getState().receipt,null);for(const k of ['context','history','review','preview','proposal','sources'])assert.equal(h.machine.getState()[k],null);
  h.setLive(true);h.setPlan(()=>({elapsed:20000}));await h.machine.recover();assert.equal(h.machine.getState().receipt.total,63);assert.equal(h.calls.filter(r=>r.kind==='post').length,1);assert.equal(h.keys(),1);

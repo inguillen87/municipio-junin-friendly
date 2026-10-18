@@ -39,13 +39,20 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: New mixed196/day contracts and composed predecessor regressions
-        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js tests/own-monthly-day-fixed-composition*.test.js tests/own-monthly-days-forced-declared-coverage.test.js
+        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js tests/own-monthly-day-fixed-composition*.test.js tests/own-monthly-days-forced-declared-coverage.test.js tests/monthly-native-full-circuit*.test.js tests/native-employee-ui-monthly-command-projection.test.js
+      - name: Build actual static UI for the joint native circuit
+        run: node scripts/build-friendly.mjs
+      - name: Browser system dependencies using the existing project workflow
+        run: npx playwright install --with-deps chromium
+      - name: Install the project-pinned verification browser
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Prepare only the disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
       - name: Native mixed196 and approved193/full192 engine circuit
         env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: |
           mkdir -p verification
