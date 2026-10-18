@@ -70,6 +70,7 @@ jobs:
           tests/native-family-self-built-recipe.test.js
           tests/native-family-self-fixture-lifecycle-qa.test.js
           tests/native-family-self-holder-error-completion.test.js
+          tests/native-family-regression-timeout.test.js
           tests/native-family-self-durable-workflow.test.js tests/native-family-self-durable-browser.test.js
           tests/native-family-self-durable-http.test.js tests/municipal-owner-adoption-qa-transport.test.js
       - name: Build exact product assets

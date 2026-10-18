@@ -9,6 +9,6 @@ test('family195 CI runs the holder and lifecycle error-completion regressions in
   assert.ok(focal,'missing Focal and transport regression command');
   const command=focal[1].trim().split(/\s+/);
   assert.deepEqual(command.slice(0,2),['node','--test']);
-  for(const p of ['tests/native-family-self-fixture-lifecycle-qa.test.js','tests/native-family-self-holder-error-completion.test.js'])
+  for(const p of ['tests/native-family-self-fixture-lifecycle-qa.test.js','tests/native-family-self-holder-error-completion.test.js','tests/native-family-regression-timeout.test.js'])
     assert.equal(command.filter(token=>token===p).length,1,p+' must execute exactly once in Focal');
 });
