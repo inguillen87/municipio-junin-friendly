@@ -19,10 +19,11 @@ import{createOwnProgramHandler}from'../api/internal-own-payroll-program.js';impo
 import{monthlyDayNativeOnlyProofSql,verifyMonthlyDayNativeOnlyScenario}from'./lib/monthly-day-declaration-native-only-qa.mjs';
 import{monthly194SqlFixture}from'../tests/fixtures/own-monthly-day-engine-source-sql-synthetic.js';
 import{verifyMonthly194Behavior}from'./lib/own-monthly-day-engine-behavior-qa.mjs';
+import{inspect}from'node:util';
 import{buildMonthlyDayCircuitFixture}from'./lib/own-monthly-day-engine-circuit-fixture.mjs';import{verifyMonthlyDayEngineCircuit}from'./lib/own-monthly-day-engine-circuit-qa.mjs';
 import{createOwnLiquidationHandler}from'../api/internal-own-payroll-liquidation.js';import{createOwnCloseHandler}from'../api/internal-own-payroll-close.js';import{createOwnReceiptHandler}from'../api/internal-own-payroll-receipts.js';
 const root=path.resolve(import.meta.dirname,'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n?/g,'\n'),j=v=>q(JSON.stringify(v))+'::jsonb';
-export const MONTHLY194_QA_ENTRIES=Object.freeze(['tests/own-monthly-day-engine-source-self-approval.test.js','tests/own-monthly-day-engine-source-bulk-circuit.test.js','scripts/verify-own-monthly-day-engine-source.mjs','.github/workflows/own-monthly-day-engine-source.yml','tests/own-monthly-day-engine-source-installation.test.js','tests/own-monthly-day-engine-source-qa.test.js','tests/own-monthly-day-engine-source-workflow.test.js']);
+export const MONTHLY194_QA_ENTRIES=Object.freeze(['tests/own-monthly-day-engine-source-failure-evidence.test.js','tests/own-monthly-day-engine-source-self-approval.test.js','tests/own-monthly-day-engine-source-bulk-circuit.test.js','scripts/verify-own-monthly-day-engine-source.mjs','.github/workflows/own-monthly-day-engine-source.yml','tests/own-monthly-day-engine-source-installation.test.js','tests/own-monthly-day-engine-source-qa.test.js','tests/own-monthly-day-engine-source-workflow.test.js']);
 export function monthly194Options(o){const parsed=monthlyDayPolicyQaOptions(o);return monthly193Options(['--major='+parsed.major,'--source-commit='+parsed.sourceCommit,'--output='+parsed.output,'--transport='+parsed.transport,'--operational-pair-baseline='+parsed.operationalPairBaseline]);}
 export async function verifyOwnMonthlyDayEngineSource(rawOptions){
  const options=monthly194Options(rawOptions),{major,sourceCommit,output,operationalPairBaseline}=options,destination=path.join(root,output);assert.equal(fs.existsSync(destination),false,'MONTHLY194_OUTPUT_EXISTS');
@@ -74,7 +75,7 @@ export async function verifyOwnMonthlyDayEngineSource(rawOptions){
    expect(qa.local.rollback,'MONTHLY194_ROLLBACK_HAS_HISTORY');
   });
   report={version:qa.version,passed:true,...options,proofs,checks,checksPassed:checks.length,identity,sourceBefore,sourceHashes:qa.sourceHashes,actualSql:true,actualHttpHandlers:true,authenticationFixture:true,completeAuthenticationHandler:false,sqlAuthorityStubs:false,browserExecuted:false,municipalAcceptance:false,productionWrites:0};
- }catch(error){failure=error;fs.writeFileSync(path.join(destination,'failure.txt'),error.stack??String(error));fs.writeFileSync(path.join(destination,'partial-proof.json'),JSON.stringify({phase,checks,proofs,rpc},null,2));}
+ }catch(error){failure=error;fs.writeFileSync(path.join(destination,'failure.txt'),inspect(error,{depth:null,maxArrayLength:null,maxStringLength:null,colors:false,customInspect:false,getters:false}));fs.writeFileSync(path.join(destination,'partial-proof.json'),JSON.stringify({phase,checks,proofs,rpc},null,2));}
  finally{
   try{if(schemaOwned)run(tx(finalReviewAdmissionQaCleanup(qa.schema)));}catch(error){cleanupFailure=error;fs.writeFileSync(path.join(destination,'cleanup-failure.txt'),error.stack??String(error));}
   try{const after=outerBefore?outer():null,postflight=guard();if(outerBefore)assert.deepEqual(after,outerBefore);fs.writeFileSync(path.join(destination,'conservation.json'),JSON.stringify({outerBefore,outerAfter:after,postflight,schemaOwned,cleanupFailed:Boolean(cleanupFailure)},null,2));if(report){report.priorDatabasePreserved=true;report.syntheticSchemaRemoved=!cleanupFailure;}}catch(error){conservationFailure=error;fs.writeFileSync(path.join(destination,'conservation-failure.txt'),error.stack??String(error));}
