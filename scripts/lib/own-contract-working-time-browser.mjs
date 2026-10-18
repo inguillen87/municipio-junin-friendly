@@ -36,6 +36,7 @@ export async function verifyOwnContractWorkingTimeBrowser({handlers,env,actors,s
   const select=async employee=>{
    await s('picker').click();const d=page.locator('#salaryWorkingTimePicker');await d.getByLabel('Nombre, apellido o legajo').fill(employee.employeeNumber);await d.getByRole('button',{name:'Buscar',exact:true}).click();
    await d.locator('input[value="'+employee.contractId+'"]').check();await d.getByRole('button',{name:'Usar este legajo',exact:true}).click();
+   await d.waitFor({state:'hidden'});await s('subject').filter({hasText:'Legajo '+employee.employeeNumber+' · '}).waitFor({state:'visible'});
    await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});
   };
   await fresh();await select(people[0]);
