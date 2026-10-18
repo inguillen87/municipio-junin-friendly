@@ -4,7 +4,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {salarySerialized} from '../../assets/native-salary-catalog-model.js';
 import {ownProgramBootstrap,ownProgramCommand,ownProgramReceipt} from '../../assets/own-payroll-program-model.js';
 import {monthlyDayDeclarationReceipt} from '../../assets/own-monthly-day-declaration-model.js';
-import {createOwnReceiptPdf} from '../../assets/own-payroll-receipt-pdf.js';
+import {pinMonthlyNativeBaselineArchive,preserveMonthlyNativeBaselineArchive} from './monthly-native-baseline-archive-preservation-qa.mjs';
 import {OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE} from '../../assets/own-payroll-receipt-model.js';
 import {BANK_ACCOUNTS_READ,BANK_ACCOUNTS_CAPS} from '../../lib/internal-own-bank-accounts.js';
 import {ACCOUNTING_READ,ACCOUNTING_CAPS} from '../../lib/internal-own-payroll-accounting.js';
@@ -14,6 +14,7 @@ import {monthly194SqlFixture} from '../../tests/fixtures/own-monthly-day-engine-
 import {bindMonthlyNativeFullCircuitContext} from './monthly-native-full-circuit-context-qa.mjs';
 import {prepareMonthlyNativeConservationBaseline} from './monthly-native-full-circuit-baseline-qa.mjs';
 import {verifyMonthlyNativeFullCircuit} from './monthly-native-full-circuit-connection-qa.mjs';
+import {verifyOwnNoveltySuccessionCircuit} from './own-novelty-succession-circuit-qa.mjs';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 
 export function assertMonthlyNativeFixtureAuthority({maker,checker}){
@@ -25,7 +26,7 @@ export function assertMonthlyNativeFixtureAuthority({maker,checker}){
 }
 
 export async function verifyMonthlyNativeFullCircuitOnCanonical190({qa,tailPlan,sourceCommit,read,json,nativeJson,handlers,env,output,check,setRawActor,rawCall,state,expect}){
- assert.equal(qa.version,'own-monthly-day-fixed-composition-qa.v1');assert.equal(tailPlan.schema,qa.schema);assert.equal(tailPlan.sourceCommit,sourceCommit);
+ assert.ok(['own-monthly-day-fixed-composition-qa.v1','own-novelty-succession-qa.v1'].includes(qa.version));const successionEnabled=qa.version==='own-novelty-succession-qa.v1';assert.equal(tailPlan.schema,qa.schema);assert.equal(tailPlan.sourceCommit,sourceCommit);
  const destination=path.join(output,'monthly-native-full-circuit');assert.equal(fs.existsSync(destination),false);fs.mkdirSync(destination);
  let context=null,failure=null,closeFailure=null,result=null;
  try{
@@ -41,21 +42,24 @@ export async function verifyMonthlyNativeFullCircuitOnCanonical190({qa,tailPlan,
   };
   const call=(name,types,values)=>rawCall(name,types,values,context.rawActor(getCurrent()));
   const b0=await prepareMonthlyNativeConservationBaseline({...context,monthly,approveProgram,b0Fixture:monthly194SqlFixture(),output:destination});
+  setCurrent(maker);const baselineArchive=pinMonthlyNativeBaselineArchive({capture:b0.original.capture,receipt:b0.original.receipt,group:await api('close',{resource:'group',id:b0.baseline.originalGroup.id}),pdfBytes:fs.readFileSync(b0.original.pdfPath)});
   const preserveOriginal=async()=>{
-   const previous=getCurrent();setCurrent(maker);try{const capture=await api('liquidation',{resource:'detail',id:b0.original.capture.id}),receipt=await api('receipt',{resource:'batch',id:b0.original.receipt.id}),group=await api('close',{resource:'group',id:b0.baseline.originalGroup.id}),pdf=await createOwnReceiptPdf(receipt);
-    assert.deepEqual(capture.capture.saved,b0.original.capture.saved);assert.deepEqual(receipt.snapshot,b0.original.receipt.snapshot);assert.equal(receipt.snapshotSha256,b0.original.receipt.snapshotSha256);assert.equal(receipt.sourceCurrent,true);assert.equal((await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'})).groups.find(row=>row.id===group.groupId)?.state,'closed');assert.equal(group.snapshotSha256,b0.baseline.originalGroup.snapshotSha256);assert.deepEqual(Buffer.from(pdf.bytes),fs.readFileSync(b0.original.pdfPath));return{capture:capture.capture.saved,receipt:receipt.snapshot,receiptSha256:receipt.snapshotSha256,group,pdfSha256:sha(pdf.bytes)};
+   const previous=getCurrent();setCurrent(maker);try{const capture=await api('liquidation',{resource:'detail',id:b0.original.capture.id}),receipt=await api('receipt',{resource:'batch',id:b0.original.receipt.id}),group=await api('close',{resource:'group',id:b0.baseline.originalGroup.id}),detail=await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'});
+    return await preserveMonthlyNativeBaselineArchive({archive:baselineArchive,capture:capture.capture,receipt,group,groupState:detail.groups.find(row=>row.id===group.groupId)?.state,pdfBytes:fs.readFileSync(b0.original.pdfPath)});
    }finally{setCurrent(previous);}
   };
   const monthlyContext={schema:qa.schema,sourceCommit,normalized:context.qa.normalized,maker,checker,monthly,approveProgram,call,state,expect};
   const joint=await verifyMonthlyNativeFullCircuit({...context,sourceCommit,period:'2026-10',output:destination,ok:check,original:b0.original,baseline:b0.baseline,readPhysical:b0.readPhysical,preserveOriginal,receiptHandler:handlers.receipt,monthlyContext,synthetic:true,transport:'ci'});
-  const originalBeforeReopen=await preserveOriginal(),groups=[joint.journey.closeGroupId,b0.baseline.originalGroup.id],snapshots=[];
+  const correction=successionEnabled?await verifyOwnNoveltySuccessionCircuit({...context,sourceCommit,output:destination,ok:check,original:b0.original,baseline:b0.baseline,joint,readPhysical:b0.readPhysical,preserveOriginal,monthly,approveProgram,call,state,expect,synthetic:true,transport:'ci'}):null;
+  const originalBeforeReopen=await preserveOriginal(),groups=[joint.journey.closeGroupId,b0.baseline.originalGroup.id,...(correction?[correction.closeGroupId]:[])],snapshots=[];
   // Existing601 coverage selects all closed-period sources. Intentionally
-  // reopen these two QA groups only after bank/accounting have verified them;
+  // reopen the two original QA groups after their bank/accounting tail and
+  // the correction group after its receipt/PDF; no350 financial proof is inferred;
   // retain their immutable snapshots and record current-receipt withdrawal.
   for(const id of groups){setCurrent(checker);const before=await api('close',{resource:'group',id}),detail=await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'});assert.equal(detail.groups.find(row=>row.id===id)?.state,'closed');const reopened=await api('close',null,{period:'2026-10',liquidationType:'monthly',scopeVersion:detail.scopeVersion,stateVersion:detail.stateVersion,selection:{kind:'all',values:[]},command:'reopen',groupId:id,reason:'Reapertura explícita del fixture conjunto terminado antes del circuito601 separado',reviewConfirmed:true},randomUUID(),201);assert.equal(reopened.body.command,'reopen');const after=await api('close',{resource:'group',id});assert.equal((await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'})).groups.find(row=>row.id===id)?.state,'reopened');assert.deepEqual(after.snapshot,before.snapshot);assert.equal(after.snapshotSha256,before.snapshotSha256);snapshots.push({id,before,after});}
-  setCurrent(maker);for(const id of[b0.original.receipt.id,joint.journey.receiptBatchId]){const batch=await api('receipt',{resource:'batch',id});assert.equal(batch.sourceCurrent,false);}
+  setCurrent(maker);for(const id of[b0.original.receipt.id,joint.journey.receiptBatchId,...(correction?[correction.receiptBatchId]:[])]){const batch=await api('receipt',{resource:'batch',id});assert.equal(batch.sourceCurrent,false);}
   await approveProgram(qa.fixture);
-  result={version:'monthly-native-full-circuit-runner-proof.v1',status:'assertions_completed_pending_outer_cleanup',sourceCommit,schema:qa.schema,authority,baselineNativeHires:1,journeyAdditionalHires:1,originalNoelia29Used:false,baseline:b0.baseline,joint,originalBeforeReopen,reopenedForSeparate601:snapshots,restoredProgrammeSha256:sha(salarySerialized(qa.fixture.definition)),actualSql:true,actualHandlers:true,actualBrowser:true,authenticationFixture:true,paymentExecuted:false,municipalAcceptance:false};
+  result={version:'monthly-native-full-circuit-runner-proof.v1',status:'assertions_completed_pending_outer_cleanup',sourceCommit,schema:qa.schema,authority,baselineNativeHires:1,journeyAdditionalHires:1,correctionAdditionalHires:correction?1:0,totalNativeHires:correction?3:2,originalNoelia29Used:false,baseline:b0.baseline,joint,correction,originalBeforeReopen,reopenedForSeparate601:snapshots,restoredProgrammeSha256:sha(salarySerialized(qa.fixture.definition)),actualSql:true,actualHandlers:true,actualBrowser:true,authenticationFixture:true,paymentExecuted:false,municipalAcceptance:false};
  }catch(error){failure=error;}
  finally{try{await context?.close();}catch(error){closeFailure=error;}}
  if(failure||closeFailure)throw new AggregateError([failure,closeFailure].filter(Boolean),'MONTHLY_NATIVE_FULL_CIRCUIT_FAILED',{cause:failure??closeFailure});

@@ -21,6 +21,7 @@ const noveltyFacades=new Map([
  ['SELECT public.own_novelty_bootstrap_v1($1::jsonb) AS result',1],
  ['SELECT public.own_novelty_detail_v1($1::jsonb,$2::uuid) AS result',2],
  ['SELECT public.own_novelty_attempt_v1($1::jsonb,$2::uuid) AS result',2],
+ ['SELECT public.own_novelty_succession_context_v1($1::jsonb,$2::uuid) AS result',2],
  ['SELECT public.own_novelty_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',3]
 ]);
 export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCommit,read,json,nativeJson,handlers,env,output,check,setRawActor}){
