@@ -6,6 +6,23 @@ import { prepareBankControl, verifiedBankControl, bankOutputCents } from '../../
 import { bankAccountsBootstrap } from '../../assets/own-bank-accounts-model.js';
 import { OWN_CLOSE_TOTAL_KEYS } from '../../assets/own-payroll-close-model.js';
 
+// Explicit continuation over the already installed financial fixtures. Old modes
+// retain their original source cardinality; this scope never filters a close.
+export function nativeBankContinuationScope(journey, sources=null) {
+ if(!Object.hasOwn(journey,'nativeFinancialContinuation'))return null;
+ const scope=journey.nativeFinancialContinuation;assert.equal(scope?.version,'native-financial-continuation350.v1');
+ assert.equal(scope.targetPopulation,3);assert.ok(Array.isArray(scope.sourcePins));assert.equal(scope.sourcePins.length,3);
+ assert.equal(new Set(scope.sourcePins.map(s=>s.id)).size,3);assert.equal(scope.targetGroupId,journey.closeGroupId);
+ assert.deepEqual([...scope.sourcePins.map(s=>s.populationCount)].sort((a,b)=>a-b),[1,2,3]);
+ for(const source of scope.sourcePins){assert.equal(source.period,'2026-10');assert.equal(source.type,'monthly');assert.equal(source.employeeCount,1);assert.match(source.snapshotSha256,/^[a-f0-9]{64}$/);assert.equal(source.selectedCount,source.id===journey.closeGroupId?1:0);}
+ assert.equal(scope.sourcePins.filter(s=>s.id===journey.closeGroupId).length,1);assert.equal(scope.sourcePins.find(s=>s.id===journey.closeGroupId).populationCount,scope.targetPopulation);
+ if(sources){const sort=rows=>[...rows].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+  assert.deepEqual(sort(sources.batch.snapshot.sources),sort(scope.sourcePins),'QA_NATIVE_BANK_CONTINUATION_SOURCE_SET_CHANGED');
+  assert.equal(sources.closes.length,3);assert.deepEqual(new Set(sources.closes.map(c=>c.groupId)),new Set(scope.sourcePins.map(s=>s.id)));
+  for(const pin of scope.sourcePins){const close=sources.closes.filter(c=>c.groupId===pin.id);assert.equal(close.length,1);assert.equal(close[0].snapshotSha256,pin.snapshotSha256);assert.equal(close[0].snapshot.employeeCount,pin.employeeCount);assert.equal(close[0].snapshot.populationCount,pin.populationCount);}
+ }
+ return scope;
+}
 export async function verifiedNativeBankTail({ journey, batch, closes, accounts, profile }) {
   assert.ok(journey && typeof journey === 'object', 'QA_NATIVE_BANK_JOURNEY_REQUIRED');
   for (const key of ['contractId', 'registrationId', 'legajo', 'secondRunId', 'closeGroupId', 'receiptBatchId', 'receiptSnapshotSha256']) {
@@ -13,6 +30,7 @@ export async function verifiedNativeBankTail({ journey, batch, closes, accounts,
     assert.ok(journey[key].length > 0, 'QA_NATIVE_BANK_JOURNEY_FIELD: ' + key);
   }
   assert.equal(journey.liquidationVersion, 2, 'QA_NATIVE_BANK_SECOND_VERSION_REQUIRED');
+  nativeBankContinuationScope(journey,{batch,closes});
   const review = verifiedBankControl(await prepareBankControl(batch, accounts, profile, closes));
   assert.equal(batch.id, journey.receiptBatchId, 'QA_NATIVE_BANK_RECEIPT_CHANGED');
   assert.equal(batch.snapshotSha256, journey.receiptSnapshotSha256, 'QA_NATIVE_BANK_RECEIPT_SHA_CHANGED');

@@ -2,7 +2,7 @@ import {executeMonthlyNativeTailStage} from './monthly-native-tail-execution-qa.
 // Private synthetic QA foundation. Product models remain the source of validation;
 // the finite destinations below are declared test data, never municipal policy.
 import assert from 'node:assert/strict';
-import { verifiedNativeBankTail,nativeBankFixtureCounts } from './native-employee-bank-tail-qa.mjs';
+import { verifiedNativeBankTail,nativeBankFixtureCounts,nativeBankContinuationScope } from './native-employee-bank-tail-qa.mjs';
 import { OWN_CLOSE_TOTAL_KEYS } from '../../assets/own-payroll-close-model.js';
 import { accountingBootstrap, accountingLinkedDefinition, accountingMappingKey, accountingAssignmentKey } from '../../assets/own-payroll-accounting-model.js';
 import { imputationBootstrap, imputationPreview } from '../../assets/own-payroll-imputation-workspace-model.js';
@@ -43,8 +43,10 @@ function sourceContext(value) {
   const { journey, sources, record, close } = value;
   invariant(sources.batch.snapshot.records, [record], 'SOURCE_RECORD_CHANGED');
   invariant(sources.closes.find(c => c.groupId === journey.closeGroupId), close, 'SOURCE_CLOSE_CHANGED');
-  invariant(sources.closes.length, 2, 'BOTH_CLOSES_REQUIRED');
-  invariant(sources.batch.snapshot.sources.length, 2, 'BOTH_RECEIPT_SOURCES_REQUIRED');
+  if(!nativeBankContinuationScope(journey,sources)){
+   invariant(sources.closes.length, 2, 'BOTH_CLOSES_REQUIRED');
+   invariant(sources.batch.snapshot.sources.length, 2, 'BOTH_RECEIPT_SOURCES_REQUIRED');
+  }
   invariant(record.contractId, journey.contractId, 'UUID_CHANGED');
   invariant(record.registrationId, journey.registrationId, 'REGISTRATION_CHANGED');
   invariant(record.runId, journey.secondRunId, 'SECOND_RUN_CHANGED');
@@ -98,6 +100,7 @@ export async function verifiedNativeAccountingSource({ journey, bankTail, source
     ['liquidationVersion', 2], ['closeGroupId', journey.closeGroupId], ['receiptBatchId', journey.receiptBatchId],
     ['receiptSnapshotSha256', journey.receiptSnapshotSha256],
   ]) invariant(bankTail[key], actual, 'BANK_PROOF_CHANGED_' + key);
+  if(!nativeBankContinuationScope(journey,sources)){
   invariant(sources.batch.snapshot.sources.length, 2, 'BOTH_RECEIPT_SOURCES_REQUIRED');
   invariant(sources.closes.length, 2, 'BOTH_CLOSES_REQUIRED');
   const target = sources.batch.snapshot.sources.find(s => s.id === journey.closeGroupId), original = sources.batch.snapshot.sources.filter(s => s.id !== journey.closeGroupId);
@@ -106,6 +109,7 @@ export async function verifiedNativeAccountingSource({ journey, bankTail, source
   for (const [value, counts] of [[target, [1, fixtureCounts.targetPopulation, 1]], [original[0], [fixtureCounts.priorEmployeeCount, fixtureCounts.priorPopulation, 0]]]) {
     assert.ok(value, 'QA_NATIVE_ACCOUNTING_SOURCE_REQUIRED');
     invariant([value.employeeCount, value.populationCount, value.selectedCount], counts, 'COMPLETE_SOURCE_COUNTS_CHANGED');
+  }
   }
   invariant(bankTail.receiptSources, sources.batch.snapshot.sources, 'BANK_BOTH_SOURCES_CHANGED');
   invariant(bankTail.controlFingerprint, review.fingerprint, 'BANK_CONTROL_CHANGED');

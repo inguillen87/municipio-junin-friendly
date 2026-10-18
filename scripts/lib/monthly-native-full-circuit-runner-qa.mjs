@@ -15,6 +15,7 @@ import {bindMonthlyNativeFullCircuitContext} from './monthly-native-full-circuit
 import {prepareMonthlyNativeConservationBaseline} from './monthly-native-full-circuit-baseline-qa.mjs';
 import {verifyMonthlyNativeFullCircuit} from './monthly-native-full-circuit-connection-qa.mjs';
 import {verifyOwnNoveltySuccessionCircuit} from './own-novelty-succession-circuit-qa.mjs';
+import {verifyOwnNoveltySuccessionFinancialTail} from './own-novelty-succession-financial-tail-qa.mjs';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 
 export function assertMonthlyNativeFixtureAuthority({maker,checker}){
@@ -50,16 +51,22 @@ export async function verifyMonthlyNativeFullCircuitOnCanonical190({qa,tailPlan,
   };
   const monthlyContext={schema:qa.schema,sourceCommit,normalized:context.qa.normalized,maker,checker,monthly,approveProgram,call,state,expect};
   const joint=await verifyMonthlyNativeFullCircuit({...context,sourceCommit,period:'2026-10',output:destination,ok:check,original:b0.original,baseline:b0.baseline,readPhysical:b0.readPhysical,preserveOriginal,receiptHandler:handlers.receipt,monthlyContext,synthetic:true,transport:'ci'});
+  let jointArchive=null;
+  if(successionEnabled){setCurrent(maker);const capture=await api('liquidation',{resource:'detail',id:joint.journey.secondRunId}),receipt=await api('receipt',{resource:'batch',id:joint.journey.receiptBatchId}),group=await api('close',{resource:'group',id:joint.journey.closeGroupId});
+   const priorSource=receipt.snapshot.sources.find(s=>s.id===b0.baseline.originalGroup.id),targetSource=receipt.snapshot.sources.find(s=>s.id===group.groupId);assert.ok(priorSource&&targetSource);assert.equal(priorSource.snapshotSha256,b0.baseline.originalGroup.snapshotSha256);assert.equal(targetSource.snapshotSha256,joint.bank.closeSnapshotSha256);assert.deepEqual(receipt.snapshot.sources,joint.journey.receiptSources);
+   jointArchive=pinMonthlyNativeBaselineArchive({capture:capture.capture,receipt,group,pdfBytes:fs.readFileSync(path.join(destination,'native-employee-receipt.pdf')),jointSourceScope:{version:'monthly-native-joint-archive-scope.v1',priorSource,targetSource}});
+  }
   const correction=successionEnabled?await verifyOwnNoveltySuccessionCircuit({...context,sourceCommit,output:destination,ok:check,original:b0.original,baseline:b0.baseline,joint,readPhysical:b0.readPhysical,preserveOriginal,monthly,approveProgram,call,state,expect,synthetic:true,transport:'ci'}):null;
+  const correctionFinancial=correction?await verifyOwnNoveltySuccessionFinancialTail({...context,sourceCommit,output:destination,ok:check,correction,joint,baseline:b0.baseline,jointArchive,preserveOriginal,readPhysical:b0.readPhysical,synthetic:true,transport:'ci'}):null;
   const originalBeforeReopen=await preserveOriginal(),groups=[joint.journey.closeGroupId,b0.baseline.originalGroup.id,...(correction?[correction.closeGroupId]:[])],snapshots=[];
   // Existing601 coverage selects all closed-period sources. Intentionally
   // reopen the two original QA groups after their bank/accounting tail and
-  // the correction group after its receipt/PDF; no350 financial proof is inferred;
+  // the correction group after its explicit financial350 proof; no payment is inferred;
   // retain their immutable snapshots and record current-receipt withdrawal.
   for(const id of groups){setCurrent(checker);const before=await api('close',{resource:'group',id}),detail=await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'});assert.equal(detail.groups.find(row=>row.id===id)?.state,'closed');const reopened=await api('close',null,{period:'2026-10',liquidationType:'monthly',scopeVersion:detail.scopeVersion,stateVersion:detail.stateVersion,selection:{kind:'all',values:[]},command:'reopen',groupId:id,reason:'Reapertura explícita del fixture conjunto terminado antes del circuito601 separado',reviewConfirmed:true},randomUUID(),201);assert.equal(reopened.body.command,'reopen');const after=await api('close',{resource:'group',id});assert.equal((await api('close',{resource:'detail',period:'2026-10',liquidationType:'monthly'})).groups.find(row=>row.id===id)?.state,'reopened');assert.deepEqual(after.snapshot,before.snapshot);assert.equal(after.snapshotSha256,before.snapshotSha256);snapshots.push({id,before,after});}
   setCurrent(maker);for(const id of[b0.original.receipt.id,joint.journey.receiptBatchId,...(correction?[correction.receiptBatchId]:[])]){const batch=await api('receipt',{resource:'batch',id});assert.equal(batch.sourceCurrent,false);}
   await approveProgram(qa.fixture);
-  result={version:'monthly-native-full-circuit-runner-proof.v1',status:'assertions_completed_pending_outer_cleanup',sourceCommit,schema:qa.schema,authority,baselineNativeHires:1,journeyAdditionalHires:1,correctionAdditionalHires:correction?1:0,totalNativeHires:correction?3:2,originalNoelia29Used:false,baseline:b0.baseline,joint,correction,originalBeforeReopen,reopenedForSeparate601:snapshots,restoredProgrammeSha256:sha(salarySerialized(qa.fixture.definition)),actualSql:true,actualHandlers:true,actualBrowser:true,authenticationFixture:true,paymentExecuted:false,municipalAcceptance:false};
+  result={version:'monthly-native-full-circuit-runner-proof.v1',status:'assertions_completed_pending_outer_cleanup',sourceCommit,schema:qa.schema,authority,baselineNativeHires:1,journeyAdditionalHires:1,correctionAdditionalHires:correction?1:0,totalNativeHires:correction?3:2,originalNoelia29Used:false,baseline:b0.baseline,joint,correction,correctionFinancial,originalBeforeReopen,reopenedForSeparate601:snapshots,restoredProgrammeSha256:sha(salarySerialized(qa.fixture.definition)),actualSql:true,actualHandlers:true,actualBrowser:true,authenticationFixture:true,paymentExecuted:false,municipalAcceptance:false};
  }catch(error){failure=error;}
  finally{try{await context?.close();}catch(error){closeFailure=error;}}
  if(failure||closeFailure)throw new AggregateError([failure,closeFailure].filter(Boolean),'MONTHLY_NATIVE_FULL_CIRCUIT_FAILED',{cause:failure??closeFailure});
