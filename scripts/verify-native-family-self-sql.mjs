@@ -7,6 +7,14 @@ import {nativeFamilyFixtureResolverGuard,nativeFamilyFixtureConstraintGuard} fro
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb',sha=v=>createHash('sha256').update(v).digest('hex');
 const read=f=>fs.readFileSync(path.join(root,'scripts/migrations',f),'utf8').replaceAll('\r\n','\n');
 const original=(f,name)=>{const d=splitPostgresStatements(read(f)).find(s=>new RegExp('CREATE (?:OR REPLACE )?FUNCTION (?:public\\.)?'+name+'\\s*\\(').test(s));assert.ok(d,name);return d+';';};
+// The full rollback regression inherits180s; its complete195 checks need the
+// already planned300s budget. Reject drift instead of silently missing an anchor.
+export function nativeFamilyRegressionTimeout(sql){
+ const anchor="SET LOCAL statement_timeout='180s'";
+ assert.equal(typeof sql,'string','FAMILY195_REGRESSION_TIMEOUT_INPUT');
+ assert.equal(sql.split(anchor).length,2,'FAMILY195_REGRESSION_TIMEOUT_DRIFT');
+ return sql.replace(anchor,"SET LOCAL statement_timeout='300s'");
+}
 export function buildNativeFamilySelfQa({serverMajor,requireConcurrency=false,source,sourceCommit='9'.repeat(40)}){
  const base=buildNativeSelfQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=source??read('195-native-family-self-service.sql'),installation=buildNativeFamilySelfInstallation({source:migration,sourceCommit}),contentionKey=randomUUID();
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
@@ -146,7 +154,7 @@ export function buildNativeFamilySelfQa({serverMajor,requireConcurrency=false,so
  const block=`DECLARE family_boot jsonb;family_body jsonb;family_review jsonb;family_receipt jsonb;family_meta jsonb;family_install jsonb;family_durable jsonb;family_ref jsonb;family_token text;family_id uuid;family_key uuid:=gen_random_uuid();family_review_key uuid;family_rows integer;family_events integer;qa_i integer;page_view jsonb;page_cursor jsonb;page_ids jsonb;page_count integer;budget_full boolean;budget_successes integer;budget_body jsonb;budget_key uuid;budget_receipt jsonb;budget_saved_body jsonb;budget_saved_key uuid;budget_saved_receipt jsonb;budget_id uuid;budget_review jsonb;budget_correction_id uuid;edge_body jsonb;edge_key uuid;edge_receipt jsonb;edge_id uuid;edge_review jsonb;edge_next jsonb;BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1951',MESSAGE='RESTORE_FAMILY_SELF_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1951' THEN NULL;END;END;`;
  const anchor="RAISE EXCEPTION USING ERRCODE='P1131',MESSAGE='RESTORE_SELF_FIXTURES';";assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,familySelfChecksPassed:count,checksPassed:base.report.checksPassed+count,migration195Sha256:installation.sqlSha256,limitations:[...base.report.limitations,'195 generation is not SQL execution. Fixture adds complete normal102 family/schema to existing113 real-session/account-link QA; the prior partial102 resolver is SHA checked and dropped RESTRICT only inside the new rollback subtransaction.','195 metadata reread is within one rollback transaction, not independent durable committed connection. IAM capabilities are synthetic fixture rows. No production role grants, uploads, municipal or browser acceptance.']};
- const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace("SET LOCAL statement_timeout='90s'","SET LOCAL statement_timeout='300s'").replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
+ const sql=nativeFamilyRegressionTimeout(base.sql).replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  const lock="hashtextextended("+q('native-family:key:'+ids.tenant+':'+ids.binding+':'+ids.reader+':'+contentionKey)+',0)';
  const lockSql=requireConcurrency?base.lockSql.replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock("+lock+");\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"):base.lockSql;
  assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return{...base,sql,lockSql,report,familyFixture:{setup:familyFixtureSetup,installation:installation.installation.map(normalized),durableVerification:installation.durableVerification.map(normalized),proof:normalized(installation.proof),normalized,installationBatch:installation}};
