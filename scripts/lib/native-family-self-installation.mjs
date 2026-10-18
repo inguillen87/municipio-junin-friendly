@@ -37,7 +37,7 @@ export function buildNativeFamilySelfInstallation({source,sourceCommit}){
  FOR r IN SELECT p.* FROM pg_class p JOIN pg_namespace n ON n.oid=p.relnamespace WHERE n.nspname='public' AND p.relname IN('native_family_storage_policy','native_family_request','native_family_request_event') LOOP
   IF r.relkind<>'r' OR r.relowner<>current_user::regrole OR NOT r.relrowsecurity OR r.relforcerowsecurity OR EXISTS(SELECT 1 FROM pg_policy WHERE polrelid=r.oid)
    OR EXISTS(SELECT 1 FROM aclexplode(coalesce(r.relacl,acldefault('r',r.relowner))) a WHERE a.grantee<>r.relowner)
-   OR EXISTS(SELECT 1 FROM pg_attribute a CROSS JOIN LATERAL aclexplode(coalesce(a.attacl,'{}'::aclitem[])) acl WHERE a.attrelid=r.oid AND acl.grantee<>r.relowner)
+   OR EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid=r.oid AND CASE WHEN a.attacl IS NULL OR cardinality(a.attacl)=0 THEN FALSE ELSE EXISTS(SELECT 1 FROM aclexplode(a.attacl) acl WHERE acl.grantee<>r.relowner) END)
    OR(SELECT count(*) FROM pg_trigger t WHERE t.tgrelid=r.oid AND NOT t.tgisinternal AND t.tgenabled='O' AND t.tgtype=58 AND t.tgfoid='public.native_family_immutable_v1()'::regprocedure)<>1
   THEN RAISE EXCEPTION 'SQL195_NEW_TABLE_METADATA';END IF;
  END LOOP;
