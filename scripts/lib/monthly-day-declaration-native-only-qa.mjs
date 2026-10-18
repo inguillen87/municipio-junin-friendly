@@ -21,7 +21,16 @@ export function monthlyDayNativeOnlyProofSql({contractId,sourceCompanyId,employe
  return MONTHLY_DAY_NATIVE_ONLY_PROOF_QUERY.replace(/\$(\d+)\b/g,(_,index)=>ownerDecisionQaLiteral(values[Number(index)-1]));
 }
 
-export async function verifyMonthlyDayNativeOnlyScenario({native,monthly,nativeProof,capture,draft,maker,checker}){
+export async function assertMonthlyDaySelfApprovalRejected(reject,{layer='sql-independent',rpcCount}={}){
+ assert.equal(typeof reject,'function');assert.ok(['sql-independent','http-forbidden'].includes(layer),'MONTHLY_DAY_SELF_APPROVAL_LAYER');
+ if(layer==='sql-independent')return assert.rejects(reject,e=>e?.code==='MONTHLY_DAY_DECLARATION_INDEPENDENT_REQUIRED');
+ assert.equal(typeof rpcCount,'function','MONTHLY_DAY_SELF_APPROVAL_RPC_COUNT_REQUIRED');
+ const before=rpcCount();assert.ok(Number.isSafeInteger(before)&&before>=0,'MONTHLY_DAY_SELF_APPROVAL_RPC_COUNT_INVALID');
+ await assert.rejects(reject,e=>e?.code==='MONTHLY_DAY_DECLARATION_FORBIDDEN'&&e?.status===403);
+ assert.equal(rpcCount(),before,'MONTHLY_DAY_SELF_APPROVAL_MUST_STOP_BEFORE_RPC');
+}
+
+export async function verifyMonthlyDayNativeOnlyScenario({native,monthly,nativeProof,capture,draft,maker,checker,selfApproval}){
  assert.equal(typeof native,'function');assert.equal(typeof monthly,'function');assert.equal(typeof nativeProof,'function');assert.equal(typeof capture,'function');
  assert.equal(draft?.startDate,'2026-10-16','Use the existing monthlyQaFreshDraft(index,2026-10-16) and the real067 create writer.');
  assert.ok(maker&&checker&&maker!==checker,'Use the two existing independently verified QA actors, with unchanged roles.');
@@ -44,7 +53,7 @@ export async function verifyMonthlyDayNativeOnlyScenario({native,monthly,nativeP
  const reviewBoot=await monthly('bootstrap',checker,target),detail=await monthlyDayDeclarationDetail(await monthly('detail',checker,{id:proposed.proposalId}));
  assert.equal(detail.proposal.canReview,true);assert.deepEqual(detail.body.definition,definition);
  const decision=decideMonthlyDayDeclaration(reviewBoot,detail,'approve','Revisión independiente exclusivamente sintética QA193'),approvalKey=randomUUID();
- await assert.rejects(()=>monthly('command',maker,{body:{...decision,scopeVersion:boot.scopeVersion},key:randomUUID()}),e=>e?.code==='MONTHLY_DAY_DECLARATION_INDEPENDENT_REQUIRED');
+ await assertMonthlyDaySelfApprovalRejected(()=>monthly('command',maker,{body:{...decision,scopeVersion:boot.scopeVersion},key:randomUUID()}),selfApproval);
  const approved=await monthly('command',checker,{body:decision,key:approvalKey});assert.equal(approved.status,'approved');assert.equal(approved.revision,1);assert.equal(approved.payrollCalculated,false);assert.equal(approved.payrollPosted,false);
  const finalBoot=await monthly('bootstrap',maker,target);assert.deepEqual(finalBoot.configuration.definition,definition);assert.equal(finalBoot.configuration.revision,1);assert.equal(finalBoot.configuration.sourceVersion,finalBoot.source.version);
  const employees=[{contractId:created.contractId,identityToken:finalBoot.source.subject.identityToken}],facts=await capture(maker,{employees,period}),inputs=approvedMonthlyDayInputs(facts,employees,period);
