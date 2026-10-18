@@ -5,6 +5,7 @@ import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.j
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
+import {qaJsonResponseObserver} from './qa-json-response-observer.mjs';
 import {employeeReceipt,employeeScopeKey} from '../../assets/native-employee-confirmation-model.js';
 import {createHash} from 'node:crypto';
 import {verifiedOwnReceiptPreview,ownReceiptBatch,ownReceiptVerifyHash,ownReceiptPresentation} from '../../assets/own-payroll-receipt-model.js';
@@ -117,15 +118,15 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   let nativeReceiptContext=null;
   const nativeEndpoint=kind=>[...endpoints].find(([,value])=>value===kind)?.[0];
   async function observeNativeCommand(kind,body,target,prepare){
-   const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length,requests=[],responses=[],endpoint=nativeEndpoint(kind);assert.ok(endpoint);assert.equal(drop,false,'QA_NATIVE_PENDING_DROP');
-   const relevant=request=>{const u=new URL(request.url());return u.origin===origin&&u.pathname===endpoint;},onRequest=request=>{if(relevant(request))requests.push(request);},onResponse=response=>{if(relevant(response.request()))responses.push(response);};
+   const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length,requests=[],responses=[],responseBodies=new WeakMap(),endpoint=nativeEndpoint(kind);assert.ok(endpoint);assert.equal(drop,false,'QA_NATIVE_PENDING_DROP');
+   const relevant=request=>{const u=new URL(request.url());return u.origin===origin&&u.pathname===endpoint;},onRequest=request=>{if(relevant(request))requests.push(request);},onResponse=qaJsonResponseObserver(relevant,responses,responseBodies);
    page.on('request',onRequest);page.on('response',onResponse);
    try{
     const controls=await prepare();const receipt=await commitAndRecover({kind,...controls,verify:value=>{assert.equal(value.body.command,body.command);controls.verify?.(value);}});
     assert.equal(writes.length,before+1);const committed=writes.at(-1);assert.equal(committed.kind,kind);assert.equal(committed.status,201,'QA_NATIVE_UI_COMMITTED_STATUS');assert.equal(committed.receipt,receipt);
     const posts=requests.filter(request=>request.method()==='POST'&&request.headers()['idempotency-key']);assert.equal(posts.length,1,'QA_NATIVE_UI_ONE_COMMAND_POST');const post=posts[0],key=post.headers()['idempotency-key'];assert.equal(committed.key,key);
     const postResponse=responses.find(response=>response.request()===post);assert.ok(postResponse);assert.equal(postResponse.status(),503,'QA_NATIVE_UI_ACK_NOT_LOST');
-    const gets=requests.filter(request=>{const u=new URL(request.url());return request.method()==='GET'&&u.searchParams.get('resource')==='attempt'&&u.searchParams.get('key')===key;});assert.equal(gets.length,1,'QA_NATIVE_UI_ONE_RECOVERY_GET');const recoveredResponse=responses.find(response=>response.request()===gets[0]);assert.ok(recoveredResponse);assert.equal(recoveredResponse.status(),200);const recoveredEnvelope=await recoveredResponse.json();assert.equal(recoveredEnvelope.ok,true);
+    const gets=requests.filter(request=>{const u=new URL(request.url());return request.method()==='GET'&&u.searchParams.get('resource')==='attempt'&&u.searchParams.get('key')===key;});assert.equal(gets.length,1,'QA_NATIVE_UI_ONE_RECOVERY_GET');const recoveredResponse=responses.find(response=>response.request()===gets[0]);assert.ok(recoveredResponse);assert.equal(recoveredResponse.status(),200);assert.ok(responseBodies.has(recoveredResponse),'QA_NATIVE_UI_RECOVERY_BODY_NOT_OBSERVED');const recoveredEnvelope=await responseBodies.get(recoveredResponse);assert.equal(recoveredEnvelope.ok,true);
     assert.deepEqual(errors.slice(beforeErrors),[],'QA_NATIVE_UI_PAGE_ERRORS');assert.deepEqual(diagnostics.slice(beforeDiagnostics),[],'QA_NATIVE_UI_HTTP_DIAGNOSTICS');
     const bodyText=post.postData(),envelope=JSON.parse(bodyText);check(true,'additional native '+kind+'/'+(body.command??'calculate')+' uses actual product/HTTP, one committed command and same-key GET recovery');
     return {receipt,recovered:recoveredEnvelope.data,key,body:envelope.payload,bodyText,browserPosts:1,recoveryGets:1,ackLostAfterCommit:true,committedStatus:committed.status,postStatus:postResponse.status(),sameServer:true,authenticationFixture:true};
