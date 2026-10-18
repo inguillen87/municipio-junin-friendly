@@ -1,6 +1,6 @@
 import { ownProgramParticipation, participationPolicy, participationRules } from './own-period-participation-program.js';
 import { salaryItems, salaryExact, salaryHash, salaryUuid, salaryKey, salarySerialized } from './native-salary-catalog-model.js';
-import { validateOwnPayrollRulePeriods, OWN_PAYROLL_NAMESPACE_VERSION, ownPayrollRuleIdentity } from './own-payroll-engine.js';
+import { validateOwnPayrollRulePeriods, OWN_PAYROLL_NAMESPACE_VERSION, ownPayrollRuleIdentity, ownFixedForcedAmounts, normalizeFixedForcedAmountsPolicy } from './own-payroll-engine.js';
 import { payrollRequire as require } from './own-payroll-exact.js';
 import {ownPayrollConditions,CONDITION_FIELD_UNITS,CLASSIFICATION_FIELD_UNITS,conditionUnit,OWN_PAYROLL_CONDITIONS_VERSION} from './own-payroll-conditions.js';
 import { ownProgramAgreementWorkingTime, OWN_AGREEMENT_WORKING_TIME_VERSION } from './own-agreement-working-time-program.js';
@@ -18,7 +18,7 @@ const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 export const ownProgramRuleKey = (r, namespaceVersion = null) => [r.agreementCode, ownPayrollRuleIdentity(r, namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION), r.validFrom, r.liquidationTypes.join(',')].join(':');
 export const ownProgramNamespaced = p => p?.namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION;
-export const ownProgramFields = p => [...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), 'rules', 'bindings', 'totalsPrecision'];
+export const ownProgramFields = p => [...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []),...(ownFixedForcedAmounts(p)?['fixedForcedAmountsVersion','fixedForcedAmountsPolicy']:[]), 'rules', 'bindings', 'totalsPrecision'];
 const bindingKey = b => b.agreementCode + ':' + b.key;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function inputNodes(n) { if (n.op === 'input') return [n]; if(n.op==='match')return[{key:n.key,unit:n.type}];return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
@@ -33,7 +33,9 @@ function coverage(rows, rule, predicate) {
 }
 export function ownProgramStructure(raw) {
   require(salaryExact(raw, ownProgramFields(raw)), 'PROGRAM_INVALID', 'El programa debe declarar reglas, entradas, precisión y, cuando corresponda, referencias separadas de auxiliares.');
-  const namespaced = ownProgramNamespaced(raw), conditions=ownProgramConditions(raw), rules = validateOwnPayrollRulePeriods(raw.rules, { namespaced, typedConditions:conditions });
+  const namespaced = ownProgramNamespaced(raw), conditions=ownProgramConditions(raw);
+  require(!ownFixedForcedAmounts(raw)||namespaced,'FORCED_POLICY_INVALID','El importe fijo forzado requiere declarar las referencias separadas del programa.');
+  const rules = validateOwnPayrollRulePeriods(raw.rules, { namespaced, typedConditions:conditions,fixedForced:ownFixedForcedAmounts(raw) });
   require(Number.isInteger(raw.totalsPrecision) && raw.totalsPrecision >= 0 && raw.totalsPrecision <= 8 && Array.isArray(raw.bindings) && raw.bindings.length <= 1000, 'PROGRAM_INVALID', 'Revisá la precisión de totales y las entradas del programa.');
   const seniority = ownProgramSeniority(raw), participation = ownProgramParticipation(raw), workingTime = ownProgramWorkingTime(raw), agreementWorkingTime = ownProgramAgreementWorkingTime(raw), periodContext=ownProgramPeriodContext(raw);
   require(!periodContext||namespaced,'PROGRAM_INVALID','El contexto propio del período requiere referencias separadas y su versión explícita.');
@@ -53,8 +55,8 @@ export function ownProgramStructure(raw) {
   }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.key, b.key));
   require(new Set(bindings.map(bindingKey)).size === bindings.length, 'BINDING_DUPLICATE', 'Hay entradas repetidas en un convenio.');
   const policy = participation ? participationPolicy({...raw,rules,bindings}) : null;
-  if (policy) validateOwnPayrollRulePeriods(participationRules({...raw,rules,bindings}), {namespaced:true,typedConditions:conditions});
-  return { ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), rules, bindings, totalsPrecision: raw.totalsPrecision };
+  if (policy) validateOwnPayrollRulePeriods(participationRules({...raw,rules,bindings}), {namespaced:true,typedConditions:conditions,fixedForced:ownFixedForcedAmounts(raw)});
+  return { ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), ...(ownFixedForcedAmounts(raw)?{fixedForcedAmountsVersion:raw.fixedForcedAmountsVersion,fixedForcedAmountsPolicy:normalizeFixedForcedAmountsPolicy(raw.fixedForcedAmountsPolicy,rules)}:{}),rules, bindings, totalsPrecision: raw.totalsPrecision };
 }
 export function ownProgramDefinition(raw, catalogItems) {
   const program = ownProgramStructure(raw), { rules, bindings } = program, namespaced = ownProgramNamespaced(program), catalog = salaryItems(catalogItems);
@@ -73,6 +75,8 @@ export function ownProgramDefinition(raw, catalogItems) {
 }
 export function ownProgramHistory(before, after) {
   if (!before) return;
+  require(!ownFixedForcedAmounts(before)||ownFixedForcedAmounts(after),'PROGRAM_HISTORY_REQUIRED','Conservá la política ya aprobada del programa.');
+  if(ownFixedForcedAmounts(before))require(before.fixedForcedAmountsPolicy.policies.every(p=>after.fixedForcedAmountsPolicy.policies.some(n=>salarySerialized(p)===salarySerialized(n))),'PROGRAM_HISTORY_REQUIRED','Conservá las políticas históricas; agregá una versión explícita.');
   require(!ownProgramNamespaced(before) || ownProgramNamespaced(after), 'PROGRAM_HISTORY_REQUIRED', 'Un programa con auxiliares separados no puede volver a referencias ambiguas.');
   require(!ownProgramSeniority(before) || ownProgramSeniority(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la versión explícita de la fuente propia de antigüedad.');
   require(!ownProgramWorkingTime(before) || ownProgramWorkingTime(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la fuente explícita de jornada contractual propia.');
