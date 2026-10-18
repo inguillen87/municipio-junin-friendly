@@ -50,6 +50,8 @@ prisma/
 !scripts/canonical-promote-current-grh.sql
 !scripts/migrations/
 !scripts/migrations/*.sql
+# Guarded public code fragment; municipal SQL dumps remain excluded.
+!scripts/sql/own-monthly-day-fixed-v1-composition.fragment.sql
 !scripts/clock-database/
 !scripts/clock-database/*.sql
 !scripts/tests/057-family-schooling-certificates.test.sql

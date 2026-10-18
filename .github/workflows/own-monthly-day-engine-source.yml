@@ -1,0 +1,88 @@
+name: Own monthly day engine source
+on:
+  pull_request:
+    paths: ['assets/**', 'api/**', 'lib/**', 'contracts/**', 'tests/**', 'scripts/**', 'package.json', 'package-lock.json', '.nvmrc', '.vercelignore', '.github/workflows/own-monthly-day-engine-source.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/**', 'api/**', 'lib/**', 'contracts/**', 'tests/**', 'scripts/**', 'package.json', 'package-lock.json', '.nvmrc', '.vercelignore', '.github/workflows/own-monthly-day-engine-source.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-monthly-day-engine-source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    name: Own monthly day engine source / PG${{ matrix.pg }} / ${{ matrix.operational_pair_baseline }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+        operational_pair_baseline: [pre107, published107]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: New mixed196/day contracts and composed predecessor regressions
+        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js tests/own-monthly-day-fixed-composition*.test.js tests/own-monthly-days-forced-declared-coverage.test.js
+      - name: Prepare only the disposable synthetic service
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - name: Native mixed196 and approved193/full192 engine circuit
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: |
+          mkdir -p verification
+          node scripts/verify-own-monthly-day-engine-source.mjs --fixed-composition=196 --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.operational_pair_baseline }} --output=verification/monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}-${{ github.sha }}
+          path: verification/monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
+          if-no-files-found: error
+          retention-days: 5
+  programme-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Platform tests and actual static build
+        run: npm run build
+      - name: Browser system dependencies using the existing project workflow
+        run: npx playwright install --with-deps chromium
+      - name: Install the project-pinned verification browser
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Actual built programme editor, source selection, recovery and review
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-monthly-declared-day-program-ui-browser.mjs --built
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: monthly-declared-day-program-ui-${{ github.sha }}
+          path: public/verification/declared-day-program-ui
+          if-no-files-found: error
+          retention-days: 5
