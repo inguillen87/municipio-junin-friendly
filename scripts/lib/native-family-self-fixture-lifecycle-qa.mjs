@@ -22,16 +22,47 @@ export function nativeFamilyHolderAbsenceSql(value){
  const h=holderTuple(value),predicate=`pid=${h.pid} AND backend_start=${q(h.backendStart)}::timestamptz AND application_name=${q(h.applicationName)} AND usename=${q(h.role)} AND datname=${q(h.database)} AND backend_type='client backend'`;
  return `SELECT jsonb_build_object('holder',${q(JSON.stringify(h))}::jsonb,'backendAbsent',NOT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ${predicate}),'otherClients',(SELECT count(*) FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid()))`;
 }
-export async function drainNativeFamilySerializationHolder({holder,completion,observeAbsent,timeoutMs=55000}){
- const expected=holderTuple(holder);assert.ok(completion&&typeof completion.then==='function');assert.equal(typeof observeAbsent,'function');assert.ok(Number.isSafeInteger(timeoutMs)&&timeoutMs>0&&timeoutMs<=55000);
- let timer;try{
-  const clientExit=await Promise.race([completion,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('FAMILY195_HOLDER_DRAIN_TIMEOUT')),timeoutMs);})]);
-  assert.deepEqual(Object.keys(clientExit??{}).sort(),['code','signal'],'FAMILY195_HOLDER_EXIT_INVALID');assert.ok(clientExit.code===null||Number.isSafeInteger(clientExit.code));assert.ok(clientExit.signal===null||typeof clientExit.signal==='string');
-  const proof=await observeAbsent(expected);
-  assert.deepEqual(Object.keys(proof??{}).sort(),['backendAbsent','holder','otherClients'],'FAMILY195_HOLDER_ABSENCE_SHAPE');assert.deepEqual(proof.holder,expected,'FAMILY195_HOLDER_ABSENCE_TUPLE');
-  assert.equal(proof.backendAbsent,true,'FAMILY195_HOLDER_BACKEND_NOT_DRAINED');assert.equal(proof.otherClients,0,'FAMILY195_HOLDER_OTHER_CLIENTS');
-  return {version:'family195-owned-holder-drain.v1',holder:expected,clientExit:{...clientExit},backendAbsent:true,otherClients:0};
- }finally{clearTimeout(timer);}
+// Failure completion uses the SAME generated key as the normal completion path.
+// The caller first runs the unchanged pinned destination guard allowing only the
+// full holder tuple. Holding this transaction lock until backend absence avoids
+// a one-shot signal that the holder could miss between its polling iterations.
+export function nativeFamilyHolderFailureSignalSql(value,finishKey){
+ const h=holderTuple(value);assert.match(finishKey??'',/^native-employment-catalog:qa-finished:[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/,'FAMILY195_FINISH_KEY_INVALID');
+ const predicate=`pid=${h.pid} AND backend_start=${q(h.backendStart)}::timestamptz AND application_name=${q(h.applicationName)} AND usename=${q(h.role)} AND datname=${q(h.database)} AND backend_type='client backend'`;
+ return `DO $family195_finish$ DECLARE deadline timestamptz:=clock_timestamp()+interval '40 seconds'; BEGIN
+ PERFORM pg_advisory_xact_lock(hashtextextended(${q(finishKey)},0));
+ LOOP
+  PERFORM pg_stat_clear_snapshot();
+  IF EXISTS(SELECT 1 FROM pg_stat_activity WHERE backend_type='client backend' AND pid<>pg_backend_pid() AND NOT(${predicate})) THEN RAISE EXCEPTION 'FAMILY195_FAILURE_SIGNAL_OTHER_CLIENTS';END IF;
+  EXIT WHEN NOT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ${predicate});
+  IF clock_timestamp()>deadline THEN RAISE EXCEPTION 'FAMILY195_FAILURE_SIGNAL_TIMEOUT';END IF;
+  PERFORM pg_sleep(0.05);
+ END LOOP;
+ END $family195_finish$;${nativeFamilyHolderAbsenceSql(h)}`;
+}
+function holderExit(value){
+ assert.deepEqual(Object.keys(value??{}).sort(),['code','signal'],'FAMILY195_HOLDER_EXIT_INVALID');assert.ok(value.code===null||Number.isSafeInteger(value.code));assert.ok(value.signal===null||typeof value.signal==='string');return {...value};
+}
+function holderAbsent(proof,expected){
+ assert.deepEqual(Object.keys(proof??{}).sort(),['backendAbsent','holder','otherClients'],'FAMILY195_HOLDER_ABSENCE_SHAPE');assert.deepEqual(proof.holder,expected,'FAMILY195_HOLDER_ABSENCE_TUPLE');
+ assert.equal(proof.backendAbsent,true,'FAMILY195_HOLDER_BACKEND_NOT_DRAINED');assert.equal(proof.otherClients,0,'FAMILY195_HOLDER_OTHER_CLIENTS');
+}
+export async function drainNativeFamilySerializationHolder({holder,completion,observeAbsent,completeFailure,timeoutMs=55000}){
+ const expected=holderTuple(holder);assert.ok(completion&&typeof completion.then==='function');assert.equal(typeof observeAbsent,'function');assert.ok(completeFailure===undefined||typeof completeFailure==='function');assert.ok(Number.isSafeInteger(timeoutMs)&&timeoutMs>0&&timeoutMs<=55000);
+ let timer,expired=false;const deadlineAt=performance.now()+timeoutMs,deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(Error('FAMILY195_HOLDER_DRAIN_TIMEOUT'));},timeoutMs);});
+ const active=()=>assert.ok(!expired&&performance.now()<deadlineAt,'FAMILY195_HOLDER_DRAIN_TIMEOUT');
+ try{return await Promise.race([(async()=>{
+  let failureCompletion;
+  if(completeFailure){
+   const signal=await completeFailure(expected);active();
+   assert.deepEqual(Object.keys(signal??{}).sort(),['backendAbsent','clientExit','holder','otherClients'],'FAMILY195_FAILURE_COMPLETION_SHAPE');
+   const {clientExit,...absence}=signal;holderAbsent(absence,expected);const signalExit=holderExit(clientExit);assert.deepEqual(signalExit,{code:0,signal:null},'FAMILY195_FAILURE_SIGNAL_EXIT');
+   failureCompletion={...absence,clientExit:signalExit};
+  }
+  const clientExit=holderExit(await completion);active();
+  const proof=await observeAbsent(expected);active();holderAbsent(proof,expected);
+  return {version:'family195-owned-holder-drain.v1',holder:expected,clientExit,backendAbsent:true,otherClients:0,...(failureCompletion?{failureCompletion}:{})};
+ })(),deadline]);}finally{clearTimeout(timer);}
 }
 
 

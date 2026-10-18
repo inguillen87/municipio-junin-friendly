@@ -31,7 +31,7 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
  const observed=JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/native-employee-catalog-installed-099.json'),'utf8'));
  assert.equal(sha(observed.beforeBody),observed.beforeSha256);assert.equal(sha(observed.body),observed.sha256);assert.ok(source099.includes(observed.beforeSha256)&&source099.includes(observed.sha256));
  const catalogLock='hashtextextended('+q('native-employment-catalog:v1:'+ids.blockedTenant+':'+ids.blockedBinding)+',0)';
- const finishLock='hashtextextended('+q('native-employment-catalog:qa-finished:'+randomUUID())+',0)';
+ const finishKey='native-employment-catalog:qa-finished:'+randomUUID(),finishLock='hashtextextended('+q(finishKey)+',0)';
  const statements=[];let checks=0;const exec=s=>statements.push(s);
  const ok=(expr,label)=>{exec('PERFORM qa_assert(('+expr+'),'+q(label)+'); checks:=checks+1;');checks++;};
  const reject=(sql,error,label)=>ok('qa_rejects('+sql+','+q(error.startsWith('NATIVE_')||error.startsWith('ACTION_')?error:'NATIVE_EMPLOYMENT_CATALOG_'+error)+')',label);
@@ -180,7 +180,7 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
  const lockSql=base.lockSql.replaceAll("current_database()<>'fixed_novelties_qa'","current_database()<>'native_employment_catalog_qa'")
   .replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock("+catalogLock+");\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'")
   .replace(' SELECT pg_sleep(45);'," DO $hold$ DECLARE deadline timestamptz:=clock_timestamp()+interval '210 seconds'; BEGIN LOOP IF NOT pg_try_advisory_lock("+finishLock+") THEN EXIT; END IF; PERFORM pg_advisory_unlock("+finishLock+"); IF clock_timestamp()>deadline THEN RAISE EXCEPTION 'CATALOG_QA_MAIN_TIMEOUT'; END IF; PERFORM pg_sleep(0.05); END LOOP; END $hold$;");
- assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return {...base,sql,lockSql,report,qaFoundation:{...base.qaFoundation,setup:base.qaFoundation.setup+'\n'+catalogSetup+'\nEXECUTE '+install+';\n'+catalogCapabilities}};
+ assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return {...base,sql,lockSql,finishKey,report,qaFoundation:{...base.qaFoundation,setup:base.qaFoundation.setup+'\n'+catalogSetup+'\nEXECUTE '+install+';\n'+catalogCapabilities}};
 }
 function main(){
  const args={};for(const a of process.argv.slice(2)){if(a==='--ci'){args.ci=true;continue;}if(a==='--require-concurrency'){args.requireConcurrency=true;continue;}const m=/^--(expected-major|write-sql|write-lock-sql)=(.+)$/.exec(a);assert.ok(m,'Unknown or incomplete argument');assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
