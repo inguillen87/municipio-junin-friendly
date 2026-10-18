@@ -1,7 +1,7 @@
 import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';
 import{monthly194Options}from'../scripts/verify-own-monthly-day-engine-source.mjs';
 import{monthly194SqlFixture}from'./fixtures/own-monthly-day-engine-source-sql-synthetic.js';
-import{monthly194QaRpc}from'../scripts/lib/own-monthly-day-engine-source-qa.mjs';
+import{buildMonthly194Qa,monthly194QaRpc}from'../scripts/lib/own-monthly-day-engine-source-qa.mjs';
 import{monthly194CapacityDrafts,monthly194CapacitySql}from'../scripts/lib/own-monthly-day-engine-capacity-qa.mjs';
 import{buildMonthlyDayCircuitFixture}from'../scripts/lib/own-monthly-day-engine-circuit-fixture.mjs';
 import{verifyMonthlyDayEngineCircuit}from'../scripts/lib/own-monthly-day-engine-circuit-qa.mjs';
@@ -32,4 +32,54 @@ test('194 readonly beforeCheck native parser accepts no-row command success but 
  for(const failed of [{...empty,status:1,stderr:'guard failed'},{...empty,status:3,stderr:'MONTHLY194_PHASE_CHANGED'},{...empty,signal:'SIGTERM'},{...empty,error:Error('synthetic client failure')}])assert.throws(()=>native194GuardResult(failed));
  assert.deepEqual(native194GuardResult({...empty,status:3,stderr:'ERROR: MONTHLY194_PHASE_CHANGED'},{expectedCode:'MONTHLY194_PHASE_CHANGED'}),{rejected:true,code:'MONTHLY194_PHASE_CHANGED',status:3});
  assert.throws(()=>native194GuardResult({...empty,status:0},{expectedCode:'MONTHLY194_PHASE_CHANGED'}));assert.throws(()=>native194GuardResult({...empty,status:3,stderr:'a different guard'},{expectedCode:'MONTHLY194_PHASE_CHANGED'}));
+});
+
+// Source-composition regression for the native034 SOD failure. These tests
+// construct SQL text only; the four native CI cells still prove actual SOD.
+import {splitPostgresStatements as monthly194SodStatements} from '../scripts/lib/sql-statements.mjs';
+// A bounded projection of the actual fixture's top-level parameter grants.
+// It does not evaluate SQL, function bodies, session claims or authorization.
+function monthly194ParameterAuthority(qa,circuit){
+ const schema=qa.schema,strip=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim(),prefix='(?:'+schema+'\\.)?';
+ const source=[qa.qa192.qa.seed,qa.qa192.legacyCompatibilitySeed,...qa.qa192.qa.predecessorInstallation,...qa.qa192.qa.local.installation,qa.qa192.runtimeGrantSeed,qa.qa192.capabilitySeed,qa.fixtureCapabilitySeed,...circuit.statements];
+ const statements=source.flatMap(s=>monthly194SodStatements(s).map(strip));
+ const roles=new Map(),grants=new Map();
+ for(const s of statements){
+  if(new RegExp('^INSERT INTO '+prefix+'tenant_membership\\(').test(s)){
+   const row=/ VALUES\('([a-f0-9-]{36})','[a-f0-9-]{36}','[^']+','([^']+)','active',/.exec(s);assert.ok(row,'Bounded active membership declaration required');assert.equal(roles.has(row[1]),false);roles.set(row[1],row[2]);
+  }
+ }
+ assert.notEqual(roles.get(qa.actor.membershipId),roles.get(qa.checker.membershipId));
+ const add=(role,caps)=>{assert.equal(typeof role,'string');const set=grants.get(role)??new Set();for(const cap of caps)if(cap.startsWith('payroll.parameter.'))set.add(cap);grants.set(role,set);};
+ for(const s of statements){
+  assert.equal(new RegExp('^(?:INSERT INTO|UPDATE|DELETE FROM) '+prefix+'tenant_membership_capability_override\\b').test(s),false,'Unexpected override: this projection must not silently ignore it');
+  assert.equal(new RegExp('^(?:UPDATE|DELETE FROM) '+prefix+'iam_role_capability\\b').test(s),false,'Unexpected grant mutation');
+  if(!new RegExp('^INSERT INTO '+prefix+'iam_role_capability\\b').test(s)||!s.includes('payroll.parameter.'))continue;
+  const direct=/ VALUES\('([^']+)','(payroll\.parameter\.[^']+)'\)$/.exec(s);if(direct){add(direct[1],[direct[2]]);continue;}
+  const member=/ WHERE (?:member\.)?id='([a-f0-9-]{36})'(?:::uuid)?(?: ON CONFLICT| AND NOT EXISTS|$)/.exec(s);assert.ok(member,'Explicit target membership required');
+  const knownSelect=new RegExp(' SELECT (?:role_key,(?:capability_key|c\\.capability_key)|member\\.role_key,c\\.key) FROM '+prefix+'tenant_membership(?: member)? CROSS JOIN').test(s);
+  let caps;if(knownSelect){const values=/ CROSS JOIN\(VALUES([\s\S]*?)\) c\((?:capability_key|key)\) WHERE /.exec(s);assert.ok(values,'Bounded one-column capability VALUES required');assert.match(values[1],/^\('[a-z0-9_.]+'\)(?:,\('[a-z0-9_.]+'\))*$/);caps=[...values[1].matchAll(/\('([^']+)'\)/g)].map(m=>m[1]);}
+  else{const literal=new RegExp(" SELECT role_key,'(payroll\\.parameter\\.[^']+)' FROM "+prefix+'tenant_membership WHERE ').exec(s);assert.ok(literal,'Unknown parameter grant shape');caps=[literal[1]];}
+  add(roles.get(member[1]),caps);
+ }
+ const effective=actor=>[...(grants.get(roles.get(actor.membershipId))??[])].sort();
+ return{maker:effective(qa.actor),checker:effective(qa.checker),conflict:statements.some(s=>new RegExp('^INSERT INTO '+prefix+'iam_capability_conflict\\b').test(s)&&s.includes("('payroll.parameter.approve','payroll.parameter.prepare'"))};
+}
+for(const operationalPairBaseline of ['pre107','published107'])test('194 composed fixture keeps parameter SOD for '+operationalPairBaseline,()=>{
+ const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),schema='mc_qa_fixed_092_'+'d'.repeat(32);
+ const qa=buildMonthly194Qa({major:18,sourceCommit:'a'.repeat(40),schema,read,operationalPairBaseline});
+ assert.equal(qa.connects,false);assert.equal(qa.executesSql,false);assert.equal(qa.operationalPairBaseline,operationalPairBaseline);
+ assert.notEqual(qa.actor.membershipId,qa.checker.membershipId);assert.notEqual(qa.actor.actorEmail,qa.checker.actorEmail);
+ const circuit=buildMonthlyDayCircuitFixture({read,normalized:qa.normalized,schema,foundationSeed:qa.qa192.qa.seed,actors:{maker:qa.actor,checker:qa.checker}}),authority=monthly194ParameterAuthority(qa,circuit);
+ assert.equal(authority.conflict,true,'The actual canonical parameter conflict must remain installed');
+ for(const kind of ['maker','checker'])assert.equal(authority[kind].includes('payroll.parameter.prepare')&&authority[kind].includes('payroll.parameter.approve'),false,'MONTHLY194_FIXTURE_EFFECTIVE_SOD_CONFLICT:'+kind);
+ assert.deepEqual(authority.maker,['payroll.parameter.prepare','payroll.parameter.read']);
+ assert.deepEqual(authority.checker,['payroll.parameter.approve','payroll.parameter.read']);
+ // This additional source guard preserves native SOD checks for both actors;
+ // it is not used to substitute the real SQL guard with this projection.
+ assert.doesNotMatch(qa.fixtureCapabilitySeed,/\b(?:INSERT|UPDATE|DELETE|GRANT|REVOKE|CREATE|ALTER|DROP|TRUNCATE)\b/i,'MONTHLY194_FIXTURE_MUST_NOT_WRITE_AUTHORITY');
+ const supplement=monthly194SodStatements(qa.fixtureCapabilitySeed);assert.equal(supplement.length,1);
+ const calls=[...supplement[0].matchAll(new RegExp('PERFORM '+schema+'\\.tenant_iam_assert_no_sod_conflict\\(\'([a-f0-9-]{36})\'::uuid\\)','g'))].map(m=>m[1]);
+ assert.deepEqual(calls,[qa.actor.membershipId,qa.checker.membershipId],'Both independent actors must pass the existing SOD guard before scenarios');
+ assert.match(supplement[0],/^DO \$monthly194_fixture_sod\$ BEGIN /);assert.match(supplement[0],/END \$monthly194_fixture_sod\$$/);
 });
