@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ownReceiptScopeFilters,ownReceiptIssuer,ownReceiptParams,ownReceiptAttempt} from '../assets/own-payroll-receipt-model.js';
+import {ownReceiptScopeFilters,ownReceiptIssuer,ownReceiptParams,ownReceiptAttempt,ownReceiptSnapshot,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
 import {emptyOwnReportFilters} from '../assets/own-payroll-report-model.js';
 import {receiptSnapshot,receiptCommand} from './fixtures/own-payroll-receipt-synthetic.js';
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
@@ -119,4 +119,27 @@ test('un perfil nuevo no reescribe un intento previo ni sus datos de emisor',()=
  const profile=ownReceiptIssuer(issuerResponse(),issuerScope);
  ownReceiptParams({...body.params,issuer:profile.profile.issuer});
  assert.deepEqual(attempt.body,original);assert.equal(attempt.key,key);
+});
+
+test('legajos y reparticiones exige ambos inicios y conserva los seis filtros publicados',()=>{
+ const scope={kind:'combined',employeeFrom:'00100',employeeTo:'00200',departmentFrom:'0035',departmentTo:''},before=structuredClone(scope),filters=ownReceiptScopeFilters(scope);
+ assert.deepEqual(filters,{employeeFrom:'00100',employeeTo:'00200',departmentFrom:'0035',departmentTo:'0035',agreementFrom:'',agreementTo:''});assert.deepEqual(scope,before);
+ const invalid=[{...scope,employeeFrom:''},{...scope,departmentFrom:''},{...scope,employeeTo:'99'},{...scope,departmentTo:'34'},{...scope,departmentFrom:'AB'},{...scope,employeeFrom:100},{...scope,agreementFrom:'1'},{...scope,from:'1',to:'2'}];
+ for(const value of invalid)assert.throws(()=>ownReceiptScopeFilters(value));
+ assert.deepEqual(ownReceiptScopeFilters({...scope,employeeTo:''}),{employeeFrom:'00100',employeeTo:'00100',departmentFrom:'0035',departmentTo:'0035',agreementFrom:'',agreementTo:''});
+});
+
+test('la copia real verifica la intersección inclusiva, sin admitir filas que sólo coinciden en un rango',()=>{
+ const source=receiptSnapshot(5),codes=[['100','35'],['200','40'],['150','41'],['201','35'],['99','34']];source.records.forEach((record,i)=>{record.employeeNumber=codes[i][0];record.departmentCode=codes[i][1];});
+ const original=structuredClone(source),filters=ownReceiptScopeFilters({kind:'combined',employeeFrom:'100',employeeTo:'200',departmentFrom:'35',departmentTo:'40'});
+ const selection=indices=>{const value=structuredClone(source);value.params=ownReceiptParams({...value.params,filters});value.records=indices.map(i=>value.records[i]);value.recordCount=value.records.length;value.conceptCount=value.records.reduce((n,r)=>n+r.concepts.length,0);value.sources[0].selectedCount=value.recordCount;return value;};
+ const selected=selection([0,1]);assert.equal(ownReceiptSnapshot(selected),selected);assert.deepEqual(selected.records.map(r=>[r.employeeNumber,r.departmentCode]),[['100','35'],['200','40']]);assert.equal(selected.sources[0].employeeCount,5);assert.equal(selected.sources[0].populationCount,5);assert.equal(selected.sources[0].selectedCount,2);
+ for(const outside of [2,3,4])assert.throws(()=>ownReceiptSnapshot(selection([0,1,outside])),/límites inclusivos/);assert.deepEqual(source,original,'A view selection cannot rewrite the closed source');
+});
+
+test('el cuerpo combinado usa el contrato actual y no altera un envío histórico congelado',()=>{
+ const body=receiptCommand(),oldBody=structuredClone(body),key=uid(910),historical=ownReceiptAttempt(key,body,'municipal-account-synthetic');
+ const filters=ownReceiptScopeFilters({kind:'combined',employeeFrom:'100',employeeTo:'200',departmentFrom:'35',departmentTo:'40'}),next=ownReceiptCommand({...body,params:{...body.params,filters}});
+ assert.deepEqual(Object.keys(next).sort(),Object.keys(oldBody).sort());assert.deepEqual(Object.keys(next.params).sort(),Object.keys(oldBody.params).sort());assert.deepEqual(next.params.filters,filters);assert.deepEqual(ownReceiptParams(next.params),next.params);assert.equal(next.reviewConfirmed,false);
+ assert.deepEqual(historical.body,oldBody);assert.equal(historical.key,key);assert.ok(Object.isFrozen(historical.body.params.filters));assert.notDeepEqual(next.params.filters,historical.body.params.filters);
 });

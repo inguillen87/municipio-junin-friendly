@@ -199,3 +199,27 @@ test('la autogestión rechaza mezcla de agentes antes de mostrar su detalle',asy
 test('una respuesta tardía de autogestión no repone detalles al ocultar la pantalla',async t=>{
  const h=harness(t,{self:true});let entered,release;const waiting=new Promise(resolve=>entered=resolve);h.state.hold=async url=>{if(url.includes('resource=self')){entered();await new Promise(resolve=>release=resolve);}};const request=h.act('consult');await waiting;h.hide();release();await request;assert.equal(h.q('list').children.length,0);assert.match(h.q('status').textContent,/ocultar la pantalla/);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
+
+test('el alcance combinado muestra ambos rangos y cada campo invalida la revisión completa',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0],employee=record.employeeNumber,department=record.departmentCode;
+ h.q('scope').value='combined';await h.act('scope','change');for(const kind of ['employee','department']){assert.equal(h.q(kind+'Range').hidden,false);assert.equal(h.q(kind+'Range').disabled,false);assert.notEqual(h.q(kind+'From').getAttribute('required'),null);}
+ h.q('employeeFrom').value=employee;h.q('employeeTo').value=employee;h.q('departmentFrom').value=department;h.q('departmentTo').value=department;
+ for(const field of ['employeeFrom','employeeTo','departmentFrom','departmentTo']){
+  await h.act('query','submit');const p=h.state.lastPreview.snapshot.params;assert.deepEqual(p.filters,{employeeFrom:employee,employeeTo:employee,departmentFrom:department,departmentTo:department,agreementFrom:'',agreementTo:''});assert.match(h.q('summary').textContent,new RegExp('Legajo '+employee));assert.match(h.q('summary').textContent,new RegExp('Repartición '+department));h.q('confirm').checked=true;const previous=h.q(field).value;h.q(field).value=String(BigInt(previous)+1n);
+  // The substrate does not bubble events; invoke the actual fieldset listener with the real target.
+  for(const listener of h.q('fields').listeners.get('input')??[])await listener({target:h.q(field)});await h.settled();assert.equal(h.q('result').hidden,true,field);assert.equal(h.q('pdf').disabled,true,field);assert.equal(h.q('prepare').disabled,true,field);assert.equal(h.q('confirm').checked,false,field);assert.equal(h.q(field).value,String(BigInt(previous)+1n),field);h.q(field).value=previous;
+ }
+ assert.equal(h.posts().length,0);
+});
+
+test('el alcance combinado incompleto no consulta ni se convierte en todos los legajos',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0];h.q('scope').value='combined';await h.act('scope','change');const previews=h.requests.filter(r=>r.body?.operation==='preview').length;
+ h.q('employeeFrom').value=record.employeeNumber;await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,previews);assert.equal(h.q('scope').value,'combined');assert.equal(h.q('departmentFrom').value,'');assert.match(h.q('status').textContent,/inicio de legajos y de reparticiones/);assert.equal(h.q('result').hidden,true);assert.equal(h.posts().length,0);
+ h.q('employeeFrom').value='';h.q('departmentFrom').value=record.departmentCode;await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,previews);assert.equal(h.posts().length,0);
+});
+
+test('corregir un intento combinado restaura ambos rangos y los reintentos conservan cuerpo y clave',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0];h.q('scope').value='combined';await h.act('scope','change');h.q('employeeFrom').value=record.employeeNumber;h.q('departmentFrom').value=record.departmentCode;await h.act('query','submit');h.q('reason').value='Corrección de alcance combinado exclusivamente sintética';await h.missingAfterRejection();const original=structuredClone(h.posts()[0]);h.state.sourceVersion=hash('c');await h.act('correct');
+ assert.equal(h.q('scope').value,'combined');for(const kind of ['employee','department']){assert.equal(h.q(kind+'Range').hidden,false);assert.equal(h.q(kind+'Range').disabled,false);for(const end of ['From','To'])assert.equal(h.q(kind+end).value,original.body.payload.params.filters[kind+end]);}assert.equal(h.q('confirm').checked,false);assert.deepEqual(h.posts()[0],original);assert.match(h.q('previous').textContent,/Legajos:/);assert.match(h.q('previous').textContent,/Reparticiones:/);
+ h.state.postError=null;h.state.network=true;await h.act('prepare');const pending=structuredClone(h.posts()[1]);assert.notEqual(pending.key,original.key);assert.deepEqual(pending.body.payload.params.filters,original.body.payload.params.filters);assert.equal(pending.body.payload.sourceVersion,hash('c'));assert.equal(h.q('fields').disabled,true);h.state.network=false;await h.act('retry');assert.deepEqual(h.posts()[2],pending);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('recover').hidden,true);
+});
