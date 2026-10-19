@@ -34,4 +34,3 @@ export function legacyComparisonProjection(v){
  next.captures=next.captures.map(({original,...c})=>c);
  next.employees=next.employees.map(({inputSha256,...e})=>e);return next;
 }
-
