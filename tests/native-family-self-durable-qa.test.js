@@ -13,3 +13,26 @@ test('RPC renderer requires exact typed facades and binds all parameter values w
 test('native runner cannot silently report success on missing commit/independent read/cleanup/source proof',()=>{const source=read('scripts/verify-native-family-self-durable.mjs');for(const token of['ownerAdoptionQaTransport','ownerAdoptionQaCiInitialGuard','captureOwnerAdoptionQaDestination','ownerAdoptionQaDestinationGuard','assertOwnerAuthorityQaSourceBookend','finalReviewAdmissionQaCleanup','actualHttpHandler:true','actualPdfValidator:true','syntheticSchemaRemoved','priorDatabasePreserved','retained.checksPassed,710','pdfA','pdfB','ledger().certificates===1','FAMILY195_SYNTHETIC_LOST_ACK_AFTER_COMMIT'])assert.ok(source.includes(token),token);assert.doesNotMatch(source,/validatePdf\s*:/);assert.match(source,/new Set\(connections\.map/);assert.match(source,/completeActionCenterShellVerified:false/);assert.match(source,/sql195InstalledInProduction:false/);assert.match(source,/assert\.equal\(browserProof\.browserExecuted,true\)/);});
 test('real document library passes its integer revision through the typed renderer without coercing arbitrary values',async()=>{let mapped;const schema='mc_qa_fixed_092_'+'b'.repeat(32),sql={query:async(text,values)=>{assert.equal(values[2],1);mapped=nativeFamilyQaQuery(text,values,schema);return[{result:document()}];}},result=await nativeFamilyOperation(sql,principal(),session,'document',{id:requestId,requestVersion:1},'self');assert.deepEqual(result.bytes,syntheticSchoolPdf);assert.ok(mapped.includes("'1'::integer"));for(const v of['1',0,1001,1.5,null])assert.throws(()=>nativeFamilyQaQuery('SELECT public.native_family_self_document_v1($1::jsonb,$2::uuid,$3::integer) AS result',['{}',requestId,v],schema));});
 test('durable population and quota use actual facade commands, exact ID pages and no fabricated ledger inserts',()=>{const source=read('scripts/verify-native-family-self-durable.mjs');for(const token of['FOR i IN 1..1001 LOOP',"native_family_self_command_v1(actor,b,gen_random_uuid(),'null'::jsonb)",'assert.deepEqual(ids.slice().sort(),allIds)','offsets.length,21','expected:409','full nonzero PDF quota','assert.deepEqual(ledger(),fullBefore)','quota.bytes','requests:expectedAfterBrowser.requests+1001,events:expectedAfterBrowser.events+1002'])assert.ok(source.includes(token),token);assert.doesNotMatch(source,/INSERT INTO[^\n;]*native_family_(?:request|request_event)/i);assert.ok(source.includes('ORDER BY request_version DESC LIMIT 1'));});
+
+
+test('committed family fixture uses the required catalogue transaction mode without changing guard or payload',()=>{
+ const runner=read('scripts/verify-native-family-self-durable.mjs'),wrapper=read('scripts/verify-municipal-owner-adoption-decision.mjs');
+ const declarations=wrapper.split(/\r?\n/).filter(line=>line.startsWith('export function ownerDecisionQaTransaction('));assert.equal(declarations.length,1);
+ const transaction=new Function('assert','return ('+declarations[0].replace(/^export /,'')+');')(assert);
+ const schema='mc_qa_fixed_092_'+'b'.repeat(32),pins="IF false THEN RAISE EXCEPTION 'FAMILY195_SYNTHETIC_GUARD';END IF;",seed="DO $synthetic$ BEGIN PERFORM 'synthetic fixture only';END $synthetic$";
+ const render=source=>{
+  const anchor="phase='canonical-fixture-commit';";assert.equal(source.split(anchor).length,2);
+  const start=source.indexOf(anchor)+anchor.length,end=source.indexOf('check(json(',start);assert.ok(end>start);
+  const call=source.slice(start,end);assert.match(call,/^json\(\[qa\.seed\](?:,\{command:true\})?\);$/);
+  let sql=null,count=0;new Function('json','qa',call)((statements,options={})=>{count++;assert.deepEqual(statements,[seed]);sql=transaction({schema,pins,statements,...options});},{seed});assert.equal(count,1);return sql;
+ };
+ const current=render(runner);assert.match(current,/^BEGIN ISOLATION LEVEL READ COMMITTED;/,'catalogue/native fixture writes require READ COMMITTED');
+ const fixed="phase='canonical-fixture-commit';json([qa.seed],{command:true});",old="phase='canonical-fixture-commit';json([qa.seed]);";assert.equal(runner.split(fixed).length,2);
+ const prior=render(runner.replace(fixed,old));assert.match(prior,/^BEGIN ISOLATION LEVEL REPEATABLE READ;/);
+ assert.equal(current.replace('BEGIN ISOLATION LEVEL READ COMMITTED;','BEGIN ISOLATION LEVEL REPEATABLE READ;'),prior,'only the existing transaction mode changes');
+ assert.ok(current.includes('DO $guard$ BEGIN '+pins+' END $guard$;'+seed+';COMMIT;'));assert.ok(!current.includes('READ ONLY'));
+ const lockSource=read('scripts/migrations/103-native-employment-catalog.sql'),guard="current_setting('transaction_isolation')<>'read committed' OR NOT pg_try_advisory_xact_lock";
+ assert.equal(lockSource.split(guard).length,2,'original product catalogue mode/lock guard remains unchanged');
+ assert.match(transaction({schema,pins,statements:[seed],readOnly:true}),/^BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/,'ordinary independent metadata reads retain their default');
+ assert.throws(()=>transaction({schema,pins,statements:[seed],readOnly:true,command:true}),/OWNER_DECISION_QA_RUNTIME_LOCKS_REQUIRE_WRITABLE_TRANSACTION/);
+});
