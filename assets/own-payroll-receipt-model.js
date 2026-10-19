@@ -33,6 +33,11 @@ export function ownReceiptParams(value){
  return {period:query.from,types:query.types,filters,issuer:{...issuer},paymentDate:value.paymentDate,legend:value.legend,...(selected?{contracts:ownReceiptContracts(value.contracts)}:{})};
 }
 export function ownReceiptScopeFilters(value){
+ if(value?.kind==='combined'){
+  need(salaryExact(value,['kind','employeeFrom','employeeTo','departmentFrom','departmentTo']),'Elegí el alcance combinado con ambos rangos, sin filtros adicionales.');
+  for(const kind of ['employee','department'])need(code(value[kind+'From'])&&(value[kind+'To']===''||code(value[kind+'To'])),'Informá el inicio de legajos y de reparticiones. Cada límite final puede quedar vacío para un solo código.');
+  return ownReportFilters({...emptyOwnReportFilters(),employeeFrom:value.employeeFrom,employeeTo:value.employeeTo||value.employeeFrom,departmentFrom:value.departmentFrom,departmentTo:value.departmentTo||value.departmentFrom});
+ }
  need(salaryExact(value,['kind','from','to'])&&['employee','department','all'].includes(value.kind),'Elegí el alcance: legajo, repartición o todos los legajos.');
  const filters=emptyOwnReportFilters();
  if(value.kind==='all'){
