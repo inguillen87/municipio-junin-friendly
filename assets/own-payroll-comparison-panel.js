@@ -1,3 +1,4 @@
+import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
 import {OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {OWN_RUN_NOMINAL,OWN_RUN_TYPES,hasOwnRunAccess,ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {verifiedOwnLiquidationComparison,ownComparisonView,ownComparisonDocument} from './own-payroll-comparison-model.js';
@@ -22,13 +23,16 @@ export function mountOwnPayrollComparison(host){
  function clearResult(){model=null;page=1;$('result').hidden=true;for(const k of ['rows','trace'])$(k).replaceChildren();for(const k of ['sources','warnings','summary','page','caption'])$(k).textContent='';$('search').value='';$('change').value='all';controls();}
  function clearCatalog(){catalog=null;$('query').hidden=true;$('base').replaceChildren(new Option('Elegí la base',''));$('target').replaceChildren(new Option('Elegí la comparada del mismo tipo',''));$('target').disabled=true;}
  function suspend(message){cancel();access=null;clearCatalog();clearResult();status(message);}
- async function request(url){
+ const fullResponseBytes=new WeakMap();
+ async function request(url,maxBytes=OWN_RUN_FULL_MAX_BYTES){
   if(!live())throw new DOMException('Pantalla oculta','AbortError');
-  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:controller?.signal});
+  const full=url===endpoint||url.startsWith(endpoint+'?'),signal=controller?.signal;
+  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:full?OWN_RUN_FULL_JSON:'application/json'},signal});
   if([401,403].includes(response.status))throw Object.assign(Error(response.status===401?'La sesión venció. Volvé a ingresar.':'Tu cuenta ya no permite consultar esta nómina.'),{status:response.status});
-  const text=await response.text();if(new TextEncoder().encode(text).byteLength>OWN_RUN_MAX_RESPONSE)throw Error('La respuesta completa supera la capacidad. No se mostraron filas parciales.');
-  let value;try{value=JSON.parse(text);}catch{throw Error('No se pudo verificar la respuesta completa. Consultá nuevamente.');}
-  if(!response.ok||value?.ok!==true)throw Error('No se pudo consultar todo el resultado. Consultá los cálculos nuevamente.');return value;
+  const value=await readOwnPayrollResponse(response,{maxBytes:full?Math.min(maxBytes,OWN_RUN_FULL_MAX_BYTES):OWN_RUN_MAX_RESPONSE,signal});
+  if(!response.ok||value?.ok!==true)throw Error('No se pudo consultar todo el resultado. Consultá los cálculos nuevamente.');
+  if(full){const announced=response.headers.get('x-municontrol-json-bytes');if(!/^[1-9][0-9]*$/.test(announced??''))throw Error('No se verificó el tamaño completo de la comparación.');fullResponseBytes.set(value,Number(announced));}
+  return value;
  }
  async function session(){const next=ownRunWorkspaceAccess(await request('/api/internal-auth'));if(!hasOwnRunAccess(next.caps,model?.details.some(d=>d.reviewAccessRequired)?OWN_LIQ_REVIEW:OWN_RUN_NOMINAL))throw Object.assign(Error('Tu cuenta no permite leer o revisar estos resultados nominales propios.'),{status:403});if(access&&access.key!==next.key)throw Object.assign(Error('Cambió la cuenta o su vínculo municipal. Consultá nuevamente.'),{status:403});access=next;$('login').hidden=true;}
  async function perform(work){if(!live()||busy)return;const version=++seq;busy=true;const operation=new AbortController();controller=operation;controls();const timeout=setTimeout(()=>operation.abort(),45000);const valid=()=>version===seq&&live()&&!operation.signal.aborted;
@@ -41,11 +45,11 @@ export function mountOwnPayrollComparison(host){
  function targets(){const base=catalog?.runs.find(r=>r.id===$('base').value);$('target').replaceChildren(new Option('Elegí la comparada del mismo tipo',''));$('target').disabled=!base;for(const r of catalog?.runs??[])if(r.id!==base?.id&&r.liquidationType===base?.liquidationType)$('target').append(option(r));}
  function binding(d,boot){const c=d.capture,r=boot.runs.find(r=>r.id===d.id);if(!r||!r.canConsult||d.scopeVersion!==boot.scopeVersion||!c.saved||c.id!==r.id||c.createdAt!==r.createdAt||c.body.period!==r.period||c.body.liquidationType!==r.liquidationType||c.saved.result.employeeCount!==r.employeeCount||c.saved.resultSha256!==r.resultSha256)throw Error('Cambió un cálculo del catálogo o su acceso. Consultá nuevamente; no se descargó una parte.');}
  async function readPair(keys,valid){
-  await session();valid();const before=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();const sources=[];
-  for(const id of keys){const d=(await request(endpoint+'?resource=detail&id='+encodeURIComponent(id))).data;valid();binding(d,before);sources.push(d);}
-  const fresh=await verifiedOwnLiquidationComparison(...sources);valid();const after=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();for(const d of sources)binding(d,after);
-  const rechecked=[];for(const id of keys){const d=(await request(endpoint+'?resource=detail&id='+encodeURIComponent(id))).data;valid();binding(d,after);rechecked.push(d);}
-  const verified=await verifiedOwnLiquidationComparison(...rechecked);valid();if(fresh.proof!==verified.proof)throw Error('Cambió el estado o la fuente durante la consulta. Compará nuevamente.');await session();valid();if(!hasOwnRunAccess(access.caps,verified.details.some(d=>d.reviewAccessRequired)?OWN_LIQ_REVIEW:OWN_RUN_NOMINAL))throw Object.assign(Error('Se retiró el permiso de revisión de estas liquidaciones.'),{status:403});return verified;
+  await session();valid();const before=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();const sources=[];let remaining=OWN_RUN_FULL_MAX_BYTES;
+  for(const id of keys){if(remaining<1)throw Error('La comparación completa supera la capacidad; no se recortaron filas.');const response=await request(endpoint+'?resource=detail&id='+encodeURIComponent(id),remaining),d=response.data;remaining-=fullResponseBytes.get(response);valid();binding(d,before);sources.push(d);}
+  const firstProof=(await verifiedOwnLiquidationComparison(...sources)).proof;valid();const after=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();for(const d of sources)binding(d,after);sources.length=0;
+  const rechecked=[];remaining=OWN_RUN_FULL_MAX_BYTES;for(const id of keys){if(remaining<1)throw Error('La comparación completa supera la capacidad; no se recortaron filas.');const response=await request(endpoint+'?resource=detail&id='+encodeURIComponent(id),remaining),d=response.data;remaining-=fullResponseBytes.get(response);valid();binding(d,after);rechecked.push(d);}
+  const verified=await verifiedOwnLiquidationComparison(...rechecked);valid();if(firstProof!==verified.proof)throw Error('Cambió el estado o la fuente durante la consulta. Compará nuevamente.');await session();valid();if(!hasOwnRunAccess(access.caps,verified.details.some(d=>d.reviewAccessRequired)?OWN_LIQ_REVIEW:OWN_RUN_NOMINAL))throw Object.assign(Error('Se retiró el permiso de revisión de estas liquidaciones.'),{status:403});return verified;
  }
  function render(){if(!model)return;const v=ownComparisonView(model,{view:$('view').value,change:$('change').value,search:$('search').value,page});page=v.page;
   $('caption').textContent=$('view').value==='concepts'?'Conceptos de las dos corridas completas':'Totales originales de cada legajo';$('summary').textContent=v.filtered+' filas de pantalla · '+v.total+' en el detalle completo · '+v.changed+' con variación o ausencia · '+v.review+' para revisar.';$('page').textContent='Página '+v.page+' de '+v.pages;$('empty').hidden=v.filtered!==0;
