@@ -7,6 +7,7 @@ import {buildOwnPeriodClassificationInstallation,assertOwnPeriodClassificationDu
 import {buildOwnPeriodClassificationQaRelocation} from './own-period-classification-qa-relocation.mjs';
 import {buildCatalogStorageCapacityInstallation,assertCatalogStorageCapacityDurability,CATALOG_PROVIDER_BUDGET_BYTES} from './catalog-storage-capacity-installation.mjs';
 import {createOwnPeriodClassificationHandler} from '../../api/internal-own-period-classification.js';
+import {createEmploymentChangesHandler} from '../../api/internal-employment-changes.js';
 import {createInternalDataHandler} from '../../api/internal-data.js';
 import {preparePeriodClassification,periodClassificationBootstrap,periodClassificationDetail,decidePeriodClassification,createPeriodClassificationAttempt,periodClassificationReceipt} from '../../assets/own-period-classification-model.js';
 import {prepareSalaryConditions,salaryConditionsDetail,decideSalaryConditions} from '../../assets/own-contract-salary-conditions-model.js';
@@ -63,7 +64,7 @@ async function createIsolatedActors(h){
  // actor, registration, adopted application, employment date or trigger.
  const actor=(email)=>({actorEmail:email,actorSessionId:randomUUID(),actorSessionVersion:1,membershipId:randomUUID(),releaseSha:qa.actors.outsider.releaseSha,tenantId});
  const actors={maker:actor('period-maker@example.invalid'),checker:actor('period-checker@example.invalid'),samePerson:actor('period-same-person@example.invalid'),sameEmail:actor('period-maker@example.invalid'),reader:actor('period-reader@example.invalid')};
- const rights=[...new Set([...qa.caps,'actions.read','workforce.employee.read','payroll.read','employee.record.create','employee.catalog.propose','employee.catalog.approve','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.calculation.approve','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export'])];
+ const rights=[...new Set([...qa.caps,'actions.read','workforce.employee.read','payroll.read','employee.record.create','employee.record.propose','employee.record.approve','employee.catalog.propose','employee.catalog.approve','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.calculation.approve','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export'])];
  const records=[{person:makerPerson,contract:makerContract,dni:'97017701',legajo:'177901',name:'Preparador exclusivamente sintético QA177'},{person:checkerPerson,contract:checkerContract,dni:'97017702',legajo:'177902',name:'Revisor exclusivamente sintético QA177'}];
  const setup=records.map(r=>"INSERT INTO person_identity SELECT (jsonb_populate_record(NULL::person_identity,to_jsonb(p)||"+j({id:r.person,full_name:r.name,dni:r.dni,cuil:cuil(r.dni),birth_date:'1990-01-01',sex_code:'X',identity_state:'active'})+")).* FROM person_identity p WHERE id="+q(qa.ids.foreignPerson)+"::uuid;INSERT INTO employment_contract SELECT (jsonb_populate_record(NULL::employment_contract,to_jsonb(c)||"+j({id:r.contract,person_id:r.person,tenant_id:null,source_system:'GRH',source_batch_id:qa.ids.foreignBatch,legacy_company_id:202,legacy_legajo:r.legajo,status:'active',start_date:'2000-01-01',end_date:null})+")).* FROM employment_contract c WHERE id="+q(qa.ids.foreignContract)+'::uuid').join(';');
  const iam=Object.entries(actors).map(([kind,a])=>{
@@ -153,6 +154,7 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
  }};
  const actualAccess=async(...args)=>{const access=await h.deps.requireAccess(...args);const caps=await db.run('SELECT coalesce(jsonb_agg(capability_key ORDER BY capability_key),\'[]\') FROM capabilities WHERE membership_id='+q(access.principal.tenant.membershipId)+'::uuid');return{...access,principal:{...access.principal,tenant:{...access.principal.tenant,effectiveCapabilities:caps}}};};
  h.handlers.classification=createOwnPeriodClassificationHandler({...h.deps,requireAccess:actualAccess,getSql:()=>classificationAdapter});
+ h.handlers.employmentChange=createEmploymentChangesHandler({...h.deps,requireAccess:actualAccess,getSql:()=>h.adapter});
  setActor(qa.actors.maker);const legacy=await api('run',{query:{resource:'attempt',key:h.oldKey}});assert.deepEqual(legacy.body,h.old.body);assert.deepEqual(legacy.payload,h.old.payload);assert.deepEqual(legacy.saved,h.old.saved);done('legacyAttemptConserved');
  // A lifecycle-only read must prove the existing adopted identity before it
  // can exclude a period. It neither upgrades this old v2 adoption to final
