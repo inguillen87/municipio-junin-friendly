@@ -72,7 +72,7 @@ jobs:
           tests/native-family-self-holder-error-completion.test.js
           tests/native-family-regression-timeout.test.js
           tests/native-family-self-durable-workflow.test.js tests/native-family-self-durable-browser.test.js
-          tests/native-family-self-durable-http.test.js tests/municipal-owner-adoption-qa-transport.test.js
+          tests/native-family-self-durable-http.test.js tests/native-family-self-durable-http-observation.test.js tests/municipal-owner-adoption-qa-transport.test.js
       - name: Build exact product assets
         run: node scripts/build-friendly.mjs
       - name: Prepare and verify project Chromium
