@@ -26,7 +26,7 @@ const sourceHashesRequired=Object.freeze({
  'scripts/migrations/127-annual-position-budget.sql':'43466ffdfa8a93b5aa03066bbc275a5d0e247e2965def21278b338d65988f89d',
  'scripts/migrations/128-own-position-assignments.sql':'d50a2a14e478868b4086514fc0ddd47bd116ba761a88b0a2ff28e36866ce1e78',
  'scripts/migrations/129-own-position-comparison.sql':'023ad52a441df027ea8121a404777fbe4424dbbcfcdbeca6ca30b7475e17bc3c',
- 'scripts/migrations/198-own-position-comparison-v2.sql':'6d478ec7655a55963c36ce6f8b78712b7343f149901edd5b326b34bc3bbb1370',
+ 'scripts/migrations/198-own-position-comparison-v2.sql':'3fa22b703826e0835b873bd56b1c3fc249da6322db9ae295447c9cc8c2548e07',
  'scripts/migrations/199-structure-administrative-operator.sql':'038d2b5ae18a018bea4f0bfcfecc408c2617512842f6ddb74c8b0d4ab7b35988',
  'scripts/migrations/104-native-employment-changes.sql':'0f3e408bb12ef64c0d197826ce4331b263987c6d7f36719e528648f4b750de4a',
  'scripts/migrations/137-adopted-operator-context.sql':'b1db803f7d50d6a744cfdf8bf5fcc8af08395ca9b6d67f8704cde4b7eab64d0f',

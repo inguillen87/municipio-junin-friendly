@@ -152,7 +152,7 @@ BEGIN
     IF coalesce(definition->>'periodContextVersion'='own-payroll-period-context.v1',false) THEN
      source_value:=c.payload->'periodContext';
      IF NOT public.own_program_exact_v1(source_value,ARRAY['version','period','monthNumber','sha256']) OR source_value->>'version' IS DISTINCT FROM 'own-payroll-period-context.v1' OR source_value->>'period' IS DISTINCT FROM c.body->>'period'
-      OR source_value->>'monthNumber' IS DISTINCT FROM CASE WHEN substring(c.body->>'period',6,1)='0' THEN right(c.body->>'period',1) ELSE right(c.body->>'period',2) END
+      OR source_value->>'monthNumber' IS DISTINCT FROM (CASE WHEN substring(c.body->>'period',6,1)='0' THEN right(c.body->>'period',1) ELSE right(c.body->>'period',2) END)
       OR source_value->>'sha256' IS DISTINCT FROM public.own_run_hash_v1(source_value-'sha256')
      THEN RAISE EXCEPTION 'POSITION_COMPARISON_SOURCE_INVALID';END IF;
      expected_fields:=array_append(expected_fields,'periodContext');facts:=facts||jsonb_build_object('periodContext',source_value);
@@ -180,7 +180,7 @@ BEGIN
     SELECT coalesce(jsonb_agg(jsonb_build_object('contractId',person->'contractId','employeeNumber',person->'employeeNumber','agreementCode',person->'agreementCode','departmentCode',person->'departmentCode') ORDER BY(person->>'contractId') COLLATE "C"),'[]') INTO population_people FROM jsonb_array_elements(c.payload#>'{population,employees}') person;
     IF r.input->>'period' IS DISTINCT FROM c.body->>'period' OR r.input->>'liquidationType' IS DISTINCT FROM c.body->>'liquidationType' OR r.input->'selection' IS DISTINCT FROM c.body->'selection'
      OR r.input->'sourceVersions' IS DISTINCT FROM versions OR r.result->'sourceVersions' IS DISTINCT FROM versions
-     OR r.input->>'version' IS DISTINCT FROM CASE WHEN definition->>'namespaceVersion'='own-payroll-namespaces.v2' THEN 'own-payroll-input.v2' ELSE 'own-payroll-input.v1' END
+     OR r.input->>'version' IS DISTINCT FROM (CASE WHEN definition->>'namespaceVersion'='own-payroll-namespaces.v2' THEN 'own-payroll-input.v2' ELSE 'own-payroll-input.v1' END)
      OR coalesce(r.input->>'salaryConditionsVersion'='own-contract-salary-conditions.v1',false) IS DISTINCT FROM coalesce(definition->>'salaryConditionsVersion'='own-contract-salary-conditions.v1',false)
      OR input_people IS DISTINCT FROM population_people OR r.input->'rules' IS DISTINCT FROM public.own_participation_rules_v1(definition) OR r.input->'totalsPrecision' IS DISTINCT FROM definition->'totalsPrecision'
      OR r.result->>'period' IS DISTINCT FROM c.body->>'period' OR r.result->>'liquidationType' IS DISTINCT FROM c.body->>'liquidationType' OR r.result->'selection' IS DISTINCT FROM c.body->'selection'

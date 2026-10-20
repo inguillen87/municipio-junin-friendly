@@ -9,7 +9,7 @@ const hash=text=>createHash('sha256').update(text).digest('hex');
 const normalized=text=>{assert.equal(typeof text,'string');return text.replaceAll('\r\n','\n');};
 export const comparisonV2LegacySourcePins=Object.freeze({
  participation:'06b5fdcce0c55e5b768d43af0491f1498728bf762febffe81cb6df9763d96548',
- comparison:'6d478ec7655a55963c36ce6f8b78712b7343f149901edd5b326b34bc3bbb1370'
+ comparison:'3fa22b703826e0835b873bd56b1c3fc249da6322db9ae295447c9cc8c2548e07'
 });
 const helpers=Object.freeze([
  Object.freeze({name:'own_participation_rule_key_v1',signature:'jsonb'}),
