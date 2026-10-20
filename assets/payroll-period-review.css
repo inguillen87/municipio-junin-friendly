@@ -1,0 +1,25 @@
+.pdl-period-review{border:1px solid #b9d4cf;border-top:3px solid #087f79;border-radius:10px;padding:18px;margin:16px 0;background:#f8fcfb;color:#14384a;min-width:0;box-sizing:border-box}
+.pdl-period-review *{box-sizing:border-box}.pdl-period-review h4{font-size:1.05rem;margin:0 0 12px;line-height:1.4}
+.pdl-period-review p,.pdl-period-review label{font-size:.86rem;line-height:1.6;overflow-wrap:anywhere}
+.pdl-review-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+.pdl-period-review button,.pdl-period-review input{min-height:44px;font:inherit;border:1px solid #adc8d1;border-radius:6px;background:#fff;color:#14384a;padding:9px 12px}
+.pdl-review-actions>button:first-child{background:#087f79;color:#fff;border-color:#087f79}.pdl-period-review button:disabled{opacity:.6;cursor:default}
+.pdl-period-review progress{width:100%;height:14px;accent-color:#087f79}.pdl-period-review [hidden]{display:none!important}
+.pdl-review-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}
+.pdl-review-totals>div{border:1px solid #d6e5e2;background:#fff;border-radius:8px;padding:13px;min-width:0}
+.pdl-review-totals dt{font-size:.77rem;line-height:1.4}.pdl-review-totals dd{font-size:1.1rem;font-weight:700;margin:8px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pdl-review-table{width:100%;overflow:auto;overscroll-behavior-inline:contain;border:1px solid #d7e6ea;border-radius:6px;margin:12px 0}
+.pdl-review-table table{width:100%;min-width:980px;border-collapse:collapse;table-layout:fixed;font-size:.79rem;line-height:1.5;background:#fff}
+.pdl-review-table th,.pdl-review-table td{padding:10px;border-bottom:1px solid #d7e6ea;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.pdl-review-table th{background:#173d4d;color:#fff;font-weight:700}.pdl-period-review summary{font-weight:700;min-height:44px;padding:12px 0;cursor:pointer;font-size:.9rem}
+.pdl-period-review label{display:flex;flex-direction:column;max-width:480px;gap:6px}.pdl-review-fingerprint{font-family:ui-monospace,monospace;font-size:.72rem!important}
+.pdl-period-review :is(button,input,summary,.pdl-review-table):focus-visible{outline:3px solid #087f79;outline-offset:3px}
+@media(max-width:600px){.pdl-period-review{padding:14px}.pdl-review-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.pdl-review-actions>button{flex:1 1 100%}.pdl-review-table{font-size:.8rem}}
+@media print{.pdl-review-actions,.pdl-period-review input{display:none}.pdl-review-table{overflow:visible}.pdl-period-review{break-inside:auto}}
+
+.pdl-review-table[aria-label^="Conceptos"] table{min-width:1300px}
+.pdl-review-table[aria-label^="Conceptos"] th:nth-child(5){width:260px}
+.pdl-review-table[aria-label^="Conceptos"] th:nth-child(6){width:180px}
+.pdl-review-table[aria-label^="Conceptos"] th:nth-child(4){width:70px}
+.pdl-review-table[aria-label^="Totales"] table{min-width:1450px}
+.pdl-review-table[aria-label^="Fuentes"] table{min-width:1650px}
