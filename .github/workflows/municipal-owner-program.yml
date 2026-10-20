@@ -65,7 +65,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Pure census contracts only; no SQL builder or native runner in this step
-        run: node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-workflow.test.js
+        run: node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-190-legacy.test.js tests/own-payroll-report-census-workflow.test.js
       - run: npm run build
       - name: Prepare only the disposable synthetic service
         env:
@@ -108,10 +108,12 @@ jobs:
             scripts/lib/own-payroll-report-census-authority.mjs
             scripts/lib/own-payroll-report-census-ledger.mjs
             scripts/lib/own-payroll-report-census-190-continuation.mjs
+            tests/fixtures/own-payroll-report-census-legacy-synthetic.js
             scripts/lib/own-payroll-report-census-190-iam-fixture.mjs
             scripts/lib/own-payroll-report-census-qa-rpc.mjs
             scripts/verify-own-payroll-report-census.mjs
             tests/own-payroll-report-census-qa-rpc.test.js
             tests/own-payroll-report-census-190-iam-fixture.test.js
+            tests/own-payroll-report-census-190-legacy.test.js
             tests/own-payroll-report-census-workflow.test.js
           retention-days: 5

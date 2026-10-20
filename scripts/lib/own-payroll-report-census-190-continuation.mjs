@@ -19,6 +19,8 @@ import {verifiedOwnCloseReceipt} from '../../assets/own-payroll-close-model.js';
 import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-model.js';
 import {verifiedOwnReportBundle,ownReportDocument} from '../../assets/own-payroll-report-model.js';
 import {draft as employeeDraft} from '../../tests/fixtures/native-employee-synthetic.js';
+import {prepareOwnReportCensusLegacyFixtures} from '../../tests/fixtures/own-payroll-report-census-legacy-synthetic.js';
+const legacySnapshotPrefix='municontrol_report_census200.before',legacyVersionNames=['own-close-snapshot.v1','own-close-snapshot.v2'];
 
 const quote=value=>"'"+String(value).replaceAll("'","''")+"'",j=value=>quote(JSON.stringify(value))+'::jsonb';
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -113,11 +115,13 @@ export async function runOwnReportCensus190Continuation(raw){
  setActor(qa.actor);for(const contractId of contracts){const classification=await api('classification',{query:{resource:'bootstrap',contractId,period:now.period}});assert.equal(classification.configuration.revision,0);assert.equal(classification.configuration.approvalId,null);}
  const rb=await api('run'),calculated=await api('run',{body:{period:now.period,liquidationType:'monthly',selection:{kind:'all',values:[]},scopeVersion:rb.scopeVersion,programVersion:rb.programVersion,populationDomain:'native_registered'},expected:201});
  assert.deepEqual(calculated.payload.population.employees.map(value=>value.contractId).sort(),contracts);assert.equal(calculated.saved.result.employeeCount,contracts.length);
+  assert.equal(calculated.saved.input.version,'own-payroll-input.v2');assert.equal(calculated.saved.result.version,'own-payroll-result.v2');
  assert.ok(calculated.payload.sourceInventory.periodClassifications.rows.every(value=>value.basis==='current_own_registration'&&value.approvalId===null));
  setActor(qa.checker);const liquidation=await api('liquidation',{query:{resource:'detail',id:calculated.id}});await api('liquidation',{body:{runId:calculated.id,resultSha256:calculated.saved.resultSha256,scopeVersion:liquidation.scopeVersion,stateVersion:liquidation.stateVersion,command:'confirm',selection:{kind:'all',values:[]},reason,reviewConfirmed:true},expected:201});
  const closeDetail=await api('close',{query:{resource:'detail',period:now.period,liquidationType:'monthly'}});assert.deepEqual(closeDetail.rows.map(value=>value.contractId).sort(),contracts);
  const closed=await api('close',{body:{period:now.period,liquidationType:'monthly',scopeVersion:closeDetail.scopeVersion,stateVersion:closeDetail.stateVersion,selection:{kind:'all',values:[]},command:'close',groupId:null,reason,reviewConfirmed:true},expected:201});await verifiedOwnCloseReceipt(closed);
  assert.equal(closed.snapshot.populationCount,contracts.length);assert.equal(closed.snapshot.employeeCount,contracts.length);assert.equal(closed.snapshot.populationComplete,true);
+  assert.equal(closed.snapshot.version,'own-close-snapshot.v3');assert.ok(closed.snapshot.employees.every(value=>value.namespaceVersion==='own-payroll-namespaces.v2'));
  const original=await api('close',{query:{resource:'group',id:closed.groupId}});await verifiedOwnCloseReceipt(original);
  const deniedReadBefore=h.fixtureSnapshot();setActor(qa.actor);const noApproval=await api('close',{query:{resource:'report-census',period:now.period,liquidationType:'monthly'},expected:403});assert.equal(noApproval.code,'OWN_CLOSE_FORBIDDEN');assert.deepEqual(h.fixtureSnapshot(),deniedReadBefore);
  h.check('M8 normal API creates complete native revision0 cohort; actual own calculation, independent confirmation and close include every roster member');
@@ -140,5 +144,82 @@ export async function runOwnReportCensus190Continuation(raw){
  const originalAfterReopen=await api('close',{query:{resource:'group',id:closed.groupId}});assert.deepEqual(originalAfterReopen,original);
  await assert.rejects(()=>verifiedOwnReportBundle(reportQuery,[next,sac],[original]));const reopenedBundle=await verifiedOwnReportBundle(reportQuery,[next,sac],[]);assert.equal(reopenedBundle.employees.length,0);assert.notEqual(reopenedBundle.proof,bundle.proof);assert.deepEqual(h.fixtureSnapshot(),afterReopen);
  h.check('M8 actual reopen changes full event fingerprint, preserves original group and rejects its inclusion as an active report group');
- return{version:'own-report-census-canonical190-native-qa.v1',passed:true,actualSql:true,actualHandlers:true,sourceCommit:h.sourceCommit,period:now.period,operationalPairBaseline:'published107',newNativeEmployees:2,newUsers:2,newMemberships:2,newSessions:2,newEmploymentLinks:2,authenticationFixture:true,accountProvisioningApiProven:false,native113OwnershipGuardProven:true,rolesChanged:0,functionsSubstituted:0,initialNativePopulation:now.nativeCount,closedEmployeeCount:contracts.length,populationComplete:true,iamChecked,installation:{installed:installation.installed,durable:installation.durable,repeated:installation.repeated,populated,populatedDurable},reportRows:document.rows.length,unchangedOperationalSacCode:denied.code,conservedOriginalGroup:true,reopenChangesCensus:true,completeSnapshotReadsPreserved:true,trace:h.trace,productionWrites:0,municipalAcceptance:false};
+  const legacyFormats=await runOwnReportCensus190LegacyReaders(h,{installation,currentPeriod:now.period,currentCensus:next,checkDurability:assertOwnReportCensusDurability});
+  return{version:'own-report-census-canonical190-native-qa.v1',passed:true,actualSql:true,actualHandlers:true,sourceCommit:h.sourceCommit,period:now.period,operationalPairBaseline:'published107',newNativeEmployees:2,newUsers:2,newMemberships:2,newSessions:2,newEmploymentLinks:2,authenticationFixture:true,accountProvisioningApiProven:false,native113OwnershipGuardProven:true,rolesChanged:0,functionsSubstituted:0,initialNativePopulation:now.nativeCount,closedEmployeeCount:contracts.length,populationComplete:true,iamChecked,installation:{installed:installation.installed,durable:installation.durable,repeated:installation.repeated,populated,populatedDurable},currentCalculationFormats:{input:calculated.saved.input.version,result:calculated.saved.result.version,closeSnapshot:closed.snapshot.version},legacyFormats,reportRows:document.rows.length,unchangedOperationalSacCode:denied.code,conservedOriginalGroup:true,reopenChangesCensus:true,completeSnapshotReadsPreserved:true,trace:h.trace,productionWrites:0,municipalAcceptance:false};
+}
+
+// The complete existing200 preservation snapshot is retained. Only the ledger's
+// row count/hash is projected to exclude the TWO declared fixture IDs. Every
+// old event, every other table, sequence, function, trigger, ACL and role stays
+// in the comparison. The reader200 excluded by its own baseline is added back
+// as a separate pg_proc metadata fingerprint.
+function legacyProjectionSql(schema,ids){
+ assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(ids.length,2);assert.equal(new Set(ids).size,2);for(const id of ids)assert.match(id,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+ const wanted='ARRAY['+ids.map(quote).join(',')+']::uuid[]',ledger=schema+'.own_payroll_close_event';
+ return `SELECT jsonb_build_object('snapshot',current_setting(${quote(legacySnapshotPrefix)})::jsonb,
+ 'ledgerTotal',(SELECT count(*) FROM ${ledger}),
+ 'seededCount',(SELECT count(*) FROM ${ledger} WHERE id=ANY(${wanted})),
+ 'projectedRows',(SELECT count(*) FROM ${ledger} WHERE NOT(id=ANY(${wanted}))),
+ 'projectedSha256',(SELECT encode(public.digest(coalesce(string_agg(h,'' ORDER BY h COLLATE "C"),''),'sha256'),'hex') FROM(SELECT encode(public.digest(to_jsonb(e)::text,'sha256'),'hex') h FROM ${ledger} e WHERE NOT(id=ANY(${wanted}))) original_events),
+ 'readerFingerprint',(SELECT encode(public.digest(to_jsonb(p)::text,'sha256'),'hex') FROM pg_proc p WHERE oid=to_regprocedure(${quote(schema+'.own_close_report_census_v1(jsonb,text,text)')})))`;
+}
+
+function captureLegacyProjection(h,installation,ids){
+ const {qa}=h,n=source=>qa.normalized(source).replaceAll(installation.batch.ownPin.sha256,installation.relocatedHash);
+ const observed=h.json([n(installation.batch.prerequisiteCheck),n(installation.batch.ownCheck),n(installation.batch.before),legacyProjectionSql(qa.schema,ids)],{readOnly:true});
+ assert.ok(observed&&Array.isArray(observed.snapshot?.tables));assert.match(observed.readerFingerprint,/^[a-f0-9]{64}$/);assert.match(observed.projectedSha256,/^[a-f0-9]{64}$/);
+ for(const key of['ledgerTotal','seededCount','projectedRows'])assert.ok(Number.isSafeInteger(observed[key])&&observed[key]>=0);
+ const snapshot=structuredClone(observed.snapshot),tables=snapshot.tables.filter(value=>value.schema===qa.schema&&value.name==='own_payroll_close_event');assert.equal(tables.length,1);
+ assert.equal(tables[0].rows,observed.ledgerTotal);
+ tables[0].rows=observed.projectedRows;tables[0].rowsSha256=observed.projectedSha256;
+ return{preserved:{snapshot,readerFingerprint:observed.readerFingerprint},ledgerTotal:observed.ledgerTotal,seededCount:observed.seededCount};
+}
+
+function legacySeedStatements(h,fixtures){
+ const {qa}=h;assert.ok(Number.isSafeInteger(qa.checker.actorSessionVersion)&&qa.checker.actorSessionVersion>0);assert.match(qa.checker.actorSessionId,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);assert.match(qa.checker.releaseSha,/^[a-f0-9]{40}$/);
+ const wanted=j(fixtures),ids='ARRAY['+fixtures.map(value=>quote(value.id)).join(',')+']::uuid[]',keys='ARRAY['+fixtures.map(value=>quote(value.key)).join(',')+']::uuid[]';
+ const seed=`DO $legacy_format_seed$ DECLARE ctx jsonb;fixture jsonb;body_value jsonb;snapshot_value jsonb;receipt_value jsonb;at_time timestamptz;id_value uuid;key_value uuid;body_hash text;snapshot_hash text;BEGIN
+ ctx:=public.own_close_context_v1(${j(qa.checker)},true,true);
+ IF ctx->>'tenantId' IS DISTINCT FROM ${quote(qa.checker.tenantId)} OR ctx->>'sourceBindingId' IS DISTINCT FROM ${quote(qa.ids.binding)} OR ctx->>'membershipId' IS DISTINCT FROM ${quote(qa.checker.membershipId)} OR ctx->>'actorEmail' IS DISTINCT FROM ${quote(qa.checker.actorEmail)} OR nullif(ctx->>'actorPersonId','') IS NULL THEN RAISE EXCEPTION 'CENSUS190_LEGACY_CONTEXT_CHANGED';END IF;
+ IF jsonb_array_length(${wanted})<>2 OR EXISTS(SELECT 1 FROM public.own_payroll_close_event WHERE id=ANY(${ids}) OR group_id=ANY(${ids}) OR request_key=ANY(${keys})) THEN RAISE EXCEPTION 'CENSUS190_LEGACY_FIXTURE_ALREADY_EXISTS';END IF;
+ FOR fixture IN SELECT value FROM jsonb_array_elements(${wanted}) LOOP
+  id_value:=(fixture->>'id')::uuid;key_value:=(fixture->>'key')::uuid;body_value:=fixture->'body';snapshot_value:=fixture->'snapshot';at_time:=clock_timestamp();
+  body_hash:=public.own_run_hash_v1(body_value);snapshot_hash:=public.own_run_hash_v1(snapshot_value);
+  IF body_hash IS DISTINCT FROM fixture->>'bodySha256' OR snapshot_hash IS DISTINCT FROM fixture->>'snapshotSha256' THEN RAISE EXCEPTION 'CENSUS190_LEGACY_FIXTURE_HASH_CHANGED';END IF;
+  receipt_value:=jsonb_build_object('version','own-close-receipt.v1','id',id_value,'key',key_value,'body',body_value,'bodySha256',body_hash,'groupId',id_value,'snapshot',snapshot_value,'snapshotSha256',snapshot_hash,'recordedAt',at_time,'replayed',false);
+  INSERT INTO public.own_payroll_close_event(id,tenant_id,source_binding_id,group_id,command,period,liquidation_type,actor_membership_id,actor_person_id,actor_email,actor_label,actor_session_id,actor_session_version,release_sha,request_key,body,body_sha256,snapshot,snapshot_sha256,receipt,recorded_at)
+  VALUES(id_value,(ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,id_value,'close',body_value->>'period',body_value->>'liquidationType',(ctx->>'membershipId')::uuid,(ctx->>'actorPersonId')::uuid,ctx->>'actorEmail',coalesce(nullif(ctx->>'actorLabel',''),'Autoridad municipal'),${quote(qa.checker.actorSessionId)}::uuid,${Number(qa.checker.actorSessionVersion)},${quote(qa.checker.releaseSha)},key_value,body_value,body_hash,snapshot_value,snapshot_hash,receipt_value,at_time);
+ END LOOP;
+ END $legacy_format_seed$`;
+ const readback=`SELECT coalesce(jsonb_agg(receipt ORDER BY period),'[]'::jsonb) FROM public.own_payroll_close_event WHERE id=ANY(${ids})`;
+ // The source125 writer and source200 reader both require UTC representation.
+ // The seed stores the canonical JSONB timestamp, never a fixture '.000Z'.
+ return["SET LOCAL TIME ZONE 'UTC'",qa.normalized(seed),qa.normalized(readback)];
+}
+
+async function runOwnReportCensus190LegacyReaders(h,{installation,currentPeriod,currentCensus,checkDurability}){
+ assert.equal(h.qa.operationalPairBaseline,'published107');assert.equal(typeof checkDurability,'function');
+ const fixtures=await prepareOwnReportCensusLegacyFixtures(currentPeriod),ids=fixtures.map(value=>value.id),before=captureLegacyProjection(h,installation,ids);
+ assert.equal(before.seededCount,0);h.setActor(h.qa.checker);
+ const priorCurrent=await h.api('close',{query:{resource:'report-census',period:currentPeriod,liquidationType:'monthly'}});assert.deepEqual(priorCurrent,currentCensus);
+ const saved=h.json(legacySeedStatements(h,fixtures),{command:true});assert.equal(saved.length,2);
+ for(const[index,receipt]of saved.entries()){
+  await verifiedOwnCloseReceipt(receipt);assert.equal(receipt.id,fixtures[index].id);assert.equal(receipt.key,fixtures[index].key);assert.equal(receipt.replayed,false);
+  assert.deepEqual(receipt.body,fixtures[index].body);assert.deepEqual(receipt.snapshot,fixtures[index].snapshot);assert.equal(receipt.bodySha256,fixtures[index].bodySha256);assert.equal(receipt.snapshotSha256,fixtures[index].snapshotSha256);
+ }
+ const afterSeed=captureLegacyProjection(h,installation,ids);assert.equal(afterSeed.seededCount,2);assert.equal(afterSeed.ledgerTotal,before.ledgerTotal+2);assert.deepEqual(afterSeed.preserved,before.preserved);
+ const baseline=h.fixtureSnapshot(),censuses=[],groups=[];
+ for(const[index,receipt]of saved.entries()){
+  const census=await h.api('close',{query:{resource:'report-census',period:receipt.snapshot.period,liquidationType:'monthly'}});await verifiedOwnReportCensus(census);
+  assert.equal(census.complete,true);assert.equal(census.eventCount,1);assert.equal(census.groups.length,1);assert.equal(census.groups[0].state,'closed');assert.equal(census.groups[0].id,receipt.groupId);assert.equal(census.groups[0].snapshotSha256,receipt.snapshotSha256);assert.equal(census.groups[0].employeeCount,2);assert.equal(census.groups[0].populationCount,2);assert.equal(census.groups[0].populationComplete,true);
+  const group=await h.api('close',{query:{resource:'group',id:receipt.groupId}});await verifiedOwnCloseReceipt(group);assert.equal(group.snapshot.version,legacyVersionNames[index]);assert.deepEqual(group,{...receipt,replayed:true});
+  censuses.push(census);groups.push(group);
+ }
+ for(const census of censuses){const reread=await h.api('close',{query:{resource:'report-census',period:census.period,liquidationType:'monthly'}});await verifiedOwnReportCensus(reread);assert.deepEqual(reread,census);}
+ const bundle=await verifiedOwnReportBundle({from:'2026-08',to:'2026-09',types:['monthly']},censuses,groups),document=ownReportDocument(bundle);assert.equal(bundle.employees.length,4);assert.equal(document.rows.length,4);
+ const afterCurrent=await h.api('close',{query:{resource:'report-census',period:currentPeriod,liquidationType:'monthly'}});assert.deepEqual(afterCurrent,priorCurrent);assert.deepEqual(h.fixtureSnapshot(),baseline);
+ const installed=h.json(installation.statements),durable=h.json(installation.verification,{readOnly:true});assert.equal(installed.mode,'verify');assert.equal(installed.eventRows,afterSeed.ledgerTotal);checkDurability({installed,durable,batch:installation.batch});assert.deepEqual(h.fixtureSnapshot(),baseline);
+ const after=captureLegacyProjection(h,installation,ids);assert.equal(after.seededCount,2);assert.equal(after.ledgerTotal,before.ledgerTotal+2);assert.deepEqual(after.preserved,before.preserved);
+ h.check('M8 explicit legacy-format seed adds exactly2 ledger events; real census/group and complete bundle read v1/v2 while every old row and all metadata stay unchanged');
+ return{historicalFormatFixture:true,currentEngineProduced:false,seedRows:saved.length,newIdentities:0,newIamAssignments:0,newFunctions:0,formats:groups.map(value=>value.snapshot.version),periods:censuses.map(value=>value.period),groupsRead:groups.length,participationsRead:bundle.employees.length,completeSecondRead:true,priorRowsPreserved:true,metadataPreserved:true,currentCellUnchanged:true,durabilityVerified:true};
 }

@@ -9,7 +9,7 @@ const digest=value=>createHash('sha256').update(value).digest('hex');
 const output='verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}';
 const original='node scripts/verify-municipal-owner-program.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.baseline }} --output='+output;
 const census='node scripts/verify-own-payroll-report-census.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output='+output;
-const pure='node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-workflow.test.js';
+const pure='node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-190-legacy.test.js tests/own-payroll-report-census-workflow.test.js';
 function blocks(value){return value.split(/^      - /m).slice(1);}
 function check(value){
  const at=value.indexOf('    steps:');assert.ok(at>0);
@@ -32,7 +32,7 @@ function check(value){
  for(const step of uploads){assert.ok(step.includes('name: municipal-owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}-${{ github.sha }}'));assert.ok(step.includes('retention-days: 5'));assert.doesNotMatch(step,/\.handoff|\.private|\.gz|\.ogg|verification\/\*\*/);}
  assert.ok(preUpload.includes(output+'/*.json'));assert.ok(preUpload.includes(output+'/*failure.txt'));assert.ok(preUpload.includes(output+'/*.png'));assert.doesNotMatch(preUpload,/\.sql\b/);
  assert.ok(publishedUpload.includes('            '+output+'/\n'),'CENSUS_WORKFLOW_FULL_EVIDENCE_DIRECTORY_REQUIRED');
- for(const file of['scripts/migrations/200-own-payroll-report-census.sql','scripts/lib/own-payroll-report-census-installation.mjs','scripts/lib/own-payroll-report-census-authority.mjs','scripts/lib/own-payroll-report-census-ledger.mjs','scripts/lib/own-payroll-report-census-190-continuation.mjs','scripts/lib/own-payroll-report-census-190-iam-fixture.mjs','scripts/lib/own-payroll-report-census-qa-rpc.mjs','scripts/verify-own-payroll-report-census.mjs','tests/own-payroll-report-census-workflow.test.js'])assert.ok(publishedUpload.includes('            '+file+'\n'),'CENSUS_WORKFLOW_SOURCE_ARTIFACT_REQUIRED:'+file);
+ for(const file of['scripts/migrations/200-own-payroll-report-census.sql','scripts/lib/own-payroll-report-census-installation.mjs','scripts/lib/own-payroll-report-census-authority.mjs','scripts/lib/own-payroll-report-census-ledger.mjs','scripts/lib/own-payroll-report-census-190-continuation.mjs','tests/fixtures/own-payroll-report-census-legacy-synthetic.js','scripts/lib/own-payroll-report-census-190-iam-fixture.mjs','scripts/lib/own-payroll-report-census-qa-rpc.mjs','scripts/verify-own-payroll-report-census.mjs','tests/own-payroll-report-census-190-legacy.test.js','tests/own-payroll-report-census-workflow.test.js'])assert.ok(publishedUpload.includes('            '+file+'\n'),'CENSUS_WORKFLOW_SOURCE_ARTIFACT_REQUIRED:'+file);
  assert.doesNotMatch(value,/secrets\.|pull_request_target|continue-on-error|contents: write|id-token: write|DATABASE_URL|connectionString|skip-check/);
 }
 test('same four190 cells execute originalpre107 or full190+censuspublished107 exactly once',()=>check(workflow));
