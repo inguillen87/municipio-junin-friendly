@@ -15,6 +15,15 @@ export function nativeFamilyRegressionTimeout(sql){
  assert.equal(sql.split(anchor).length,2,'FAMILY195_REGRESSION_TIMEOUT_DRIFT');
  return sql.replace(anchor,"SET LOCAL statement_timeout='300s'");
 }
+// Keep the inherited catalogue holder alive for the complete 300 s family
+// statement plus its original 30 s completion margin. Only this QA profile
+// changes; inherited catalogue/lifecycle protocols and all checks remain exact.
+export function nativeFamilyRegressionLockTimeout(sql){
+ const anchor="interval '210 seconds'";
+ assert.equal(typeof sql,'string','FAMILY195_REGRESSION_LOCK_TIMEOUT_INPUT');
+ assert.equal(sql.split(anchor).length,2,'FAMILY195_REGRESSION_LOCK_TIMEOUT_DRIFT');
+ return sql.replace(anchor,"interval '330 seconds'");
+}
 export function buildNativeFamilySelfQa({serverMajor,requireConcurrency=false,source,sourceCommit='9'.repeat(40)}){
  const base=buildNativeSelfQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=source??read('195-native-family-self-service.sql'),installation=buildNativeFamilySelfInstallation({source:migration,sourceCommit}),contentionKey=randomUUID();
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
@@ -156,7 +165,7 @@ export function buildNativeFamilySelfQa({serverMajor,requireConcurrency=false,so
  const report={...base.report,familySelfChecksPassed:count,checksPassed:base.report.checksPassed+count,migration195Sha256:installation.sqlSha256,limitations:[...base.report.limitations,'195 generation is not SQL execution. Fixture adds complete normal102 family/schema to existing113 real-session/account-link QA; the prior partial102 resolver is SHA checked and dropped RESTRICT only inside the new rollback subtransaction.','195 metadata reread is within one rollback transaction, not independent durable committed connection. IAM capabilities are synthetic fixture rows. No production role grants, uploads, municipal or browser acceptance.']};
  const sql=nativeFamilyRegressionTimeout(base.sql).replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  const lock="hashtextextended("+q('native-family:key:'+ids.tenant+':'+ids.binding+':'+ids.reader+':'+contentionKey)+',0)';
- const lockSql=requireConcurrency?base.lockSql.replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock("+lock+");\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"):base.lockSql;
+ const lockSql=requireConcurrency?nativeFamilyRegressionLockTimeout(base.lockSql).replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock("+lock+");\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"):base.lockSql;
  assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return{...base,sql,lockSql,report,familyFixture:{setup:familyFixtureSetup,installation:installation.installation.map(normalized),durableVerification:installation.durableVerification.map(normalized),proof:normalized(installation.proof),normalized,installationBatch:installation}};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
