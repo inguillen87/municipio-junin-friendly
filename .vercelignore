@@ -406,3 +406,10 @@ local-agents/
 # Closed-report census code only; no municipal ledger or fixture data.
 !scripts/migrations/200-own-payroll-report-census.sql
 !scripts/migrations/201-own-full-payroll-decision-capacity.sql
+
+# Reviewed accounting source contracts required by build tests; no source data.
+!scripts/migrations/203-own-imputation-full-capacity.sql
+!scripts/migrations/204-own-accounting-administrative-actor.sql
+!scripts/migrations/205-own-imputation-preparation-authorization.sql
+!scripts/migrations/206-own-journal-full-capacity.sql
+!scripts/migrations/207-own-journal-preparation-authorization.sql
