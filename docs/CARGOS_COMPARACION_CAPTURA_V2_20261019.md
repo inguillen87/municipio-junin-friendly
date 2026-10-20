@@ -19,6 +19,8 @@ Esta rama incorpora SQL198 y SQL199 como código propuesto, sin instalarlos ni e
 
 El gate existente conserva el programa, los actores y las 52 filas originales; incorpora los dos lectores V2 y mantiene una comprobación explícita de V1. Sólo extrae de SQL157 tres funciones puras privadas, sin adoptar tablas, políticas ni comandos nuevos. La matriz PostgreSQL17/18 conserva los controles de reapertura, revocación y exportación completa con sus artefactos.
 
-Falta validar esa matriz y conectar la prueba canónica con las capturas guardadas del circuito sintético conjunto. La prueba local de navegador usa un doble SQL; no demuestra esas propiedades de PostgreSQL ni aceptación municipal.
+La prueba canónica conecta las asignaciones de las mismas tres altas sintéticas antes de sus primeras capturas y consulta los tres cierres después de la continuación financiera. Exige seis referencias de cargos y horas, las cantidades decimales originales y los archivos CSV, Excel y PDF. El montaje requiere las cinco instalaciones y sus lecturas durables reales antes de preparar el cálculo; un plan de fuente nunca sirve como recibo de ejecución.
+
+El fixture de prueba declara expresamente las seis capacidades de las dos membresías sintéticas y conserva los roles, terceros y separación de funciones. No modifica permisos productivos. El gate existente opta por este tramo con `--position-comparison=198`, manteniendo las cuatro celdas y los artefactos por commit. Su ejecución PostgreSQL continúa pendiente. Las pruebas puras de composición y la prueba local de navegador con doble SQL no demuestran esa ejecución ni aceptación municipal.
 
 El panel no debe publicarse hasta disponer del lector V2 validado. Esta entrega no calcula, confirma, anula, cierra ni paga liquidaciones productivas y no completa por sí sola el objetivo municipal.

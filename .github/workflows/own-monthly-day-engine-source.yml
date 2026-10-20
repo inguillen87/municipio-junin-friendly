@@ -39,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: New mixed196/day contracts and composed predecessor regressions
-        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js tests/own-monthly-day-fixed-composition*.test.js tests/own-monthly-days-forced-declared-coverage.test.js tests/monthly-native-full-circuit*.test.js tests/native-employee-ui-monthly-command-projection.test.js tests/own-payroll-novelty-succession*.test.js tests/own-novelty-succession*.test.js
+        run: node --test --test-reporter=tap tests/own-monthly-day-engine-source*.test.js tests/own-monthly-day-engine.test.js tests/own-monthly-day-policy*.test.js tests/own-monthly-day-declaration-native-proof-query.test.js tests/own-monthly-day-sources-composition.test.js tests/own-monthly-day-fixed-composition*.test.js tests/own-monthly-days-forced-declared-coverage.test.js tests/monthly-native-full-circuit*.test.js tests/native-employee-ui-monthly-command-projection.test.js tests/own-payroll-novelty-succession*.test.js tests/own-novelty-succession*.test.js tests/monthly-native-position*.test.js tests/position-canonical-composition.test.js
       - name: Build actual static UI for the joint native circuit
         run: node scripts/build-friendly.mjs
       - name: Browser system dependencies using the existing project workflow
@@ -56,7 +56,7 @@ jobs:
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: |
           mkdir -p verification
-          node scripts/verify-own-monthly-day-engine-source.mjs --fixed-composition=196 --novelty-succession=197 --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.operational_pair_baseline }} --output=verification/monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }}
+          node scripts/verify-own-monthly-day-engine-source.mjs --fixed-composition=196 --novelty-succession=197 --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.operational_pair_baseline }} --output=verification/monthly-day-engine-source-pg${{ matrix.pg }}-${{ matrix.operational_pair_baseline }} --position-comparison=198
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
