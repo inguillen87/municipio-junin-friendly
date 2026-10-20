@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
+
+test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
+ for(const file of Object.keys({...p.candidatePins,...p.dependencies}))assert.ok(included(file),'Build dependency excluded: '+file);
+ for(const file of ['.handoff/result.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/result.json','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
+});
 test('M7 source bytes pin the exact canonical190 overlay and admitted source dependencies',()=>{
  for(const[file,digest]of Object.entries({...p.candidatePins,...p.dependencies}))assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),digest,file);
 });

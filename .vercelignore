@@ -405,3 +405,4 @@ local-agents/
 
 # Closed-report census code only; no municipal ledger or fixture data.
 !scripts/migrations/200-own-payroll-report-census.sql
+!scripts/migrations/201-own-full-payroll-decision-capacity.sql
