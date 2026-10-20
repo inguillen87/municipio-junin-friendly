@@ -15,6 +15,10 @@ Cada captura se incluye una sola vez. La población original completa se disting
 
 ## Pendiente para publicar
 
-Esta entrega no instala ni ejecuta SQL. El sucesor SQL198 continúa como candidato privado. Falta cerrar su instalación y preservación sobre el contexto canónico, los escritores administrativos de presupuesto y asignaciones, y las pruebas PostgreSQL17/18 con las capturas reales del circuito sintético conjunto. La prueba de navegador usa un doble SQL; no demuestra esas propiedades de PostgreSQL ni aceptación municipal.
+Esta rama incorpora SQL198 y SQL199 como código propuesto, sin instalarlos ni ejecutarlos localmente. El perfil de instalación canónico conserva las cinco fases, sus lecturas durables y la reversión sin historia. Siete pruebas puras comprueban sus contratos y reproducen los errores corregidos de reversión y resultados extra; no sustituyen una ejecución PostgreSQL.
+
+El gate existente conserva el programa, los actores y las 52 filas originales; incorpora los dos lectores V2 y mantiene una comprobación explícita de V1. Sólo extrae de SQL157 tres funciones puras privadas, sin adoptar tablas, políticas ni comandos nuevos. La matriz PostgreSQL17/18 conserva los controles de reapertura, revocación y exportación completa con sus artefactos.
+
+Falta validar esa matriz y conectar la prueba canónica con las capturas guardadas del circuito sintético conjunto. La prueba local de navegador usa un doble SQL; no demuestra esas propiedades de PostgreSQL ni aceptación municipal.
 
 El panel no debe publicarse hasta disponer del lector V2 validado. Esta entrega no calcula, confirma, anula, cierra ni paga liquidaciones productivas y no completa por sí sola el objetivo municipal.
