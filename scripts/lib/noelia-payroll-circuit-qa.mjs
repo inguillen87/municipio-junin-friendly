@@ -18,6 +18,14 @@ export function noeliaCircuitRosterRead(query,values,schema){
  const statement=query.replaceAll('public.native_employee_',schema+'.native_employee_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
  return "SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+statement+') qa_read';
 }
+// Only the three exact statements emitted by employeeOperation. Values stay
+// quoted, and execution retains the existing runtime-role/COMMIT transport.
+export function noeliaNativeEmployeeStatement(query,values,schema){
+ const statements=[['SELECT public.native_employee_bootstrap_v1($1::jsonb) AS result',1],['SELECT public.native_employee_attempt_v1($1::jsonb,$2::uuid) AS result',2],['SELECT public.native_employee_create_v1($1::jsonb,$2::jsonb,$3::text,$4::uuid) AS result',4]],entry=statements.find(([statement])=>statement===query);
+ if(!entry)return null;
+ assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.ok(Array.isArray(values)&&values.length===entry[1]&&Object.keys(values).length===values.length&&values.every(value=>typeof value==='string'),'QA_NATIVE_EMPLOYEE_PARAMETERS');
+ return query.replace('public.native_employee_',schema+'.native_employee_').replace(/\$(\d+)/g,(_,index)=>q(values[Number(index)-1]));
+}
 export function buildNoeliaCircuitQa(major,{jurisdictions=false}={}){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
  assert.equal(typeof jurisdictions,'boolean');
  if(jurisdictions){let count=0;qa.sql=qa.sql.replace(/hire:=native_employee_create_v1\(maker,'(\{"agreementCode"[^\n]*?"legajo":"20[0-9]+"[^\n]*?"jurisdictionCode":)"42"(\})'::jsonb/g,(_,prefix,suffix)=>{count++;return "hire:=native_employee_create_v1(maker,'"+prefix+'"55"'+suffix+"'::jsonb";});assert.equal(count,24,'complete synthetic 55 cohort must be explicitly declared at hire time');}
@@ -38,6 +46,7 @@ export function relocateNoeliaJurisdictionInstallation(batch,qa,previous){
  return {...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
 }
 export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const environment=Object.freeze({...runtime.environment,PGAPPNAME:noeliaQaApplicationName(options.schema)}),db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment});return {...db,executable:runtime.executable,environment,applicationName:environment.PGAPPNAME,query:async(query,values)=>{
+ const nativeEmployee=noeliaNativeEmployeeStatement(query,values,options.schema);if(nativeEmployee)return[{result:await db.run(nativeEmployee,true)}];
  const rosterRead=noeliaCircuitRosterRead(query,values,options.schema);if(rosterRead)return await db.run(rosterRead);
  if(query.includes('/* effective-source:snapshot */')||/^WITH authority AS MATERIALIZED\s*\(/.test(query.trimStart())){
   // Execute the application's complete read, never substitute directory rows.

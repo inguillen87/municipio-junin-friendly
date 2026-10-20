@@ -27,13 +27,20 @@ test('whole native population consumes independently approved exact hours withou
 for(const [label,mutate]of[
  ['missing whole source',s=>delete s.workingTime],['missing last employee',s=>s.workingTime.records.pop()],
  ['unapproved hours',s=>Object.assign(s.workingTime.records.at(-1).configuration,{revision:0,definition:null,proposalId:null,approvalId:null,identityToken:null})],
- ['null daily hours',s=>s.workingTime.records.at(-1).configuration.definition.dailyHours=null],
  ['changed identity',s=>s.workingTime.records.at(-1).identityToken=hash('f')],
  ['implicit conversion to minutes',s=>s.programState.program.definition.bindings.at(-1).unit='minutes'],
  ['absence silently zero',s=>s.programState.program.definition.bindings.at(-1).onMissing='zero'],
  ['missing explicit version',s=>delete s.programState.program.definition.workingTimeVersion],
  ['invented component',s=>s.programState.program.definition.bindings.at(-1).sourceField='daysWorked'],
 ])test(label+' blocks the complete payroll',()=>{const s=source();mutate(s);assert.throws(()=>prepareOwnPayrollInput(s));});
+
+test('approved null hours remain unknown until a direct numeric consumer rejects the complete result',()=>{
+ const s=source();s.workingTime.records.at(-1).configuration.definition.dailyHours=null;seal(s);
+ const before=structuredClone(s),input=prepareOwnPayrollInput(s);
+ assert.equal(input.employees.at(-1).inputs.find(i=>i.key==='daily').value,null);
+ assert.throws(()=>createOwnPayrollSnapshot(input),e=>e.code==='INPUT_MISSING');
+ assert.deepEqual(s,before);
+});
 test('changed documentary hours alter the capture version while the original input stays intact',()=>{
  const s=source(1),old=prepareOwnPayrollInput(s);s.workingTime.records[0].configuration.definition.monthlyHours='1.25';
  assert.throws(()=>prepareOwnPayrollInput(s),e=>e.code==='SOURCE_VERSION_INVALID');const next=prepareOwnPayrollInput(seal(s));
