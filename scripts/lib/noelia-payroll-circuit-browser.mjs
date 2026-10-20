@@ -5,7 +5,7 @@ import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.j
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
-import {qaJsonResponseObserver} from './qa-json-response-observer.mjs';
+import {qaJsonResponseObserver,qaJsonResponseLifecycle} from './qa-json-response-observer.mjs';
 import {employeeReceipt,employeeScopeKey} from '../../assets/native-employee-confirmation-model.js';
 import {createHash} from 'node:crypto';
 import {verifiedOwnReceiptPreview,ownReceiptBatch,ownReceiptVerifyHash,ownReceiptPresentation} from '../../assets/own-payroll-receipt-model.js';
@@ -63,8 +63,8 @@ export function assertNativeReceiptDescriptionPdf(bytes,{record,target,source,ba
 
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));
- let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
- const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??(w.kind==='nativeEmployee'?'create':'calculate')}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
+ let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[],responseLifecycles=[];
+ const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,responseLifecycles,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??(w.kind==='nativeEmployee'?'create':'calculate')}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
    if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.session.id,email:current.session.email},access:{context:'tenant',tenant:{id:current.principal.tenant.id,roleKey:'QA'},tenantCapabilities:[...current.principal.tenant.effectiveCapabilities,'payroll.read'],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
@@ -119,8 +119,10 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   const nativeEndpoint=kind=>[...endpoints].find(([,value])=>value===kind)?.[0];
   async function observeNativeCommand(kind,body,target,prepare){
    const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length,requests=[],responses=[],responseBodies=new WeakMap(),endpoint=nativeEndpoint(kind);assert.ok(endpoint);assert.equal(drop,false,'QA_NATIVE_PENDING_DROP');
-   const relevant=request=>{const u=new URL(request.url());return u.origin===origin&&u.pathname===endpoint;},onRequest=request=>{if(relevant(request))requests.push(request);},onResponse=qaJsonResponseObserver(relevant,responses,responseBodies);
-   page.on('request',onRequest);page.on('response',onResponse);
+   const lifecycle=qaJsonResponseLifecycle({documentUrl:page.url()});
+   const relevant=request=>{const u=new URL(request.url());return u.origin===origin&&u.pathname===endpoint;},onRequest=request=>{if(relevant(request)){requests.push(request);lifecycle.request(request);}},onResponse=qaJsonResponseObserver(relevant,responses,responseBodies,lifecycle);
+   const onFinished=request=>{if(relevant(request))lifecycle.requestFinished(request);},onFailed=request=>{if(relevant(request))lifecycle.requestFailed(request);},onNavigation=frame=>{if(frame===page.mainFrame())lifecycle.navigation(frame.url());},onClosed=()=>lifecycle.pageClosed();
+   page.on('request',onRequest);page.on('response',onResponse);page.on('requestfinished',onFinished);page.on('requestfailed',onFailed);page.on('framenavigated',onNavigation);page.on('close',onClosed);
    try{
     const controls=await prepare();const receipt=await commitAndRecover({kind,...controls,verify:value=>{assert.equal(value.body.command,body.command);controls.verify?.(value);}});
     assert.equal(writes.length,before+1);const committed=writes.at(-1);assert.equal(committed.kind,kind);assert.equal(committed.status,201,'QA_NATIVE_UI_COMMITTED_STATUS');assert.equal(committed.receipt,receipt);
@@ -130,7 +132,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
     assert.deepEqual(errors.slice(beforeErrors),[],'QA_NATIVE_UI_PAGE_ERRORS');assert.deepEqual(diagnostics.slice(beforeDiagnostics),[],'QA_NATIVE_UI_HTTP_DIAGNOSTICS');
     const bodyText=post.postData(),envelope=JSON.parse(bodyText);check(true,'additional native '+kind+'/'+(body.command??'calculate')+' uses actual product/HTTP, one committed command and same-key GET recovery');
     return {receipt,recovered:recoveredEnvelope.data,key,body:envelope.payload,bodyText,browserPosts:1,recoveryGets:1,ackLostAfterCommit:true,committedStatus:committed.status,postStatus:postResponse.status(),sameServer:true,authenticationFixture:true};
-   }finally{page.off('request',onRequest);page.off('response',onResponse);drop=false;}
+   }catch(error){lifecycle.failure(error);throw error;}finally{page.off('request',onRequest);page.off('response',onResponse);page.off('requestfinished',onFinished);page.off('requestfailed',onFailed);page.off('framenavigated',onNavigation);page.off('close',onClosed);lifecycle.stop();responseLifecycles.push(lifecycle.snapshot({kind,command:body.command??'calculate'}));drop=false;}
   }
   async function nativePayrollCommand({kind,body,target}){
    assert.ok(target?.contractId&&target?.legajo);return observeNativeCommand(kind,body,target,async()=>{
