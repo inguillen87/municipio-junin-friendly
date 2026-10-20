@@ -54,6 +54,29 @@ try{
  await adoptSyntheticReceiptContracts(db,qa);
 
  check((await db.run("SELECT to_jsonb(count(*)) FROM employment_adoption_application"))===3,'three original synthetic contracts become approved owned registrations');
+ // SQL142 is already installed above. The untouched October close has26
+ // numeric own employees; its existing19041/19043 endpoints share department20.
+ // These are preview reads only: no new hires, calculations, closes or receipts.
+ const rangeClosed=oldClose.snapshot,rangeBaseline=oldReceiptPreview.snapshot;
+ assert.equal(rangeClosed.employeeCount,26);assert.equal(rangeClosed.populationCount,26);assert.equal(rangeClosed.populationComplete,true);assert.equal(rangeClosed.employees.length,26);assert.equal(rangeBaseline.recordCount,26);
+ assert.ok(rangeClosed.employees.every(row=>/^[0-9]{1,9}$/.test(row.employeeNumber)&&row.departmentCode==='20'));assert.ok(rangeBaseline.records.every(row=>row.departmentCode==='20'));
+ const rangeEndpoints=['19041','19043'].map(number=>{const rows=rangeBaseline.records.filter(row=>row.employeeNumber===number),closedRows=rangeClosed.employees.filter(row=>row.employeeNumber===number);assert.equal(rows.length,1);assert.equal(closedRows.length,1);assert.equal(rows[0].contractId,closedRows[0].contractId);return rows[0];});
+ assert.equal(rangeBaseline.records.filter(row=>row.employeeNumber==='19042').length,0);check(true,'existing numeric26 fixture and both exact closed endpoints are complete before range checks');
+ const combinedRangePreviews=[];
+ for(const [label,employeeFrom,employeeTo,departmentFrom,departmentTo,expectedNumbers]of [
+  ['both endpoints','19041','19043','20','20',['19041','19043']],
+  ['inclusive lower endpoint','19041','19041','20','20',['19041']],
+  ['inclusive upper endpoint','19043','19043','20','20',['19043']],
+  ['employee gap excludes all','19042','19042','20','20',[]],
+  ['department mismatch excludes both','19041','19043','21','21',[]]
+ ]){
+  const rangeParams={...receiptParams('2026-10'),filters:{...emptyOwnReportFilters(),employeeFrom,employeeTo,departmentFrom,departmentTo}},observed=await receipt(maker,'preview',{params:rangeParams});
+  const expectedRecords=rangeEndpoints.filter(row=>expectedNumbers.includes(row.employeeNumber)),expectedSources=rangeBaseline.sources.map(source=>({...source,selectedCount:expectedRecords.filter(row=>row.sourceGroupId===source.id).length}));
+  assert.deepEqual(observed.snapshot.params,rangeParams,label);assert.deepEqual(observed.snapshot.records,expectedRecords,label);assert.deepEqual(observed.snapshot.sources,expectedSources,label);assert.equal(observed.snapshot.recordCount,expectedRecords.length,label);assert.equal(observed.snapshot.conceptCount,expectedRecords.reduce((count,row)=>count+row.concepts.length,0),label);assert.equal(observed.snapshot.version,rangeBaseline.version,label);assert.equal(observed.snapshot.identityBasis,rangeBaseline.identityBasis,label);
+  assert.ok(observed.snapshot.sources.every(source=>source.employeeCount===26&&source.populationCount===26),label);check(true,'actual SQL142 AND range preview: '+label);combinedRangePreviews.push({label,params:rangeParams,expectedEmployeeNumbers:expectedNumbers,preview:observed});
+ }
+ // The original durable batch, attempt, full26 preview, complete group and
+ // original calculation replay assertions immediately below remain unchanged.
  const oldReceiptAfter=await receipt(maker,'batch',{id:oldReceiptEvent.batchId});assert.deepEqual(oldReceiptAfter,oldReceiptBatch);checks++;
  eventSame(await receipt(maker,'attempt',{key:oldReceiptKey}),{...oldReceiptEvent,replayed:true});checks++;
  assert.deepEqual((await receipt(maker,'preview',{params:receiptParams('2026-10')})).snapshot,oldReceiptPreview.snapshot);checks++;
@@ -130,7 +153,7 @@ try{
  await assert.rejects(close(reviewer,'command',{key:wholeKey,body:wholeBody}),e=>e.status===403);checks++;
  await db.run('DELETE FROM capabilities WHERE membership_id='+q(qa.ids.checker)+"::uuid AND capability_key='payroll.calculation.approve'");
  await assert.rejects(close(reviewer,'group',{id:whole.groupId}),e=>e.status===403);checks++;
- fs.writeFileSync(prefix+'-fixture.json',JSON.stringify({synthetic:true,actor:qa.actors.checker,partialBefore,before:d,detail:finalDetail,receipt:storedGroup,partial,old:oldClose,reopened,captures:[capture,recalculated],receiptFixtures:{fullPreview,exactPreview,fullEvent,fullBatch,approved,exactEvent,exactBatch,invalidated,selfFixtures,oldReceiptBatch,oldReceiptAfter}},null,2),{flag:'wx'});
- report={passed:true,synthetic:true,major,checks,separateConnections:db.connections.length,completePopulation:qa.completePopulation,oldClosesAndPendingKeysPreserved:true,oldReceiptSnapshotsPreserved:true,allReceiptConceptsFromClosedSource:true,ownAgentIsolation:true,municipalInstallation:false,payrollPosted:false,paymentExecuted:false};
+ fs.writeFileSync(prefix+'-fixture.json',JSON.stringify({synthetic:true,actor:qa.actors.checker,partialBefore,before:d,detail:finalDetail,receipt:storedGroup,partial,old:oldClose,reopened,captures:[capture,recalculated],receiptFixtures:{combinedRangePreviews,fullPreview,exactPreview,fullEvent,fullBatch,approved,exactEvent,exactBatch,invalidated,selfFixtures,oldReceiptBatch,oldReceiptAfter}},null,2),{flag:'wx'});
+ report={passed:true,synthetic:true,major,checks,separateConnections:db.connections.length,completePopulation:qa.completePopulation,combinedRange142:{previewCases:combinedRangePreviews.length,closedPopulation:26,inclusiveEndpoints:['19041','19043'],newBusinessCommands:0},oldClosesAndPendingKeysPreserved:true,oldReceiptSnapshotsPreserved:true,allReceiptConceptsFromClosedSource:true,ownAgentIsolation:true,municipalInstallation:false,payrollPosted:false,paymentExecuted:false};
 }catch(e){report={passed:false,synthetic:true,major,checks,message:e.message,cause:e.cause?.message,sqlDetail:e.cause?.stderr?.slice(0,2400),sqlDiagnostic};process.exitCode=1;}
 finally{if(installed)try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');}catch(e){report.cleanupError=e.message;process.exitCode=1;}fs.writeFileSync(output,JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify(report));}

@@ -36,7 +36,7 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url());if(url.origin!==origin)return route.abort();
-   const kind=url.pathname==='/api/internal-own-period-classification'?'classification':url.pathname==='/api/internal-data'&&url.searchParams.get('resource')==='employees'?'directory':null;
+   const kind=url.pathname==='/api/internal-own-period-classification'?'classification':url.pathname==='/api/internal-data'&&(url.searchParams.get('resource')==='employees'||url.searchParams.get('resource')==='nativeroster'&&url.searchParams.get('schema')==='2')?'directory':null;
    if(kind){
     let status=200,payload;const headers={};
     await handlers[kind]({method:req.method(),url:url.pathname+url.search,query:Object.fromEntries(url.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});

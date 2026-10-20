@@ -7,9 +7,10 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 import {ownReceiptParams} from '../../assets/own-payroll-receipt-model.js';
-import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.js';
+import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
+import {selectNoeliaReceiptTypes} from './noelia-payroll-circuit-browser.mjs';
 
-const receiptRecoveryControls=Object.freeze(['period','types','scope','departmentFrom','departmentTo','date','legend','all','consult','reason','confirm','contracts','prepare']);
+const receiptRecoveryControls=Object.freeze(['period',...Object.keys(OWN_RUN_TYPES).map(type=>'type-'+type),'scope','departmentFrom','departmentTo','date','legend','all','consult','reason','confirm','contracts','prepare']);
 export async function assertOwnReceiptRecoveryControls(p,locked){
  assert.equal(typeof p,'function');assert.equal(typeof locked,'boolean');const fields=p('fields');
  // Playwright's isDisabled applies to form controls, not the FIELDSET itself.
@@ -18,6 +19,9 @@ export async function assertOwnReceiptRecoveryControls(p,locked){
  assert.equal(await fields.evaluate(el=>el.tagName),'FIELDSET');
  assert.equal(await fields.evaluate(el=>el.disabled),locked,'receipt fieldset native lock');
  assert.equal((await fields.getAttribute('disabled'))!==null,locked,'receipt fieldset disabled attribute');
+ const types=p('types');assert.equal(await types.evaluate(el=>el.tagName),'FIELDSET');
+ assert.equal(await types.locator('input[data-receipt-type]').count(),Object.keys(OWN_RUN_TYPES).length,'receipt type checkbox count');
+ for(const type of Object.keys(OWN_RUN_TYPES)){const checkbox=p('type-'+type);assert.equal(await checkbox.getAttribute('type'),'checkbox','receipt type checkbox kind: '+type);assert.equal(await checkbox.getAttribute('data-receipt-type'),type,'receipt type checkbox code: '+type);}
  for(const key of receiptRecoveryControls)assert.equal(await p(key).isDisabled(),locked,'receipt effective control lock: '+key);
 }
 
@@ -60,7 +64,7 @@ export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActo
   await page.goto(origin+'/nomina#recibos');await p('period').waitFor({state:'visible'});await idle();await p('issuerProfile').waitFor({state:'visible'});
   for(const [field,value]of Object.entries(declared.issuer))assert.equal(await p({name:'issuerName',taxId:'issuerTaxId',address:'issuerAddress'}[field]).inputValue(),value);
   assert.ok(await p('issuerProfile').locator('input').evaluateAll(fields=>fields.length===3&&fields.every(el=>el.readOnly)));
-  await p('period').fill(declared.period);await p('types').selectOption(declared.types);await p('scope').selectOption('department');await p('departmentFrom').fill(declared.filters.departmentFrom);await p('departmentTo').fill(declared.filters.departmentTo);
+  await p('period').fill(declared.period);await selectNoeliaReceiptTypes(page,declared.types);await p('scope').selectOption('department');await p('departmentFrom').fill(declared.filters.departmentFrom);await p('departmentTo').fill(declared.filters.departmentTo);
   await p('date').fill(declared.paymentDate);await p('legend').fill(declared.legend);await p('consult').click();await idle();await p('result').waitFor({state:'visible'});
   assert.deepEqual(previews.at(-1).snapshot.params,declared);assert.deepEqual(previews.at(-1).snapshot.records,expectedRecords);
   check(commands.length===0,'receipt browser queries the actual closed department and autocompletes all institutional fields without a command');
