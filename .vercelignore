@@ -402,3 +402,6 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Closed-report census code only; no municipal ledger or fixture data.
+!scripts/migrations/200-own-payroll-report-census.sql

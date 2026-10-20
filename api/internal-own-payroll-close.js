@@ -8,6 +8,7 @@ import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact} from '../assets/native-salary-catalog-model.js';
 import {OWN_RUN_MAX_BODY} from '../assets/own-payroll-run-model.js';
 import {ownCloseCommand} from '../assets/own-payroll-close-model.js';
+import {ownReportCensusQuery} from '../assets/own-payroll-report-census-model.js';
 import {OWN_CLOSE_NOMINAL,OWN_CLOSE_WRITE,closeFail,closeError,ownCloseOperation} from '../lib/internal-own-payroll-close.js';
 export const config={api:{bodyParser:false}};
 export function createOwnCloseHandler(deps={}){
@@ -21,6 +22,7 @@ export function createOwnCloseHandler(deps={}){
    if(Object.keys(q).length)closeFail('QUERY_INVALID',400,'El cierre no admite parámetros.');schoolCertificateHttp.assertOrigin(req,env);
    if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')closeFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,OWN_RUN_MAX_BODY);operation='command';
   }else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation='detail';input={period:q.period,liquidationType:q.liquidationType};}
+  else if(q.resource==='report-census'&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation='report-census';try{input=ownReportCensusQuery({period:q.period,liquidationType:q.liquidationType});}catch{closeFail('INPUT_INVALID',422,'Elegí el período y tipo del histórico cerrado.');}}
   else if(q.resource==='group'&&Object.keys(q).sort().join('|')==='id|resource'){operation='group';input={id:q.id};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
   else closeFail('QUERY_INVALID',400,'Consulta inválida.');
