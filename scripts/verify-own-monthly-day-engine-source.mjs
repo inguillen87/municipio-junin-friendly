@@ -76,7 +76,17 @@ export async function verifyOwnMonthlyDayEngineSource(rawOptions,{fixedCompositi
   phase='192-installation';install(qa.qa192.local,qa.qa192.batch,assertMonthlyDayInstallationDurability,'sql192');
   phase='193-installation';install(qa.local193,qa.batch.declaration,assertOwnMonthlyDayDeclarationDurability,'sql193');
   phase='194-installation';install(qa.local,qa.batch,assertOwnMonthlyDayEngineSourceDurability,'sql194');expect(qa.local.installation,'MONTHLY194_PHASE_CHANGED');const installedBaseline=outer();run(tx(qa.local.rollback));run(tx([qa.normalized(qa.batch.beforeCheck)],{readOnly:true}));run(tx(qa.local.installation));assert.deepEqual(outer(),installedBaseline);check(true,'192/193/194 canonical installation, separate durable reads, exact repetition and194 no-history reversal/reinstall');
-  if(fixedComposition){phase='196-days-composition-installation';install(qa.localFixed,qa.fixedComposition,assertMonthlyDayFixedCompositionDurability,'sql196Days');expect(qa.localFixed.installation,'MONTHLY_FIXED_PHASE_CHANGED');const baseline=outer();run(tx(qa.localFixed.rollback));run(tx([qa.normalized(qa.fixedComposition.beforeCheck)],{readOnly:true}));run(tx(qa.localFixed.installation));assert.deepEqual(outer(),baseline);check(true,'mixed196 installs after exact194, rehearses/rolls back/reinstalls without history and preserves capture/readiness194, rows, security and previous metadata');}
+  if(fixedComposition){
+   phase='196-days-composition-installation';const baseline=outer();
+   install(qa.localFixed,qa.fixedComposition,assertMonthlyDayFixedCompositionDurability,'sql196Days');expect(qa.localFixed.installation,'MONTHLY_FIXED_PHASE_CHANGED');
+   run(tx(qa.localFixed.rollback));run(tx([qa.normalized(qa.fixedComposition.beforeCheck)],{readOnly:true}));assert.deepEqual(outer(),baseline);
+   // Reversal drops three new helpers. Their recreated physical identities form
+   // a new installation epoch; predecessor FULL conservation was proved above.
+   const installed=json(qa.localFixed.installation),reinstalledBaseline=outer(),durable=json(qa.localFixed.verification,{readOnly:true}),repeated=json(qa.localFixed.repetition);
+   proofs.sql196DaysReinstalled={installed,durable,repeated,durability:assertMonthlyDayFixedCompositionDurability({installed,durable,repeated,batch:qa.fixedComposition})};
+   assert.deepEqual(outer(),reinstalledBaseline);
+   check(true,'mixed196 installs after exact194, rehearses/rolls back/reinstalls without history and preserves capture/readiness194, rows, security and previous metadata');
+  }
   if(noveltySuccession){
    phase='197-rehearsal-rollback';const baseline=outer();proofs.sql197Rehearsal=json(qa.local197.rehearsal,{end:'ROLLBACK'});assert.deepEqual(outer(),baseline);
    phase='197-installation';const installed=json(qa.local197.installation);
@@ -84,10 +94,10 @@ export async function verifyOwnMonthlyDayEngineSource(rawOptions,{fixedCompositi
    phase='197-repetition';const repeated=json(qa.local197.repetition);proofs.sql197={installed,durable,repeated,durability:assertOwnNoveltySuccessionDurability({installed,durable,repeated,batch:qa.novelty197})};
    expect(qa.local197.installation,'NOVELTY197_PHASE_CHANGED');
    phase='197-no-history-reversal';run(tx(qa.local197.rollback));run(tx(qa.local197.rollbackVerification,{readOnly:true}));assert.deepEqual(outer(),baseline);
-   phase='197-reinstallation';const reinstalled=json(qa.local197.installation);
+   phase='197-reinstallation';const reinstalled=json(qa.local197.installation),reinstalledBaseline=outer();
    phase='197-reinstallation-durable-readonly';const durableReinstalled=json(qa.local197.verification,{readOnly:true});
    phase='197-reinstallation-repetition';const repeatedReinstalled=json(qa.local197.repetition);proofs.sql197Reinstalled={installed:reinstalled,durable:durableReinstalled,repeated:repeatedReinstalled,durability:assertOwnNoveltySuccessionDurability({installed:reinstalled,durable:durableReinstalled,repeated:repeatedReinstalled,batch:qa.novelty197})};
-   assert.deepEqual(outer(),baseline);check(true,'197 exact source/QA pins, rehearsal ROLLBACK, installation, independent durable read, repetition and history-free reversal/reinstallation preserve predecessor rows/security/metadata');
+   assert.deepEqual(outer(),reinstalledBaseline);check(true,'197 exact source/QA pins, rehearsal ROLLBACK, installation, independent durable read, repetition and history-free reversal/reinstallation preserve predecessor rows/security/metadata');
   }
   proofs.helperAcl=json([`SELECT jsonb_build_object('days',(SELECT bool_or(has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE')) FROM pg_proc p WHERE p.pronamespace=${q(qa.schema)}::regnamespace AND p.proname IN('own_monthly_days_capture_v1','own_monthly_days_source_v1','own_monthly_day_source_v2','own_monthly_day_capture_v2')),'ledger',has_table_privilege('municontrol_actions_runtime_app',${q(qa.schema+'.own_monthly_days_event')},'SELECT,INSERT,UPDATE,DELETE,TRUNCATE'))`],{readOnly:true});assert.deepEqual(proofs.helperAcl,{days:false,ledger:false});check(true,'all private193/192 helpers and ledger remain inaccessible to runtime');
   if(fixedComposition){phase='joint-native-iam-fixture';proofs.jointNativeIam=json(nativeIamFixture.statements);assert.equal(proofs.jointNativeIam.sodBothChecked,true);assert.equal(proofs.jointNativeIam.rolesChanged,0);assert.equal(proofs.jointNativeIam.roleAssignmentsChanged,0);assert.equal(proofs.jointNativeIam.membershipsChanged,0);assert.equal(proofs.jointNativeIam.overridesAdded,2);assert.equal(proofs.jointNativeIam.unaffectedCapsPreserved,true);assert.equal(proofs.jointNativeIam.foreignCapsPreserved,true);}
