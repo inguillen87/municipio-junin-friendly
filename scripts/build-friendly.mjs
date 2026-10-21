@@ -222,6 +222,7 @@ const shellFiles = [
   'assets/own-payroll-close-panel.js',
   'assets/own-payroll-close-panel.css',
   'assets/own-payroll-report-model.js',
+  'assets/own-payroll-report-census-model.js',
   'assets/own-payroll-receipt-planilla-model.js',
   'assets/own-payroll-receipt-planilla-export.js',
   'assets/own-payroll-receipt-planilla-panel.js',

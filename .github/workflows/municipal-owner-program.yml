@@ -64,6 +64,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Pure census contracts only; no SQL builder or native runner in this step
+        run: node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-190-legacy.test.js tests/own-payroll-report-census-workflow.test.js
       - run: npm run build
       - name: Prepare only the disposable synthetic service
         env:
@@ -75,11 +77,17 @@ jobs:
           mkdir -p verification
           node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Complete canonical 190 authority, ordinary and owner decisions, SQL protocol and existing programme panel
+        if: matrix.baseline == 'pre107'
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-municipal-owner-program.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.baseline }} --output=verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}
+      - name: Complete canonical 190 plus closed-report census200 in the SAME fixture
+        if: matrix.baseline == 'published107'
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-payroll-report-census.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: always() && matrix.baseline == 'pre107'
         with:
           name: municipal-owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}-${{ github.sha }}
           path: |
@@ -87,4 +95,25 @@ jobs:
             verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/*failure.txt
             verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/*.png
             verification/release-chromium-157.0.8098.0/installation.json
+          retention-days: 5
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && matrix.baseline == 'published107'
+        with:
+          name: municipal-owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}-${{ github.sha }}
+          path: |
+            verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/
+            verification/release-chromium-157.0.8098.0/installation.json
+            scripts/migrations/200-own-payroll-report-census.sql
+            scripts/lib/own-payroll-report-census-installation.mjs
+            scripts/lib/own-payroll-report-census-authority.mjs
+            scripts/lib/own-payroll-report-census-ledger.mjs
+            scripts/lib/own-payroll-report-census-190-continuation.mjs
+            tests/fixtures/own-payroll-report-census-legacy-synthetic.js
+            scripts/lib/own-payroll-report-census-190-iam-fixture.mjs
+            scripts/lib/own-payroll-report-census-qa-rpc.mjs
+            scripts/verify-own-payroll-report-census.mjs
+            tests/own-payroll-report-census-qa-rpc.test.js
+            tests/own-payroll-report-census-190-iam-fixture.test.js
+            tests/own-payroll-report-census-190-legacy.test.js
+            tests/own-payroll-report-census-workflow.test.js
           retention-days: 5

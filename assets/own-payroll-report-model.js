@@ -2,6 +2,7 @@ import {OWN_JURISDICTIONS,ownJurisdictionChoice,ownJurisdictionSelect,ownClosedJ
 import {salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownCloseDetail,ownCloseReceipt,verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
+import {OWN_REPORT_CENSUS_VERSION,ownReportCensus,verifiedOwnReportCensus} from './own-payroll-report-census-model.js';
 import {decimal,rational,exactAdd,quantize} from './own-payroll-exact.js';
 import {ownReportVariableSources,OWN_VARIABLE_UNITS,ownVariableDisplayValue} from './own-payroll-report-variables.js';
 import {ownReportStatement} from './own-payroll-report-statement.js';
@@ -47,22 +48,22 @@ export function ownReportBundle(query,details,receipts,captures=null){
  const q=ownReportQuery(query),expected=ownReportPeriods(q).flatMap(p=>q.types.map(t=>key(p,t)));
  need(Array.isArray(details)&&details.length===expected.length&&Array.isArray(receipts)&&receipts.length<=1000,'No se obtuvo todo el histórico solicitado; no se exportará un subconjunto.');
  const census=new Map(),groups=new Map(),sources=[],employees=[],seen=new Set(),identities=new Set();let scope;
- for(const d of details){ownCloseDetail(d);const k=key(d.period,d.liquidationType);need(expected.includes(k)&&!census.has(k),'Un período o tipo está repetido o es ajeno a la consulta.');census.set(k,d);scope??=d.scopeVersion;need(d.scopeVersion===scope,'Las fuentes no corresponden al mismo ámbito autorizado.');
+ for(const d of details){if(d?.version===OWN_REPORT_CENSUS_VERSION)ownReportCensus(d);else ownCloseDetail(d);const k=key(d.period,d.liquidationType);need(expected.includes(k)&&!census.has(k),'Un período o tipo está repetido o es ajeno a la consulta.');census.set(k,d);scope??=d.scopeVersion;need(d.scopeVersion===scope,'Las fuentes no corresponden al mismo ámbito autorizado.');
   for(const g of d.groups)if(g.state==='closed'){need(!groups.has(g.id),'Un grupo histórico está repetido.');groups.set(g.id,{group:g,detail:d});}
  }
  need(receipts.length===groups.size,'Falta un grupo cerrado o se incluyó un histórico reabierto.');
  for(const receipt of receipts){ownCloseReceipt(receipt);const ref=groups.get(receipt.groupId),s=receipt.snapshot;
-  need(ref&&receipt.body.command==='close'&&!seen.has(receipt.groupId)&&receipt.snapshotSha256===ref.group.snapshotSha256&&receipt.recordedAt===ref.group.recordedAt&&s.period===ref.detail.period&&s.liquidationType===ref.detail.liquidationType&&s.employeeCount===ref.group.employeeCount&&s.populationCount===ref.group.populationCount,'El grupo no coincide con su copia histórica y cobertura originales.');seen.add(receipt.groupId);sources.push(receipt);
+  need(ref&&receipt.body.command==='close'&&!seen.has(receipt.groupId)&&receipt.snapshotSha256===ref.group.snapshotSha256&&receipt.recordedAt===ref.group.recordedAt&&s.period===ref.detail.period&&s.liquidationType===ref.detail.liquidationType&&s.employeeCount===ref.group.employeeCount&&s.populationCount===ref.group.populationCount&&s.populationComplete===ref.group.populationComplete,'El grupo no coincide con su copia histórica y cobertura originales.');seen.add(receipt.groupId);sources.push(receipt);
   for(const employee of s.employees){const identity=key(s.period,s.liquidationType)+':'+employee.contractId;need(!identities.has(identity),'Un legajo aparece dos veces cerrado en el mismo período y tipo.');identities.add(identity);employees.push({identity,period:s.period,type:s.liquidationType,source:receipt,employee});}
  }
  need(employees.length<=OWN_REPORT_MAX_ROWS&&sources.reduce((n,r)=>n+r.snapshot.conceptCount,0)<=OWN_REPORT_MAX_ROWS,'El histórico completo supera 250.000 participaciones o conceptos. No se omitieron ni dividieron filas.');
  sources.sort((a,b)=>key(a.snapshot.period,a.snapshot.liquidationType).localeCompare(key(b.snapshot.period,b.snapshot.liquidationType))||a.groupId.localeCompare(b.groupId));
  employees.sort((a,b)=>key(a.period,a.type).localeCompare(key(b.period,b.type))||compareEmployee(a.employee.employeeNumber,b.employee.employeeNumber)||a.employee.contractId.localeCompare(b.employee.contractId));
- const bundle={query:q,details,sources,employees,proof:salarySerialized(details.map(d=>[d.period,d.liquidationType,d.scopeVersion,d.stateVersion,d.groups.map(g=>[g.id,g.state,g.snapshotSha256])]))};
+ const bundle={query:q,details,sources,employees,proof:salarySerialized(details.map(d=>[d.period,d.liquidationType,d.scopeVersion,d.version===OWN_REPORT_CENSUS_VERSION?d.sourceVersion:d.stateVersion,d.groups.map(g=>[g.id,g.state,g.snapshotSha256])]))};
  if(captures!==null){bundle.captures=captures;bundle.variableProof=ownReportVariableSources(bundle,captures,OWN_REPORT_MAX_ROWS).proof;}
  return bundle;
 }
-export async function verifiedOwnReportBundle(query,details,receipts){for(const d of details)await verifiedOwnCloseDetail(d);for(const r of receipts)await verifiedOwnCloseReceipt(r);return ownReportBundle(query,details,receipts);}
+export async function verifiedOwnReportBundle(query,details,receipts){for(const d of details)if(d?.version===OWN_REPORT_CENSUS_VERSION)await verifiedOwnReportCensus(d);else await verifiedOwnCloseDetail(d);for(const r of receipts)await verifiedOwnCloseReceipt(r);return ownReportBundle(query,details,receipts);}
 function selected(bundle,filters,contracts){
  const f=ownReportFilters(filters),ids=ownReportContracts(contracts),available=new Set(bundle.employees.map(({employee:e})=>e.contractId));
  need(ids.every(id=>available.has(id)),'Falta un legajo seleccionado en el histórico cerrado. Consultá nuevamente; no se omitió ese destino.');

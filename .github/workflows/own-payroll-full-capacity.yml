@@ -1,0 +1,70 @@
+# Private source candidate. No run is admitted or dispatched by this file's creation.
+name: Own payroll complete capacity
+on:
+  pull_request:
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-payroll-full-capacity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: Own payroll855x20 full32 / PG${{ matrix.pg }} / published107
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Source contracts only; no constructor or native SQL in this step
+        run: node --test tests/own-payroll-full-capacity-190-source.test.js
+      - run: npm run build
+      - name: Prepare only the existing disposable synthetic service
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - run: npx --no-install playwright install-deps chromium
+      - name: Install project Chromium for the unchanged190 programme flow
+        run: |
+          mkdir -p verification
+          node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Same190 authority and177 foundation, then200 admission,201R4 and full855x20 circuit
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-payroll-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: own-full-capacity-pg${{ matrix.pg }}-published107-${{ github.sha }}
+          path: |
+            verification/own-full-capacity-pg${{ matrix.pg }}/
+            verification/release-chromium-157.0.8098.0/installation.json
+            scripts/verify-own-payroll-full-capacity.mjs
+            scripts/lib/own-payroll-full-capacity-190-*.mjs
+            scripts/migrations/200-own-payroll-report-census.sql
+            scripts/migrations/201-own-full-payroll-decision-capacity.sql
+            tests/own-payroll-full-capacity-190-source.test.js
+            tests/fixtures/own-payroll-full-capacity-190-source-projection.js
+          retention-days: 5
