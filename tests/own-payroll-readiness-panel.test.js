@@ -13,6 +13,7 @@ import {catalog as classification} from './fixtures/native-employee-synthetic.js
 import {capture} from './fixtures/own-payroll-run-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {annulDetail,annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
+import {annulReviewIndexFor} from './fixtures/own-payroll-annulment-review-synthetic.js';
 
 class Element{
  constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;this.dataset=new Proxy({}, {set:(target,key,value)=>{target[key]=String(value);this.attributes['data-'+String(key).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});}
@@ -60,6 +61,8 @@ function harness(t){
   else if(url==='/api/internal-own-payroll-program?resource=bootstrap')payload={ok:true,data:state.program};
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=attempt')){assert.ok(state.annul);payload={ok:true,data:state.annul.receipt};}
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=detail')){assert.ok(state.annul);payload={ok:true,data:state.annul.detail};}
+  else if(url.startsWith('/api/internal-own-payroll-annulment?resource=review')){assert.ok(state.annul);assert.equal(url,'/api/internal-own-payroll-annulment?resource=review&period='+state.annul.detail.period+'&liquidationType='+state.annul.detail.liquidationType);payload={ok:true,data:state.annul.index};}
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')){assert.ok(state.annul);const run=state.annul.detail.runs.find(run=>url==='/api/internal-own-payroll-liquidation?resource=detail&id='+run.id);assert.ok(run,'Requested individual detail belongs to the complete synthetic annulment census');payload={ok:true,data:run};}
   else if(url.startsWith('/api/internal-data?resource=employees')){assert.ok(state.lookup,'Explicit synthetic directory fixture');payload=state.lookup;}
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
@@ -196,9 +199,9 @@ test('programa pendiente no consume contexto externo ni consulta intentos o deta
 
 
 test('contexto externo espera reglas y, tras aceptación real, reemplaza el borrador sin reaparecer después',async t=>{
- const h=harness(t),d=annulDetail(1),r=annulReceipt(d);h.state.annul={receipt:r,detail:afterAnnul(d,r)};h.state.program=bootstrap();const selected=r.affected[0],employee=d.runs.find(run=>run.id===selected.runId).capture.saved.input.employees.find(e=>e.contractId===selected.contractId);h.state.roster.rows[0].contractId=selected.contractId;h.state.roster.rows[0].legajo=employee.employeeNumber;
+ const h=harness(t),d=annulDetail(1),r=annulReceipt(d),detail=afterAnnul(d,r);h.state.annul={receipt:r,detail,index:annulReviewIndexFor(detail.runs)};h.state.program=bootstrap();const selected=r.affected[0],employee=d.runs.find(run=>run.id===selected.runId).capture.saved.input.employees.find(e=>e.contractId===selected.contractId);h.state.roster.rows[0].contractId=selected.contractId;h.state.roster.rows[0].legajo=employee.employeeNumber;
  await h.start();await h.prepare();h.q('period').value='2026-11';h.q('date').value='2026-11-30';const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:'2026-10-31',key:r.key,accessKey}),true);await h.refresh();assert.equal(h.q('period').value,'2026-11');assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,0);
- h.state.program=bootstrap({program:approved()});await h.refresh();assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,2);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
+ h.state.program=bootstrap({program:approved()});await h.refresh();assert.deepEqual(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).map(req=>req.url),['/api/internal-own-payroll-annulment?resource=attempt&key='+r.key,'/api/internal-own-payroll-annulment?resource=review&period=2026-10&liquidationType=monthly']);assert.deepEqual(h.requests.filter(req=>req.url.includes('internal-own-payroll-liquidation')).map(req=>req.url),['/api/internal-own-payroll-liquidation?resource=detail&id='+selected.runId]);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
  await h.refresh();assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(req=>req.method==='POST').length,0);
 });
 
