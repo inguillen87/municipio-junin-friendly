@@ -326,5 +326,21 @@ const inheritedRows={
     ]
   }
 };
-export const FULL_CAPACITY_SOURCE_PINS=Object.freeze(Object.fromEntries(Object.entries(rows).map(([path,row])=>[path,{before:row.parentSha256,after:inheritedRows[path]?.candidateSha256??row.candidateSha256}])));
-export function projectFullCapacitySourceToParent(path,value){const row=rows[path];assert.ok(row,'FULL_CAPACITY_SOURCE_PATH');const inherited=inheritedRows[path];if(inherited){assert.equal(inherited.donorSha256,row.candidateSha256,'FULL_CAPACITY_INHERITED_DONOR_PIN:'+path);assert.equal(sha(value),inherited.candidateSha256,'FULL_CAPACITY_INHERITED_SOURCE_PIN:'+path);for(const hunk of inherited.reverseHunks){assert.equal(value.split(hunk.from).length,2,'FULL_CAPACITY_INHERITED_HUNK_UNIQUE:'+path);value=value.replace(hunk.from,hunk.to);}assert.equal(sha(value),inherited.donorSha256,'FULL_CAPACITY_INHERITED_FULL_DONOR:'+path);}assert.equal(sha(value),row.candidateSha256,'FULL_CAPACITY_SOURCE_PIN:'+path);for(const hunk of row.reverseHunks){assert.equal(value.split(hunk.from).length,2,'FULL_CAPACITY_HUNK_UNIQUE:'+path);value=value.replace(hunk.from,hunk.to);}assert.equal(sha(value),row.parentSha256,'FULL_CAPACITY_FULL_PARENT:'+path);return value;}
+const savedInput193Rows={
+  "lib/internal-own-payroll-run.js": {
+    "candidateSha256": "758c9c87a0fc05cb5be7883cc02fc5972299a4b2c2471f20ba9173aaf92947ba",
+    "donorSha256": "a4d102221a019bb2607723cb14a0fe76208c7d11a80f2460708c3ec853d58857",
+    "reverseHunks": [
+      {
+        "from": "function checkedMonthlyDaySavedInput(capture,input) {\n  const definition=capture.payload.programState.program.definition;\n  // The forced path already verifies the whole adapted input below its own\n  // contract. This adds the same frozen-source check for ordinary193 recovery,\n  // without calculating a result or comparing against any current database read.\n  if(!monthlyDayDeclarationsApply(definition,capture.body.liquidationType)||hasForcedFeature(definition))return;\n  const {sourceInventory:_inventory,...sources}=capture.payload;let recomputed;\n  try{recomputed=adapterFor(capture)(sources);}catch{\n    runFail('CONTRACT_INVALID',503,'No se verificó la entrada de días aprobados contra las fuentes completas capturadas.');\n  }\n  if(salarySerialized(recomputed)!==salarySerialized(input))\n    runFail('CONTRACT_INVALID',503,'La entrada de días o su procedencia no corresponden a la aprobación congelada.');\n}\n",
+        "to": ""
+      },
+      {
+        "from": "  checkedForcedInput(capture,input);\n  checkedMonthlyDaySavedInput(capture,input);\n  checkedForcedResult(input,v.result);",
+        "to": "  checkedForcedInput(capture,input);\n  checkedForcedResult(input,v.result);"
+      }
+    ]
+  }
+};
+export const FULL_CAPACITY_SOURCE_PINS=Object.freeze(Object.fromEntries(Object.entries(rows).map(([path,row])=>[path,{before:row.parentSha256,after:savedInput193Rows[path]?.candidateSha256??inheritedRows[path]?.candidateSha256??row.candidateSha256}])));
+export function projectFullCapacitySourceToParent(path,value){const row=rows[path];assert.ok(row,'FULL_CAPACITY_SOURCE_PATH');const inherited=inheritedRows[path],saved=savedInput193Rows[path];if(saved){assert.equal(saved.donorSha256,inherited?.candidateSha256??row.candidateSha256,'FULL_CAPACITY_SAVED193_DONOR_PIN:'+path);assert.equal(sha(value),saved.candidateSha256,'FULL_CAPACITY_SAVED193_SOURCE_PIN:'+path);for(const hunk of saved.reverseHunks){assert.equal(value.split(hunk.from).length,2,'FULL_CAPACITY_SAVED193_HUNK_UNIQUE:'+path);value=value.replace(hunk.from,hunk.to);}assert.equal(sha(value),saved.donorSha256,'FULL_CAPACITY_SAVED193_FULL_DONOR:'+path);}if(inherited){assert.equal(inherited.donorSha256,row.candidateSha256,'FULL_CAPACITY_INHERITED_DONOR_PIN:'+path);assert.equal(sha(value),inherited.candidateSha256,'FULL_CAPACITY_INHERITED_SOURCE_PIN:'+path);for(const hunk of inherited.reverseHunks){assert.equal(value.split(hunk.from).length,2,'FULL_CAPACITY_INHERITED_HUNK_UNIQUE:'+path);value=value.replace(hunk.from,hunk.to);}assert.equal(sha(value),inherited.donorSha256,'FULL_CAPACITY_INHERITED_FULL_DONOR:'+path);}assert.equal(sha(value),row.candidateSha256,'FULL_CAPACITY_SOURCE_PIN:'+path);for(const hunk of row.reverseHunks){assert.equal(value.split(hunk.from).length,2,'FULL_CAPACITY_HUNK_UNIQUE:'+path);value=value.replace(hunk.from,hunk.to);}assert.equal(sha(value),row.parentSha256,'FULL_CAPACITY_FULL_PARENT:'+path);return value;}
