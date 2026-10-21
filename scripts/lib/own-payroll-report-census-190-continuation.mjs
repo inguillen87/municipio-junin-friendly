@@ -20,6 +20,7 @@ import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-mo
 import {verifiedOwnReportBundle,ownReportDocument} from '../../assets/own-payroll-report-model.js';
 import {draft as employeeDraft} from '../../tests/fixtures/native-employee-synthetic.js';
 import {prepareOwnReportCensusLegacyFixtures} from '../../tests/fixtures/own-payroll-report-census-legacy-synthetic.js';
+import {census190ProgrammeCandidate} from '../../tests/fixtures/own-payroll-report-census-program-synthetic.js';
 const legacySnapshotPrefix='municontrol_report_census200.before',legacyVersionNames=['own-close-snapshot.v1','own-close-snapshot.v2'];
 
 const quote=value=>"'"+String(value).replaceAll("'","''")+"'",j=value=>quote(JSON.stringify(value))+'::jsonb';
@@ -101,11 +102,12 @@ export async function runOwnReportCensus190Continuation(raw){
  // Existing190 synthetic definitions are explicitly dated2026-10. A later
  // month is a fixture update requiring review, never a silently shifted rule.
  assert.equal(now.period,'2026-10','CENSUS190_DATED_FIXTURE_REVIEW_REQUIRED');assert.equal(now.nativeCount,0,'CENSUS190_INITIAL_NATIVE_POPULATION_CHANGED');
- setActor(qa.actor);const pboot=ownProgramBootstrap(await api('program')),sameDefinition=pboot.program.definition;
- const proposed=await api('program',{body:prepareProgramWorkspace(pboot,sameDefinition,reason),expected:201});
+ setActor(qa.actor);const pboot=ownProgramBootstrap(await api('program')),previousDefinition=structuredClone(pboot.program.definition),candidateDefinition=census190ProgrammeCandidate(pboot.program.definition);
+ assert.notDeepEqual(candidateDefinition,previousDefinition,'CENSUS190_DISTINCT_PROGRAMME_REQUIRED');assert.deepEqual(pboot.program.definition,previousDefinition,'CENSUS190_PRIOR_PROGRAMME_MUTATED');
+ const proposed=await api('program',{body:prepareProgramWorkspace(pboot,candidateDefinition,reason),expected:201});
  setActor(qa.checker);const pReview=ownProgramBootstrap(await api('program')),pending=pReview.proposals.find(value=>value.id===proposed.proposalId);assert.equal(pending.canReview,true);
  const approval=await api('program',{body:{command:'approve',scopeVersion:pReview.scopeVersion,baseVersion:pending.baseVersion,salaryVersion:pending.salaryVersion,proposalId:pending.id,proposalSha256:pending.requestSha256,program:null,reason,reviewConfirmed:true},expected:201});assert.equal(approval.status,'approved');
- const latest=ownProgramBootstrap(await api('program'));assert.deepEqual(latest.program.definition,sameDefinition);assert.equal(latest.program.salaryVersion,latest.salaryCatalog.version);
+ const latest=ownProgramBootstrap(await api('program'));assert.deepEqual(latest.program.definition,candidateDefinition);assert.deepEqual(pboot.program.definition,previousDefinition);assert.equal(latest.program.salaryVersion,latest.salaryCatalog.version);
  setActor(qa.actor);const hires=[];
  for(let index=0;index<2;index++){
   const bootstrap=await api('employee'),dni=String(97020001+index),draft=employeeDraft({legajo:String(200001+index),fullName:'Agente exclusivamente nativo de censo QA200 '+index,dni,cuil:cuil(dni),birthDate:'1990-01-01',sexCode:'X',startDate:now.firstDate,agreementCode:'1',categoryCode:'1',organizationId:'1',sectorCode:'1',jurisdictionCode:'42',jobTitle:'Puesto exclusivamente ficticio QA200',legalReference:reason});
