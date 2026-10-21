@@ -10,6 +10,7 @@ import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact} from '../assets/native-salary-catalog-model.js';
 import {OWN_RUN_MAX_BODY} from '../assets/own-payroll-run-model.js';
 import {OWN_ANNUL_ACCESS,ownAnnulCommand} from '../assets/own-payroll-annulment-model.js';
+import {ownAnnulReviewCommand} from '../assets/own-payroll-annulment-review-model.js';
 import {liquidationFail,liquidationError} from '../lib/internal-own-payroll-liquidation.js';
 import {ownAnnulOperation} from '../lib/internal-own-payroll-annulment.js';
 export const config={api:{bodyParser:false}};
@@ -25,7 +26,7 @@ export function createOwnAnnulHandler(deps={}){
   if(method==='POST'){
    if(Object.keys(q).length)liquidationFail('QUERY_INVALID',400,'La decisión no admite parámetros.');schoolCertificateHttp.assertOrigin(req,env);
    if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')liquidationFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,OWN_RUN_MAX_BODY);operation='command';
-  }else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation='detail';input={period:q.period,liquidationType:q.liquidationType};}
+  }else if(['detail','review'].includes(q.resource)&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation=q.resource;input={period:q.period,liquidationType:q.liquidationType};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
   else liquidationFail('QUERY_INVALID',400,'Consulta inválida.');
   const access=await authorize(req,res,{env,requiredCapabilities:OWN_ANNUL_ACCESS,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
@@ -33,8 +34,8 @@ export function createOwnAnnulHandler(deps={}){
   const session=sessionFor(access,env);employeeContext(access.principal,session);
   if(method==='POST'){
    const body=await readRawPrivateJson(req,{maxBytes:OWN_RUN_MAX_BODY,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>liquidationFail(kind==='large'?'LIMIT':kind==='unavailable'?'UNAVAILABLE':'INPUT_INVALID',kind==='large'?413:kind==='unavailable'?503:400,'No se pudo verificar el envío completo. Consultá el mismo intento.')});
-   if(!salaryExact(body,['operation','payload'])||body.operation!=='command')liquidationFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');
-   let payload;try{payload=ownAnnulCommand(body.payload);}catch{liquidationFail('INPUT_INVALID',422,'Revisá período, tipo, alcance y motivo.');}input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
+   if(!salaryExact(body,['operation','payload'])||!['command','command-v2'].includes(body.operation))liquidationFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');
+   let payload;try{payload=body.operation==='command-v2'?ownAnnulReviewCommand(body.payload):ownAnnulCommand(body.payload);}catch{liquidationFail('INPUT_INVALID',422,'Revisá período, tipo, alcance y motivo.');}operation=body.operation;input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
   }
   const data=await ownAnnulOperation(await getSql(env),access.principal,session,operation,input,{fullJson});if(data.replayed)res.setHeader('Idempotency-Replayed','true');const status=method==='POST'&&!data.replayed?201:200;if(fullJson)return await sendOwnPayrollStream(res,status,data);return res.status(status).json({ok:true,data});
  }catch(e){if(res.headersSent){res.destroy();return;}const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):liquidationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};

@@ -53,7 +53,7 @@ jobs:
       - name: Same190 authority, technical192-197, then200 admission,201R4 and unchanged full855x20 circuit
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
-        run: node scripts/verify-own-monthly-payroll-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}
+        run: node scripts/verify-own-payroll-annulment-v2-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -84,4 +84,19 @@ jobs:
             tests/fixtures/own-payroll-full-capacity-190-source-projection.js
             tests/own-accounting-imputation-190-source.test.js
             tests/fixtures/own-accounting-imputation-190-source-projection.js
+            scripts/verify-own-payroll-annulment-v2-full-capacity.mjs
+            scripts/lib/own-payroll-annulment-review-v2-installation.mjs
+            scripts/lib/own-payroll-annulment-v2-native-continuation.mjs
+            scripts/lib/own-payroll-annulment-v2-native-browser.mjs
+            scripts/migrations/208-own-annulment-review-index.sql
+            api/internal-own-payroll-annulment.js
+            lib/internal-own-payroll-annulment.js
+            assets/own-payroll-annulment-review-model.js
+            assets/own-payroll-annulment-panel.js
+            assets/own-payroll-run-panel.js
+            tests/fixtures/own-payroll-annulment-review-synthetic.js
+            tests/own-payroll-annulment-review-api.test.js
+            tests/own-payroll-annulment-review-service.test.js
+            tests/own-payroll-annulment-review.test.js
+            tests/own-payroll-annulment-hidden-active.test.js
           retention-days: 5

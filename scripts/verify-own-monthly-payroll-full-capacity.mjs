@@ -73,7 +73,11 @@ function prepareMonthly(h) {
   return {foundation: h.qa, context: {monthly, sharedPrerequisites}, sourceEntries: Object.keys(monthly.sourceHashes)};
 }
 
-async function monthlyThenFull(h) {
+async function monthlyThenFull(h, settings = {}) {
+  assert.ok(settings && typeof settings === 'object' && !Array.isArray(settings));
+  assert.ok(Reflect.ownKeys(settings).every(key => key === 'annulmentV2Browser'));
+  const {annulmentV2Browser = false} = settings;
+  assert.equal(typeof annulmentV2Browser, 'boolean');
   const {monthly: qa, sharedPrerequisites} = h.prepared ?? {};
   assert.ok(qa && qa.version === 'own-novelty-succession-qa.v1');
   assert.equal(sharedPrerequisites?.passed, true);
@@ -109,7 +113,9 @@ async function monthlyThenFull(h) {
   h.setPhase('monthly-full-capacity-business');
   // All original855 guards,20 rules,17100 rows and accounting epochs remain inside
   // this unchanged continuation. Never seed/reset a population to make them pass.
-  const capacity = await runOwnFullCapacity190Continuation(h);
+  const capacity = annulmentV2Browser
+    ? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true})
+    : await runOwnFullCapacity190Continuation(h);
   assert.equal(capacity.passed, true);
   assert.equal(capacity.population, 855);
   assert.equal(capacity.conceptRows, 17100);
@@ -120,6 +126,9 @@ async function monthlyThenFull(h) {
     monthlyBusinessCovered: false, synthetic: true, productionWrites: 0,
     municipalAcceptance: false};
 }
+
+// Fixed callbacks reused by the one reviewed native208 entry; no caller SQL or callback injection.
+export {entries as OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES, prepareMonthly as prepareOwnMonthlyFullCapacity, monthlyThenFull as continueOwnMonthlyFullCapacity};
 
 export async function verifyOwnMonthlyPayrollFullCapacity(options) {
   assert.ok(options.operationalPairBaseline === undefined || options.operationalPairBaseline === 'published107', 'MONTHLY_FULL_PUBLISHED107_REQUIRED');

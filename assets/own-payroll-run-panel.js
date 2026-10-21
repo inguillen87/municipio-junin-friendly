@@ -6,7 +6,7 @@ import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
-import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
+import {verifiedOwnAnnulReviewReceipt,verifiedOwnAnnulReviewIndex,loadOwnAnnulPreparation} from './own-payroll-annulment-review-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 
@@ -278,9 +278,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!canStart())throw Error(readiness.title+'. '+readiness.description);
     let preparation;
     if(context.kind==='consolidated'){
-      const receipt=await verifiedOwnAnnulReceipt((await request('/api/internal-own-payroll-annulment?resource=attempt&key='+encodeURIComponent(context.key))).data);
-      const detail=await verifiedOwnAnnulDetail((await request('/api/internal-own-payroll-annulment?resource=detail&period='+encodeURIComponent(receipt.body.period)+'&liquidationType='+encodeURIComponent(receipt.body.liquidationType))).data);
-      if(!valid())return;if(receipt.key!==context.key)throw Error('El comprobante pertenece a otro intento.');preparation=ownAnnulNextPreparation(detail,receipt,context.liquidationDate);
+      const receipt=await verifiedOwnAnnulReviewReceipt((await request('/api/internal-own-payroll-annulment?resource=attempt&key='+encodeURIComponent(context.key))).data);
+      const index=await verifiedOwnAnnulReviewIndex((await request('/api/internal-own-payroll-annulment?resource=review&period='+encodeURIComponent(receipt.body.period)+'&liquidationType='+encodeURIComponent(receipt.body.liquidationType))).data);
+      if(!valid())return;if(receipt.key!==context.key)throw Error('El comprobante pertenece a otro intento.');preparation=await loadOwnAnnulPreparation(index,receipt,context.liquidationDate,async id=>{if(!valid())throw Object.assign(Error('La preparación dejó de estar disponible.'),{name:'AbortError'});return(await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(id))).data;});if(!valid())return;
     }else{
       const receipt=await verifiedOwnLiquidationReceipt((await request('/api/internal-own-payroll-liquidation?resource=attempt&key='+encodeURIComponent(context.key))).data);
       const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);

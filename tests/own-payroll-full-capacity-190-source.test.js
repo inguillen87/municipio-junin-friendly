@@ -87,10 +87,43 @@ test('the joint CI entry shares the existing190 foundation and unchanged855 cont
 test('normal full-capacity CI selects the shared entry while the independent monthly four-cell business flow stays declared',()=>{
  const workflow=read('.github/workflows/own-payroll-full-capacity.yml'),monthly=read('.github/workflows/own-monthly-day-engine-source.yml');
  const commands=[...workflow.matchAll(/run: node (scripts\/verify-[^\n]+)/g)].map(match=>match[1]);
- assert.deepEqual(commands,['scripts/verify-own-monthly-payroll-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}']);
+ assert.deepEqual(commands,['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}']);
  for(const file of ['tests/own-payroll-full-capacity-190-source.test.js','tests/own-payroll-capacity-literal-additions.test.js','tests/owner-program-qa-continuation-preparation.test.js','tests/own-monthly-day-qa-foundation.test.js','tests/own-monthly-day-technical-epochs.test.js','tests/own-monthly-day-shared-prerequisites.test.js'])assert.ok(workflow.includes(file),file);
  for(const file of ['scripts/lib/own-payroll-capacity-literal-additions.mjs','scripts/verify-own-monthly-payroll-full-capacity.mjs','scripts/verify-municipal-owner-program.mjs','scripts/verify-own-monthly-day-engine-source.mjs','scripts/lib/owner-program-qa-continuation-preparation.mjs','scripts/lib/own-monthly-day-qa-foundation.mjs','scripts/lib/own-monthly-day-technical-epochs.mjs','scripts/lib/own-monthly-day-shared-prerequisites.mjs'])assert.ok(workflow.slice(workflow.indexOf('path: |')).includes(file),file);
  assert.ok(monthly.includes('pg: [17, 18]'));assert.ok(monthly.includes('operational_pair_baseline: [pre107, published107]'));
  assert.ok(monthly.includes('node scripts/verify-own-monthly-day-engine-source.mjs --fixed-composition=196 --novelty-succession=197'));
  assert.ok(monthly.includes('--operational-pair-baseline=${{ matrix.operational_pair_baseline }}'));
+});
+
+
+test('208 CI opt-in preserves the fixed monthly default and does not claim a complete municipal circuit',()=>{
+ const entry=read('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs'),monthly=read('scripts/verify-own-monthly-payroll-full-capacity.mjs'),workflow=read('.github/workflows/own-payroll-full-capacity.yml');
+ assert.equal((entry.match(/await verifyMunicipalOwnerProgram\(/g)??[]).length,1);
+ for(const token of ["import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';",'...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES','prepareContinuation:prepareOwnMonthlyFullCapacity','continuation:h=>continueOwnMonthlyFullCapacity(h,{annulmentV2Browser:true})',"operationalPairBaseline:'published107'"])assert.ok(entry.includes(token),token);
+ for(const token of ['async function monthlyThenFull(h, settings = {})','Reflect.ownKeys(settings).every(key => key === \'annulmentV2Browser\')','const {annulmentV2Browser = false} = settings',"assert.equal(typeof annulmentV2Browser, 'boolean')",'? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true})',': await runOwnFullCapacity190Continuation(h);','entries as OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES, prepareMonthly as prepareOwnMonthlyFullCapacity, monthlyThenFull as continueOwnMonthlyFullCapacity','prepareContinuation: prepareMonthly, continuation: monthlyThenFull'])assert.ok(monthly.includes(token),token);
+ assert.ok(!/buildOwnerProgramQa\(|ownerAdoptionQaTransport\(|CREATE SCHEMA|CREATE DATABASE|capabilitySeed|\.\.\.settings/.test(entry));
+ for(const token of ['report.priorDatabasePreserved,true','report.syntheticSchemaRemoved,true','report.sourceAfter?.passed,true','report.continuation?.monthlyTechnical?.passed,true','report.continuation?.capacity?.passed,true','report.continuation?.capacity?.population,855','report.continuation?.capacity?.conceptRows,17100','tail?.passed,true','tail.actualSql,true','tail.browser?.passed,true','tail.browser.actualHttp,true','tail.browser.fullAnnulmentBrowserProven,true','tail.browser.fullCapacityBrowserProven,false','tail.browser.receiptToPreparationBrowserProven,false','report.continuation.monthlyBusinessCovered,false','report.productionWrites,0','report.municipalAcceptance,false','completeMunicipalCircuit:false','monthlyBusiness:false'])assert.ok(entry.includes(token),token);
+ const declared=/const entries=\[([\s\S]*?)\];/.exec(entry);assert.ok(declared);const entries=[...declared[1].matchAll(/'([^']+)'/g)].map(match=>match[1]);
+ assert.ok(entries.length>0);assert.ok(entries.every(file=>!file.startsWith('.')&&!file.includes('..')),'every208 entry must pass the unchanged190 runtime source guard');
+ assert.ok(!entries.includes('.github/workflows/own-payroll-full-capacity.yml'),'the workflow is metadata, never a runtime continuation entry');
+ const artifacts=workflow.slice(workflow.indexOf('path: |'));
+ for(const file of [
+  'scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',
+  'scripts/lib/own-payroll-annulment-review-v2-installation.mjs',
+  'scripts/lib/own-payroll-annulment-v2-native-continuation.mjs',
+  'scripts/lib/own-payroll-annulment-v2-native-browser.mjs',
+  'scripts/migrations/208-own-annulment-review-index.sql',
+  'api/internal-own-payroll-annulment.js',
+  'lib/internal-own-payroll-annulment.js',
+  'assets/own-payroll-annulment-review-model.js',
+  'assets/own-payroll-annulment-panel.js',
+  'assets/own-payroll-run-panel.js',
+  'tests/fixtures/own-payroll-annulment-review-synthetic.js',
+  'tests/own-payroll-annulment-review-api.test.js',
+  'tests/own-payroll-annulment-review-service.test.js',
+  'tests/own-payroll-annulment-review.test.js',
+  'tests/own-payroll-annulment-hidden-active.test.js',
+ ])assert.ok(artifacts.split(/\r?\n/).some(line=>line.trim()===file),file);
+ for(const file of ['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs','scripts/lib/own-payroll-annulment-review-v2-installation.mjs','scripts/lib/own-payroll-annulment-v2-native-continuation.mjs','scripts/lib/own-payroll-annulment-v2-native-browser.mjs','scripts/migrations/208-own-annulment-review-index.sql','assets/own-payroll-annulment-review-model.js','tests/own-payroll-annulment-review-api.test.js','tests/own-payroll-annulment-review-service.test.js','tests/own-payroll-annulment-review.test.js','tests/own-payroll-annulment-hidden-active.test.js'])assert.ok(entries.includes(file),file);
+ assert.ok(!/^[ \t]+\.handoff\//m.test(artifacts),'private continuity is never uploaded');
 });

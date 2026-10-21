@@ -425,3 +425,6 @@ local-agents/
 # Exact public build prerequisites of the guarded196/197 source tests.
 !scripts/sql/own-monthly-day-fixed-v1-composition.fragment.sql
 !scripts/migrations/197-own-novelty-succession.sql
+
+# Public source for the reviewed additive208 verification; private inputs remain excluded.
+!scripts/migrations/208-own-annulment-review-index.sql
