@@ -11,10 +11,11 @@ import {verifyNativeEmployeeAccountingTail} from './native-employee-accounting-t
 import {assertMonthlyNativePhysicalAddition} from './monthly-native-full-circuit-baseline-qa.mjs';
 
 const sha=value=>createHash('sha256').update(salarySerialized(value)).digest('hex');
-export async function prepareMonthlyNativeFullCycleSources({created,fixture,monthly,approveProgram,call,maker,checker,setCurrent,api,state,expect,normalized}){
+export async function prepareMonthlyNativeFullCycleSources({created,fixture,monthly,approveProgram,call,maker,checker,setCurrent,api,state,expect,normalized,positionJourney=null}){
  assert.equal(fixture.version,'monthly-native-full-cycle-synthetic.v1');
  assert.notEqual(maker.principal.tenant.membershipId,checker.principal.tenant.membershipId);
  for(const value of [api,state,expect,normalized])assert.equal(typeof value,'function');
+ if(positionJourney)await positionJourney.beforeCapture(created,'principal');
  await approveProgram(fixture);
  const period=fixture.period,contractId=created.contractId;
  const approve=async definition=>{

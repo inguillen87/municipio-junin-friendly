@@ -2,6 +2,10 @@
 // This file creates no database process or independent SQL transport.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import {employeeContext} from '../../lib/internal-native-employees.js';
+import {monthlyNativePositionRpc,monthlyNativePositionRpcSignatures} from './monthly-native-position-rpc.mjs';
+import {monthlyNativePositionHandlers,MONTHLY_NATIVE_POSITION_ROUTES} from './monthly-native-position-handler-bindings.mjs';
+import {assertCanonicalPositionCompositionVerification} from './position-canonical-composition-qa.mjs';
 import {ownerProgramQaAccess,ownerProgramQaAccessSql} from './municipal-owner-program-qa.mjs';
 import {monthlyFixedQaRpc} from './own-monthly-day-fixed-composition-qa.mjs';
 import {noeliaNativeEmployeeStatement,noeliaCircuitRosterRead,noeliaCircuitDirectoryRead} from './noelia-payroll-circuit-qa.mjs';
@@ -24,8 +28,15 @@ const noveltyFacades=new Map([
  ['SELECT public.own_novelty_succession_context_v1($1::jsonb,$2::uuid) AS result',2],
  ['SELECT public.own_novelty_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',3]
 ]);
-export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCommit,read,json,nativeJson,handlers,env,output,check,setRawActor}){
+export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCommit,read,json,nativeJson,handlers,env,output,check,setRawActor,positionM10=null}){
  for(const value of [read,json,nativeJson,setRawActor])assert.equal(typeof value,'function');
+ let positionVerification=null;
+ if(positionM10!==null){
+  assert.deepEqual(Object.keys(positionM10).sort(),['plan','stageReceipts','verification']);assert.equal(positionM10.plan.schema,qa.schema);assert.equal(positionM10.plan.sourceCommit,sourceCommit);assert.equal(positionM10.plan.normalized,qa.normalized);assert.equal(tailPlan.normalized,qa.normalized);
+  const checked=assertCanonicalPositionCompositionVerification(positionM10);assert.equal(checked.nativeCaptureProvenanceStillRequired,true);positionVerification=positionM10.verification;
+  // Receipts are supplied only by the enclosing guarded native protocol. A
+  // source plan/boolean is never a mounting receipt; outer custody/bookends stay.
+ }
  const rawMaker=qa.actor,rawChecker=qa.checker;
  const identity=raw=>{const access=ownerProgramQaAccess(json([ownerProgramQaAccessSql(qa.schema,raw)],{readOnly:true}),raw);return{principal:access.principal,session:{...access.session,releaseSha:raw.releaseSha}};};
  const maker=identity(rawMaker),checker=identity(rawChecker);let current=maker;
@@ -37,6 +48,13 @@ export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCom
   const native=noeliaNativeEmployeeStatement(text,values,qa.schema);if(native)return[{result:db.run(native,true)}];
   const roster=noeliaCircuitRosterRead(text,values,qa.schema);if(roster)return db.run(roster,true,{allowArray:true});
   const directory=noeliaCircuitDirectoryRead(text,values,qa.schema);if(directory){const result=db.run(directory.sql,directory.runtime,{allowArray:directory.rows});return directory.rows?result:[{result}];}
+  if(positionVerification&&monthlyNativePositionRpcSignatures().includes(text)){
+   // Observe this same guarded runtime before rendering opaque literals, then
+   // fail closed if the actual following RPC connection has another setting.
+   const setting=db.run("SELECT jsonb_build_object('standardConformingStrings',current_setting('standard_conforming_strings'))",true);assert.deepEqual(setting,{standardConformingStrings:'on'});
+   const rendered=monthlyNativePositionRpc(text,values,qa.schema,employeeContext(current.principal,current.session));assert.equal(typeof rendered,'string');
+   const guard="DO $m10_strings$ BEGIN IF current_setting('standard_conforming_strings')<>'on' THEN RAISE EXCEPTION 'M10_STANDARD_STRINGS_REQUIRED';END IF;END $m10_strings$";return[{result:db.run(guard+';'+rendered,true)}];
+  }
   if(noveltyFacades.has(text)){assert.ok(Array.isArray(values)&&values.length===noveltyFacades.get(text)&&values.every(value=>typeof value==='string'));const sql=text.replace('public.',qa.schema+'.').replace(/\$(\d+)\b/g,(_,n)=>literal(values[Number(n)-1]));return[{result:db.run(sql,true)}];}
   return[{result:db.run(qa.normalized(monthlyFixedQaRpc(text,values,qa.schema)),true)}];
  }};
@@ -45,6 +63,7 @@ export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCom
  const authorize=()=>{const raw=rawActor(current);return ownerProgramQaAccess(json([ownerProgramQaAccessSql(qa.schema,raw)],{readOnly:true}),raw);};
  const deps={env,requireAccess:authorize,sessionFor:()=>current.session,getSql:()=>db};
  const oldHandlers={...handlers},directoryFailures=[],oldEnv={...env};
+ const positionHandlers=positionVerification?monthlyNativePositionHandlers(deps):null;if(positionHandlers)for(const key of Object.keys(positionHandlers))assert.equal(Object.hasOwn(oldHandlers,key),false,'M10_HANDLER_ALREADY_BOUND:'+key);
  const binding=maker.principal.tenant.sourceBindings.find(value=>value.verified===true);assert.ok(binding);env.FRIENDLY_GRH_SOURCE_DATABASE=binding.database;env.FRIENDLY_GRH_COMPANY_ID=String(binding.companyId);
  handlers.novelty=createOwnNoveltyHandler(deps);
  handlers.catalog=createEmploymentCatalogHandler(deps);
@@ -52,9 +71,10 @@ export async function bindMonthlyNativeFullCircuitContext({qa,tailPlan,sourceCom
  handlers.bankAccounts=createOwnBankAccountsHandler({...deps,getSql:()=>createNativeBankQaSql(db,facadeQa)});
  const accountingDb=createNativeAccountingQaSql(db,facadeQa);
  for(const[k,create]of[['accounting',createOwnAccountingHandler],['imputation',createOwnImputationHandler],['journal',createOwnJournalHandler]])handlers[k]=create({...deps,getSql:()=>accountingDb});
+ if(positionHandlers)Object.assign(handlers,positionHandlers);
  setCurrent(maker);
  const browserQa=await createNoeliaCircuitBrowser({handlers,env,getCurrent,qa:facadeQa,output,check,browserName:'chromium'});
- const routes={novelty:'/api/internal-own-payroll-novelties',program:'/api/internal-own-payroll-program',run:'/api/internal-own-payroll-run',liquidation:'/api/internal-own-payroll-liquidation',close:'/api/internal-own-payroll-close',receipt:'/api/internal-own-payroll-receipts',monthly:'/api/internal-own-monthly-day-declaration'};
+ const routes={...(positionVerification?MONTHLY_NATIVE_POSITION_ROUTES:{}),novelty:'/api/internal-own-payroll-novelties',program:'/api/internal-own-payroll-program',run:'/api/internal-own-payroll-run',liquidation:'/api/internal-own-payroll-liquidation',close:'/api/internal-own-payroll-close',receipt:'/api/internal-own-payroll-receipts',monthly:'/api/internal-own-monthly-day-declaration'};
  const api=async(kind,query=null,body=null,key,expected=200)=>{assert.ok(Object.hasOwn(routes,kind));const url=new URL(routes[kind],browserQa.origin);if(query)for(const[k,v]of Object.entries(query))url.searchParams.set(k,v);const response=await fetch(url,{method:body?'POST':'GET',headers:body?{Origin:browserQa.origin,'Content-Type':'application/json','Idempotency-Key':key??randomUUID()}:{},...(body?{body:JSON.stringify({operation:kind==='run'?'calculate':'command',payload:body})}:{})});const value=await response.json();assert.ok((Array.isArray(expected)?expected:[expected]).includes(response.status),JSON.stringify(value));if(response.status>=400)return value;assert.equal(value.ok,true);return value.data;};
- return{qa:facadeQa,db,maker,checker,getCurrent,setCurrent,rawActor,rawMaker,rawChecker,browserQa,api,origin:browserQa.origin,directoryFailures,handlers,env,async close(){try{await browserQa.close();assert.deepEqual(directoryFailures,[]);}finally{for(const key of Object.keys(handlers))if(!Object.hasOwn(oldHandlers,key))delete handlers[key];Object.assign(handlers,oldHandlers);for(const key of Object.keys(env))if(!Object.hasOwn(oldEnv,key))delete env[key];Object.assign(env,oldEnv);setRawActor(rawMaker);}}};
+ return{qa:facadeQa,db,maker,checker,positionVerification,getCurrent,setCurrent,rawActor,rawMaker,rawChecker,browserQa,api,origin:browserQa.origin,directoryFailures,handlers,env,async close(){try{await browserQa.close();assert.deepEqual(directoryFailures,[]);}finally{for(const key of Object.keys(handlers))if(!Object.hasOwn(oldHandlers,key))delete handlers[key];Object.assign(handlers,oldHandlers);for(const key of Object.keys(env))if(!Object.hasOwn(oldEnv,key))delete env[key];Object.assign(env,oldEnv);setRawActor(rawMaker);}}};
 }
