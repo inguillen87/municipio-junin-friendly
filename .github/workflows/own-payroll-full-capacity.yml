@@ -99,4 +99,21 @@ jobs:
             tests/own-payroll-annulment-review-service.test.js
             tests/own-payroll-annulment-review.test.js
             tests/own-payroll-annulment-hidden-active.test.js
+            scripts/lib/own-payroll-annulment-preparation-209-installation.mjs
+            scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs
+            scripts/lib/own-annulment-preparation-209-actors-fixture.mjs
+            scripts/migrations/209-own-annulment-preparation-projection.sql
+            api/internal-own-payroll-annulment-preparation.js
+            lib/internal-own-payroll-annulment-preparation.js
+            assets/own-payroll-annulment-preparation-model.js
+            assets/own-payroll-annulment-preparation-link.js
+            tests/fixtures/own-payroll-annulment-preparation-synthetic.js
+            tests/own-payroll-annulment-preparation-model.test.js
+            tests/own-payroll-annulment-preparation-service.test.js
+            tests/own-payroll-annulment-preparation-api.test.js
+            tests/own-payroll-annulment-preparation-link.test.js
+            tests/own-payroll-annulment-preparation-panel.test.js
+            tests/own-payroll-annulment-preparation-ui-source.test.js
+            tests/fixtures/own-payroll-annulment-preparation-source-projection.js
+            tests/own-payroll-full-decision-capacity-source.test.js
           retention-days: 5

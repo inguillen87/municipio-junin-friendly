@@ -76,8 +76,9 @@ async function registerPopulation(h,db){
  assert.equal(hires.length,855);assert.equal(new Set(hires.map(v=>v.contractId)).size,855);assert.ok(hires.every(v=>v.origin==='MUNICONTROL'&&v.startDate==='2026-10-01'&&v.accountCreated===false&&v.payrollCalculated===false));assert.deepEqual(oldSources(),baseline,'M7_190_OLD_SOURCE_ROWS_CHANGED');return hires.map(v=>v.contractId).sort();
 }
 export async function runOwnFullCapacity190Continuation(h,options={}){
- assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null)&&Reflect.ownKeys(options).every(key=>key==='annulmentV2Browser'),'M7_190_EXTENSION_OPTIONS_INVALID');
+ assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null)&&Reflect.ownKeys(options).every(key=>key==='annulmentV2Browser'||key==='annulmentPreparation'),'M7_190_EXTENSION_OPTIONS_INVALID');
  const annulmentV2BrowserEnabled=Object.hasOwn(options,'annulmentV2Browser')?options.annulmentV2Browser:false;assert.equal(typeof annulmentV2BrowserEnabled,'boolean','M7_190_EXTENSION_BOOLEAN_REQUIRED');
+ const annulmentPreparation=Object.hasOwn(options,'annulmentPreparation')?options.annulmentPreparation:false;assert.equal(typeof annulmentPreparation,'boolean','M7_190_PREPARATION_BOOLEAN_REQUIRED');assert.ok(!annulmentPreparation||annulmentV2BrowserEnabled,'M7_190_PREPARATION_REQUIRES_COMPLETE208');
  const {qa,major}=h;assert.ok([17,18].includes(major));assert.equal(qa.operationalPairBaseline,'published107');
  const runtime=()=>h.json(["SELECT jsonb_build_object('serverVersion',current_setting('server_version'),'serverVersionNum',current_setting('server_version_num'))"],{readOnly:true}),nativeBefore=runtime();assert.equal(Math.trunc(Number(nativeBefore.serverVersionNum)/10000),major);
  const iamPlan=buildOwnReportCensus190IamFixture({qa,read:h.read}),iamProof=h.json(iamPlan.statements),iam=assertOwnReportCensus190IamFixture(iamPlan,iamProof);
@@ -137,7 +138,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.equal(closed.snapshot.employeeCount,855);assert.equal(closed.snapshot.conceptCount,17100);assert.equal(reopened.body.command,'reopen');assert.equal(reopened.groupId,closed.groupId);assert.equal(reopened.snapshotSha256,closed.snapshotSha256);
  const baselineChecks=Object.freeze([...checks]),secondSaved=structuredClone(second.saved);
  const context=Object.freeze({version:'own-annulment-v2-live190-context.v1',h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot:final,closedCensus,reopenedCensus,accountingImputation,journal,accountingImputationSourceBookend,operations:Object.freeze({run,liq,annul,close,decide,calculate}),readSnapshot:()=>ownFullCapacity190Snapshot(h),sameStateReject,ok,monthlyBusinessCovered:false});
- const annulmentV2Browser=await runOwnAnnulmentV2NativeContinuation(context);
+ const annulmentV2Browser=await runOwnAnnulmentV2NativeContinuation(context,{annulmentPreparation});
  assert.ok(annulmentV2Browser&&typeof annulmentV2Browser==='object'&&!Array.isArray(annulmentV2Browser),'M7_190_ANNUL_V2_REPORT_REQUIRED');assert.equal(annulmentV2Browser.passed,true);assert.equal(annulmentV2Browser.monthlyBusinessCovered,false);assert.equal(annulmentV2Browser.productionWrites,0);assert.equal(annulmentV2Browser.paymentExecuted,false);assert.equal(annulmentV2Browser.municipalAcceptance,false);
  // New decisions legitimately extend history. Keep the immutable originals;
  // postflight201 must NOT be rerun as an alleged208 admission after the tail.

@@ -5,6 +5,8 @@ import {randomUUID} from 'node:crypto';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 import {installOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
 import {verifyOwnAnnulmentV2BrowserOn190} from './own-payroll-annulment-v2-native-browser.mjs';
+import {installOwnAnnulPreparation209On190} from './own-payroll-annulment-preparation-209-installation.mjs';
+import {runOwnAnnulPreparation209NativeContinuation} from './own-payroll-annulment-preparation-209-native-continuation.mjs';
 import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
 import {RUN_CALCULATE} from '../../lib/internal-own-payroll-run.js';
 import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
@@ -44,7 +46,9 @@ function assertPrefix(before,after){
 function tableSet(snapshot,names){return snapshot.filter(row=>names.includes(row.name));}
 function compactCapture(capture){return{id:capture.id,key:capture.key,body:structuredClone(capture.body),bodySha256:capture.bodySha256,payloadSha256:capture.payloadSha256,inputSha256:capture.saved.inputSha256,resultSha256:capture.saved.resultSha256,employeeCount:capture.saved.result.employeeCount,conceptRowCount:capture.saved.result.rowCount};}
 
-export async function runOwnAnnulmentV2NativeContinuation(context){
+export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
+ assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null)&&Reflect.ownKeys(options).every(key=>key==='annulmentPreparation'),'ANNUL208_EXTENSION_OPTIONS_INVALID');
+ const annulmentPreparation=Object.hasOwn(options,'annulmentPreparation')?options.annulmentPreparation:false;assert.equal(typeof annulmentPreparation,'boolean');
  assert.equal(context?.version,'own-annulment-v2-live190-context.v1');
  const {h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot}=context;
  const {run,liq,annul,close}=context.operations;
@@ -63,8 +67,11 @@ export async function runOwnAnnulmentV2NativeContinuation(context){
  const ok=(condition,label)=>{assert.ok(condition,label);checks.push(label);h.check(label);};
  const prefixBefore=rowMultiset(h,qa),originalSecond=structuredClone(second.saved),nativeBefore=h.json([`SELECT jsonb_build_object('count',count(*)::integer) FROM ${qa.schema}.native_employee_registration`],{readOnly:true});assert.equal(nativeBefore.count,855);
  const originalCensus=await verifiedOwnReportCensus(await close('report-census',query)),originalGroup=await close('group',{id:closed.groupId});
- const installation208=await installOwnAnnulmentReviewV2On190({h,db,baselineSnapshot,admission:{version:'own-annulment-review208-canonical-source.v1',sourceCommit:h.sourceCommit,monthly:h.prepared.monthly,capacityPlan:installation.plan}});
+ const admission208={version:'own-annulment-review208-canonical-source.v1',sourceCommit:h.sourceCommit,monthly:h.prepared.monthly,capacityPlan:installation.plan};
+ const installation208=await installOwnAnnulmentReviewV2On190({h,db,baselineSnapshot,admission:admission208});
  assert.equal(installation208.passed,true);assert.equal(installation208.productionWrites,0);assert.equal(installation208.municipalAcceptance,false);
+ // Exact immediate208 epoch: no208 business and no209 actors have run yet.
+ const installation209=annulmentPreparation?await installOwnAnnulPreparation209On190({h,db,admission208,installation208,baselineSnapshot:context.readSnapshot()}):null;
  const readIndex=async label=>{const value=await verifiedOwnAnnulReviewIndex(await annul('review',query));measurements.indices.push({label,runs:value.index.length,confirmed:value.index.reduce((sum,row)=>sum+row.states.confirmed,0),bytes:bytes(value)});assert.ok(bytes(value)<=FULL);if(bytes(value)<=FOUR){const ordinary=await annul('review',query,false);assert.deepEqual(ordinary,value);}return value;};
  const readDetail=async(id,label)=>{const value=await liq('detail',{id});await verifiedOwnLiquidationDetail(value);measurements.details.push({label,id,bytes:bytes(value),employees:value.capture.saved.result.employeeCount,conceptRows:value.capture.saved.result.rowCount});assert.ok(bytes(value)<=FULL);return value;};
  const readReview=async(label,index)=>{const order=[],review=await loadOwnAnnulReview(index,async id=>{order.push(id);return readDetail(id,label);});assert.deepEqual(order,index.index.filter(row=>row.states.confirmed>0).map(row=>row.id));return review;};
@@ -163,5 +170,11 @@ export async function runOwnAnnulmentV2NativeContinuation(context){
  assert.equal(h.json([`SELECT jsonb_build_object('count',count(*)::integer) FROM ${qa.schema}.native_employee_registration`],{readOnly:true}).count,855);
  const sourceBookend=await assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});
  ok(true,'all pre-tail row-hash multiplicities, old immutable captures, reopened close and financial history survive native browser decisions');
- return{version:'own-annulment-v2-live190-native-browser-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,population:855,conceptRowsPerRun:17100,historyRuns:8,partitions:[285,285,285],dates:[...dates],measurements,checks,installation:installation208,sourceBookend,browser,oldRowPrefix:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualHttp:browser.actualHttp,fullAnnulmentBrowserProven:browser.fullAnnulmentBrowserProven,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,synthetic:true,monthlyBusinessCovered:false,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ const completed208={version:'own-annulment-v2-live190-native-browser-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,population:855,conceptRowsPerRun:17100,historyRuns:8,partitions:[285,285,285],dates:[...dates],measurements,checks,installation:installation208,sourceBookend,browser,oldRowPrefix:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualHttp:browser.actualHttp,fullAnnulmentBrowserProven:browser.fullAnnulmentBrowserProven,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,synthetic:true,monthlyBusinessCovered:false,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ if(!annulmentPreparation)return completed208;
+ //209 business begins ONLY after every208 native/browser/history check above.
+ const preparation209=await runOwnAnnulPreparation209NativeContinuation(Object.freeze({version:'own-annul-preparation209-live190-context.v1',baselineContext:context,installation208,installation209,completed208}));
+ assert.equal(preparation209.passed,true);assert.equal(preparation209.actualSql,true);assert.equal(preparation209.actualApiHandler,true);assert.equal(preparation209.receiptToPreparationNativeProven,true);
+ assert.equal(preparation209.receiptToPreparationBrowserProven,false);assert.equal(preparation209.monthlyBusinessCovered,false);assert.equal(preparation209.productionWrites,0);assert.equal(preparation209.municipalAcceptance,false);
+ return{...completed208,preparation209};
 }

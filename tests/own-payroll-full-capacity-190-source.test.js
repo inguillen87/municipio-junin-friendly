@@ -96,11 +96,11 @@ test('normal full-capacity CI selects the shared entry while the independent mon
 });
 
 
-test('208 CI opt-in preserves the fixed monthly default and does not claim a complete municipal circuit',()=>{
+test('208 and209 CI opt-ins preserve the fixed monthly default and do not claim a complete municipal circuit',()=>{
  const entry=read('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs'),monthly=read('scripts/verify-own-monthly-payroll-full-capacity.mjs'),workflow=read('.github/workflows/own-payroll-full-capacity.yml');
  assert.equal((entry.match(/await verifyMunicipalOwnerProgram\(/g)??[]).length,1);
- for(const token of ["import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';",'...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES','prepareContinuation:prepareOwnMonthlyFullCapacity','continuation:h=>continueOwnMonthlyFullCapacity(h,{annulmentV2Browser:true})',"operationalPairBaseline:'published107'"])assert.ok(entry.includes(token),token);
- for(const token of ['async function monthlyThenFull(h, settings = {})','Reflect.ownKeys(settings).every(key => key === \'annulmentV2Browser\')','const {annulmentV2Browser = false} = settings',"assert.equal(typeof annulmentV2Browser, 'boolean')",'? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true})',': await runOwnFullCapacity190Continuation(h);','entries as OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES, prepareMonthly as prepareOwnMonthlyFullCapacity, monthlyThenFull as continueOwnMonthlyFullCapacity','prepareContinuation: prepareMonthly, continuation: monthlyThenFull'])assert.ok(monthly.includes(token),token);
+ for(const token of ["import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';",'...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES','prepareContinuation:prepareOwnMonthlyFullCapacity','continuation:h=>continueOwnMonthlyFullCapacity(h,{annulmentV2Browser:true,annulmentPreparation:true})',"operationalPairBaseline:'published107'"])assert.ok(entry.includes(token),token);
+ for(const token of ['async function monthlyThenFull(h, settings = {})','Reflect.ownKeys(settings).every(key => key === \'annulmentV2Browser\' || key === \'annulmentPreparation\')','const annulmentPreparation = Object.hasOwn(settings, \'annulmentPreparation\') ? settings.annulmentPreparation : false',"assert.equal(typeof annulmentV2Browser, 'boolean')",'? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true, annulmentPreparation})',': await runOwnFullCapacity190Continuation(h);','entries as OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES, prepareMonthly as prepareOwnMonthlyFullCapacity, monthlyThenFull as continueOwnMonthlyFullCapacity','prepareContinuation: prepareMonthly, continuation: monthlyThenFull'])assert.ok(monthly.includes(token),token);
  assert.ok(!/buildOwnerProgramQa\(|ownerAdoptionQaTransport\(|CREATE SCHEMA|CREATE DATABASE|capabilitySeed|\.\.\.settings/.test(entry));
  for(const token of ['report.priorDatabasePreserved,true','report.syntheticSchemaRemoved,true','report.sourceAfter?.passed,true','report.continuation?.monthlyTechnical?.passed,true','report.continuation?.capacity?.passed,true','report.continuation?.capacity?.population,855','report.continuation?.capacity?.conceptRows,17100','tail?.passed,true','tail.actualSql,true','tail.browser?.passed,true','tail.browser.actualHttp,true','tail.browser.fullAnnulmentBrowserProven,true','tail.browser.fullCapacityBrowserProven,false','tail.browser.receiptToPreparationBrowserProven,false','report.continuation.monthlyBusinessCovered,false','report.productionWrites,0','report.municipalAcceptance,false','completeMunicipalCircuit:false','monthlyBusiness:false'])assert.ok(entry.includes(token),token);
  const declared=/const entries=\[([\s\S]*?)\];/.exec(entry);assert.ok(declared);const entries=[...declared[1].matchAll(/'([^']+)'/g)].map(match=>match[1]);
@@ -123,7 +123,24 @@ test('208 CI opt-in preserves the fixed monthly default and does not claim a com
   'tests/own-payroll-annulment-review-service.test.js',
   'tests/own-payroll-annulment-review.test.js',
   'tests/own-payroll-annulment-hidden-active.test.js',
+  'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',
+  'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',
+  'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',
+  'scripts/migrations/209-own-annulment-preparation-projection.sql',
+  'api/internal-own-payroll-annulment-preparation.js',
+  'lib/internal-own-payroll-annulment-preparation.js',
+  'assets/own-payroll-annulment-preparation-model.js',
+  'assets/own-payroll-annulment-preparation-link.js',
+  'tests/fixtures/own-payroll-annulment-preparation-synthetic.js',
+  'tests/own-payroll-annulment-preparation-model.test.js',
+  'tests/own-payroll-annulment-preparation-service.test.js',
+  'tests/own-payroll-annulment-preparation-api.test.js',
+  'tests/own-payroll-annulment-preparation-link.test.js',
+  'tests/own-payroll-annulment-preparation-panel.test.js',
+  'tests/own-payroll-annulment-preparation-ui-source.test.js',
+  'tests/fixtures/own-payroll-annulment-preparation-source-projection.js',
+  'tests/own-payroll-full-decision-capacity-source.test.js',
  ])assert.ok(artifacts.split(/\r?\n/).some(line=>line.trim()===file),file);
- for(const file of ['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs','scripts/lib/own-payroll-annulment-review-v2-installation.mjs','scripts/lib/own-payroll-annulment-v2-native-continuation.mjs','scripts/lib/own-payroll-annulment-v2-native-browser.mjs','scripts/migrations/208-own-annulment-review-index.sql','assets/own-payroll-annulment-review-model.js','tests/own-payroll-annulment-review-api.test.js','tests/own-payroll-annulment-review-service.test.js','tests/own-payroll-annulment-review.test.js','tests/own-payroll-annulment-hidden-active.test.js'])assert.ok(entries.includes(file),file);
+ for(const file of ['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs','scripts/lib/own-payroll-annulment-review-v2-installation.mjs','scripts/lib/own-payroll-annulment-v2-native-continuation.mjs','scripts/lib/own-payroll-annulment-v2-native-browser.mjs','scripts/migrations/208-own-annulment-review-index.sql','assets/own-payroll-annulment-review-model.js','tests/own-payroll-annulment-review-api.test.js','tests/own-payroll-annulment-review-service.test.js','tests/own-payroll-annulment-review.test.js','tests/own-payroll-annulment-hidden-active.test.js','scripts/lib/own-payroll-annulment-preparation-209-installation.mjs','scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs','scripts/lib/own-annulment-preparation-209-actors-fixture.mjs','scripts/migrations/209-own-annulment-preparation-projection.sql','api/internal-own-payroll-annulment-preparation.js','lib/internal-own-payroll-annulment-preparation.js','assets/own-payroll-annulment-preparation-model.js','assets/own-payroll-annulment-preparation-link.js','tests/fixtures/own-payroll-annulment-preparation-synthetic.js','tests/own-payroll-annulment-preparation-model.test.js','tests/own-payroll-annulment-preparation-service.test.js','tests/own-payroll-annulment-preparation-api.test.js','tests/own-payroll-annulment-preparation-link.test.js','tests/own-payroll-annulment-preparation-panel.test.js','tests/own-payroll-annulment-preparation-ui-source.test.js','tests/fixtures/own-payroll-annulment-preparation-source-projection.js','tests/own-payroll-full-decision-capacity-source.test.js'])assert.ok(entries.includes(file),file);
  assert.ok(!/^[ \t]+\.handoff\//m.test(artifacts),'private continuity is never uploaded');
 });

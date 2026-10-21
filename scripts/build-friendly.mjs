@@ -216,6 +216,8 @@ const shellFiles = [
   'assets/own-payroll-liquidation-model.js',
   'assets/own-payroll-annulment-model.js',
   'assets/own-payroll-annulment-review-model.js',
+  'assets/own-payroll-annulment-preparation-model.js',
+  'assets/own-payroll-annulment-preparation-link.js',
   'assets/own-payroll-annulment-panel.js',
   'assets/own-payroll-liquidation-panel.js',
   'assets/own-payroll-liquidation-panel.css',

@@ -57,6 +57,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
   assert.equal(index.index.reduce((sum,item)=>sum+item.confirmedContractIds.length,0),855);
   const sourceBookend=[];
   for(const file of ['own-payroll-annulment-panel.js','own-payroll-annulment-review-model.js','own-payroll-run-panel.js',
+    'own-payroll-annulment-preparation-model.js','own-payroll-annulment-preparation-link.js',
     'own-payroll-annulment-model.js','own-payroll-response.js','own-payroll-run-workspace-model.js',
     'own-payroll-liquidation-model.js','own-payroll-exact.js','native-salary-catalog-model.js','own-payroll-run-model.js']){
     const relative='assets/'+file,source=fs.readFileSync(path.join(root,relative));
@@ -225,7 +226,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       fullAnnulmentBrowserProven:true,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,
       pending:['cross-role receipt-to-preparation handoff','monthly 855-contract business cases'],
       authenticationFixture:true,completeAuthenticationHandler:false,
-      sourceMode:'public_build_with_ten_critical_modules_byte_checked',fullBuildValidation:false,
+      sourceMode:'public_build_with_twelve_critical_modules_byte_checked',fullBuildValidation:false,
       clientCapabilityWithdrawal:true,sqlAuthorityRevocationInThisBrowser:false,
       calculationPosts,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
   }catch(error){
