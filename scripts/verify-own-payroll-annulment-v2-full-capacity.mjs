@@ -20,6 +20,9 @@ const entries=[...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,
   'tests/own-payroll-annulment-hidden-active.test.js',
   'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',
   'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',
+  'scripts/lib/own-payroll-receipt126-inventory-model.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-inventory.mjs',
+  'tests/own-payroll-receipt126-inventory-model.test.js',
   'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',
   'scripts/migrations/209-own-annulment-preparation-projection.sql',
   'api/internal-own-payroll-annulment-preparation.js',
@@ -101,6 +104,14 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(confirmationClose.recoveryAndReplayAddedRows,0);assert.equal(confirmationClose.previousRunStatesPreserved,true);assert.equal(confirmationClose.previousRowsPreserved,true);assert.equal(confirmationClose.oldGroupPreserved,true);assert.equal(confirmationClose.originalPreparationRejectedByCurrentState,true);
   assert.equal(confirmationClose.actualApiHandler,false);assert.equal(confirmationClose.actualHttp,false);assert.equal(confirmationClose.actualBrowser,false);assert.equal(confirmationClose.atomicGetToCalculation,false);assert.equal(confirmationClose.durableReceiptLinkCreated,false);assert.equal(confirmationClose.receiptLinkedRecalculationExecuted,false);
   assert.equal(confirmationClose.monthlyBusinessCovered,false);assert.equal(confirmationClose.ownPayrollReceiptsPrepared,false);assert.equal(confirmationClose.productionWrites,0);assert.equal(confirmationClose.paymentExecuted,false);assert.equal(confirmationClose.municipalAcceptance,false);
+  // Inventory presence is diagnostic; these are never installation/workflow gates.
+  const receipt126Inventory=preparation.receipt126Inventory;
+  assert.equal(receipt126Inventory?.version,'own-receipt126-inventory-classification.v1');assert.equal(receipt126Inventory.formValidated,true);
+  assert.equal(receipt126Inventory.sameCanonical190,true);assert.equal(receipt126Inventory.observedBy,'existing_h_json_readonly_full');assert.equal(receipt126Inventory.queryCount,1);
+  assert.equal(receipt126Inventory.metadataOnly,true);assert.equal(receipt126Inventory.installationAllowed,false);assert.equal(receipt126Inventory.receiptWorkflowExecuted,false);
+  assert.ok(['ausente','parcial','objetos_presentes_sin_admision'].includes(receipt126Inventory.classification));
+  assert.ok([0,1].includes(receipt126Inventory.counts.tables));for(const field of['functions','capabilityDefinitions'])assert.ok(Number.isSafeInteger(receipt126Inventory.counts[field])&&receipt126Inventory.counts[field]>=0);
+  assert.match(receipt126Inventory.inventory.schema.name,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(receipt126Inventory.inventory.bodyHashBasis,'pg_proc.prosrc_utf8_lf');
   assert.equal(report.continuation.monthlyBusinessCovered,false);
   assert.equal(report.productionWrites,0);assert.equal(report.municipalAcceptance,false);
   return report;
