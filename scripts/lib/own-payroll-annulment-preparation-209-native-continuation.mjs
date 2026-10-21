@@ -251,9 +251,9 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const finalAttempt=ownAnnulReviewAttempt(randomUUID(),finalBody,'qa-native209-final:'+qa.checker.membershipId,ownAnnulReviewSelection(finalReview,finalBody.selection)),finalAnnulled=await annul('command-v2',{key:finalAttempt.key,body:finalAttempt.body});await verifiedOwnAnnulReviewReceipt(finalAnnulled,finalAttempt);assert.equal(finalAnnulled.affected.length,1);
  const finalProjection=await preparation(receipt.id);assert.deepEqual(finalProjection.affected,projection.affected);assert.notEqual(finalProjection.sourceStateSha256,previous.sourceStateSha256);assert.throws(()=>assertSameOwnAnnulPreparation(previous,finalProjection),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
  const finalCensus=await ledger();assert.equal(finalCensus.captures,12);assert.equal(finalCensus.saved,10);assert.equal(finalCensus.creators,3);assert.ok(finalCensus.liquidationEvents>census.liquidationEvents);assert.equal(finalCensus.closeEvents,census.closeEvents+2);measurements.census.push({stage:'after-real-confirm-close-reopen-annul-history',...finalCensus});
- // No sourceReference is smuggled into run-command.v2. No fresh capture or
- // calculation follows the renewed draft: a later explicit reviewed action
- // needs its own current bootstrap, population, programme, consent and key.
+ // The preparation phase ends at an unconfirmed draft, without automatic
+ // calculation or sourceReference inside run-command.v2. The separate phase
+ // below tests explicit commands with their own current bootstrap and keys.
  const noAutomaticRun=readSnapshot(),renewedDraft=ownAnnulPreparationForDate(finalProjection,dates[0]);assert.equal(renewedDraft.reviewConfirmed,false);assert.deepEqual(renewedDraft.selection,contractsSelection(partitions[0]));assert.deepEqual(readSnapshot(),noAutomaticRun);
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);
  assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);
@@ -266,5 +266,68 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const source208=assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208}),source209=assertOwnAnnulPreparation209SourceBookend({h,db,installation:installation209});
  assert.equal(source209.priorBusinessRowsRecompared,false);
  ok(true,'original immutable captures, receipts, preexisting rows and reopened close survive complete209 native preparation tests');
- return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:false,actualBrowser:false,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:false,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+
+ // SEPARATE POST-DRAFT PHASE. Every preceding209 check remains above, including
+ // captures12/saved10 and index10. These calls model two new explicit synthetic
+ // calculate actions; neither GET nor applying a draft invokes a calculation.
+ // Same db/run/receiver/programme: no new adapter, SQL, role, host or protocol.
+ const recalcBefore=await ledger();assert.deepEqual(recalcBefore,finalCensus);
+ const recalcPrefixBefore=rowMultiset(h),recalculated=[],recalculationMeasurements=[];
+ let preparedBeforeCalculation=finalProjection;
+ for(let n=0;n<dates.length;n++){
+  const fresh=await preparation(receipt.id);
+  assert.deepEqual(fresh.affected,finalProjection.affected);assert.deepEqual(fresh.dateGroups,finalProjection.dateGroups);
+  if(n===0)assertSameOwnAnnulPreparation(finalProjection,fresh);
+  else{
+   assert.notEqual(fresh.sourceStateSha256,preparedBeforeCalculation.sourceStateSha256);
+   assert.throws(()=>assertSameOwnAnnulPreparation(preparedBeforeCalculation,fresh),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
+  }
+  const noDraftEffect=readSnapshot(),draft=ownAnnulPreparationForDate(fresh,dates[n]);assert.equal(draft.reviewConfirmed,false);
+  assert.deepEqual(draft.selection,contractsSelection(partitions[n]));assert.equal(draft.affected.length,partitions[n].length);
+  assert.deepEqual(readSnapshot(),noDraftEffect);
+  const boot=await run('receiver','bootstrap',{contractVersion:'2'});assert.equal(boot.version,'own-payroll-bootstrap.v2');assert.equal(boot.canCalculate,true);
+  assert.equal(boot.scopeVersion,draft.scopeVersion);assert.equal(boot.programVersion,bootstraps.receiver.programVersion);
+  const key=randomUUID();assert.ok(!boot.runs.some(row=>row.key===key));assert.notEqual(key,receipt.key);
+  const command={version:'own-payroll-run-command.v2',period:draft.period,liquidationType:draft.liquidationType,liquidationDate:draft.liquidationDate,selection:draft.selection,scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'};
+  assert.equal(Object.hasOwn(command,'sourceReference'),false);assert.equal(Object.hasOwn(command,'reviewConfirmed'),false);
+  // This invocation is the separate explicit action, using the current command.
+  const capture=await run('receiver','calculate',{key,body:command});
+  assert.equal(capture.replayed,false);assert.equal(capture.key,key);assert.deepEqual(capture.body,command);assert.ok(!finalIndex.index.some(row=>row.id===capture.id));
+  assert.ok(capture.saved);assert.equal(capture.saved.result.payrollCalculated,true);assert.equal(capture.saved.result.paymentExecuted,false);
+  assert.equal(capture.saved.result.employeeCount,partitions[n].length);assert.equal(capture.saved.result.rowCount,partitions[n].length*20);
+  assert.deepEqual(capture.saved.input.employees.map(row=>row.contractId).sort(),partitions[n]);assert.deepEqual(capture.saved.input.rules,definition.rules);
+  assert.equal(capture.saved.inputSha256,ownRunHash(capture.saved.input));assert.equal(capture.saved.resultSha256,ownRunHash(capture.saved.result));
+  const selected=new Set(partitions[n]);assert.deepEqual(capture.saved.result.rows,firstSaved.result.rows.filter(row=>selected.has(row.contractId)));assert.deepEqual(capture.saved.result.employeeTotals,firstSaved.result.employeeTotals.filter(row=>selected.has(row.contractId)));
+  assert.ok(bytes(capture)<=FULL);
+  const savedState=readSnapshot(),savedLedger=await ledger();assert.equal(savedLedger.captures,recalcBefore.captures+n+1);assert.equal(savedLedger.saved,recalcBefore.saved+n+1);
+  assert.equal(savedLedger.liquidationEvents,recalcBefore.liquidationEvents);assert.equal(savedLedger.closeEvents,recalcBefore.closeEvents);assert.equal(savedLedger.creators,recalcBefore.creators);
+  const storedIdentity=value=>{
+   assert.equal(value.replayed,true);
+   for(const field of['version','id','key','bodySha256','payloadSha256','algorithmSha256','createdAt'])assert.equal(value[field],capture[field]);
+   assert.deepEqual(value.body,capture.body);assert.ok(value.saved);
+   for(const field of['version','id','algorithmSha256','inputSha256','resultSha256','recordedAt'])assert.equal(value.saved[field],capture.saved[field]);
+   assert.deepEqual(value.saved.input,capture.saved.input);assert.deepEqual(value.saved.result,capture.saved.result);
+  };
+  const recovered=await run('receiver','attempt',{key});storedIdentity(recovered);
+  assert.deepEqual(readSnapshot(),savedState);assert.deepEqual(await ledger(),savedLedger);
+  const replayed=await run('receiver','calculate',{key,body:command});storedIdentity(replayed);
+  assert.deepEqual(readSnapshot(),savedState);assert.deepEqual(await ledger(),savedLedger);
+  recalculationMeasurements.push({date:dates[n],employeeCount:capture.saved.result.employeeCount,conceptRows:capture.saved.result.rowCount,bytes:bytes(capture),inputSha256:capture.saved.inputSha256,resultSha256:capture.saved.resultSha256,recoveredIdentityAndHashesExact:true,replayedIdentityAndHashesExact:true,recoveryAndReplayAddedRows:0});
+  recalculated.push(capture);preparedBeforeCalculation=fresh;
+ }
+ assert.equal(recalculated.length,2);assert.notEqual(recalculated[0].id,recalculated[1].id);assert.notEqual(recalculated[0].key,recalculated[1].key);
+ const recalculatedIds=recalculated.flatMap(capture=>capture.saved.input.employees.map(row=>row.contractId));assert.equal(new Set(recalculatedIds).size,855);assert.deepEqual([...recalculatedIds].sort(),contracts);
+ assert.equal(recalculated.reduce((count,capture)=>count+capture.saved.result.rowCount,0),17100);
+ const recalcAfter=await ledger();assert.deepEqual(recalcAfter,{...recalcBefore,captures:14,saved:12});
+ const recalcIndex=await readIndex();assert.equal(recalcIndex.index.length,12);assert.equal(recalcIndex.index.reduce((count,row)=>count+row.states.confirmed,0),0);
+ for(const capture of recalculated){const row=recalcIndex.index.find(value=>value.id===capture.id);assert.ok(row);assert.equal(row.resultSha256,capture.saved.resultSha256);assert.deepEqual(row.states,{calculated:capture.saved.result.employeeCount,confirmed:0,annulled:0,cancelled:0});}
+ const afterRecalculation=await preparation(receipt.id);assert.deepEqual(afterRecalculation.affected,finalProjection.affected);assert.deepEqual(afterRecalculation.dateGroups,finalProjection.dateGroups);assert.notEqual(afterRecalculation.sourceStateSha256,preparedBeforeCalculation.sourceStateSha256);
+ assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);
+ assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);
+ const recalcPrefixAfter=rowMultiset(h);assertPrefix(recalcPrefixBefore,recalcPrefixAfter);
+ const calculationOnly=['own_payroll_run_capture','own_payroll_run_result'];assert.deepEqual(recalcPrefixAfter.filter(row=>!calculationOnly.includes(row.name)),recalcPrefixBefore.filter(row=>!calculationOnly.includes(row.name)),'ANNUL209_RECALC_CHANGED_OTHER_LEDGER_OR_IAM');
+ const recalculationSource208=assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208}),recalculationSource209=assertOwnAnnulPreparation209SourceBookend({h,db,installation:installation209});assert.equal(recalculationSource209.priorBusinessRowsRecompared,false);
+ const postPreparationRecalculation={version:'own-annul-preparation-explicit-recalculation.v1',passed:true,dates:[...dates],partitions:[285,570],populationUnion:855,conceptRowsUnion:17100,addedCaptures:2,addedSavedResults:2,addedLiquidationDecisions:0,addedCloseEvents:0,before:recalcBefore,after:recalcAfter,measurements:recalculationMeasurements,fresh209ReadAfterFirstCapture:true,recoveryAndReplayAddedRows:0,previousRowsPreserved:true,source208:recalculationSource208,source209:recalculationSource209,actualSql:true,actualCalculationService:true,actualCalculationApiHandler:false,actualHttp:false,actualBrowser:false,atomicGetToCalculation:false,durableReceiptLinkCreated:false,receiptLinkedRecalculationExecuted:false,automaticRecalculation:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ ok(true,'two separate explicit current commands save285/570 after209 drafts, recover and replay exactly, and preserve all originals');
+ return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:4,preparationPhaseSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,postPreparationRecalculation,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:false,actualBrowser:false,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:false,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
 }

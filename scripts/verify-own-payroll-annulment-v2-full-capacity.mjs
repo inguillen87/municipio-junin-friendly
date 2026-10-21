@@ -62,6 +62,27 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(preparation.population,855);assert.equal(preparation.conceptRowsPerRun,17100);assert.equal(preparation.receiverIsThirdManagedPreparer,true);
   assert.equal(preparation.atomicGetToCalculation,false);assert.equal(preparation.receiptLinkedRecalculationExecuted,false);assert.equal(preparation.monthlyBusinessCovered,false);
   assert.equal(preparation.productionWrites,0);assert.equal(preparation.municipalAcceptance,false);
+  // Separate explicit post-draft actions; preparation itself stays unconfirmed.
+  // These assertions are mandatory, not a browser/HTTP or monthly-business claim.
+  assert.equal(preparation.newSavedCaptures,4);assert.equal(preparation.preparationPhaseSavedCaptures,2);
+  const recalculation=preparation.postPreparationRecalculation;
+  assert.equal(recalculation?.version,'own-annul-preparation-explicit-recalculation.v1');
+  assert.equal(recalculation.passed,true);assert.equal(recalculation.actualSql,true);assert.equal(recalculation.actualCalculationService,true);
+  assert.deepEqual(recalculation.dates,preparation.dates);assert.deepEqual(recalculation.partitions,[285,570]);
+  assert.equal(recalculation.populationUnion,855);assert.equal(recalculation.conceptRowsUnion,17100);
+  assert.equal(recalculation.addedCaptures,2);assert.equal(recalculation.addedSavedResults,2);
+  assert.equal(recalculation.addedLiquidationDecisions,0);assert.equal(recalculation.addedCloseEvents,0);
+  assert.equal(recalculation.before.captures,12);assert.equal(recalculation.before.saved,10);
+  assert.equal(recalculation.after.captures,14);assert.equal(recalculation.after.saved,12);
+  assert.equal(recalculation.recoveryAndReplayAddedRows,0);assert.equal(recalculation.previousRowsPreserved,true);
+  assert.equal(recalculation.fresh209ReadAfterFirstCapture,true);
+  assert.equal(recalculation.measurements.length,2);
+  assert.deepEqual(recalculation.measurements.map(row=>[row.date,row.employeeCount,row.conceptRows]),preparation.dates.map((date,index)=>[date,[285,570][index],[5700,11400][index]]));
+  for(const row of recalculation.measurements){assert.equal(row.recoveredIdentityAndHashesExact,true);assert.equal(row.replayedIdentityAndHashesExact,true);assert.equal(row.recoveryAndReplayAddedRows,0);}
+  assert.equal(recalculation.actualCalculationApiHandler,false);assert.equal(recalculation.actualHttp,false);assert.equal(recalculation.actualBrowser,false);
+  assert.equal(recalculation.atomicGetToCalculation,false);assert.equal(recalculation.durableReceiptLinkCreated,false);assert.equal(recalculation.receiptLinkedRecalculationExecuted,false);
+  assert.equal(recalculation.automaticRecalculation,false);assert.equal(recalculation.monthlyBusinessCovered,false);
+  assert.equal(recalculation.productionWrites,0);assert.equal(recalculation.paymentExecuted,false);assert.equal(recalculation.municipalAcceptance,false);
   assert.equal(report.continuation.monthlyBusinessCovered,false);
   assert.equal(report.productionWrites,0);assert.equal(report.municipalAcceptance,false);
   return report;
