@@ -15,6 +15,12 @@ test('Vercel bundle retains every pinned full-capacity source while private inpu
 test('M7 source bytes pin the exact canonical190 overlay and admitted source dependencies',()=>{
  for(const[file,digest]of Object.entries({...p.candidatePins,...p.dependencies}))assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),digest,file);
 });
+
+test('the reviewed calculation draft guard is the only change from its previously pinned panel',()=>{
+ const source=read('assets/own-payroll-run-panel.js'),after='else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();',before='else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();';
+ assert.equal(source.split(after).length,2,'the reviewed guard must occur exactly once');
+ assert.equal(hash(source.replace(after,before)),'5705172114c625dd2ad657ed3ba32c714e869866e230c83389910378a7d358ed','all other panel bytes must retain the previously admitted source');
+});
 test('trusted full transport leaves every other190 source byte equal to its parent',()=>{
  let source=read('scripts/verify-municipal-owner-program.mjs').replace(/\r\n/g,'\n');
  const changes=[
