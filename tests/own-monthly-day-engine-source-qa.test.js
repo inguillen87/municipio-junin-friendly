@@ -20,10 +20,15 @@ test('real run handler permits a read-only checker bootstrap and blocks POST bef
 import {monthlyDayQaNativeResult as native194GuardResult} from '../scripts/verify-own-monthly-day-policy.mjs';
 test('194 readonly beforeCheck selects command result handling and preserves the expected installation-phase rejection',()=>{
  const source=fs.readFileSync(new URL('../scripts/verify-own-monthly-day-engine-source.mjs',import.meta.url),'utf8');
- assert.ok(source.includes("run(tx([qa.normalized(qa.batch.beforeCheck)],{readOnly:true}))"),'The pin-only DO guard must run in the original readonly transaction without requiring a JSON output row');
- assert.equal(source.includes("json([qa.normalized(qa.batch.beforeCheck)],{readOnly:true})"),false);
- assert.ok(source.includes("expect(qa.local.installation,'MONTHLY194_PHASE_CHANGED')"),'The expected wrong-phase negative must stay intact');
- assert.ok(source.includes('run(tx(qa.local.rollback))'));assert.ok(source.includes('run(tx(qa.local.installation))'));assert.ok(source.includes('assert.deepEqual(outer(),installedBaseline)'));
+ const epochs=fs.readFileSync(new URL('../scripts/lib/own-monthly-day-technical-epochs.mjs',import.meta.url),'utf8');
+ assert.ok(source.includes("import{verifyOwnMonthlyDayTechnicalEpochs}from'./lib/own-monthly-day-technical-epochs.mjs';"));
+ assert.equal((source.match(/const technicalEpochs=verifyOwnMonthlyDayTechnicalEpochs\(/g)??[]).length,1,'The original runner delegates to the shared technical protocol exactly once');
+ assert.ok(source.includes("json:(statements,{expectJson=true,...opts}={})=>{assert.equal(typeof expectJson,'boolean','MONTHLY_TECHNICAL_EXPECT_JSON_INVALID');return expectJson?json(statements,opts):run(tx(statements,opts));}"),'The caller preserves readonly transaction options and selects no-row command handling only explicitly');
+ assert.ok(source.includes('expectRollback:expect,readFullSnapshot:outer'),'The shared helper keeps the original rejection callback and complete outer snapshot provider');
+ assert.ok(epochs.includes("json([qa.normalized(qa.batch.beforeCheck)],{readOnly:true,expectJson:false})"),'The pin-only DO guard still requires the original readonly transaction and no JSON output row');
+ assert.equal(epochs.includes("json([qa.normalized(qa.batch.beforeCheck)],{readOnly:true})"),false);
+ assert.ok(epochs.includes("expectRollback(qa.local.installation,'MONTHLY194_PHASE_CHANGED')"),'The expected wrong-phase negative must stay intact');
+ assert.ok(epochs.includes('json(qa.local.rollback,{expectJson:false})'));assert.ok(epochs.includes('json(qa.local.installation)'));assert.ok(epochs.includes('assert.deepEqual(readFullSnapshot(),installedBaseline)'));
 });
 test('194 readonly beforeCheck native parser accepts no-row command success but never relaxes JSON or failure contracts',()=>{
  const empty={status:0,signal:null,error:null,stdout:'',stderr:''};
