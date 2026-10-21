@@ -39,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Source contracts only; no constructor or native SQL in this step
-        run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
+        run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
       - run: npm run build
       - name: Prepare only the existing disposable synthetic service
         env:
@@ -71,9 +71,11 @@ jobs:
             scripts/lib/own-monthly-day-shared-prerequisites.mjs
             scripts/lib/own-monthly-day-policy-qa.mjs
             scripts/lib/own-payroll-full-capacity-190-*.mjs
+            scripts/lib/own-payroll-capacity-literal-additions.mjs
             scripts/migrations/200-own-payroll-report-census.sql
             scripts/migrations/201-own-full-payroll-decision-capacity.sql
             tests/own-payroll-full-capacity-190-source.test.js
+            tests/own-payroll-capacity-literal-additions.test.js
             tests/owner-program-qa-continuation-preparation.test.js
             tests/own-monthly-day-qa-foundation.test.js
             tests/own-monthly-day-technical-epochs.test.js

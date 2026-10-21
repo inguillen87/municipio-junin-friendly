@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
-import {rule,lit} from '../../tests/fixtures/own-payroll-synthetic.js';
+import {ownCapacityLiteralAdditions} from './own-payroll-capacity-literal-additions.mjs';
 import {salaryBootstrap,salaryItems,salaryRowKey} from '../../assets/native-salary-catalog-model.js';
 import {ownProgramBootstrap,ownProgramDefinition,ownProgramHistory} from '../../assets/own-payroll-program-model.js';
 import {ownRunOperation,RUN_CALCULATE,ownRunHash} from '../../lib/internal-own-payroll-run.js';
@@ -30,7 +30,7 @@ async function seedLiteralProgramme(db,qa){
  assert.equal(previous.rules.length,2,'M7_190_EXACT_PRIOR_PROGRAMME');assert.deepEqual(previous.rules.map(r=>r.code).sort(),['1','101']);assert.ok(previous.rules.every(r=>r.agreementCode==='1'&&r.validFrom==='2026-10'&&r.validUntil==='2026-10'));
  assert.equal(previous.rules.find(r=>r.code==='1').expression.value,'100.20','M7_190_EXISTING_APPROVED_EVOLUTION_REQUIRED');
  assert.equal(previous.bindings.length,1);assert.ok(previous.bindings.some(b=>b.agreementCode==='1'&&b.key==='month'&&b.unit==='units'&&b.sourceKind==='period_context_fact'&&b.sourceField==='monthNumber'&&b.onMissing==='error'&&b.combine==='single'),'M7_190_REAL_PERIOD_BINDING_REQUIRED');
- const additions=Array.from({length:18},(_,n)=>rule(String(700+n),lit('1.00','money'),{ruleReference:'Caso inventado M7 '+String(n+1)+': regla literal de un peso, sin norma municipal; conserva la referencia por concepto y empleado para cotejar captura, decisiones, cierre y reapertura completos.'}));
+ const additions=ownCapacityLiteralAdditions();assert.equal(additions.length,18,'M7_CAPACITY_LITERAL_ADDITIONS_COUNT');
  assert.ok(additions.every(r=>r.ruleReference.length<=180));
  for(const rule of additions){assert.ok(!previous.rules.some(old=>old.agreementCode===rule.agreementCode&&old.code===rule.code),'M7_CAPACITY_PROGRAMME_CODE_COLLISION');assert.ok(!salary.catalog.items.some(old=>old.agreementCode===rule.agreementCode&&old.code===rule.code),'M7_CAPACITY_CATALOGUE_CODE_COLLISION');}
  const addedItems=additions.map(r=>({active:true,agreementCode:'1',categoryCode:null,code:r.code,dependencies:[],kind:'concept',label:'Concepto exclusivamente sintético M7 '+r.code,nature:r.nature,precision:2,ruleReference:r.ruleReference,unit:r.unit,validFrom:r.validFrom,validUntil:null,value:null}));
