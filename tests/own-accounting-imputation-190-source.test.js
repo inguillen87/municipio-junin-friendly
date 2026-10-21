@@ -8,7 +8,13 @@ const raw=file=>fs.readFileSync(new URL('../'+file,import.meta.url)),read=file=>
 
 test('accounting/imputation190 private overlay pins whole sources and reverses each complete parent target',()=>{
  for(const target of p.targets){
-  let source=raw(target.path);assert.equal(hash(source),target.afterSha256,target.path);
+  let source=raw(target.path);
+  if(target.path==='scripts/verify-own-payroll-full-capacity.mjs'){
+   const alias='export {entries as OWN_FULL_CAPACITY_190_QA_ENTRIES};\n',text=source.toString('utf8');
+   assert.equal(text.split(alias).length,2,'only the shared entry export may extend the complete original wrapper');
+   source=Buffer.from(text.replace(alias,''));
+  }
+  assert.equal(hash(source),target.afterSha256,target.path);
   for(const op of [...target.inverse].reverse()){
    const after=Buffer.from(op.afterBase64,'base64'),before=Buffer.from(op.beforeBase64,'base64');
    assert.deepEqual(source.subarray(op.afterOffset,op.afterOffset+after.length),after,target.path);

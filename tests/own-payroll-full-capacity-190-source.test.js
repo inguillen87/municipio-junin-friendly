@@ -18,6 +18,14 @@ test('M7 source bytes pin the exact canonical190 overlay and admitted source dep
 test('trusted full transport leaves every other190 source byte equal to its parent',()=>{
  let source=read('scripts/verify-municipal-owner-program.mjs').replace(/\r\n/g,'\n');
  const changes=[
+  ["import {prepareOwnerProgramQaContinuation} from './lib/owner-program-qa-continuation-preparation.mjs';\n",''],
+  ['export async function verifyMunicipalOwnerProgram(options,{continuation=null,continuationEntries=[],prepareContinuation=null}={}){','export async function verifyMunicipalOwnerProgram(options,{continuation=null,continuationEntries=[]}={}){'],
+  [" assert.ok(prepareContinuation===null||typeof prepareContinuation==='function','OWNER_PROGRAM_QA_PREPARATION_INVALID');assert.ok(prepareContinuation===null||continuation!==null,'OWNER_PROGRAM_QA_PREPARATION_REQUIRES_CONTINUATION');\n",''],
+  [' const preparedContinuation=prepareOwnerProgramQaContinuation(prepareContinuation,{qa,major,sourceCommit,read});\n',''],
+  ['...continuationEntries,...preparedContinuation.sourceEntries','...continuationEntries'],
+  ['   let continuationResult=null;if(continuation){','  let continuationResult=null;if(continuation){'],
+  ['destination,prepared:preparedContinuation.context,json:','destination,json:'],
+  ["expectRollback:(statements,code,options={})=>{assert.match(code,/^[A-Z][A-Z0-9_]{2,80}$/,'OWNER_PROGRAM_QA_EXPECTED_CODE_INVALID');return run(tx(statements,{...options,end:'ROLLBACK'}),code);},readFullSnapshot:snapshot,setPhase:value=>{assert.equal(typeof value,'string');phase=value;},",''],
   ["const run=(sql,expected,{fullJson=false}={})=>{assert.equal(typeof fullJson,'boolean','OWNER_PROGRAM_QA_FULL_PROFILE_INVALID');",'const run=(sql,expected)=>{'],
   ['maxBuffer:fullJson===true?40*1024*1024:20*1024*1024','maxBuffer:20*1024*1024'],
   ["json:(statements,{fullJson=false,...options}={})=>{assert.equal(typeof fullJson,'boolean','OWNER_PROGRAM_QA_FULL_PROFILE_INVALID');return run(tx(statements,options),undefined,{fullJson});}",'json:(statements,options={})=>run(tx(statements,options))']
@@ -46,4 +54,33 @@ test('every continuation entry satisfies the unchanged exact190 entry guard',()=
  assert.ok(runner.includes("Array.isArray(continuationEntries)&&continuationEntries.every(value=>typeof value==='string'&&!value.startsWith('.')&&!value.includes('..'))"));
  assert.ok(Array.isArray(entries)&&entries.every(value=>typeof value==='string'&&!value.startsWith('.')&&!value.includes('..')),'the real190 guard must admit every declared continuation entry');
  assert.ok(!entries.includes('.github/workflows/own-payroll-full-capacity.yml'));assert.ok(Object.hasOwn(p.candidatePins,'.github/workflows/own-payroll-full-capacity.yml'),'workflow stays pinned separately as non-runtime source metadata');
+});
+
+test('the joint CI entry shares the existing190 foundation and unchanged855 continuation without claiming monthly business coverage',()=>{
+ const source=read('scripts/verify-own-monthly-payroll-full-capacity.mjs'),host=read('scripts/verify-municipal-owner-program.mjs'),wrapper=read('scripts/verify-own-payroll-full-capacity.mjs');
+ assert.ok(source.includes("import {OWN_FULL_CAPACITY_190_QA_ENTRIES} from './verify-own-payroll-full-capacity.mjs'"));
+ assert.ok(wrapper.includes('export {entries as OWN_FULL_CAPACITY_190_QA_ENTRIES};'));
+ assert.ok(source.includes('foundation: h.qa'));assert.ok(source.includes('schema: h.qa.schema'));
+ for(const token of ['assert.strictEqual(monthly.qa192.qa, h.qa','assert.strictEqual(monthly.actor, h.qa.actor','assert.strictEqual(monthly.checker, h.qa.checker','sourceEntries: Object.keys(monthly.sourceHashes)','prepareContinuation: prepareMonthly, continuation: monthlyThenFull','monthlyBusinessCovered: false','capacity.population, 855','capacity.conceptRows, 17100'])assert.ok(source.includes(token),token);
+ assert.equal((source.match(/await runOwnFullCapacity190Continuation\(h\)/g)??[]).length,1);
+ assert.equal((source.match(/await verifyMunicipalOwnerProgram\(/g)??[]).length,1);
+ assert.ok(!/buildOwnerProgramQa\(|ownerAdoptionQaTransport\(|CREATE SCHEMA|CREATE DATABASE|capabilitySeed/.test(source));
+ assert.ok(!/(?:h\.)?(?:json|expectRollback)\([^;\n]*(?:\.seed\b|predecessorInstallation|qa\.local\.installation)/.test(source),'the joint entry must not execute another foundation seed or installation');
+ for(const token of ["h.qa.seed, h.qa.predecessorInstallation.join(';\\n'), h.qa.local.installation.join(';\\n')",'h.qa.foundation.foundation.foundation.owner.definitions','monthly.qa193.foundation.base.definitions, monthly.qa193.foundation.seed','expected: monthly.batch.declaration.prerequisitePins','assertOwnMonthlyDaySharedPrerequisites({','nativeExecutionProven, false'])assert.ok(source.includes(token),token);
+ assert.ok(source.indexOf('verifyOwnMonthlyDayTechnicalEpochs({')<source.indexOf('await runOwnFullCapacity190Continuation(h)'));
+ assert.ok(host.indexOf('const preparedContinuation=prepareOwnerProgramQaContinuation(')<host.indexOf('const sourceClosure='));
+ assert.ok(host.includes('...continuationEntries,...preparedContinuation.sourceEntries'));
+ assert.ok(host.includes("run(tx(statements,{...options,end:'ROLLBACK'}),code)"));
+ assert.ok(host.includes('readFullSnapshot:snapshot'));assert.ok(host.includes('prepared:preparedContinuation.context'));
+});
+
+test('normal full-capacity CI selects the shared entry while the independent monthly four-cell business flow stays declared',()=>{
+ const workflow=read('.github/workflows/own-payroll-full-capacity.yml'),monthly=read('.github/workflows/own-monthly-day-engine-source.yml');
+ const commands=[...workflow.matchAll(/run: node (scripts\/verify-[^\n]+)/g)].map(match=>match[1]);
+ assert.deepEqual(commands,['scripts/verify-own-monthly-payroll-full-capacity.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}']);
+ for(const file of ['tests/own-payroll-full-capacity-190-source.test.js','tests/owner-program-qa-continuation-preparation.test.js','tests/own-monthly-day-qa-foundation.test.js','tests/own-monthly-day-technical-epochs.test.js','tests/own-monthly-day-shared-prerequisites.test.js'])assert.ok(workflow.includes(file),file);
+ for(const file of ['scripts/verify-own-monthly-payroll-full-capacity.mjs','scripts/verify-municipal-owner-program.mjs','scripts/verify-own-monthly-day-engine-source.mjs','scripts/lib/owner-program-qa-continuation-preparation.mjs','scripts/lib/own-monthly-day-qa-foundation.mjs','scripts/lib/own-monthly-day-technical-epochs.mjs','scripts/lib/own-monthly-day-shared-prerequisites.mjs'])assert.ok(workflow.slice(workflow.indexOf('path: |')).includes(file),file);
+ assert.ok(monthly.includes('pg: [17, 18]'));assert.ok(monthly.includes('operational_pair_baseline: [pre107, published107]'));
+ assert.ok(monthly.includes('node scripts/verify-own-monthly-day-engine-source.mjs --fixed-composition=196 --novelty-succession=197'));
+ assert.ok(monthly.includes('--operational-pair-baseline=${{ matrix.operational_pair_baseline }}'));
 });
