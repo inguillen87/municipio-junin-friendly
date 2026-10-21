@@ -37,6 +37,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: mkdir -p verification
+      - name: Record receipt source before verification
+        run: |
+          git rev-parse HEAD > verification/own-receipts-source-before-commit.txt
+          git diff --exit-code HEAD -- assets/own-payroll-receipt-pdf.js assets/own-payroll-receipt-model.js tests/own-payroll-receipts.test.js tests/own-payroll-receipt-pdf-layout.test.js tests/own-payroll-receipt-pdf-totals-pagination.test.js tests/fixtures/own-payroll-receipt-synthetic.js .github/workflows/own-payroll-receipts.yml
+          sha256sum -- assets/own-payroll-receipt-pdf.js assets/own-payroll-receipt-model.js tests/own-payroll-receipts.test.js tests/own-payroll-receipt-pdf-layout.test.js tests/own-payroll-receipt-pdf-totals-pagination.test.js tests/fixtures/own-payroll-receipt-synthetic.js .github/workflows/own-payroll-receipts.yml > verification/own-receipts-source-before.sha256
+          cp -- .github/workflows/own-payroll-receipts.yml verification/own-receipts-workflow.yml
       - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: node --test tests/own-payroll-receipt*.test.js tests/own-payroll-close*.test.js
       - run: node scripts/verify-own-payroll-receipts.mjs --major=${{ matrix.major }} --output=verification/own-receipts-sql.json
@@ -46,11 +52,34 @@ jobs:
       - run: node scripts/verify-own-payroll-receipt-types-browser.mjs --output=verification/own-receipt-types-operator-browser
       - run: node scripts/verify-own-payroll-receipt-description-browser.mjs --output=verification/own-receipt-descriptions-operator-browser
       - run: node scripts/verify-own-payroll-receipt-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-receipts-ui.json
+      - name: Verify receipt source after verification
+        if: always()
+        run: |
+          git rev-parse HEAD > verification/own-receipts-source-after-commit.txt
+          sha256sum -- assets/own-payroll-receipt-pdf.js assets/own-payroll-receipt-model.js tests/own-payroll-receipts.test.js tests/own-payroll-receipt-pdf-layout.test.js tests/own-payroll-receipt-pdf-totals-pagination.test.js tests/fixtures/own-payroll-receipt-synthetic.js .github/workflows/own-payroll-receipts.yml > verification/own-receipts-source-after.sha256
+          cmp verification/own-receipts-source-before-commit.txt verification/own-receipts-source-after-commit.txt
+          cmp verification/own-receipts-source-before.sha256 verification/own-receipts-source-after.sha256
+          git diff --exit-code HEAD -- assets/own-payroll-receipt-pdf.js assets/own-payroll-receipt-model.js tests/own-payroll-receipts.test.js tests/own-payroll-receipt-pdf-layout.test.js tests/own-payroll-receipt-pdf-totals-pagination.test.js tests/fixtures/own-payroll-receipt-synthetic.js .github/workflows/own-payroll-receipts.yml
+          cmp .github/workflows/own-payroll-receipts.yml verification/own-receipts-workflow.yml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: receipts-operator-ux-pg${{ matrix.major }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            verification/own-receipts-source-before-commit.txt
+            verification/own-receipts-source-after-commit.txt
+            verification/own-receipts-source-before.sha256
+            verification/own-receipts-source-after.sha256
+            verification/own-receipts-sql.json
+            verification/own-receipts-installation.json
+            verification/own-receipts-ui.json
+            assets/own-payroll-receipt-pdf.js
+            assets/own-payroll-receipt-model.js
+            tests/own-payroll-receipts.test.js
+            tests/own-payroll-receipt-pdf-layout.test.js
+            tests/own-payroll-receipt-pdf-totals-pagination.test.js
+            tests/fixtures/own-payroll-receipt-synthetic.js
+            verification/own-receipts-workflow.yml
             verification/own-receipt-descriptions-operator-browser/
             verification/own-receipt-types-operator-browser/result.json
             verification/own-receipt-types-operator-browser/partial.json

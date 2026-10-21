@@ -5,7 +5,7 @@ import {ownReceiptPages} from '../assets/own-payroll-receipt-pdf.js';
 
 // Independent output geometry: known Helvetica AFM advances of this deliberately
 // finite glyph set. No product width/wrap helper is imported by these tests.
-const advances={'W':944,'i':222,'0':556,'1':556,'2':556,'3':556,'4':556,'5':556,'6':556,'7':556,'8':556,'9':556,'$':556,' ':278,'.':278,',':278,'-':333};
+const advances={'W':944,'i':222,'0':556,'1':556,'2':556,'3':556,'4':556,'5':556,'6':556,'7':556,'8':556,'9':556,'$':556,' ':278,'.':278,',':278,'-':333,'U':722,'n':556,'d':556,'a':556,':':278,'(':333,')':333,'u':556,'c':500,'o':556,'s':500,'e':556,'r':333,'v':500};
 const width=(text,size)=>[...text].reduce((n,char)=>{assert.ok(Object.hasOwn(advances,char),'TEST_GLYPH_NOT_DECLARED');return n+advances[char]*size/1000;},0);
 function texts(pages){
  const pattern=/^BT \/(F[12]) ([0-9.]+) Tf [0-9. ]+ rg 1 0 0 1 (-?[0-9.]+) (-?[0-9.]+) Tm <([a-f0-9]*)> Tj ET$/;
@@ -59,4 +59,38 @@ test('long concept rows keep every code, description and complete amount across 
  assert.equal(draws.filter(x=>/^W+$/.test(x.text)).map(x=>x.text).join(''),'W'.repeat(80*180));
  assert.equal(draws.filter(x=>x.text==='$ 1,00').length,80);
  for(const row of draws.filter(x=>/^W+$/.test(x.text)||x.text==='$ 1,00')){assert.ok(row.y>=78&&row.y<=796);assert.ok(row.x+width(row.text,row.size)<=553+1e-7);}
+});
+
+for(const count of [50,160])test('a valid '+count+'-character wide employee name stays complete within every header',()=>{
+ const f=fixture('i'.repeat(10),'1.00');f.record.name='W'.repeat(count);ownReceiptRecord(f.record);const before=structuredClone(f),pages=ownReceiptPages(f.record,f.params,f.source),draws=texts(pages);
+ for(let page=0;page<pages.length;page++){
+  const names=draws.filter(row=>row.page===page&&row.font==='F2'&&row.size===11&&/^W+$/.test(row.text));
+  assert.equal(names.map(row=>row.text).join(''),f.record.name,'each continuation header retains the full source identity');
+  for(const row of names)assert.ok(row.x>=38&&row.x+width(row.text,row.size)<=553+1e-7,'employee name stays inside the page');
+ }
+ assert.deepEqual(f,before);
+});
+
+for(const field of ['issuer-name','issuer-address','legend'])test('a valid wide '+field+' wraps by its actual font without omitting text',()=>{
+ const f=fixture('i'.repeat(10),'1.00'),value='W'.repeat(field==='issuer-name'?160:240);
+ if(field==='issuer-name')f.params.issuer.name=value;else if(field==='issuer-address')f.params.issuer.address=value;else f.params.legend=value;
+ ownReceiptParams(f.params);const before=structuredClone(f),draws=texts(ownReceiptPages(f.record,f.params,f.source)),rows=draws.filter(row=>/^W+$/.test(row.text));
+ assert.equal(rows.map(row=>row.text).join(''),value,'all declared text remains in the output');
+ for(const row of rows){assert.equal(row.size,9);assert.ok(row.x>=38&&row.x+width(row.text,row.size)<=553+1e-7,'declared text stays inside the page');assert.ok(row.y>=78);}
+ assert.deepEqual(f,before);
+});
+
+test('a model-valid eighty-character unit keeps its complete literal inside the description column',()=>{
+ const f=fixture('i'.repeat(10),'1.00');f.record.concepts[0].unit='W'.repeat(80);ownReceiptRecord(f.record);const before=structuredClone(f),draws=texts(ownReceiptPages(f.record,f.params,f.source)),rows=draws.filter(row=>row.x===92&&row.size===8);
+ assert.equal(rows.map(row=>row.text).join('').replace(/\s+/g,''),'Unidad:'+f.record.concepts[0].unit+'(unidadconservada)');
+ for(const row of rows)assert.ok(row.x===92&&row.x+width(row.text,row.size)<=553+1e-7,'unit stays inside the same description column');
+ assert.deepEqual(f,before);
+});
+
+test('the complete provenance block stays together after valid long identity and issuer text',()=>{
+ const f=fixture('i'.repeat(10),'1.00');f.record.name='W'.repeat(160);f.record.concepts[0].unit='W'.repeat(80);f.params.issuer.name='W'.repeat(160);f.params.issuer.address='W'.repeat(240);f.params.legend='W'.repeat(240);
+ ownReceiptRecord(f.record);ownReceiptParams(f.params);const before=structuredClone(f),draws=texts(ownReceiptPages(f.record,f.params,f.source)),heading=draws.find(row=>row.text==='Origen y estado del documento');assert.ok(heading);
+ const lines=draws.filter(row=>/^(Identidad del registro municipal|Emisión:|Grupo cerrado:|Huella del cierre:|No acredita firma digital, imputación ni ejecución de pago\.)/.test(row.text));assert.equal(lines.length,5);
+ for(const row of lines){assert.equal(row.page,heading.page,'the provenance heading, references and final warning form one complete block');assert.ok(row.y>=78);}
+ assert.deepEqual(f,before);
 });
