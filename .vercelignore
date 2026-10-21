@@ -410,3 +410,6 @@ local-agents/
 !scripts/migrations/192-own-monthly-day-full-month-policy.sql
 !scripts/migrations/193-own-monthly-day-declaration.sql
 !scripts/migrations/194-own-monthly-day-engine-source.sql
+
+!scripts/sql/own-monthly-day-fixed-v1-composition.fragment.sql
+!scripts/migrations/197-own-novelty-succession.sql
