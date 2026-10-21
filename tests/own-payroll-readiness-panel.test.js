@@ -122,6 +122,32 @@ test('volver visible revalida sólo GET y restaura fecha y reparticiones del bor
  assert.equal(h.q('fields').disabled,false);assert.equal(h.q('readiness-check').disabled,false);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),selected);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
  const reads=h.requests.slice(before);assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.ok(reads.some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));assert.ok(reads.every(r=>r.method==='GET'));assert.ok(reads.every(r=>!r.url.includes('resource=attempt')&&!r.url.includes('resource=detail')));
 });
+for(const kind of ['departments','contracts'])for(const holdTarget of ['/api/internal-own-payroll-run?resource=bootstrap&contractVersion=2','/api/internal-own-payroll-program?resource=bootstrap','roster'])test('doble ocultamiento conserva el borrador durante la revalidación '+kind+' '+holdTarget,async t=>{
+ const h=harness(t);await h.start();await h.prepare();
+ let selected;
+ if(kind==='departments'){h.q('kind').value=kind;await h.q('kind').emit('change');h.q('codes').options[0].selected=true;selected=h.q('codes').selectedOptions.map(option=>option.value);}
+ else{const d=await searchOwnPicker(h,h.state.roster.rows[0].legajo),row=d.querySelectorAll('[data-picker-results] input')[0];assert.ok(row);row.checked=true;await row.emit('change');await d.querySelector('[data-picker-apply]').emit('click');selected=h.state.roster.rows[0].legajo;assert.match(h.q('chips').textContent,new RegExp(selected));}
+ const heldUrl=holdTarget==='roster'?h.requests.find(request=>request.url.startsWith('/api/internal-data?resource=nativeroster')).url:holdTarget;
+ const before=h.requests.length;h.document.hidden=true;h.event('visibilitychange');
+ let release;h.state.hold={url:heldUrl,wait:new Promise(resolve=>{release=resolve;})};
+ h.document.hidden=false;h.event('visibilitychange');
+ const deadline=performance.now()+5000;while(!h.requests.slice(before).some(request=>request.url===heldUrl)){if(performance.now()>deadline)assert.fail('Revalidation did not reach the held synthetic GET');await settle();}
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('date').value,'');assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);
+ h.state.hold=null;release();await settle();const resumedAt=h.requests.length;h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,kind);
+ if(kind==='departments')assert.deepEqual(h.q('codes').selectedOptions.map(option=>option.value),selected);else{assert.equal(h.q('chips').children.length,1);assert.equal(h.q('chips').children[0].querySelector('button').getAttribute('aria-label'),'Quitar legajo '+selected);}
+ assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
+ const reads=h.requests.slice(before),fresh=h.requests.slice(resumedAt);assert.ok(reads.every(request=>request.method==='GET'));assert.equal(fresh.filter(request=>request.url==='/api/internal-auth').length,2);assert.ok(fresh.some(request=>request.url.startsWith('/api/internal-data?resource=nativeroster')));assert.equal(h.requests.filter(request=>request.method==='POST').length,0);
+});
+
+for(const change of ['account','nominal-permission'])test('doble ocultamiento descarta el borrador al cambiar '+change,async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');h.q('codes').options[0].selected=true;
+ h.document.hidden=true;h.event('visibilitychange');let release;const url='/api/internal-own-payroll-program?resource=bootstrap';h.state.hold={url,wait:new Promise(resolve=>{release=resolve;})};const before=h.requests.length;h.document.hidden=false;h.event('visibilitychange');
+ const deadline=performance.now()+5000;while(!h.requests.slice(before).some(request=>request.url===url)){if(performance.now()>deadline)assert.fail('Revalidation did not reach the held synthetic programme');await settle();}
+ h.document.hidden=true;h.event('visibilitychange');h.state.hold=null;release();await settle();if(change==='account')h.state.sessionId=uid(31);else h.state.caps=h.state.caps.filter(cap=>cap!=='payroll.calculation.nominal.read');h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('date').value,'');assert.equal(h.q('codes').selectedOptions.length,0);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(request=>request.method==='POST').length,0);
+});
+
 test('un envío incierto conserva cuerpo y clave al volver visible y nunca se reintenta automáticamente',async t=>{
  const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);const count=h.requests.length;
  h.document.hidden=true;h.event('visibilitychange');h.state.roster=ownRoster(0);h.state.program=bootstrap();h.document.hidden=false;h.event('visibilitychange');await h.idle();
