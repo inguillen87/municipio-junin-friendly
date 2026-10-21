@@ -131,7 +131,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
     if(!preservePreparation)suspendedPreparation=null;
-    else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();
+    else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();
     queuedPreparation=null;
     seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message,'warning');controls();
   }
