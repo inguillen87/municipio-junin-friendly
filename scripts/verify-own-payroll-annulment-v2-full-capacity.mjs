@@ -83,6 +83,24 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(recalculation.atomicGetToCalculation,false);assert.equal(recalculation.durableReceiptLinkCreated,false);assert.equal(recalculation.receiptLinkedRecalculationExecuted,false);
   assert.equal(recalculation.automaticRecalculation,false);assert.equal(recalculation.monthlyBusinessCovered,false);
   assert.equal(recalculation.productionWrites,0);assert.equal(recalculation.paymentExecuted,false);assert.equal(recalculation.municipalAcceptance,false);
+  // A further explicit reviewer phase; the previous recalculation phase stays unchanged.
+  const confirmationClose=preparation.postPreparationConfirmationClose;
+  assert.equal(confirmationClose?.version,'own-annul-preparation-explicit-confirm-close.v1');assert.equal(confirmationClose.passed,true);
+  assert.equal(confirmationClose.actualSql,true);assert.equal(confirmationClose.actualLiquidationService,true);assert.equal(confirmationClose.actualCloseService,true);
+  assert.equal(confirmationClose.sourceRunIds.length,2);assert.equal(new Set(confirmationClose.sourceRunIds).size,2);assert.equal(confirmationClose.exactNewRunIds,true);
+  assert.equal(confirmationClose.confirmedRuns,2);assert.equal(confirmationClose.confirmedPopulation,855);assert.equal(confirmationClose.closedPopulation,855);assert.equal(confirmationClose.closedConceptRows,17100);
+  assert.equal(confirmationClose.addedCaptures,0);assert.equal(confirmationClose.addedSavedResults,0);assert.equal(confirmationClose.addedLiquidationDecisions,2);assert.equal(confirmationClose.addedCloseEvents,1);
+  assert.deepEqual(confirmationClose.before,recalculation.after);assert.equal(confirmationClose.after.captures,14);assert.equal(confirmationClose.after.saved,12);
+  assert.equal(confirmationClose.after.liquidationEvents,confirmationClose.before.liquidationEvents+2);assert.equal(confirmationClose.after.closeEvents,confirmationClose.before.closeEvents+1);assert.equal(confirmationClose.after.creators,confirmationClose.before.creators);
+  assert.equal(confirmationClose.confirmationMeasurements.length,2);assert.deepEqual(confirmationClose.confirmationMeasurements.map(row=>[row.date,row.employeeCount]),preparation.dates.map((date,index)=>[date,[285,570][index]]));
+  for(const row of confirmationClose.confirmationMeasurements){assert.ok(confirmationClose.sourceRunIds.includes(row.runId));assert.equal(row.recoveryAndReplayAddedRows,0);assert.equal(row.storedIdentityAndHashesExact,true);for(const key of['detailBytes','receiptBytes','recoveryBytes','replayBytes'])assert.ok(Number.isSafeInteger(row[key])&&row[key]>0&&row[key]<=32*1024*1024);}
+  assert.equal(confirmationClose.closeRecoveryMeasurements.length,3);assert.deepEqual(confirmationClose.closeRecoveryMeasurements.map(row=>row.operation),['group','attempt','command']);
+  for(const row of confirmationClose.closeRecoveryMeasurements){assert.ok(Number.isSafeInteger(row.bytes)&&row.bytes>0&&row.bytes<=32*1024*1024);assert.equal(row.recoveryAndReplayAddedRows,0);assert.equal(row.storedIdentityAndHashesExact,true);}
+  for(const key of['closeDetailBytes','closeReceiptBytes'])assert.ok(Number.isSafeInteger(confirmationClose[key])&&confirmationClose[key]>0&&confirmationClose[key]<=32*1024*1024);
+  assert.equal(confirmationClose.legacyDetailRejected,confirmationClose.closeDetailBytes>4*1024*1024);assert.equal(confirmationClose.legacyReceiptRejections,confirmationClose.closeRecoveryMeasurements.filter(row=>row.bytes>4*1024*1024).length);
+  assert.equal(confirmationClose.recoveryAndReplayAddedRows,0);assert.equal(confirmationClose.previousRunStatesPreserved,true);assert.equal(confirmationClose.previousRowsPreserved,true);assert.equal(confirmationClose.oldGroupPreserved,true);assert.equal(confirmationClose.originalPreparationRejectedByCurrentState,true);
+  assert.equal(confirmationClose.actualApiHandler,false);assert.equal(confirmationClose.actualHttp,false);assert.equal(confirmationClose.actualBrowser,false);assert.equal(confirmationClose.atomicGetToCalculation,false);assert.equal(confirmationClose.durableReceiptLinkCreated,false);assert.equal(confirmationClose.receiptLinkedRecalculationExecuted,false);
+  assert.equal(confirmationClose.monthlyBusinessCovered,false);assert.equal(confirmationClose.ownPayrollReceiptsPrepared,false);assert.equal(confirmationClose.productionWrites,0);assert.equal(confirmationClose.paymentExecuted,false);assert.equal(confirmationClose.municipalAcceptance,false);
   assert.equal(report.continuation.monthlyBusinessCovered,false);
   assert.equal(report.productionWrites,0);assert.equal(report.municipalAcceptance,false);
   return report;
