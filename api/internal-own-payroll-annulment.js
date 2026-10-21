@@ -1,3 +1,5 @@
+import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
+import {supportsOwnPayrollStream,sendOwnPayrollStream} from '../lib/own-payroll-response.js';
 import {requireCompatibleInternalAccess} from '../lib/internal-access-gateway.js';
 import {actionMutationSession,getActionCenterSql} from './internal-actions.js';
 import {principalHasCapabilities} from '../lib/internal-resource-access.js';
@@ -15,6 +17,8 @@ export function createOwnAnnulHandler(deps={}){
  const env=deps.env??process.env,authorize=deps.requireAccess??requireCompatibleInternalAccess,getSql=deps.getSql??getActionCenterSql,sessionFor=deps.sessionFor??actionMutationSession;
  return async(req,res)=>{schoolCertificateHttp.headers(res);try{
   const method=req.method||'GET',q=req.query??{};let operation,input;
+   const fullJson=schoolCertificateHttp.header(req,'accept').trim().toLowerCase()===OWN_RUN_FULL_JSON;
+   if(fullJson&&!supportsOwnPayrollStream(res))liquidationFail('UNAVAILABLE',503,'No está disponible la lectura completa. Consultá el mismo intento.');
   if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');liquidationFail('METHOD_INVALID',405,'Método no admitido.');}
   if(!q||typeof q!=='object'||Array.isArray(q)||Object.values(q).some(v=>typeof v!=='string'))liquidationFail('QUERY_INVALID',400,'Consulta inválida.');
   if(req.url){const entries=[...new URL(req.url,'http://local.invalid').searchParams];if(entries.length!==Object.keys(q).length||entries.some(([k,v])=>q[k]!==v)||new Set(entries.map(([k])=>k)).size!==entries.length)liquidationFail('QUERY_INVALID',400,'Consulta ambigua.');}
@@ -32,7 +36,7 @@ export function createOwnAnnulHandler(deps={}){
    if(!salaryExact(body,['operation','payload'])||body.operation!=='command')liquidationFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');
    let payload;try{payload=ownAnnulCommand(body.payload);}catch{liquidationFail('INPUT_INVALID',422,'Revisá período, tipo, alcance y motivo.');}input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
   }
-  const data=await ownAnnulOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
- }catch(e){const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):liquidationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};
+  const data=await ownAnnulOperation(await getSql(env),access.principal,session,operation,input,{fullJson});if(data.replayed)res.setHeader('Idempotency-Replayed','true');const status=method==='POST'&&!data.replayed?201:200;if(fullJson)return await sendOwnPayrollStream(res,status,data);return res.status(status).json({ok:true,data});
+ }catch(e){if(res.headersSent){res.destroy();return;}const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):liquidationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};
 }
 export default createOwnAnnulHandler();

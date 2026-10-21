@@ -137,7 +137,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   async function request(url,options={}){
     if(!live())throw Object.assign(Error('Pantalla no visible.'),{name:'AbortError'});
-    const full=url===endpoint||url.startsWith(endpoint+'?');
+    const full=[endpoint,'/api/internal-own-payroll-liquidation','/api/internal-own-payroll-annulment'].some(path=>url===path||url.startsWith(path+'?'));
     const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:full?OWN_RUN_FULL_JSON:'application/json',...options.headers},signal:controller?.signal});
     let payload;try{payload=await readOwnPayrollResponse(response,{maxBytes:full?OWN_RUN_FULL_MAX_BYTES:OWN_RUN_MAX_RESPONSE,signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error(e.message||'La respuesta no pudo verificarse. Consultá el mismo intento.');}
     if(!response.ok||payload?.ok!==true){const error=Error(errors[payload?.code]??(response.status===401?'La sesión venció. Volvé a ingresar.':response.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=response.status;error.code=payload?.code;throw error;}
