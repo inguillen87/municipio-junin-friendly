@@ -1,0 +1,13 @@
+// Definition/items only. No invented proposal, approval, identity or capture.
+import{ownProgramDefinition}from'../../assets/own-payroll-program-model.js';
+import{salaryItems}from'../../assets/native-salary-catalog-model.js';
+import{participationRuleKey}from'../../assets/own-period-participation-program.js';
+export function monthlyDaySqlFixture(period='2027-02'){
+ const rule=(code,nature,unit,expression)=>({agreementCode:'1',code,nature,unit,validFrom:period,validUntil:period,liquidationTypes:['monthly'],expression,rounding:{precision:unit==='money'?2:0,mode:'exact'},ruleReference:'Fórmula exclusivamente sintética QA192'});
+ const input=(key,unit)=>({op:'input',key,unit}),aux=code=>({op:'auxiliary',code,stage:'exact'});
+ const rules=[rule('919200','remuneration','money',{op:'multiply',left:{op:'literal',unit:'money',value:'60'},right:{op:'divide',left:aux('919201'),right:aux('919202')}}),rule('919201','auxiliary','days',input('recognizedDays','days')),rule('919202','auxiliary','days',input('baseDays','days')),rule('919203','auxiliary','units',input('recognizedUnits','units')),rule('919204','auxiliary','units',input('baseUnits','units'))];
+ const bind=(key,sourceKind,sourceField,unit)=>({agreementCode:'1',key,sourceKind,sourceField,unit,onMissing:'error',combine:'single',ruleReference:'Entrada exclusivamente sintética QA192'});
+ const items=salaryItems(rules.map(r=>({kind:r.nature==='auxiliary'?'auxiliary':'concept',agreementCode:r.agreementCode,categoryCode:null,code:r.code,label:'Registro exclusivamente sintético QA192 '+r.code,nature:r.nature,unit:r.unit,precision:r.unit==='money'?2:0,value:null,validFrom:period,validUntil:period,ruleReference:'Metadata sintética QA192; ninguna norma municipal',dependencies:[],active:true})));
+ const definition=ownProgramDefinition({namespaceVersion:'own-payroll-namespaces.v2',monthlyDaysVersion:'own-monthly-day-facts.v2',monthlyDaysPolicy:{version:'own-monthly-day-policy.v1',basis:'verified_full_month',unit:'days',recognizedDays:'30',baseDays:'30',partial:'reject',reference:'Política exclusivamente sintética QA192; no municipal'},totalsPrecision:2,rules,bindings:[bind('recognizedDays','monthly_day_fact','recognizedDays','days'),bind('baseDays','monthly_day_fact','baseDays','days'),bind('recognizedUnits','period_fact','recognizedUnits','units'),bind('baseUnits','period_fact','baseUnits','units')],periodParticipation:{version:'own-period-participation.v1',fullPeriod:'neutral_fraction',fixedValidity:'reject',treatments:rules.map(r=>({ruleKey:participationRuleKey(r),treatment:'declared_formula',reference:'Fórmula sintética explícita sin segunda fracción'}))}},items);
+ return{period,items,definition,expectedNet:'60.00',municipalFormula:false,approvalFabricated:false};
+}

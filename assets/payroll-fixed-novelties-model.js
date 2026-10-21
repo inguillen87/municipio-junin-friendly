@@ -233,3 +233,8 @@ export function fixedJunin638Data(payload,list){
   });
   return freeze({...d,rows,format:{...d.format},effects:effects(d.effects)});
 }
+
+// Shared row/effects validation for explicit complete-read protocols.
+// The v1 envelopes and their500-row limits remain unchanged.
+export const fixedRegistryRecord=value=>freeze(record(value));
+export const fixedRegistryEffects=value=>freeze(effects(value));

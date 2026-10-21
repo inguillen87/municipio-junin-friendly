@@ -72,6 +72,7 @@ test('relocated function metadata matches the checked schema and preserves canon
 test('source drift, lost guards and database-derived alternatives are refused',()=>{
  for(const patch of[{schema:'public'},{sourceCommit:'master'},{readyDefinition:'BEGIN NULL;END'},{fixtureBeforeSha256:'a'.repeat(64)},{databaseBody:'BEGIN NULL;END'}])assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,...patch}));
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p==='scripts/verify-own-period-participation.mjs'?'\n-- drift':'')}),/FIXTURE_SOURCE_CHANGED/);
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p==='scripts/lib/noelia-payroll-circuit-qa.mjs'?'\n-- unreviewed Noelia source drift':'')}),/FIXTURE_SOURCE_CHANGED/);
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,relocate:s=>relocate(s).replaceAll('SQL130_NEW_OBJECTS_NOT_EMPTY','lost')}),/READY_GUARD_LOST/);
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,beforePins:batch.beforePins.map(p=>p.name==='municipal_adoption_ready_v1'?{...p,sha256:'b'.repeat(64)}:p)}}));
 });
