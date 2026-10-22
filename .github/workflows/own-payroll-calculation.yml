@@ -135,5 +135,11 @@ jobs:
             verification/own-run-ui.json
             verification/own-run-ui-*.png
             verification/own-run-ui-failure.log
+            verification/own-program-ui.json
+            verification/own-program-ui-*.png
+            verification/own-reference-scale-ui.json
+            verification/own-reference-scale-ui-*.png
+            verification/own-program-multi-copy-ui.json
+            verification/own-program-multi-copy-ui-*.png
           if-no-files-found: error
           retention-days: 5
