@@ -47,7 +47,7 @@ const SOURCE_PINS=Object.freeze({
   "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "b8cf0c7854d0d2a2d5180bf711fff461c06bd4516d30e5153ab9163ab5b77aaa",
   "scripts/lib/own-payroll-installation.mjs": "6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0",
   "scripts/lib/native-leave-installation.mjs": "57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef",
-  "scripts/lib/own-novelty-succession-qa.mjs": "4a44dac87baa633520b364344c0ed514232b94b5f8d121e13f38e8cea7536046",
+  "scripts/lib/own-novelty-succession-qa.mjs": "f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929",
   "scripts/lib/own-novelty-succession-installation.mjs": "5d6e7a52307c7ec3cc28ee56941a255e60c88b8238c909eefca869c0e4c801bb",
   "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "ff632d4920c827bdd75b1798abab8484912fbc4868064a803e72808d5617eb25",
   "scripts/verify-documentary-roster-performance.mjs": "e058f3450118b23bf16ee1cf7e75b866624153246ce163aed3bf3c96d5f96124",

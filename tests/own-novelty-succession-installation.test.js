@@ -73,6 +73,18 @@ test('197 rejects a changed migration before constructing its predecessor, and r
  assert.throws(()=>ownNoveltySuccessionQaProjection({schema:'public',baseNormalize:s=>s,definitions}),/NOVELTY197_EXACT_QA_SCHEMA_REQUIRED/);
 });
 
+test('197 installation mode projects all seven predecessor hashes as well as their replacements',()=>{
+ const{projected,batch}=plan(),mode=projected.normalized(batch.mode);
+ assert.equal(projected.expectedQaBeforePins.length,7);
+ for(let n=0;n<7;n++){
+  const before=projected.expectedQaBeforePins[n],after=projected.expectedQaAfterPins[n];
+  assert.equal(projected.novelty197Hashes[batch.beforePins[n].sha256],before.sha256,'source-derived predecessor '+before.signature);
+  assert.ok(mode.includes(before.sha256),'installation mode predecessor '+before.signature);
+  assert.ok(mode.includes(after.sha256),'verification mode replacement '+after.signature);
+ }
+ assert.equal(projected.novelty197ProjectionLedger.length,15,'the posterior ledger keeps its original scope');
+});
+
 test('197 maps only its exact read façade and rejects additional SQL or arguments',()=>{
  const schema='mc_qa_fixed_092_19719719719719719719719719719719',sql='SELECT public.own_novelty_succession_context_v1($1::jsonb,$2::uuid) AS result',args=['{}','19719719-7197-4197-8197-197197197197'];
  assert.equal(ownNoveltySuccessionQaRpc(sql,args,schema),`SELECT ${schema}.own_novelty_succession_context_v1('{}'::jsonb,'${args[1]}'::uuid) AS result`);
