@@ -5,7 +5,10 @@ import {decimal,exactEvidence} from './own-payroll-exact.js';
 import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
 
 const need=(v,message)=>{if(!v)throw Error(message);};
-export const OWN_VARIABLE_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente',code:'Código',boolean:'Sí/no'});
+export const OWN_VARIABLE_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',days:'Días',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente',code:'Código',boolean:'Sí/no'});
+// Every engine unit (own-payroll-engine units) and condition unit has a label.
+// An undeclared unit fails closed; it never becomes the text "undefined" in a row.
+export const ownVariableUnitLabel=unit=>{need(Object.hasOwn(OWN_VARIABLE_UNITS,unit),'Falta la unidad declarada de una variable o concepto original. No se omitió ni sustituyó la unidad.');return OWN_VARIABLE_UNITS[unit];};
 export const ownVariableDisplayValue=input=>input.value===null?null:input.unit==='boolean'?(input.value?'Sí':'No'):input.value;
 const factDescriptions={period_context_fact:{monthNumber:'Mes del período de liquidación declarado'},agreement_time_fact:{monthlyHours:'Horas mensuales del convenio'},salary_condition_fact:{partialSeniorityYears:'Antigüedad parcial declarada',titleStatus:'Situación del título',titleCode:'Código del título',titlePercentage:'Porcentaje del título',unhealthyWork:'Insalubridad declarada'},classification_fact:{categoryCode:'Clase del contrato propio',agreementCode:'Convenio del contrato propio'},employment_fact:{seniorityYears:'Años reconocidos de antigüedad total',seniorityMonths:'Meses reconocidos de antigüedad total'},working_time_fact:{dailyHours:'Horas contractuales diarias',monthlyHours:'Horas contractuales mensuales'},period_fact:{recognizedUnits:'Unidades reconocidas del período',baseUnits:'Base de unidades del período'}};
 const factOrigins={period_context_fact:'Contexto propio del período',agreement_time_fact:'Convenio propio',salary_condition_fact:'Condiciones propias',classification_fact:'Encuadre propio',employment_fact:'Antigüedad propia',working_time_fact:'Jornada propia',period_fact:'Participación del período'};

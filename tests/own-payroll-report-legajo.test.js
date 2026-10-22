@@ -99,3 +99,23 @@ test('descargas completas de más de una página: CSV seguro, Excel literal sin 
  const pdf=reportPdf(d);assert.ok(pdf.length>1000);assert.equal(d.rows.at(-1)[2],'Total cerrado: Neto');
  assert.throws(()=>reportXlsx({...d,legajoReport:'true'}),/por legajo no válido/);
 });
+
+test('la unidad días de un auxiliar y de su variable se conserva en la vista y en las descargas; ninguna celda queda como texto indefinido',()=>{
+ const f=variableReportFixture(3,{age:'used',ageUnit:'days'}),b=bundle(f),d=report(b);
+ const auxiliaries=conceptRows(d).filter(r=>r[2].startsWith('990 / '));
+ assert.equal(auxiliaries.length,3);assert.ok(auxiliaries.every(r=>r[2].endsWith(' / Auxiliar / Días')));
+ assert.ok(!d.rows.flat().some(v=>String(v).includes('undefined')));
+ const variables=ownReportDocument(b,emptyOwnReportFilters(),'variables','concept',[],'all'),ages=variables.rows.filter(r=>r[2].startsWith('antiguedad / '));
+ assert.equal(ages.length,3);assert.ok(ages.every(r=>r[4]==='Días'));
+ const usage=ownReportDocument(b,emptyOwnReportFilters(),'variable_usage','concept',[],'all'),uses=usage.rows.filter(r=>r[2].startsWith('antiguedad / '));
+ assert.equal(uses.length,3);assert.ok(uses.every(r=>r[4]==='Días'&&r[6]==='Uso directo'));
+ for(const document of [d,variables,usage]){
+  const csv=reportCsv(document),xlsx=reportXlsx(document),pdf=reportPdf(document);
+  assert.ok(csv.includes('Días')&&!csv.includes('undefined'));
+  assert.ok(xlsx instanceof Uint8Array&&pdf instanceof Uint8Array);
+  const xml=new TextDecoder().decode(xlsx);
+  assert.ok(xml.includes('Días')&&!xml.includes('undefined'),'el XLSX conserva el rótulo de la unidad');
+  const pdfText=[...new TextDecoder().decode(pdf).matchAll(/<([a-f0-9]+)> Tj/g)].map(m=>Buffer.from(m[1],'hex').toString('latin1')).join('\n');
+  assert.ok(pdfText.includes('Días')&&!pdfText.includes('undefined'),'el PDF conserva el rótulo de la unidad');
+ }
+});
