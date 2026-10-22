@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
@@ -166,4 +167,20 @@ test('208 and209 CI opt-ins preserve the fixed monthly default and do not claim 
  ])assert.ok(artifacts.split(/\r?\n/).some(line=>line.trim()===file),file);
  for(const file of ['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs','scripts/lib/own-payroll-annulment-review-v2-installation.mjs','scripts/lib/own-payroll-annulment-v2-native-continuation.mjs','scripts/lib/own-payroll-annulment-v2-native-browser.mjs','scripts/migrations/208-own-annulment-review-index.sql','assets/own-payroll-annulment-review-model.js','tests/own-payroll-annulment-review-api.test.js','tests/own-payroll-annulment-review-service.test.js','tests/own-payroll-annulment-review.test.js','tests/own-payroll-annulment-hidden-active.test.js','scripts/lib/own-payroll-annulment-preparation-209-installation.mjs','scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs','scripts/lib/own-annulment-preparation-209-actors-fixture.mjs','scripts/migrations/209-own-annulment-preparation-projection.sql','api/internal-own-payroll-annulment-preparation.js','lib/internal-own-payroll-annulment-preparation.js','assets/own-payroll-annulment-preparation-model.js','assets/own-payroll-annulment-preparation-link.js','tests/fixtures/own-payroll-annulment-preparation-synthetic.js','tests/own-payroll-annulment-preparation-model.test.js','tests/own-payroll-annulment-preparation-service.test.js','tests/own-payroll-annulment-preparation-api.test.js','tests/own-payroll-annulment-preparation-link.test.js','tests/own-payroll-annulment-preparation-panel.test.js','tests/own-payroll-annulment-preparation-ui-source.test.js','tests/fixtures/own-payroll-annulment-preparation-source-projection.js','tests/own-payroll-full-decision-capacity-source.test.js'])assert.ok(entries.includes(file),file);
  assert.ok(!/^[ \t]+\.handoff\//m.test(artifacts),'private continuity is never uploaded');
+});
+
+test('registered annulment outcome sources recover exact05031ab before209 and208/full transport without weakening their whole-source guards',()=>{
+ const beforePins={
+  'assets/own-payroll-annulment-panel.js':'cadab6e28e5a664f119d3d590efb1cbeff33686a103982d7b9bb9d830d410c99',
+  'assets/own-payroll-annulment-review-model.js':'fae1416085d1b49bda6fca2039962a9f4e8f05dd0ec575eb50260454c51d912d',
+  'tests/own-payroll-annulment-review.test.js':'d76253308c06713f86e75ea186368ba0ea63fdd50e9f72dd9be2a518e3b90cf7'
+ };
+ assert.deepEqual(Object.keys(OWN_ANNUL_OUTCOME_SOURCE_PINS).sort(),Object.keys(beforePins).sort());
+ for(const[file,digest]of Object.entries(beforePins)){
+  const source=read(file),pin=OWN_ANNUL_OUTCOME_SOURCE_PINS[file];
+  assert.equal(pin.before,digest,file+' exact05031ab ancestor');
+  assert.equal(hash(source),pin.after,file+' whole candidate');
+  assert.equal(hash(projectOwnAnnulOutcomeToHead(file,source)),digest,file+' complete outcome inverse');
+  assert.throws(()=>projectOwnAnnulOutcomeToHead(file,source+' '),assert.AssertionError,file+' whole-source mismatch must reject');
+ }
 });

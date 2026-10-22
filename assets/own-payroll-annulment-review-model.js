@@ -126,6 +126,36 @@ export async function verifiedOwnAnnulReviewReceipt(value,attempt=null){
  for(const receipt of value.receipts)await verifiedOwnLiquidationReceipt(receipt);return value;
 }
 
+// Outcome of a registered annulment, rebuilt ONLY from the verified receipt and
+// authenticated reads: the current index and the complete detail of every
+// affected run. No local selection is retained, so the view survives hiding,
+// task changes and recovery from a lost acknowledgement. The decision version
+// (annul event) is reported apart from the liquidationVersion it annulled. A
+// contract confirmed again in another run is reported, never hidden or failed:
+// a historical annulment does not describe the current state.
+export const OWN_ANNUL_OUTCOME_VERSION='own-annul-outcome.v1';
+export async function loadOwnAnnulOutcome(value,receipt,loadDetail){
+ need(typeof loadDetail==='function');
+ const index=freeze(structuredClone(await verifiedOwnAnnulReviewIndex(value)));need(receipt?.version==='own-annul-receipt.v2');await verifiedOwnAnnulReviewReceipt(receipt);
+ need(index.period===receipt.body.period&&index.liquidationType===receipt.body.liquidationType&&index.scopeVersion===receipt.body.scopeVersion,'STATE_CHANGED');
+ const confirmedIn=new Map();for(const reference of index.index)for(const id of reference.confirmedContractIds)confirmedIn.set(id,reference.id);
+ const runs=[...new Set(receipt.affected.map(row=>row.runId))].sort(),rows=[];
+ for(const runId of runs){
+  const reference=index.index.find(row=>row.id===runId);need(reference,'INCOMPLETE');
+  const detail=await checkedDetail(index,reference,loadDetail);
+  for(const affected of receipt.affected.filter(row=>row.runId===runId)){
+   const state=detail.employees.find(row=>row.contractId===affected.contractId);
+   need(reference.resultSha256===affected.resultSha256&&reference.liquidationDate===affected.liquidationDate&&state?.state==='annulled'&&state.version===affected.version&&state.liquidationVersion===affected.liquidationVersion,'STATE_CHANGED');
+   const {version,groupId,allowed,...row}=projectedRow(index,detail,state);
+   rows.push({...row,decisionVersion:state.version,confirmedAgainIn:confirmedIn.get(affected.contractId)??null});
+  }
+ }
+ rows.sort((a,b)=>a.contractId<b.contractId?-1:a.contractId>b.contractId?1:0);
+ need(rows.length===receipt.affected.length&&new Set(rows.map(row=>row.contractId)).size===rows.length,'INCOMPLETE');
+ const precision=Math.max(...rows.map(row=>row.precision)),totals=Object.fromEntries(['gross','deduction','net'].map(key=>[key,quantize(rows.reduce((sum,row)=>exactAdd(sum,decimal(row.totals[key])),decimal('0')),{precision,mode:'exact'}).amount]));
+ return freeze({version:OWN_ANNUL_OUTCOME_VERSION,annulled:true,receiptId:receipt.id,key:receipt.key,period:index.period,liquidationType:index.liquidationType,recordedAt:receipt.recordedAt,rows,count:rows.length,runCount:runs.length,totals,confirmedAgainCount:rows.filter(row=>row.confirmedAgainIn!==null).length,complete:true});
+}
+
 export async function loadOwnAnnulPreparation(value,receipt,date,loadDetail){
  need(typeof loadDetail==='function'&&(date===null||ownRunDate(date)));
  const index=freeze(structuredClone(await verifiedOwnAnnulReviewIndex(value)));await verifiedOwnAnnulReviewReceipt(receipt);

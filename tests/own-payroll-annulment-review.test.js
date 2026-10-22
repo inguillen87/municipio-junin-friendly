@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ownAnnulReviewIndex,verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,ownAnnulReviewCommand,ownAnnulReviewReceipt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation} from '../assets/own-payroll-annulment-review-model.js';
+import {ownAnnulReviewIndex,verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,ownAnnulReviewCommand,ownAnnulReviewReceipt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation,loadOwnAnnulOutcome} from '../assets/own-payroll-annulment-review-model.js';
 import {verifiedOwnAnnulReceipt} from '../assets/own-payroll-annulment-model.js';
 import {annulReviewScenario,annulReviewIndexFor,sealAnnulReviewIndex,annulReviewReceipt} from './fixtures/own-payroll-annulment-review-synthetic.js';
 import {annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
@@ -120,4 +120,47 @@ test('legacy v1 receipts remain recoverable and preparable only within the same 
  const s=annulReviewScenario();await verifiedOwnAnnulReviewReceipt(s.legacyReceipt);await verifiedOwnAnnulReceipt(s.legacyReceipt);
  const prepared=await loadOwnAnnulPreparation(s.after.index,s.legacyReceipt,'2026-10-31',read(s.after.details));assert.equal(prepared.affected.length,9);
  for(const receipt of [s.receipt,s.legacyReceipt]){const index=structuredClone(s.after.index);index.scopeVersion='f'.repeat(64);sealAnnulReviewIndex(index);let calls=0;await assert.rejects(loadOwnAnnulPreparation(index,receipt,'2026-10-31',async()=>{calls++;throw Error('scope must reject before loading');}),{code:'OWN_ANNUL_REVIEW_STATE_CHANGED'});assert.equal(calls,0);}
+});
+
+test('outcome after a lost acknowledgement is rebuilt from the verified receipt and authenticated reads: every affected contract, historical amounts, same key, no local selection',async()=>{
+ const s=annulReviewScenario(),calls=[];
+ const before=ownAnnulReviewSelection(await loadOwnAnnulReview(s.index,read(s.details)),all);
+ const outcome=await loadOwnAnnulOutcome(s.after.index,s.receipt,async id=>{calls.push(id);return structuredClone(s.after.details.find(run=>run.id===id));});
+ assert.deepEqual(calls,[...new Set(s.receipt.affected.map(row=>row.runId))].sort());assert.equal(calls.length,3);
+ assert.equal(outcome.annulled,true);assert.equal(outcome.count,9);assert.equal(outcome.runCount,3);assert.equal(outcome.key,s.receipt.key);assert.equal(outcome.receiptId,s.receipt.id);assert.equal(outcome.confirmedAgainCount,0);
+ assert.deepEqual(outcome.totals,before.totals);
+ for(const row of outcome.rows){const prior=before.rows.find(r=>r.contractId===row.contractId);assert.ok(prior);assert.deepEqual(row.totals,prior.totals);assert.equal(row.employeeNumber,prior.employeeNumber);assert.equal(row.decisionVersion,prior.version+1);assert.equal(row.liquidationVersion,prior.liquidationVersion);assert.equal(row.confirmedAgainIn,null);assert.equal(Object.hasOwn(row,'inputs'),false);}
+ assert.deepEqual(outcome.rows.map(row=>row.contractId),[...outcome.rows.map(row=>row.contractId)].sort());assert.ok(Object.isFrozen(outcome)&&Object.isFrozen(outcome.rows[0]));
+});
+
+test('a partial contracts annulment rebuilds only its own run and contracts, never widening to the whole period',async()=>{
+ const s=annulReviewScenario(),runId=s.receipt.affected[0].runId,subset=s.receipt.affected.filter(row=>row.runId===runId),ids=subset.map(row=>row.contractId).sort();
+ const partial={...s.receipt,body:{...s.receipt.body,selection:{kind:'contracts',values:ids}},affected:subset,receipts:s.receipt.receipts.filter(child=>child.runId===runId)};
+ partial.bodySha256=ownRunHash(partial.body);
+ const calls=[],outcome=await loadOwnAnnulOutcome(s.after.index,partial,async id=>{calls.push(id);return structuredClone(s.after.details.find(run=>run.id===id));});
+ assert.deepEqual(calls,[runId]);assert.equal(outcome.count,subset.length);assert.equal(outcome.runCount,1);assert.deepEqual(outcome.rows.map(row=>row.contractId),ids);
+});
+
+test('outcome verifies the original v2 body hash before loading any detail; changing all related reasons without reseal is rejected',async()=>{
+ const s=annulReviewScenario(),changed=structuredClone(s.receipt);changed.body.reason='Motivo adulterado exclusivamente sintético QA';
+ for(const child of changed.receipts)child.body.reason=changed.body.reason;
+ let calls=0;await assert.rejects(loadOwnAnnulOutcome(s.after.index,changed,async id=>{calls++;return structuredClone(s.after.details.find(run=>run.id===id));}),{code:'OWN_ANNUL_REVIEW_RECEIPT_CHANGED'});assert.equal(calls,0);
+});
+
+test('a later confirmation in another run is reported on the outcome without hiding the historical annulment, while preparation still refuses it',async()=>{
+ const s=annulReviewScenario(),history=s.after.index.index.at(-1),id=s.receipt.affected[0].contractId;
+ history.confirmedContractIds=[id];history.states.confirmed=1;history.states.calculated--;sealAnnulReviewIndex(s.after.index);
+ const outcome=await loadOwnAnnulOutcome(s.after.index,s.receipt,read(s.after.details));
+ assert.equal(outcome.count,9);assert.equal(outcome.confirmedAgainCount,1);assert.equal(outcome.rows.find(row=>row.contractId===id).confirmedAgainIn,history.id);assert.ok(outcome.rows.filter(row=>row.contractId!==id).every(row=>row.confirmedAgainIn===null));
+ await rejected(loadOwnAnnulPreparation(s.after.index,s.receipt,'2026-10-31',read(s.after.details)));
+});
+
+test('outcome rejects a changed annulment state, a missing affected run, a truncated receipt and another period instead of showing a partial result',async()=>{
+ for(const mode of ['state','missing','receipt','period']){
+  const s=annulReviewScenario();
+  if(mode==='state'){const row=s.after.details[2].employees.find(row=>row.state==='annulled');row.version++;}
+  if(mode==='receipt')s.receipt.affected.pop();
+  if(mode==='period'){s.after.index.period='2026-11';sealAnnulReviewIndex(s.after.index);}
+  await rejected(loadOwnAnnulOutcome(s.after.index,s.receipt,async id=>mode==='missing'&&id===s.after.details[2].id?undefined:structuredClone(s.after.details.find(run=>run.id===id))));
+ }
 });

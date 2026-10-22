@@ -61,7 +61,12 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   ['39ec1b309ab17d174030f42370a0b5cfc2274724fd01ec391176f2be227eff94','02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726'],
   ['3294c34a39816b9868e2052179ecddfaf9f146cf8411313ac4e2ddc6896368be','e1529caa5e7e91e3524ec9c7c991855c57fbfda6416acb4ccd66e47bd183f932'],
   ['a00d19a57d3774767bbc62de0d148a7adc705d0bb27b01c2f524a05f7bc440f4','fdd49abc260b5ca278958771611f9e84fa089631644cad9069d107d1cce26e3f'],
-  ['627f1dd8b4628d4b1f992561d4a8c8f3a97739841d5e9ea252e3da2e0048fec8','4a58f3bc5e49d18644ae6575bbbd3b7f40747bb9543b0e664256a1480e675cb0']
+  ['627f1dd8b4628d4b1f992561d4a8c8f3a97739841d5e9ea252e3da2e0048fec8','4a58f3bc5e49d18644ae6575bbbd3b7f40747bb9543b0e664256a1480e675cb0'],
+  ['feb82ec69cf2f1c1bc16b6999a6c5621d42caa376bfe99661115ff10fb1687e5','cadab6e28e5a664f119d3d590efb1cbeff33686a103982d7b9bb9d830d410c99'],
+  ['0deb7c1a52c65b437e982bb7daa3b79c58c53962e05e23a16ead4484bde7ce1d','fae1416085d1b49bda6fca2039962a9f4e8f05dd0ec575eb50260454c51d912d'],
+  ['3d3a6469ba39ad4fa8c9b23f4e9544cb846b538d4d30eca5997e7134de60d007','d76253308c06713f86e75ea186368ba0ea63fdd50e9f72dd9be2a518e3b90cf7'],
+  ['2f076464e1a0aefedb240ab6826fd145a39155c6357e6e3c9fe50c7f521bbfe5','b62c6ee7daa6aa1c69cc0b310e5e216d655b9754432d18cdef4b174aa0681e95'],
+  ['97905cc2c71f5c44d1ce5085823fcdd9387e3530837ad17ede543962c77a4d07','3294c34a39816b9868e2052179ecddfaf9f146cf8411313ac4e2ddc6896368be']
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -73,7 +78,9 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(8).reverse())undo(pair);
+ for(const pair of changes.slice(9).reverse())undo(pair);
+ assert.equal(hash(source),'34d1f48384c582bc39acab6281533c223140c74deb759c88ed036cb962f3489f','the five registered-outcome pins recover the exact05031ab fixture');
+ for(const pair of changes.slice(8,9).reverse())undo(pair);
  assert.equal(hash(source),'02856ee899461ccfa548803d49204a637cc9e46bad5fc03381e19e02dc21e667','the complete presentation transport pin recovers the exact P1bc fixture');
  for(const pair of changes.slice(6,8).reverse())undo(pair);
  assert.equal(hash(source),'9cdc9df2920581dab7179ea7541d77d316b823350a8361c3afb9a1763b332bcd','the two presentation-derived pins recover the exact b41 fixture');
