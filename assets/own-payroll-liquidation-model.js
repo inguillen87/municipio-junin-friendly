@@ -1,6 +1,6 @@
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownRunCommand,ownRunCapture} from './own-payroll-run-model.js';
-import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
+import {ownRunWorkspaceResult,verifiedWorkspaceCapture,ownRunConceptLabels,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
 import {decimal,exactAdd,quantize} from './own-payroll-exact.js';
 export const OWN_LIQ_READ=OWN_RUN_READ,OWN_LIQ_NOMINAL=OWN_RUN_NOMINAL;
 export const OWN_LIQ_REVIEW=Object.freeze([...OWN_LIQ_NOMINAL,'payroll.calculation.approve']);
@@ -64,7 +64,8 @@ export function ownLiquidationIndividual(detail,contractId){
  const decision=detail.employees.find(e=>e.contractId===contractId),saved=detail.capture.saved;
  const person=saved.input.employees.find(e=>e.contractId===contractId),totals=saved.result.employeeTotals.find(e=>e.contractId===contractId);
  if(!decision||!person||!totals)fail();
- return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows:saved.result.rows.filter(r=>r.contractId===contractId),complete:true,paymentExecuted:false});
+ const rows=saved.result.rows.filter(r=>r.contractId===contractId),labels=ownRunConceptLabels(detail.capture),namespaced=saved.input.version==='own-payroll-input.v2';
+ return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows,labels:rows.map(r=>labels.get(r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode)??null),complete:true,paymentExecuted:false});
 }
 // This supplies a preparation context only. The target must reread the receipt,
 // detail, session and catalogs before offering a separate voluntary calculation.

@@ -22,11 +22,22 @@ test('phase-text source admission changes only the reviewed test entry in the ca
  assert.equal(hash(source.replace(entry,'')),'02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726','every other canonical runner byte must retain the admitted predecessor');
 });
 
-test('the reviewed calculation draft guard is the only change from its previously pinned panel',()=>{
- const source=read('assets/own-payroll-run-panel.js'),after='else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();',before='else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();';
+test('reviewed calculation presentation and draft guard recover their exact previously pinned panel',()=>{
+ let source=read('assets/own-payroll-run-panel.js');
+ const changes=[
+  ["ownRunWorkspaceCsv,formatOwnRunDecimal,formatOwnRunValue}","ownRunWorkspaceCsv,formatOwnRunDecimal}"],
+  ["r.employeeNumber,r.conceptCode+' · '+(view.labelOf(r)??'Descripción no conservada en la captura'),OWN_RUN_NATURES[r.nature],formatOwnRunValue(r.amount,r.unit),r.ruleReference","r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+r.unit),r.ruleReference"]
+ ];
+ for(const[after,before]of changes){
+  assert.equal(source.split(after).length,2,'each reviewed presentation change must occur exactly once');
+  source=source.replace(after,before);
+ }
+ assert.equal(hash(source),'fdd49abc260b5ca278958771611f9e84fa089631644cad9069d107d1cce26e3f','presentation inverses must recover the exact admitted P0 panel');
+ const after='else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();',before='else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();';
  assert.equal(source.split(after).length,2,'the reviewed guard must occur exactly once');
  assert.equal(hash(source.replace(after,before)),'5705172114c625dd2ad657ed3ba32c714e869866e230c83389910378a7d358ed','all other panel bytes must retain the previously admitted source');
 });
+
 test('trusted full transport leaves every other190 source byte equal to its parent',()=>{
  let source=read('scripts/verify-municipal-owner-program.mjs').replace(/\r\n/g,'\n');
  const changes=[

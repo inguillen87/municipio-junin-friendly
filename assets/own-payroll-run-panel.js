@@ -10,7 +10,7 @@ import {ownProjectedAnnulmentQueue} from './own-payroll-annulment-preparation-li
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReviewReceipt,verifiedOwnAnnulReviewIndex,loadOwnAnnulPreparation} from './own-payroll-annulment-review-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
-import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal,formatOwnRunValue} from './own-payroll-run-workspace-model.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
@@ -181,7 +181,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function renderRows(){
     if(!current?.saved)return;const view=ownRunWorkspaceRows(current,$('search').value,page);page=view.page;
-    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+r.unit),r.ruleReference])tr.append(node('td',text));return tr;}));
+    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode+' · '+(view.labelOf(r)??'Descripción no conservada en la captura'),OWN_RUN_NATURES[r.nature],formatOwnRunValue(r.amount,r.unit),r.ruleReference])tr.append(node('td',text));return tr;}));
     $('range').textContent=view.filtered+' conceptos de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }

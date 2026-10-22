@@ -44,7 +44,7 @@ test('native regression checks each predecessor against the actual projected ins
  ])assert.ok(source.includes(token),token);
 });
 
-test('nested190 custody recovers the complete prior fixture through only six reviewed source pins',()=>{
+test('nested190 custody recovers the exact b41 fixture before its complete prior source pins',()=>{
  const file='tests/fixtures/own-payroll-full-capacity-190-source-projection.js';
  let source=read(file);
  const accounting=read('tests/fixtures/own-accounting-imputation-190-source-projection.js');
@@ -58,15 +58,25 @@ test('nested190 custody recovers the complete prior fixture through only six rev
   ['e5673a20f7547cc7bb6060715920b4dccfc1713f3ef9f6844f1a86840f921fd8','d3e1ebbf9cc587a2611f59706df8b2e6a8259438976e11053070420ec2fe69a4'],
   ['a81fd29b59897191fca9c5dd4f7c2a9b0cd3ca02c5315ba6ec07d0a5fc5997b8','3550621b23b5c524e386b5c3099903a6204fd6b0aa80424672e26bddfcbdb612'],
   ['3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e','ef7e4e54311f0d5df80f0a93f769834fc46a1c85da01071c01462428ce18ca43'],
-  ['39ec1b309ab17d174030f42370a0b5cfc2274724fd01ec391176f2be227eff94','02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726']
+  ['39ec1b309ab17d174030f42370a0b5cfc2274724fd01ec391176f2be227eff94','02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726'],
+  ['3294c34a39816b9868e2052179ecddfaf9f146cf8411313ac4e2ddc6896368be','e1529caa5e7e91e3524ec9c7c991855c57fbfda6416acb4ccd66e47bd183f932'],
+  ['a00d19a57d3774767bbc62de0d148a7adc705d0bb27b01c2f524a05f7bc440f4','fdd49abc260b5ca278958771611f9e84fa089631644cad9069d107d1cce26e3f'],
+  ['627f1dd8b4628d4b1f992561d4a8c8f3a97739841d5e9ea252e3da2e0048fec8','4a58f3bc5e49d18644ae6575bbbd3b7f40747bb9543b0e664256a1480e675cb0']
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
   Buffer.from(op.afterBase64,'base64').toString(),Buffer.from(op.beforeBase64,'base64').toString()
  ]),changes);
- for(const[current,previous]of changes){
+ const undo=([current,previous])=>{
   assert.equal(source.split(current).length,2,'one reviewed pin '+current);
   source=source.replace(current,previous);
- }
+ };
+ // Appended operations are chronological: restore b41 before its six earlier
+ // pin transitions. The complete accounting projection still restores dd370.
+ for(const pair of changes.slice(8).reverse())undo(pair);
+ assert.equal(hash(source),'02856ee899461ccfa548803d49204a637cc9e46bad5fc03381e19e02dc21e667','the complete presentation transport pin recovers the exact P1bc fixture');
+ for(const pair of changes.slice(6,8).reverse())undo(pair);
+ assert.equal(hash(source),'9cdc9df2920581dab7179ea7541d77d316b823350a8361c3afb9a1763b332bcd','the two presentation-derived pins recover the exact b41 fixture');
+ for(const pair of changes.slice(0,6))undo(pair);
  assert.equal(hash(source),'b4d90a930518e029678511774bfafb85ed65d98cbcfa83f835174f21ccef60e7','all other fixture bytes remain unchanged');
 });

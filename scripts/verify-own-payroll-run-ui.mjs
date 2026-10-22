@@ -14,7 +14,7 @@ import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
 import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
-import {RUN_CALCULATE,ownRunHash} from '../lib/internal-own-payroll-run.js';
+import {RUN_CALCULATE,ownRunHash,ownRunOperation} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
@@ -27,6 +27,20 @@ const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(s
 let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
 const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
+// Literal UI expectations for the unchanged six-rule synthetic programme.
+// Captured SQL metadata proves origin; no presentation helper builds the oracle.
+async function assertCapturedScreenRows(locator,capture,expectedRows,label){
+ const cells=await locator.locator('tr').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent)));
+ assert.equal(cells.length,expectedRows.length);
+ for(const [index,row]of expectedRows.entries()){
+  const definitions=capture.payload.programState.salaryCatalog.items.filter(d=>d.kind==='concept'&&d.agreementCode===row.agreementCode&&d.code===row.conceptCode);
+  assert.equal(definitions.length,1);assert.equal(definitions[0].label,'Concepto inventado QA');assert.equal(row.unit,'money');
+  assert.equal(cells[index][0],row.employeeNumber);assert.equal(cells[index][1],row.conceptCode+' · Concepto inventado QA');
+  assert.ok(cells[index][3].startsWith('$ '),'the fixture monetary row keeps its currency');
+  if(row.conceptCode==='100'){assert.equal(row.amount,'100.10');assert.equal(cells[index][3],'$ 100,10');}
+ }
+ check(true,label);
+}
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
   await db.run(ownPayrollFullQaInstallation(qa.schema));
@@ -127,6 +141,10 @@ try{
   await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
+  const labelConsultPosts=posts,screenCapture=await ownRunOperation(db,principal,session,'attempt',{key:writes.at(-1).key});
+  assert.deepEqual([...new Set(screenCapture.saved.result.rows.map(row=>row.unit))],['money']);
+  await assertCapturedScreenRows(select('rows'),screenCapture,screenCapture.saved.result.rows,'actual calculation cells show every captured code/name and the original monetary value');
+  check(posts===labelConsultPosts,'captured-name consultation adds no calculation POST');
   check((await select('totals').innerText()).includes('19041'),'totals use actual own employee reference');
   const zeroReviewPosts=posts;await select('source-review-button').click();await select('source-report').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   check((await select('source-summary').innerText()).includes('2 novedades')&&(await select('source-summary').innerText()).includes('0 registros')&&await select('source-rows').locator('tr').count()===0,'complete successful capture reports no source observations without inventing errors');
@@ -171,6 +189,8 @@ try{
   check(await mobile.locator('.own-run').evaluate(el=>el.getBoundingClientRect().width<=window.innerWidth),'mobile panel fits viewport');
   await mobile.locator('[data-own-history] button').first().click();await mobile.locator('[data-own-result]').waitFor({state:'visible'});
   check(await mobile.locator('[data-own-rows] tr').count()===6,'mobile recovers complete saved concepts without POST');
+  const mobileKey=await mobile.locator('[data-own-history] button').first().getAttribute('data-own-open'),mobileCapture=await ownRunOperation(db,principal,session,'attempt',{key:mobileKey});
+  await assertCapturedScreenRows(mobile.locator('[data-own-rows]'),mobileCapture,mobileCapture.saved.result.rows,'mobile recovery retains the captured code/name pairs and literal currency value');
   await mobile.locator('.own-run').screenshot({path:prefix+'-mobile.png'});
   await mobile.screenshot({path:prefix+'-mobile-viewport.png'});
   check(posts===beforeHide,'desktop and mobile consultation never add a run');
