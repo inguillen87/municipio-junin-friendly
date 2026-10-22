@@ -71,7 +71,15 @@ export function ownLiquidationIndividual(detail,contractId){
 export function ownLiquidationNextPreparation(detail,receipt){
  ownLiquidationDetail(detail);ownLiquidationReceipt(receipt);
  if(receipt.body.command!=='annul'||receipt.runId!==detail.id||receipt.resultSha256!==detail.capture.saved.resultSha256)fail();
- for(const affected of receipt.affected){const current=detail.employees.find(e=>e.contractId===affected.contractId);if(!current||current.state!=='annulled'||current.version!==affected.version||current.liquidationVersion!==affected.liquidationVersion)fail();}
+ // Revalidate the whole affected set against the CURRENT detail: every contract
+ // must still be annulled in this run and must not hold a confirmed liquidation
+ // in another run of the period/type (blockedBy), exactly as the consolidated
+ // preparation (CONFIRMED_AGAIN) and SQL209 (CURRENT_STATE_CHANGED) require.
+ for(const affected of receipt.affected){
+  const current=detail.employees.find(e=>e.contractId===affected.contractId);
+  if(!current||current.state!=='annulled'||current.version!==affected.version||current.liquidationVersion!==affected.liquidationVersion)fail();
+  if(current.blockedBy!==null)throw Error('Un legajo del alcance ya tiene otra liquidación confirmada para ese período y tipo. Actualizá la consulta y revisá esa liquidación antes de preparar un cálculo nuevo.');
+ }
  const selected=ownLiquidationSelection(detail,receipt.body.selection,'annul');
  if(salarySerialized(selected.rows.map(e=>e.contractId).sort())!==salarySerialized(receipt.affected.map(e=>e.contractId).sort()))fail();
  // "All" in the decision means all of that run, possibly a partial run.

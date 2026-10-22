@@ -54,3 +54,15 @@ test('la continuación verifica el cuerpo original del comprobante y la integrid
  const d=detail(),r=annul(d);assert.equal(await verifiedOwnLiquidationReceipt(r),r);assert.equal(await verifiedOwnLiquidationDetail(d),d);
  await assert.rejects(verifiedOwnLiquidationReceipt({...r,bodySha256:hash('f')}));const changed=structuredClone(d);changed.capture.saved.result.rows[0].amount='0.00';await assert.rejects(verifiedOwnLiquidationDetail(changed));
 });
+test('un legajo anulado que ya tiene otra liquidación confirmada vigente no se prepara de nuevo; el resto del conjunto tampoco se recorta',()=>{
+ const d=detail(6),r=annul(d),other=uid(991);
+ assert.equal(ownLiquidationNextPreparation(d,r).affected.length,6);
+ // blockedBy is the current detail's own signal: the contract is confirmed in another run of the period/type.
+ d.employees[5].blockedBy=other;
+ assert.throws(()=>ownLiquidationNextPreparation(d,r),/ya tiene otra liquidación confirmada/);
+ assert.throws(()=>ownLiquidationNextPreparation(d,{...r,affected:r.affected.slice(0,5)}));
+ // A blocked contract outside the annulled scope does not affect a partial continuation.
+ const partial=detail(),id=partial.employees[0].contractId,receiptPartial=annul(partial,{kind:'contracts',values:[id]});
+ partial.employees[1].blockedBy=other;partial.employees[1].allowedCommands=[];
+ assert.deepEqual(ownLiquidationNextPreparation(partial,receiptPartial).selection,{kind:'contracts',values:[id]});
+});
