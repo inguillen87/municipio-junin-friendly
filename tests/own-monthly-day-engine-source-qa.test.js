@@ -30,11 +30,16 @@ test('receipt supplement preserves modern bodies and reconciles exactly two cano
   assert.equal(row.projectedBeforeProsrcSha256,hash(body(normalized(before[n]))));assert.equal(row.projectedAfterProsrcSha256,hash(body(normalized(after[n]))));
   assert.equal(fixture.statements.filter(s=>s===normalized(after[n])).length,1);
   assert.ok(fixture.statements[0].includes(row.projectedBeforeProsrcSha256));assert.ok(fixture.statements[3].includes(row.projectedAfterProsrcSha256));
-  const changedBody=foundationSeed.replace(body(normalized(before[n])),body(normalized(before[n]))+' ');
+  // A replacement string interprets SQL regex suffixes such as $' as JS
+  // replacement tokens. Return literal SQL so only the intended bytes change.
+  const changedBody=foundationSeed.replace(body(normalized(before[n])),()=>body(normalized(before[n]))+' ');
+  assert.equal(changedBody.length,foundationSeed.length+1,'The body mutation adds exactly one literal byte');
   assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:changedBody}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
   assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed.replace(normalized(before[n]),'')}),/CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED|Missing190 lifecycle support/);
   assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed+';'+normalized(before[n])}),/CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED/);
-  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed.replace(normalized(before[n]),normalized(before[n]).replace('RETURNS jsonb','RETURNS text'))}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
+  const changedHeader=foundationSeed.replace(normalized(before[n]),()=>normalized(before[n]).replace('RETURNS jsonb','RETURNS text'));
+  assert.equal(changedHeader.length,foundationSeed.length-1,'The header mutation changes only jsonb to text');
+  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:changedHeader}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
  }
  const changed=fixture.statements.filter(s=>/^CREATE OR REPLACE FUNCTION /.test(s));assert.deepEqual(changed,after.map(normalized));
  for(const name of names.slice(0,3))assert.ok(!fixture.statements.some(s=>s.startsWith('CREATE FUNCTION '+schema+'.'+name+'(')));
