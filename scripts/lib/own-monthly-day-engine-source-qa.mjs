@@ -5,6 +5,7 @@ import{buildMonthlyDayDeclarationQa,monthly193Query}from'./own-monthly-day-decla
 import{monthlyQaRuntimeAcl,monthlyQaQuery}from'./own-monthly-participation-qa.mjs';
 import{buildOwnMonthlyDayEngineSourceInstallation}from'./own-monthly-day-engine-source-installation.mjs';
 import{monthly194SqlFixture}from'../../tests/fixtures/own-monthly-day-engine-source-sql-synthetic.js';
+import{mapInstallationPhaseText}from'./installation-phase-text-map.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex'),body=d=>{const m=/\bAS\s+(\$\w*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m);return m[2];};
 export function buildMonthly194Qa(options){
  const qa192=buildMonthlyDayPolicyQa(options),qa193=buildMonthlyDayDeclarationQa({...options,schema:qa192.schema}),prerequisiteDefinitions=qa193.foundation.base.definitions,prerequisiteRuntime=[...monthlyQaRuntimeAcl(qa193.foundation.seed,qa192.schema)].map(s=>s.replaceAll(qa192.schema+'.','public.'));
@@ -12,7 +13,7 @@ export function buildMonthly194Qa(options){
  const baseNormalize=s=>qa192.normalized(monthlyDayQaHeader(s));let stable=false;
  for(let pass=0;pass<12;pass++){let changed=false;for(const d of[...batch.declaration.definitions,...batch.adapted]){let local=baseNormalize(d);for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);const raw=hash(body(d)),next=hash(body(local));if(hashes[raw]!==next){hashes[raw]=next;changed=true;}}if(!changed){stable=true;break;}}
  assert.ok(stable,'MONTHLY194_QA_HASH_GRAPH_CYCLE');const normalized=s=>{let local=baseNormalize(s);for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);return local;};
- const phases=b=>Object.fromEntries(['rehearsal','installation','repetition','verification',...(b.rollback?['rollback']:[])].map(k=>[k,b[k].map(normalized)]));
+ const phases=b=>mapInstallationPhaseText(b,normalized);
  // Verify the existing independent synthetic actors; never grant the maker approval authority.
  const fixtureCapabilitySeed=`DO $monthly194_fixture_sod$ BEGIN PERFORM ${qa192.schema}.tenant_iam_assert_no_sod_conflict('${qa192.actor.membershipId}'::uuid);PERFORM ${qa192.schema}.tenant_iam_assert_no_sod_conflict('${qa192.checker.membershipId}'::uuid);END $monthly194_fixture_sod$`;
  return{...options,version:'own-monthly-day-engine-source-qa.v1',schema:qa192.schema,qa192,qa193,batch,normalized,local:phases(batch),local193:phases(batch.declaration),hashes,fixtureCapabilitySeed,actor:qa192.actor,checker:qa192.checker,declarationFixtureUsedOnlyForCanonicalMetadata:true,declarationFixtureActorsInstalled:false,sourceHashes:{...qa192.sourceHashes,...qa193.sourceHashes,...batch.sourceHashes},fixture:monthly194SqlFixture(),connects:false,executesSql:false,municipalFormula:false};
