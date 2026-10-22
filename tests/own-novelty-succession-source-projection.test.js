@@ -44,7 +44,7 @@ test('native regression checks each predecessor against the actual projected ins
  ])assert.ok(source.includes(token),token);
 });
 
-test('nested190 custody recovers the complete prior fixture through only five reviewed source pins',()=>{
+test('nested190 custody recovers the complete prior fixture through only six reviewed source pins',()=>{
  const file='tests/fixtures/own-payroll-full-capacity-190-source-projection.js';
  let source=read(file);
  const accounting=read('tests/fixtures/own-accounting-imputation-190-source-projection.js');
@@ -53,11 +53,12 @@ test('nested190 custody recovers the complete prior fixture through only five re
  assert.equal(hash(source),target.afterSha256);
  assert.equal(target.beforeSha256,'dd370b3c4a0e0e33a2c537d643d3e121f1805e7e1843958e59f7356202ebc95c');
  const changes=[
-  ['69a7886465933af91cf3d4b91e5534945cebe376da4092b548f89ef2ded4e72e','0147441a25ef432e31ff376edde154fbd30a63c28de6f0a6fc1170c26c286b67'],
+  ['e1529caa5e7e91e3524ec9c7c991855c57fbfda6416acb4ccd66e47bd183f932','0147441a25ef432e31ff376edde154fbd30a63c28de6f0a6fc1170c26c286b67'],
   ['fdd49abc260b5ca278958771611f9e84fa089631644cad9069d107d1cce26e3f','5705172114c625dd2ad657ed3ba32c714e869866e230c83389910378a7d358ed'],
   ['e5673a20f7547cc7bb6060715920b4dccfc1713f3ef9f6844f1a86840f921fd8','d3e1ebbf9cc587a2611f59706df8b2e6a8259438976e11053070420ec2fe69a4'],
   ['a81fd29b59897191fca9c5dd4f7c2a9b0cd3ca02c5315ba6ec07d0a5fc5997b8','3550621b23b5c524e386b5c3099903a6204fd6b0aa80424672e26bddfcbdb612'],
-  ['3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e','ef7e4e54311f0d5df80f0a93f769834fc46a1c85da01071c01462428ce18ca43']
+  ['3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e','ef7e4e54311f0d5df80f0a93f769834fc46a1c85da01071c01462428ce18ca43'],
+  ['39ec1b309ab17d174030f42370a0b5cfc2274724fd01ec391176f2be227eff94','02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726']
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[

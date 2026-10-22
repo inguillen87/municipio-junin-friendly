@@ -16,6 +16,12 @@ test('M7 source bytes pin the exact canonical190 overlay and admitted source dep
  for(const[file,digest]of Object.entries({...p.candidatePins,...p.dependencies}))assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),digest,file);
 });
 
+test('phase-text source admission changes only the reviewed test entry in the canonical monthly runner',()=>{
+ const source=read('scripts/verify-own-monthly-day-engine-source.mjs'),entry="'tests/own-monthly-day-engine-source-phase-text.test.js',";
+ assert.equal(source.split(entry).length,2,'the reviewed source entry must occur exactly once');
+ assert.equal(hash(source.replace(entry,'')),'02d0239ba2f0bb101985257021710c7f1bd31a26181ca87caca4635eb5364726','every other canonical runner byte must retain the admitted predecessor');
+});
+
 test('the reviewed calculation draft guard is the only change from its previously pinned panel',()=>{
  const source=read('assets/own-payroll-run-panel.js'),after='else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();',before='else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();';
  assert.equal(source.split(after).length,2,'the reviewed guard must occur exactly once');
