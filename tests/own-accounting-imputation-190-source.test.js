@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {ownAccountingImputation190SourceProjection as p} from './fixtures/own-accounting-imputation-190-source-projection.js';
+import {projectOwnCloseBrowserSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const raw=file=>fs.readFileSync(new URL('../'+file,import.meta.url)),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
 
 test('accounting/imputation190 private overlay pins whole sources and reverses each complete parent target',()=>{
  for(const target of p.targets){
-  let source=raw(target.path);
+  let source=Buffer.from(projectOwnCloseBrowserSourceToParent(target.path,raw(target.path).toString('utf8')),'utf8');
   if(target.path==='scripts/verify-own-payroll-full-capacity.mjs'){
    const alias='export {entries as OWN_FULL_CAPACITY_190_QA_ENTRIES};\n',text=source.toString('utf8');
    assert.equal(text.split(alias).length,2,'only the shared entry export may extend the complete original wrapper');

@@ -76,7 +76,17 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   ['6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd','3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e'],
   ['39612895ad26772e411c3f27043d3df64c696097ec31010b30b99b7a53d9f3d2','43fb1609653705d24a62433a8e4a2e28afcd90916e59f583bbd9461933d5d9fe'],
   ['e33e1d341fa76e6a9508876cb687bd055d4999aa86971baf798ce600968ee965','02b647310505bed55695a4b4aae2de328215cf26c0400e347bddb0cd5ebdd355'],
-  ['ab92d02c75716873b8d53972b7c786ec4718a6f02a24aecfeaf420af47381d75','1c70f6b6d0d2b69d815b2138c695b63b6309426ef2cd7463e70d1dc4706302c5']
+  ['ab92d02c75716873b8d53972b7c786ec4718a6f02a24aecfeaf420af47381d75','1c70f6b6d0d2b69d815b2138c695b63b6309426ef2cd7463e70d1dc4706302c5'],
+  ["86f57a555d5c53539a41a481fffcb1206792b97703b066c6335cb697cb97fbd4","92bcf4f71d93ccad9943a671811c1986e6d0b7172f1d414158937b8f0d0e0e00"],
+  ["ff73b91aa144c9a39fc77d9b380974c1870473e3ee01330e478fd7a5a78886a6","4271a0ecb062848c8635b5e65ffaea6deb95aad5b30172a9cce021e17b53f6d3"],
+  ["7bc54fa600f47b0e7c56e99810b92914d2dd50ec5cf5cca889a72d120c58ea36","e7e7b754d80cab939973511128067ee4e8202715ba8513a396c504bc9e349f3c"],
+  ["07ab75acbf555249c1cbe3437a8372a461e9881132c98aa3da8c274435269eda","a8e7b14c452aab5b91618547e5b431681e294a7e6e8ff5ae7379b2cb8cae73b0"],
+  ["26805c78cfd66035552a59e84c59464c947eeadd769ea5e3049187692e54d45b","e33e1d341fa76e6a9508876cb687bd055d4999aa86971baf798ce600968ee965"],
+  ["346c25eb9d55b14916492e63eb9e5e1a9e7d5127f3e8c35dce95e1031aa480fd","ab92d02c75716873b8d53972b7c786ec4718a6f02a24aecfeaf420af47381d75"],
+  [",\"scripts/lib/own-payroll-close-native-browser.mjs\":\"1c32672ef8f973b82be6cdd7c2a4935bbf8a320aab6a996d3d4d57a442ef77fc\",\"assets/own-payroll-close-panel.css\":\"25457df604fa7371e6012c074a0d62b3bb44d98cd0b274c211ab5c8161a55a0f\"",""],
+  ["cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311","6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd"],
+  ["1dcba348fc90e1fac6dc2960a1931e1508b8ae5694dfa3896e9002c4498ab177","26805c78cfd66035552a59e84c59464c947eeadd769ea5e3049187692e54d45b"],
+  ["37b9347c01a7e43dbdf4e32b6e20d865cf2887d207ac72dd588e6967bce3b7fe","346c25eb9d55b14916492e63eb9e5e1a9e7d5127f3e8c35dce95e1031aa480fd"]
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -88,7 +98,11 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(18).reverse())undo(pair);
+ for(const pair of changes.slice(31).reverse())undo(pair);
+ assert.equal(hash(source),'be10ee6669cdbfe2c7f3cab73cfd22e6d41d937ee96e02ebfdfe6b5ae2e4d500','R2 consumer custody recovers the complete unexecuted R1 close source fixture before its99 prior operations');
+ for(const pair of changes.slice(24,31).reverse())undo(pair);
+ assert.equal(hash(source),'f182d0e9bbb64574ad1c347919f924f9877faeb8e24096fd4dfabbea3e935b1d','close presentation source pins and two new entries recover the exact separate29 fixture before its92 ancestral operations');
+ for(const pair of changes.slice(18,24).reverse())undo(pair);
  assert.equal(hash(source),'f2a6e6e6ffc6b2b19ef31324ce6868eb2236ac398420cbb6c5c636adbd70ec27','the six separate29 source custody pins recover the exact80b99 fixture before all86 prior operations');
  for(const pair of changes.slice(14,18).reverse())undo(pair);
  assert.equal(hash(source),'8a065fe803bfb7e6a077feebcf3c5f88a1d61122e050c1001e67dc143fc41b6c','the four reviewed208 source custody pins recover the exact0eaa product fixture');

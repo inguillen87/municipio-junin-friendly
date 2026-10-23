@@ -21,6 +21,7 @@ import {runOwnAccountingImputation190Continuation} from './own-accounting-imputa
 import {assertOwnAccountingImputation190SourceBookend} from './own-accounting-imputation-190-installation.mjs';
 import {runOwnJournalFullCapacity190Continuation} from './own-journal-full-capacity-190-continuation.mjs';
 import {runOwnAnnulmentV2NativeContinuation} from './own-payroll-annulment-v2-native-continuation.mjs';
+import {verifyOwnCloseBrowserOn190} from './own-payroll-close-native-browser.mjs';
 const FOUR=4*1024*1024,FULL=32*1024*1024,bytes=v=>Buffer.byteLength(JSON.stringify(v),'utf8'),j=v=>q(JSON.stringify(v))+'::jsonb';
 async function seedLiteralProgramme(db,qa){
  // Keep190's actual current programme and entire catalogue, not a rebuilt six-rule fixture.
@@ -129,7 +130,13 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  const final=ownFullCapacity190Snapshot(h);h.json([installation.plan.postflight],{readOnly:true});assert.deepEqual(ownFullCapacity190Snapshot(h),final);
  assert.ok(db.connections.length>0);assert.equal(new Set(db.connections).size,db.connections.length,'M7_190_CONNECTION_REUSED');const nativeAfter=runtime();assert.deepEqual(nativeAfter,nativeBefore);
  const baselineReport={version:'own-full-capacity-canonical190-native-qa.v1',passed:true,major,sourceCommit:h.sourceCommit,mode:'full32',population:855,conceptRows:17100,initialBytes:bytes(first.body)+bytes(first.payload),captureBytes:bytes(first),closeReceiptBytes:bytes(closed),checks,iam,installation:{version:installation.version,sourceSqlSha256:installation.sourceSqlSha256,epoch200:installation.epoch200,epoch201:installation.epoch201},nativeRuntime:{node:process.version,...nativeAfter},independentNativeConnections:db.connections.length,fullResultSha256:first.saved.resultSha256,snapshotSha256:closed.snapshotSha256,census:{closedSourceVersion:closedCensus.sourceVersion,reopenedSourceVersion:reopenedCensus.sourceVersion,eventCount:reopenedCensus.eventCount,groups:reopenedCensus.groups.length},accountingImputation,journal,accountingImputationSourceBookend,actualSql:true,actualHttp:false,fullCapacityBrowserProven:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
- if(!annulmentV2BrowserEnabled)return baselineReport;
+ // The original201 native epoch above remains unchanged and explicitly dated.
+ // The built close browser appends four close/reopen events on this SAME host.
+ const closeBrowser=await verifyOwnCloseBrowserOn190(Object.freeze({version:'own-close-browser-live190-context.v1',h,db,qa,maker,reviewer,contracts,first,firstSaved,second,closed,reopened,period,query,operations:Object.freeze({close,liq}),readSnapshot:()=>ownFullCapacity190Snapshot(h)}));
+ assert.equal(closeBrowser.passed,true);assert.equal(closeBrowser.builtCloseBrowserProven,true);assert.equal(closeBrowser.httpPosts,6);assert.equal(closeBrowser.delegatedCommandRpcs,5);assert.equal(closeBrowser.appendedEvents,4);assert.equal(closeBrowser.finalCloseEvents,6);assert.equal(closeBrowser.allNewGroupsReopened,true);assert.equal(closeBrowser.newCaptures,0);assert.equal(closeBrowser.productionWrites,0);
+ const closeBrowserSnapshot=ownFullCapacity190Snapshot(h);
+ const afterCloseBrowser={...baselineReport,censusEpoch:'original201-native-before-close-browser',closeBrowser,actualHttp:true};
+ if(!annulmentV2BrowserEnabled)return afterCloseBrowser;
  // Fixed, caller-selected extension AFTER every original201/native/financial
  // check. Never accept a callback, module path or new foundation from the CLI.
  assert.strictEqual(qa,h.qa);assert.equal(contracts.length,855);assert.equal(new Set(contracts).size,855);assert.equal(definition.rules.length,20);
@@ -137,7 +144,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.equal(maker.session.id,qa.actor.actorSessionId);assert.equal(reviewer.session.id,qa.checker.actorSessionId);assert.notEqual(maker.session.id,reviewer.session.id);
  assert.equal(closed.snapshot.employeeCount,855);assert.equal(closed.snapshot.conceptCount,17100);assert.equal(reopened.body.command,'reopen');assert.equal(reopened.groupId,closed.groupId);assert.equal(reopened.snapshotSha256,closed.snapshotSha256);
  const baselineChecks=Object.freeze([...checks]),secondSaved=structuredClone(second.saved);
- const context=Object.freeze({version:'own-annulment-v2-live190-context.v1',h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot:final,closedCensus,reopenedCensus,accountingImputation,journal,accountingImputationSourceBookend,operations:Object.freeze({run,liq,annul,close,decide,calculate}),readSnapshot:()=>ownFullCapacity190Snapshot(h),sameStateReject,ok,monthlyBusinessCovered:false});
+ const context=Object.freeze({version:'own-annulment-v2-live190-context.v1',h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot:closeBrowserSnapshot,closedCensus,reopenedCensus,accountingImputation,journal,accountingImputationSourceBookend,operations:Object.freeze({run,liq,annul,close,decide,calculate}),readSnapshot:()=>ownFullCapacity190Snapshot(h),sameStateReject,ok,monthlyBusinessCovered:false});
  const annulmentV2Browser=await runOwnAnnulmentV2NativeContinuation(context,{annulmentPreparation});
  assert.ok(annulmentV2Browser&&typeof annulmentV2Browser==='object'&&!Array.isArray(annulmentV2Browser),'M7_190_ANNUL_V2_REPORT_REQUIRED');assert.equal(annulmentV2Browser.passed,true);assert.equal(annulmentV2Browser.monthlyBusinessCovered,false);assert.equal(annulmentV2Browser.productionWrites,0);assert.equal(annulmentV2Browser.paymentExecuted,false);assert.equal(annulmentV2Browser.municipalAcceptance,false);
  // New decisions legitimately extend history. Keep the immutable originals;
@@ -145,5 +152,5 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.deepEqual((await liq('detail',{id:first.id})).capture.saved,firstSaved);assert.deepEqual((await liq('detail',{id:second.id})).capture.saved,secondSaved);
  assert.deepEqual(await close('group',{id:closed.groupId}),{...closed,replayed:true});assert.deepEqual(await annul('attempt',{key:annulKey}),{...annulled,replayed:true});
  assert.deepEqual(checks.slice(0,baselineChecks.length),baselineChecks);assert.equal(new Set(db.connections).size,db.connections.length,'M7_190_ANNUL_V2_CONNECTION_REUSED');assert.deepEqual(runtime(),nativeBefore);
- return{...baselineReport,checks:baselineChecks,annulmentV2Browser};
+ return{...afterCloseBrowser,checks:baselineChecks,annulmentV2Browser};
 }

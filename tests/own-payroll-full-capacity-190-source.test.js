@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
@@ -213,10 +213,39 @@ test('separate29 sources recover their exact80b99 parents before the unchanged20
  };
  assert.deepEqual(OWN_ANNULMENT29_SOURCE_PINS,expected);
  for(const[file,pin]of Object.entries(expected)){
-  const source=read(file);assert.equal(hash(source),pin.after,file+' selected29 whole source');
+  const source=projectOwnCloseBrowserConsumerSourceToParent(file,read(file));assert.equal(hash(source),pin.after,file+' selected29 whole source');
   const parent=projectOwnAnnulment29SourceToParent(file,source);
   assert.equal(hash(parent),pin.before,file+' exact80b99 selected parent');
   assert.equal(hash(projectOwnAnnulOutcome208ToHead(file,parent)),afterSelected208Projection[file],file+' ordered29 then selected208 R2/R1 source custody');
   assert.throws(()=>projectOwnAnnulment29SourceToParent(file,source+' '),assert.AssertionError,file+' appended29 bytes reject before parent projection');
  }
+});
+
+test('close browser sources retain exact selected190 parents, independent new-file pins and prior accounting projections without importing browser QA',()=>{
+ const expected={"scripts/lib/own-payroll-full-capacity-190-continuation.mjs":{"before":"4271a0ecb062848c8635b5e65ffaea6deb95aad5b30172a9cce021e17b53f6d3","after":"ff73b91aa144c9a39fc77d9b380974c1870473e3ee01330e478fd7a5a78886a6"},"scripts/verify-own-payroll-full-capacity.mjs":{"before":"92bcf4f71d93ccad9943a671811c1986e6d0b7172f1d414158937b8f0d0e0e00","after":"86f57a555d5c53539a41a481fffcb1206792b97703b066c6335cb697cb97fbd4"},"scripts/lib/own-annulment-preparation-209-actors-fixture.mjs":{"before":"e7e7b754d80cab939973511128067ee4e8202715ba8513a396c504bc9e349f3c","after":"7bc54fa600f47b0e7c56e99810b92914d2dd50ec5cf5cca889a72d120c58ea36"}};
+ assert.deepEqual(OWN_CLOSE_BROWSER_SOURCE_PINS,expected);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=read(file);assert.equal(hash(source),pin.after,file+' selected close source');
+  assert.equal(hash(projectOwnCloseBrowserSourceToParent(file,source)),pin.before,file+' complete selected parent');
+  assert.throws(()=>projectOwnCloseBrowserSourceToParent(file,source+' '),assert.AssertionError,file+' appended close bytes reject');
+ }
+ const consumerFile='scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',consumer=read(consumerFile);
+ const consumerPins={'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs':{before:'6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd',after:'cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311'}};
+ assert.deepEqual(OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,consumerPins,'the new domain owns only the exact native209 consumer');
+ assert.equal(hash(consumer),consumerPins[consumerFile].after,'consumer retains the selected close actor source');
+ assert.equal(hash(projectOwnCloseBrowserConsumerSourceToParent(consumerFile,consumer)),consumerPins[consumerFile].before,'native209 recovers complete selected29 before its earlier expected map');
+ assert.throws(()=>projectOwnCloseBrowserConsumerSourceToParent(consumerFile,consumer+' '),assert.AssertionError,'extra consumer bytes reject before all ancestor guards');
+ const browser=read('scripts/lib/own-payroll-close-native-browser.mjs'),style=read('assets/own-payroll-close-panel.css');
+ assert.equal(hash(browser),'1c32672ef8f973b82be6cdd7c2a4935bbf8a320aab6a996d3d4d57a442ef77fc','new browser is pinned independently, not projected into a nonexistent original');
+ assert.equal(hash(style),'25457df604fa7371e6012c074a0d62b3bb44d98cd0b274c211ab5c8161a55a0f','built close stylesheet is retained in the exact source bookend');
+ assert.equal(Object.hasOwn(OWN_CLOSE_BROWSER_SOURCE_PINS,'scripts/lib/own-payroll-close-native-browser.mjs'),false,'new browser has no fabricated predecessor');
+ assert.equal(hash(projectOwnCloseBrowserSourceToParent('scripts/lib/own-payroll-close-native-browser.mjs',browser)),hash(browser),'unknown projection domain never deletes a new file');
+ const entry=read('scripts/verify-own-payroll-full-capacity.mjs');
+ for(const file of ['scripts/lib/own-payroll-close-native-browser.mjs','assets/own-payroll-close-panel.css']){assert.ok(entry.includes("'"+file+"'"),file+' finite runtime source entry');assert.equal(p.candidatePins[file],hash(read(file)),file+' full source pin');}
+ const source=read('scripts/lib/own-payroll-full-capacity-190-continuation.mjs');
+ assert.ok(source.includes("import {verifyOwnCloseBrowserOn190} from './own-payroll-close-native-browser.mjs';"));
+ assert.ok(source.indexOf('const closeBrowser=await verifyOwnCloseBrowserOn190')>source.indexOf('const baselineReport='));
+ assert.ok(source.indexOf('const closeBrowser=await verifyOwnCloseBrowserOn190')<source.indexOf('const context=Object.freeze'));
+ assert.ok(source.includes('baselineSnapshot:closeBrowserSnapshot'));
+ assert.ok(source.includes('assert.equal(closeBrowser.finalCloseEvents,6)'));
 });
