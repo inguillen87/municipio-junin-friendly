@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
@@ -213,7 +213,7 @@ test('separate29 sources recover their exact80b99 parents before the unchanged20
  };
  assert.deepEqual(OWN_ANNULMENT29_SOURCE_PINS,expected);
  for(const[file,pin]of Object.entries(expected)){
-  const source=projectOwnCloseBrowserConsumerSourceToParent(file,read(file));assert.equal(hash(source),pin.after,file+' selected29 whole source');
+  const source=projectOwnCloseBrowserConsumerSourceToParent(file,projectOwnNovelty197AliasSourceToParent(file,read(file)));assert.equal(hash(source),pin.after,file+' selected29 whole source');
   const parent=projectOwnAnnulment29SourceToParent(file,source);
   assert.equal(hash(parent),pin.before,file+' exact80b99 selected parent');
   assert.equal(hash(projectOwnAnnulOutcome208ToHead(file,parent)),afterSelected208Projection[file],file+' ordered29 then selected208 R2/R1 source custody');
@@ -229,7 +229,7 @@ test('close browser sources retain exact selected190 parents, independent new-fi
   assert.equal(hash(projectOwnCloseBrowserSourceToParent(file,source)),pin.before,file+' complete selected parent');
   assert.throws(()=>projectOwnCloseBrowserSourceToParent(file,source+' '),assert.AssertionError,file+' appended close bytes reject');
  }
- const consumerFile='scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',consumer=read(consumerFile);
+ const consumerFile='scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',consumer=projectOwnNovelty197AliasSourceToParent(consumerFile,read(consumerFile));
  const consumerPins={'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs':{before:'6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd',after:'cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311'}};
  assert.deepEqual(OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,consumerPins,'the new domain owns only the exact native209 consumer');
  assert.equal(hash(consumer),consumerPins[consumerFile].after,'consumer retains the selected close actor source');
@@ -248,4 +248,19 @@ test('close browser sources retain exact selected190 parents, independent new-fi
  assert.ok(source.indexOf('const closeBrowser=await verifyOwnCloseBrowserOn190')<source.indexOf('const context=Object.freeze'));
  assert.ok(source.includes('baselineSnapshot:closeBrowserSnapshot'));
  assert.ok(source.includes('assert.equal(closeBrowser.finalCloseEvents,6)'));
+});
+
+// Literal source custody only: no197 SQL/parser, constructor or QA module is imported.
+test('alias-only197 and its full-source readers recover exact closeR2/base parents before all historical domains; appended bytes reject',()=>{
+ const expected={"scripts/migrations/197-own-novelty-succession.sql":{"before":"de81915cb3b17df45f9906072f8125e23f19e462ef61e881057f757a519f9eb4","after":"13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c"},"scripts/lib/own-novelty-succession-installation.mjs":{"before":"5d6e7a52307c7ec3cc28ee56941a255e60c88b8238c909eefca869c0e4c801bb","after":"627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0"},"scripts/lib/own-payroll-annulment-review-v2-installation.mjs":{"before":"e5673a20f7547cc7bb6060715920b4dccfc1713f3ef9f6844f1a86840f921fd8","after":"da780e1f3cb426e2f9d189ac98fbab22f5f61e7cd99eb313eab320390fc93344"},"scripts/lib/own-payroll-annulment-preparation-209-installation.mjs":{"before":"a81fd29b59897191fca9c5dd4f7c2a9b0cd3ca02c5315ba6ec07d0a5fc5997b8","after":"36cc80c2828c9d508d99d3dc07bdc1832de83ce6d0f4bd6b2097abb5358a65a3"},"scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs":{"before":"cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311","after":"84ffdc4bd1d0c280c6d7a3058d8983d2239d1d5d80f8d14aa2dfadabed23a3c5"}};
+ assert.deepEqual(OWN_NOVELTY197_ALIAS_SOURCE_PINS,expected);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=read(file);assert.equal(hash(source),pin.after,file+' complete197 alias candidate');
+  assert.equal(hash(projectOwnNovelty197AliasSourceToParent(file,source)),pin.before,file+' complete selected closeR2/base parent');
+  assert.throws(()=>projectOwnNovelty197AliasSourceToParent(file,source+' '),assert.AssertionError,file+' appended bytes reject before ancestry');
+ }
+ const native=read('scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs');
+ assert.ok(native.includes("'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'7bc54fa600f47b0e7c56e99810b92914d2dd50ec5cf5cca889a72d120c58ea36'"),'the selected close actor pin is preserved');
+ assert.ok(native.includes("'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'36cc80c2828c9d508d99d3dc07bdc1832de83ce6d0f4bd6b2097abb5358a65a3'"),'the real full-source209 installer hash is selected');
+ for(const file of ['scripts/migrations/197-own-novelty-succession.sql','scripts/lib/own-novelty-succession-installation.mjs'])assert.equal(p.candidatePins[file],hash(read(file)),file+' explicit finite source pin');
 });

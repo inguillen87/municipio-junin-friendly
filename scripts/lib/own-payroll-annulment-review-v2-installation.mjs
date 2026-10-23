@@ -11,7 +11,7 @@ import {performancePreservationSnapshot} from '../verify-documentary-roster-perf
 export const OWN_ANNUL_REVIEW208_SQL='scripts/migrations/208-own-annulment-review-index.sql';
 export const OWN_ANNUL_REVIEW208_SQL_SHA256='2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402';
 const NOVELTY197_SQL='scripts/migrations/197-own-novelty-succession.sql';
-const NOVELTY197_SHA256='de81915cb3b17df45f9906072f8125e23f19e462ef61e881057f757a519f9eb4';
+const NOVELTY197_SHA256='13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c';
 const prefix='municontrol_annul_review208.',version='own-annulment-review208-installation-proof.v1';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",lf=v=>v.replace(/\r\n?/g,'\n');
 const hash=v=>createHash('sha256').update(v).digest('hex');
@@ -48,7 +48,7 @@ const SOURCE_PINS=Object.freeze({
   "scripts/lib/own-payroll-installation.mjs": "6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0",
   "scripts/lib/native-leave-installation.mjs": "57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef",
   "scripts/lib/own-novelty-succession-qa.mjs": "f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929",
-  "scripts/lib/own-novelty-succession-installation.mjs": "5d6e7a52307c7ec3cc28ee56941a255e60c88b8238c909eefca869c0e4c801bb",
+  "scripts/lib/own-novelty-succession-installation.mjs": "627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0",
   "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "ff632d4920c827bdd75b1798abab8484912fbc4868064a803e72808d5617eb25",
   "scripts/verify-documentary-roster-performance.mjs": "e058f3450118b23bf16ee1cf7e75b866624153246ce163aed3bf3c96d5f96124",
   "scripts/lib/adopted-documentary-installation.mjs": "9d420e046e9debbef0e584aa47f965f495214bdb4fa6db5de4564edb917d707b"

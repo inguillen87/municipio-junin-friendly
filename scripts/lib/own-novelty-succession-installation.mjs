@@ -11,7 +11,7 @@ import {installationPriorMetadataFingerprint} from './installation-prior-metadat
 import {ownNoveltySuccessionFunctionPin,composeOwnNoveltySuccessionPins,composeOwnNoveltySuccessionObjectCounts,composeOwnNoveltySuccessionReadiness} from './own-novelty-succession-metadata.mjs';
 
 export const NOVELTY197_SQL='scripts/migrations/197-own-novelty-succession.sql';
-export const NOVELTY197_SHA256='de81915cb3b17df45f9906072f8125e23f19e462ef61e881057f757a519f9eb4';
+export const NOVELTY197_SHA256='13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c';
 export const NOVELTY197_METADATA_SHA256='cb9b87bfd695a67f978dee540c3fef3bd3eb0256cfdfdac0adc998c97a56b845';
 const VERSION='own-novelty-succession-installation.v1',prefix='municontrol_novelty197.',index='public.own_novelty_approved_successor_uk';
 const hash=v=>createHash('sha256').update(v).digest('hex'),q=v=>"'"+String(v).replaceAll("'","''")+"'";

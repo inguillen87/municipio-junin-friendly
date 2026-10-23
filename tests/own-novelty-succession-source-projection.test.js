@@ -86,7 +86,13 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   [",\"scripts/lib/own-payroll-close-native-browser.mjs\":\"1c32672ef8f973b82be6cdd7c2a4935bbf8a320aab6a996d3d4d57a442ef77fc\",\"assets/own-payroll-close-panel.css\":\"25457df604fa7371e6012c074a0d62b3bb44d98cd0b274c211ab5c8161a55a0f\"",""],
   ["cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311","6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd"],
   ["1dcba348fc90e1fac6dc2960a1931e1508b8ae5694dfa3896e9002c4498ab177","26805c78cfd66035552a59e84c59464c947eeadd769ea5e3049187692e54d45b"],
-  ["37b9347c01a7e43dbdf4e32b6e20d865cf2887d207ac72dd588e6967bce3b7fe","346c25eb9d55b14916492e63eb9e5e1a9e7d5127f3e8c35dce95e1031aa480fd"]
+  ["37b9347c01a7e43dbdf4e32b6e20d865cf2887d207ac72dd588e6967bce3b7fe","346c25eb9d55b14916492e63eb9e5e1a9e7d5127f3e8c35dce95e1031aa480fd"],
+  ["144628ca52ade9c55d73276fa28a22afb5e80b96c612088d0655d8c876e004c6","1dcba348fc90e1fac6dc2960a1931e1508b8ae5694dfa3896e9002c4498ab177"],
+  ["21c64393f11b78a500b7084d8acf3bf792317d41812db27f0f69a87a4c60581d","37b9347c01a7e43dbdf4e32b6e20d865cf2887d207ac72dd588e6967bce3b7fe"],
+  ["da780e1f3cb426e2f9d189ac98fbab22f5f61e7cd99eb313eab320390fc93344","e5673a20f7547cc7bb6060715920b4dccfc1713f3ef9f6844f1a86840f921fd8"],
+  ["36cc80c2828c9d508d99d3dc07bdc1832de83ce6d0f4bd6b2097abb5358a65a3","a81fd29b59897191fca9c5dd4f7c2a9b0cd3ca02c5315ba6ec07d0a5fc5997b8"],
+  ["84ffdc4bd1d0c280c6d7a3058d8983d2239d1d5d80f8d14aa2dfadabed23a3c5","cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311"],
+  [",\"scripts/migrations/197-own-novelty-succession.sql\":\"13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c\",\"scripts/lib/own-novelty-succession-installation.mjs\":\"627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0\"",""]
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -98,7 +104,9 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(31).reverse())undo(pair);
+ for(const pair of changes.slice(34).reverse())undo(pair);
+ assert.equal(hash(source),'96723b61367876c11173c44b51b2d6b06d387a1798b584ba1ce0135bfde39d82','alias-only197 source custody recovers the complete selected closeR2 fixture before its102 prior operations');
+ for(const pair of changes.slice(31,34).reverse())undo(pair);
  assert.equal(hash(source),'be10ee6669cdbfe2c7f3cab73cfd22e6d41d937ee96e02ebfdfe6b5ae2e4d500','R2 consumer custody recovers the complete unexecuted R1 close source fixture before its99 prior operations');
  for(const pair of changes.slice(24,31).reverse())undo(pair);
  assert.equal(hash(source),'f182d0e9bbb64574ad1c347919f924f9877faeb8e24096fd4dfabbea3e935b1d','close presentation source pins and two new entries recover the exact separate29 fixture before its92 ancestral operations');
