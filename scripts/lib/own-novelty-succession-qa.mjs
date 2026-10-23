@@ -11,15 +11,28 @@ const validSchema=s=>assert.match(s,/^mc_qa_fixed_092_[a-f0-9]{32}$/,'NOVELTY197
 
 // Hashes are derived solely from immutable source definitions and the canonical
 // relocation function. Observed catalogue output is never an expected value.
-export function ownNoveltySuccessionQaProjection({schema,baseNormalize,definitions}){
+export function ownNoveltySuccessionQaProjection({schema,baseNormalize,definitions,predecessorDefinitions}){
  validSchema(schema);assert.equal(typeof baseNormalize,'function');assert.equal(definitions.length,15);
  const sourcePins=definitions.map(d=>ownNoveltySuccessionFunctionPin(ownNoveltySuccessionHeader(d)));
  assert.equal(new Set(sourcePins.map(p=>p.signature)).size,15,'NOVELTY197_QA_DUPLICATE_DEFINITION');
+ assert.ok(Array.isArray(predecessorDefinitions)&&predecessorDefinitions.length===7,'NOVELTY197_QA_SEVEN_PREDECESSORS_REQUIRED');
+ const predecessorPins=predecessorDefinitions.map(d=>ownNoveltySuccessionFunctionPin(ownNoveltySuccessionHeader(d)));
+ assert.equal(new Set(predecessorPins.map(p=>p.signature)).size,7,'NOVELTY197_QA_DUPLICATE_PREDECESSOR');
+ assert.deepEqual(predecessorPins.map(p=>p.signature),sourcePins.slice(0,7).map(p=>p.signature),'NOVELTY197_QA_PREDECESSOR_SIGNATURES_CHANGED');
+ // Installation guards contain both the seven predecessor bodies and their
+ // replacements. Project both from source; the public ledger remains15 after.
+ const projectionDefinitions=[...predecessorDefinitions,...definitions];
  const hashes={};let stable=false;
  const base=s=>baseNormalize(monthlyFixedQaHeader(s));
  for(let pass=0;pass<32;pass++){
-  let changed=false;const next={...hashes};
-  for(const d of definitions){let local=base(d);for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);const raw=hash(body(d)),projected=hash(body(local));if(next[raw]!==projected){next[raw]=projected;changed=true;}}
+  let changed=false;const next={...hashes},assigned=new Map();
+  for(const d of projectionDefinitions){
+   let local=base(d);for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);
+   const raw=hash(body(d)),projected=hash(body(local));
+   if(assigned.has(raw))assert.equal(assigned.get(raw),projected,'NOVELTY197_QA_AMBIGUOUS_BODY_PROJECTION');
+   assigned.set(raw,projected);
+   if(next[raw]!==projected){next[raw]=projected;changed=true;}
+  }
   Object.assign(hashes,next);if(!changed){stable=true;break;}
  }
  assert.ok(stable,'NOVELTY197_QA_HASH_GRAPH_CYCLE');
@@ -45,7 +58,7 @@ export function buildOwnNoveltySuccessionQa({qa,read,sourceCommit}){
  const batch=buildOwnNoveltySuccessionInstallation({read,sourceCommit,operationalPairBaseline:qa.operationalPairBaseline,prerequisiteDefinitions,prerequisiteRuntime:prerequisitePins.filter(p=>p.runtime).map(p=>p.signature)});
  assert.deepEqual(batch.previous.preservedCapturePin,qa.fixedComposition.preservedCapturePin,'NOVELTY197_QA_CAPTURE_PREDECESSOR_CHANGED');
  assert.deepEqual(batch.priorReadinessPin,qa.fixedComposition.preservedReadinessPin,'NOVELTY197_QA_READINESS_PREDECESSOR_CHANGED');
- const projection=ownNoveltySuccessionQaProjection({schema:qa.schema,baseNormalize:qa.normalized,definitions:[...batch.adapted,batch.ready,...batch.newDefinitions]});
+ const projection=ownNoveltySuccessionQaProjection({schema:qa.schema,baseNormalize:qa.normalized,definitions:[...batch.adapted,batch.ready,...batch.newDefinitions],predecessorDefinitions:[...batch.originals,batch.oldReady]});
  const normalized=projection.normalized,phases=['rehearsal','installation','repetition','verification','rollback','rollbackVerification'];
  const local197=Object.fromEntries(phases.map(k=>[k,batch[k].map(normalized)]));
  const projectPins=(definitions,pins)=>definitions.map((d,n)=>projection.localPin(d,pins[n].runtime));

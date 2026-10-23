@@ -1,6 +1,6 @@
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
-import {ownReportVariableSources,OWN_VARIABLE_UNITS} from './own-payroll-report-variables.js';
+import {ownReportVariableSources,ownVariableUnitLabel} from './own-payroll-report-variables.js';
 
 const need=(v,message)=>{if(!v)throw Error(message);};
 const buckets={remuneration:3,non_remuneration:3,deduction:4,employer_contribution:5,auxiliary:6};
@@ -36,7 +36,7 @@ export function ownLegajoReportRows(bundle,selected,maximum=250000){
   for(const r of concepts.get(e.runId).get(e.contractId)){
    const d=catalogs.get(e.runId).get(salarySerialized([e.agreementCode,r.conceptCode,...(capture.saved.input.version==='own-payroll-input.v2'?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
    need(d&&d.nature===r.nature,'Falta la descripción y naturaleza originales de un concepto. No se usó el catálogo actual.');
-   const row=[period,context,r.conceptCode+' / '+d.label+' / '+OWN_RUN_NATURES[r.nature]+' / '+OWN_VARIABLE_UNITS[r.unit],'','','','','',version];
+   const row=[period,context,r.conceptCode+' / '+d.label+' / '+OWN_RUN_NATURES[r.nature]+' / '+ownVariableUnitLabel(r.unit),'','','','','',version];
    row[buckets[r.nature]]=r.amount;result.push(row);
   }
   for(const [key,label]of totals)result.push([period,context,'Total cerrado: '+label,'','','','',e.totals[key],version]);

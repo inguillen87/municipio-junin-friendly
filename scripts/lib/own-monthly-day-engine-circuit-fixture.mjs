@@ -3,6 +3,9 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {splitPostgresStatements} from './sql-statements.mjs';
+import {buildOwnCloseSql} from './own-payroll-close-sql.mjs';
+import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
+import {pinsCheck} from './native-leave-installation.mjs';
 const sha=s=>createHash('sha256').update(s).digest('hex'),q=s=>"'"+String(s).replaceAll("'","''")+"'";
 const sources=Object.freeze({
  'scripts/migrations/124-own-payroll-liquidation-decisions.sql':'03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a',
@@ -10,6 +13,15 @@ const sources=Object.freeze({
  'scripts/migrations/126-own-payroll-receipts.sql':'9f3e93154590b79d027d30a1408d07251211a67e87b581e570bdef013c2d33dc',
 });
 const strip=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim();
+const closeSources=Object.freeze({
+ 'scripts/migrations/123-own-payroll-runs.sql':'a9fe1129e921bb7c01985b8caadb009f6086aef9866e2298398175f7f25b4b6b',
+ 'scripts/lib/own-payroll-close-sql.mjs':'b30aa8751521a4df39f43b76ecc521308a9a0f8f158757a7c4c7e84e30f833f7',
+});
+const closeTargets=Object.freeze(['own_liquidation_rows_v1','own_liquidation_command_v1']);
+const body=d=>{const m=/\bAS\s+(\$\w*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'CIRCUIT_CLOSE_BODY_REQUIRED');return m[2];};
+// Header whitespace and CREATE/REPLACE spelling are fixture conventions. The
+// complete AS body, argument names, types and function settings stay exact.
+const definitionIdentity=d=>{const s=strip(d).replace(/;\s*$/,''),at=s.search(/\bAS\s+\$/);assert.ok(at>0,'CIRCUIT_CLOSE_HEADER_REQUIRED');return s.slice(0,at).replace(/^CREATE(?: OR REPLACE)? FUNCTION /,'CREATE OR REPLACE FUNCTION ').replace(/\s+/g,' ').trim()+' '+s.slice(at);};
 const fnName=s=>/^CREATE(?: OR REPLACE)? FUNCTION (?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(own_[a-z0-9_]+)\(/.exec(strip(s))?.[1];
 const groups=Object.freeze({
  liquidation:['own_liquidation_bootstrap_v1(jsonb)','own_liquidation_detail_v1(jsonb,uuid)','own_liquidation_attempt_v1(jsonb,uuid)','own_liquidation_command_v1(jsonb,jsonb,uuid)'],
@@ -31,11 +43,26 @@ function facadeGrant(statements,group){
 export function buildMonthlyDayCircuitFixture({read,normalized,schema,foundationSeed,actors}){
  assert.equal(typeof read,'function');assert.equal(typeof normalized,'function');assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);
  const all=Object.fromEntries(Object.entries(sources).map(([file,pin])=>{const text=read(file).replace(/\r\n?/g,'\n');assert.equal(sha(text),pin,'CIRCUIT_SOURCE_CHANGED:'+file);return[file,splitPostgresStatements(text).map(strip)];}));
- const existing=new Map();for(const s of splitPostgresStatements(foundationSeed)){const name=fnName(s);if(name)existing.set(name,s);}
+ const existing=new Map(),existingCounts=new Map();for(const s of splitPostgresStatements(foundationSeed)){const name=fnName(s);if(name){existing.set(name,s);existingCounts.set(name,(existingCounts.get(name)??0)+1);}}
  const modern=['own_receipt_params_v1','own_receipt_self_v1','own_receipt_snapshot_v1'];
  assert.deepEqual([...existing.keys()].filter(n=>n.startsWith('own_receipt_')).sort(),modern,'The fixture must explicitly reconcile its three modern receipt supports');
  assert.ok(!new RegExp('CREATE TABLE (?:IF NOT EXISTS )?'+schema+'\\.own_payroll_receipt_event\\b').test(foundationSeed),'Receipt table already exists');
  for(const name of [...groups.liquidation,...groups.close].map(s=>s.split('(')[0]))assert.ok(existing.has(name),'Missing190 lifecycle support:'+name);
+ const readClose=file=>{const pin=sources[file]??closeSources[file];assert.ok(pin,'CIRCUIT_CLOSE_SOURCE_REQUIRED:'+file);const text=read(file).replace(/\r\n?/g,'\n');assert.equal(sha(text),pin,'CIRCUIT_CLOSE_SOURCE_CHANGED:'+file);return text;};
+ for(const file of Object.keys(closeSources))readClose(file);
+ const close=buildOwnCloseSql(readClose),closeBefore=[],closeAfter=[],closeAdaptationLedger=[];
+ for(const name of closeTargets){
+  assert.equal(existingCounts.get(name),1,'CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED:'+name);
+  const before=close.before.filter(d=>fnName(d)===name),after=close.adapted.filter(d=>fnName(d)===name);assert.equal(before.length,1);assert.equal(after.length,1);
+  const beforePin=ownInstallationFunctionPin(before[0]),afterPin=ownInstallationFunctionPin(after[0]);assert.deepEqual({...beforePin,sha256:null},{...afterPin,sha256:null},'CIRCUIT_CLOSE_METADATA_CHANGED:'+name);assert.equal(beforePin.runtime,false,'CIRCUIT_CLOSE_PRIVATE_PREDECESSOR_REQUIRED:'+name);
+  const projectedBefore=normalized(before[0]),projectedAfter=normalized(after[0]);
+  assert.equal(definitionIdentity(existing.get(name)),definitionIdentity(projectedBefore),'CIRCUIT_CLOSE_PREDECESSOR_CHANGED:'+name);
+  closeBefore.push({...beforePin,sha256:sha(body(projectedBefore))});closeAfter.push({...afterPin,sha256:sha(body(projectedAfter))});
+  closeAdaptationLedger.push({name,sourceBeforeProsrcSha256:beforePin.sha256,sourceAfterProsrcSha256:afterPin.sha256,projectedBeforeProsrcSha256:sha(body(projectedBefore)),projectedAfterProsrcSha256:sha(body(projectedAfter)),sourceBeforeDefinitionSha256:sha(before[0]),sourceAfterDefinitionSha256:sha(after[0])});
+ }
+ // Reconcile only125's two missing lifecycle guards, before192--197 take their
+ // conservation snapshots. Capture/complete and modern receipt bodies remain.
+ const closeSupport=[normalized(pinsCheck(closeBefore,'CIRCUIT_CLOSE_PRIOR_METADATA')),...closeTargets.map(name=>normalized(close.adapted.find(d=>fnName(d)===name))),normalized(pinsCheck(closeAfter,'CIRCUIT_CLOSE_AFTER_METADATA'))];
  const receipt=all['scripts/migrations/126-own-payroll-receipts.sql'],definitions=receipt.filter(s=>fnName(s)?.startsWith('own_receipt_'));
  assert.equal(definitions.length,14);const addedDefinitions=definitions.filter(s=>!existing.has(fnName(s)));assert.equal(addedDefinitions.length,11);
  const statements=[],selectedKinds=[];
@@ -63,7 +90,7 @@ export function buildMonthlyDayCircuitFixture({read,normalized,schema,foundation
  const nominal=[...quoted(readMatch[1]),...quoted(nominalMatch[1])];assert.deepEqual(nominal,['workforce.employee.read','payroll.parameter.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export']);
  const capabilities={maker:[...nominal,'payroll.calculation.approve','payroll.receipt.prepare'],checker:[...nominal,'payroll.calculation.approve','payroll.calculation.close','payroll.receipt.approve']};
  const roles=[];for(const kind of ['maker','checker']){const actor=actors[kind];assert.match(actor.membershipId,/^[a-f0-9-]{36}$/);assert.match(actor.actorEmail,/@[^@]*\.invalid$/);roles.push(`INSERT INTO public.iam_role_capability(role_key,capability_key) SELECT member.role_key,c.key FROM public.tenant_membership member CROSS JOIN(VALUES${capabilities[kind].map(c=>'('+q(c)+')').join(',')}) c(key) WHERE member.id=${q(actor.membershipId)}::uuid AND NOT EXISTS(SELECT 1 FROM public.iam_role_capability prior WHERE prior.role_key=member.role_key AND prior.capability_key=c.key)`);}
- const support=[...additionalCaps,...statements,...grants,...roles].map(normalized);
+ const support=[...closeSupport,...[...additionalCaps,...statements,...grants,...roles].map(normalized)];
  for(const name of modern)assert.ok(!support.some(s=>fnName(s)===name),'A modern receipt definition would be overwritten');
- return {version:'own-monthly-day-circuit-fixture.v1',statements:support,sourceHashes:{...sources,'assets/own-payroll-run-workspace-model.js':sha(modelSource)},preservedDefinitions:modern.map(name=>({name,sha256:sha(existing.get(name))})),newReceiptDefinitions:addedDefinitions.map(fnName),runtimeFacades:Object.values(groups).flat(),capabilities,existingFunctionsReplaced:0,newFixtureTables:1,productRoleAssignments:0,fixtureOnly:true,connects:false,executesSql:false};
+ return {version:'own-monthly-day-circuit-fixture.v1',statements:support,sourceHashes:{...sources,...closeSources,'assets/own-payroll-run-workspace-model.js':sha(modelSource)},preservedDefinitions:modern.map(name=>({name,sha256:sha(existing.get(name))})),closeAdaptationLedger,newReceiptDefinitions:addedDefinitions.map(fnName),runtimeFacades:Object.values(groups).flat(),capabilities,existingFunctionsReplaced:2,newFixtureTables:1,productRoleAssignments:0,fixtureOnly:true,connects:false,executesSql:false};
 }

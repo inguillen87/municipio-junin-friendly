@@ -2,7 +2,7 @@ import {ownRunDateLabel} from './own-payroll-run-date.js';
 import {ownPayrollConditions} from './own-payroll-conditions.js';
 import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
-import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
+import { salarySerialized, salaryUuid, SALARY_UNITS } from './native-salary-catalog-model.js';
 
 import {ownProgramPeriodContext,verifiedPeriodContextCapture} from './own-payroll-period-context.js';
 export const OWN_RUN_READ = Object.freeze(['workforce.employee.read','payroll.parameter.read','payroll.calculation.read']);
@@ -41,6 +41,12 @@ export function formatOwnRunDecimal(value, money = true) {
   const negative=value.startsWith('-'), [integer,fraction]=value.replace(/^-/,'').split('.');
   return (money?'$ ':'')+(negative?'-':'')+BigInt(integer).toLocaleString('es-AR')+(fraction===undefined?'':','+fraction);
 }
+// Presentation only: preserve the exact decimal and its declared numeric unit.
+export function formatOwnRunValue(amount, unit) {
+  if(typeof unit!=='string'||!Object.hasOwn(SALARY_UNITS,unit))fail('El resultado contiene una unidad sin verificar.');
+  const money=unit==='money',value=formatOwnRunDecimal(amount,money);
+  return money?value:value+' · '+SALARY_UNITS[unit];
+}
 export function ownRunWorkspaceResult(capture) {
   ownRunCapture(capture);
   const saved=capture.saved;if(!saved)return null;
@@ -67,12 +73,35 @@ export function ownRunWorkspaceResult(capture) {
   if(result.rowCount!==expectedRows||totalIds.size!==expectedIds.size)fail('El detalle de conceptos está incompleto.');
   return {input,result,people};
 }
+const ownRunRowKey=(r,namespaced)=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+const labelMonth=v=>typeof v==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(v);
+// Structural view of the original captured catalog. This does not authenticate
+// a capture; production callers retain verifiedWorkspaceCapture first.
+// Missing, malformed or ambiguous descriptions are not completed from live data.
+export function ownRunConceptLabels(capture){return conceptLabels(capture,ownRunWorkspaceResult(capture));}
+function conceptLabels(capture,verified){
+  if(!verified)return new Map();
+  const {input}=verified,namespaced=input.version==='own-payroll-input.v2',catalog=new Map(),labels=new Map();
+  const items=capture.payload.programState.salaryCatalog?.items;
+  for(const d of Array.isArray(items)?items:[]){
+    if(!d||!['concept',...(namespaced?['auxiliary']:[])].includes(d.kind)||namespaced&&d.kind==='concept'&&d.nature==='auxiliary'
+      ||d.active!==true||!labelMonth(d.validFrom)||!(d.validUntil===null||labelMonth(d.validUntil)&&d.validUntil>=d.validFrom)
+      ||d.validFrom>input.period||d.validUntil!==null&&d.validUntil<input.period)continue;
+    const key=salarySerialized([d.agreementCode,d.code,...(namespaced?[d.kind]:[])]);
+    catalog.set(key,catalog.has(key)?null:d);
+  }
+  for(const r of verified.result.rows){
+    const d=catalog.get(salarySerialized([r.agreementCode,r.conceptCode,...(namespaced?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
+    labels.set(ownRunRowKey(r,namespaced),d&&d.nature===r.nature&&typeof d.label==='string'&&d.label.trim()?d.label:null);
+  }
+  return labels;
+}
 export function ownRunWorkspaceRows(capture, search = '', page = 1, pageSize = 25) {
   const verified=ownRunWorkspaceResult(capture);
   if(!verified || !Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(pageSize)||pageSize<1)fail('No hay un resultado completo para consultar.');
   const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.toLowerCase().includes(term)||r.conceptCode.toLowerCase().includes(term));
-  const pages=Math.max(1,Math.ceil(rows.length/pageSize)), current=Math.min(page,pages);
-  return {rows:rows.slice((current-1)*pageSize,current*pageSize),filtered:rows.length,total:verified.result.rowCount,page:current,pages};
+  const pages=Math.max(1,Math.ceil(rows.length/pageSize)), current=Math.min(page,pages), labels=conceptLabels(capture,verified), namespaced=verified.input.version==='own-payroll-input.v2';
+  return {rows:rows.slice((current-1)*pageSize,current*pageSize),filtered:rows.length,total:verified.result.rowCount,page:current,pages,labelOf:r=>labels.get(ownRunRowKey(r,namespaced))??null};
 }
 const csv = v => {
   let value=String(v);

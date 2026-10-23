@@ -50,9 +50,9 @@ DO $relation_security$ DECLARE name_value text;t pg_class;item record;BEGIN
   OR has_table_privilege('municontrol_actions_runtime_app',t.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT' USING DETAIL=name_value;END IF;
  END LOOP;
  FOR item IN SELECT * FROM(VALUES('own_payroll_novelty_event','own_novelty_immutable',27),('own_payroll_novelty_event','own_novelty_no_truncate',34)) v(tab,name,kind) LOOP
- IF NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=to_regclass('public.'||item.tab) AND t.tgname=item.name AND t.tgfoid='public.own_novelty_immutable_v1()'::regprocedure AND t.tgtype=item.kind AND t.tgenabled='O' AND NOT t.tgisinternal AND t.tgnargs=0 AND t.tgqual IS NULL AND NOT t.tgdeferrable AND NOT t.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger trg WHERE trg.tgrelid=to_regclass('public.'||item.tab) AND trg.tgname=item.name AND trg.tgfoid='public.own_novelty_immutable_v1()'::regprocedure AND trg.tgtype=item.kind AND trg.tgenabled='O' AND NOT trg.tgisinternal AND trg.tgnargs=0 AND trg.tgqual IS NULL AND NOT trg.tgdeferrable AND NOT trg.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
  END LOOP;
-IF NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid='public.payroll_novelty_row'::regclass AND t.tgname='own_novelty_legacy_row' AND t.tgfoid='public.own_novelty_legacy_row_v1()'::regprocedure AND t.tgtype=7 AND t.tgenabled='O' AND NOT t.tgisinternal AND t.tgnargs=0 AND t.tgqual IS NULL AND NOT t.tgdeferrable AND NOT t.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
+IF NOT EXISTS(SELECT 1 FROM pg_trigger trg WHERE trg.tgrelid='public.payroll_novelty_row'::regclass AND trg.tgname='own_novelty_legacy_row' AND trg.tgfoid='public.own_novelty_legacy_row_v1()'::regprocedure AND trg.tgtype=7 AND trg.tgenabled='O' AND NOT trg.tgisinternal AND trg.tgnargs=0 AND trg.tgqual IS NULL AND NOT trg.tgdeferrable AND NOT trg.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
 END $relation_security$;
 
 CREATE UNIQUE INDEX own_novelty_approved_successor_uk ON public.own_payroll_novelty_event(tenant_id,source_binding_id,((snapshot#>>'{supersedes,batchId}')::uuid)) WHERE command='approve' AND status='approved' AND snapshot->>'version'='own-payroll-novelty-batch.v3';
@@ -381,9 +381,9 @@ DO $relation_security$ DECLARE name_value text;t pg_class;item record;BEGIN
   OR has_table_privilege('municontrol_actions_runtime_app',t.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT' USING DETAIL=name_value;END IF;
  END LOOP;
  FOR item IN SELECT * FROM(VALUES('own_payroll_novelty_event','own_novelty_immutable',27),('own_payroll_novelty_event','own_novelty_no_truncate',34)) v(tab,name,kind) LOOP
- IF NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=to_regclass('public.'||item.tab) AND t.tgname=item.name AND t.tgfoid='public.own_novelty_immutable_v1()'::regprocedure AND t.tgtype=item.kind AND t.tgenabled='O' AND NOT t.tgisinternal AND t.tgnargs=0 AND t.tgqual IS NULL AND NOT t.tgdeferrable AND NOT t.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger trg WHERE trg.tgrelid=to_regclass('public.'||item.tab) AND trg.tgname=item.name AND trg.tgfoid='public.own_novelty_immutable_v1()'::regprocedure AND trg.tgtype=item.kind AND trg.tgenabled='O' AND NOT trg.tgisinternal AND trg.tgnargs=0 AND trg.tgqual IS NULL AND NOT trg.tgdeferrable AND NOT trg.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
  END LOOP;
-IF NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid='public.payroll_novelty_row'::regclass AND t.tgname='own_novelty_legacy_row' AND t.tgfoid='public.own_novelty_legacy_row_v1()'::regprocedure AND t.tgtype=7 AND t.tgenabled='O' AND NOT t.tgisinternal AND t.tgnargs=0 AND t.tgqual IS NULL AND NOT t.tgdeferrable AND NOT t.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
+IF NOT EXISTS(SELECT 1 FROM pg_trigger trg WHERE trg.tgrelid='public.payroll_novelty_row'::regclass AND trg.tgname='own_novelty_legacy_row' AND trg.tgfoid='public.own_novelty_legacy_row_v1()'::regprocedure AND trg.tgtype=7 AND trg.tgenabled='O' AND NOT trg.tgisinternal AND trg.tgnargs=0 AND trg.tgqual IS NULL AND NOT trg.tgdeferrable AND NOT trg.tginitdeferred) THEN RAISE EXCEPTION 'OWN_NOVELTY_SUCCESSION_RELATION_DRIFT';END IF;
 END $relation_security$;
 
 -- Source-derived lexical forms for the two typed DDL expressions. This accepts

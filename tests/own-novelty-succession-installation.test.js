@@ -7,6 +7,8 @@ import {buildMonthlyDayFixedCompositionQa} from '../scripts/lib/own-monthly-day-
 import {buildOwnNoveltySuccessionInstallation,assertOwnNoveltySuccessionDurability,composeOwnNoveltySuccessionAncestor,NOVELTY197_SQL} from '../scripts/lib/own-novelty-succession-installation.mjs';
 import {buildOwnNoveltySuccessionQa,ownNoveltySuccessionQaProjection,ownNoveltySuccessionQaRpc} from '../scripts/lib/own-novelty-succession-qa.mjs';
 import {composeOwnNoveltySuccessionPins} from '../scripts/lib/own-novelty-succession-metadata.mjs';
+import {buildMonthlyDayCircuitFixture} from '../scripts/lib/own-monthly-day-engine-circuit-fixture.mjs';
+import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
 const root=new URL('../',import.meta.url),read=file=>readFileSync(new URL(file,root),'utf8').replace(/\r\n?/g,'\n');
 // Source commit metadata is explicit; definitions and all predecessors are
 // independently pinned by the builders. This does not claim a native run.
@@ -71,6 +73,33 @@ test('197 rejects a changed migration before constructing its predecessor, and r
  assert.throws(()=>buildOwnNoveltySuccessionQa({qa:{schema:'public'},read,sourceCommit}),/NOVELTY197_EXACT_QA_SCHEMA_REQUIRED/);
  const definitions=Array.from({length:15},(_,n)=>`CREATE FUNCTION public.synthetic_${n}() RETURNS text LANGUAGE sql AS $$SELECT 'synthetic'$$`);
  assert.throws(()=>ownNoveltySuccessionQaProjection({schema:'public',baseNormalize:s=>s,definitions}),/NOVELTY197_EXACT_QA_SCHEMA_REQUIRED/);
+});
+
+test('197 installation mode projects all seven predecessor hashes as well as their replacements',()=>{
+ const{projected,batch}=plan(),mode=projected.normalized(batch.mode);
+ assert.equal(projected.expectedQaBeforePins.length,7);
+ for(let n=0;n<7;n++){
+  const before=projected.expectedQaBeforePins[n],after=projected.expectedQaAfterPins[n];
+  assert.equal(projected.novelty197Hashes[batch.beforePins[n].sha256],before.sha256,'source-derived predecessor '+before.signature);
+  assert.ok(mode.includes(before.sha256),'installation mode predecessor '+before.signature);
+  assert.ok(mode.includes(after.sha256),'verification mode replacement '+after.signature);
+ }
+ assert.equal(projected.novelty197ProjectionLedger.length,15,'the posterior ledger keeps its original scope');
+});
+
+test('197 predecessor pins match the two close125 bodies actually installed by the circuit fixture',()=>{
+ const{qa,projected}=plan(),fixture=buildMonthlyDayCircuitFixture({read,normalized:qa.normalized,schema:qa.schema,foundationSeed:qa.qa192.qa.seed,actors:{maker:qa.actor,checker:qa.checker}});
+ const latest=new Map();
+ for(const s of [qa.qa192.qa.seed,...fixture.statements].flatMap(sql=>splitPostgresStatements(sql))){
+  const d=s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim(),m=new RegExp('^CREATE(?: OR REPLACE)? FUNCTION '+qa.schema+'\\.([a-z0-9_]+)\\(').exec(d);
+  if(m)latest.set(m[1],d);
+ }
+ assert.equal(fixture.existingFunctionsReplaced,2);assert.equal(fixture.closeAdaptationLedger.length,2);
+ for(const row of fixture.closeAdaptationLedger){
+  const pin=projected.expectedQaBeforePins.find(p=>p.name===row.name);assert.ok(pin);
+  assert.equal(hash(body(latest.get(row.name))),pin.sha256,'source-built installed predecessor '+row.name);
+  assert.equal(row.projectedAfterProsrcSha256,pin.sha256);assert.notEqual(row.projectedBeforeProsrcSha256,pin.sha256,'old124 seed cannot satisfy125');
+ }
 });
 
 test('197 maps only its exact read façade and rejects additional SQL or arguments',()=>{

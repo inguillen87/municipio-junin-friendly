@@ -1,6 +1,7 @@
 // Pure composition of the existing190 foundation. Never connects or executes.
 import assert from'node:assert/strict';import{createHash}from'node:crypto';
 import{buildOwnerProgramQa,ownerProgramQaOrdinaryQuery}from'./municipal-owner-program-qa.mjs';
+import{resolveMonthlyDayQaFoundation}from'./own-monthly-day-qa-foundation.mjs';
 import{buildMonthlyDayPolicyInstallation}from'./own-monthly-day-policy-installation.mjs';
 import{monthlyQaRuntimeGrants}from'./own-monthly-participation-qa.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';
@@ -9,9 +10,9 @@ import{monthlyDaySqlFixture}from'../../tests/fixtures/own-monthly-day-policy-sql
 import{monthlyDayLegacyCompatibilityFixture,MONTHLY_DAY_LEGACY_FIXTURE_SOURCE}from'./monthly-day-policy-legacy-fixture.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex'),body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'MONTHLY192_BODY_REQUIRED');return m[2];};
 export function monthlyDayQaHeader(sql){return sql.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp').replaceAll("SET search_path TO ''pg_catalog'', ''public'', ''pg_temp''",'SET search_path=pg_catalog,public,pg_temp').replaceAll('SET "TimeZone" TO \'UTC\'',"SET timezone='UTC'").replaceAll('SET "TimeZone" TO \'\'UTC\'\'',"SET timezone=''UTC''");}
-export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operationalPairBaseline}){
+export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operationalPairBaseline,foundation}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit??'',/^[a-f0-9]{40}$/);assert.equal(typeof read,'function');assert.ok(['pre107','published107'].includes(operationalPairBaseline),'MONTHLY192_EXPLICIT_BASELINE_REQUIRED');
- const qa=buildOwnerProgramQa({major,sourceCommit,read,...(schema?{schema}:{}),operationalPairBaseline}),batch=buildMonthlyDayPolicyInstallation({read,sourceCommit,operationalPairBaseline});
+ const qa=resolveMonthlyDayQaFoundation({major,sourceCommit,read,schema,operationalPairBaseline,foundation},buildOwnerProgramQa),batch=buildMonthlyDayPolicyInstallation({read,sourceCommit,operationalPairBaseline});
  const hashes={};let stable=false;for(let pass=0;pass<12;pass++){let changed=false;for(const d of[...batch.newDefinitions,...batch.adapted]){let local=qa.normalized(monthlyDayQaHeader(d));for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);const raw=hash(body(d)),next=hash(body(local));if(hashes[raw]!==next){hashes[raw]=next;changed=true;}}if(!changed){stable=true;break;}}assert.ok(stable,'MONTHLY192_HASH_GRAPH_CYCLE');
  const normalized=sql=>{let local=qa.normalized(monthlyDayQaHeader(sql));for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);return local;};
  const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback'].map(k=>[k,batch[k].map(normalized)]));
