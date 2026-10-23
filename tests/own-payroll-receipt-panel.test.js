@@ -53,7 +53,7 @@ function harness(t,{self=false}={}){
   const body=options.body?JSON.parse(options.body):null,key=options.headers?.['Idempotency-Key'];requests.push({url,method:options.method??'GET',body,key});await state.hold?.(url,body);
   if(url==='/api/internal-auth'){state.authCount++;await state.onAuth?.(state.authCount);return new Response(JSON.stringify({ok:true,authenticated:true,sessionVersion:2,user:{id:state.operator,email:'synthetic@example.test'},access:{context:'tenant',tenant:{id:state.tenantId,roleKey:state.role},tenantCapabilities:state.caps},expiresAt:'2099-01-01T00:00:00Z'}));}
   const q=new URL(url,'https://synthetic.example.test').searchParams;
-  if(q.get('resource')==='self'){const value=receiptSelf();if(state.mixedSelf){const other=structuredClone(value.items[0]);other.batchId=uid(801);other.record=receiptPreview(2).snapshot.records[1];value.items.push(other);}return new Response(JSON.stringify({ok:true,data:value}));}
+  if(q.get('resource')==='self'){const value=structuredClone(state.selfResponse??receiptSelf());if(state.mixedSelf){const other=structuredClone(value.items[0]);other.batchId=uid(801);other.record=receiptPreview(2).snapshot.records[1];value.items.push(other);}return new Response(JSON.stringify({ok:true,data:value}));}
   if(q.get('resource')==='issuer')return new Response(JSON.stringify({ok:true,data:issuer()}));
   if(body?.operation==='preview'){const preview=receiptPreview(state.count);preview.scopeVersion=state.scopeVersion;preview.snapshot.sourceVersion=state.sourceVersion;preview.snapshot.params=ownReceiptParams(body.params);if(preview.snapshot.params.contracts){preview.snapshot.version='own-receipt-snapshot.v2';preview.snapshot.identityBasis='owned_registration_verified_at_capture';}if(state.zero)Object.assign(preview.snapshot,{records:[],sources:[],recordCount:0,conceptCount:0});preview.snapshotSha256=ownRunHash(preview.snapshot);state.lastPreview=structuredClone(preview);return new Response(JSON.stringify({ok:true,data:preview}));}
   if(body?.operation==='command'){
@@ -192,6 +192,18 @@ test('el detalle administrativo conserva todos los conceptos de cada fila visibl
 });
 test('la autogestión muestra únicamente su recibo con desglose y limpia conceptos al revocar',async t=>{
  const h=harness(t,{self:true});await h.act('consult');const list=h.q('list');assert.equal(list.children.length,1);const detail=list.querySelector('details');detail.open=true;await detail.emit('toggle');for(const c of receiptSelf().items[0].record.concepts)assert.ok(detail.textContent.includes(c.label));assert.match(detail.textContent,/Descuentos y retenciones/);assert.match(detail.textContent,/no se descuentan nuevamente/);assert.ok(!list.textContent.includes('Agente sintético 1'));assert.equal(h.requests.filter(r=>r.method==='POST').length,0);h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(list.children.length,0);assert.match(h.q('status').textContent,/cambio de permisos/);
+});
+test('la autogestión muestra el emisor y la leyenda conservados y los retira con sus permisos',async t=>{
+ const h=harness(t,{self:true});await h.act('consult');const list=h.q('list'),item=receiptSelf().items[0];
+ for(const value of [item.params.issuer.name,item.params.issuer.taxId,item.params.issuer.address,item.params.legend])assert.ok(list.textContent.includes(value),'Dato conservado del recibo: '+value);
+ assert.match(list.textContent,/Emisor declarado:/);assert.match(list.textContent,/CUIT/);assert.equal(h.requests.filter(r=>r.url.includes('resource=issuer')||r.method==='POST').length,0,'Consultar el recibo no sustituye su emisor por uno actual ni registra una operación');
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(list.children.length,0);for(const value of [item.params.issuer.name,item.params.issuer.taxId,item.params.issuer.address,item.params.legend])assert.ok(!list.textContent.includes(value));
+});
+test('la autogestión conserva el emisor de cada emisión y no inventa una leyenda vacía',async t=>{
+ const h=harness(t,{self:true}),response=receiptSelf(),other=structuredClone(response.items[0]);other.batchId=uid(802);other.params.issuer={name:'Otro municipio de ensayo',taxId:'30990000002',address:'Otro domicilio sintético 456'};other.params.legend='';response.items.push(other);h.state.selfResponse=response;const before=structuredClone(response);
+ await h.act('consult');const list=h.q('list');assert.equal(list.children.length,2);
+ for(const [index,item]of response.items.entries()){const row=list.children[index];for(const value of Object.values(item.params.issuer))assert.ok(row.textContent.includes(value));const different=response.items[1-index];assert.ok(!row.textContent.includes(different.params.issuer.name));}
+ assert.ok(list.children[0].textContent.includes(response.items[0].params.legend));assert.ok(!list.children[1].textContent.includes(response.items[0].params.legend));assert.deepEqual(h.state.selfResponse,before);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);h.hide();assert.equal(list.children.length,0);
 });
 test('la autogestión rechaza mezcla de agentes antes de mostrar su detalle',async t=>{
  const h=harness(t,{self:true});h.state.mixedSelf=true;await h.act('consult');assert.equal(h.q('list').children.length,0);assert.match(h.q('status').textContent,/exclusivamente a un agente/);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
