@@ -19,9 +19,10 @@ import {readReceipt126Same190Inventory} from './own-payroll-receipt126-same190-i
 import {ownAnnulPreparationOperation,annulPreparationError} from '../../lib/internal-own-payroll-annulment-preparation.js';
 import {createOwnAnnulPreparationHandler} from '../../api/internal-own-payroll-annulment-preparation.js';
 import {verifyOwnAnnulPreparation209BrowserOn190} from './own-payroll-annulment-preparation-209-native-browser.mjs';
+import {verifyOwnLiquidationDecision124BrowserOn190} from './own-payroll-liquidation-decision-124-native-browser.mjs';
 import {OWN_RUN_PREPARE} from '../../assets/own-payroll-run-workspace-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
-import {verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
+import {verifiedOwnLiquidationDetail,ownLiquidationDecisionPreparation} from '../../assets/own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,verifiedOwnAnnulReviewReceipt} from '../../assets/own-payroll-annulment-review-model.js';
 import {ownAnnulPreparationDates,ownAnnulPreparationForDate,assertSameOwnAnnulPreparation} from '../../assets/own-payroll-annulment-preparation-model.js';
 
@@ -238,6 +239,46 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  await sameStateReject(()=>preparation(randomUUID()),error=>error.code==='OWN_ANNUL_PREPARATION_NOT_FOUND'&&error.status===404,'unknown source ID never exposes another receipt');
  const ledger=()=>db.run(`SELECT jsonb_build_object('captures',(SELECT count(*)::integer FROM own_payroll_run_capture c WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'saved',(SELECT count(*)::integer FROM own_payroll_run_capture c JOIN own_payroll_run_result r ON r.capture_id=c.id WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'creators',(SELECT count(DISTINCT actor_membership_id)::integer FROM own_payroll_run_capture WHERE tenant_id=${q(qa.actor.tenantId)}::uuid AND source_binding_id=${q(qa.ids.binding)}::uuid AND body->>'period'=${q(period)} AND body->>'liquidationType'='monthly'),'liquidationEvents',(SELECT count(*)::integer FROM own_payroll_liquidation_event),'closeEvents',(SELECT count(*)::integer FROM own_payroll_close_event))`);
  let previous=projection,census=await ledger();assert.equal(census.captures,12);assert.equal(census.saved,12);assert.equal(census.creators,2);measurements.census.push({stage:'after-two-creator-annulment',...census});
+ // SEPARATE INDIVIDUAL124 PHASE. H1/projection and its12/12/2 census above
+ // remain the original epoch. These ten disjoint contracts were calculated,
+ // never confirmed, in creator1's capture; creator2's old rows are annulled.
+ const decisionIds=partitions[1].slice(0,10);assert.equal(decisionIds.length,10);
+ assert.ok(decisionIds.every(id=>!partitions[0].includes(id)));
+ const decisionDetailBefore=await readDetail(captures[0].id);assert.deepEqual(decisionDetailBefore.capture.saved,captures[0].saved);
+ for(const id of decisionIds){const row=decisionDetailBefore.employees.find(value=>value.contractId===id);assert.ok(row);assert.equal(row.state,'calculated');assert.equal(row.blockedBy,null);assert.ok(row.allowedCommands.includes('confirm'));}
+ const decisionBefore=(await readIndex()).index.find(row=>row.id===captures[0].id).states;assert.equal(decisionBefore.confirmed,0);
+ const decisionSnapshotBefore=readSnapshot(),decisionRowsBefore=rowMultiset(h),decisionLedgerBefore=await ledger();assert.deepEqual(decisionLedgerBefore,census);
+ const decisionConfirm=await confirm(captures[0],decisionIds);assert.equal(decisionConfirm.runId,captures[0].id);assert.equal(decisionConfirm.body.command,'confirm');assert.equal(decisionConfirm.affected.length,decisionIds.length);assert.deepEqual(decisionConfirm.affected.map(row=>row.contractId).sort(),[...decisionIds].sort());assert.ok(decisionConfirm.affected.every(row=>row.state==='confirmed'));
+ const decisionActors=Object.freeze({reviewer:{...reviewer,raw:qa.checker,roleKey:'QA_CANONICAL190_REVIEWER'},creator:{...accesses.creator1,raw:actorPlan.actors.creator1,roleKey:'QA_ANNUL209_CREATOR1'},receiver:{...accesses.receiver,raw:actorPlan.actors.receiver,roleKey:'QA_ANNUL_PREPARER_209'}});
+ const decisionBrowser=await verifyOwnLiquidationDecision124BrowserOn190(Object.freeze({h,db,qa,readSnapshot,synthetic:true}),Object.freeze({run:captures[0],contractIds:decisionIds,actors:decisionActors,reason,phase:'handoff'}));
+ assert.equal(decisionBrowser.version,'own-liquidation-decision124-live190-native-browser.v1');assert.equal(decisionBrowser.phase,'handoff');assert.equal(decisionBrowser.passed,true);
+ assert.equal(decisionBrowser.sourceCommit,h.sourceCommit);assert.equal(decisionBrowser.major,h.major);assert.equal(decisionBrowser.actualSql,true);assert.equal(decisionBrowser.actualHttp,true);assert.equal(decisionBrowser.actualBrowser,true);
+ assert.equal(decisionBrowser.decisionPosts,1);assert.equal(decisionBrowser.mutations,1);assert.equal(decisionBrowser.pagePosts,1);assert.equal(decisionBrowser.calculationPosts,0);assert.equal(decisionBrowser.affected,decisionIds.length);
+ assert.equal(decisionBrowser.individualDecisionBrowserProven,true);assert.equal(decisionBrowser.blockedDecisionBrowserProven,false);assert.equal(decisionBrowser.receiverForbidden,true);assert.equal(decisionBrowser.foreignAttemptNotFound,true);
+ assert.equal(decisionBrowser.productionWrites,0);assert.equal(decisionBrowser.paymentExecuted,false);assert.equal(decisionBrowser.municipalAcceptance,false);
+ const decisionReceipt=decisionBrowser.receipt;assert.equal(decisionReceipt.version,'own-liquidation-receipt.v1');assert.equal(decisionReceipt.runId,captures[0].id);assert.equal(decisionReceipt.body.command,'annul');
+ assert.deepEqual(decisionReceipt.affected.map(row=>row.contractId).sort(),[...decisionIds].sort());assert.ok(decisionReceipt.affected.every(row=>row.state==='annulled'));
+ // Derive both versions from the actual confirmation, never assume a v1 amount.
+ const decisionConfirmedRows=new Map(decisionConfirm.affected.map(row=>[row.contractId,row]));
+ for(const row of decisionReceipt.affected){const confirmed=decisionConfirmedRows.get(row.contractId);assert.ok(confirmed);assert.equal(row.liquidationVersion,confirmed.liquidationVersion);assert.equal(row.version,confirmed.version+1);}
+ assert.deepEqual(await liq('attempt',{key:decisionReceipt.key}),{...decisionReceipt,replayed:true});
+ await sameStateReject(()=>ownLiquidationOperation(db,accesses.creator1.principal,accesses.creator1.session,'attempt',{key:decisionReceipt.key},{fullJson:true}),error=>error.code==='OWN_LIQ_NOT_FOUND'&&error.status===404,'P cannot recover R\'s individual receipt even knowing its key');
+ const decisionDraft=ownLiquidationDecisionPreparation(await readDetail(captures[0].id),decisionReceipt.id);assert.deepEqual(decisionDraft.selection,{kind:'contracts',values:[...decisionIds].sort()});assert.equal(decisionDraft.liquidationDate,dates[0]);assert.equal(decisionDraft.runId,captures[0].id);
+ const decisionAfter=(await readIndex()).index.find(row=>row.id===captures[0].id).states;assert.deepEqual(decisionAfter,{...decisionBefore,calculated:decisionBefore.calculated-decisionIds.length,annulled:decisionBefore.annulled+decisionIds.length});
+ const decisionCensus=await ledger();assert.deepEqual(decisionCensus,{...decisionLedgerBefore,liquidationEvents:decisionLedgerBefore.liquidationEvents+2});assert.notDeepEqual(readSnapshot(),decisionSnapshotBefore);
+ const decisionRowsAfter=rowMultiset(h);assertPrefix(decisionRowsBefore,decisionRowsAfter);assert.deepEqual(decisionRowsAfter.filter(row=>row.name!=='own_payroll_liquidation_event'),decisionRowsBefore.filter(row=>row.name!=='own_payroll_liquidation_event'));
+ // SQL197's stateVersion commits every liquidation event in this period/type.
+ // Preserve const projection (H1); bind the later pending reads to a NEW epoch.
+ const projectionPostIndividual124=await preparation(receipt.id);
+ const {runs:post124Runs,sourceStateSha256:post124State,preparationSha256:post124Sha,...post124Unchanged}=projectionPostIndividual124;
+ const {runs:h1Runs,sourceStateSha256:h1State,preparationSha256:h1Sha,...h1Unchanged}=projection;
+ assert.deepEqual(post124Unchanged,h1Unchanged);assert.deepEqual(projectionPostIndividual124.affected,projection.affected);assert.equal(post124Runs.length,2);
+ assert.deepEqual(post124Runs.map(({stateVersion,...row})=>row),h1Runs.map(({stateVersion,...row})=>row));
+ for(const run of post124Runs){const previousRun=h1Runs.find(row=>row.id===run.id);assert.ok(previousRun);assert.notEqual(run.stateVersion,previousRun.stateVersion,'DECISION124_STATE_VERSION_MOVED:'+run.id);}
+ assert.notEqual(post124State,h1State);assert.notEqual(post124Sha,h1Sha);assert.throws(()=>assertSameOwnAnnulPreparation(projection,projectionPostIndividual124),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
+ assertSameOwnAnnulPreparation(projectionPostIndividual124,await preparation(receipt.id));
+ previous=projectionPostIndividual124;census=decisionCensus;measurements.census.push({stage:'after-individual124-decision',...decisionCensus});
+ ok(true,'an individual124 annul by the real reviewer panel hands over only run+decision; P rebuilds the exact draft, the third preparer keeps403 and the separate epoch adds exactly two liquidation events');
  // Two separate ordinary, unsaved captures exercise the COMPLETE inventory:
  // another creator and the receiver. These are explicit synthetic fixture
  // writes, not a side effect of preparing a date or receiving a GET response.
@@ -246,7 +287,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
   const result=await db.query('SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result',[JSON.stringify(employeeContext(accesses[name].principal,accesses[name].session)),JSON.stringify(pendingBody),key,ownRunAlgorithmHash()]);
   const pending=result[0].result;assert.equal(pending.saved,null);assert.equal(pending.key,key);
   const pendingRow=await db.run('SELECT jsonb_build_object(\'captureCount\',(SELECT count(*)::integer FROM own_payroll_run_capture WHERE id='+q(pending.id)+'::uuid),\'resultCount\',(SELECT count(*)::integer FROM own_payroll_run_result WHERE capture_id='+q(pending.id)+'::uuid))');assert.deepEqual(pendingRow,{captureCount:1,resultCount:0});
-  const refreshed=await preparation(receipt.id);assert.deepEqual(refreshed.affected,projection.affected);assert.deepEqual(refreshed.runs,projection.runs);assert.notEqual(refreshed.sourceStateSha256,previous.sourceStateSha256);assert.notEqual(refreshed.preparationSha256,previous.preparationSha256);
+  const refreshed=await preparation(receipt.id);assert.deepEqual(refreshed.affected,projection.affected);assert.deepEqual(refreshed.runs,projectionPostIndividual124.runs);assert.notEqual(refreshed.sourceStateSha256,previous.sourceStateSha256);assert.notEqual(refreshed.preparationSha256,previous.preparationSha256);
   assert.throws(()=>assertSameOwnAnnulPreparation(previous,refreshed),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
   census=await ledger();assert.equal(census.saved,12);assert.equal(census.captures,13+(name==='receiver'?1:0));measurements.census.push({stage:'pending-'+name,...census});previous=refreshed;
  }
@@ -409,6 +450,20 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.deepEqual(confirmedIndex.closeHistory,recalcIndex.closeHistory);assert.deepEqual(confirmedIndex.closed,recalcIndex.closed);
  for(const decision of confirmationReceipts)assert.deepEqual(confirmedIndex.liquidationHistory.find(row=>row.id===decision.id),{id:decision.id,runId:decision.runId,bodySha256:decision.bodySha256});
  await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'original209 preparation rejects the newly confirmed global state without a write');
+ // SEPARATE BLOCKED124 READ PHASE. The two existing recalculation confirmations
+ // above already contribute +2 relative to confirmCloseBefore; no new command.
+ const blockedDetail=await readDetail(captures[0].id);
+ for(const id of decisionIds)assert.equal(blockedDetail.employees.find(row=>row.contractId===id).blockedBy,recalculated[1].id);
+ assert.throws(()=>ownLiquidationDecisionPreparation(blockedDetail,decisionReceipt.id),/otra liquidación confirmada/);
+ const blockedBefore=readSnapshot();
+ const blockedBrowser=await verifyOwnLiquidationDecision124BrowserOn190(Object.freeze({h,db,qa,readSnapshot,synthetic:true}),Object.freeze({run:captures[0],contractIds:decisionIds,actors:decisionActors,reason,phase:'blocked',decisionId:decisionReceipt.id}));
+ assert.equal(blockedBrowser.version,'own-liquidation-decision124-live190-native-browser.v1');assert.equal(blockedBrowser.phase,'blocked');assert.equal(blockedBrowser.passed,true);
+ assert.equal(blockedBrowser.sourceCommit,h.sourceCommit);assert.equal(blockedBrowser.major,h.major);assert.equal(blockedBrowser.actualSql,true);assert.equal(blockedBrowser.actualHttp,true);assert.equal(blockedBrowser.actualBrowser,true);
+ assert.equal(blockedBrowser.blockedDecisionBrowserProven,true);assert.equal(blockedBrowser.individualDecisionBrowserProven,false);assert.equal(blockedBrowser.receiverForbidden,true);assert.equal(blockedBrowser.affected,decisionIds.length);
+ assert.equal(blockedBrowser.mutations,0);assert.equal(blockedBrowser.pagePosts,0);assert.equal(blockedBrowser.calculationPosts,0);assert.equal(blockedBrowser.decisionPosts,0);
+ assert.equal(blockedBrowser.productionWrites,0);assert.equal(blockedBrowser.paymentExecuted,false);assert.equal(blockedBrowser.municipalAcceptance,false);
+ assert.deepEqual(readSnapshot(),blockedBefore);assert.deepEqual(await ledger(),{...confirmCloseBefore,liquidationEvents:confirmCloseBefore.liquidationEvents+2});
+ ok(true,'a later confirmed liquidation elsewhere blocks the whole individual124 decision in the real panel without a write');
  const closeDetail=await close('detail',query),closeDetailBytes=bytes(closeDetail);assert.ok(closeDetailBytes<=FULL);
  assert.equal(closeDetail.rows.length,855);assert.deepEqual(closeDetail.rows.map(row=>row.contractId).sort(),contracts);assert.ok(closeDetail.rows.every(row=>row.state==='confirmed'&&row.canClose&&newRunIds.has(row.runId)));
  const sourceByContract=new Map(recalculated.flatMap(capture=>capture.saved.input.employees.map(employee=>[employee.contractId,capture])));
@@ -453,5 +508,5 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(receipt126Inventory.installationAllowed,false);assert.equal(receipt126Inventory.receiptWorkflowExecuted,false);assert.equal(receipt126Inventory.metadataOnly,true);
  assert.ok(['ausente','parcial','objetos_presentes_sin_admision'].includes(receipt126Inventory.classification));
  ok(true,'same190 catalog inventory126 is complete metadata only, without installation admission or receipt execution');
- return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:4,preparationPhaseSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,postPreparationRecalculation,postPreparationConfirmationClose,receipt126Inventory,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:handoffBrowser.actualHttp,actualBrowser:handoffBrowser.actualBrowser,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:handoffBrowser.receiptToPreparationBrowserProven,handoffBrowser,rejectionBrowser,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:4,preparationPhaseSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,postPreparationRecalculation,postPreparationConfirmationClose,individualDecisionBrowser:decisionBrowser,blockedDecisionBrowser:blockedBrowser,receipt126Inventory,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:handoffBrowser.actualHttp,actualBrowser:handoffBrowser.actualBrowser,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:handoffBrowser.receiptToPreparationBrowserProven,individualDecisionBrowserProven:decisionBrowser.individualDecisionBrowserProven&&blockedBrowser.blockedDecisionBrowserProven,handoffBrowser,rejectionBrowser,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
 }

@@ -7,6 +7,23 @@ import {verifyMunicipalOwnerProgram} from './verify-municipal-owner-program.mjs'
 import {ownerAuthorityQaOptions} from './verify-municipal-owner-adoption-authority.mjs';
 import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';
 
+// The served product is read through fs by browser124, so every one of its
+// twelve raw source assets is an explicit entry before the owner source bookend.
+const decision124Assets=Object.freeze([
+  'assets/own-payroll-liquidation-panel.js',
+  'assets/own-payroll-liquidation-model.js',
+  'assets/own-payroll-run-panel.js',
+  'assets/own-payroll-run-workspace-model.js',
+  'assets/own-payroll-annulment-preparation-link.js',
+  'assets/payroll-navigation.js',
+  'assets/own-payroll-readiness-model.js',
+  'assets/own-payroll-response.js',
+  'assets/native-salary-catalog-model.js',
+  'assets/own-payroll-run-model.js',
+  'assets/own-payroll-run-date.js',
+  'assets/own-payroll-individual-panel.js'
+]);
+
 const entries=[...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,
   'scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',
   'scripts/lib/own-payroll-annulment-review-v2-installation.mjs',
@@ -21,6 +38,9 @@ const entries=[...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,
   'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',
   'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',
   'scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs',
+  'scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs',
+  'scripts/lib/own-payroll-canonical190-browser-host-qa.mjs',
+  ...decision124Assets,
   'scripts/lib/own-payroll-receipt126-inventory-model.mjs',
   'scripts/lib/own-payroll-receipt126-same190-inventory.mjs',
   'tests/own-payroll-receipt126-inventory-model.test.js',
@@ -85,6 +105,48 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(preparation.population,855);assert.equal(preparation.conceptRowsPerRun,17100);assert.equal(preparation.receiverIsThirdManagedPreparer,true);
   assert.equal(preparation.atomicGetToCalculation,false);assert.equal(preparation.receiptLinkedRecalculationExecuted,false);assert.equal(preparation.monthlyBusinessCovered,false);
   assert.equal(preparation.productionWrites,0);assert.equal(preparation.municipalAcceptance,false);
+  // Separate browser124 phases on the same canonical190: handoff after H1,
+  // then a read-only blocked phase after the later explicit confirmations.
+  // The zero calculation count belongs to each browser phase, not the full tail.
+  const individual124=preparation.individualDecisionBrowser,blocked124=preparation.blockedDecisionBrowser;
+  assert.equal(report.sourceBefore?.passed,true);assert.equal(report.sourceBefore.committedBytesVerified,true);
+  assert.equal(report.sourceAfter.rawBytesVerified,true);
+  for(const file of ['scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs','scripts/lib/own-payroll-canonical190-browser-host-qa.mjs','scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs'])assert.match(report.sourceClosure.files[file],/^[a-f0-9]{64}$/,'complete committed source closure includes '+file);
+  for(const [proof,phase]of [[individual124,'handoff'],[blocked124,'blocked']]){
+    assert.equal(proof?.version,'own-liquidation-decision124-live190-native-browser.v1');assert.equal(proof.phase,phase);assert.equal(proof.passed,true);
+    assert.equal(proof.sourceCommit,report.sourceCommit);assert.equal(proof.major,report.major);assert.equal(proof.affected,10);
+    assert.equal(proof.actualSql,true);assert.equal(proof.actualHttp,true);assert.equal(proof.actualBrowser,true);
+    assert.equal(proof.authenticationFixture,true);assert.equal(proof.completeAuthenticationHandler,false);
+    assert.equal(proof.sourceMode,'public_build_with_twelve_handoff_modules_byte_checked');assert.equal(proof.fullBuildValidation,false);
+    assert.equal(proof.calculationPosts,0);assert.equal(proof.receiverForbidden,true);assert.equal(proof.sqlLevelRevocation,false);
+    assert.equal(proof.automaticRecalculation,false);assert.equal(proof.receiptLinkedRecalculationExecuted,false);
+    assert.equal(proof.productionWrites,0);assert.equal(proof.paymentExecuted,false);assert.equal(proof.municipalAcceptance,false);
+    assert.equal(proof.sourceBookend.length,12);assert.deepEqual(proof.sourceBookend.map(row=>row.path).sort(),[...decision124Assets].sort());
+    for(const row of proof.sourceBookend){assert.match(row.sha256,/^[a-f0-9]{64}$/);assert.equal(row.sha256,report.sourceClosure.files[row.path],'built browser asset equals the source committed before SQL: '+row.path);}
+  }
+  assert.equal(individual124.individualDecisionBrowserProven,true);assert.equal(individual124.blockedDecisionBrowserProven,false);
+  assert.equal(individual124.pagePosts,1);assert.equal(individual124.decisionPosts,1);assert.equal(individual124.mutations,1);assert.equal(individual124.foreignAttemptNotFound,true);
+  assert.equal(blocked124.blockedDecisionBrowserProven,true);assert.equal(blocked124.individualDecisionBrowserProven,false);
+  assert.equal(blocked124.pagePosts,0);assert.equal(blocked124.decisionPosts,0);assert.equal(blocked124.mutations,0);
+  assert.equal(preparation.individualDecisionBrowserProven,individual124.individualDecisionBrowserProven&&blocked124.blockedDecisionBrowserProven);
+  assert.equal(preparation.individualDecisionBrowserProven,true);
+  const negatives124=individual124.negatives;
+  const negativeNames124=['reviewer-read-only-refresh','hide-after-draft','hide-pending','task-change','capability-withdrawal','late-response-after-withdrawal'];
+  assert.equal(individual124.withdrawalNegatives,6);assert.equal(negatives124.length,6);
+  assert.deepEqual(negatives124.map(row=>row.name).sort(),[...negativeNames124].sort());
+  const negativeByName124=new Map(negatives124.map(row=>[row.name,row]));assert.equal(negativeByName124.size,6);
+  for(const row of negatives124){assert.equal(row.retired,true);assert.equal(row.newPosts,0);}
+  for(const name of ['hide-pending','task-change','capability-withdrawal','late-response-after-withdrawal'])assert.equal(negativeByName124.get(name).restoreReads,1);
+  for(const name of ['hide-after-draft','hide-pending','task-change','capability-withdrawal'])assert.equal(negativeByName124.get(name).detailReadsDuring,0);
+  assert.equal(negativeByName124.get('late-response-after-withdrawal').detailReadsDuring,1);
+  // N0's zero-GET annotation is not an independent counter; do not promote it
+  // into a measured GET claim. Its retirement and no-POST assertions live in R4.
+  assert.equal(blocked124.withdrawalNegatives,0);assert.deepEqual(blocked124.negatives,[]);
+  const censusBefore124=preparation.measurements.census.filter(row=>row.stage==='after-two-creator-annulment'),censusAfter124=preparation.measurements.census.filter(row=>row.stage==='after-individual124-decision');
+  assert.equal(censusBefore124.length,1);assert.equal(censusAfter124.length,1);
+  for(const row of [censusBefore124[0],censusAfter124[0]]){assert.equal(row.captures,12);assert.equal(row.saved,12);assert.equal(row.creators,2);}
+  assert.equal(censusAfter124[0].liquidationEvents,censusBefore124[0].liquidationEvents+2,'native confirmation plus browser annul; not two browser mutations');
+  assert.equal(censusAfter124[0].closeEvents,censusBefore124[0].closeEvents);
   // Separate explicit post-draft actions; preparation itself stays unconfirmed.
   // These assertions are mandatory, not a browser/HTTP or monthly-business claim.
   assert.equal(preparation.newSavedCaptures,4);assert.equal(preparation.preparationPhaseSavedCaptures,2);
@@ -139,7 +201,10 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   verifyOwnAnnulmentV2FullCapacity(ownerAuthorityQaOptions(process.argv.slice(2)))
-    .then(report=>console.log(JSON.stringify({passed:report.passed,sourceCommit:report.sourceCommit,
-      major:report.major,annulment855:true,preparation209Native:true,completeMunicipalCircuit:false,monthlyBusiness:false,municipalAcceptance:false})))
+    .then(report=>{const tail=report.continuation.capacity.annulmentV2Browser,preparation=tail.preparation209;
+      console.log(JSON.stringify({passed:report.passed,sourceCommit:report.sourceCommit,major:report.major,
+        annulment855:tail.browser.fullAnnulmentBrowserProven,preparation209Native:preparation.receiptToPreparationNativeProven,
+        individualDecision124Browser:preparation.individualDecisionBrowserProven,blockedDecision124Browser:preparation.blockedDecisionBrowser.blockedDecisionBrowserProven,
+        withdrawalNegatives124:preparation.individualDecisionBrowser.withdrawalNegatives,completeMunicipalCircuit:false,monthlyBusiness:false,municipalAcceptance:false}));})
     .catch(error=>{console.error(error.stack);for(const cause of error.errors??[])console.error(cause.stack);process.exitCode=1;});
 }

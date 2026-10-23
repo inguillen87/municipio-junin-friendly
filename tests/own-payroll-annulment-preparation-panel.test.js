@@ -204,9 +204,21 @@ test('another confirmed liquidation of one contract blocks the whole decision wi
 });
 
 test('a decision id that belongs to a confirmation or to no contract of the run prepares nothing',async t=>{
- for(const change of [d=>{for(const e of d.employees.slice(0,3)){e.events=[{...e.events[0],id:decisionId}];e.state='confirmed';e.version=1;e.allowedCommands=['annul'];}},d=>{for(const e of d.employees.slice(0,3))e.events[1].id=uid(701);}]){
-  const h=harness(t);const d=decisionDetail();change(d);h.state.decision={detail:d,failure:null};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
-  assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,/No se pudo verificar la decisión y el alcance completo/);assert.equal(h.q('chips').children.length,0);assert.equal(posts(h).length,0);
+ const globals=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(globals.map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
+ for(const [label,change]of [
+  ['confirmation',d=>{for(const e of d.employees.slice(0,3)){e.events=[{...e.events[0],id:decisionId}];e.state='confirmed';e.version=1;e.allowedCommands=['annul'];}}],
+  ['unknown',d=>{for(const e of d.employees.slice(0,3))e.events[1].id=uid(701);}]
+ ]){
+  // Await each child including its pagehide/restore hook before another DOM is installed.
+  await t.test(label,async subcase=>{
+   const h=harness(subcase);const d=decisionDetail();change(d);h.state.decision={detail:d,failure:null};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+   assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,/No se pudo verificar la decisión y el alcance completo/);assert.equal(h.q('chips').children.length,0);assert.equal(posts(h).length,0);
+  });
+  // A teardown that leaves even one global behind must fail before the next child.
+  for(const [name,descriptor]of before){
+   const restored=Object.getOwnPropertyDescriptor(globalThis,name);assert.equal(restored===undefined,descriptor===undefined,label+': global presence '+name);
+   if(descriptor){assert.deepEqual(Reflect.ownKeys(restored),Reflect.ownKeys(descriptor),label+': descriptor keys '+name);for(const key of Reflect.ownKeys(descriptor))assert.strictEqual(restored[key],descriptor[key],label+': descriptor '+name+'.'+String(key));}
+  }
  }
 });
 

@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent,OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,projectOwnIndividualHandoffSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
-const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')))),hash=value=>createHash('sha256').update(value).digest('hex');
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent,OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,projectOwnIndividualHandoffSourceToParent,OWN_CLAUDE124_ENTRY_SOURCE_PINS,OWN_CLAUDE124_NEW_SOURCE_PINS,projectOwnClaude124EntrySourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'))))),hash=value=>createHash('sha256').update(value).digest('hex');
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
  if(file!=='.github/workflows/own-payroll-full-capacity.yml')return value;
@@ -282,7 +282,7 @@ test('Claude209 source custody recovers complete197 parents before all prior dom
  const newSources={"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs":{"sha256":"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659","bytes":28952}};
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_SOURCE_PINS,expected);
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,newSources);
- const current=file=>projectOwnIndividualHandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'));
+ const current=file=>projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')));
  for(const[file,pin]of Object.entries(expected)){
   const source=current(file);assert.equal(hash(source),pin.after);
   assert.equal(hash(projectOwnClaude209HandoffSourceToParent(file,source)),pin.before);
@@ -292,7 +292,7 @@ test('Claude209 source custody recovers complete197 parents before all prior dom
 });
 // This is a finite source contract; it neither parses YAML nor starts a workflow.
 test('D7 source artifact preserves the complete workflow parent before every previous source guard',()=>{
- const file='.github/workflows/own-payroll-full-capacity.yml',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const file='.github/workflows/own-payroll-full-capacity.yml',source=projectOwnClaude124EntrySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'));
  const entry='            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\n';
  assert.equal(hash(source),'517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71');
  assert.equal(source.split(entry).length,2);
@@ -309,9 +309,10 @@ test('individual handoff13 has exact raw pins and complete590 parents before H0,
  assert.equal(Object.keys(expected).length,13);
  assert.deepEqual(OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,expected);
  for(const[file,pin]of Object.entries(expected)){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
-  assert.equal(hash(source),pin.after,file+' selected whole source');
-  assert.equal(p.candidatePins[file],pin.after,file+' explicit raw candidate pin');
+  const rawSource=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  assert.equal(hash(rawSource),p.candidatePins[file],file+' selected raw candidate pin before124 projection');
+  const source=projectOwnClaude124EntrySourceToParent(file,rawSource);
+  assert.equal(hash(source),pin.after,file+' complete4ea individual13 source after124 projection');
   const parent=projectOwnIndividualHandoffSourceToParent(file,source);
   assert.equal(hash(parent),pin.before,file+' complete590 before every older source layer');
   assert.equal(read(file),projectOwnClaude209HandoffSourceToParent(file,parent),file+' individual layer precedes H0');
@@ -335,4 +336,74 @@ test('the actual individual handoff source retires both reference visibility and
  };
  requireRetirement(source);
  assert.throws(()=>requireRetirement(source.replace(guard,"const handoff=receipt?.body.command==='annul'&&!!access;")),assert.AssertionError,'copy-disabled alone does not retire the reference and its value');
+});
+
+// Pure filesystem source contracts; no124/host/entry/module is imported.
+test('browser124 entry sources recover complete4ea before133 operations and both new modules retain independent raw pins',()=>{
+ const expected={"scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs":{"before":"2f5e1d8bff67a4c1c18482e2ddbe4e7c0e3e8bf2b596959fb7bdd0794f7229ff","after":"c8cd92e1e025d9cf7bdccb2b74d25d6d03641bb3e9986563910971a5b6ebee34"},"scripts/verify-own-payroll-annulment-v2-full-capacity.mjs":{"before":"1d611b0e175fd884d70cef9d99bda8a355fcac9b83a1146cce7a6c92ef2f955b","after":"40f902a0f94ebc91fb10f987206326863a82e3d62328b5954bc7a56294eeb40d"},".github/workflows/own-payroll-full-capacity.yml":{"before":"517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71","after":"f99273a2358d7a45c496181b41878e575cde6e640b3c862765733c47dc646b19"},"tests/own-payroll-annulment-preparation-panel.test.js":{"before":"d4be44a48e685c38791a99265a982c61337224624064ba791f7c27cbc6a38a67","after":"87d62a5a78981e90601de2f526c14b85a576b0e9e00418183edbc37e68913644"}},newSources={"scripts/lib/own-payroll-canonical190-browser-host-qa.mjs":{"sha256":"a9e5cccf1630e97069844436b25dad45227b1121f17a6d16f5c6fcfe333205cc","bytes":9958},"scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs":{"sha256":"2d2665563af6ede9ac7ce2ada6d7e69f469cb9f26f1b22679b4df94eec501b9a","bytes":30441}};
+ assert.equal(Object.keys(expected).length,4);assert.deepEqual(OWN_CLAUDE124_ENTRY_SOURCE_PINS,expected);
+ assert.equal(Object.keys(newSources).length,2);assert.deepEqual(OWN_CLAUDE124_NEW_SOURCE_PINS,newSources);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');assert.equal(hash(source),pin.after);assert.equal(p.candidatePins[file],pin.after);
+  assert.equal(hash(projectOwnClaude124EntrySourceToParent(file,source)),pin.before,file+' complete4ea source, not a rewritten historical expectation');
+  assert.throws(()=>projectOwnClaude124EntrySourceToParent(file,source+' '),/CLAUDE124_ENTRY_SOURCE_BYTES/);
+  const changed=Buffer.from(source,'utf8');changed[0]^=1;assert.throws(()=>projectOwnClaude124EntrySourceToParent(file,changed.toString('utf8')),/CLAUDE124_ENTRY_WHOLE_SOURCE_PIN/);
+ }
+ const requireNew=(file,source,pin)=>{assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256);assert.equal(p.candidatePins[file],pin.sha256);};
+ for(const[file,pin]of Object.entries(newSources)){
+  const source=fs.readFileSync(new URL('../'+file,import.meta.url));requireNew(file,source,pin);
+  assert.equal(Object.hasOwn(OWN_CLAUDE124_ENTRY_SOURCE_PINS,file),false,'new124 modules never acquire a fabricated public parent');
+  assert.equal(projectOwnClaude124EntrySourceToParent(file,source.toString('utf8')),source.toString('utf8'));
+  assert.throws(()=>requireNew(file,Buffer.concat([source,Buffer.from(' ')]),pin),assert.AssertionError);
+ }
+ assert.equal(projectOwnClaude124EntrySourceToParent('assets/unknown124.js','distinct source'),'distinct source');
+});
+
+test('124 literal reader maps retain the real host, both phases and committed source bookend before SQL without importing them',()=>{
+ const current=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const entryFile='scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',hostFile='scripts/lib/own-payroll-canonical190-browser-host-qa.mjs',browserFile='scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs',nativeFile='scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs';
+ const entry=current(entryFile),host=current(hostFile),browser=current(browserFile),native=current(nativeFile),owner=current('scripts/verify-municipal-owner-program.mjs'),authority=current('scripts/verify-municipal-owner-adoption-authority.mjs'),workflow=current('.github/workflows/own-payroll-full-capacity.yml');
+ const assets=['assets/own-payroll-liquidation-panel.js','assets/own-payroll-liquidation-model.js','assets/own-payroll-run-panel.js','assets/own-payroll-run-workspace-model.js','assets/own-payroll-annulment-preparation-link.js','assets/payroll-navigation.js','assets/own-payroll-readiness-model.js','assets/own-payroll-response.js','assets/native-salary-catalog-model.js','assets/own-payroll-run-model.js','assets/own-payroll-run-date.js','assets/own-payroll-individual-panel.js'];
+ const mapped=(source,pattern)=>{const match=pattern.exec(source);assert.ok(match);return[...match[1].matchAll(/'([^']+)'/g)].map(row=>row[1]);};
+ const requireMaps=(entrySource,hostSource,browserSource,nativeSource)=>{
+  assert.deepEqual(mapped(entrySource,/const decision124Assets=Object.freeze\(\[([\s\S]*?)\]\);/),assets,'entry asset map');
+  assert.deepEqual(mapped(browserSource,/for\(const file of\[([\s\S]*?)\]\)\{/).map(file=>'assets/'+file),assets,'actual browser source/public byte map');
+  for(const file of [hostFile,browserFile])assert.ok(entrySource.includes("'"+file+"'"),'literal entry includes '+file);
+  for(const token of ['report.sourceBefore.committedBytesVerified,true','report.sourceAfter.rawBytesVerified,true','proof.sourceCommit,report.sourceCommit','proof.major,report.major','proof.sourceBookend.length,12','row.sha256,report.sourceClosure.files[row.path]','individual124.individualDecisionBrowserProven&&blocked124.blockedDecisionBrowserProven','new Map(negatives124.map(row=>[row.name,row]))','individual124.withdrawalNegatives,6','negativeByName124.size,6','blocked124.withdrawalNegatives,0','annulment855:tail.browser.fullAnnulmentBrowserProven','preparation209Native:preparation.receiptToPreparationNativeProven','individualDecision124Browser:preparation.individualDecisionBrowserProven'])assert.ok(entrySource.includes(token),'reader map: '+token);
+  assert.ok(hostSource.includes('const actor=byMembership(access.principal);assert.ok(actor,\'CANONICAL190_BROWSER_FOREIGN_PRINCIPAL\');return actor.session;'),'session stays attached to the authorised cookie principal');
+  assert.ok(hostSource.includes("const match=String(req.headers?.cookie??'').match(/(?:^|;\\s*)qa_actor=([a-z]+)(?:;|$)/)"),'actor map uses the actual cookie');
+  for(const name of ['native_employment_catalog_bootstrap_v1','native_employee_directory_snapshot_v1','own_program_bootstrap_v1','noeliaCircuitRosterRead(text,values,schema)'])assert.ok(hostSource.includes(name),'same four read-only calculation refresh mappings');
+  for(const token of ["from './own-payroll-canonical190-browser-host-qa.mjs'",'createCanonical190BrowserHost({h,actors,getSql:async()=>instrumentedDb',"outputName:'liquidation-decision-124-browser-'+phase",'sqlLevelRevocation:false','completeAuthenticationHandler:false','receiptLinkedRecalculationExecuted:false'])assert.ok(browserSource.includes(token),token);
+  assert.equal((nativeSource.match(/await verifyOwnLiquidationDecision124BrowserOn190\(/g)??[]).length,2,'two real calls, not an alternate host');
+  for(const token of ["reason,phase:'handoff'","reason,phase:'blocked',decisionId:decisionReceipt.id",'const projectionPostIndividual124=await preparation(receipt.id);','assert.deepEqual(post124Unchanged,h1Unchanged);','assertSameOwnAnnulPreparation(projectionPostIndividual124,await preparation(receipt.id));','previous=projectionPostIndividual124;census=decisionCensus;'])assert.ok(nativeSource.includes(token),'phase/epoch map: '+token);
+ };
+ requireMaps(entry,host,browser,native);
+ assert.throws(()=>requireMaps(entry.replace('row.sha256,report.sourceClosure.files[row.path]','row.sha256,row.sha256'),host,browser,native),assert.AssertionError,'observed source cannot replace the committed pre-SQL expectation');
+ assert.throws(()=>requireMaps(entry,host.replace('return actor.session;','return access.session;'),browser,native),assert.AssertionError,'the authorised principal/session map cannot be removed');
+ assert.throws(()=>requireMaps(entry,host,browser,native.replace("reason,phase:'blocked',decisionId:decisionReceipt.id","reason,phase:'handoff',decisionId:decisionReceipt.id")),assert.AssertionError,'the blocked phase cannot be relabelled as a second handoff');
+ assert.ok(owner.includes('entries:[...OWNER_PROGRAM_QA_ENTRIES,...continuationEntries,...preparedContinuation.sourceEntries]'));
+ assert.ok(owner.indexOf('sourceBefore=assertOwnerAuthorityQaSourceBookend')<owner.indexOf('const beforeGuard=guard()'));
+ assert.ok(owner.includes('const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure)'));
+ assert.ok(authority.includes('imports=moduleSpecifiers(bytes.toString(\'utf8\'),file)'));assert.ok(authority.includes('bytes.equals(committedBytes(file))'));
+ for(const file of [...assets,hostFile,browserFile]){assert.ok(workflow.split(/\r?\n/).some(line=>line.trim()===file),'artifact source '+file);assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),p.candidatePins[file]??p.dependencies[file],'explicit raw pin '+file);}
+ assert.ok(workflow.includes('verification/own-full-capacity-pg${{ matrix.pg }}/'));
+ for(const token of ['4*1024*1024','32*1024*1024'])assert.ok(native.includes(token),'existing response budget '+token);
+});
+test('the two invalid decision variants await their own harness teardown and restore all seven global descriptors',()=>{
+ const file='tests/own-payroll-annulment-preparation-panel.test.js',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const requireOwnedTeardown=value=>{
+  const start=value.indexOf("test('a decision id that belongs to a confirmation or to no contract of the run prepares nothing'"),end=value.indexOf("test('the decision reference survives the login destination",start);
+  assert.ok(start>=0&&end>start,'the original invalid-decision parent and following case remain');
+  const block=value.slice(start,end),globals=/const globals=\[([^\]]+)\],before=new Map\(globals.map\(name=>\[name,Object.getOwnPropertyDescriptor\(globalThis,name\)\]\)\);/.exec(block);
+  assert.ok(globals);assert.deepEqual([...globals[1].matchAll(/'([^']+)'/g)].map(row=>row[1]),['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval']);
+  assert.ok(block.includes("['confirmation',d=>"));assert.ok(block.includes("['unknown',d=>"));
+  assert.equal(block.split('await t.test(label,async subcase=>{').length,2,'each variant is an awaited child');
+  assert.equal(block.split('const h=harness(subcase);').length,2,'the harness belongs to that child');
+  assert.ok(!block.includes('harness(t)'),'the parent cannot own both deferred teardown hooks');
+  for(const token of ['for(const [name,descriptor]of before){','const restored=Object.getOwnPropertyDescriptor(globalThis,name);','assert.equal(restored===undefined,descriptor===undefined','assert.deepEqual(Reflect.ownKeys(restored),Reflect.ownKeys(descriptor)','for(const key of Reflect.ownKeys(descriptor))assert.strictEqual(restored[key],descriptor[key]'])assert.ok(block.includes(token),token);
+ };
+ requireOwnedTeardown(source);
+ assert.equal(p.candidatePins[file],hash(source),'the entire fixed test stays raw-pinned');
+ assert.equal(hash(projectOwnClaude124EntrySourceToParent(file,source)),'d4be44a48e685c38791a99265a982c61337224624064ba791f7c27cbc6a38a67','teardown fix recovers complete4ea before its unchanged individual13 guard');
+ assert.throws(()=>requireOwnedTeardown(source.replace('const h=harness(subcase);','const h=harness(t);')),assert.AssertionError,'putting both harnesses back on the parent must be rejected as source');
 });

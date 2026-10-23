@@ -102,6 +102,18 @@ jobs:
             scripts/lib/own-payroll-annulment-preparation-209-installation.mjs
             scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs
             scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs
+            scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs
+            scripts/lib/own-payroll-canonical190-browser-host-qa.mjs
+            assets/own-payroll-liquidation-panel.js
+            assets/own-payroll-liquidation-model.js
+            assets/own-payroll-run-workspace-model.js
+            assets/payroll-navigation.js
+            assets/own-payroll-readiness-model.js
+            assets/own-payroll-response.js
+            assets/native-salary-catalog-model.js
+            assets/own-payroll-run-model.js
+            assets/own-payroll-run-date.js
+            assets/own-payroll-individual-panel.js
             scripts/lib/own-payroll-receipt126-inventory-model.mjs
             scripts/lib/own-payroll-receipt126-same190-inventory.mjs
             tests/own-payroll-receipt126-inventory-model.test.js
