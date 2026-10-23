@@ -18,6 +18,7 @@ import {ownCloseOperation} from '../../lib/internal-own-payroll-close.js';
 import {readReceipt126Same190Inventory} from './own-payroll-receipt126-same190-inventory.mjs';
 import {ownAnnulPreparationOperation,annulPreparationError} from '../../lib/internal-own-payroll-annulment-preparation.js';
 import {createOwnAnnulPreparationHandler} from '../../api/internal-own-payroll-annulment-preparation.js';
+import {verifyOwnAnnulPreparation209BrowserOn190} from './own-payroll-annulment-preparation-209-native-browser.mjs';
 import {OWN_RUN_PREPARE} from '../../assets/own-payroll-run-workspace-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
 import {verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
@@ -194,6 +195,23 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assertSameOwnAnnulPreparation(projection,await preparation(receipt.id));
  const legacy=await preparation(base.annulled.id);assert.equal(legacy.source.receiptVersion,'own-annul-receipt.v1');assert.equal(legacy.affected.length,855);assert.equal(legacy.runs.length,1);assert.equal(legacy.runs[0].id,first.id);assert.equal(legacy.scopeVersion,bootstraps.receiver.scopeVersion);
  ok(true,'real third managed preparer reads complete855 from two distinct creator scopes while old gates and checker separation remain intact');
+ // Positive handoff after the complete855/two-creator projection. The existing
+ // ledger assertion below remains12 captures/12 saved/two creators; no command
+ // is sent by opening, consulting or applying this single285-row draft.
+ const handoffBrowser=await verifyOwnAnnulPreparation209BrowserOn190(
+  Object.freeze({h,db,qa,readSnapshot,synthetic:true}),
+  Object.freeze({sourceId:receipt.id,projection,expectedGroups:ownAnnulPreparationDates(projection),draftDate:dates[0],phase:'handoff',
+   actors:{reviewer:{...reviewer,raw:qa.checker,roleKey:'QA_CANONICAL190_REVIEWER'},receiver:{...accesses.receiver,raw:actorPlan.actors.receiver,roleKey:'QA_ANNUL_PREPARER_209'}}}));
+ assert.equal(handoffBrowser.version,'own-annul-preparation209-live190-native-browser.v1');assert.equal(handoffBrowser.phase,'handoff');
+ assert.equal(handoffBrowser.sourceCommit,h.sourceCommit);assert.equal(handoffBrowser.major,h.major);assert.equal(handoffBrowser.passed,true);
+ assert.equal(handoffBrowser.actualSql,true);assert.equal(handoffBrowser.actualHttp,true);assert.equal(handoffBrowser.actualBrowser,true);
+ assert.equal(handoffBrowser.receiptToPreparationBrowserProven,true);assert.equal(handoffBrowser.crossRoleHandoffProven,true);
+ assert.equal(handoffBrowser.calculationPosts,0);assert.equal(handoffBrowser.pagePosts,0);assert.equal(handoffBrowser.mutations,0);
+ assert.equal(handoffBrowser.affected,855);assert.equal(handoffBrowser.projectedRuns,2);assert.deepEqual(handoffBrowser.dateGroups,ownAnnulPreparationDates(projection));
+ assert.equal(handoffBrowser.draftDate,dates[0]);assert.equal(handoffBrowser.draftCount,partitions[0].length);
+ assert.equal(handoffBrowser.productionWrites,0);assert.equal(handoffBrowser.paymentExecuted,false);assert.equal(handoffBrowser.municipalAcceptance,false);
+ assert.deepEqual(readSnapshot(),projectionBefore);assertSameOwnAnnulPreparation(projection,await preparation(receipt.id));
+ ok(true,'third managed preparer opens the source-only link in her own browser session, verifies all855 of both runs before any date, prepares one exact unconfirmed date draft and sends nothing');
  const currentContext=employeeContext(accesses.receiver.principal,accesses.receiver.session),schema=qa.schema;
  // Native negative probes are single, explicitly rolled-back transactions on
  // h.json. The caught error must come from209's real call, not a fake adapter.
@@ -244,6 +262,21 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(stateBefore.employees.find(row=>row.contractId===affectedId).state,'calculated');
  const reconfirmed=await confirm(captures[1],[affectedId]);assert.equal(reconfirmed.affected.length,1);
  await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'global confirmation on another creator blocks whole historical preparation');
+ // Distinct negative phase after the real cross-creator reconfirmation. Its
+ // result cannot substitute the positive handoffBrowser proof or enable its flag.
+ const rejectionBefore=readSnapshot();
+ const rejectionBrowser=await verifyOwnAnnulPreparation209BrowserOn190(
+  Object.freeze({h,db,qa,readSnapshot,synthetic:true}),
+  Object.freeze({sourceId:receipt.id,projection,expectedGroups:ownAnnulPreparationDates(projection),draftDate:dates[0],phase:'current-state-changed',
+   actors:{reviewer:{...reviewer,raw:qa.checker,roleKey:'QA_CANONICAL190_REVIEWER'},receiver:{...accesses.receiver,raw:actorPlan.actors.receiver,roleKey:'QA_ANNUL_PREPARER_209'}}}));
+ assert.equal(rejectionBrowser.version,'own-annul-preparation209-live190-native-browser.v1');assert.equal(rejectionBrowser.phase,'current-state-changed');
+ assert.equal(rejectionBrowser.sourceCommit,h.sourceCommit);assert.equal(rejectionBrowser.major,h.major);assert.equal(rejectionBrowser.passed,true);
+ assert.equal(rejectionBrowser.actualSql,true);assert.equal(rejectionBrowser.actualHttp,true);assert.equal(rejectionBrowser.actualBrowser,true);
+ assert.equal(rejectionBrowser.currentStateRejectionBrowserProven,true);assert.equal(rejectionBrowser.receiptToPreparationBrowserProven,false);
+ assert.equal(rejectionBrowser.pagePosts,0);assert.equal(rejectionBrowser.calculationPosts,0);assert.equal(rejectionBrowser.mutations,0);
+ assert.equal(rejectionBrowser.productionWrites,0);assert.equal(rejectionBrowser.paymentExecuted,false);assert.equal(rejectionBrowser.municipalAcceptance,false);
+ assert.deepEqual(readSnapshot(),rejectionBefore);
+ ok(true,'the real panel reports the current-state rejection as such and keeps the opaque reference without any draft');
  assert.deepEqual((await readDetail(captures[0].id)).employees.find(row=>row.contractId===affectedId),originalAffectedEmployee);
  // A legal active close retains its current confirmation. This checks the
  // real combined state; it is not an isolated counterfactual close predicate.
@@ -420,5 +453,5 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(receipt126Inventory.installationAllowed,false);assert.equal(receipt126Inventory.receiptWorkflowExecuted,false);assert.equal(receipt126Inventory.metadataOnly,true);
  assert.ok(['ausente','parcial','objetos_presentes_sin_admision'].includes(receipt126Inventory.classification));
  ok(true,'same190 catalog inventory126 is complete metadata only, without installation admission or receipt execution');
- return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:4,preparationPhaseSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,postPreparationRecalculation,postPreparationConfirmationClose,receipt126Inventory,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:false,actualBrowser:false,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:false,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ return{version:'own-annul-preparation209-live190-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,operationalPairBaseline:'published107',pre107Admitted:false,population:855,conceptRowsPerRun:17100,newSavedCaptures:4,preparationPhaseSavedCaptures:2,newPendingCaptures:2,creatorCount:3,projectedCreators:2,receiverIsThirdManagedPreparer:true,partitions:[285,570],dates:[...dates],measurements,checks,actors,source208,source209,postPreparationRecalculation,postPreparationConfirmationClose,receipt126Inventory,oldRows:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualApiHandler:true,actualHttp:handoffBrowser.actualHttp,actualBrowser:handoffBrowser.actualBrowser,receiptToPreparationNativeProven:true,receiptToPreparationBrowserProven:handoffBrowser.receiptToPreparationBrowserProven,handoffBrowser,rejectionBrowser,fullCapacityBrowserProven:false,projectionAbove4MiB:measurements.projections.some(row=>row.above4MiB),globalCensusMoreThan1000Proven:false,independentDigestOracleProven:false,legacyNullDateNativeProven:false,activeCloseIndependentlyOfConfirmationProven:false,atomicGetToCalculation:false,automaticRecalculation:false,receiptLinkedRecalculationExecuted:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
 }

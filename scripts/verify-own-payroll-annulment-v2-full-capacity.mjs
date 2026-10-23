@@ -20,6 +20,7 @@ const entries=[...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,
   'tests/own-payroll-annulment-hidden-active.test.js',
   'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',
   'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',
+  'scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs',
   'scripts/lib/own-payroll-receipt126-inventory-model.mjs',
   'scripts/lib/own-payroll-receipt126-same190-inventory.mjs',
   'tests/own-payroll-receipt126-inventory-model.test.js',
@@ -73,7 +74,14 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(selected29.actualSql,true);assert.equal(selected29.actualHttp,true);assert.equal(selected29.monthlyBusinessCovered,false);assert.equal(selected29.productionWrites,0);assert.equal(selected29.paymentExecuted,false);assert.equal(selected29.municipalAcceptance,false);
   const preparation=tail.preparation209;
   assert.equal(preparation?.passed,true);assert.equal(preparation.actualSql,true);assert.equal(preparation.actualApiHandler,true);
-  assert.equal(preparation.receiptToPreparationNativeProven,true);assert.equal(preparation.receiptToPreparationBrowserProven,false);
+  assert.equal(preparation.receiptToPreparationNativeProven,true);
+  const handoff209Browser=preparation.handoffBrowser;
+  assert.equal(handoff209Browser?.version,'own-annul-preparation209-live190-native-browser.v1');assert.equal(handoff209Browser.passed,true);assert.equal(handoff209Browser.phase,'handoff');
+  assert.equal(handoff209Browser.sourceCommit,report.sourceCommit);assert.equal(handoff209Browser.major,report.major);
+  assert.equal(handoff209Browser.actualSql,true);assert.equal(handoff209Browser.actualHttp,true);assert.equal(handoff209Browser.actualBrowser,true);assert.equal(handoff209Browser.receiptToPreparationBrowserProven,true);
+  assert.equal(handoff209Browser.affected,855);assert.equal(handoff209Browser.projectedRuns,2);assert.equal(handoff209Browser.draftCount,285);
+  assert.equal(handoff209Browser.pagePosts,0);assert.equal(handoff209Browser.calculationPosts,0);assert.equal(handoff209Browser.mutations,0);
+  assert.equal(preparation.actualHttp,handoff209Browser.actualHttp);assert.equal(preparation.actualBrowser,handoff209Browser.actualBrowser);assert.equal(preparation.receiptToPreparationBrowserProven,handoff209Browser.receiptToPreparationBrowserProven);
   assert.equal(preparation.population,855);assert.equal(preparation.conceptRowsPerRun,17100);assert.equal(preparation.receiverIsThirdManagedPreparer,true);
   assert.equal(preparation.atomicGetToCalculation,false);assert.equal(preparation.receiptLinkedRecalculationExecuted,false);assert.equal(preparation.monthlyBusinessCovered,false);
   assert.equal(preparation.productionWrites,0);assert.equal(preparation.municipalAcceptance,false);

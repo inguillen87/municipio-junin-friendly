@@ -43,7 +43,7 @@ const projection=()=>sealPreparation({...syntheticAnnulPreparation(),scopeVersio
 const projectionRoster=value=>{const n=ownRoster(value.affected.length);n.rows=n.rows.map((row,i)=>({...row,contractId:value.affected[i].contractId,legajo:value.affected[i].employeeNumber}));return n;};
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
- const projected=projection(),state={caps:[...OWN_RUN_PREPARE],sessionId:uid(333),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:projectionRoster(projected),projection:projected,projectionReads:0,afterProjectionRead:null,hold:null,authFailure:null};
+ const projected=projection(),state={caps:[...OWN_RUN_PREPARE],sessionId:uid(333),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:projectionRoster(projected),projection:projected,projectionReads:0,afterProjectionRead:null,hold:null,authFailure:null,projectionFailure:null};
  let timerId=0;const timers=new Map();
  const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
  Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){}});
@@ -53,7 +53,7 @@ function harness(t){
   let status=200,payload;
   if(url==='/api/internal-auth'){if(state.authFailure){status=state.authFailure;payload={ok:false,code:'SYNTHETIC_SESSION_UNAVAILABLE'};}else payload={ok:true,authenticated:true,sessionVersion:2,user:{id:state.sessionId,email:'synthetic-readiness@example.invalid'},access:{context:'tenant',tenant:{id:roster(1).scope.tenantId,roleKey:'QA'},tenantCapabilities:state.caps},expiresAt:new Date(Date.now()+3600000).toISOString()};}
   else if(method==='POST'){assert.equal(url,'/api/internal-own-payroll-run','Only an explicit voluntary calculation may reach this synthetic POST');status=503;payload={ok:false,code:'OWN_RUN_BUSY'};}
-  else if(url.startsWith(purpose)){assert.equal(url,purpose+state.projection.source.id,'Only the opaque source UUID is sent to the new endpoint');state.projectionReads++;payload={ok:true,data:structuredClone(state.projection)};state.afterProjectionRead?.(state.projectionReads);}
+  else if(url.startsWith(purpose)){assert.equal(url,purpose+state.projection.source.id,'Only the opaque source UUID is sent to the new endpoint');state.projectionReads++;if(state.projectionFailure){status=state.projectionFailure.status;payload={ok:false,code:state.projectionFailure.code,error:state.projectionFailure.error};}else payload={ok:true,data:structuredClone(state.projection)};state.afterProjectionRead?.(state.projectionReads);}
   else if(url.startsWith('/api/internal-own-payroll-run?resource=attempt')){status=404;payload={ok:false,code:'OWN_RUN_NOT_FOUND'};}
   else if(url.startsWith('/api/internal-own-payroll-run?'))payload={ok:true,data:{version:'own-payroll-bootstrap.v2',scopeVersion:hash('a'),programVersion:hash('b'),canCalculate:true,runs:[],complete:true}};
   else if(url==='/api/internal-employment-catalog?resource=bootstrap')payload={ok:true,data:{version:CATALOG_VERSION,scopeVersion:hash('a'),catalog:{items:state.catalogItems.map((r,i)=>({...r,key:'synthetic-'+i,agreementCode:r.agreementCode??null})),version:hash('d'),origin:'GRH',revision:0,publishedAt:null},permissions:{canPropose:true,canReview:true},proposals:[],historyTruncated:false}};
@@ -127,4 +127,31 @@ test('null historical group stays null in provenance and leaves a new date blank
  // Synthetic DOM has no browser constraint validation; the actual command
  // validator must still refuse a blank date even if an event is forced.
  h.q('confirm').checked=true;await h.q('confirm').emit('change');await h.submit();assert.equal(posts(h).length,0);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('date').value,'');assert.equal(h.q('projected-preparation').hidden,true);
+});
+
+// Proposed causal tests for the209 cross-user handoff by link. Before the panel
+// patch they fail: every rejected209 read showed 'No se confirmó la operación.
+// Consultá el mismo intento antes de continuar.' and the login destination
+// dropped the source-only reference. HTTP stays synthetic; no SQL or browser.
+for(const [code,status,text]of[['OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',409,'Cambió una liquidación del alcance anulado'],['OWN_ANNUL_PREPARATION_NOT_FOUND',404,'No se encontró la anulación en tu ámbito municipal'],['OWN_ANNUL_PREPARATION_LIMIT',422,'supera la capacidad de lectura'],['OWN_ANNUL_PREPARATION_UNAVAILABLE',503,'No se pudo consultar la preparación']])test('a rejected209 read reports its own cause, keeps the reference and never mentions an attempt: '+code,async t=>{
+ const h=harness(t);h.state.projectionFailure={status,code,error:'synthetic server text the panel must not echo'};assert.equal(h.queuePreparation(reference(h)),true);await h.start();
+ assert.equal(purposeReads(h).length,1);assert.match(h.q('status').textContent,new RegExp(text));assert.doesNotMatch(h.q('status').textContent,/intento/);assert.doesNotMatch(h.q('status').textContent,/synthetic server text/);
+ assert.equal(h.q('projected-preparation').hidden,false);assert.equal(h.q('projected-load').disabled,false);assert.equal(h.q('projected-date').options.length,1);assert.equal(h.q('projected-use').disabled,true);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('confirm').checked,false);assert.equal(posts(h).length,0);assertNoHistoricalAuthority(h);
+ // Once the annulled scope is current again the same reference loads completely.
+ h.state.projectionFailure=null;await h.q('projected-load').emit('click');await h.idle();assert.equal(purposeReads(h).length,2);assert.equal(h.q('projected-date').options.length,4);assert.equal(h.q('projected-date').value,'');assert.equal(h.q('confirm').checked,false);assert.equal(posts(h).length,0);
+});
+
+const withLocation=t=>{const assigned=[],previous=Object.getOwnPropertyDescriptor(globalThis,'location');Object.defineProperty(globalThis,'location',{configurable:true,writable:true,value:{assign:target=>assigned.push(target)}});t.after(()=>{if(previous)Object.defineProperty(globalThis,'location',previous);else delete globalThis.location;});return assigned;};
+
+test('an unauthenticated preparer keeps the source-only reference through the login destination',async t=>{
+ const h=harness(t),assigned=withLocation(t);h.state.authFailure=401;assert.equal(h.queuePreparation(reference(h)),true);await h.start();
+ assert.equal(h.q('login').hidden,false);assert.equal(purposeReads(h).length,0);assert.equal(posts(h).length,0);
+ await h.q('login').emit('click');assert.deepEqual(assigned,['/acceso?next='+encodeURIComponent('/nomina?anulacion='+h.state.projection.source.id+'#calculo')]);
+ const next=new URL(assigned[0],'https://example.invalid').searchParams.get('next'),target=new URL(next,'https://example.invalid');
+ assert.equal(target.pathname,'/nomina');assert.equal(target.hash,'#calculo');assert.deepEqual([...target.searchParams],[['anulacion',h.state.projection.source.id]]);assert.doesNotMatch(next,/key|accessKey|actor|scopeVersion|consent/i);
+});
+
+test('without a queued reference the login destination is unchanged',async t=>{
+ const h=harness(t),assigned=withLocation(t);h.state.authFailure=401;await h.start();assert.equal(h.q('login').hidden,false);
+ await h.q('login').emit('click');assert.deepEqual(assigned,['/acceso?next=%2Fnomina%23calculo']);assert.equal(posts(h).length,0);
 });

@@ -143,9 +143,9 @@ export const ownAccountingImputation190SourceProjection= {
     {
       "path": "tests/fixtures/own-payroll-full-capacity-190-source-projection.js",
       "beforeSha256": "dd370b3c4a0e0e33a2c537d643d3e121f1805e7e1843958e59f7356202ebc95c",
-      "afterSha256": "4b9561ec6fdc3efe7989536fddcd08449421d91b7493573c5eb9383dc848de08",
+      "afterSha256": "f0d3c7b10d18d2947ae9b05c2d091c1cf9499f81ac5bb12b47e39ac95fd978c5",
       "beforeBytes": 1597,
-      "afterBytes": 13452,
+      "afterBytes": 14052,
       "inverse": [
         {
           "afterOffset": 78,
@@ -686,6 +686,66 @@ export const ownAccountingImputation190SourceProjection= {
           "afterOffset": 8239,
           "afterBase64": "LCJzY3JpcHRzL21pZ3JhdGlvbnMvMTk3LW93bi1ub3ZlbHR5LXN1Y2Nlc3Npb24uc3FsIjoiMTNhZDUxNmJmZDY1M2EwM2I1ZmFlODk4NzQ4NmFiZWVmMWMxM2E1ZDYyOTI2NGIwYzY4MGQ1N2M1YTViYjQzYyIsInNjcmlwdHMvbGliL293bi1ub3ZlbHR5LXN1Y2Nlc3Npb24taW5zdGFsbGF0aW9uLm1qcyI6IjYyN2ZmZWE4ZTI1MjMxMWYzMWI4N2FiZTQ2MzQ2YmQ3NjU3OGU1ODNkZTM0YjYwNmE3NGFhNTNlYWNiNDk0ZDAi",
           "beforeBase64": ""
+        },
+        {
+          "afterOffset": 3815,
+          "afterBase64": "Y2MwMGE3NWIyOGY0YWZiYjVmYTY0MzhmMGVmODVlNjVjZGVmNzA4YmI5YmRhODQ4ZTE5MGFhODRiODdhZmY5Yg==",
+          "beforeBase64": "YTAwZDE5YTU3ZDM3NzQ3NjdiYmM2MmRlMGQxNDhhN2FkYzcwNWQwYmIyN2IwMWMyZjUyNGEwNWY3YmM0NDBmNA=="
+        },
+        {
+          "afterOffset": 4653,
+          "afterBase64": "MWQ2MTFiMGUxNzVmZDg4NGQ3MGNlZjlkOTliZGE4YTM1NWZjYWM5YjgzYTExNDZjY2U3YTZjOTJlZjJmOTU1Yg==",
+          "beforeBase64": "Mzk2MTI4OTVhZDI2NzcyZTQxMWMzZjI3MDQzZDNkZjY0YzY5NjA5N2VjMzEwMTBiMzBiOTliN2E1M2Q5ZjNkMg=="
+        },
+        {
+          "afterOffset": 7316,
+          "afterBase64": "MmY1ZTFkOGJmZjY3YTRjMWMxODQ4MmUyZGRiZTRlN2MwZTNlOGJmMmI1OTY5NTlmYjdiZGQwNzk0ZjcyMjlmZg==",
+          "beforeBase64": "ODRmZmRjNGJkMWQwYzI4MGM2ZDdhMzA1OGQ4OTgzZDIyMzlkMWQ1ZDgwZjhkMTRhYTJkZmFkYWJlZDIzYTNjNQ=="
+        },
+        {
+          "afterOffset": 4273,
+          "afterBase64": "ZGY4NzY1ZGE4YTEwYzZmZDVmMmEwMDhjNGE3NGEwNGQ5YWI0MjMyNjM5ZGU5MDIzOTg4MDE4ZDE2MTI4NmM5Mg==",
+          "beforeBase64": "Nzk3MWVlYTgzMzNlOTgzNWFkYzU4ZTAzYzRkOTc3ODM3NzYzNTA5YjNkZDI4MGQ4OWRkZjNmMjdlOTk3Zjc4MQ=="
+        },
+        {
+          "afterOffset": 4403,
+          "afterBase64": "NGE5YjJlZWM4YzQ1NDE5YWY3ZjljMzcwYTZiZDJlMzkxYzg5YzdlNDAwNmZlYzVjYWU4MDM4NTNkYzU3Y2M1Nw==",
+          "beforeBase64": "ZDEyNTYxMDgxOTI5NjdmNmMxY2JhYWY5MjY0ZDhhOGIzNmU1OGQxMWJmODdjODFmNTdhNTYwNzFkZjdiMDYzZQ=="
+        },
+        {
+          "afterOffset": 6647,
+          "afterBase64": "NWMwMTA4ZjE4N2Q0NDYzY2ZjNjZkNWE5N2U3OWFmYWQ3MDhiZDY5MGNmYzVmMzVhZDIzZGU0MmQ4OGYzOTY2Mw==",
+          "beforeBase64": "NDc0NDFiYTUxYTUxY2IzMTI1ODlhYzZjYTY4Y2Q4ODRlZjcyNmVjYTBhZDgwMDY4NmE5NWZiMDgyMGExYWZlZQ=="
+        },
+        {
+          "afterOffset": 2894,
+          "afterBase64": "OTI4MjNkNDk2NmFkNTFjYzM5OTUyYjVmZTVhNTBhYjhiYjU5YzM0M2RmZTNmYWE3YjA1MjhkOTBlYjcyZjQ4Yw==",
+          "beforeBase64": "MjFjNjQzOTNmMTFiNzhhNTAwYjcwODRkOGFjZjNiZjc5MjMxN2Q0MTgxMmRiMjdmMGY2OWE4N2E0YzYwNTgxZA=="
+        },
+        {
+          "afterOffset": 7580,
+          "afterBase64": "ZjY2YjY0YjkzOWY0YTAxNDNhMWM0MGQ3N2E3NWU5OGI5ZGU1ZDY2ODY3MWFkOWM3MGY5YWI2MDllZTNlN2M1NA==",
+          "beforeBase64": "YTdlZDc2YTM3ZDc2MjkwZDgyYjRiNTk3YWVmODc3NTExMjZjMTJhN2EzYzUxMDc5MWYwZmU1YjM1MGYzZmJlYQ=="
+        },
+        {
+          "afterOffset": 7455,
+          "afterBase64": "NTFjNWNiYTMxMTlkYzE5MmU3ZDNiYTZiNTcwZmRhMjZmMWY0ZWEyOTg1MmE1ODZkOTQ3ODdjNzRmMWI0YjExMA==",
+          "beforeBase64": "MTQ0NjI4Y2E1MmFkZTljNTVkNzMyNzZmYTI4YTIyYWZiNWU4MGI5NmM2MTIwODhkMDY1NWQ4Yzg3NmUwMDRjNg=="
+        },
+        {
+          "afterOffset": 8479,
+          "afterBase64": "LCJzY3JpcHRzL2xpYi9vd24tcGF5cm9sbC1hbm51bG1lbnQtcHJlcGFyYXRpb24tMjA5LW5hdGl2ZS1icm93c2VyLm1qcyI6ImQ3ZDc1NGViYWZiZTA3YjJjNzYyODJmN2M5ODA3ZWI4ZGJiMjkwNjg5ZjQxNmM3MTE5ZDRmODNjYjhkZGM2NTki",
+          "beforeBase64": ""
+        },
+        {
+          "afterOffset": 1093,
+          "afterBase64": "NTE3MzczYmEzOThhYjE1MDdjZDc4ODJhOGQxNjFlY2JhMTlkZGU5NGUwYjRiYWE1Nzg5OWIxMGU0M2RiNmM3MQ==",
+          "beforeBase64": "OWU2YTlkOWU3NWE0Yzg0NTIyMDlkM2RkMGRhNzUwZmMxYzgyMmQ0ZjZlMTExZTUxNzkwOThiN2Y5NjE5ZWIxNA=="
+        },
+        {
+          "afterOffset": 2894,
+          "afterBase64": "ZGI4NDIzYzc4N2ExZWMxOGMxODUyYzg3ZDIyODEwYzk3MDRiOWQ3ZjdlYWMxNDk2NjZhZTY2NGYzMjMyZTY0MA==",
+          "beforeBase64": "OTI4MjNkNDk2NmFkNTFjYzM5OTUyYjVmZTVhNTBhYjhiYjU5YzM0M2RmZTNmYWE3YjA1MjhkOTBlYjcyZjQ4Yw=="
         }
       ]
     }

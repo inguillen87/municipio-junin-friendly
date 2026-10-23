@@ -92,7 +92,19 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   ["da780e1f3cb426e2f9d189ac98fbab22f5f61e7cd99eb313eab320390fc93344","e5673a20f7547cc7bb6060715920b4dccfc1713f3ef9f6844f1a86840f921fd8"],
   ["36cc80c2828c9d508d99d3dc07bdc1832de83ce6d0f4bd6b2097abb5358a65a3","a81fd29b59897191fca9c5dd4f7c2a9b0cd3ca02c5315ba6ec07d0a5fc5997b8"],
   ["84ffdc4bd1d0c280c6d7a3058d8983d2239d1d5d80f8d14aa2dfadabed23a3c5","cbd2793901881665fb910c8ee31b68f27ea411652a7151884427787ce889e311"],
-  [",\"scripts/migrations/197-own-novelty-succession.sql\":\"13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c\",\"scripts/lib/own-novelty-succession-installation.mjs\":\"627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0\"",""]
+  [",\"scripts/migrations/197-own-novelty-succession.sql\":\"13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c\",\"scripts/lib/own-novelty-succession-installation.mjs\":\"627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0\"",""],
+  ["cc00a75b28f4afbb5fa6438f0ef85e65cdef708bb9bda848e190aa84b87aff9b","a00d19a57d3774767bbc62de0d148a7adc705d0bb27b01c2f524a05f7bc440f4"],
+  ["1d611b0e175fd884d70cef9d99bda8a355fcac9b83a1146cce7a6c92ef2f955b","39612895ad26772e411c3f27043d3df64c696097ec31010b30b99b7a53d9f3d2"],
+  ["2f5e1d8bff67a4c1c18482e2ddbe4e7c0e3e8bf2b596959fb7bdd0794f7229ff","84ffdc4bd1d0c280c6d7a3058d8983d2239d1d5d80f8d14aa2dfadabed23a3c5"],
+  ["df8765da8a10c6fd5f2a008c4a74a04d9ab4232639de9023988018d161286c92","7971eea8333e9835adc58e03c4d977837763509b3dd280d89ddf3f27e997f781"],
+  ["4a9b2eec8c45419af7f9c370a6bd2e391c89c7e4006fec5cae803853dc57cc57","d1256108192967f6c1cbaaf9264d8a8b36e58d11bf87c81f57a56071df7b063e"],
+  ["5c0108f187d4463cfc66d5a97e79afad708bd690cfc5f35ad23de42d88f39663","47441ba51a51cb312589ac6ca68cd884ef726eca0ad800686a95fb0820a1afee"],
+  ["92823d4966ad51cc39952b5fe5a50ab8bb59c343dfe3faa7b0528d90eb72f48c","21c64393f11b78a500b7084d8acf3bf792317d41812db27f0f69a87a4c60581d"],
+  ["f66b64b939f4a0143a1c40d77a75e98b9de5d668671ad9c70f9ab609ee3e7c54","a7ed76a37d76290d82b4b597aef87751126c12a7a3c510791f0fe5b350f3fbea"],
+  ["51c5cba3119dc192e7d3ba6b570fda26f1f4ea29852a586d94787c74f1b4b110","144628ca52ade9c55d73276fa28a22afb5e80b96c612088d0655d8c876e004c6"],
+  [",\"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\":\"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659\"",""],
+  ["517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71","9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14"],
+  ["db8423c787a1ec18c1852c87d22810c9704b9d7f7eac149666ae664f3232e640","92823d4966ad51cc39952b5fe5a50ab8bb59c343dfe3faa7b0528d90eb72f48c"]
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -104,7 +116,11 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(34).reverse())undo(pair);
+ for(const pair of changes.slice(50).reverse())undo(pair);
+ assert.equal(hash(source),'288cb28e9227e9c2569f4cfaa0b60cefdae46c11b5c2f2a64a91f97a7f8eb5f7','D7 artifact source custody recovers the complete unexecuted H0 fixture before its118 prior operations');
+ for(const pair of changes.slice(40,50).reverse())undo(pair);
+ assert.equal(hash(source),'4b9561ec6fdc3efe7989536fddcd08449421d91b7493573c5eb9383dc848de08','Claude209 handoff source custody recovers the complete197 fixture before its108 ancestral operations');
+ for(const pair of changes.slice(34,40).reverse())undo(pair);
  assert.equal(hash(source),'96723b61367876c11173c44b51b2d6b06d387a1798b584ba1ce0135bfde39d82','alias-only197 source custody recovers the complete selected closeR2 fixture before its102 prior operations');
  for(const pair of changes.slice(31,34).reverse())undo(pair);
  assert.equal(hash(source),'be10ee6669cdbfe2c7f3cab73cfd22e6d41d937ee96e02ebfdfe6b5ae2e4d500','R2 consumer custody recovers the complete unexecuted R1 close source fixture before its99 prior operations');

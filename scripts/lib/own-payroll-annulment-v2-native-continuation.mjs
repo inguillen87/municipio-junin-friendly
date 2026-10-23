@@ -271,6 +271,10 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  //209 business begins ONLY after every208 native/browser/history check above.
  const preparation209=await runOwnAnnulPreparation209NativeContinuation(Object.freeze({version:'own-annul-preparation209-live190-context.v1',baselineContext:context,installation208,installation209,completed208}));
  assert.equal(preparation209.passed,true);assert.equal(preparation209.actualSql,true);assert.equal(preparation209.actualApiHandler,true);assert.equal(preparation209.receiptToPreparationNativeProven,true);
- assert.equal(preparation209.receiptToPreparationBrowserProven,false);assert.equal(preparation209.monthlyBusinessCovered,false);assert.equal(preparation209.productionWrites,0);assert.equal(preparation209.municipalAcceptance,false);
+ const handoff209Browser=preparation209.handoffBrowser;
+ assert.equal(handoff209Browser?.version,'own-annul-preparation209-live190-native-browser.v1');assert.equal(handoff209Browser.passed,true);assert.equal(handoff209Browser.phase,'handoff');
+ assert.equal(handoff209Browser.sourceCommit,h.sourceCommit);assert.equal(handoff209Browser.major,h.major);
+ assert.equal(handoff209Browser.actualSql,true);assert.equal(handoff209Browser.actualHttp,true);assert.equal(handoff209Browser.actualBrowser,true);assert.equal(handoff209Browser.receiptToPreparationBrowserProven,true);
+ assert.equal(preparation209.actualHttp,handoff209Browser.actualHttp);assert.equal(preparation209.actualBrowser,handoff209Browser.actualBrowser);assert.equal(preparation209.receiptToPreparationBrowserProven,handoff209Browser.receiptToPreparationBrowserProven);assert.equal(preparation209.monthlyBusinessCovered,false);assert.equal(preparation209.productionWrites,0);assert.equal(preparation209.municipalAcceptance,false);
  return{...completed208,preparation209};
 }

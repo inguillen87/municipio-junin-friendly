@@ -244,6 +244,10 @@ async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
     const recovered=await request('/api/internal-own-payroll-annulment?resource=attempt&key='+frozen.key);
     assert.equal(recovered.response.status(),200);receipt=await verifiedOwnAnnulReviewReceipt(recovered.body.data);
     assert.equal(receipt.version,'own-annul-receipt.v2');assert.equal(receipt.replayed,true);
+    // Both shared profiles retain the recovered receipt before handing over its
+    // source-only reference; this does not open Calcular for the reviewer.
+    assert.equal(await $('preparation-link').inputValue(),origin+'/nomina?anulacion='+recovered.body.data.id+'#calculo');
+    check(!/key|accessKey|actor|scopeVersion|consent/i.test(await $('preparation-link').inputValue())&&await $('calculate').isDisabled(),'the reviewer can hand over a source-only link but never opens Calcular without prepare');
     if(selected29){assert.equal(receipt.affected.length,29);assert.equal(receipt.receipts.length,2);}
     else{assert.equal(receipt.affected.length,855);assert.equal(receipt.receipts.length,3);}
     assert.deepEqual(sorted(receipt.affected.map(item=>item.contractId)),sorted(ids));

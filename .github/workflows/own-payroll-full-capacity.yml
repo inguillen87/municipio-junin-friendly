@@ -101,6 +101,7 @@ jobs:
             tests/own-payroll-annulment-hidden-active.test.js
             scripts/lib/own-payroll-annulment-preparation-209-installation.mjs
             scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs
+            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs
             scripts/lib/own-payroll-receipt126-inventory-model.mjs
             scripts/lib/own-payroll-receipt126-same190-inventory.mjs
             tests/own-payroll-receipt126-inventory-model.test.js

@@ -6,7 +6,7 @@ import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnAnnulPreparation,ownAnnulPreparationDates,ownAnnulPreparationForDate,assertSameOwnAnnulPreparation} from './own-payroll-annulment-preparation-model.js';
-import {ownProjectedAnnulmentQueue} from './own-payroll-annulment-preparation-link.js';
+import {ownProjectedAnnulmentQueue,ownAnnulPreparationLink} from './own-payroll-annulment-preparation-link.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReviewReceipt,verifiedOwnAnnulReviewIndex,loadOwnAnnulPreparation} from './own-payroll-annulment-review-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
@@ -35,6 +35,15 @@ const errors={
   OWN_RUN_FORBIDDEN:'Tu cuenta ya no permite consultar o calcular esta nómina.',
   OWN_RUN_SESSION_INVALID:'La sesión venció. Volvé a ingresar con la cuenta original.',
   OWN_RUN_NOT_FOUND:'Este intento todavía no está registrado. Podés reintentarlo con el mismo contenido.',
+  // Purpose-limited209 reads have no attempt to consult. Texts mirror the
+  // service's own codes; a changed annulled scope is never reported as a lost send.
+  OWN_ANNUL_PREPARATION_NOT_FOUND:'No se encontró la anulación en tu ámbito municipal.',
+  OWN_ANNUL_PREPARATION_SOURCE_CHANGED:'Cambió la fuente o tu ámbito de preparación. Actualizá la anulación antes de continuar.',
+  OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED:'Cambió una liquidación del alcance anulado. Actualizá la consulta completa antes de preparar otro cálculo.',
+  OWN_ANNUL_PREPARATION_FORBIDDEN:'Tu membresía no permite preparar este alcance nominal.',
+  OWN_ANNUL_PREPARATION_CONTRACT_INVALID:'No se verificó la entrega completa para preparar otro cálculo. Actualizá la referencia desde tu sesión municipal.',
+  OWN_ANNUL_PREPARATION_LIMIT:'El alcance completo supera la capacidad de lectura. No se recortaron ni dividieron filas.',
+  OWN_ANNUL_PREPARATION_UNAVAILABLE:'No se pudo consultar la preparación. No se creó ningún cálculo; volvé a consultar la misma referencia.',
 };
 export function mountOwnPayrollRun(host,{onReview}={}) {
   for(const file of ['own-payroll-run-panel.css','employee-picker.css']){
@@ -395,7 +404,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     sourceReview=reviewed;$('source-report').hidden=false;renderSourceReview();$('source-report').querySelector('h3').focus();status(downloadCsv?'Se descargaron todas las incidencias sin datos personales. El intento de cálculo conserva su cuerpo y clave originales.':'Se revisaron todas las novedades de la captura. Consultar esta revisión no inicia otro cálculo.');
   });}
   $('form').addEventListener('submit',event=>{event.preventDefault();send();});
-  $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
+  // A queued source-only reference survives the login round trip; the
+  // destination still carries no actor, attempt key, context or consent.
+  $('login').addEventListener('click',()=>location.assign('/acceso?next='+encodeURIComponent(queuedPreparation?.kind==='projected_annulment'?ownAnnulPreparationLink(queuedPreparation.sourceId):'/nomina#calculo')));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
   $('projected-load').addEventListener('click',()=>{const context=queuedPreparation;if(context?.kind!=='projected_annulment'||!canStart()||attempt&&attempt.key!==knownSavedKey)return;clearProjectedView();perform(valid=>loadProjectedReference(context,valid));});

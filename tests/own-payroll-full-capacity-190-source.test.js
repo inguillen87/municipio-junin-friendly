@@ -4,8 +4,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
-const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'))),hash=value=>createHash('sha256').update(value).digest('hex');
+// Inert workflow custody only. Existing source guards receive their exact9e6 parent.
+function projectOwnD7ArtifactWorkflowToParent(file,value){
+ if(file!=='.github/workflows/own-payroll-full-capacity.yml')return value;
+ assert.equal(Buffer.byteLength(value,'utf8'),7434,'D7_ARTIFACT_WORKFLOW_BYTES');
+ assert.equal(hash(value),'517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71','D7_ARTIFACT_WORKFLOW_SHA');
+ const entry='            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\n';
+ assert.equal(value.split(entry).length,2,'D7_ARTIFACT_EXACT_ENTRY_REQUIRED');
+ const parent=value.replace(entry,'');
+ assert.equal(Buffer.byteLength(parent,'utf8'),7353,'D7_ARTIFACT_PARENT_BYTES');
+ assert.equal(hash(parent),'9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14','D7_ARTIFACT_COMPLETE_PARENT');
+ return parent;
+}
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
  const rules=read('.vercelignore').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
@@ -263,4 +275,30 @@ test('alias-only197 and its full-source readers recover exact closeR2/base paren
  assert.ok(native.includes("'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'7bc54fa600f47b0e7c56e99810b92914d2dd50ec5cf5cca889a72d120c58ea36'"),'the selected close actor pin is preserved');
  assert.ok(native.includes("'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'36cc80c2828c9d508d99d3dc07bdc1832de83ce6d0f4bd6b2097abb5358a65a3'"),'the real full-source209 installer hash is selected');
  for(const file of ['scripts/migrations/197-own-novelty-succession.sql','scripts/lib/own-novelty-succession-installation.mjs'])assert.equal(p.candidatePins[file],hash(read(file)),file+' explicit finite source pin');
+});
+
+test('Claude209 source custody recovers complete197 parents before all prior domains; new browser has an independent exact pin',()=>{
+ const expected={"assets/own-payroll-run-panel.js":{"before":"a00d19a57d3774767bbc62de0d148a7adc705d0bb27b01c2f524a05f7bc440f4","after":"cc00a75b28f4afbb5fa6438f0ef85e65cdef708bb9bda848e190aa84b87aff9b"},"tests/own-payroll-annulment-preparation-panel.test.js":{"before":"47441ba51a51cb312589ac6ca68cd884ef726eca0ad800686a95fb0820a1afee","after":"5c0108f187d4463cfc66d5a97e79afad708bd690cfc5f35ad23de42d88f39663"},"scripts/lib/own-payroll-annulment-v2-native-browser.mjs":{"before":"7971eea8333e9835adc58e03c4d977837763509b3dd280d89ddf3f27e997f781","after":"df8765da8a10c6fd5f2a008c4a74a04d9ab4232639de9023988018d161286c92"},"scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs":{"before":"84ffdc4bd1d0c280c6d7a3058d8983d2239d1d5d80f8d14aa2dfadabed23a3c5","after":"2f5e1d8bff67a4c1c18482e2ddbe4e7c0e3e8bf2b596959fb7bdd0794f7229ff"},"scripts/lib/own-payroll-annulment-v2-native-continuation.mjs":{"before":"d1256108192967f6c1cbaaf9264d8a8b36e58d11bf87c81f57a56071df7b063e","after":"4a9b2eec8c45419af7f9c370a6bd2e391c89c7e4006fec5cae803853dc57cc57"},"scripts/verify-own-payroll-annulment-v2-full-capacity.mjs":{"before":"39612895ad26772e411c3f27043d3df64c696097ec31010b30b99b7a53d9f3d2","after":"1d611b0e175fd884d70cef9d99bda8a355fcac9b83a1146cce7a6c92ef2f955b"}};
+ const newSources={"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs":{"sha256":"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659","bytes":28952}};
+ assert.deepEqual(OWN_CLAUDE209_HANDOFF_SOURCE_PINS,expected);
+ assert.deepEqual(OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,newSources);
+ const current=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ for(const[file,pin]of Object.entries(expected)){
+  const source=current(file);assert.equal(hash(source),pin.after);
+  assert.equal(hash(projectOwnClaude209HandoffSourceToParent(file,source)),pin.before);
+  assert.throws(()=>projectOwnClaude209HandoffSourceToParent(file,source+' '),/CLAUDE209_HANDOFF_SOURCE_BYTES/);
+ }
+ for(const[file,pin]of Object.entries(newSources)){const source=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256);}
+});
+// This is a finite source contract; it neither parses YAML nor starts a workflow.
+test('D7 source artifact preserves the complete workflow parent before every previous source guard',()=>{
+ const file='.github/workflows/own-payroll-full-capacity.yml',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const entry='            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\n';
+ assert.equal(hash(source),'517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71');
+ assert.equal(source.split(entry).length,2);
+ assert.ok(source.slice(source.indexOf('path: |')).includes(entry),'the exact D7 source is an artifact input');
+ assert.equal(hash(projectOwnD7ArtifactWorkflowToParent(file,source)),'9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14');
+ assert.equal(hash(read(file)),'9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14','older guards retain the complete original workflow');
+ assert.throws(()=>projectOwnD7ArtifactWorkflowToParent(file,source+' '),/D7_ARTIFACT_WORKFLOW_BYTES/);
+ assert.equal(projectOwnD7ArtifactWorkflowToParent('assets/unknown-source.js',source),source,'a distinct source is never projected as a workflow');
 });
