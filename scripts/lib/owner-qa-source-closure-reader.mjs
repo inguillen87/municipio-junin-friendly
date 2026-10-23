@@ -32,11 +32,13 @@ function closureFiles(closure){
 export function createRecordingSourceReader({root,readBytes=file=>fs.readFileSync(path.join(root,file))}={}){
  assert.equal(typeof readBytes,'function');
  const consumed=new Map();
- const read=file=>{
-  assertOwnerQaSourcePath(file);const bytes=readBytes(file);
-  const text=sourceText(bytes,file);remember(consumed,rawRecord(file,bytes));return text;
+ const readRaw=file=>{
+  assertOwnerQaSourcePath(file);
+  if(root!==undefined){assert.ok(typeof root==='string'&&root.length>0&&!root.includes('\0'),'OWNER_QA_SOURCE_ROOT_INVALID');const relative=path.relative(path.resolve(root),path.resolve(root,file));assert.ok(relative!==''&&!path.isAbsolute(relative)&&relative!=='..'&&!relative.startsWith('..'+path.sep),'OWNER_QA_SOURCE_OUTSIDE_ROOT:'+file);}
+  const bytes=readBytes(file);sourceText(bytes,file);remember(consumed,rawRecord(file,bytes));return Buffer.from(bytes);
  };
- return Object.freeze({read,consumed:()=>snapshot(consumed)});
+ const read=file=>sourceText(readRaw(file),file);
+ return Object.freeze({read,readRaw,consumed:()=>snapshot(consumed)});
 }
 // Called only after the host has checked the same closure against committed
 // bytes. A path-only witness is rejected: read A / committed B must not pass.
@@ -56,11 +58,13 @@ export function assertConsumedWithinClosure(consumed,closure){
 }
 export function createClosureSourceReader({root,closure,readBytes=file=>fs.readFileSync(path.join(root,file))}={}){
  const files=closureFiles(closure),consumed=new Map();assert.equal(typeof readBytes,'function');
- const read=file=>{
+ const readRaw=file=>{
   assertOwnerQaSourcePath(file);assert.ok(Object.hasOwn(files,file),'OWNER_QA_SOURCE_READ_OUTSIDE_CLOSURE:'+file);
-  const bytes=readBytes(file),text=sourceText(bytes,file),record=rawRecord(file,bytes);
+  if(root!==undefined){assert.ok(typeof root==='string'&&root.length>0&&!root.includes('\0'),'OWNER_QA_SOURCE_ROOT_INVALID');const relative=path.relative(path.resolve(root),path.resolve(root,file));assert.ok(relative!==''&&!path.isAbsolute(relative)&&relative!=='..'&&!relative.startsWith('..'+path.sep),'OWNER_QA_SOURCE_OUTSIDE_ROOT:'+file);}
+  const bytes=readBytes(file);sourceText(bytes,file);const record=rawRecord(file,bytes);
   assert.equal(record.sha256,files[file],'OWNER_QA_SOURCE_CHANGED_DURING_RUN:'+file);
-  remember(consumed,record);return text;
+  remember(consumed,record);return Buffer.from(bytes);
  };
- return Object.freeze({read,consumed:()=>snapshot(consumed)});
+ const read=file=>sourceText(readRaw(file),file);
+ return Object.freeze({read,readRaw,consumed:()=>snapshot(consumed)});
 }
