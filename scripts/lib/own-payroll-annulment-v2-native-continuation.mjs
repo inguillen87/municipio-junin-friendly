@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 import {installOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
-import {verifyOwnAnnulmentV2BrowserOn190} from './own-payroll-annulment-v2-native-browser.mjs';
+import {verifyOwnAnnulmentV2BrowserOn190,verifyOwnAnnulment29BrowserOn190} from './own-payroll-annulment-v2-native-browser.mjs';
 import {installOwnAnnulPreparation209On190} from './own-payroll-annulment-preparation-209-installation.mjs';
 import {runOwnAnnulPreparation209NativeContinuation} from './own-payroll-annulment-preparation-209-native-continuation.mjs';
 import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
 import {RUN_CALCULATE} from '../../lib/internal-own-payroll-run.js';
-import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
+import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../../assets/own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt} from '../../assets/own-payroll-annulment-model.js';
 import {verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation,loadOwnAnnulOutcome} from '../../assets/own-payroll-annulment-review-model.js';
 import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-model.js';
@@ -204,7 +204,69 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  assert.equal(h.json([`SELECT jsonb_build_object('count',count(*)::integer) FROM ${qa.schema}.native_employee_registration`],{readOnly:true}).count,855);
  const sourceBookend=await assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});
  ok(true,'all pre-tail row-hash multiplicities, old immutable captures, reopened close and financial history survive native browser decisions');
- const completed208={version:'own-annulment-v2-live190-native-browser-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,population:855,conceptRowsPerRun:17100,historyRuns:8,partitions:[285,285,285],dates:[...dates],measurements,checks,installation:installation208,sourceBookend,browser,oldRowPrefix:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualHttp:browser.actualHttp,fullAnnulmentBrowserProven:browser.fullAnnulmentBrowserProven,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,synthetic:true,monthlyBusinessCovered:false,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ // Separate29/2 case AFTER the full855/3 checkpoint above. The SAME855 native
+ // roster, programme, services, maker/checker and installed208/209 remain in use.
+ const historicalReference29=row=>({id:row.id,bodySha256:row.bodySha256,payloadSha256:row.payloadSha256,inputSha256:row.inputSha256,resultSha256:row.resultSha256,algorithmSha256:row.algorithmSha256,employeeCount:row.employeeCount,conceptRowCount:row.conceptRowCount,totalsPrecision:row.totalsPrecision,createdAt:row.createdAt,liquidationDate:row.liquidationDate,states:row.states,confirmedContractIds:row.confirmedContractIds});
+ const checkpoint8=finalIndex.index.map(historicalReference29),before29=context.readSnapshot(),prefixBefore29=rowMultiset(h,qa),ledgerBefore29=await ledgerCounts();
+ const selectedPartitions29=Object.freeze([Object.freeze(contracts.slice(0,14)),Object.freeze(contracts.slice(14,29))]),selectedContracts29=selectedPartitions29.flat();
+ assert.deepEqual(selectedPartitions29.map(ids=>ids.length),[14,15]);assert.equal(new Set(selectedContracts29).size,29);assert.ok(selectedContracts29.every(id=>contracts.includes(id)));
+ const captures29=[],confirmations29=[];
+ // Both complete855/17100 results are saved before either selected confirmation.
+ // A repeated source date is legal; these are new explicit keys, never replay.
+ for(const date of dates.slice(0,2)){
+  const boot=await run('bootstrap');assert.equal(boot.canCalculate,true);
+  const key=randomUUID(),body={version:'own-payroll-run-command.v2',...query,liquidationDate:date,selection:all(),scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'},capture=await run('calculate',{key,body});
+  assert.equal(capture.replayed,false);assert.equal(capture.key,key);assert.deepEqual(capture.body,body);
+  assert.equal(capture.saved.result.employeeCount,855);assert.equal(capture.saved.result.rowCount,17100);assert.deepEqual(capture.saved.input.rules,definition.rules);
+  assert.deepEqual(capture.saved.input.employees.map(row=>row.contractId).sort(),contracts);assert.deepEqual(capture.saved.result.rows,firstSaved.result.rows);assert.deepEqual(capture.saved.result.employeeTotals,firstSaved.result.employeeTotals);
+  assert.ok(capture.saved.result.employeeTotals.every(row=>row.gross==='118.20'&&row.deduction==='0.00'&&row.net==='118.20'));assert.equal(capture.payload.monthly.batches.length,0);
+  assert.equal(capture.body.liquidationDate,date);assert.ok(bytes(capture)>FOUR&&bytes(capture)<=FULL);
+  const compact=compactCapture(capture);assert.ok(!capturesById.has(compact.id));captures29.push(compact);capturesById.set(compact.id,compact);
+  measurements.captures.push({label:'selected29-two',date,bytes:bytes(capture),employees:855,conceptRows:17100});
+ }
+ assert.equal(captures29.length,2);assert.notEqual(captures29[0].id,captures29[1].id);assert.notEqual(captures29[0].key,captures29[1].key);
+ const calculated29=await readIndex('selected29-two-complete-captures');assert.equal(calculated29.index.length,10);assert.equal(calculated29.index.reduce((count,row)=>count+row.states.confirmed,0),0);
+ assert.deepEqual(calculated29.index.filter(row=>!captures29.some(capture=>capture.id===row.id)).map(historicalReference29),checkpoint8);
+ for(let n=0;n<2;n++){
+  const capture=captures29[n],detail=await readDetail(capture.id,'selected29-two-confirm'),key=randomUUID();
+  const body={runId:detail.id,resultSha256:detail.capture.saved.resultSha256,scopeVersion:detail.scopeVersion,stateVersion:detail.stateVersion,command:'confirm',selection:{kind:'contracts',values:[...selectedPartitions29[n]]},reason:'Confirmación sintética de'+selectedPartitions29[n].length+' seleccionados de855 para el caso29/2',reviewConfirmed:true};
+  const decision=await verifiedOwnLiquidationReceipt(await liq('command',{key,body}));
+  assert.equal(decision.replayed,false);assert.equal(decision.key,key);assert.deepEqual(decision.body,body);assert.equal(decision.runId,capture.id);assert.equal(decision.resultSha256,capture.resultSha256);
+  assert.equal(decision.affected.length,selectedPartitions29[n].length);assert.deepEqual(decision.affected.map(row=>row.contractId).sort(),selectedPartitions29[n]);
+  const confirmed=await readDetail(capture.id,'selected29-two-confirmed'),expected=new Map(decision.affected.map(row=>[row.contractId,row]));
+  assert.equal(confirmed.employees.filter(row=>row.state==='confirmed').length,selectedPartitions29[n].length);
+  for(const employee of confirmed.employees){const affected=expected.get(employee.contractId);if(affected){assert.equal(employee.state,'confirmed');assert.equal(employee.version,affected.version);assert.equal(employee.liquidationVersion,affected.liquidationVersion);}else assert.equal(employee.state,'calculated');}
+  confirmations29.push(structuredClone(decision));
+ }
+ const index29=await readIndex('selected29-two-confirmed');assert.equal(index29.index.length,10);assert.equal(index29.index.reduce((count,row)=>count+row.states.confirmed,0),29);
+ assert.deepEqual(index29.index.filter(row=>row.states.confirmed>0).map(row=>row.id).sort(),captures29.map(row=>row.id).sort());
+ for(let n=0;n<2;n++){const reference=index29.index.find(row=>row.id===captures29[n].id);assert.deepEqual(reference.states,{calculated:855-selectedPartitions29[n].length,confirmed:selectedPartitions29[n].length,annulled:0,cancelled:0});assert.deepEqual(reference.confirmedContractIds,selectedPartitions29[n]);assert.equal(reference.liquidationDate,dates[n]);}
+ const ledgerConfirmed29=await ledgerCounts();assert.deepEqual(ledgerConfirmed29,{...ledgerBefore29,captures:ledgerBefore29.captures+2,results:ledgerBefore29.results+2,children:ledgerBefore29.children+2});
+ const browser29=await verifyOwnAnnulment29BrowserOn190(Object.freeze({...context,installation208,iam,measurements,synthetic:true}),{captures:captures29,index:index29,partitionIds:selectedPartitions29,receiptHistory,confirmations:confirmations29});
+ assert.equal(browser29?.version,'own-annulment29-canonical190-native-browser.v1');assert.equal(browser29.passed,true);assert.equal(browser29.actualSql,true);assert.equal(browser29.actualHttp,true);
+ assert.equal(browser29.population,29);assert.equal(browser29.rosterPopulation,855);assert.equal(browser29.activeRuns,2);assert.equal(browser29.historicalRuns,10);assert.equal(browser29.conceptRowsPerCapture,17100);
+ assert.equal(browser29.selected29AnnulmentBrowserProven,true);assert.equal(browser29.fullAnnulmentBrowserProven,false);assert.equal(browser29.fullCapacityBrowserProven,false);assert.equal(browser29.receiptToPreparationBrowserProven,false);
+ assert.equal(browser29.historicalOutcome.population,29);assert.equal(browser29.historicalOutcome.runs,2);assert.equal(browser29.historicalOutcome.pages,2);assert.equal(browser29.historicalOutcome.newBusinessHttpPosts,0);
+ assert.equal(browser29.monthlyBusinessCovered,false);assert.equal(browser29.productionWrites,0);assert.equal(browser29.paymentExecuted,false);assert.equal(browser29.municipalAcceptance,false);
+ const receipt29=await verifiedOwnAnnulReviewReceipt(await annul('attempt',{key:browser29.receiptKey}));assert.equal(receipt29.replayed,true);assert.equal(receipt29.key,browser29.receiptKey);assert.equal(receipt29.affected.length,29);assert.equal(receipt29.receipts.length,2);
+ assert.deepEqual(receipt29.affected.map(row=>row.contractId).sort(),selectedContracts29);assert.deepEqual([...new Set(receipt29.affected.map(row=>row.liquidationDate))].sort(),dates.slice(0,2));
+ const finalIndex29=await readIndex('selected29-two-annulled');assert.equal(finalIndex29.index.length,10);assert.equal(finalIndex29.index.reduce((count,row)=>count+row.states.confirmed,0),0);assert.deepEqual(finalIndex29.index.map(row=>row.id).sort(),[...capturesById.keys()].sort());
+ assert.deepEqual(finalIndex29.index.filter(row=>!captures29.some(capture=>capture.id===row.id)).map(historicalReference29),checkpoint8);
+ for(let n=0;n<2;n++){
+  const capture=captures29[n],reference=finalIndex29.index.find(row=>row.id===capture.id),detail=await readDetail(capture.id,'selected29-two-annulled'),expected=new Map(confirmations29[n].affected.map(row=>[row.contractId,row]));
+  assert.deepEqual(reference.states,{calculated:855-selectedPartitions29[n].length,confirmed:0,annulled:selectedPartitions29[n].length,cancelled:0});
+  for(const field of['bodySha256','payloadSha256','inputSha256','resultSha256'])assert.equal(reference[field],capture[field]);
+  assert.equal(reference.employeeCount,855);assert.equal(reference.conceptRowCount,17100);assert.deepEqual(detail.capture.body,capture.body);
+  for(const employee of detail.employees){const confirmed=expected.get(employee.contractId);if(confirmed){const affected=receipt29.affected.find(row=>row.contractId===employee.contractId);assert.ok(affected);assert.equal(affected.runId,capture.id);assert.equal(employee.state,'annulled');assert.equal(employee.version,affected.version);assert.equal(employee.version,confirmed.version+1);assert.equal(employee.liquidationVersion,affected.liquidationVersion);assert.equal(employee.liquidationVersion,confirmed.liquidationVersion);}else assert.equal(employee.state,'calculated');}
+ }
+ const ledgerAfter29=await ledgerCounts();assert.deepEqual(ledgerAfter29,{...ledgerBefore29,parents:ledgerBefore29.parents+1,children:ledgerBefore29.children+4,captures:ledgerBefore29.captures+2,results:ledgerBefore29.results+2});
+ const prefixAfter29=rowMultiset(h,qa);assertPrefix(prefixBefore29,prefixAfter29);assert.deepEqual(prefixAfter29.filter(row=>!appendOnly.includes(row.name)),prefixBefore29.filter(row=>!appendOnly.includes(row.name)),'ANNUL208_SELECTED29_CHANGED_OTHER_BUSINESS_OR_IAM');
+ assert.deepEqual((await readDetail(first.id,'selected29-original-first')).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id,'selected29-original-second')).capture.saved,originalSecond);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);assert.deepEqual(await verifiedOwnReportCensus(await close('report-census',query)),originalCensus);
+ for(const oldReceipt of receiptHistory)await receiptStable(oldReceipt);
+ const sourceBookend29=await assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});assert.notDeepEqual(context.readSnapshot(),before29);
+ const selected29={version:'own-annulment29-same190-native-browser-qa.v1',passed:true,population:29,rosterPopulation:855,partitions:[14,15],dates:dates.slice(0,2),completeCaptures:2,conceptRowsPerCapture:17100,historyRunsBefore:8,historyRunsAfter:10,before:ledgerBefore29,after:ledgerAfter29,addedCaptures:2,addedSavedResults:2,addedLiquidationDecisions:4,addedAnnulmentParents:1,addedCloseEvents:0,previousEightRunStatesPreserved:true,previousRowsPreserved:true,realReceiptVersionsCompared:true,browser:browser29,sourceBookend:sourceBookend29,actualSql:true,actualHttp:true,receiptToPreparationBrowserProven:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
+ ok(true,'separate29/2 annulment preserves the complete855/3 checkpoint, authentic14+15 versions, all prior rows and zero-POST outcome recovery');
+ const completed208={version:'own-annulment-v2-live190-native-browser-qa.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,population:855,conceptRowsPerRun:17100,historyRuns:10,historyRunsBefore29:8,partitions:[285,285,285],dates:[...dates],measurements,checks,installation:installation208,sourceBookend,browser,selected29,oldRowPrefix:{tables:prefixBefore.length,sha256:ownRunHash(prefixBefore),preserved:true},actualSql:true,actualHttp:browser.actualHttp,fullAnnulmentBrowserProven:browser.fullAnnulmentBrowserProven,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,synthetic:true,monthlyBusinessCovered:false,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
  if(!annulmentPreparation)return completed208;
  //209 business begins ONLY after every208 native/browser/history check above.
  const preparation209=await runOwnAnnulPreparation209NativeContinuation(Object.freeze({version:'own-annul-preparation209-live190-context.v1',baselineContext:context,installation208,installation209,completed208}));

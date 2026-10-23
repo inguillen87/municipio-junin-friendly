@@ -59,6 +59,18 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(tail.browser.fullAnnulmentBrowserProven,true);
   assert.equal(tail.browser.fullCapacityBrowserProven,false);
   assert.equal(tail.browser.receiptToPreparationBrowserProven,false);
+  assert.equal(tail.historyRunsBefore29,8);assert.equal(tail.historyRuns,10);
+  const selected29=tail.selected29;
+  assert.equal(selected29?.version,'own-annulment29-same190-native-browser-qa.v1');assert.equal(selected29.passed,true);
+  assert.equal(selected29.population,29);assert.equal(selected29.rosterPopulation,855);assert.deepEqual(selected29.partitions,[14,15]);
+  assert.deepEqual(selected29.dates,['2026-10-15','2026-10-20']);assert.equal(selected29.completeCaptures,2);assert.equal(selected29.conceptRowsPerCapture,17100);
+  assert.equal(selected29.historyRunsBefore,8);assert.equal(selected29.historyRunsAfter,10);
+  assert.equal(selected29.addedCaptures,2);assert.equal(selected29.addedSavedResults,2);assert.equal(selected29.addedLiquidationDecisions,4);assert.equal(selected29.addedAnnulmentParents,1);assert.equal(selected29.addedCloseEvents,0);
+  assert.equal(selected29.previousEightRunStatesPreserved,true);assert.equal(selected29.previousRowsPreserved,true);assert.equal(selected29.realReceiptVersionsCompared,true);
+  assert.equal(selected29.browser?.selected29AnnulmentBrowserProven,true);assert.equal(selected29.browser.fullAnnulmentBrowserProven,false);
+  assert.equal(selected29.browser.historicalOutcome.population,29);assert.equal(selected29.browser.historicalOutcome.runs,2);assert.equal(selected29.browser.historicalOutcome.pages,2);
+  assert.equal(selected29.browser.historicalOutcome.newBusinessHttpPosts,0);assert.equal(selected29.receiptToPreparationBrowserProven,false);
+  assert.equal(selected29.actualSql,true);assert.equal(selected29.actualHttp,true);assert.equal(selected29.monthlyBusinessCovered,false);assert.equal(selected29.productionWrites,0);assert.equal(selected29.paymentExecuted,false);assert.equal(selected29.municipalAcceptance,false);
   const preparation=tail.preparation209;
   assert.equal(preparation?.passed,true);assert.equal(preparation.actualSql,true);assert.equal(preparation.actualApiHandler,true);
   assert.equal(preparation.receiptToPreparationNativeProven,true);assert.equal(preparation.receiptToPreparationBrowserProven,false);
@@ -75,8 +87,8 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(recalculation.populationUnion,855);assert.equal(recalculation.conceptRowsUnion,17100);
   assert.equal(recalculation.addedCaptures,2);assert.equal(recalculation.addedSavedResults,2);
   assert.equal(recalculation.addedLiquidationDecisions,0);assert.equal(recalculation.addedCloseEvents,0);
-  assert.equal(recalculation.before.captures,12);assert.equal(recalculation.before.saved,10);
-  assert.equal(recalculation.after.captures,14);assert.equal(recalculation.after.saved,12);
+  assert.equal(recalculation.before.captures,14);assert.equal(recalculation.before.saved,12);
+  assert.equal(recalculation.after.captures,16);assert.equal(recalculation.after.saved,14);
   assert.equal(recalculation.recoveryAndReplayAddedRows,0);assert.equal(recalculation.previousRowsPreserved,true);
   assert.equal(recalculation.fresh209ReadAfterFirstCapture,true);
   assert.equal(recalculation.measurements.length,2);
@@ -93,7 +105,7 @@ export async function verifyOwnAnnulmentV2FullCapacity(options){
   assert.equal(confirmationClose.sourceRunIds.length,2);assert.equal(new Set(confirmationClose.sourceRunIds).size,2);assert.equal(confirmationClose.exactNewRunIds,true);
   assert.equal(confirmationClose.confirmedRuns,2);assert.equal(confirmationClose.confirmedPopulation,855);assert.equal(confirmationClose.closedPopulation,855);assert.equal(confirmationClose.closedConceptRows,17100);
   assert.equal(confirmationClose.addedCaptures,0);assert.equal(confirmationClose.addedSavedResults,0);assert.equal(confirmationClose.addedLiquidationDecisions,2);assert.equal(confirmationClose.addedCloseEvents,1);
-  assert.deepEqual(confirmationClose.before,recalculation.after);assert.equal(confirmationClose.after.captures,14);assert.equal(confirmationClose.after.saved,12);
+  assert.deepEqual(confirmationClose.before,recalculation.after);assert.equal(confirmationClose.after.captures,16);assert.equal(confirmationClose.after.saved,14);
   assert.equal(confirmationClose.after.liquidationEvents,confirmationClose.before.liquidationEvents+2);assert.equal(confirmationClose.after.closeEvents,confirmationClose.before.closeEvents+1);assert.equal(confirmationClose.after.creators,confirmationClose.before.creators);
   assert.equal(confirmationClose.confirmationMeasurements.length,2);assert.deepEqual(confirmationClose.confirmationMeasurements.map(row=>[row.date,row.employeeCount]),preparation.dates.map((date,index)=>[date,[285,570][index]]));
   for(const row of confirmationClose.confirmationMeasurements){assert.ok(confirmationClose.sourceRunIds.includes(row.runId));assert.equal(row.recoveryAndReplayAddedRows,0);assert.equal(row.storedIdentityAndHashesExact,true);for(const key of['detailBytes','receiptBytes','recoveryBytes','replayBytes'])assert.ok(Number.isSafeInteger(row[key])&&row[key]>0&&row[key]<=32*1024*1024);}

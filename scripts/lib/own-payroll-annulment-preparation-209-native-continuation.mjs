@@ -87,7 +87,10 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(period,'2026-10');assert.deepEqual(query,{period,liquidationType:'monthly'});
  assert.equal(base.monthlyBusinessCovered,false);assert.equal(completed208?.passed,true);
  assert.equal(completed208.version,'own-annulment-v2-live190-native-browser-qa.v1');
- assert.equal(completed208.actualSql,true);assert.equal(completed208.actualHttp,true);assert.equal(completed208.historyRuns,8);
+ assert.equal(completed208.actualSql,true);assert.equal(completed208.actualHttp,true);assert.equal(completed208.historyRuns,10);assert.equal(completed208.historyRunsBefore29,8);
+ assert.equal(completed208.selected29?.passed,true);assert.equal(completed208.selected29.population,29);assert.deepEqual(completed208.selected29.partitions,[14,15]);
+ assert.equal(completed208.selected29.historyRunsBefore,8);assert.equal(completed208.selected29.historyRunsAfter,10);
+ assert.equal(completed208.selected29.browser?.selected29AnnulmentBrowserProven,true);assert.equal(completed208.selected29.browser.receiptToPreparationBrowserProven,false);
  assert.equal(completed208.population,855);assert.equal(completed208.conceptRowsPerRun,17100);
  assert.equal(completed208.productionWrites,0);assert.equal(completed208.municipalAcceptance,false);
  assert.strictEqual(completed208.installation,installation208);
@@ -110,7 +113,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const annul=(operation,input={},fullJson=true)=>ownAnnulOperation(db,reviewer.principal,reviewer.session,operation,input,{fullJson});
  const close=(operation,input={},fullJson=true)=>ownCloseOperation(db,reviewer.principal,reviewer.session,operation,input,{fullJson});
  const readIndex=async()=>verifiedOwnAnnulReviewIndex(await annul('review',query));
- let index=await readIndex();assert.equal(index.index.length,8);assert.equal(index.index.reduce((n,row)=>n+row.states.confirmed,0),0);
+ let index=await readIndex();assert.equal(index.index.length,10);assert.equal(index.index.reduce((n,row)=>n+row.states.confirmed,0),0);
  const originalGroup=await close('group',{id:closed.groupId});assert.equal(originalGroup.groupId,reopened.groupId);
  const prefixBeforeActors=rowMultiset(h),beforeActors=readSnapshot();
  // FIRST actor-fixture construction is here, AFTER208 has returned. Its late
@@ -150,7 +153,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const partitions=[contracts.slice(0,285),contracts.slice(285)];assert.deepEqual(partitions.map(row=>row.length),[285,570]);assert.deepEqual(partitions.flat(),contracts);
  const confirm=async(capture,ids)=>{const detail=await readDetail(capture.id);return liq('command',{key:randomUUID(),body:{runId:detail.id,resultSha256:detail.capture.saved.resultSha256,scopeVersion:detail.scopeVersion,stateVersion:detail.stateVersion,command:'confirm',selection:contractsSelection(ids),reason,reviewConfirmed:true}});};
  for(let n=0;n<2;n++){const receipt=await confirm(captures[n],partitions[n]);assert.equal(receipt.affected.length,partitions[n].length);assert.deepEqual(receipt.affected.map(row=>row.contractId).sort(),partitions[n]);}
- index=await readIndex();assert.equal(index.index.length,10);assert.equal(index.index.reduce((n,row)=>n+row.states.confirmed,0),855);
+ index=await readIndex();assert.equal(index.index.length,12);assert.equal(index.index.reduce((n,row)=>n+row.states.confirmed,0),855);
  for(let n=0;n<2;n++){const row=index.index.find(row=>row.id===captures[n].id);assert.ok(row);assert.deepEqual(row.states,{calculated:855-partitions[n].length,confirmed:partitions[n].length,annulled:0,cancelled:0});}
  const review=await loadOwnAnnulReview(index,readDetail);assert.equal(ownAnnulReviewRows(review).length,855);
  const body={version:'own-annul-command.v2',...query,scopeVersion:index.scopeVersion,stateVersion:index.stateVersion,reviewSha256:index.reviewSha256,selection:all(),reason,reviewConfirmed:true};
@@ -216,7 +219,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const bindingError=await nativeRejected('binding-unverified','ACTION_SOURCE_BINDING_REQUIRED',{changes:[`UPDATE ${schema}.platform_tenant_source_binding SET verified=false,verified_at=NULL WHERE id=${q(qa.ids.binding)}::uuid`]});assert.equal(bindingError.status,503);assert.equal(bindingError.code,'OWN_ANNUL_PREPARATION_UNAVAILABLE');
  await sameStateReject(()=>preparation(randomUUID()),error=>error.code==='OWN_ANNUL_PREPARATION_NOT_FOUND'&&error.status===404,'unknown source ID never exposes another receipt');
  const ledger=()=>db.run(`SELECT jsonb_build_object('captures',(SELECT count(*)::integer FROM own_payroll_run_capture c WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'saved',(SELECT count(*)::integer FROM own_payroll_run_capture c JOIN own_payroll_run_result r ON r.capture_id=c.id WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'creators',(SELECT count(DISTINCT actor_membership_id)::integer FROM own_payroll_run_capture WHERE tenant_id=${q(qa.actor.tenantId)}::uuid AND source_binding_id=${q(qa.ids.binding)}::uuid AND body->>'period'=${q(period)} AND body->>'liquidationType'='monthly'),'liquidationEvents',(SELECT count(*)::integer FROM own_payroll_liquidation_event),'closeEvents',(SELECT count(*)::integer FROM own_payroll_close_event))`);
- let previous=projection,census=await ledger();assert.equal(census.captures,10);assert.equal(census.saved,10);assert.equal(census.creators,2);measurements.census.push({stage:'after-two-creator-annulment',...census});
+ let previous=projection,census=await ledger();assert.equal(census.captures,12);assert.equal(census.saved,12);assert.equal(census.creators,2);measurements.census.push({stage:'after-two-creator-annulment',...census});
  // Two separate ordinary, unsaved captures exercise the COMPLETE inventory:
  // another creator and the receiver. These are explicit synthetic fixture
  // writes, not a side effect of preparing a date or receiving a GET response.
@@ -227,7 +230,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
   const pendingRow=await db.run('SELECT jsonb_build_object(\'captureCount\',(SELECT count(*)::integer FROM own_payroll_run_capture WHERE id='+q(pending.id)+'::uuid),\'resultCount\',(SELECT count(*)::integer FROM own_payroll_run_result WHERE capture_id='+q(pending.id)+'::uuid))');assert.deepEqual(pendingRow,{captureCount:1,resultCount:0});
   const refreshed=await preparation(receipt.id);assert.deepEqual(refreshed.affected,projection.affected);assert.deepEqual(refreshed.runs,projection.runs);assert.notEqual(refreshed.sourceStateSha256,previous.sourceStateSha256);assert.notEqual(refreshed.preparationSha256,previous.preparationSha256);
   assert.throws(()=>assertSameOwnAnnulPreparation(previous,refreshed),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
-  census=await ledger();assert.equal(census.saved,10);assert.equal(census.captures,11+(name==='receiver'?1:0));measurements.census.push({stage:'pending-'+name,...census});previous=refreshed;
+  census=await ledger();assert.equal(census.saved,12);assert.equal(census.captures,13+(name==='receiver'?1:0));measurements.census.push({stage:'pending-'+name,...census});previous=refreshed;
  }
  assert.equal(census.creators,3);assertSameOwnAnnulPreparation(previous,await preparation(receipt.id));
  ok(true,'complete209 commitment changes for each real pending capture from another managed creator without changing the projected855');
@@ -251,7 +254,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  index=await readIndex();const finalReview=await loadOwnAnnulReview(index,readDetail),finalBody={version:'own-annul-command.v2',...query,scopeVersion:index.scopeVersion,stateVersion:index.stateVersion,reviewSha256:index.reviewSha256,selection:contractsSelection([affectedId]),reason,reviewConfirmed:true};
  const finalAttempt=ownAnnulReviewAttempt(randomUUID(),finalBody,'qa-native209-final:'+qa.checker.membershipId,ownAnnulReviewSelection(finalReview,finalBody.selection)),finalAnnulled=await annul('command-v2',{key:finalAttempt.key,body:finalAttempt.body});await verifiedOwnAnnulReviewReceipt(finalAnnulled,finalAttempt);assert.equal(finalAnnulled.affected.length,1);
  const finalProjection=await preparation(receipt.id);assert.deepEqual(finalProjection.affected,projection.affected);assert.notEqual(finalProjection.sourceStateSha256,previous.sourceStateSha256);assert.throws(()=>assertSameOwnAnnulPreparation(previous,finalProjection),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
- const finalCensus=await ledger();assert.equal(finalCensus.captures,12);assert.equal(finalCensus.saved,10);assert.equal(finalCensus.creators,3);assert.ok(finalCensus.liquidationEvents>census.liquidationEvents);assert.equal(finalCensus.closeEvents,census.closeEvents+2);measurements.census.push({stage:'after-real-confirm-close-reopen-annul-history',...finalCensus});
+ const finalCensus=await ledger();assert.equal(finalCensus.captures,14);assert.equal(finalCensus.saved,12);assert.equal(finalCensus.creators,3);assert.ok(finalCensus.liquidationEvents>census.liquidationEvents);assert.equal(finalCensus.closeEvents,census.closeEvents+2);measurements.census.push({stage:'after-real-confirm-close-reopen-annul-history',...finalCensus});
  // The preparation phase ends at an unconfirmed draft, without automatic
  // calculation or sourceReference inside run-command.v2. The separate phase
  // below tests explicit commands with their own current bootstrap and keys.
@@ -259,7 +262,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);
  assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);
  assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);
- const finalIndex=await readIndex();assert.equal(finalIndex.index.length,10);assert.equal(finalIndex.index.reduce((n,row)=>n+row.states.confirmed,0),0);
+ const finalIndex=await readIndex();assert.equal(finalIndex.index.length,12);assert.equal(finalIndex.index.reduce((n,row)=>n+row.states.confirmed,0),0);
  const prefixAfter=rowMultiset(h);assertPrefix(prefixBefore,prefixAfter);
  const appended=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event','own_payroll_annul_event','own_payroll_close_event'];
  assert.deepEqual(prefixAfter.filter(row=>!appended.includes(row.name)),prefixBefore.filter(row=>!appended.includes(row.name)),'ANNUL209_UNRELATED_ROWS_CHANGED');
@@ -269,7 +272,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  ok(true,'original immutable captures, receipts, preexisting rows and reopened close survive complete209 native preparation tests');
 
  // SEPARATE POST-DRAFT PHASE. Every preceding209 check remains above, including
- // captures12/saved10 and index10. These calls model two new explicit synthetic
+ // captures14/saved12 and index12. These calls model two new explicit synthetic
  // calculate actions; neither GET nor applying a draft invokes a calculation.
  // Same db/run/receiver/programme: no new adapter, SQL, role, host or protocol.
  const recalcBefore=await ledger();assert.deepEqual(recalcBefore,finalCensus);
@@ -319,8 +322,8 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(recalculated.length,2);assert.notEqual(recalculated[0].id,recalculated[1].id);assert.notEqual(recalculated[0].key,recalculated[1].key);
  const recalculatedIds=recalculated.flatMap(capture=>capture.saved.input.employees.map(row=>row.contractId));assert.equal(new Set(recalculatedIds).size,855);assert.deepEqual([...recalculatedIds].sort(),contracts);
  assert.equal(recalculated.reduce((count,capture)=>count+capture.saved.result.rowCount,0),17100);
- const recalcAfter=await ledger();assert.deepEqual(recalcAfter,{...recalcBefore,captures:14,saved:12});
- const recalcIndex=await readIndex();assert.equal(recalcIndex.index.length,12);assert.equal(recalcIndex.index.reduce((count,row)=>count+row.states.confirmed,0),0);
+ const recalcAfter=await ledger();assert.deepEqual(recalcAfter,{...recalcBefore,captures:16,saved:14});
+ const recalcIndex=await readIndex();assert.equal(recalcIndex.index.length,14);assert.equal(recalcIndex.index.reduce((count,row)=>count+row.states.confirmed,0),0);
  for(const capture of recalculated){const row=recalcIndex.index.find(value=>value.id===capture.id);assert.ok(row);assert.equal(row.resultSha256,capture.saved.resultSha256);assert.deepEqual(row.states,{calculated:capture.saved.result.employeeCount,confirmed:0,annulled:0,cancelled:0});}
  const afterRecalculation=await preparation(receipt.id);assert.deepEqual(afterRecalculation.affected,finalProjection.affected);assert.deepEqual(afterRecalculation.dateGroups,finalProjection.dateGroups);assert.notEqual(afterRecalculation.sourceStateSha256,preparedBeforeCalculation.sourceStateSha256);
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);
@@ -349,7 +352,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // historical run states and immutable source references without freezing it.
  const historicalReference=row=>({id:row.id,bodySha256:row.bodySha256,payloadSha256:row.payloadSha256,inputSha256:row.inputSha256,resultSha256:row.resultSha256,algorithmSha256:row.algorithmSha256,employeeCount:row.employeeCount,conceptRowCount:row.conceptRowCount,totalsPrecision:row.totalsPrecision,createdAt:row.createdAt,liquidationDate:row.liquidationDate,states:row.states,confirmedContractIds:row.confirmedContractIds});
  const historicalReferences=recalcIndex.index.filter(row=>!newRunIds.has(row.id)).map(historicalReference);
- const preserveHistoricalRuns=async()=>{const current=await readIndex();assert.equal(current.index.length,12);assert.deepEqual(current.index.filter(row=>!newRunIds.has(row.id)).map(historicalReference),historicalReferences);return current;};
+ const preserveHistoricalRuns=async()=>{const current=await readIndex();assert.equal(current.index.length,14);assert.deepEqual(current.index.filter(row=>!newRunIds.has(row.id)).map(historicalReference),historicalReferences);return current;};
  for(let n=0;n<recalculated.length;n++){
   const capture=recalculated[n],detail=await readDetail(capture.id);assert.deepEqual(detail.capture.saved,capture.saved);
   assert.deepEqual(detail.employees.map(row=>row.contractId).sort(),partitions[n]);assert.ok(detail.employees.every(row=>row.state==='calculated'&&row.allowedCommands.includes('confirm')));

@@ -11,7 +11,7 @@ import {createOwnAnnulHandler} from '../../api/internal-own-payroll-annulment.js
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../../api/internal-own-payroll-run.js';
 import {verifiedOwnAnnulReviewIndex,verifiedOwnAnnulReviewReceipt} from '../../assets/own-payroll-annulment-review-model.js';
-import {verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
+import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_PREPARE} from '../../assets/own-payroll-run-workspace-model.js';
 import {OWN_ANNUL_ACCESS} from '../../assets/own-payroll-annulment-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
@@ -24,7 +24,19 @@ const exact=(value,keys)=>assert.deepEqual(Reflect.ownKeys(value).sort(),sorted(
 const FOUR=4*1024*1024,FULL=32*1024*1024;
 
 export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
-  exact(fixture,['captures','index','partitionIds','receiptHistory']);
+  return verifyFixedAnnulmentBrowserOn190(context,fixture,'complete855-three');
+}
+export async function verifyOwnAnnulment29BrowserOn190(context,fixture){
+  return verifyFixedAnnulmentBrowserOn190(context,fixture,'selected29-two');
+}
+// The two public entries choose literal cases. No caller can supply a population,
+// partition budget, output path, actor, transport or authority override.
+async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
+  assert.ok(scenario==='complete855-three'||scenario==='selected29-two');
+  const selected29=scenario==='selected29-two',population=selected29?29:855,runCount=selected29?2:3,pageCount=selected29?2:35;
+  const partitionLengths=selected29?[14,15]:[285,285,285];
+  const registeredLabel='Anulación registrada: '+population+' legajos en '+runCount+' corridas';
+  exact(fixture,selected29?['captures','index','partitionIds','receiptHistory','confirmations']:['captures','index','partitionIds','receiptHistory']);
   assert.equal(context.version,'own-annulment-v2-live190-context.v1');
   const {h,db,qa,maker,reviewer,period,operations,readSnapshot}=context;
   assert.equal(h.qa,qa);assert.equal(qa.operationalPairBaseline,'published107');
@@ -38,24 +50,45 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
   assert.ok(Array.isArray(caps)&&OWN_ANNUL_ACCESS.every(cap=>caps.includes(cap)));
   assert.ok(!OWN_RUN_PREPARE.every(cap=>caps.includes(cap)),'M7_190_REVIEWER_MUST_NOT_GAIN_PREPARE');
   assert.ok(!caps.includes('payroll.calculation.prepare'));
-  assert.equal(fixture.captures.length,3);assert.equal(fixture.partitionIds.length,3);
+  assert.equal(context.contracts.length,855);assert.equal(new Set(context.contracts).size,855);
+  if(selected29){assert.equal(fixture.captures.length,2);assert.equal(fixture.partitionIds.length,2);assert.equal(fixture.confirmations.length,2);}
+  else{assert.equal(fixture.captures.length,3);assert.equal(fixture.partitionIds.length,3);}
   assert.equal(fixture.receiptHistory.length,3);
   const index=await verifiedOwnAnnulReviewIndex(fixture.index),ids=fixture.partitionIds.flat();
-  assert.equal(ids.length,855);assert.equal(new Set(ids).size,855);
-  assert.deepEqual(sorted(ids),sorted(context.contracts));
+  if(selected29){
+    assert.equal(ids.length,29);assert.equal(new Set(ids).size,29);
+    assert.deepEqual(fixture.partitionIds.map(part=>part.length),[14,15]);
+    assert.deepEqual(fixture.partitionIds,[context.contracts.slice(0,14),context.contracts.slice(14,29)]);
+    assert.ok(ids.every(id=>context.contracts.includes(id)));
+  }else{
+    assert.equal(ids.length,855);assert.equal(new Set(ids).size,855);
+    assert.deepEqual(sorted(ids),sorted(context.contracts));
+  }
   assert.equal(context.firstSaved.input.employees.length,855);
-  assert.deepEqual(sorted(context.firstSaved.input.employees.map(employee=>employee.contractId)),sorted(ids));
-  const expectedNumbers=context.firstSaved.input.employees.map(employee=>employee.employeeNumber);
-  assert.equal(new Set(expectedNumbers).size,855);assert.ok(expectedNumbers.every(value=>typeof value==='string'));
+  assert.deepEqual(sorted(context.firstSaved.input.employees.map(employee=>employee.contractId)),sorted(context.contracts));
+  const selectedIds=new Set(ids),expectedNumbers=context.firstSaved.input.employees.filter(employee=>selectedIds.has(employee.contractId)).map(employee=>employee.employeeNumber);
+  if(selected29)assert.equal(new Set(expectedNumbers).size,29);else assert.equal(new Set(expectedNumbers).size,855);
+  assert.ok(expectedNumbers.every(value=>typeof value==='string'));
   assert.equal(index.period,period);assert.equal(index.liquidationType,'monthly');
-  for(let n=0;n<3;n++){
+  for(let n=0;n<runCount;n++){
     const capture=fixture.captures[n],reference=index.index.find(item=>item.id===capture.id);
     assert.ok(reference);assert.equal(capture.employeeCount,855);assert.equal(capture.conceptRowCount,17100);
-    assert.equal(fixture.partitionIds[n].length,285);
+    if(selected29)assert.equal(fixture.partitionIds[n].length,partitionLengths[n]);else assert.equal(fixture.partitionIds[n].length,285);
     assert.deepEqual(reference.confirmedContractIds,sorted(fixture.partitionIds[n]));
     for(const field of ['bodySha256','payloadSha256','inputSha256','resultSha256'])assert.equal(reference[field],capture[field]);
+    if(selected29){
+      const confirmation=await verifiedOwnLiquidationReceipt(fixture.confirmations[n]);
+      assert.equal(confirmation.runId,capture.id);assert.equal(confirmation.resultSha256,capture.resultSha256);
+      assert.equal(confirmation.body.command,'confirm');assert.equal(confirmation.body.reviewConfirmed,true);
+      assert.deepEqual(confirmation.body.selection,{kind:'contracts',values:sorted(fixture.partitionIds[n])});
+      assert.deepEqual(sorted(confirmation.affected.map(row=>row.contractId)),sorted(fixture.partitionIds[n]));
+    }
   }
-  assert.equal(index.index.reduce((sum,item)=>sum+item.confirmedContractIds.length,0),855);
+  if(selected29){
+    assert.equal(index.index.length,10);assert.equal(index.index.reduce((sum,item)=>sum+item.confirmedContractIds.length,0),29);
+    assert.equal(new Set(fixture.captures.map(capture=>capture.body.liquidationDate)).size,2);
+    assert.deepEqual(fixture.captures.map(capture=>capture.body.liquidationDate),['2026-10-15','2026-10-20']);
+  }else assert.equal(index.index.reduce((sum,item)=>sum+item.confirmedContractIds.length,0),855);
   const sourceBookend=[];
   for(const file of ['own-payroll-annulment-panel.js','own-payroll-annulment-review-model.js','own-payroll-run-panel.js',
     'own-payroll-annulment-preparation-model.js','own-payroll-annulment-preparation-link.js',
@@ -92,7 +125,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     ['/api/internal-own-payroll-liquidation',createOwnLiquidationHandler(deps)],
     ['/api/internal-own-payroll-run',createOwnRunHandler(deps)]
   ]);
-  const output=path.resolve(h.destination,'annulment-v2-browser');
+  const output=path.resolve(h.destination,selected29?'annulment29-v2-browser':'annulment-v2-browser');
   assert.ok(output.startsWith(path.resolve(h.destination)+path.sep));
   fs.mkdirSync(output,{recursive:false});
   let failure,result;
@@ -150,7 +183,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     const $=key=>page.locator('[data-annul-'+key+']');
     const settled=()=>page.waitForFunction(()=>document.querySelector('[data-annul-status]')?.closest('.own-liquidation')?.getAttribute('aria-busy')==='false',{}, {timeout:45000});
     const query=async requested=>{await $('period').fill(requested);await $('type').selectOption('monthly');await $('load').click();await settled();};
-    const choose=async()=>{await $('kind').selectOption('all');await $('reason').fill('Revisión sintética completa del padrón propio canonical190');await $('confirm').check();};
+    const choose=async()=>{await $('kind').selectOption('all');await $('reason').fill(selected29?'Revisión sintética de29 seleccionados en dos fechas canonical190':'Revisión sintética completa del padrón propio canonical190');await $('confirm').check();};
     const request=async(relative,options={})=>{
       const response=await browserContext.request.fetch(origin+relative,{...options,headers:{Accept:OWN_RUN_FULL_JSON,Origin:origin,...options.headers}});
       const body=await response.body();assert.ok(body.length<=FULL);
@@ -163,17 +196,19 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     assert.equal(nativeIndex.response.status(),200);assert.deepEqual(nativeIndex.body.data,index);
     check(bytes(nativeIndex.body)<=FOUR,'actual HTTP index transports every historical run within the ordinary bound');
     await query(period);await $('detail').waitFor({state:'visible'});await choose();
-    check((await $('scope').innerText()).includes('855 legajos · 3 corridas'),'complete 855-contract three-run review is visible');
+    if(selected29)check((await $('scope').innerText()).includes('29 legajos · 2 corridas'),'exact14+15 selection from855 is visible across two genuine dates');
+    else check((await $('scope').innerText()).includes('855 legajos · 3 corridas'),'complete 855-contract three-run review is visible');
     assert.ok((await $('coverage').innerText()).includes(index.index.length+' corridas registradas'));
     assert.equal(await $('rows').locator('tr').count(),25);
     const visibleNumbers=()=>$('rows').locator('tr').evaluateAll(rows=>rows.map(row=>row.cells[0]?.textContent.trim()));
     const reviewedNumbers=await visibleNumbers();
-    for(let n=1;n<35;n++){await $('next').click();reviewedNumbers.push(...await visibleNumbers());}
+    for(let n=1;n<pageCount;n++){await $('next').click();if(selected29)assert.equal(await $('rows').locator('tr').count(),4);reviewedNumbers.push(...await visibleNumbers());}
     assert.deepEqual(sorted(reviewedNumbers),sorted(expectedNumbers));
-    check(reviewedNumbers.length===855&&new Set(reviewedNumbers).size===855&&await $('next').isDisabled(),'all 35 pages expose every canonical190 employee number exactly once');
+    if(selected29)check(reviewedNumbers.length===29&&new Set(reviewedNumbers).size===29&&await $('next').isDisabled(),'both25+4 pages expose all29 selected employee numbers exactly once');
+    else check(reviewedNumbers.length===855&&new Set(reviewedNumbers).size===855&&await $('next').isDisabled(),'all 35 pages expose every canonical190 employee number exactly once');
     const totals=await $('totals').innerText();
     await $('search').fill('no-synthetic-contract-match');
-    check((await $('range').innerText()).includes('0 legajos de la búsqueda · 855 afectados')&&await $('totals').innerText()===totals,'search changes only the view and preserves all affected contracts and exact totals');
+    check((await $('range').innerText()).includes('0 legajos de la búsqueda · '+population+' afectados')&&await $('totals').innerText()===totals,'search changes only the view and preserves all affected contracts and exact totals');
     await $('search').fill('');
     for(const width of [1366,390,320]){
       await page.setViewportSize({width,height:1100});await $('send').scrollIntoViewIfNeeded();
@@ -193,7 +228,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     await page.evaluate(next=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:next}})),caps.filter(cap=>cap!=='payroll.calculation.approve'));
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('send').isDisabled(),'client authority withdrawal removes nominal rows and disables frozen retries');
     clientWithdrawn=false;await $('load').click();await settled();
-    assert.ok((await $('scope').innerText()).includes('855 legajos'));
+    assert.ok((await $('scope').innerText()).includes(population+' legajos'));
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0,'hiding the real product clears every nominal row');
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
@@ -204,11 +239,13 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     assert.equal(posts.length,2);assert.deepEqual(posts[1].body,frozen.body);assert.equal(posts[1].key,frozen.key);
     check(posts[1].reachedSql&&posts[1].replayed===false&&await $('recover').isVisible(),'lost acknowledgement occurs after one native commit with the original key and body');
     await $('recover').click();await settled();
-    check((await $('status').innerText()).includes('Anulación registrada: 855 legajos en 3 corridas'),'actual GET restores the full committed receipt in the real panel');
+    if(selected29)check((await $('status').innerText()).includes('Anulación registrada: 29 legajos en 2 corridas'),'actual GET restores the exact29/2 committed receipt in the real panel');
+    else check((await $('status').innerText()).includes('Anulación registrada: 855 legajos en 3 corridas'),'actual GET restores the full committed receipt in the real panel');
     const recovered=await request('/api/internal-own-payroll-annulment?resource=attempt&key='+frozen.key);
     assert.equal(recovered.response.status(),200);receipt=await verifiedOwnAnnulReviewReceipt(recovered.body.data);
     assert.equal(receipt.version,'own-annul-receipt.v2');assert.equal(receipt.replayed,true);
-    assert.equal(receipt.affected.length,855);assert.equal(receipt.receipts.length,3);
+    if(selected29){assert.equal(receipt.affected.length,29);assert.equal(receipt.receipts.length,2);}
+    else{assert.equal(receipt.affected.length,855);assert.equal(receipt.receipts.length,3);}
     assert.deepEqual(sorted(receipt.affected.map(item=>item.contractId)),sorted(ids));
     assert.deepEqual(receipt.body,frozen.body);
     // The original fixture carries immutable hashes of each genuine capture.
@@ -238,11 +275,17 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       const people=new Map(saved.input.employees.map(row=>[row.contractId,row]));
       const amounts=new Map(saved.result.employeeTotals.map(row=>[row.contractId,row]));
       const states=new Map(detail.employees.map(row=>[row.contractId,row]));
-      for(const affected of receipt.affected.filter(row=>row.runId===original.id)){
+      const selectedAffected=receipt.affected.filter(row=>row.runId===original.id),partIndex=fixture.captures.findIndex(row=>row.id===original.id);
+      assert.deepEqual(sorted(selectedAffected.map(row=>row.contractId)),sorted(fixture.partitionIds[partIndex]));
+      for(const affected of selectedAffected){
         const person=people.get(affected.contractId),money=amounts.get(affected.contractId),state=states.get(affected.contractId);
         assert.ok(person&&money&&state);assert.equal(state.state,'annulled');
         assert.equal(affected.resultSha256,original.resultSha256);assert.equal(affected.liquidationDate,capture.body.liquidationDate);
         assert.equal(state.version,affected.version);assert.equal(state.liquidationVersion,affected.liquidationVersion);
+        if(selected29){
+          const confirmed=fixture.confirmations[partIndex].affected.find(row=>row.contractId===affected.contractId);assert.ok(confirmed);
+          assert.equal(affected.liquidationVersion,confirmed.liquidationVersion);assert.equal(affected.version,confirmed.version+1);
+        }
         outcomeOracleRows.push(Object.freeze({contractId:affected.contractId,employeeNumber:person.employeeNumber,departmentCode:person.departmentCode,
           date:'Fecha de liquidación: '+affected.liquidationDate.split('-').reverse().join('/'),
           gross:money.gross,deduction:money.deduction,net:money.net,
@@ -250,7 +293,8 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       }
     }
     outcomeOracleRows.sort((a,b)=>a.contractId<b.contractId?-1:a.contractId>b.contractId?1:0);Object.freeze(outcomeOracleRows);
-    assert.equal(outcomeOracleRows.length,855);assert.equal(new Set(outcomeOracleRows.map(row=>row.contractId)).size,855);
+    if(selected29){assert.equal(outcomeOracleRows.length,29);assert.equal(new Set(outcomeOracleRows.map(row=>row.contractId)).size,29);}
+    else{assert.equal(outcomeOracleRows.length,855);assert.equal(new Set(outcomeOracleRows.map(row=>row.contractId)).size,855);}
     assert.deepEqual(sorted(outcomeOracleRows.map(row=>row.contractId)),sorted(ids));
     assert.deepEqual(sorted(outcomeOracleRows.map(row=>row.employeeNumber)),sorted(expectedNumbers));
     const outcomePrecision=Math.max(...outcomePrecisions);assert.ok(Number.isInteger(outcomePrecision)&&outcomePrecision>=0&&outcomePrecision<=8);
@@ -268,33 +312,33 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       return text.slice(2).replaceAll('.','').replace(',','.');
     };
     const assertOutcomeTable=async label=>{
-      assert.ok((await $('status').innerText()).includes('Anulación registrada: 855 legajos en 3 corridas'));
+      assert.ok((await $('status').innerText()).includes(registeredLabel));
       assert.equal(await $('empty').isHidden(),true);assert.equal(await $('recover').isVisible(),true);
-      assert.ok((await $('scope').innerText()).includes('855 legajos anulados en 3 corridas'));
+      assert.ok((await $('scope').innerText()).includes(population+' legajos anulados en '+runCount+' corridas'));
       assert.ok((await $('scope').innerText()).includes('Importes históricos conservados; esta anulación no describe el estado vigente.'));
       assert.equal(await $('confirm').isChecked(),true);assert.ok(await $('send').isDisabled());
       const displayedTotals=await $('totals').locator('dd').allTextContents();assert.equal(displayedTotals.length,3);
       assert.deepEqual(displayedTotals.map(value=>moneyCell(value.trim())),['gross','deduction','net'].map(key=>outcomeTotals[key]));
       const observed=[];
-      for(let n=0;n<35;n++){
-        assert.equal((await $('page').innerText()).trim(),(n+1)+' / 35');
+      for(let n=0;n<pageCount;n++){
+        assert.equal((await $('page').innerText()).trim(),(n+1)+' / '+pageCount);
         const rows=await $('rows').locator('tr').evaluateAll(list=>list.map(row=>[...row.cells].map(cell=>cell.textContent.trim())));
-        assert.equal(rows.length,n===34?5:25);
+        assert.equal(rows.length,n===pageCount-1?population-25*(pageCount-1):25);
         for(const cells of rows){assert.equal(cells.length,7);observed.push([cells[0],cells[1],cells[2],moneyCell(cells[3]),moneyCell(cells[4]),moneyCell(cells[5]),cells[6]]);}
-        if(n<34){assert.equal(await $('next').isDisabled(),false);await $('next').click();}
+        if(n<pageCount-1){assert.equal(await $('next').isDisabled(),false);await $('next').click();}
       }
       assert.equal(await $('next').isDisabled(),true);
       assert.deepEqual(observed,outcomeOracleRows.map(row=>[row.employeeNumber,row.departmentCode,row.date,row.gross,row.deduction,row.net,row.state]));
-      assert.equal(new Set(observed.map(row=>row[0])).size,855);
+      if(selected29)assert.equal(new Set(observed.map(row=>row[0])).size,29);else assert.equal(new Set(observed.map(row=>row[0])).size,855);
       // Searching resets pagination; exact employee numbers may be substrings
-      // of others, so derive the expected view from all855 verified oracle rows.
+      // of others, so derive the expected view from every selected oracle row.
       const term=outcomeOracleRows[0].employeeNumber;
       await $('search').fill(term);
       const matching=outcomeOracleRows.filter(row=>[row.employeeNumber,row.departmentCode].some(value=>value.toLocaleLowerCase('es-AR').includes(term.toLocaleLowerCase('es-AR'))));
-      assert.ok(matching.length>0);assert.ok((await $('range').innerText()).includes(matching.length+' legajos de la búsqueda · 855 afectados'));
+      assert.ok(matching.length>0);assert.ok((await $('range').innerText()).includes(matching.length+' legajos de la búsqueda · '+population+' afectados'));
       assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
       await $('search').fill('no-synthetic-outcome-match');
-      assert.ok((await $('range').innerText()).includes('0 legajos de la búsqueda · 855 afectados'));
+      assert.ok((await $('range').innerText()).includes('0 legajos de la búsqueda · '+population+' afectados'));
       assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
       await $('search').fill('');assert.equal(await $('rows').locator('tr').count(),25);
       assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
@@ -302,7 +346,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       assert.equal(posts.length,outcomePosts);assert.equal(calculationPosts,outcomeCalculationPosts);assert.deepEqual(readSnapshot(),outcomeSnapshot);
       check(true,label);
     };
-    await assertOutcomeTable('all855 historical outcome rows across35 pages bind original capture hashes, exact amounts, original dates and both decision versions');
+    await assertOutcomeTable(selected29?'all29 historical outcome rows across25+4 bind genuine full capture hashes, exact amounts, both dates and real decision versions':'all855 historical outcome rows across35 pages bind original capture hashes, exact amounts, original dates and both decision versions');
     const rebuildOutcome=async(label,traceStart)=>{
       await $('load').click();await settled();await $('recover').click();await settled();
       const reads=outcomePageReads.slice(traceStart);
@@ -319,17 +363,17 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('confirm').isChecked()===false,'hiding a committed outcome clears all nominal rows and consent');
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
-    await rebuildOutcome('actual same-key GET and complete authenticated details rebuild all855 historical rows after page hiding without another POST',hideReads);
+    await rebuildOutcome(selected29?'actual same-key GET rebuilds all29 rows after hiding without another POST':'actual same-key GET and complete authenticated details rebuild all855 historical rows after page hiding without another POST',hideReads);
     const revokeReads=outcomePageReads.length;clientWithdrawn=true;
     await page.evaluate(next=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:next}})),caps.filter(cap=>cap!=='payroll.calculation.approve'));
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('send').isDisabled()&&await $('confirm').isChecked()===false,'withdrawing client authority clears committed outcome rows and consent');
     clientWithdrawn=false;
-    await rebuildOutcome('restored original reviewer rebuilds the same committed855/3 outcome by GET only after capability withdrawal',revokeReads);
-    const historicalOutcome={version:'own-annulment208-historical-outcome-browser.v1',population:855,runs:3,pages:35,authenticatedRebuilds:2,
+    await rebuildOutcome(selected29?'restored original reviewer rebuilds the same committed29/2 outcome by GET only':'restored original reviewer rebuilds the same committed855/3 outcome by GET only after capability withdrawal',revokeReads);
+    const historicalOutcome={version:'own-annulment208-historical-outcome-browser.v1',population,runs:runCount,pages:pageCount,authenticatedRebuilds:2,
       originalCaptureHashesVerified:true,allRowsCompared:true,exactAmountsCompared:true,decisionAndLiquidationVersionsCompared:true,
       pageReadCount:outcomePageReads.length,newAnnulmentPosts:posts.length-outcomePosts,newCalculationPosts:calculationPosts-outcomeCalculationPosts,
       newBusinessHttpPosts:outcomePagePosts.length-outcomeHttpPosts,
-      sourceReceiptKeyJsonSha256:sha(frozen.key),separate29ScenarioProven:false,receiptToPreparationBrowserProven:false};
+      sourceReceiptKeyJsonSha256:sha(frozen.key),separate29ScenarioProven:selected29,receiptToPreparationBrowserProven:false};
     const beforeReplay=readSnapshot(),replayed=await request('/api/internal-own-payroll-annulment',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':frozen.key},data:JSON.stringify({operation:'command-v2',payload:frozen.body})});
     assert.equal(replayed.response.status(),200);assert.deepEqual(replayed.body.data,receipt);
     assert.equal(replayed.response.headers()['idempotency-replayed'],'true');assert.deepEqual(readSnapshot(),beforeReplay);
@@ -352,13 +396,14 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     assert.deepEqual(afterIndex.index.map(item=>item.id),index.index.map(item=>item.id));
     check(true,'complete historical run index survives and no confirmed contract remains');
     assert.deepEqual(pageErrors,[]);assert.deepEqual(serverErrors,[]);assert.deepEqual(external,[]);
-    result={version:'own-annulment-v2-canonical190-native-browser.v1',passed:true,sourceCommit:h.sourceCommit,
-      major:h.major,population:855,conceptRowsPerCapture:17100,activeRuns:3,historicalRuns:index.index.length,
+    result={version:selected29?'own-annulment29-canonical190-native-browser.v1':'own-annulment-v2-canonical190-native-browser.v1',passed:true,sourceCommit:h.sourceCommit,
+      major:h.major,population,conceptRowsPerCapture:17100,activeRuns:runCount,historicalRuns:index.index.length,
       checks,httpEvidence,sourceBookend,posts:posts.map(item=>({keyJsonSha256:sha(item.key),bodyJsonSha256:sha(item.body),reachedSql:item.reachedSql,replayed:item.replayed})),
       reportFingerprintAlgorithm:'SHA256 of UTF8 JSON.stringify; distinct from canonical DTO and SQL digests',
       receiptJsonSha256:sha(receipt),afterSnapshotJsonSha256:sha(readSnapshot()),actualSql:true,actualHttp:true,
+      ...(selected29?{rosterPopulation:855,receiptKey:receipt.key,selected29AnnulmentBrowserProven:true}:{}),
       historicalOutcome,
-      fullAnnulmentBrowserProven:true,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,
+      fullAnnulmentBrowserProven:!selected29,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,
       pending:['cross-role receipt-to-preparation handoff','monthly 855-contract business cases'],
       authenticationFixture:true,completeAuthenticationHandler:false,
       sourceMode:'public_build_with_twelve_critical_modules_byte_checked',fullBuildValidation:false,

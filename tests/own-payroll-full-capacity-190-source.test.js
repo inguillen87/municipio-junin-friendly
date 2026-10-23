@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
@@ -192,8 +192,31 @@ test('canonical208 QA source reverses exactR2 and reviewedR1 before the unchange
  };
  assert.deepEqual(OWN_ANNUL_OUTCOME_208_SOURCE_PINS,expected);
  for(const[file,pin]of Object.entries(expected)){
-  const source=read(file);assert.equal(hash(source),pin.after,file+' selectedR2 whole source');
+  const source=projectOwnAnnulment29SourceToParent(file,read(file));assert.equal(hash(source),pin.after,file+' selectedR2 whole source');
   assert.equal(hash(projectOwnAnnulOutcome208ToHead(file,source)),pin.before,file+' complete two-epoch inverse');
   assert.throws(()=>projectOwnAnnulOutcome208ToHead(file,source+' '),assert.AssertionError,file+' appended208 bytes must reject as source, never execute');
+ }
+});
+
+test('separate29 sources recover their exact80b99 parents before the unchanged208 R2/R1 chain; extra bytes reject without importing any QA',()=>{
+ const expected={
+  'scripts/lib/own-payroll-annulment-v2-native-browser.mjs':{before:'bba93c75b0b8095cd97acfd90a66387a70bab7c6dba8fade3c81381abb49a472',after:'7971eea8333e9835adc58e03c4d977837763509b3dd280d89ddf3f27e997f781'},
+  'scripts/lib/own-payroll-annulment-v2-native-continuation.mjs':{before:'5ac17d7261e45010c9851b8fb962fe8e5b6e03af1523a190e26765723565f122',after:'d1256108192967f6c1cbaaf9264d8a8b36e58d11bf87c81f57a56071df7b063e'},
+  'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs':{before:'3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e',after:'6c76b32d52fe8e2465dc1390257db996b188f2bd03c047d306353f74789a37bd'},
+  'scripts/verify-own-payroll-annulment-v2-full-capacity.mjs':{before:'43fb1609653705d24a62433a8e4a2e28afcd90916e59f583bbd9461933d5d9fe',after:'39612895ad26772e411c3f27043d3df64c696097ec31010b30b99b7a53d9f3d2'}
+ };
+ const afterSelected208Projection={
+  'scripts/lib/own-payroll-annulment-v2-native-browser.mjs':'ab12aa395f712400843a0a70fcd6db2d6b45c0188acd3703f03c4f4c545af24e',
+  'scripts/lib/own-payroll-annulment-v2-native-continuation.mjs':'909dc8084015ec937b94eeb7e031d113a92bda26767bdf7e88cbd483482fecd9',
+  'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs':'3301a251da59ed655f4d2e8c61df0868070568418cba3282cd64e61d5821f36e',
+  'scripts/verify-own-payroll-annulment-v2-full-capacity.mjs':'43fb1609653705d24a62433a8e4a2e28afcd90916e59f583bbd9461933d5d9fe'
+ };
+ assert.deepEqual(OWN_ANNULMENT29_SOURCE_PINS,expected);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=read(file);assert.equal(hash(source),pin.after,file+' selected29 whole source');
+  const parent=projectOwnAnnulment29SourceToParent(file,source);
+  assert.equal(hash(parent),pin.before,file+' exact80b99 selected parent');
+  assert.equal(hash(projectOwnAnnulOutcome208ToHead(file,parent)),afterSelected208Projection[file],file+' ordered29 then selected208 R2/R1 source custody');
+  assert.throws(()=>projectOwnAnnulment29SourceToParent(file,source+' '),assert.AssertionError,file+' appended29 bytes reject before parent projection');
  }
 });
