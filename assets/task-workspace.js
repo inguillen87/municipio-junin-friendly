@@ -21,7 +21,7 @@ export function taskWorkspace({host,groups,initial,aliases={}}){
   if(id){activate(id);const target=document.getElementById(key);if(target){let p=target;while(p&&p!==host){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement}if(key!==id)requestAnimationFrame(()=>target.scrollIntoView({block:'start',behavior:'instant'}))}return}
   if(!key)activate(initial);else for(const [id,panel]of panels){const target=document.getElementById(key);if(target&&panel.contains(target)){activate(id);let n=target;while(n&&n!==panel){if(n.tagName==='DETAILS')n.open=true;n=n.parentElement}requestAnimationFrame(()=>target.scrollIntoView({block:'start',behavior:'instant'}));return}}
  }
- list.addEventListener('keydown',event=>{const all=[...buttons.values()],i=all.indexOf(event.target);if(i<0)return;let n=i;if(event.key==='ArrowRight')n=(i+1)%all.length;else if(event.key==='ArrowLeft')n=(i+all.length-1)%all.length;else if(event.key==='Home')n=0;else if(event.key==='End')n=all.length-1;else return;event.preventDefault();all[n].focus()});
+ list.addEventListener('keydown',event=>{const all=[...buttons.values()].filter(button=>!button.hidden&&!button.disabled),i=all.indexOf(event.target);if(i<0)return;let n=i;if(event.key==='ArrowRight')n=(i+1)%all.length;else if(event.key==='ArrowLeft')n=(i+all.length-1)%all.length;else if(event.key==='Home')n=0;else if(event.key==='End')n=all.length-1;else return;event.preventDefault();all[n].focus()});
  window.addEventListener('hashchange',fromHash);window.addEventListener('popstate',fromHash);
  activate(initial);fromHash();return{activate,panels,buttons,fromHash};
 }
