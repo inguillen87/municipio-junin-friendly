@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {FULL_CAPACITY_SOURCE_PINS,projectFullCapacitySourceToParent} from './fixtures/own-payroll-full-capacity-source-projection.js';
-import {projectOwnAnnulPreparationToHead,projectOwnClaude209HandoffSourceToParent,projectOwnIndividualHandoffSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+import {projectOwnAnnulPreparationToHead,projectOwnClaude209HandoffSourceToParent,projectOwnIndividualHandoffSourceToParent,projectOwnMonetarySourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const sha=value=>createHash('sha256').update(value).digest('hex');
 test('all15 source targets reconstruct their complete383649a4 parents with finite deltas',()=>{
  assert.equal(Object.keys(FULL_CAPACITY_SOURCE_PINS).length,15);
- for(const [path,pin]of Object.entries(FULL_CAPACITY_SOURCE_PINS))assert.equal(sha(projectFullCapacitySourceToParent(path,projectOwnAnnulPreparationToHead(path,projectOwnClaude209HandoffSourceToParent(path,projectOwnIndividualHandoffSourceToParent(path,read(path)))))),pin.before);
+ for(const [path,pin]of Object.entries(FULL_CAPACITY_SOURCE_PINS))assert.equal(sha(projectFullCapacitySourceToParent(path,projectOwnAnnulPreparationToHead(path,projectOwnClaude209HandoffSourceToParent(path,projectOwnIndividualHandoffSourceToParent(path,projectOwnMonetarySourceToParent(path,read(path))))))),pin.before);
  assert.match(read('assets/own-payroll-run-model.js'),/OWN_RUN_MAX_RESPONSE = 4 \* 1024 \* 1024/);
  assert.match(read('assets/own-payroll-response.js'),/OWN_RUN_FULL_MAX_BYTES=32\*1024\*1024/);
 });

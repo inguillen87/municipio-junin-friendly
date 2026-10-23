@@ -1,3 +1,4 @@
+import {ownMonetaryProgrammeStructure,OWN_MONETARY_MANIFEST_VERSION} from './own-payroll-monetary-manifest.js';
 import {ownProgramMonthlyDayDeclarations,validateMonthlyDayDeclarationProgram} from './own-monthly-day-declaration-program.js';
 import {ownProgramMonthlyDays,validateMonthlyDayPolicyProgram} from './own-monthly-day-policy-program.js';
 import {monthlyDayPolicy} from './own-monthly-day-policy-model.js';
@@ -21,7 +22,16 @@ const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 export const ownProgramRuleKey = (r, namespaceVersion = null) => [r.agreementCode, ownPayrollRuleIdentity(r, namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION), r.validFrom, r.liquidationTypes.join(',')].join(':');
 export const ownProgramNamespaced = p => p?.namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION;
-export const ownProgramFields = p => [...(ownProgramMonthlyDays(p)?['monthlyDaysVersion','monthlyDaysPolicy']:[]), ...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramMonthlyDayDeclarations(p)?['monthlyDayDeclarationVersion']:[]), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), ...(ownFixedForcedAmounts(p)?['fixedForcedAmountsVersion','fixedForcedAmountsPolicy']:[]), 'rules', 'bindings', 'totalsPrecision'];
+// Presence and structure only. Complete digest verification belongs to the
+// proposal/approval/capture boundary; this predicate never grants authority.
+export function ownProgramMonetary(p) {
+  const present=!!p&&typeof p==='object'&&['monetaryPolicyVersion','monetaryPolicy'].some(key=>Object.hasOwn(p,key));
+  if(!present)return false;
+  const version=Object.getOwnPropertyDescriptor(p,'monetaryPolicyVersion'),policy=Object.getOwnPropertyDescriptor(p,'monetaryPolicy');
+  require(version&&policy&&[version,policy].every(d=>d.enumerable&&Object.hasOwn(d,'value'))&&version.value===OWN_MONETARY_MANIFEST_VERSION,'PROGRAM_INVALID','El anexo monetario necesita su versión y declaración completas.');
+  return true;
+}
+export const ownProgramFields = p => [...(ownProgramMonthlyDays(p)?['monthlyDaysVersion','monthlyDaysPolicy']:[]), ...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramMonthlyDayDeclarations(p)?['monthlyDayDeclarationVersion']:[]), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), ...(ownFixedForcedAmounts(p)?['fixedForcedAmountsVersion','fixedForcedAmountsPolicy']:[]), ...(ownProgramMonetary(p)?['monetaryPolicyVersion','monetaryPolicy']:[]), 'rules', 'bindings', 'totalsPrecision'];
 const bindingKey = b => b.agreementCode + ':' + b.key;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function inputNodes(n) { if (n.op === 'input') return [n]; if(n.op==='match')return[{key:n.key,unit:n.type}];return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
@@ -35,6 +45,10 @@ function coverage(rows, rule, predicate) {
   return false;
 }
 export function ownProgramStructure(raw) {
+  const monetary=ownProgramMonetary(raw);
+  // The opt-in helper captures the complete JSON definition before any other
+  // model access. Its integrityValidated:false is not an approval or a hash seal.
+  if(monetary)raw=ownMonetaryProgrammeStructure(raw).definition;
   require(salaryExact(raw, ownProgramFields(raw)), 'PROGRAM_INVALID', 'El programa debe declarar reglas, entradas, precisión y, cuando corresponda, referencias separadas de auxiliares.');
   const declaredDays=ownProgramMonthlyDayDeclarations(raw), namespaced = ownProgramNamespaced(raw), conditions=ownProgramConditions(raw);
   require(!ownFixedForcedAmounts(raw)||namespaced,'FORCED_POLICY_INVALID','El importe fijo forzado requiere declarar las referencias separadas del programa.');
@@ -61,7 +75,13 @@ export function ownProgramStructure(raw) {
   const policy = participation ? participationPolicy({...raw,rules,bindings}) : null;
   if (policy) validateOwnPayrollRulePeriods(participationRules({...raw,rules,bindings}), {namespaced:true,typedConditions:conditions,fixedForced:ownFixedForcedAmounts(raw)});
   validateMonthlyDayPolicyProgram({...raw,rules,bindings});
-  return { ...(declaredDays?{monthlyDayDeclarationVersion:raw.monthlyDayDeclarationVersion}:{}), ...(ownProgramMonthlyDays(raw)?{monthlyDaysVersion:raw.monthlyDaysVersion,monthlyDaysPolicy:monthlyDayPolicy(raw.monthlyDaysPolicy)}:{}), ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), ...(ownFixedForcedAmounts(raw)?{fixedForcedAmountsVersion:raw.fixedForcedAmountsVersion,fixedForcedAmountsPolicy:normalizeFixedForcedAmountsPolicy(raw.fixedForcedAmountsPolicy,rules)}:{}),rules, bindings, totalsPrecision: raw.totalsPrecision };
+  const program = { ...(declaredDays?{monthlyDayDeclarationVersion:raw.monthlyDayDeclarationVersion}:{}), ...(ownProgramMonthlyDays(raw)?{monthlyDaysVersion:raw.monthlyDaysVersion,monthlyDaysPolicy:monthlyDayPolicy(raw.monthlyDaysPolicy)}:{}), ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), ...(ownFixedForcedAmounts(raw)?{fixedForcedAmountsVersion:raw.fixedForcedAmountsVersion,fixedForcedAmountsPolicy:normalizeFixedForcedAmountsPolicy(raw.fixedForcedAmountsPolicy,rules)}:{}),rules, bindings, totalsPrecision: raw.totalsPrecision };
+  if(!monetary)return program;
+  const {monetaryPolicyVersion,monetaryPolicy,...sourceBase}=raw;
+  // A digest over an unordered/raw base cannot authorize a different normalized
+  // programme. Never repair, reseal or silently reorder an opted-in declaration.
+  require(salarySerialized(program)===salarySerialized(sourceBase),'PROGRAM_MONETARY_BASE_CHANGED','El anexo monetario debe corresponder al programa estructural canónico completo. Revisá su fuente; no se reordenaron ni recalcularon sus huellas.');
+  return {...program,monetaryPolicyVersion,monetaryPolicy};
 }
 export function ownProgramDefinition(raw, catalogItems) {
   const program = ownProgramStructure(raw), { rules, bindings } = program, namespaced = ownProgramNamespaced(program), catalog = salaryItems(catalogItems);
@@ -80,6 +100,7 @@ export function ownProgramDefinition(raw, catalogItems) {
 }
 export function ownProgramHistory(before, after) {
   if (!before) return;
+  require(!ownProgramMonetary(before)||ownProgramMonetary(after),'PROGRAM_HISTORY_REQUIRED','Conservá el anexo monetario versionado del programa. Las versiones anteriores permanecen en su historial.');
   require(!ownProgramMonthlyDayDeclarations(before)||ownProgramMonthlyDayDeclarations(after),'PROGRAM_HISTORY_REQUIRED','Conservá la fuente explícita de días declarados y aprobados.');
   require(!ownProgramMonthlyDays(before)||ownProgramMonthlyDays(after),'PROGRAM_HISTORY_REQUIRED','Conservá la política explícita de días mensuales del programa aprobado.');
   require(!ownFixedForcedAmounts(before)||ownFixedForcedAmounts(after),'PROGRAM_HISTORY_REQUIRED','Conservá la política ya aprobada del programa.');

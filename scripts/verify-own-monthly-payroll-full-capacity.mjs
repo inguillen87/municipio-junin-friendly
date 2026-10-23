@@ -20,6 +20,8 @@ import {MONTHLY193_PREREQUISITES} from './lib/own-monthly-day-declaration-instal
 import {monthlyQaRuntimeAcl} from './lib/own-monthly-participation-qa.mjs';
 import {assertOwnMonthlyDaySharedPrerequisites} from './lib/own-monthly-day-shared-prerequisites.mjs';
 import {ownerDecisionQaLiteral as q} from './lib/municipal-owner-adoption-decision-qa.mjs';
+import {buildOwnMonetaryProgramQaProjection} from './lib/own-monetary-program-qa-projection.mjs';
+import {verifyOwnMonetaryProgramTechnicalEpoch} from './lib/own-monetary-program-technical-epoch.mjs';
 
 const entries = [
   ...OWN_FULL_CAPACITY_190_QA_ENTRIES,
@@ -31,7 +33,10 @@ const entries = [
   'tests/owner-program-qa-continuation-preparation.test.js',
   'tests/own-monthly-day-qa-foundation.test.js',
   'tests/own-monthly-day-technical-epochs.test.js',
-  'tests/own-monthly-day-shared-prerequisites.test.js'
+  'tests/own-monthly-day-shared-prerequisites.test.js',
+  'scripts/lib/own-monetary-program-qa-projection.mjs',
+  'scripts/lib/own-monetary-program-guarded-installation.mjs',
+  'scripts/lib/own-monetary-program-technical-epoch.mjs'
 ];
 
 // Called only by the future reviewed CI preparation, before native execution.
@@ -70,7 +75,19 @@ function prepareMonthly(h) {
     documentary: sharedPrerequisitePins(monthly.qa193.foundation.base.definitions, monthly.qa193.foundation.seed, h.qa.schema),
     expected: monthly.batch.declaration.prerequisitePins, requiredNames: MONTHLY193_PREREQUISITES
   });
-  return {foundation: h.qa, context: {monthly, sharedPrerequisites}, sourceEntries: Object.keys(monthly.sourceHashes)};
+  const monetary = buildOwnMonetaryProgramQaProjection({
+    foundation: h.qa, major: h.major, sourceCommit: h.sourceCommit, read: h.read,
+    schema: h.qa.schema, operationalPairBaseline: 'published107', noveltySuccession: true
+  });
+  assert.equal(monetary.version, 'own-monetary-program-qa-projection.v2');
+  assert.equal(monetary.monetaryFoundationMode, 'existing');
+  assert.strictEqual(monetary.qa192.qa, h.qa, 'MONTHLY_FULL_MONETARY_FOUNDATION_REBUILT');
+  assert.strictEqual(monetary.actor, h.qa.actor, 'MONTHLY_FULL_MONETARY_ACTOR_REBUILT');
+  assert.strictEqual(monetary.checker, h.qa.checker, 'MONTHLY_FULL_MONETARY_CHECKER_REBUILT');
+  assert.deepEqual(monetary.fixedComposition.afterPins, monthly.fixedComposition.afterPins, 'MONTHLY_FULL_MONETARY_FIXED_SOURCE_CHANGED');
+  assert.deepEqual(monetary.novelty197.afterPins, monthly.novelty197.afterPins, 'MONTHLY_FULL_MONETARY_NOVELTY_SOURCE_CHANGED');
+  for (const key of ['local', 'local193', 'localFixed', 'local197']) assert.deepEqual(monetary[key], monthly[key], 'MONTHLY_FULL_MONETARY_PRIOR_PHASE_CHANGED:' + key);
+  return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes)])]};
 }
 
 async function monthlyThenFull(h, settings = {}) {
@@ -81,7 +98,7 @@ async function monthlyThenFull(h, settings = {}) {
   assert.equal(typeof annulmentV2Browser, 'boolean');
   assert.equal(typeof annulmentPreparation, 'boolean');
   assert.ok(!annulmentPreparation || annulmentV2Browser, 'MONTHLY_209_REQUIRES_COMPLETE208');
-  const {monthly: qa, sharedPrerequisites} = h.prepared ?? {};
+  const {monthly: qa, monetary, sharedPrerequisites} = h.prepared ?? {};
   assert.ok(qa && qa.version === 'own-novelty-succession-qa.v1');
   assert.equal(sharedPrerequisites?.passed, true);
   assert.equal(sharedPrerequisites?.sourceMetadataOnly, true);
@@ -90,6 +107,12 @@ async function monthlyThenFull(h, settings = {}) {
   assert.strictEqual(qa.actor, h.qa.actor);
   assert.strictEqual(qa.checker, h.qa.checker);
   assert.equal(qa.schema, h.qa.schema);
+  assert.equal(monetary?.version, 'own-monetary-program-qa-projection.v2');
+  assert.equal(monetary.monetaryFoundationMode, 'existing');
+  assert.strictEqual(monetary.qa192.qa, h.qa);
+  assert.strictEqual(monetary.actor, h.qa.actor);
+  assert.strictEqual(monetary.checker, h.qa.checker);
+  assert.ok(h.sourceCustody && h.sourceCustody.sourceCommit === h.sourceCommit, 'MONTHLY_FULL_SOURCE_CUSTODY_REQUIRED');
   const proofs = {};
   const technical = verifyOwnMonthlyDayTechnicalEpochs({
     qa, proofs, fixedComposition: true, noveltySuccession: true,
@@ -113,6 +136,13 @@ async function monthlyThenFull(h, settings = {}) {
     privateHelperAclStatements: [`SELECT jsonb_build_object('days',(SELECT bool_or(has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE')) FROM pg_proc p WHERE p.pronamespace=${q(qa.schema)}::regnamespace AND p.proname IN('own_monthly_days_capture_v1','own_monthly_days_source_v1','own_monthly_day_source_v2','own_monthly_day_capture_v2')),'ledger',has_table_privilege('municontrol_actions_runtime_app',${q(qa.schema+'.own_monthly_days_event')},'SELECT,INSERT,UPDATE,DELETE,TRUNCATE'))`]
   });
   assert.equal(technical.passed, true);
+  const monetaryTechnical = verifyOwnMonetaryProgramTechnicalEpoch({
+    qa: monetary, foundation: h.qa, technicalEpochs: technical,
+    json: h.json, expectRollback: h.expectRollback, readFullSnapshot: h.readFullSnapshot,
+    setPhase: h.setPhase, check: (value, label) => {assert.ok(value, label); h.check(label);},
+    sourceCustody: h.sourceCustody
+  });
+  assert.equal(monetaryTechnical.passed, true);
   h.setPhase('monthly-full-capacity-business');
   // All original855 guards,20 rules,17100 rows and accounting epochs remain inside
   // this unchanged continuation. Never seed/reset a population to make them pass.
@@ -125,8 +155,8 @@ async function monthlyThenFull(h, settings = {}) {
   h.check('same canonical190 foundation and live actors verify technical192/193/194/196/197 before unchanged full855 and one financial epoch owner');
   return {version: 'own-monthly-full-capacity-canonical190-native-qa.v1', passed: true,
     sourceCommit: h.sourceCommit, major: h.major, operationalPairBaseline: 'published107',
-    sharedFoundation: true, sharedPrerequisites, monthlyTechnical: technical, capacity,
-    monthlyBusinessCovered: false, synthetic: true, productionWrites: 0,
+    sharedFoundation: true, sharedPrerequisites, monthlyTechnical: technical, monetaryTechnical, capacity,
+    monthlyBusinessCovered: false, monetaryBusinessCovered: false, synthetic: true, productionWrites: 0,
     municipalAcceptance: false};
 }
 
@@ -140,6 +170,7 @@ export async function verifyOwnMonthlyPayrollFullCapacity(options) {
   });
   assert.equal(report.passed, true); assert.equal(report.continuation?.passed, true);
   assert.equal(report.continuation?.monthlyTechnical?.passed, true);
+  assert.equal(report.continuation?.monetaryTechnical?.passed, true);
   assert.equal(report.continuation?.capacity?.passed, true);
   assert.equal(report.priorDatabasePreserved, true); assert.equal(report.syntheticSchemaRemoved, true);
   assert.equal(report.sourceAfter?.passed, true);
@@ -150,6 +181,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   verifyOwnMonthlyPayrollFullCapacity(ownerAuthorityQaOptions(process.argv.slice(2)))
     .then(report => console.log(JSON.stringify({passed: report.passed, sourceCommit: report.sourceCommit,
       major: report.major, monthlyTechnical: report.continuation.monthlyTechnical.passed,
+      monetaryTechnical: report.continuation.monetaryTechnical.passed,
       fullCapacity: report.continuation.capacity.passed, monthlyBusiness: false, municipalAcceptance: false})))
     .catch(error => {console.error(error.stack); for (const cause of error.errors ?? []) console.error(cause.stack); process.exitCode = 1;});
 }
