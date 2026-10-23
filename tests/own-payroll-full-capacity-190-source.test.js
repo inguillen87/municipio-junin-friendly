@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
-const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'))),hash=value=>createHash('sha256').update(value).digest('hex');
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent,OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,projectOwnIndividualHandoffSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')))),hash=value=>createHash('sha256').update(value).digest('hex');
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
  if(file!=='.github/workflows/own-payroll-full-capacity.yml')return value;
@@ -282,7 +282,7 @@ test('Claude209 source custody recovers complete197 parents before all prior dom
  const newSources={"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs":{"sha256":"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659","bytes":28952}};
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_SOURCE_PINS,expected);
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,newSources);
- const current=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const current=file=>projectOwnIndividualHandoffSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'));
  for(const[file,pin]of Object.entries(expected)){
   const source=current(file);assert.equal(hash(source),pin.after);
   assert.equal(hash(projectOwnClaude209HandoffSourceToParent(file,source)),pin.before);
@@ -301,4 +301,38 @@ test('D7 source artifact preserves the complete workflow parent before every pre
  assert.equal(hash(read(file)),'9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14','older guards retain the complete original workflow');
  assert.throws(()=>projectOwnD7ArtifactWorkflowToParent(file,source+' '),/D7_ARTIFACT_WORKFLOW_BYTES/);
  assert.equal(projectOwnD7ArtifactWorkflowToParent('assets/unknown-source.js',source),source,'a distinct source is never projected as a workflow');
+});
+
+// Only filesystem bytes are read; none of the13 product/test modules is imported.
+test('individual handoff13 has exact raw pins and complete590 parents before H0, with byte tampering rejected',()=>{
+ const expected={"assets/own-payroll-annulment-panel.js":{"before":"feb82ec69cf2f1c1bc16b6999a6c5621d42caa376bfe99661115ff10fb1687e5","after":"f7d3c250d654fe17e6ca921ec0e3667bcb46ea7fc4f6203fc60ee2506b8ffbe5"},"assets/own-payroll-annulment-preparation-link.js":{"before":"7cda5c1507fb6fdc65fb2757326a4cbd42e9baa26e1b694d60cf0564a23f5b4f","after":"491412e6140a5e61af27e5af80f4ad1e4197e8f87500fc952ff5551dd9f9e98a"},"assets/own-payroll-annulment-review-model.js":{"before":"0deb7c1a52c65b437e982bb7daa3b79c58c53962e05e23a16ead4484bde7ce1d","after":"b673b603c748ec3ab45a2e8594b0d4a837e83532d00de5e317b1da22ff9b8d9b"},"assets/own-payroll-liquidation-model.js":{"before":"a2a4d20e2741e6afdf2dbe178417dd7164904585ce506760a69225e5cd11ab91","after":"0e973eb78222c15ee5327af50d3c14ef933e598bc888608a2687a84ecbf7e93d"},"assets/own-payroll-liquidation-panel.js":{"before":"886692d1f4a7c536bc7a983ad528d902f0f17d1ebf8d56f88f5b544cfb381a08","after":"c0cca01d24949776d9302694b3204b84b9f1da5fbeab87f681b1f6e7c85612e6"},"assets/own-payroll-run-panel.js":{"before":"cc00a75b28f4afbb5fa6438f0ef85e65cdef708bb9bda848e190aa84b87aff9b","after":"bd436dc3f1dc000d3f89a94df924b9f7fb826dc8764ff1cdbe5589e5d936a1b1"},"assets/payroll-navigation.js":{"before":"771686c4d4da942a6369d2b3fc50d27b3e2c8d06609b470bd7f88bbc405acc09","after":"ae02527ca046a6572555ff64a80a0bdf58ca705bf405f4ea73f3c671d76aeb60"},"tests/own-payroll-annulment-hidden-active.test.js":{"before":"3ed8c682628906d914f9d5e41d6f6400f3b202f8246be90d6c36a2caa64626b6","after":"5eca53c5584d441ae3d74a119170bf757fe92bb2154866e181aceb0feb0e7542"},"tests/own-payroll-annulment-preparation-link.test.js":{"before":"67557e9f6a72bd855a1eead91ddc1dc6cd05e79506a43c362ce42ad89628de74","after":"0a7e639a3fd40c282117a603e337a5eb5d4bad91c03c38c38f1055c30e789f69"},"tests/own-payroll-annulment-preparation-panel.test.js":{"before":"5c0108f187d4463cfc66d5a97e79afad708bd690cfc5f35ad23de42d88f39663","after":"d4be44a48e685c38791a99265a982c61337224624064ba791f7c27cbc6a38a67"},"tests/own-payroll-annulment-review.test.js":{"before":"3d3a6469ba39ad4fa8c9b23f4e9544cb846b538d4d30eca5997e7134de60d007","after":"b5ad2ae663a9a45642c1e2d13d2f433c96c9a01ac56db5a77f1babfad672be1a"},"tests/own-payroll-individual.test.js":{"before":"732214646d257bdc16481f65b2c746788ffb94a67a94469b37120dcebd5c0de2","after":"d2893a9289f21b313544f5309484fa9a2bc28e7284264a9e6d5f2e7975602d46"},"tests/own-payroll-comparison-labels.test.js":{"before":"753afc33ff147a2d48362718dc37d9b12e91f4f3ab3d614c42c2459199d4c042","after":"984b9ec1765c5bd6e5f9f753bd35266978317660302e0abf16656a2a86d02c0c"}};
+ assert.equal(Object.keys(expected).length,13);
+ assert.deepEqual(OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,expected);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  assert.equal(hash(source),pin.after,file+' selected whole source');
+  assert.equal(p.candidatePins[file],pin.after,file+' explicit raw candidate pin');
+  const parent=projectOwnIndividualHandoffSourceToParent(file,source);
+  assert.equal(hash(parent),pin.before,file+' complete590 before every older source layer');
+  assert.equal(read(file),projectOwnClaude209HandoffSourceToParent(file,parent),file+' individual layer precedes H0');
+  assert.throws(()=>projectOwnIndividualHandoffSourceToParent(file,source+' '),/INDIVIDUAL_HANDOFF_SOURCE_BYTES/);
+  const tampered=Buffer.from(source,'utf8');tampered[0]^=1;
+  assert.throws(()=>projectOwnIndividualHandoffSourceToParent(file,tampered.toString('utf8')),/INDIVIDUAL_HANDOFF_WHOLE_SOURCE_PIN/);
+ }
+ const foreign='assets/unknown-individual-source.js',value='unrelated source';
+ assert.equal(projectOwnIndividualHandoffSourceToParent(foreign,value),value,'a distinct path never acquires a fabricated predecessor');
+});
+
+test('the actual individual handoff source retires both reference visibility and value without live nominal access',()=>{
+ const file='assets/own-payroll-liquidation-panel.js',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const guard="const handoff=receipt?.body.command==='annul'&&can(OWN_LIQ_NOMINAL);";
+ const requireRetirement=value=>{
+  assert.ok(value.includes('const live=()=>active&&!stopped&&!document.hidden&&host.isConnected,can=caps=>live()&&hasOwnRunAccess(access?.caps,caps);'),'access must remain live and nominal');
+  assert.equal(value.split(guard).length,2,'one reviewed nominal handoff guard');
+  assert.ok(value.includes("$('handoff').hidden=!handoff;"),'reference section retires');
+  assert.ok(value.includes("$('decision-link').value=handoff?new URL(ownLiquidationDecisionLink(receipt.runId,receipt.id),location.origin).href:'';"),'reference value clears');
+  assert.ok(value.includes("$('copy-link').disabled=busy||!handoff||!can(OWN_LIQ_NOMINAL);"),'copy retains its own live nominal guard');
+ };
+ requireRetirement(source);
+ assert.throws(()=>requireRetirement(source.replace(guard,"const handoff=receipt?.body.command==='annul'&&!!access;")),assert.AssertionError,'copy-disabled alone does not retire the reference and its value');
 });

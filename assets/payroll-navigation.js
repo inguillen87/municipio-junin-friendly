@@ -33,12 +33,12 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const pick=id=>document.getElementById(id)?.closest('section.section');
  const report=document.createElement('div'),ownReport=document.createElement('div'),planillas=document.createElement('div'),sourceReport=document.createElement('div');mountOwnPayrollReports(ownReport);mountOwnPayrollPlanillas(planillas);mountSourceReports(sourceReport);report.append(ownReport,planillas,toolDetails(sourceReport,'Consultar liquidaciones incorporadas desde respaldos'));
  const comparison=document.createElement('div'),ownComparison=document.createElement('div'),sourceComparison=document.createElement('div');mountOwnPayrollComparison(ownComparison);mountPayrollComparison(sourceComparison);comparison.append(ownComparison,toolDetails(sourceComparison,'Comparar liquidaciones incorporadas desde respaldos'));
- let workspace,calculationPanel,decisionsPanel;
+ let workspace,calculationPanel,decisionsPanel,annulmentPanel;
  const calculation=document.createElement('div');calculationPanel=mountOwnPayrollRun(calculation,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true)});
  let requestedPreparation=null;try{requestedPreparation=requestedOwnAnnulPreparation(location.search);if(requestedPreparation)calculationPanel.queuePreparation(requestedPreparation);}catch(error){const notice=document.createElement('p');notice.className='own-run-notice';notice.setAttribute('role','alert');notice.textContent=error.message;calculation.prepend(notice);}
- const decisions=document.createElement('div');decisionsPanel=mountOwnPayrollLiquidation(decisions,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
+ const decisions=document.createElement('div');decisionsPanel=mountOwnPayrollLiquidation(decisions,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true),onAnnulReview:context=>annulmentPanel.queueReview(context)&&workspace.activate('anulacion',true)});
  const summary=document.createElement('div');mountOwnPayrollSummary(summary,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true),onTask:id=>workspace.activate(id,true)});
- const annulment=document.createElement('div');mountOwnPayrollAnnulment(annulment,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
+ const annulment=document.createElement('div');annulmentPanel=mountOwnPayrollAnnulment(annulment,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
  const close=document.createElement('div');mountOwnPayrollClose(close);
  const receipts=document.createElement('div');mountOwnPayrollReceipts(receipts);
  const program=document.createElement('div');mountOwnPayrollProgram(program);

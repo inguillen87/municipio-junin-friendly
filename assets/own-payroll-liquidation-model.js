@@ -87,6 +87,28 @@ export function ownLiquidationNextPreparation(detail,receipt){
  // Carry the exact affected contracts, never widen it to the whole municipality.
  return structuredClone({period:detail.capture.body.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values:receipt.affected.map(e=>e.contractId).sort()},sourceSelection:receipt.body.selection,affected:receipt.affected.map(e=>({contractId:e.contractId,employeeNumber:detail.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber})),runId:detail.id,receiptKey:receipt.key});
 }
+// Cross-user continuation of an INDIVIDUAL annul decision. The reviewer's
+// receipt and attempt key stay with the reviewer (SQL124 scopes attempts to
+// their actor); the preparer rereads the run's CURRENT detail under her own
+// authorised session and derives the decision's complete set from the stored
+// events. Every contract that carries the decision must still be annulled by
+// exactly that decision and free of another confirmed liquidation; one later
+// decision rejects the whole set. The later calculation is a separate explicit
+// command with its own key; nothing here records, links or replays anything.
+export function ownLiquidationDecisionPreparation(detail,decisionId){
+ ownLiquidationDetail(detail);if(!salaryUuid(decisionId))fail();
+ const affected=[];
+ for(const e of detail.employees){
+  const index=e.events.findIndex(event=>event.id===decisionId);if(index<0)continue;
+  const event=e.events[index];
+  if(event.command!=='annul'||index!==e.events.length-1||e.state!=='annulled'||e.version!==event.version||e.liquidationVersion!==event.liquidationVersion)fail();
+  if(e.blockedBy!==null)throw Error('Un legajo del alcance ya tiene otra liquidación confirmada para ese período y tipo. Actualizá la consulta y revisá esa liquidación antes de preparar un cálculo nuevo.');
+  affected.push(e.contractId);
+ }
+ if(!affected.length)fail();
+ const people=new Map(detail.capture.saved.input.employees.map(p=>[p.contractId,p])),values=[...affected].sort();
+ return structuredClone({period:detail.capture.body.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values},affected:values.map(contractId=>({contractId,employeeNumber:people.get(contractId).employeeNumber})),runId:detail.id,decisionId,stateVersion:detail.stateVersion});
+}
 export function ownLiquidationReceipt(v,attempt=null){
  exact(v,['version','id','key','body','bodySha256','runId','resultSha256','affected','recordedAt','replayed']);
  const body=ownLiquidationCommand(v.body);if(v.version!=='own-liquidation-receipt.v1'||!salaryUuid(v.id)||!salaryKey(v.key)||!salaryHash(v.bodySha256)||v.runId!==body.runId||v.resultSha256!==body.resultSha256||!date(v.recordedAt)||typeof v.replayed!=='boolean'||!Array.isArray(v.affected)||!v.affected.length||v.affected.length>10000)fail();

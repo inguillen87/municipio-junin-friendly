@@ -59,6 +59,9 @@ test('display filtering and pagination cannot reduce either complete document vi
 
 test('presentation helpers do not replace the original captured-result integrity boundary',async()=>{
  const {base,target}=comparisonSources(1);await verifiedOwnComparison(base,target);
- target.saved.result.rows[0].amount='0.25';
- await assert.rejects(verifiedOwnComparison(base,target),/integridad/);
+ // A verified comparison freezes its conserved row references. Tamper with a
+ // detached copy so the integrity verifier, rather than assignment, rejects it.
+ assert.equal(Object.isFrozen(target.saved.result.rows[0]),true);
+ const changed=structuredClone(target);changed.saved.result.rows[0].amount='0.25';
+ await assert.rejects(verifiedOwnComparison(base,changed),/integridad/);
 });

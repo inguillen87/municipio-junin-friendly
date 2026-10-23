@@ -11,6 +11,7 @@ import {bootstrap,program,uid,hash} from './fixtures/own-payroll-program-synthet
 import {roster} from './fixtures/native-roster-synthetic.js';
 import {catalog as classification} from './fixtures/native-employee-synthetic.js';
 import {syntheticAnnulPreparation,sealPreparation,prepHash} from './fixtures/own-payroll-annulment-preparation-synthetic.js';
+import {detail as liquidationDetail} from './fixtures/own-payroll-liquidation-synthetic.js';
 class Element{
  constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;this.dataset=new Proxy({}, {set:(target,key,value)=>{target[key]=String(value);this.attributes['data-'+String(key).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});}
  append(...items){for(const item of items){item.parentElement=this;this.children.push(item);}}
@@ -43,7 +44,7 @@ const projection=()=>sealPreparation({...syntheticAnnulPreparation(),scopeVersio
 const projectionRoster=value=>{const n=ownRoster(value.affected.length);n.rows=n.rows.map((row,i)=>({...row,contractId:value.affected[i].contractId,legajo:value.affected[i].employeeNumber}));return n;};
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
- const projected=projection(),state={caps:[...OWN_RUN_PREPARE],sessionId:uid(333),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:projectionRoster(projected),projection:projected,projectionReads:0,afterProjectionRead:null,hold:null,authFailure:null,projectionFailure:null};
+ const projected=projection(),state={caps:[...OWN_RUN_PREPARE],sessionId:uid(333),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:projectionRoster(projected),projection:projected,projectionReads:0,afterProjectionRead:null,hold:null,authFailure:null,projectionFailure:null,decision:null};
  let timerId=0;const timers=new Map();
  const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
  Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){}});
@@ -54,6 +55,8 @@ function harness(t){
   if(url==='/api/internal-auth'){if(state.authFailure){status=state.authFailure;payload={ok:false,code:'SYNTHETIC_SESSION_UNAVAILABLE'};}else payload={ok:true,authenticated:true,sessionVersion:2,user:{id:state.sessionId,email:'synthetic-readiness@example.invalid'},access:{context:'tenant',tenant:{id:roster(1).scope.tenantId,roleKey:'QA'},tenantCapabilities:state.caps},expiresAt:new Date(Date.now()+3600000).toISOString()};}
   else if(method==='POST'){assert.equal(url,'/api/internal-own-payroll-run','Only an explicit voluntary calculation may reach this synthetic POST');status=503;payload={ok:false,code:'OWN_RUN_BUSY'};}
   else if(url.startsWith(purpose)){assert.equal(url,purpose+state.projection.source.id,'Only the opaque source UUID is sent to the new endpoint');state.projectionReads++;if(state.projectionFailure){status=state.projectionFailure.status;payload={ok:false,code:state.projectionFailure.code,error:state.projectionFailure.error};}else payload={ok:true,data:structuredClone(state.projection)};state.afterProjectionRead?.(state.projectionReads);}
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=attempt'))assert.fail('A preparer must never read the reviewer\'s attempt: '+url);
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=detail&id=')){assert.ok(state.decision,'Only a queued decision reference reads a run detail');assert.equal(url,'/api/internal-own-payroll-liquidation?resource=detail&id='+state.decision.detail.id,'Only the referenced run is read');if(state.decision.failure){status=state.decision.failure.status;payload={ok:false,code:state.decision.failure.code,error:'synthetic server text'};}else payload={ok:true,data:structuredClone(state.decision.detail)};}
   else if(url.startsWith('/api/internal-own-payroll-run?resource=attempt')){status=404;payload={ok:false,code:'OWN_RUN_NOT_FOUND'};}
   else if(url.startsWith('/api/internal-own-payroll-run?'))payload={ok:true,data:{version:'own-payroll-bootstrap.v2',scopeVersion:hash('a'),programVersion:hash('b'),canCalculate:true,runs:[],complete:true}};
   else if(url==='/api/internal-employment-catalog?resource=bootstrap')payload={ok:true,data:{version:CATALOG_VERSION,scopeVersion:hash('a'),catalog:{items:state.catalogItems.map((r,i)=>({...r,key:'synthetic-'+i,agreementCode:r.agreementCode??null})),version:hash('d'),origin:'GRH',revision:0,publishedAt:null},permissions:{canPropose:true,canReview:true},proposals:[],historyTruncated:false}};
@@ -154,4 +157,73 @@ test('an unauthenticated preparer keeps the source-only reference through the lo
 test('without a queued reference the login destination is unchanged',async t=>{
  const h=harness(t),assigned=withLocation(t);h.state.authFailure=401;await h.start();assert.equal(h.q('login').hidden,false);
  await h.q('login').emit('click');assert.deepEqual(assigned,['/acceso?next=%2Fnomina%23calculo']);assert.equal(posts(h).length,0);
+});
+
+// Proposed causal tests: INDIVIDUAL annul → recalculation across two users.
+// Reviewer R (approve, no prepare) annulled three contracts of a run that
+// preparer P created; P holds only the opaque run+decision reference and her
+// own session. HTTP stays synthetic; the later calculation is an explicit POST.
+const decisionId=uid(700);
+function decisionDetail(count=6,annulled=3){
+ const d=liquidationDetail(count);d.reviewAccessRequired=false;
+ for(const [index,e]of d.employees.slice(0,annulled).entries()){e.state='annulled';e.version=2;e.liquidationVersion=1;e.allowedCommands=[];e.events=[{id:uid(100000+index),command:'confirm',version:1,liquidationVersion:1,recordedAt:'2026-10-08T12:00:00Z',actorLabel:'Revisor sintético',reason:'Confirmación exclusivamente sintética'},{id:decisionId,command:'annul',version:2,liquidationVersion:1,recordedAt:'2026-10-08T12:01:00Z',actorLabel:'Revisor sintético',reason:'Anulación exclusivamente sintética'}];}
+ return d;
+}
+const decisionReference=h=>({kind:'projected_decision',runId:h.state.decision.detail.id,decisionId});
+const liquidationReads=h=>h.requests.filter(r=>r.url.startsWith('/api/internal-own-payroll-liquidation?'));
+const assertOwnAuthorisedReadOnly=h=>{for(const r of liquidationReads(h)){assert.equal(r.method,'GET');const query=new URL(r.url,'https://example.invalid').searchParams;assert.deepEqual([...query.keys()],['resource','id']);assert.equal(query.get('resource'),'detail');assert.equal(query.get('id'),h.state.decision.detail.id);}assert.ok(h.requests.every(r=>!r.url.includes('resource=attempt')&&!r.url.startsWith('/api/internal-own-payroll-annulment')));};
+
+test('another preparer rebuilds the annulled decision from her own authenticated run read, without receipt, key or POST, then calculates explicitly',async t=>{
+ const h=harness(t);h.state.decision={detail:decisionDetail(),failure:null};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ const d=h.state.decision.detail,expected=d.employees.slice(0,3);
+ assert.equal(h.q('chips').children.length,3);for(const e of expected)assert.match(h.q('chips').textContent,new RegExp('Legajo '+d.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber+' '));
+ for(const e of d.employees.slice(3))assert.ok(!h.q('chips').textContent.includes(d.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber));
+ assert.equal(h.q('period').value,d.capture.body.period);assert.equal(h.q('type').value,d.capture.body.liquidationType);assert.equal(h.q('date').value,d.capture.body.liquidationDate??'');assert.equal(h.q('kind').value,'contracts');
+ assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.q('projected-preparation').hidden,true);assert.match(h.q('status').textContent,/Se prepararon los 3 legajos exactos de la anulación/);
+ assert.equal(liquidationReads(h).length,1);assert.equal(purposeReads(h).length,0);assert.equal(posts(h).length,0);assertOwnAuthorisedReadOnly(h);
+ // The historical run declared no date: the preparer completes one herself.
+ h.q('date').value='2026-10-31';await h.q('date').emit('change');h.q('confirm').checked=true;await h.q('confirm').emit('change');await h.submit();assert.equal(posts(h).length,1);const body=JSON.parse(posts(h)[0].body).payload;
+ assert.deepEqual(body.selection,{kind:'contracts',values:expected.map(e=>e.contractId).sort()});assert.equal(body.period,d.capture.body.period);assert.equal(body.liquidationDate,'2026-10-31');for(const secret of ['sourceReference','decisionId','receiptKey','accessKey'])assert.equal(Object.hasOwn(body,secret),false);
+});
+
+test('without prepare the reference reads nothing nominal and is kept; with prepare the same reference loads',async t=>{
+ const h=harness(t);h.state.decision={detail:decisionDetail(),failure:null};h.state.caps=[...OWN_RUN_NOMINAL];assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ assert.equal(liquidationReads(h).length,0);assert.equal(h.q('chips').children.length,0);assert.equal(posts(h).length,0);
+ h.state.caps=[...OWN_RUN_PREPARE];await h.refresh();assert.equal(liquidationReads(h).length,1);assert.equal(h.q('chips').children.length,3);assert.equal(h.q('confirm').checked,false);assert.equal(posts(h).length,0);assertOwnAuthorisedReadOnly(h);
+});
+
+test('a run the preparer may not read (403) transfers nothing, keeps the reference and never falls back to the reviewer attempt',async t=>{
+ const h=harness(t);h.state.decision={detail:decisionDetail(),failure:{status:403,code:'OWN_LIQ_FORBIDDEN'}};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,/sólo quien la creó o quien tiene acceso de revisión/);assert.match(h.q('status').textContent,/Se conserva la referencia/);assert.doesNotMatch(h.q('status').textContent,/intento/);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('login').hidden,true);assert.equal(posts(h).length,0);assertOwnAuthorisedReadOnly(h);
+ h.state.decision.failure=null;await h.refresh();assert.equal(liquidationReads(h).length,2);assert.equal(h.q('chips').children.length,3);assert.equal(posts(h).length,0);
+});
+
+test('another confirmed liquidation of one contract blocks the whole decision without a partial draft',async t=>{
+ const h=harness(t);const d=decisionDetail();d.employees[1].blockedBy=uid(880);h.state.decision={detail:d,failure:null};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,/otra liquidación confirmada/);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('kind').value,'');assert.equal(posts(h).length,0);assertOwnAuthorisedReadOnly(h);
+});
+
+test('a decision id that belongs to a confirmation or to no contract of the run prepares nothing',async t=>{
+ for(const change of [d=>{for(const e of d.employees.slice(0,3)){e.events=[{...e.events[0],id:decisionId}];e.state='confirmed';e.version=1;e.allowedCommands=['annul'];}},d=>{for(const e of d.employees.slice(0,3))e.events[1].id=uid(701);}]){
+  const h=harness(t);const d=decisionDetail();change(d);h.state.decision={detail:d,failure:null};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+  assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,/No se pudo verificar la decisión y el alcance completo/);assert.equal(h.q('chips').children.length,0);assert.equal(posts(h).length,0);
+ }
+});
+
+test('the decision reference survives the login destination and hiding the page retires the draft',async t=>{
+ const h=harness(t),assigned=withLocation(t);h.state.decision={detail:decisionDetail(),failure:null};h.state.authFailure=401;assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ assert.equal(h.q('login').hidden,false);assert.equal(liquidationReads(h).length,0);await h.q('login').emit('click');
+ assert.deepEqual(assigned,['/acceso?next='+encodeURIComponent('/nomina?corrida='+h.state.decision.detail.id+'&decision='+decisionId+'#calculo')]);assert.doesNotMatch(assigned[0],/key|accessKey|actor|legajo/i);
+ h.state.authFailure=null;await h.refresh();assert.equal(h.q('chips').children.length,3);
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('chips').children.length,0);assert.equal(h.q('confirm').checked,false);assert.equal(posts(h).length,0);
+});
+
+// R2: a rejected run read names its cause, never an attempt, and keeps the
+// reference. Before R2 404/503/422 fell into «Consultá el mismo intento».
+for(const [code,status,text]of[['OWN_LIQ_NOT_FOUND',404,'No se encontró la corrida de la referencia'],['OWN_LIQ_UNAVAILABLE',503,'No se pudo leer la corrida de la referencia'],['OWN_LIQ_CONTRACT_INVALID',503,'No se pudo verificar la corrida de la referencia'],['OWN_LIQ_LIMIT',422,'supera la capacidad de lectura']])test('a rejected run read reports its own cause, keeps the reference and never mentions an attempt: '+code,async t=>{
+ const h=harness(t);h.state.decision={detail:decisionDetail(),failure:{status,code}};assert.equal(h.queuePreparation(decisionReference(h)),true);await h.start();
+ assert.equal(liquidationReads(h).length,1);assert.match(h.q('status').textContent,new RegExp(text));assert.match(h.q('status').textContent,/[Ss]e conserva la referencia/);assert.doesNotMatch(h.q('status').textContent,/intento|reintent|descart/);assert.doesNotMatch(h.q('status').textContent,/synthetic server text/);
+ assert.equal(h.q('chips').children.length,0);assert.equal(h.q('kind').value,'');assert.equal(h.q('confirm').checked,false);assert.equal(h.q('login').hidden,true);assert.equal(posts(h).length,0);assertOwnAuthorisedReadOnly(h);
+ // The reference is kept: once the run is readable again, the same reference loads.
+ h.state.decision.failure=null;await h.refresh();assert.equal(liquidationReads(h).length,2);assert.equal(h.q('chips').children.length,3);assert.equal(h.q('confirm').checked,false);assert.equal(posts(h).length,0);
 });

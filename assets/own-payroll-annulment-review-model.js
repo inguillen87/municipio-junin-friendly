@@ -90,6 +90,20 @@ export function ownAnnulReviewSelection(review,selection){
  const precision=Math.max(...rows.map(row=>row.precision)),totals=Object.fromEntries(['gross','deduction','net'].map(key=>[key,quantize(rows.reduce((sum,row)=>exactAdd(sum,decimal(row.totals[key])),decimal('0')),{precision,mode:'exact'}).amount]));
  const result=freeze({selection:chosen,rows,count:rows.length,runCount:new Set(rows.map(row=>row.runId)).size,allowed:rows.every(row=>row.allowed),totals,complete:true});localSelections.set(result,review);return result;
 }
+// This local request is an intent reference, never a receipt or authority.
+// accessKey is held only in memory; this request is never serialized in a URL.
+export function ownAnnulSingleReviewReference(value){
+ const fields=['period','liquidationType','runId','resultSha256','contractId','version','liquidationVersion','accessKey'];
+ exact(value,fields);need(Reflect.ownKeys(value).length===fields.length&&Object.values(Object.getOwnPropertyDescriptors(value)).every(d=>Object.hasOwn(d,'value')&&d.enumerable),'REFERENCE_INVALID');
+ need(period(value.period)&&Object.hasOwn(OWN_RUN_TYPES,value.liquidationType)&&salaryUuid(value.runId)&&salaryHash(value.resultSha256)&&salaryUuid(value.contractId)&&Number.isSafeInteger(value.version)&&value.version>0&&Number.isSafeInteger(value.liquidationVersion)&&value.liquidationVersion>0&&typeof value.accessKey==='string'&&value.accessKey.length>0,'REFERENCE_INVALID');
+ return Object.freeze(Object.fromEntries(fields.map(key=>[key,value[key]])));
+}
+export function ownAnnulSingleReviewSelection(review,value){
+ const reference=ownAnnulSingleReviewReference(value),rows=ownAnnulReviewRows(review).filter(row=>row.contractId===reference.contractId);
+ need(review.period===reference.period&&review.liquidationType===reference.liquidationType&&rows.length===1,'REFERENCE_CHANGED');const row=rows[0];
+ need(row.runId===reference.runId&&row.resultSha256===reference.resultSha256&&row.version===reference.version&&row.liquidationVersion===reference.liquidationVersion&&row.groupId===null&&row.allowed===true,'REFERENCE_CHANGED');
+ return ownAnnulReviewSelection(review,{kind:'contracts',values:[reference.contractId]});
+}
 export function ownAnnulReviewCommand(value){
  exact(value,['version','period','liquidationType','scopeVersion','stateVersion','reviewSha256','selection','reason','reviewConfirmed']);
  need(value.version==='own-annul-command.v2'&&salaryHash(value.reviewSha256));

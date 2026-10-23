@@ -6,8 +6,8 @@ import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
 import {salaryUuid} from './native-salary-catalog-model.js';
 import {verifiedOwnAnnulPreparation,ownAnnulPreparationDates,ownAnnulPreparationForDate,assertSameOwnAnnulPreparation} from './own-payroll-annulment-preparation-model.js';
-import {ownProjectedAnnulmentQueue,ownAnnulPreparationLink} from './own-payroll-annulment-preparation-link.js';
-import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
+import {ownProjectedAnnulmentQueue,ownProjectedDecisionQueue,ownAnnulPreparationLink,ownLiquidationDecisionLink} from './own-payroll-annulment-preparation-link.js';
+import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation,ownLiquidationDecisionPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReviewReceipt,verifiedOwnAnnulReviewIndex,loadOwnAnnulPreparation} from './own-payroll-annulment-review-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal,formatOwnRunValue} from './own-payroll-run-workspace-model.js';
@@ -140,11 +140,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
+  // Source-only references (opaque link) carry no access key: they are kept
+  // across suspensions and always revalidated under the reader's own session.
+  const linked=()=>['projected_annulment','projected_decision'].includes(queuedPreparation?.kind);
+  const linkFor=()=>queuedPreparation?.kind==='projected_annulment'?ownAnnulPreparationLink(queuedPreparation.sourceId):queuedPreparation?.kind==='projected_decision'?ownLiquidationDecisionLink(queuedPreparation.runId,queuedPreparation.decisionId):'/nomina#calculo';
   const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
-    if(!preservePreparation&&queuedPreparation?.kind!=='projected_annulment')suspendedPreparation=null;
+    if(!preservePreparation&&!linked())suspendedPreparation=null;
     else if(!suspendedPreparation&&!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();
-    if(queuedPreparation?.kind!=='projected_annulment')queuedPreparation=null;
+    if(!linked())queuedPreparation=null;
     seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message,'warning');controls();
   }
   async function request(url,options={}){
@@ -212,7 +216,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh({metadataOnly=false}={}){return perform(async valid=>{
-    if(!suspendedPreparation&&!attempt&&(canSelect()||queuedPreparation?.kind==='projected_annulment'&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)))suspendedPreparation=preparationDraft();
+    if(!suspendedPreparation&&!attempt&&(canSelect()||linked()&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)))suspendedPreparation=preparationDraft();
     invalidateReadiness();clearProjectedView();
     clearSourceReview();
     individual.clear();
@@ -233,6 +237,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(!metadataOnly&&canStart()&&(!attempt||attempt.key===knownSavedKey))await loadProjectedReference(queuedPreparation,valid);
       if(!valid())return;renderHistory();controls();
       status(draftIssue??(projectedPreparation?'Alcance anulado verificado completo. Elegí el grupo de fecha y aplicalo al borrador cuando la preparación esté lista.':'Se conserva el enlace de la anulación. Consultá su alcance antes de preparar el borrador.')+(canStart()?'':' '+readiness.title+'. '+readiness.description),'warning');return;
+    }
+    if(queuedPreparation?.kind==='projected_decision'){
+      renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
+      if(!metadataOnly&&canStart()&&(!attempt||attempt.key===knownSavedKey)){const context=queuedPreparation;await acceptDecisionReference(context,valid);if(!valid())return;if(!queuedPreparation){suspendedPreparation=null;renderHistory();controls();return;}}
+      renderHistory();controls();
+      status(draftIssue??'Se conserva la referencia de la decisión anulada. '+(canStart()?'Consultá la corrida con tu sesión para preparar el borrador.':readiness.title+'. '+readiness.description),'warning');return;
     }
     if(!metadataOnly&&queuedPreparation&&canStart()){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;suspendedPreparation=null;renderHistory();controls();return;}
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
@@ -337,6 +347,33 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     renderKind();for(const option of $('codes').options)option.selected=preparation.selection.values.includes(option.value);
     $('confirm').checked=false;status('Se prepararon los '+preparation.affected.length+' legajos exactos de la anulación. Revisá el período, la fecha, el tipo y el alcance antes de calcular. El próximo cálculo volverá a consultar el programa y las novedades aprobadas; todavía no se guardó otro resultado.');
   }
+  // A rejected run read has no attempt to consult and never discards the
+  // reference: each message names the cause and keeps the reference.
+  const decisionReadErrors={
+    OWN_LIQ_NOT_FOUND:'No se encontró la corrida de la referencia en tu ámbito municipal. No se preparó ningún borrador; se conserva la referencia para consultarla con la cuenta que creó la corrida o con acceso de revisión.',
+    OWN_LIQ_FORBIDDEN:'Tu cuenta no puede leer esa corrida: sólo quien la creó o quien tiene acceso de revisión puede preparar su alcance anulado. Se conserva la referencia.',
+    OWN_LIQ_LIMIT:'La corrida de la referencia supera la capacidad de lectura. No se recortaron ni dividieron legajos; se conserva la referencia.',
+    OWN_LIQ_CONTRACT_INVALID:'No se pudo verificar la corrida de la referencia contra sus resultados guardados. No se preparó ningún borrador; se conserva la referencia.',
+    OWN_LIQ_UNAVAILABLE:'No se pudo leer la corrida de la referencia. No se preparó ningún borrador; se conserva la referencia para volver a consultarla.',
+  };
+  // Opaque run+decision reference: ONE authenticated detail read of that run
+  // under the preparer's own session (creator, or review access), never the
+  // reviewer's receipt or attempt key. Rejections keep the reference for retry.
+  async function acceptDecisionReference(context,valid){
+    await session(OWN_RUN_PREPARE);if(!valid())return;
+    const key=access.key,next=ownRunBootstrap((await request(endpoint+'?resource=bootstrap&contractVersion=2')).data);if(!valid())return;
+    if(!next.canCalculate)throw Object.assign(Error('Tu cuenta no permite preparar el alcance anulado.'),{status:403});
+    if(!boot||next.scopeVersion!==boot.scopeVersion||next.programVersion!==boot.programVersion){invalidateReadiness();throw Error('Cambió el ámbito o el programa. Se conserva la referencia; actualizá antes de preparar.');}
+    let detail;
+    try{detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);}
+    catch(error){if(error.name!=='AbortError'&&decisionReadErrors[error.code])throw Object.assign(Error(decisionReadErrors[error.code]),{status:error.status,code:error.code});throw error;}
+    if(!valid()||queuedPreparation!==context)return;
+    if(detail.id!==context.runId)throw Error('La corrida consultada no corresponde a la referencia.');
+    const preparation=ownLiquidationDecisionPreparation(detail,context.decisionId);
+    await session(OWN_RUN_PREPARE);if(!valid()||queuedPreparation!==context)return;
+    if(access.key!==key||attempt&&attempt.key!==knownSavedKey)throw Object.assign(Error('Cambió la sesión o hay un intento pendiente. Se conserva la referencia.'),{status:403});
+    applyPreparationDraft(preparation);queuedPreparation=null;controls();
+  }
   async function acceptPreparation(context,valid){
     await session(OWN_RUN_PREPARE);if(!valid())return;
     if(access.key!==context.accessKey||!boot.canCalculate||attempt&&attempt.key!==knownSavedKey)throw Error('Hay un intento pendiente o cambió el acceso. Recuperalo antes de preparar otro cálculo.');
@@ -406,7 +443,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('form').addEventListener('submit',event=>{event.preventDefault();send();});
   // A queued source-only reference survives the login round trip; the
   // destination still carries no actor, attempt key, context or consent.
-  $('login').addEventListener('click',()=>location.assign('/acceso?next='+encodeURIComponent(queuedPreparation?.kind==='projected_annulment'?ownAnnulPreparationLink(queuedPreparation.sourceId):'/nomina#calculo')));
+  $('login').addEventListener('click',()=>location.assign('/acceso?next='+encodeURIComponent(linkFor())));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
   $('projected-load').addEventListener('click',()=>{const context=queuedPreparation;if(context?.kind!=='projected_annulment'||!canStart()||attempt&&attempt.key!==knownSavedKey)return;clearProjectedView();perform(valid=>loadProjectedReference(context,valid));});
@@ -428,14 +465,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};
   const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Al volver se verificará el acceso antes de continuar.',{preservePreparation:true});else if(live())refresh({metadataOnly:true});else controls();};
   const capability=event=>{const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
-    if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL)||queuedPreparation?.kind==='projected_annulment'&&!hasOwnRunAccess(caps,OWN_RUN_PREPARE))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
-    else{if(queuedPreparation?.kind!=='projected_annulment')queuedPreparation=null;clearProjectedView();access.caps=new Set([...access.caps].filter(c=>caps.has(c)));if(!canPrepare())picker.close();$('confirm').checked=false;controls();}
+    if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL)||linked()&&!hasOwnRunAccess(caps,OWN_RUN_PREPARE))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
+    else{if(!linked())queuedPreparation=null;clearProjectedView();access.caps=new Set([...access.caps].filter(c=>caps.has(c)));if(!canPrepare())picker.close();$('confirm').checked=false;controls();}
   };
   document.addEventListener('taskchange',task);document.addEventListener('visibilitychange',visibility);document.addEventListener('municontrol:capabilities-ready',capability);
   document.getElementById('logoutButton')?.addEventListener('click',()=>suspend('Sesión cerrada. Se retiraron los datos.'));
-  const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(queuedPreparation?.kind==='projected_annulment'?OWN_RUN_PREPARE:current||attempt?OWN_RUN_NOMINAL:OWN_RUN_READ);if(valid())controls();});},60000);
+  const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(linked()?OWN_RUN_PREPARE:current||attempt?OWN_RUN_NOMINAL:OWN_RUN_READ);if(valid())controls();});},60000);
   window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capability);},{once:true});
   controls();return {refresh,queuePreparation(context){
     if(context?.kind==='projected_annulment'){if(busy||attempt&&attempt.key!==knownSavedKey)return false;try{queuedPreparation=ownProjectedAnnulmentQueue(context);}catch{return false;}clearProjectedView();controls();return true;}
+    if(context?.kind==='projected_decision'){if(busy||attempt&&attempt.key!==knownSavedKey)return false;try{queuedPreparation=ownProjectedDecisionQueue(context);}catch{return false;}clearProjectedView();controls();return true;}
     if(busy||attempt&&attempt.key!==knownSavedKey||!(context?.kind==='consolidated'?(context.liquidationDate===null||ownRunDate(context.liquidationDate)):salaryUuid(context?.runId))||!salaryUuid(context?.key)||typeof context?.accessKey!=='string'||!context.accessKey)return false;queuedPreparation=Object.freeze({...context});return true;}};
 }

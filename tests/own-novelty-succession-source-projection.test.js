@@ -104,7 +104,20 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   ["51c5cba3119dc192e7d3ba6b570fda26f1f4ea29852a586d94787c74f1b4b110","144628ca52ade9c55d73276fa28a22afb5e80b96c612088d0655d8c876e004c6"],
   [",\"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\":\"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659\"",""],
   ["517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71","9e6a9d9e75a4c8452209d3dd0da750fc1c822d4f6e111e5179098b7f9619eb14"],
-  ["db8423c787a1ec18c1852c87d22810c9704b9d7f7eac149666ae664f3232e640","92823d4966ad51cc39952b5fe5a50ab8bb59c343dfe3faa7b0528d90eb72f48c"]
+  ["db8423c787a1ec18c1852c87d22810c9704b9d7f7eac149666ae664f3232e640","92823d4966ad51cc39952b5fe5a50ab8bb59c343dfe3faa7b0528d90eb72f48c"],
+   ["f7d3c250d654fe17e6ca921ec0e3667bcb46ea7fc4f6203fc60ee2506b8ffbe5","feb82ec69cf2f1c1bc16b6999a6c5621d42caa376bfe99661115ff10fb1687e5"],
+   ["491412e6140a5e61af27e5af80f4ad1e4197e8f87500fc952ff5551dd9f9e98a","7cda5c1507fb6fdc65fb2757326a4cbd42e9baa26e1b694d60cf0564a23f5b4f"],
+   ["b673b603c748ec3ab45a2e8594b0d4a837e83532d00de5e317b1da22ff9b8d9b","0deb7c1a52c65b437e982bb7daa3b79c58c53962e05e23a16ead4484bde7ce1d"],
+   ["bd436dc3f1dc000d3f89a94df924b9f7fb826dc8764ff1cdbe5589e5d936a1b1","cc00a75b28f4afbb5fa6438f0ef85e65cdef708bb9bda848e190aa84b87aff9b"],
+   ["ae02527ca046a6572555ff64a80a0bdf58ca705bf405f4ea73f3c671d76aeb60","771686c4d4da942a6369d2b3fc50d27b3e2c8d06609b470bd7f88bbc405acc09"],
+   ["5eca53c5584d441ae3d74a119170bf757fe92bb2154866e181aceb0feb0e7542","3ed8c682628906d914f9d5e41d6f6400f3b202f8246be90d6c36a2caa64626b6"],
+   ["0a7e639a3fd40c282117a603e337a5eb5d4bad91c03c38c38f1055c30e789f69","67557e9f6a72bd855a1eead91ddc1dc6cd05e79506a43c362ce42ad89628de74"],
+   ["d4be44a48e685c38791a99265a982c61337224624064ba791f7c27cbc6a38a67","5c0108f187d4463cfc66d5a97e79afad708bd690cfc5f35ad23de42d88f39663"],
+   ["b5ad2ae663a9a45642c1e2d13d2f433c96c9a01ac56db5a77f1babfad672be1a","3d3a6469ba39ad4fa8c9b23f4e9544cb846b538d4d30eca5997e7134de60d007"],
+   ["ad722ea148dfd40871404445b0d22ee73476fb265f6d5a29c6b7301c3a434c89","51c5cba3119dc192e7d3ba6b570fda26f1f4ea29852a586d94787c74f1b4b110"],
+   ["b71e927754c2e7b081dc6f02e8741f73a6ec1d7b76fa81ea1d68a60fecc25c88","db8423c787a1ec18c1852c87d22810c9704b9d7f7eac149666ae664f3232e640"],
+   ["6748b4f9a32f23161586663b0aa2864505cd0a7976f5ba647a6b618f23d5e20f","f66b64b939f4a0143a1c40d77a75e98b9de5d668671ad9c70f9ab609ee3e7c54"],
+   [",\"assets/own-payroll-liquidation-model.js\":\"0e973eb78222c15ee5327af50d3c14ef933e598bc888608a2687a84ecbf7e93d\",\"assets/own-payroll-liquidation-panel.js\":\"c0cca01d24949776d9302694b3204b84b9f1da5fbeab87f681b1f6e7c85612e6\",\"tests/own-payroll-individual.test.js\":\"d2893a9289f21b313544f5309484fa9a2bc28e7284264a9e6d5f2e7975602d46\",\"tests/own-payroll-comparison-labels.test.js\":\"984b9ec1765c5bd6e5f9f753bd35266978317660302e0abf16656a2a86d02c0c\"",""]
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -116,7 +129,9 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(50).reverse())undo(pair);
+ for(const pair of changes.slice(52).reverse())undo(pair);
+ assert.equal(hash(source),'f0d3c7b10d18d2947ae9b05c2d091c1cf9499f81ac5bb12b47e39ac95fd978c5','individual handoff13 source custody recovers the complete590 fixture before its120 ancestral operations');
+ for(const pair of changes.slice(50,52).reverse())undo(pair);
  assert.equal(hash(source),'288cb28e9227e9c2569f4cfaa0b60cefdae46c11b5c2f2a64a91f97a7f8eb5f7','D7 artifact source custody recovers the complete unexecuted H0 fixture before its118 prior operations');
  for(const pair of changes.slice(40,50).reverse())undo(pair);
  assert.equal(hash(source),'4b9561ec6fdc3efe7989536fddcd08449421d91b7493573c5eb9383dc848de08','Claude209 handoff source custody recovers the complete197 fixture before its108 ancestral operations');

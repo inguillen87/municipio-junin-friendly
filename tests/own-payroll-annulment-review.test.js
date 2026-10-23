@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ownAnnulReviewIndex,verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,ownAnnulReviewCommand,ownAnnulReviewReceipt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation,loadOwnAnnulOutcome} from '../assets/own-payroll-annulment-review-model.js';
+import {ownAnnulReviewIndex,verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,ownAnnulReviewCommand,ownAnnulReviewReceipt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation,loadOwnAnnulOutcome,ownAnnulSingleReviewReference,ownAnnulSingleReviewSelection} from '../assets/own-payroll-annulment-review-model.js';
 import {verifiedOwnAnnulReceipt} from '../assets/own-payroll-annulment-model.js';
 import {annulReviewScenario,annulReviewIndexFor,sealAnnulReviewIndex,annulReviewReceipt} from './fixtures/own-payroll-annulment-review-synthetic.js';
 import {annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
@@ -162,5 +162,35 @@ test('outcome rejects a changed annulment state, a missing affected run, a trunc
   if(mode==='receipt')s.receipt.affected.pop();
   if(mode==='period'){s.after.index.period='2026-11';sealAnnulReviewIndex(s.after.index);}
   await rejected(loadOwnAnnulOutcome(s.after.index,s.receipt,async id=>mode==='missing'&&id===s.after.details[2].id?undefined:structuredClone(s.after.details.find(run=>run.id===id))));
+ }
+});
+
+// Proposed functional cases for the local single-contract208 entry. These
+// imports/fixtures exercise real models; this source is not a PURE admission.
+const singleReference=(scenario,runIndex=0)=>{const run=scenario.details[runIndex],row=run.employees.find(employee=>employee.state==='confirmed');return{period:scenario.index.period,liquidationType:scenario.index.liquidationType,runId:run.id,resultSha256:run.capture.saved.resultSha256,contractId:row.contractId,version:row.version,liquidationVersion:row.liquidationVersion,accessKey:'single-review-synthetic-account'};};
+
+test('single review reference copies only exact data properties and rejects getters without invoking them',()=>{
+ const input=singleReference(annulReviewScenario()),reference=ownAnnulSingleReviewReference(input);assert.notEqual(reference,input);assert.ok(Object.isFrozen(reference));assert.deepEqual(reference,input);input.version++;assert.notEqual(reference.version,input.version);
+ for(const changed of[{...reference,extra:true},{...reference,period:null},{...reference,liquidationType:'unknown'},{...reference,runId:'invalid'},{...reference,resultSha256:'invalid'},{...reference,contractId:null},{...reference,version:0},{...reference,version:1.5},{...reference,liquidationVersion:null},{...reference,liquidationVersion:0},{...reference,accessKey:''}])assert.throws(()=>ownAnnulSingleReviewReference(changed));
+ const symbol={...reference};symbol[Symbol('not part of the request')]=true;assert.throws(()=>ownAnnulSingleReviewReference(symbol));
+ let getterCalls=0;const accessor={...reference};Object.defineProperty(accessor,'contractId',{enumerable:true,get(){getterCalls++;return reference.contractId;}});assert.throws(()=>ownAnnulSingleReviewReference(accessor));assert.equal(getterCalls,0);
+ const hidden={...reference};Object.defineProperty(hidden,'accessKey',{value:reference.accessKey,enumerable:false});assert.throws(()=>ownAnnulSingleReviewReference(hidden));
+});
+
+test('single review selects exactly one actual confirmed row without narrowing the verified period',async()=>{
+ const s=annulReviewScenario(),reference=singleReference(s,1),review=await loadOwnAnnulReview(s.index,read(s.details)),before=structuredClone(ownAnnulReviewRows(review)),chosen=ownAnnulSingleReviewSelection(review,reference);
+ assert.deepEqual(chosen.selection,{kind:'contracts',values:[reference.contractId]});assert.equal(chosen.count,1);assert.equal(chosen.runCount,1);assert.equal(chosen.allowed,true);assert.equal(chosen.complete,true);assert.deepEqual(chosen.rows.map(row=>row.contractId),[reference.contractId]);assert.equal(chosen.rows[0].runId,reference.runId);
+ const historical=s.details[1].capture.saved.result.employeeTotals.find(row=>row.contractId===reference.contractId);assert.deepEqual(chosen.totals,{gross:historical.gross,deduction:historical.deduction,net:historical.net});assert.equal(ownAnnulReviewRows(review).length,9);assert.deepEqual(ownAnnulReviewRows(review),before);assert.throws(()=>ownAnnulSingleReviewSelection(structuredClone(review),reference));
+});
+
+test('single review rejects a different active run, result, version or contract instead of following it',async()=>{
+ const s=annulReviewScenario(),reference=singleReference(s),review=await loadOwnAnnulReview(s.index,read(s.details));
+ for(const patch of[{period:'2026-11'},{liquidationType:'sac'},{runId:s.details[1].id},{resultSha256:'f'.repeat(64)},{contractId:uid(99001)},{version:reference.version+1},{liquidationVersion:reference.liquidationVersion+1}])assert.throws(()=>ownAnnulSingleReviewSelection(review,{...reference,...patch}),{code:'OWN_ANNUL_REVIEW_REFERENCE_CHANGED'});
+ assert.equal(ownAnnulReviewRows(review).length,9);
+});
+
+test('single review refuses a closed or unauthorized row without dropping it from the complete review',async()=>{
+ for(const mode of['closed','not-allowed']){const s=annulReviewScenario(),reference=singleReference(s),run=s.details.find(row=>row.id===reference.runId);if(mode==='closed'){const groupId=uid(99002);s.index.closed=[{runId:run.id,contractId:reference.contractId,groupId}];s.index.closeHistory=[{id:groupId,bodySha256:ownRunHash('Synthetic single review close body'),snapshotSha256:ownRunHash('Synthetic single review close snapshot')}];sealAnnulReviewIndex(s.index);}else run.employees.find(row=>row.contractId===reference.contractId).allowedCommands=[];
+  const review=await loadOwnAnnulReview(s.index,read(s.details));assert.equal(ownAnnulReviewRows(review).length,9);assert.throws(()=>ownAnnulSingleReviewSelection(review,reference),{code:'OWN_ANNUL_REVIEW_REFERENCE_CHANGED'});
  }
 });
