@@ -8,7 +8,8 @@ import {projectOwnCloseBrowserSourceToParent} from './fixtures/own-payroll-annul
 import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
 import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
 import {OWN_CURRENT190_UI_SOURCE_PINS,OWN_CURRENT190_UI_NEW_SOURCE_PINS,projectCurrent190UiRawSourceToParent} from './fixtures/current190-ui-source-projection.js';
-const raw=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))))),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
+import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS,projectCurrent190RevocationRawSourceToParent} from './fixtures/current190-revocation-source-projection.js';
+const raw=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)))))),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
 
 test('accounting/imputation190 private overlay pins whole sources and reverses each complete parent target',()=>{
  for(const target of p.targets){
