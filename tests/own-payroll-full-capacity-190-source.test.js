@@ -5,7 +5,9 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
 import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent,OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,projectOwnIndividualHandoffSourceToParent,OWN_CLAUDE124_ENTRY_SOURCE_PINS,OWN_CLAUDE124_NEW_SOURCE_PINS,projectOwnClaude124EntrySourceToParent,OWN_MONETARY_SOURCE_PINS,OWN_MONETARY_NEW_SOURCE_PINS,OWN_MONETARY_REFERENCE_SOURCE_PINS,projectOwnMonetarySourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
-const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
+import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
+const historicalRaw=(file,encoding)=>{const current=fs.readFileSync(new URL('../'+file,import.meta.url)),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
+const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
  if(file!=='.github/workflows/own-payroll-full-capacity.yml')return value;
@@ -22,11 +24,11 @@ function projectOwnD7ArtifactWorkflowToParent(file,value){
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
  const rules=fs.readFileSync(new URL('../.vercelignore',import.meta.url),'utf8').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
  const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
- for(const file of Object.keys({...p.candidatePins,...p.dependencies}))assert.ok(included(file),'Build dependency excluded: '+file);
+ for(const file of [...Object.keys({...p.candidatePins,...p.dependencies}),'tests/fixtures/native645-causal-source-projection.js'])assert.ok(included(file),'Build dependency excluded: '+file);
  for(const file of ['.handoff/result.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/result.json','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
 });
 test('M7 source bytes pin the exact canonical190 overlay and admitted source dependencies',()=>{
- for(const[file,digest]of Object.entries({...p.candidatePins,...p.dependencies}))assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),digest,file);
+ for(const[file,digest]of Object.entries({...p.candidatePins,...p.dependencies}))assert.equal(hash(historicalRaw(file)),digest,file);
 });
 
 test('phase-text source admission changes only the reviewed test entry in the canonical monthly runner',()=>{
@@ -282,17 +284,17 @@ test('Claude209 source custody recovers complete197 parents before all prior dom
  const newSources={"scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs":{"sha256":"d7d754ebafbe07b2c76282f7c9807eb8dbb290689f416c7119d4f83cb8ddc659","bytes":28952}};
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_SOURCE_PINS,expected);
  assert.deepEqual(OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,newSources);
- const current=file=>projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')));
+ const current=file=>projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,historicalRaw(file,'utf8')));
  for(const[file,pin]of Object.entries(expected)){
   const source=current(file);assert.equal(hash(source),pin.after);
   assert.equal(hash(projectOwnClaude209HandoffSourceToParent(file,source)),pin.before);
   assert.throws(()=>projectOwnClaude209HandoffSourceToParent(file,source+' '),/CLAUDE209_HANDOFF_SOURCE_BYTES/);
  }
- for(const[file,pin]of Object.entries(newSources)){const source=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256);}
+ for(const[file,pin]of Object.entries(newSources)){const source=historicalRaw(file);assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256);}
 });
 // This is a finite source contract; it neither parses YAML nor starts a workflow.
 test('D7 source artifact preserves the complete workflow parent before every previous source guard',()=>{
- const file='.github/workflows/own-payroll-full-capacity.yml',source=projectOwnClaude124EntrySourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'));
+ const file='.github/workflows/own-payroll-full-capacity.yml',source=projectOwnClaude124EntrySourceToParent(file,historicalRaw(file,'utf8'));
  const entry='            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs\n';
  assert.equal(hash(source),'517373ba398ab1507cd7882a8d161ecba19dde94e0b4baa57899b10e43db6c71');
  assert.equal(source.split(entry).length,2);
@@ -309,7 +311,7 @@ test('individual handoff13 has exact raw pins and complete590 parents before H0,
  assert.equal(Object.keys(expected).length,13);
  assert.deepEqual(OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,expected);
  for(const[file,pin]of Object.entries(expected)){
-  const rawSource=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  const rawSource=historicalRaw(file,'utf8');
   assert.equal(hash(rawSource),p.candidatePins[file],file+' selected raw candidate pin before124 projection');
   const source=projectOwnClaude124EntrySourceToParent(file,rawSource);
   assert.equal(hash(source),pin.after,file+' complete4ea individual13 source after124 projection');
@@ -325,7 +327,7 @@ test('individual handoff13 has exact raw pins and complete590 parents before H0,
 });
 
 test('the actual individual handoff source retires both reference visibility and value without live nominal access',()=>{
- const file='assets/own-payroll-liquidation-panel.js',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const file='assets/own-payroll-liquidation-panel.js',source=historicalRaw(file,'utf8');
  const guard="const handoff=receipt?.body.command==='annul'&&can(OWN_LIQ_NOMINAL);";
  const requireRetirement=value=>{
   assert.ok(value.includes('const live=()=>active&&!stopped&&!document.hidden&&host.isConnected,can=caps=>live()&&hasOwnRunAccess(access?.caps,caps);'),'access must remain live and nominal');
@@ -344,14 +346,14 @@ test('browser124 entry sources recover complete4ea before133 operations and both
  assert.equal(Object.keys(expected).length,4);assert.deepEqual(OWN_CLAUDE124_ENTRY_SOURCE_PINS,expected);
  assert.equal(Object.keys(newSources).length,2);assert.deepEqual(OWN_CLAUDE124_NEW_SOURCE_PINS,newSources);
  for(const[file,pin]of Object.entries(expected)){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');assert.equal(hash(source),pin.after);assert.equal(p.candidatePins[file],pin.after);
+  const source=historicalRaw(file,'utf8');assert.equal(hash(source),pin.after);assert.equal(p.candidatePins[file],pin.after);
   assert.equal(hash(projectOwnClaude124EntrySourceToParent(file,source)),pin.before,file+' complete4ea source, not a rewritten historical expectation');
   assert.throws(()=>projectOwnClaude124EntrySourceToParent(file,source+' '),/CLAUDE124_ENTRY_SOURCE_BYTES/);
   const changed=Buffer.from(source,'utf8');changed[0]^=1;assert.throws(()=>projectOwnClaude124EntrySourceToParent(file,changed.toString('utf8')),/CLAUDE124_ENTRY_WHOLE_SOURCE_PIN/);
  }
  const requireNew=(file,source,pin)=>{assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256);assert.equal(p.candidatePins[file],pin.sha256);};
  for(const[file,pin]of Object.entries(newSources)){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url));requireNew(file,source,pin);
+  const source=historicalRaw(file);requireNew(file,source,pin);
   assert.equal(Object.hasOwn(OWN_CLAUDE124_ENTRY_SOURCE_PINS,file),false,'new124 modules never acquire a fabricated public parent');
   assert.equal(projectOwnClaude124EntrySourceToParent(file,source.toString('utf8')),source.toString('utf8'));
   assert.throws(()=>requireNew(file,Buffer.concat([source,Buffer.from(' ')]),pin),assert.AssertionError);
@@ -360,7 +362,7 @@ test('browser124 entry sources recover complete4ea before133 operations and both
 });
 
 test('124 literal reader maps retain the real host, both phases and committed source bookend before SQL without importing them',()=>{
- const current=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const current=file=>historicalRaw(file,'utf8');
  const entryFile='scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',hostFile='scripts/lib/own-payroll-canonical190-browser-host-qa.mjs',browserFile='scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs',nativeFile='scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs';
  const entry=current(entryFile),host=current(hostFile),browser=current(browserFile),native=current(nativeFile),owner=current('scripts/verify-municipal-owner-program.mjs'),authority=current('scripts/verify-municipal-owner-adoption-authority.mjs'),workflow=current('.github/workflows/own-payroll-full-capacity.yml');
  const assets=['assets/own-payroll-liquidation-panel.js','assets/own-payroll-liquidation-model.js','assets/own-payroll-run-panel.js','assets/own-payroll-run-workspace-model.js','assets/own-payroll-annulment-preparation-link.js','assets/payroll-navigation.js','assets/own-payroll-readiness-model.js','assets/own-payroll-response.js','assets/native-salary-catalog-model.js','assets/own-payroll-run-model.js','assets/own-payroll-run-date.js','assets/own-payroll-individual-panel.js'];
@@ -393,12 +395,12 @@ test('124 literal reader maps retain the real host, both phases and committed so
  assert.throws(()=>requireOwnerSourceBookends(owner.replace('const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});','const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure);')),assert.AssertionError,'raw bytes alone cannot replace post-SQL committed bytes');
  assert.throws(()=>requireOwnerSourceBookends(owner.replace('const sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});','')+'const sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});'),assert.AssertionError,'the pre-SQL committed bookend cannot be deferred until after SQL');
  assert.ok(authority.includes('imports=moduleSpecifiers(bytes.toString(\'utf8\'),file)'));assert.ok(authority.includes('bytes.equals(committedBytes(file))'));
- for(const file of [...assets,hostFile,browserFile]){assert.ok(workflow.split(/\r?\n/).some(line=>line.trim()===file),'artifact source '+file);assert.equal(hash(fs.readFileSync(new URL('../'+file,import.meta.url))),p.candidatePins[file]??p.dependencies[file],'explicit raw pin '+file);}
+ for(const file of [...assets,hostFile,browserFile]){assert.ok(workflow.split(/\r?\n/).some(line=>line.trim()===file),'artifact source '+file);assert.equal(hash(historicalRaw(file)),p.candidatePins[file]??p.dependencies[file],'explicit raw pin '+file);}
  assert.ok(workflow.includes('verification/own-full-capacity-pg${{ matrix.pg }}/'));
  for(const token of ['4*1024*1024','32*1024*1024'])assert.ok(native.includes(token),'existing response budget '+token);
 });
 test('the two invalid decision variants await their own harness teardown and restore all seven global descriptors',()=>{
- const file='tests/own-payroll-annulment-preparation-panel.test.js',source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const file='tests/own-payroll-annulment-preparation-panel.test.js',source=historicalRaw(file,'utf8');
  const requireOwnedTeardown=value=>{
   const start=value.indexOf("test('a decision id that belongs to a confirmation or to no contract of the run prepares nothing'"),end=value.indexOf("test('the decision reference survives the login destination",start);
   assert.ok(start>=0&&end>start,'the original invalid-decision parent and following case remain');
@@ -431,11 +433,11 @@ test('monetary source custody raw-pins the complete33 operational selection and 
  assert.ok(build.includes('for (const file of [...shellFiles, ...pwaFiles]) {\n  const destination = path.join(output, file);\n  fs.mkdirSync(path.dirname(destination), { recursive: true });\n  fs.copyFileSync(path.join(root, file), destination);\n}'),'the entire public copy loop stays unchanged');
  assert.deepEqual(Object.keys(manifest).sort(),[...Object.keys(expected),...Object.keys(newSources),...Object.keys(references)].sort(),'complete selection: no omitted or fabricated source identity');
  for(const[file,pin]of Object.entries(manifest)){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url));
+  const source=historicalRaw(file);
   assert.equal(source.length,pin.bytes,file+' raw selected bytes');assert.equal(hash(source),pin.sha256,file+' raw whole selected source');
  }
  for(const[file,pin]of Object.entries(expected)){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  const source=historicalRaw(file,'utf8');
   assert.equal(hash(source),pin.after,file+' raw monetary candidate before any parent projection');
   assert.equal(hash(projectOwnMonetarySourceToParent(file,source)),pin.before,file+' exact complete public645 parent');
   assert.throws(()=>projectOwnMonetarySourceToParent(file,source+' '),/MONETARY_SOURCE_BYTES/);
@@ -443,9 +445,23 @@ test('monetary source custody raw-pins the complete33 operational selection and 
   assert.throws(()=>projectOwnMonetarySourceToParent(file,changed.toString('utf8')),/MONETARY_WHOLE_SOURCE_PIN/);
  }
  for(const file of [...Object.keys(newSources),...Object.keys(references)]){
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  const source=historicalRaw(file,'utf8');
   assert.equal(Object.hasOwn(OWN_MONETARY_SOURCE_PINS,file),false,'new or byte-identical source never acquires an invented parent');
   assert.equal(projectOwnMonetarySourceToParent(file,source),source,file+' stays byte exact');
  }
  assert.equal(projectOwnMonetarySourceToParent('assets/unknown-monetary-source.js','distinct source'),'distinct source');
+});
+
+test('native645 causal source custody pins every current source and restores complete bcae parents before older domains',()=>{
+ const expected=["scripts/lib/municipal-owner-adoption-decision-qa.mjs","tests/municipal-owner-adoption-decision-qa.test.js","scripts/lib/monthly-native-full-circuit-iam-fixture.mjs","tests/monthly-native-full-circuit-iam-fixture.test.js","scripts/lib/owner-program-qa-continuation-preparation.mjs","tests/owner-program-qa-continuation-preparation.test.js","scripts/lib/own-accounting-imputation-190-source-pins.mjs","scripts/lib/own-annulment-preparation-209-actors-fixture.mjs","scripts/lib/own-payroll-annulment-review-v2-installation.mjs","scripts/lib/own-payroll-annulment-preparation-209-installation.mjs","scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs","tests/fixtures/own-accounting-imputation-190-source-contract.json","tests/fixtures/own-payroll-full-capacity-190-source-projection.js"];
+ assert.equal(expected.length,13);assert.equal(new Set(expected).size,13);assert.deepEqual(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).sort(),expected.sort());
+ assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
+ for(const [file,pin] of Object.entries(OWN_NATIVE645_CAUSAL_SOURCE_PINS)){
+  const current=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(current.length,pin.afterBytes,file+' exact raw current bytes');assert.equal(hash(current),pin.after,file+' complete raw current SHA');
+  const parent=projectOwnNative645RawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before,file+' complete bcae parent');
+  assert.throws(()=>projectOwnNative645RawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
+  const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwnNative645RawSourceToParent(file,changed));
+  assert.throws(()=>projectOwnNative645RawSourceToParent(file,parent),undefined,file+' cannot mix old and new source epochs');
+ }
+ const unknown=Buffer.from('unrelated inert bytes');assert.strictEqual(projectOwnNative645RawSourceToParent('tests/unknown-native645-source.js',unknown),unknown);
 });

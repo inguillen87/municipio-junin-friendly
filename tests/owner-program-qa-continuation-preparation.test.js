@@ -68,3 +68,23 @@ test('invalid factories, missing context and unexpected result fields fail befor
   assert.throws(() => prepareOwnerProgramQaContinuation(() => ({...f.result, context: null}), f.context), /PREPARATION_CONTEXT_REQUIRED/);
   assert.throws(() => prepareOwnerProgramQaContinuation(() => ({...f.result, sql: 'not accepted'}), f.context));
 });
+test('the six exact inherited canonical190 sources stay complete without admitting other roots or dotfiles', () => {
+  const inherited = ['package.json', 'package-lock.json', 'api/internal-municipal-owner-salary.js',
+    'src/islands/NativeSalaryCatalog.jsx', '.vercelignore', 'api/internal-municipal-owner-program.js'];
+  const f = fixture();
+  f.result.sourceEntries = [...f.result.sourceEntries, ...inherited];
+  const prepared = prepareOwnerProgramQaContinuation(() => f.result, f.context);
+  assert.deepEqual(prepared.sourceEntries, f.result.sourceEntries, 'all six sources remain in the pre-SQL custody closure');
+  assert.notStrictEqual(prepared.sourceEntries, f.result.sourceEntries);
+  assert.strictEqual(prepared.context, f.preparedContext);
+  f.result.sourceEntries.length = 0;
+  assert.deepEqual(prepared.sourceEntries.slice(1), inherited, 'the prepared closure cannot shrink through the factory array');
+  for (const value of ['api/unreviewed.js', 'src/islands/Unreviewed.jsx', '.github/workflows/own-payroll-full-capacity.yml',
+    '.env', '.vercelignore.backup', 'package.json.backup', 'Package.json', '.vercelignore/child',
+    'api/../internal-municipal-owner-salary.js', 'api//internal-municipal-owner-salary.js']) {
+    const invalid = fixture(); invalid.result.sourceEntries = [value];
+    assert.throws(() => prepareOwnerProgramQaContinuation(() => invalid.result, invalid.context), /PREPARATION_SOURCE_INVALID/, value);
+  }
+  const duplicate = fixture(); duplicate.result.sourceEntries = ['package.json', 'package.json'];
+  assert.throws(() => prepareOwnerProgramQaContinuation(() => duplicate.result, duplicate.context), /PREPARATION_DUPLICATE_SOURCE/);
+});

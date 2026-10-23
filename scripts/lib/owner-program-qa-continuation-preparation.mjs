@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import {isPromise} from 'node:util/types';
 
+// Exact non-root entries already inherited from the canonical190 foundation.
+// Keep their source bytes in custody; this never admits api/, src/ or dotfiles generally.
+const fixedFoundationSourceEntries = new Set([
+  'package.json', 'package-lock.json',
+  'api/internal-municipal-owner-salary.js',
+  'src/islands/NativeSalaryCatalog.jsx',
+  '.vercelignore',
+  'api/internal-municipal-owner-program.js'
+]);
+
 // Source preparation only. This helper neither constructs SQL nor executes it.
 // Keep live references: the host rotates the actor's MFA session before business.
 export function prepareOwnerProgramQaContinuation(prepare, context) {
@@ -20,7 +30,7 @@ export function prepareOwnerProgramQaContinuation(prepare, context) {
   assert.ok(Array.isArray(prepared.sourceEntries) && prepared.sourceEntries.length > 0, 'OWNER_PROGRAM_QA_PREPARATION_SOURCES_REQUIRED');
   for (const value of prepared.sourceEntries) {
     assert.equal(typeof value, 'string', 'OWNER_PROGRAM_QA_PREPARATION_SOURCE_INVALID');
-    assert.ok(/^(?:assets|lib|scripts|tests)\/[A-Za-z0-9_.\/-]+$/.test(value) && !value.includes('..') && !value.endsWith('/') && !value.includes('//'), 'OWNER_PROGRAM_QA_PREPARATION_SOURCE_INVALID');
+    assert.ok((/^(?:assets|lib|scripts|tests)\/[A-Za-z0-9_.\/-]+$/.test(value) || fixedFoundationSourceEntries.has(value)) && !value.includes('..') && !value.endsWith('/') && !value.includes('//'), 'OWNER_PROGRAM_QA_PREPARATION_SOURCE_INVALID');
   }
   assert.equal(new Set(prepared.sourceEntries).size, prepared.sourceEntries.length, 'OWNER_PROGRAM_QA_PREPARATION_DUPLICATE_SOURCE');
   return {context: prepared.context, sourceEntries: [...prepared.sourceEntries]};

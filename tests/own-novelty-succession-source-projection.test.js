@@ -4,7 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8').replace(/\r\n?/g,'\n');
+import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
+const read=file=>projectOwnNative645RawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url))).toString('utf8').replace(/\r\n?/g,'\n');
 const hash=value=>createHash('sha256').update(value).digest('hex');
 
 function assertBothEpochs(source){

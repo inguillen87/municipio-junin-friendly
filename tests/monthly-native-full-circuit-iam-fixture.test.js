@@ -20,3 +20,17 @@ test('real canonical seed shared role requires membership overrides and preserve
  assert.doesNotMatch(fixture.statements.join('\n'),/INSERT INTO public\.iam_role(?:_capability)?\b|UPDATE public\.tenant_membership\b|ON CONFLICT/);assert.doesNotMatch(fixture.statements[0],/count\(\*\) FROM public\.tenant_membership WHERE role_key/);
  assert.match(fixture.statements[0],/tenant_membership_capability_override o WHERE o.membership_id/);assert.match(fixture.statements[0],/SELECT id FROM public\.tenant_membership LOOP PERFORM public\.tenant_iam_assert_no_sod_conflict/);assert.match(fixture.statements[3],/current_value-'overrides'-'effective'/);assert.match(fixture.statements[3],/jsonb_array_elements\(prior->'effective'\)/);assert.match(fixture.statements[3],/IS DISTINCT FROM expected_effective/);assert.match(fixture.statements[4],/'rolesChanged',0/);assert.match(fixture.statements[4],/'overridesAdded',2/);assert.match(fixture.statements[4],/'unaffectedCapsPreserved',true/);
 });
+
+test('native IAM before and after blocks keep record variables distinct from whole-row snapshot aliases',()=>{
+ const qa={schema:'mc_qa_fixed_092_'+'a'.repeat(32),actor:{membershipId:id(1),tenantId:id(3),actorEmail:'maker@joint.invalid'},checker:{membershipId:id(2),tenantId:id(3),actorEmail:'checker@joint.invalid'},normalized:value=>value};
+ const fixture=buildMonthlyNativeNoveltyIamFixture({qa,read});
+ for(const sql of [fixture.statements[0],fixture.statements[3]]){
+  const records=new Set([...sql.matchAll(/(?:DECLARE|;)\s*([a-z_]\w*)\s+record(?=;)/gi)].map(match=>match[1]));
+  const snapshotAliases=[...sql.matchAll(/\bto_jsonb\(([a-z_]\w*)\)/gi)].map(match=>match[1]);
+  assert.deepEqual([...records],['checked_membership']);assert.ok(snapshotAliases.includes('m'));
+  for(const alias of snapshotAliases)assert.equal(records.has(alias),false,'A PL/pgSQL record must not collide with a whole-row snapshot alias: '+alias);
+  assert.match(sql,/FOR checked_membership IN SELECT id FROM public\.tenant_membership LOOP PERFORM public\.tenant_iam_assert_no_sod_conflict\(checked_membership\.id\);END LOOP;/);
+  assert.match(sql,/jsonb_agg\(to_jsonb\(m\) ORDER BY id\)/);
+  assert.match(sql,/FROM public\.tenant_membership m/);
+ }
+});

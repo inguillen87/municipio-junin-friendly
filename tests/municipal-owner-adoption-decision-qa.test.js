@@ -114,3 +114,35 @@ test('HTTP transport preserves actual Node request/response and complete large s
 test('HTTP transport preserves explicit handler failures without inventing a successful response',async()=>{
  await ownerDecisionQaHttp(async(req,res)=>res.status(503).json({ok:false,code:'SYNTHETIC_NOT_READY'}),async base=>{const response=await fetch(base);assert.equal(response.status,503);assert.deepEqual(await response.json(),{ok:false,code:'SYNTHETIC_NOT_READY'});});
 });
+
+test('current native creation keeps the095 jurisdiction receipt in the graph and seed instead of compact067',()=>{
+ const receipts=qa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.native_employee_receipt_v1('));assert.equal(receipts.length,1);
+ const actual=receipts[0],pin=ownInstallationFunctionPin(actual),migration=read('scripts/migrations/095-native-employee-jurisdiction.sql').replace(/\r\n?/g,'\n');
+ const expected=/CREATE OR REPLACE FUNCTION public\.native_employee_receipt_v1\(r native_employee_registration\) RETURNS jsonb[\s\S]*?\bAS (\$\$[\s\S]*?\$\$);/.exec(migration);assert.ok(expected);
+ assert.equal(pin.sha256,'1a57c2445f344f37d59c8c798237efefa0bb4671d101d9a177744c8fbac2c18e');assert.equal(body(actual),body(expected[0]));
+ assert.match(body(actual),/CASE WHEN c\.jurisdiction_code IS NULL THEN '\{\}'::jsonb ELSE jsonb_build_object\('jurisdictionCode',c\.jurisdiction_code\) END/);
+ const selected=qa.graph.desired.filter(p=>p.signature===pin.signature);assert.equal(selected.length,1);assert.equal(selected[0].sha256,pin.sha256);assert.equal(selected[0].runtime,false);
+ const historical=JSON.parse(read('tests/fixtures/native-employee-installed-067.json')).functions.find(f=>f.name==='native_employee_receipt_v1');
+ assert.equal(historical.sha256,'4e7160053e38011b59431a6113b0cd96239c6d863e008be032d9509656ccef86');assert.equal(ownerDecisionQaHash(historical.body),historical.sha256);assert.doesNotMatch(historical.body,/jurisdictionCode/);
+ assert.ok(qa.graph.pool.has(pin.signature+'|'+historical.sha256));assert.ok(qa.graph.pool.has(pin.signature+'|'+pin.sha256));
+ assert.ok(qa.seed.includes(qa.normalized(actual.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '))));
+ assert.ok(qa.seed.includes('REVOKE ALL ON FUNCTION '+qa.relocate(pin.signature)+' FROM PUBLIC,municontrol_actions_runtime_app'));
+ assert.ok(!qa.seed.includes('GRANT EXECUTE ON FUNCTION '+qa.relocate(pin.signature)+' TO municontrol_actions_runtime_app'));
+});
+test('canonical190 seeds the complete reviewed146 predecessor before the unchanged201 capacity preflight',()=>{
+ const file='scripts/migrations/146-own-consolidated-annulment.sql',source=read(file).replace(/\r\n?/g,'\n');
+ assert.equal(ownerDecisionQaHash(source),'8337df26dc3c22fe8c156e19d7511db6c537f08b219633f6add981c774a48fe6');assert.equal(qa.sourceHashes[file],ownerDecisionQaHash(source),'146 must enter the actual canonical source closure');
+ const definitions=qa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.own_annul_')),byName=new Map(definitions.map(d=>{const p=ownInstallationFunctionPin(d);return[p.name,{definition:d,pin:p}];}));assert.equal(definitions.length,5);
+ const expected=[['own_annul_immutable_v1','674be08de85b0719bb676f9623ff0e93c8a5ef51f658d68e8e9abadc33fc6ac6',false],['own_annul_detail_v1','a0ac76f463360ad15daec6aa8b6f21e28c241bec48c5d45048140519eb1cabe0',true],['own_annul_selected_v1','e191fd94787a93e809e79b97d751b1c9c9371833eb7275fe4d3c272eceeadd31',false],['own_annul_attempt_v1','f09145af9a84cd88483b2c8cef3df711cc7328775798e2977a1d487f6d1e4a8d',true],['own_annul_command_v1','a8f41f70ef76c9266348721fa531b78e115c793921491b35ace436737b16c92f',true]];
+ const sql201=read('scripts/migrations/201-own-full-payroll-decision-capacity.sql'),end=sql201.indexOf('END $capacity_preflight$;');assert.ok(end>0);const preflight=sql201.slice(0,end);
+ for(const [name,sha256,runtime] of expected){
+  const current=byName.get(name);assert.ok(current,name);const {definition,pin}=current;assert.equal(pin.sha256,sha256,name+' exact146 body');assert.equal(qa.graph.pool.get(pin.signature+'|'+sha256),definition);
+  const selected=qa.graph.desired.filter(p=>p.signature===pin.signature);assert.equal(selected.length,1);assert.equal(selected[0].sha256,sha256);assert.equal(selected[0].runtime,runtime,name+' source-declared146 ACL');
+  assert.ok(qa.seed.includes(qa.normalized(definition.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '))),name+' is installed by the existing canonical seed, not merely discoverable in an auxiliary pool');
+  assert.ok(qa.seed.includes('REVOKE ALL ON FUNCTION '+qa.relocate(pin.signature)+' FROM PUBLIC,municontrol_actions_runtime_app'));
+  assert.equal(qa.seed.includes('GRANT EXECUTE ON FUNCTION '+qa.relocate(pin.signature)+' TO municontrol_actions_runtime_app'),runtime);
+  if(name!=='own_annul_immutable_v1'){assert.ok(preflight.includes('"name":"'+name+'","signature":"'+pin.signature+'"'));assert.ok(preflight.includes('"bodySha256":"'+sha256+'"'),'unchanged201 preflight requires this exact146 predecessor');}
+ }
+ assert.ok(qa.tables.tables.includes('own_payroll_annul_event'));assert.ok(qa.tables.statements.some(s=>s.startsWith('CREATE TABLE public.own_payroll_annul_event(')));
+ for(const token of ['CREATE TABLE public.own_payroll_annul_event(','ALTER TABLE public.own_payroll_annul_event ENABLE ROW LEVEL SECURITY','REVOKE ALL ON public.own_payroll_annul_event FROM PUBLIC,municontrol_actions_runtime_app','CREATE TRIGGER own_annul_event_immutable BEFORE UPDATE OR DELETE ON public.own_payroll_annul_event','CREATE TRIGGER own_annul_event_no_truncate BEFORE TRUNCATE ON public.own_payroll_annul_event'])assert.ok(qa.seed.includes(qa.relocate(token)),'complete146 table protection: '+token);
+});
