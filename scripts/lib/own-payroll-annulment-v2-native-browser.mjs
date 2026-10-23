@@ -11,6 +11,7 @@ import {createOwnAnnulHandler} from '../../api/internal-own-payroll-annulment.js
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../../api/internal-own-payroll-run.js';
 import {verifiedOwnAnnulReviewIndex,verifiedOwnAnnulReviewReceipt} from '../../assets/own-payroll-annulment-review-model.js';
+import {verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_PREPARE} from '../../assets/own-payroll-run-workspace-model.js';
 import {OWN_ANNUL_ACCESS} from '../../assets/own-payroll-annulment-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
@@ -132,6 +133,20 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       return route.continue();
     });
     page=await browserContext.newPage();page.on('pageerror',error=>pageErrors.push(error.message));
+    // Page responses only: independent context.request oracle reads below are
+    // not evidence that the product itself reloaded its authenticated sources.
+    const outcomePageReads=[],outcomePagePosts=[];
+    // Observe the product's actual HTTP requests, including a POST rejected
+    // before it reaches SQL. context.request oracle traffic is not Page traffic.
+    page.on('request',request=>{
+      const url=new URL(request.url());
+      if(request.method()==='POST'&&url.origin===origin&&url.pathname.startsWith('/api/'))outcomePagePosts.push({path:url.pathname});
+    });
+    page.on('response',response=>{
+      const request=response.request(),url=new URL(response.url());
+      if(request.method()!=='GET'||url.origin!==origin||!['/api/internal-own-payroll-annulment','/api/internal-own-payroll-liquidation'].includes(url.pathname))return;
+      outcomePageReads.push({path:url.pathname,resource:url.searchParams.get('resource'),key:url.searchParams.get('key'),id:url.searchParams.get('id'),status:response.status()});
+    });
     const $=key=>page.locator('[data-annul-'+key+']');
     const settled=()=>page.waitForFunction(()=>document.querySelector('[data-annul-status]')?.closest('.own-liquidation')?.getAttribute('aria-busy')==='false',{}, {timeout:45000});
     const query=async requested=>{await $('period').fill(requested);await $('type').selectOption('monthly');await $('load').click();await settled();};
@@ -196,6 +211,125 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
     assert.equal(receipt.affected.length,855);assert.equal(receipt.receipts.length,3);
     assert.deepEqual(sorted(receipt.affected.map(item=>item.contractId)),sorted(ids));
     assert.deepEqual(receipt.body,frozen.body);
+    // The original fixture carries immutable hashes of each genuine capture.
+    // Fetch and verify full authenticated details independently of the product
+    // outcome helper; never derive expected amounts or versions from DOM rows.
+    const outcomeSnapshot=readSnapshot(),outcomePosts=posts.length,outcomeCalculationPosts=calculationPosts,outcomeHttpPosts=outcomePagePosts.length;
+    assert.equal(outcomeHttpPosts,2,'both original product HTTP sends were observed before outcome-only recovery');
+    assert.equal(outcomePosts,2);assert.equal(outcomeCalculationPosts,0);
+    const outcomeOracleRows=[],outcomePrecisions=[];
+    const outcomeIndexResponse=await request('/api/internal-own-payroll-annulment?resource=review&period='+period+'&liquidationType=monthly');
+    assert.equal(outcomeIndexResponse.response.status(),200);
+    const outcomeIndex=await verifiedOwnAnnulReviewIndex(outcomeIndexResponse.body.data);
+    assert.equal(outcomeIndex.scopeVersion,index.scopeVersion);
+    assert.deepEqual(outcomeIndex.index.map(item=>item.id),index.index.map(item=>item.id));
+    assert.ok(outcomeIndex.index.every(item=>item.confirmedContractIds.length===0));
+    for(const original of fixture.captures){
+      const response=await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(original.id));
+      assert.equal(response.response.status(),200);
+      const detail=await verifiedOwnLiquidationDetail(response.body.data),capture=detail.capture,saved=capture.saved;
+      const reference=outcomeIndex.index.find(item=>item.id===original.id);assert.ok(reference);
+      assert.equal(detail.id,original.id);assert.equal(detail.scopeVersion,outcomeIndex.scopeVersion);assert.equal(detail.stateVersion,reference.stateVersion);
+      assert.equal(capture.bodySha256,original.bodySha256);assert.equal(capture.payloadSha256,original.payloadSha256);
+      assert.equal(saved.inputSha256,original.inputSha256);assert.equal(saved.resultSha256,original.resultSha256);
+      assert.equal(capture.algorithmSha256,reference.algorithmSha256);assert.deepEqual(capture.body,original.body);
+      assert.equal(saved.result.employeeCount,855);assert.equal(saved.result.rowCount,17100);
+      assert.equal(saved.input.totalsPrecision,reference.totalsPrecision);outcomePrecisions.push(saved.input.totalsPrecision);
+      const people=new Map(saved.input.employees.map(row=>[row.contractId,row]));
+      const amounts=new Map(saved.result.employeeTotals.map(row=>[row.contractId,row]));
+      const states=new Map(detail.employees.map(row=>[row.contractId,row]));
+      for(const affected of receipt.affected.filter(row=>row.runId===original.id)){
+        const person=people.get(affected.contractId),money=amounts.get(affected.contractId),state=states.get(affected.contractId);
+        assert.ok(person&&money&&state);assert.equal(state.state,'annulled');
+        assert.equal(affected.resultSha256,original.resultSha256);assert.equal(affected.liquidationDate,capture.body.liquidationDate);
+        assert.equal(state.version,affected.version);assert.equal(state.liquidationVersion,affected.liquidationVersion);
+        outcomeOracleRows.push(Object.freeze({contractId:affected.contractId,employeeNumber:person.employeeNumber,departmentCode:person.departmentCode,
+          date:'Fecha de liquidación: '+affected.liquidationDate.split('-').reverse().join('/'),
+          gross:money.gross,deduction:money.deduction,net:money.net,
+          state:'Anulada · decisión v'+affected.version+' · liquidación v'+affected.liquidationVersion}));
+      }
+    }
+    outcomeOracleRows.sort((a,b)=>a.contractId<b.contractId?-1:a.contractId>b.contractId?1:0);Object.freeze(outcomeOracleRows);
+    assert.equal(outcomeOracleRows.length,855);assert.equal(new Set(outcomeOracleRows.map(row=>row.contractId)).size,855);
+    assert.deepEqual(sorted(outcomeOracleRows.map(row=>row.contractId)),sorted(ids));
+    assert.deepEqual(sorted(outcomeOracleRows.map(row=>row.employeeNumber)),sorted(expectedNumbers));
+    const outcomePrecision=Math.max(...outcomePrecisions);assert.ok(Number.isInteger(outcomePrecision)&&outcomePrecision>=0&&outcomePrecision<=8);
+    // Independent exact decimal sum at the already declared precision. No new
+    // rounding rule, Number conversion of amounts or business calculation.
+    const atoms=value=>{
+      assert.match(value,/^-?(?:0|[1-9]\d*)(?:\.\d{1,8})?$/);
+      const [whole,fraction='']=value.replace(/^-/,'').split('.');assert.ok(fraction.length<=outcomePrecision);
+      return(value.startsWith('-')?-1n:1n)*BigInt(whole+fraction.padEnd(outcomePrecision,'0'));
+    };
+    const decimal=value=>{const negative=value<0n,digits=(negative?-value:value).toString().padStart(outcomePrecision+1,'0');return(negative?'-':'')+(outcomePrecision?digits.slice(0,-outcomePrecision)+'.'+digits.slice(-outcomePrecision):digits);};
+    const outcomeTotals=Object.fromEntries(['gross','deduction','net'].map(key=>[key,decimal(outcomeOracleRows.reduce((sum,row)=>sum+atoms(row[key]),0n))]));
+    const moneyCell=text=>{
+      assert.match(text,/^\$ -?(?:0|[1-9]\d{0,2})(?:\.\d{3})*(?:,\d{1,8})?$/);
+      return text.slice(2).replaceAll('.','').replace(',','.');
+    };
+    const assertOutcomeTable=async label=>{
+      assert.ok((await $('status').innerText()).includes('Anulación registrada: 855 legajos en 3 corridas'));
+      assert.equal(await $('empty').isHidden(),true);assert.equal(await $('recover').isVisible(),true);
+      assert.ok((await $('scope').innerText()).includes('855 legajos anulados en 3 corridas'));
+      assert.ok((await $('scope').innerText()).includes('Importes históricos conservados; esta anulación no describe el estado vigente.'));
+      assert.equal(await $('confirm').isChecked(),true);assert.ok(await $('send').isDisabled());
+      const displayedTotals=await $('totals').locator('dd').allTextContents();assert.equal(displayedTotals.length,3);
+      assert.deepEqual(displayedTotals.map(value=>moneyCell(value.trim())),['gross','deduction','net'].map(key=>outcomeTotals[key]));
+      const observed=[];
+      for(let n=0;n<35;n++){
+        assert.equal((await $('page').innerText()).trim(),(n+1)+' / 35');
+        const rows=await $('rows').locator('tr').evaluateAll(list=>list.map(row=>[...row.cells].map(cell=>cell.textContent.trim())));
+        assert.equal(rows.length,n===34?5:25);
+        for(const cells of rows){assert.equal(cells.length,7);observed.push([cells[0],cells[1],cells[2],moneyCell(cells[3]),moneyCell(cells[4]),moneyCell(cells[5]),cells[6]]);}
+        if(n<34){assert.equal(await $('next').isDisabled(),false);await $('next').click();}
+      }
+      assert.equal(await $('next').isDisabled(),true);
+      assert.deepEqual(observed,outcomeOracleRows.map(row=>[row.employeeNumber,row.departmentCode,row.date,row.gross,row.deduction,row.net,row.state]));
+      assert.equal(new Set(observed.map(row=>row[0])).size,855);
+      // Searching resets pagination; exact employee numbers may be substrings
+      // of others, so derive the expected view from all855 verified oracle rows.
+      const term=outcomeOracleRows[0].employeeNumber;
+      await $('search').fill(term);
+      const matching=outcomeOracleRows.filter(row=>[row.employeeNumber,row.departmentCode].some(value=>value.toLocaleLowerCase('es-AR').includes(term.toLocaleLowerCase('es-AR'))));
+      assert.ok(matching.length>0);assert.ok((await $('range').innerText()).includes(matching.length+' legajos de la búsqueda · 855 afectados'));
+      assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
+      await $('search').fill('no-synthetic-outcome-match');
+      assert.ok((await $('range').innerText()).includes('0 legajos de la búsqueda · 855 afectados'));
+      assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
+      await $('search').fill('');assert.equal(await $('rows').locator('tr').count(),25);
+      assert.deepEqual(await $('totals').locator('dd').allTextContents(),displayedTotals);
+      assert.equal(outcomePagePosts.length,outcomeHttpPosts,'outcome reads must not send another municipal HTTP POST');
+      assert.equal(posts.length,outcomePosts);assert.equal(calculationPosts,outcomeCalculationPosts);assert.deepEqual(readSnapshot(),outcomeSnapshot);
+      check(true,label);
+    };
+    await assertOutcomeTable('all855 historical outcome rows across35 pages bind original capture hashes, exact amounts, original dates and both decision versions');
+    const rebuildOutcome=async(label,traceStart)=>{
+      await $('load').click();await settled();await $('recover').click();await settled();
+      const reads=outcomePageReads.slice(traceStart);
+      const attempts=reads.filter(row=>row.path==='/api/internal-own-payroll-annulment'&&row.resource==='attempt');
+      assert.ok(attempts.length>0);assert.ok(attempts.every(row=>row.status===200&&row.key===frozen.key));
+      assert.ok(reads.filter(row=>row.path==='/api/internal-own-payroll-annulment'&&row.resource==='review'&&row.status===200).length>=2);
+      for(const capture of fixture.captures)assert.ok(reads.some(row=>row.path==='/api/internal-own-payroll-liquidation'&&row.resource==='detail'&&row.id===capture.id&&row.status===200));
+      assert.equal(outcomePagePosts.length,outcomeHttpPosts,'outcome reads must not send another municipal HTTP POST');
+      assert.equal(posts.length,outcomePosts);assert.equal(calculationPosts,outcomeCalculationPosts);assert.deepEqual(readSnapshot(),outcomeSnapshot);
+      assert.deepEqual(posts[1].body,frozen.body);assert.equal(posts[1].key,frozen.key);
+      await assertOutcomeTable(label);
+    };
+    const hideReads=outcomePageReads.length;
+    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
+    check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('confirm').isChecked()===false,'hiding a committed outcome clears all nominal rows and consent');
+    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
+    await rebuildOutcome('actual same-key GET and complete authenticated details rebuild all855 historical rows after page hiding without another POST',hideReads);
+    const revokeReads=outcomePageReads.length;clientWithdrawn=true;
+    await page.evaluate(next=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:next}})),caps.filter(cap=>cap!=='payroll.calculation.approve'));
+    check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('send').isDisabled()&&await $('confirm').isChecked()===false,'withdrawing client authority clears committed outcome rows and consent');
+    clientWithdrawn=false;
+    await rebuildOutcome('restored original reviewer rebuilds the same committed855/3 outcome by GET only after capability withdrawal',revokeReads);
+    const historicalOutcome={version:'own-annulment208-historical-outcome-browser.v1',population:855,runs:3,pages:35,authenticatedRebuilds:2,
+      originalCaptureHashesVerified:true,allRowsCompared:true,exactAmountsCompared:true,decisionAndLiquidationVersionsCompared:true,
+      pageReadCount:outcomePageReads.length,newAnnulmentPosts:posts.length-outcomePosts,newCalculationPosts:calculationPosts-outcomeCalculationPosts,
+      newBusinessHttpPosts:outcomePagePosts.length-outcomeHttpPosts,
+      sourceReceiptKeyJsonSha256:sha(frozen.key),separate29ScenarioProven:false,receiptToPreparationBrowserProven:false};
     const beforeReplay=readSnapshot(),replayed=await request('/api/internal-own-payroll-annulment',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':frozen.key},data:JSON.stringify({operation:'command-v2',payload:frozen.body})});
     assert.equal(replayed.response.status(),200);assert.deepEqual(replayed.body.data,receipt);
     assert.equal(replayed.response.headers()['idempotency-replayed'],'true');assert.deepEqual(readSnapshot(),beforeReplay);
@@ -223,6 +357,7 @@ export async function verifyOwnAnnulmentV2BrowserOn190(context,fixture){
       checks,httpEvidence,sourceBookend,posts:posts.map(item=>({keyJsonSha256:sha(item.key),bodyJsonSha256:sha(item.body),reachedSql:item.reachedSql,replayed:item.replayed})),
       reportFingerprintAlgorithm:'SHA256 of UTF8 JSON.stringify; distinct from canonical DTO and SQL digests',
       receiptJsonSha256:sha(receipt),afterSnapshotJsonSha256:sha(readSnapshot()),actualSql:true,actualHttp:true,
+      historicalOutcome,
       fullAnnulmentBrowserProven:true,fullCapacityBrowserProven:false,receiptToPreparationBrowserProven:false,
       pending:['cross-role receipt-to-preparation handoff','monthly 855-contract business cases'],
       authenticationFixture:true,completeAuthenticationHandler:false,

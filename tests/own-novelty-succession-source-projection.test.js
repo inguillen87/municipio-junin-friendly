@@ -66,7 +66,11 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
   ['0deb7c1a52c65b437e982bb7daa3b79c58c53962e05e23a16ead4484bde7ce1d','fae1416085d1b49bda6fca2039962a9f4e8f05dd0ec575eb50260454c51d912d'],
   ['3d3a6469ba39ad4fa8c9b23f4e9544cb846b538d4d30eca5997e7134de60d007','d76253308c06713f86e75ea186368ba0ea63fdd50e9f72dd9be2a518e3b90cf7'],
   ['2f076464e1a0aefedb240ab6826fd145a39155c6357e6e3c9fe50c7f521bbfe5','b62c6ee7daa6aa1c69cc0b310e5e216d655b9754432d18cdef4b174aa0681e95'],
-  ['97905cc2c71f5c44d1ce5085823fcdd9387e3530837ad17ede543962c77a4d07','3294c34a39816b9868e2052179ecddfaf9f146cf8411313ac4e2ddc6896368be']
+  ['97905cc2c71f5c44d1ce5085823fcdd9387e3530837ad17ede543962c77a4d07','3294c34a39816b9868e2052179ecddfaf9f146cf8411313ac4e2ddc6896368be'],
+  ['bba93c75b0b8095cd97acfd90a66387a70bab7c6dba8fade3c81381abb49a472','ab12aa395f712400843a0a70fcd6db2d6b45c0188acd3703f03c4f4c545af24e'],
+  ['5ac17d7261e45010c9851b8fb962fe8e5b6e03af1523a190e26765723565f122','909dc8084015ec937b94eeb7e031d113a92bda26767bdf7e88cbd483482fecd9'],
+  ['02b647310505bed55695a4b4aae2de328215cf26c0400e347bddb0cd5ebdd355','2f076464e1a0aefedb240ab6826fd145a39155c6357e6e3c9fe50c7f521bbfe5'],
+  ['1c70f6b6d0d2b69d815b2138c695b63b6309426ef2cd7463e70d1dc4706302c5','97905cc2c71f5c44d1ce5085823fcdd9387e3530837ad17ede543962c77a4d07']
  ];
  assert.equal(target.inverse.length,68+changes.length);
  assert.deepEqual(target.inverse.slice(68).map(op=>[
@@ -78,7 +82,9 @@ test('nested190 custody recovers the exact b41 fixture before its complete prior
  };
  // Appended operations are chronological: restore b41 before its six earlier
  // pin transitions. The complete accounting projection still restores dd370.
- for(const pair of changes.slice(9).reverse())undo(pair);
+ for(const pair of changes.slice(14).reverse())undo(pair);
+ assert.equal(hash(source),'8a065fe803bfb7e6a077feebcf3c5f88a1d61122e050c1001e67dc143fc41b6c','the four reviewed208 source custody pins recover the exact0eaa product fixture');
+ for(const pair of changes.slice(9,14).reverse())undo(pair);
  assert.equal(hash(source),'34d1f48384c582bc39acab6281533c223140c74deb759c88ed036cb962f3489f','the five registered-outcome pins recover the exact05031ab fixture');
  for(const pair of changes.slice(8,9).reverse())undo(pair);
  assert.equal(hash(source),'02856ee899461ccfa548803d49204a637cc9e46bad5fc03381e19e02dc21e667','the complete presentation transport pin recovers the exact P1bc fixture');

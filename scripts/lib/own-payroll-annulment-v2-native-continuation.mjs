@@ -11,7 +11,7 @@ import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
 import {RUN_CALCULATE} from '../../lib/internal-own-payroll-run.js';
 import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt} from '../../assets/own-payroll-annulment-model.js';
-import {verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation} from '../../assets/own-payroll-annulment-review-model.js';
+import {verifiedOwnAnnulReviewIndex,loadOwnAnnulReview,ownAnnulReviewRows,ownAnnulReviewSelection,ownAnnulReviewAttempt,verifiedOwnAnnulReviewReceipt,loadOwnAnnulPreparation,loadOwnAnnulOutcome} from '../../assets/own-payroll-annulment-review-model.js';
 import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-model.js';
 
 const FOUR=4*1024*1024,FULL=32*1024*1024;
@@ -140,10 +140,30 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  await context.sameStateReject(()=>annul('command-v2',{key:annulKey,body:honestBody}),error=>error.code==='OWN_LIQ_IDEMPOTENCY_REUSE','persisted v1 key cannot be reinterpreted as v2 command');
  assert.deepEqual(await annul('attempt',{key:annulKey}),legacyReceipt);
  index=await readIndex('native-annulled');assert.equal(index.index.length,5);assert.equal(index.index.reduce((sum,row)=>sum+row.states.confirmed,0),0);
+ // Reconstruct the registered855/3 outcome from the same real SQL receipt and
+ // authenticated original-run details; the literal oracle above is unchanged.
+ const outcomeLoaded=[],outcomeSnapshot=context.readSnapshot();
+ const registeredOutcome=await loadOwnAnnulOutcome(index,receipt,async id=>{outcomeLoaded.push(id);return readDetail(id,'registered-outcome-original');});
+ assert.deepEqual(outcomeLoaded,mixed.captures.map(capture=>capture.id).sort());assert.equal(outcomeLoaded.length,3);
+ assert.equal(registeredOutcome.version,'own-annul-outcome.v1');assert.equal(registeredOutcome.annulled,true);assert.equal(registeredOutcome.complete,true);
+ assert.equal(registeredOutcome.count,855);assert.equal(registeredOutcome.runCount,3);assert.equal(registeredOutcome.key,receipt.key);assert.equal(registeredOutcome.receiptId,receipt.id);
+ assert.deepEqual(registeredOutcome.rows.map(row=>row.contractId),contracts);assert.equal(registeredOutcome.confirmedAgainCount,0);
+ assert.ok(registeredOutcome.rows.every(row=>row.confirmedAgainIn===null&&mixed.captures.some(capture=>capture.id===row.runId)));
+ assert.deepEqual(registeredOutcome.totals,{gross:'101061.00',deduction:'0.00',net:'101061.00'});
+ assert.deepEqual(context.readSnapshot(),outcomeSnapshot,'ANNUL208_OUTCOME_READS_PRESERVE_COMPLETE_STATE');
+ const alteredOutcomeReceipt=structuredClone(receipt);alteredOutcomeReceipt.body.reason=reason+' adulterado sin volver a sellar';
+ for(const child of alteredOutcomeReceipt.receipts)child.body.reason=alteredOutcomeReceipt.body.reason;
+ let alteredOutcomeDetailReads=0;
+ await context.sameStateReject(()=>loadOwnAnnulOutcome(index,alteredOutcomeReceipt,async id=>{alteredOutcomeDetailReads++;return readDetail(id,'must-not-read-altered-outcome');}),error=>error.code==='OWN_ANNUL_REVIEW_RECEIPT_CHANGED','registered outcome rejects an altered original v2 body hash before any detail IO');
+ assert.equal(alteredOutcomeDetailReads,0);assert.deepEqual(context.readSnapshot(),outcomeSnapshot);
+ ok(true,'registered855 historical rows and literal101061.00 totals survive verified outcome reconstruction; adulterated receipt never loads details');
  for(const date of dates){const loaded=[],snapshot=context.readSnapshot(),prepared=await loadOwnAnnulPreparation(index,receipt,date,async id=>{loaded.push(id);return readDetail(id,'prepare-'+date);});assert.deepEqual(loaded,[...new Set(receipt.affected.map(row=>row.runId))].sort());const n=dates.indexOf(date);assert.equal(prepared.affected.length,285);assert.deepEqual(prepared.selection,{kind:'contracts',values:[...partitionIds[n]]});assert.equal(prepared.liquidationDate,date);assert.deepEqual(context.readSnapshot(),snapshot);}
  const legacyLoaded=[],legacyPrepared=await loadOwnAnnulPreparation(index,legacyReceipt,dates[0],async id=>{legacyLoaded.push(id);return readDetail(id,'prepare-original-v1');});assert.deepEqual(legacyLoaded,[first.id]);assert.equal(legacyPrepared.affected.length,855);assert.deepEqual(legacyPrepared.selection,{kind:'contracts',values:contracts});
  const corrupted=structuredClone(receipt);corrupted.affected[corrupted.affected.length-1].version++;
  await context.sameStateReject(()=>loadOwnAnnulPreparation(index,corrupted,dates[0],id=>readDetail(id,'must-not-read-corrupt-receipt')),error=>error.code?.startsWith('OWN_ANNUL_REVIEW_'),'one discordant affected employee blocks the whole date preparation');
+ let corruptedOutcomeReads=0;
+ await context.sameStateReject(()=>loadOwnAnnulOutcome(index,corrupted,async id=>{corruptedOutcomeReads++;return readDetail(id,'must-not-read-corrupt-outcome');}),error=>error.code?.startsWith('OWN_ANNUL_REVIEW_'),'one discordant affected employee rejects the complete historical outcome before detail IO');
+ assert.equal(corruptedOutcomeReads,0);
  // Record a measured full legacy response or its actual capacity rejection.
  // Historical full payloads are not trimmed/relabelled into the new index.
  const measureLegacy=async label=>{const snapshot=context.readSnapshot();try{const value=await annul('detail',query);measurements.legacyConsolidated.push({label,status:'complete',bytes:bytes(value),runs:value.runs.length});assert.ok(bytes(value)<=FULL);}catch(error){if(error.code!=='OWN_LIQ_LIMIT'||error.status!==422)throw error;measurements.legacyConsolidated.push({label,status:'rejected-limit',bytes:null});}assert.deepEqual(context.readSnapshot(),snapshot);};
@@ -152,6 +172,20 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  // A second actual group gives the browser its own honest855/3 command. This
  // is the same population and programme, not another fixture or foundation.
  const browserGroup=await createMixedGroup('browser-three');index=browserGroup.index;assert.equal(index.index.length,8);
+ // A later real confirmation belongs to the new captures, while the original
+ // annulment and its original amounts remain queryable as history.
+ const reconfirmedOutcomeReads=[],reconfirmedOutcomeSnapshot=context.readSnapshot();
+ const reconfirmedOutcome=await loadOwnAnnulOutcome(index,receipt,async id=>{reconfirmedOutcomeReads.push(id);return readDetail(id,'registered-outcome-after-reconfirmation');});
+ assert.deepEqual(reconfirmedOutcomeReads,mixed.captures.map(capture=>capture.id).sort());assert.equal(reconfirmedOutcomeReads.length,3);
+ assert.equal(reconfirmedOutcome.count,855);assert.equal(reconfirmedOutcome.runCount,3);assert.equal(reconfirmedOutcome.complete,true);assert.equal(reconfirmedOutcome.confirmedAgainCount,855);
+ assert.equal(reconfirmedOutcome.key,receipt.key);assert.equal(reconfirmedOutcome.receiptId,receipt.id);assert.deepEqual(reconfirmedOutcome.rows.map(row=>row.contractId),contracts);
+ assert.deepEqual(reconfirmedOutcome.totals,{gross:'101061.00',deduction:'0.00',net:'101061.00'});
+ for(let n=0;n<browserGroup.captures.length;n++){
+  const expectedIds=new Set(partitionIds[n]),rows=reconfirmedOutcome.rows.filter(row=>expectedIds.has(row.contractId));assert.equal(rows.length,285);
+  assert.ok(rows.every(row=>row.confirmedAgainIn===browserGroup.captures[n].id&&mixed.captures.some(capture=>capture.id===row.runId)));
+ }
+ assert.deepEqual(context.readSnapshot(),reconfirmedOutcomeSnapshot,'ANNUL208_RECONFIRMATION_OUTCOME_IS_READ_ONLY');
+ ok(true,'all855 prior annulment rows remain visible after real confirmations in the three new captures, without replacing historical results');
  let readAfterReconfirm=0;await context.sameStateReject(()=>loadOwnAnnulPreparation(index,receipt,dates[0],async id=>{readAfterReconfirm++;return readDetail(id,'must-not-read-reconfirmed');}),error=>error.code==='OWN_ANNUL_REVIEW_CONFIRMED_AGAIN','actual current confirmation rejects whole historical preparation before detail IO');assert.equal(readAfterReconfirm,0);
  await measureLegacy('eight-real-captures-three-active');
  const browser=await verifyOwnAnnulmentV2BrowserOn190(Object.freeze({...context,installation208,iam,measurements,synthetic:true}),{captures:browserGroup.captures,index,partitionIds,receiptHistory});

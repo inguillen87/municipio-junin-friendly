@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
-import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
+import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),hash=value=>createHash('sha256').update(value).digest('hex');
 
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
@@ -182,5 +182,18 @@ test('registered annulment outcome sources recover exact05031ab before209 and208
   assert.equal(hash(source),pin.after,file+' whole candidate');
   assert.equal(hash(projectOwnAnnulOutcomeToHead(file,source)),digest,file+' complete outcome inverse');
   assert.throws(()=>projectOwnAnnulOutcomeToHead(file,source+' '),assert.AssertionError,file+' whole-source mismatch must reject');
+ }
+});
+
+test('canonical208 QA source reverses exactR2 and reviewedR1 before the unchanged public208 source; appended bytes reject without importing208',()=>{
+ const expected={
+  'scripts/lib/own-payroll-annulment-v2-native-browser.mjs':{before:'ab12aa395f712400843a0a70fcd6db2d6b45c0188acd3703f03c4f4c545af24e',reviewedR1:'29748f03853a2272572434f3784af2557042705035174d13a520bd5971543545',after:'bba93c75b0b8095cd97acfd90a66387a70bab7c6dba8fade3c81381abb49a472'},
+  'scripts/lib/own-payroll-annulment-v2-native-continuation.mjs':{before:'909dc8084015ec937b94eeb7e031d113a92bda26767bdf7e88cbd483482fecd9',reviewedR1:'5012ca314c5e286348fefcdb4b0f15fa46702c11fe3a7f624bdd4f9dc3662a30',after:'5ac17d7261e45010c9851b8fb962fe8e5b6e03af1523a190e26765723565f122'}
+ };
+ assert.deepEqual(OWN_ANNUL_OUTCOME_208_SOURCE_PINS,expected);
+ for(const[file,pin]of Object.entries(expected)){
+  const source=read(file);assert.equal(hash(source),pin.after,file+' selectedR2 whole source');
+  assert.equal(hash(projectOwnAnnulOutcome208ToHead(file,source)),pin.before,file+' complete two-epoch inverse');
+  assert.throws(()=>projectOwnAnnulOutcome208ToHead(file,source+' '),assert.AssertionError,file+' appended208 bytes must reject as source, never execute');
  }
 });
