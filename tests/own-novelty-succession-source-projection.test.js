@@ -8,7 +8,9 @@ import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} f
 import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
 import {OWN_CURRENT190_UI_SOURCE_PINS,OWN_CURRENT190_UI_NEW_SOURCE_PINS,projectCurrent190UiRawSourceToParent} from './fixtures/current190-ui-source-projection.js';
 import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS,projectCurrent190RevocationRawSourceToParent} from './fixtures/current190-revocation-source-projection.js';
-const read=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url)))))).toString('utf8').replace(/\r\n?/g,'\n');
+import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
+const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url)));
+const read=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file))))).toString('utf8').replace(/\r\n?/g,'\n');
 const hash=value=>createHash('sha256').update(value).digest('hex');
 
 function assertBothEpochs(source){

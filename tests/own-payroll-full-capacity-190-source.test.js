@@ -9,7 +9,9 @@ import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} f
 import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
 import {OWN_CURRENT190_UI_SOURCE_PINS,OWN_CURRENT190_UI_NEW_SOURCE_PINS,projectCurrent190UiRawSourceToParent} from './fixtures/current190-ui-source-projection.js';
 import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS,projectCurrent190RevocationRawSourceToParent} from './fixtures/current190-revocation-source-projection.js';
-const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
+import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
+const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file)))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
 const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
@@ -460,7 +462,7 @@ test('native645 causal source custody pins every current source and restores com
  assert.equal(expected.length,13);assert.equal(new Set(expected).size,13);assert.deepEqual(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).sort(),expected.sort());
  assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
  for(const [file,pin] of Object.entries(OWN_NATIVE645_CAUSAL_SOURCE_PINS)){
-  const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)))));assert.equal(current.length,pin.afterBytes,file+' exact raw current bytes');assert.equal(hash(current),pin.after,file+' complete raw current SHA');
+  const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file))));assert.equal(current.length,pin.afterBytes,file+' exact raw current bytes');assert.equal(hash(current),pin.after,file+' complete raw current SHA');
   const parent=projectOwnNative645RawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before,file+' complete bcae parent');
   assert.throws(()=>projectOwnNative645RawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
   const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwnNative645RawSourceToParent(file,changed));
@@ -474,13 +476,13 @@ test('owner raw-reader successors retain exact current bytes, complete overlay17
  assert.equal(expected.length,8);assert.equal(new Set(expected).size,8);assert.deepEqual(Object.keys(OWNER_READER_CALLER_SOURCE_PINS).sort(),expected.sort());
  assert.equal(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).length,13);assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
  for(const [file,pin]of Object.entries(OWNER_READER_CALLER_SOURCE_PINS)){
-  const current=projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));assert.equal(current.length,pin.afterBytes,file+' reader14 parent raw bytes after UI succession');assert.equal(hash(current),pin.after,file+' reader14 parent raw SHA after UI succession');
+  const current=projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file)));assert.equal(current.length,pin.afterBytes,file+' reader14 parent raw bytes after UI succession');assert.equal(hash(current),pin.after,file+' reader14 parent raw SHA after UI succession');
   const parent=projectOwnerReaderCallerRawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes,file+' complete overlay17 parent bytes');assert.equal(hash(parent),pin.before,file+' complete overlay17 parent SHA');
   assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
   const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,changed));assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,parent));
  }
  const added=['scripts/lib/owner-qa-source-closure-reader.mjs','tests/owner-qa-source-closure-reader.test.js'];assert.deepEqual(Object.keys(OWNER_READER_CALLER_NEW_SOURCE_PINS).sort(),added.sort());
- for(const[file,pin]of Object.entries(OWNER_READER_CALLER_NEW_SOURCE_PINS)){const bytes=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(bytes.length,pin.bytes);assert.equal(hash(bytes),pin.sha256,file+' unchanged reviewed raw-reader source');}
+ for(const[file,pin]of Object.entries(OWNER_READER_CALLER_NEW_SOURCE_PINS)){const bytes=receipt126ParentRaw(file);assert.equal(bytes.length,pin.bytes);assert.equal(hash(bytes),pin.sha256,file+' unchanged reviewed raw-reader source');}
  const unknown=Buffer.from('unrelated raw source');assert.strictEqual(projectOwnerReaderCallerRawSourceToParent('tests/unknown-owner-reader-source.js',unknown),unknown);
 });
 test('current190 UI succession pins exact physical sources and restores complete reader14 parents without widening old epochs',()=>{
@@ -488,13 +490,13 @@ test('current190 UI succession pins exact physical sources and restores complete
  assert.equal(expected.length,5);assert.deepEqual(Object.keys(OWN_CURRENT190_UI_SOURCE_PINS).sort(),expected.sort());
  assert.equal(Object.keys(OWNER_READER_CALLER_SOURCE_PINS).length,8);assert.equal(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).length,13);assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
  for(const[file,pin]of Object.entries(OWN_CURRENT190_UI_SOURCE_PINS)){
-  const current=projectCurrent190RevocationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));assert.equal(current.length,pin.afterBytes,file+' complete UI074 parent raw bytes');assert.equal(hash(current),pin.after,file+' complete UI074 parent raw SHA');
+  const current=projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file));assert.equal(current.length,pin.afterBytes,file+' complete UI074 parent raw bytes');assert.equal(hash(current),pin.after,file+' complete UI074 parent raw SHA');
   const parent=projectCurrent190UiRawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before,file+' complete reader14 parent');
   assert.throws(()=>projectCurrent190UiRawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
   const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectCurrent190UiRawSourceToParent(file,changed));assert.throws(()=>projectCurrent190UiRawSourceToParent(file,parent),undefined,file+' old epoch cannot stand in for the current source');
  }
  const added=['scripts/lib/own-payroll-liquidation-current190-regressions-browser.mjs','scripts/lib/own-payroll-liquidation-current190-continuation-browser.mjs','scripts/lib/own-payroll-initial-empty-current190-browser.mjs','scripts/lib/own-payroll-agreement-annulment-current190-browser.mjs'];assert.equal(added.length,4);assert.deepEqual(Object.keys(OWN_CURRENT190_UI_NEW_SOURCE_PINS).sort(),added.sort());
- for(const[file,pin]of Object.entries(OWN_CURRENT190_UI_NEW_SOURCE_PINS)){const raw=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256,file+' complete new UI source');}
+ for(const[file,pin]of Object.entries(OWN_CURRENT190_UI_NEW_SOURCE_PINS)){const raw=receipt126ParentRaw(file);assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256,file+' complete new UI source');}
  // The five actual writers have closed, different source-asset profiles. This
  // FS-only assertion compares declarations; it does not invoke an artifact reader.
  const artifactSource=projectCurrent190RevocationRawSourceToParent('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',fs.readFileSync(new URL('../scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',import.meta.url))).toString('utf8');
@@ -521,15 +523,56 @@ test('actual SQL revocation source succession keeps five previous artifacts and 
  const expected=['scripts/lib/own-payroll-full-capacity-190-continuation.mjs','scripts/lib/own-annulment-preparation-209-actors-fixture.mjs','scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs','scripts/verify-own-payroll-annulment-v2-full-capacity.mjs','tests/fixtures/own-payroll-full-capacity-190-source-projection.js'];
  assert.deepEqual(Object.keys(OWN_CURRENT190_REVOCATION_SOURCE_PINS).sort(),expected.sort());assert.equal(Object.keys(OWN_CURRENT190_UI_SOURCE_PINS).length,5);assert.equal(Object.keys(OWNER_READER_CALLER_SOURCE_PINS).length,8);assert.equal(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).length,13);
  for(const[file,pin]of Object.entries(OWN_CURRENT190_REVOCATION_SOURCE_PINS)){
-  const raw=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(raw.length,pin.afterBytes);assert.equal(hash(raw),pin.after,file+' current revocation raw bytes');
+  const raw=receipt126ParentRaw(file);assert.equal(raw.length,pin.afterBytes);assert.equal(hash(raw),pin.after,file+' current revocation raw bytes');
   const parent=projectCurrent190RevocationRawSourceToParent(file,raw);assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before,file+' complete074 parent');
   assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,Buffer.concat([raw,Buffer.from('\n-- unreviewed')])));const changed=Buffer.from(raw);changed[0]^=1;assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,changed));assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,parent));
  }
- const file='scripts/lib/own-payroll-sql-revocation-current190-browser.mjs';assert.deepEqual(Object.keys(OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS),[file]);const raw=fs.readFileSync(new URL('../'+file,import.meta.url)),pin=OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS[file];assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256);
+ const file='scripts/lib/own-payroll-sql-revocation-current190-browser.mjs';assert.deepEqual(Object.keys(OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS),[file]);const raw=receipt126ParentRaw(file),pin=OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS[file];assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256);
  const entry='scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',entryRaw=fs.readFileSync(new URL('../'+entry,import.meta.url)),source=entryRaw.toString('utf8'),parent=projectCurrent190RevocationRawSourceToParent(entry,entryRaw).toString('utf8');
  const profiles=text=>{const match=/^const current190UiArtifactProfiles=Object.freeze\((\{[^\n]+\})\);$/m.exec(text);assert.ok(match);return JSON.parse(match[1]);},current=profiles(source),previous=profiles(parent),sixth='liquidation124-actual-sql-revocation-browser/report.json';
  assert.equal(Object.keys(current).length,6);assert.equal(Object.keys(previous).length,5);const{[sixth]:revocationProfile,...preserved}=current;assert.deepEqual(preserved,previous,'the first five writer profiles are identical to074');
  const assets=/const ASSETS=Object.freeze\((\[[\s\S]*?\])\);/.exec(raw.toString('utf8'));assert.ok(assets);const declared=[...assets[1].matchAll(/'([^']+\.js)'/g)].map(row=>'assets/'+row[1]);assert.equal(declared.length,7);assert.deepEqual([...revocationProfile].sort(),declared.sort());
  for(const token of ["reconcileCurrent190UiArtifact(destination,'liquidation124-actual-sql-revocation-browser/report.json',revocationWriter,sqlRevocation.captureReference,report)",'assert.equal(current190UiArtifacts.length,6)','const {capture:revocationCapture,...revocationWriter}=sqlRevocation','assert.deepEqual(sqlRevocation.captureReference,browserArtifactCaptureReference(sqlRevocation.capture))'])assert.ok(source.includes(token),token);
  const unknown=Buffer.from('unrelated revocation source');assert.strictEqual(projectCurrent190RevocationRawSourceToParent('tests/unknown-revocation.js',unknown),unknown);
+});
+
+test('receipt126 finite RAW succession retains eleven complete parents and all eight new source files',()=>{
+ const expected=[
+  'scripts/lib/own-payroll-full-capacity-190-continuation.mjs',
+  'scripts/verify-municipal-owner-program.mjs',
+  'scripts/lib/own-payroll-full-capacity-190-rpc.mjs',
+  'scripts/verify-own-payroll-full-capacity.mjs',
+  'scripts/lib/owner-qa-source-closure-reader.mjs',
+  'tests/owner-qa-source-closure-reader.test.js',
+  'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',
+  'scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs',
+  'tests/own-payroll-full-capacity-190-source.test.js',
+  'tests/own-accounting-imputation-190-source.test.js',
+  'tests/own-novelty-succession-source-projection.test.js'
+ ];
+ assert.deepEqual(Object.keys(OWN_RECEIPT126_CONSUMER_SOURCE_PINS).sort(),expected.sort());
+ for(const[file,pin]of Object.entries(OWN_RECEIPT126_CONSUMER_SOURCE_PINS)){
+  const current=fs.readFileSync(new URL('../'+file,import.meta.url));
+  assert.equal(current.length,pin.afterBytes,file+' complete current raw bytes');assert.equal(hash(current),pin.after,file+' complete current raw SHA');
+  const parent=projectReceipt126ConsumerRawSourceToParent(file,current);
+  assert.equal(parent.length,pin.beforeBytes,file+' complete historical parent raw bytes');assert.equal(hash(parent),pin.before,file+' complete historical parent raw SHA');
+  assert.throws(()=>projectReceipt126ConsumerRawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
+  const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectReceipt126ConsumerRawSourceToParent(file,changed));
+  assert.throws(()=>projectReceipt126ConsumerRawSourceToParent(file,parent));
+ }
+ const additions=[
+  'scripts/lib/own-payroll-receipt126-same190-support.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-shape.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-installation.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-actors.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-circuit.mjs',
+  'scripts/lib/own-payroll-receipt126-backend-190-continuation.mjs',
+  'tests/receipt126/own-payroll-receipt126-pdf-oracle.test.mjs',
+  'tests/own-payroll-receipt126-pdf-oracle.test.js'
+ ];
+ assert.deepEqual(Object.keys(OWN_RECEIPT126_NEW_SOURCE_PINS).sort(),additions.sort());
+ for(const[file,pin]of Object.entries(OWN_RECEIPT126_NEW_SOURCE_PINS)){
+  const bytes=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(bytes.length,pin.bytes);assert.equal(hash(bytes),pin.sha256,file+' complete newly reviewed raw source');
+ }
+ const unrelated=Buffer.from('unrelated source remains the exact input');assert.strictEqual(projectReceipt126ConsumerRawSourceToParent('tests/unrelated-receipt126-source.js',unrelated),unrelated);
 });
