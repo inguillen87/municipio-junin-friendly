@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
-const read=file=>projectOwnNative645RawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url))).toString('utf8').replace(/\r\n?/g,'\n');
+import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
+const read=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url)))).toString('utf8').replace(/\r\n?/g,'\n');
 const hash=value=>createHash('sha256').update(value).digest('hex');
 
 function assertBothEpochs(source){

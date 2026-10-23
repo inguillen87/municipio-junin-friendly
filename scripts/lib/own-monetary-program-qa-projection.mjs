@@ -21,7 +21,7 @@ const SOURCES=Object.freeze({
  'scripts/lib/own-payroll-installation.mjs':'6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0',
  'scripts/lib/own-monthly-day-engine-source-qa.mjs':'d013cdd06d2f16e0196db3675c874a9f2765d5a3c42539cdd7e228684a4de8f1',
  'scripts/lib/own-monthly-day-policy-qa.mjs':'d711476b6673dd5c0e2e08606016c7294966677fe3b832674f0c4ebcadf8aca4',
- 'scripts/verify-municipal-owner-adoption-authority.mjs':'a010b5a99f17a3546d283213facd3e00138a6bd8aac35865fd5376db1c34c4f7',
+ 'scripts/verify-municipal-owner-adoption-authority.mjs':'6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb',
 });
 const body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'MONETARY_QA_FUNCTION_BODY_REQUIRED');return m[2];};
 const header=d=>{const at=d.search(/\bAS\s+\$/);assert.ok(at>0,'MONETARY_QA_FUNCTION_HEADER_REQUIRED');return d.slice(0,at).replace(/SET search_path TO 'pg_catalog',\s*'public',\s*'pg_temp'/g,'SET search_path=pg_catalog,public,pg_temp').replace(/SET (?:(?:"TimeZone"|timezone) TO|timezone=)\s*'UTC'/g,"SET timezone='UTC'").replace(/\s+/g,' ').trim()+' '+d.slice(at);};

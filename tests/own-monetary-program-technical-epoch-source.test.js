@@ -25,7 +25,7 @@ test('source bookends invoke the real public validator with committed bytes',()=
 });
 
 test('the frozen host closure retains complete scope and the pinned v2 sources',()=>{
- const text=read();tokens(text,["['closure','committedBytes','sourceCommit']","value.sourceCommit,qa.sourceCommit,'MONETARY_TECHNICAL_SOURCE_COMMIT_CHANGED'","['externalModules','externalParser','files']",'for(const path of[SELF_SOURCE,...Object.keys(qa.sourceHashes)])',"90dba05d5c0f5163707cb452c0f5da599284b35319d732a50ebcd7dfeb44d1b5","0c55c03740a792e86061dbd8bcc05fb80969d46a5d2ca58969d5789532ecd243","a010b5a99f17a3546d283213facd3e00138a6bd8aac35865fd5376db1c34c4f7",'return Object.freeze(Object.fromEntries(entries))','const closure=Object.freeze({files,externalModules:Object.freeze([...original.externalModules])']);
+ const text=read();tokens(text,["['closure','committedBytes','sourceCommit']","value.sourceCommit,qa.sourceCommit,'MONETARY_TECHNICAL_SOURCE_COMMIT_CHANGED'","['externalModules','externalParser','files']",'for(const path of[SELF_SOURCE,...Object.keys(qa.sourceHashes)])',"9a67899adb5ad25630321d6dfe3abfdd9581699795b4298e7a586e1241ae604f","0c55c03740a792e86061dbd8bcc05fb80969d46a5d2ca58969d5789532ecd243","6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb",'return Object.freeze(Object.fromEntries(entries))','const closure=Object.freeze({files,externalModules:Object.freeze([...original.externalModules])']);
  assert.equal(text.includes('files[path]=proof'),false);
 });
 

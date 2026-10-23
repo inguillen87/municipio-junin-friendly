@@ -6,7 +6,8 @@ import {createHash} from 'node:crypto';
 import {ownAccountingImputation190SourceProjection as p} from './fixtures/own-accounting-imputation-190-source-projection.js';
 import {projectOwnCloseBrowserSourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
-const raw=file=>projectOwnNative645RawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
+import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
+const raw=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)))),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
 
 test('accounting/imputation190 private overlay pins whole sources and reverses each complete parent target',()=>{
  for(const target of p.targets){

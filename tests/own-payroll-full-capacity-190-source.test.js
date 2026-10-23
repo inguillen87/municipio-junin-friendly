@@ -6,7 +6,8 @@ import {createHash} from 'node:crypto';
 import {ownFullCapacity190SourceProjection as p} from './fixtures/own-payroll-full-capacity-190-source-projection.js';
 import {OWN_ANNUL_OUTCOME_SOURCE_PINS,projectOwnAnnulOutcomeToHead,OWN_ANNUL_OUTCOME_208_SOURCE_PINS,projectOwnAnnulOutcome208ToHead,OWN_ANNULMENT29_SOURCE_PINS,projectOwnAnnulment29SourceToParent,OWN_CLOSE_BROWSER_SOURCE_PINS,projectOwnCloseBrowserSourceToParent,OWN_CLOSE_BROWSER_CONSUMER_SOURCE_PINS,projectOwnCloseBrowserConsumerSourceToParent,OWN_NOVELTY197_ALIAS_SOURCE_PINS,projectOwnNovelty197AliasSourceToParent,OWN_CLAUDE209_HANDOFF_SOURCE_PINS,OWN_CLAUDE209_HANDOFF_NEW_SOURCE_PINS,projectOwnClaude209HandoffSourceToParent,OWN_INDIVIDUAL_HANDOFF_SOURCE_PINS,projectOwnIndividualHandoffSourceToParent,OWN_CLAUDE124_ENTRY_SOURCE_PINS,OWN_CLAUDE124_NEW_SOURCE_PINS,projectOwnClaude124EntrySourceToParent,OWN_MONETARY_SOURCE_PINS,OWN_MONETARY_NEW_SOURCE_PINS,OWN_MONETARY_REFERENCE_SOURCE_PINS,projectOwnMonetarySourceToParent} from './fixtures/own-payroll-annulment-preparation-source-projection.js';
 import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
-const historicalRaw=(file,encoding)=>{const current=fs.readFileSync(new URL('../'+file,import.meta.url)),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
+import {OWNER_READER_CALLER_SOURCE_PINS,OWNER_READER_CALLER_NEW_SOURCE_PINS,projectOwnerReaderCallerRawSourceToParent} from './fixtures/owner-reader-callers-source-projection.js';
+const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
 const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
@@ -24,7 +25,7 @@ function projectOwnD7ArtifactWorkflowToParent(file,value){
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
  const rules=fs.readFileSync(new URL('../.vercelignore',import.meta.url),'utf8').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
  const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
- for(const file of [...Object.keys({...p.candidatePins,...p.dependencies}),'tests/fixtures/native645-causal-source-projection.js'])assert.ok(included(file),'Build dependency excluded: '+file);
+ for(const file of [...Object.keys({...p.candidatePins,...p.dependencies}),'tests/fixtures/native645-causal-source-projection.js','tests/fixtures/owner-reader-callers-source-projection.js','scripts/lib/owner-qa-source-closure-reader.mjs','tests/owner-qa-source-closure-reader.test.js'])assert.ok(included(file),'Build dependency excluded: '+file);
  for(const file of ['.handoff/result.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/result.json','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
 });
 test('M7 source bytes pin the exact canonical190 overlay and admitted source dependencies',()=>{
@@ -457,11 +458,26 @@ test('native645 causal source custody pins every current source and restores com
  assert.equal(expected.length,13);assert.equal(new Set(expected).size,13);assert.deepEqual(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).sort(),expected.sort());
  assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
  for(const [file,pin] of Object.entries(OWN_NATIVE645_CAUSAL_SOURCE_PINS)){
-  const current=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(current.length,pin.afterBytes,file+' exact raw current bytes');assert.equal(hash(current),pin.after,file+' complete raw current SHA');
+  const current=projectOwnerReaderCallerRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));assert.equal(current.length,pin.afterBytes,file+' exact raw current bytes');assert.equal(hash(current),pin.after,file+' complete raw current SHA');
   const parent=projectOwnNative645RawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before,file+' complete bcae parent');
   assert.throws(()=>projectOwnNative645RawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
   const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwnNative645RawSourceToParent(file,changed));
   assert.throws(()=>projectOwnNative645RawSourceToParent(file,parent),undefined,file+' cannot mix old and new source epochs');
  }
  const unknown=Buffer.from('unrelated inert bytes');assert.strictEqual(projectOwnNative645RawSourceToParent('tests/unknown-native645-source.js',unknown),unknown);
+});
+
+test('owner raw-reader successors retain exact current bytes, complete overlay17 parents and both new reviewed sources',()=>{
+ const expected=["scripts/verify-municipal-owner-program.mjs","scripts/verify-municipal-owner-adoption-authority.mjs","scripts/lib/own-monetary-program-qa-projection.mjs","scripts/lib/own-monetary-program-technical-epoch.mjs","tests/own-monetary-program-technical-epoch-source.test.js","tests/own-monetary-program-qa-foundation-source.test.js","tests/municipal-owner-adoption-authority-qa.test.js","tests/fixtures/own-payroll-full-capacity-190-source-projection.js"];
+ assert.equal(expected.length,8);assert.equal(new Set(expected).size,8);assert.deepEqual(Object.keys(OWNER_READER_CALLER_SOURCE_PINS).sort(),expected.sort());
+ assert.equal(Object.keys(OWN_NATIVE645_CAUSAL_SOURCE_PINS).length,13);assert.equal(Object.keys(p.candidatePins).length,102);assert.equal(Object.keys(p.dependencies).length,51);
+ for(const [file,pin]of Object.entries(OWNER_READER_CALLER_SOURCE_PINS)){
+  const current=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(current.length,pin.afterBytes,file+' physical current raw bytes');assert.equal(hash(current),pin.after,file+' physical current raw SHA');
+  const parent=projectOwnerReaderCallerRawSourceToParent(file,current);assert.equal(parent.length,pin.beforeBytes,file+' complete overlay17 parent bytes');assert.equal(hash(parent),pin.before,file+' complete overlay17 parent SHA');
+  assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed trailer')])));
+  const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,changed));assert.throws(()=>projectOwnerReaderCallerRawSourceToParent(file,parent));
+ }
+ const added=['scripts/lib/owner-qa-source-closure-reader.mjs','tests/owner-qa-source-closure-reader.test.js'];assert.deepEqual(Object.keys(OWNER_READER_CALLER_NEW_SOURCE_PINS).sort(),added.sort());
+ for(const[file,pin]of Object.entries(OWNER_READER_CALLER_NEW_SOURCE_PINS)){const bytes=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(bytes.length,pin.bytes);assert.equal(hash(bytes),pin.sha256,file+' unchanged reviewed raw-reader source');}
+ const unknown=Buffer.from('unrelated raw source');assert.strictEqual(projectOwnerReaderCallerRawSourceToParent('tests/unknown-owner-reader-source.js',unknown),unknown);
 });
