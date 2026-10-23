@@ -108,6 +108,7 @@ jobs:
             scripts/lib/own-payroll-report-census-authority.mjs
             scripts/lib/own-payroll-report-census-ledger.mjs
             scripts/lib/own-payroll-report-census-190-continuation.mjs
+            scripts/lib/own-payroll-report-census-067-runtime-fixture.mjs
             tests/fixtures/own-payroll-report-census-legacy-synthetic.js
             tests/fixtures/own-payroll-report-census-program-synthetic.js
             tests/own-payroll-report-census-program-synthetic.test.js

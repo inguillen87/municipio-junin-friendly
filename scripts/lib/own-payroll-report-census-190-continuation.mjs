@@ -6,6 +6,7 @@ import {ownerProgramQaAccessSql,ownerProgramQaAccess,ownerProgramQaUnrelatedSnap
 import {buildOwnReportCensusInstallation,assertOwnReportCensusDurability} from './own-payroll-report-census-installation.mjs';
 import {buildOwnReportCensus190IamFixture,assertOwnReportCensus190IamFixture} from './own-payroll-report-census-190-iam-fixture.mjs';
 import {ownReportCensusQaResult} from './own-payroll-report-census-qa-rpc.mjs';
+import {buildOwnReportCensus067RuntimeFixture,assertOwnReportCensus067RuntimeFixture} from './own-payroll-report-census-067-runtime-fixture.mjs';
 import {createNativeEmployeeHandler} from '../../api/internal-native-employees.js';
 import {createEmploymentChangesHandler} from '../../api/internal-employment-changes.js';
 import {createOwnProgramHandler} from '../../api/internal-own-payroll-program.js';
@@ -97,6 +98,7 @@ function operationalActors(h,hires){
 export async function runOwnReportCensus190Continuation(raw){
  const h=bindOwnReportCensus190Context(raw),{qa,api,setActor}=h;
  const iam=buildOwnReportCensus190IamFixture({qa,read:h.read}),iamProof=h.json(iam.statements),iamChecked=assertOwnReportCensus190IamFixture(iam,iamProof);
+ const runtime067=buildOwnReportCensus067RuntimeFixture({qa,read:h.read}),runtime067Proof=h.json(runtime067.statements),runtime067Checked=assertOwnReportCensus067RuntimeFixture(runtime067,runtime067Proof);
  const installation=await installCensus(h);
  const now=h.json([`SELECT jsonb_build_object('period',to_char(statement_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM'),'firstDate',to_char(date_trunc('month',statement_timestamp() AT TIME ZONE 'America/Argentina/Mendoza'),'YYYY-MM-DD'),'nativeCount',(SELECT count(*) FROM ${qa.schema}.native_employee_registration))`],{readOnly:true});
  // Existing190 synthetic definitions are explicitly dated2026-10. A later
@@ -147,7 +149,7 @@ export async function runOwnReportCensus190Continuation(raw){
  await assert.rejects(()=>verifiedOwnReportBundle(reportQuery,[next,sac],[original]));const reopenedBundle=await verifiedOwnReportBundle(reportQuery,[next,sac],[]);assert.equal(reopenedBundle.employees.length,0);assert.notEqual(reopenedBundle.proof,bundle.proof);assert.deepEqual(h.fixtureSnapshot(),afterReopen);
  h.check('M8 actual reopen changes full event fingerprint, preserves original group and rejects its inclusion as an active report group');
   const legacyFormats=await runOwnReportCensus190LegacyReaders(h,{installation,currentPeriod:now.period,currentCensus:next,checkDurability:assertOwnReportCensusDurability});
-  return{version:'own-report-census-canonical190-native-qa.v1',passed:true,actualSql:true,actualHandlers:true,sourceCommit:h.sourceCommit,period:now.period,operationalPairBaseline:'published107',newNativeEmployees:2,newUsers:2,newMemberships:2,newSessions:2,newEmploymentLinks:2,authenticationFixture:true,accountProvisioningApiProven:false,native113OwnershipGuardProven:true,rolesChanged:0,functionsSubstituted:0,initialNativePopulation:now.nativeCount,closedEmployeeCount:contracts.length,populationComplete:true,iamChecked,installation:{installed:installation.installed,durable:installation.durable,repeated:installation.repeated,populated,populatedDurable},currentCalculationFormats:{input:calculated.saved.input.version,result:calculated.saved.result.version,closeSnapshot:closed.snapshot.version},legacyFormats,reportRows:document.rows.length,unchangedOperationalSacCode:denied.code,conservedOriginalGroup:true,reopenChangesCensus:true,completeSnapshotReadsPreserved:true,trace:h.trace,productionWrites:0,municipalAcceptance:false};
+  return{version:'own-report-census-canonical190-native-qa.v1',passed:true,actualSql:true,actualHandlers:true,sourceCommit:h.sourceCommit,period:now.period,operationalPairBaseline:'published107',newNativeEmployees:2,newUsers:2,newMemberships:2,newSessions:2,newEmploymentLinks:2,authenticationFixture:true,accountProvisioningApiProven:false,native113OwnershipGuardProven:true,rolesChanged:0,functionsSubstituted:0,initialNativePopulation:now.nativeCount,closedEmployeeCount:contracts.length,populationComplete:true,iamChecked,runtime067Checked,installation:{installed:installation.installed,durable:installation.durable,repeated:installation.repeated,populated,populatedDurable},currentCalculationFormats:{input:calculated.saved.input.version,result:calculated.saved.result.version,closeSnapshot:closed.snapshot.version},legacyFormats,reportRows:document.rows.length,unchangedOperationalSacCode:denied.code,conservedOriginalGroup:true,reopenChangesCensus:true,completeSnapshotReadsPreserved:true,trace:h.trace,productionWrites:0,municipalAcceptance:false};
 }
 
 // The complete existing200 preservation snapshot is retained. Only the ledger's
