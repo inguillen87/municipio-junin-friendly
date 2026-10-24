@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 import {setImmediate as turn} from 'node:timers/promises';
 import {mountOwnSalarySeniority} from '../assets/own-salary-seniority-panel.js';
 import {mountOwnContractWorkingTime} from '../assets/own-contract-working-time-panel.js';
+import {mountOwnPeriodArtDays} from '../assets/own-art-days-panel.js';
+import {mountOwnPeriodFiscalFacts} from '../assets/own-fiscal-facts-panel.js';
 import {SENIORITY_READ,SENIORITY_VERSION,seniorityHash} from '../assets/own-salary-seniority-model.js';
 import {WORKING_TIME_READ,WORKING_TIME_VERSION,workingTimeHash} from '../assets/own-contract-working-time-model.js';
+import {ART_DAYS_READ,ART_DAYS_VERSION,artDaysHash} from '../assets/own-art-days-model.js';
+import {FISCAL_FACTS_READ,FISCAL_FACTS_VERSION,fiscalFactsHash} from '../assets/own-fiscal-facts-model.js';
 import {syntheticSeniorityBootstrap,syntheticSeniorityDefinition} from './fixtures/own-salary-seniority-synthetic.js';
 import {syntheticWorkingTimeBootstrap,syntheticWorkingTimeDefinition} from './fixtures/own-contract-working-time-synthetic.js';
+import {syntheticArtDaysBootstrap,syntheticArtDaysDefinition} from './fixtures/own-art-days-synthetic.js';
+import {syntheticFiscalFactsBootstrap,syntheticFiscalFactsDefinition} from './fixtures/own-fiscal-facts-synthetic.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL} from '../assets/own-payroll-readiness-model.js';
 import {ParameterPanelElement,parameterPanelEnvironment} from './fixtures/parameter-recovery-panel-dom.js';
 
@@ -16,6 +22,8 @@ const id=n=>'bbbbbbbb-0000-4000-8000-'+String(n).padStart(12,'0');
 const cases=[
  {name:'seniority',task:'antiguedad',prefix:'seniority',mount:mountOwnSalarySeniority,boot:syntheticSeniorityBootstrap,definition:syntheticSeniorityDefinition,read:SENIORITY_READ,version:SENIORITY_VERSION,hash:seniorityHash,missing:'SENIORITY_NOT_FOUND',fields:d=>({years:d.years,months:d.months??''})},
  {name:'contract hours',task:'jornada',prefix:'working-time',mount:mountOwnContractWorkingTime,boot:syntheticWorkingTimeBootstrap,definition:syntheticWorkingTimeDefinition,read:WORKING_TIME_READ,version:WORKING_TIME_VERSION,hash:workingTimeHash,missing:'WORKING_TIME_NOT_FOUND',fields:d=>({dailyHours:d.dailyHours,monthlyHours:d.monthlyHours??''})},
+ {name:'ART days',task:'dias-art',prefix:'art-days',mount:mountOwnPeriodArtDays,boot:syntheticArtDaysBootstrap,definition:syntheticArtDaysDefinition,read:ART_DAYS_READ,version:ART_DAYS_VERSION,hash:artDaysHash,missing:'ART_DAYS_NOT_FOUND',fields:d=>({workedDays:d.workedDays??''})},
+ {name:'fiscal facts',task:'datos-fiscales',prefix:'fiscal-facts',mount:mountOwnPeriodFiscalFacts,boot:syntheticFiscalFactsBootstrap,definition:syntheticFiscalFactsDefinition,read:FISCAL_FACTS_READ,version:FISCAL_FACTS_VERSION,hash:fiscalFactsHash,missing:'FISCAL_FACTS_NOT_FOUND',fields:()=>({}),fill:(host,d)=>{const inputs=host.querySelectorAll('[data-fiscal-field]');assert.equal(inputs.length,Object.keys(d.fields).length);for(const input of inputs)input.value=d.fields[input.dataset.fiscalField]??'';}},
 ];
 function ownRoster(subject,tenantId){return{version:'native-roster.v2',origin:'MUNICONTROL',complete:true,today:'2026-10-01',queriedAt:'2026-10-01T12:00:00Z',scope:{tenantId,membershipId:id(102),bindingId:id(103),companyId:7},filters:{...OWN_PAYROLL_READINESS_FILTERS},total:1,people:1,counts:{active:1,pending_start:0,inactive:0,state_error:0,unknown:0},facets:{organization:['Sector QA'],sector:['Repartición QA'],agreement:['Convenio QA']},snapshot:'c'.repeat(64),rows:[{contractId:subject.contractId,registrationId:subject.registrationId,legajo:subject.legajo,name:subject.employeeName,dni:'99999990',cuil:'20999999906',sexCode:null,birthDate:'1990-01-01',startDate:'2026-09-01',endDate:null,status:'active',jurisdictionCode:'42',agreement:'Convenio QA',category:'Clase QA',organization:'Sector QA',sector:'Repartición QA',jobTitle:null,legalReference:'Resolución sintética QA',registeredAt:subject.registeredAt,recordKind:'adopted'}]};}
 async function harness(t,c){
@@ -54,7 +62,7 @@ async function harness(t,c){
  const selected=result.querySelector('input[type=radio]');assert.ok(selected,dialog.querySelector('[data-picker-state]').textContent);selected.checked=true;await selected.emit('change');await dialog.querySelector('[data-picker-apply]').emit('click');
  assert.equal(dialog.open,false);assert.equal(state.rosterReads,2,'Selection must re-read the complete own roster');
  q('period').value=boot.period;await q('refresh').emit('click');assert.equal(q('content').hidden,false,q('status').textContent);
- for(const [k,v]of Object.entries(c.fields(definition)))q(k).value=v;q('date').value=definition.asOfDate;q('document').value=definition.documentReference;q('reason').value='Declaración exclusivamente sintética QA';
+ for(const [k,v]of Object.entries(c.fields(definition)))q(k).value=v;c.fill?.(host,definition);q('date').value=definition.asOfDate;q('document').value=definition.documentReference;q('reason').value='Declaración exclusivamente sintética QA';
  await q('prepare').emit('click');q('confirm').checked=true;await q('confirm').emit('change');assert.equal(q('send').disabled,false,q('status').textContent);
  const hidden=()=>{env.document.hidden=true;env.events.dispatch('visibilitychange');};
  return{state,q,host,env,idle,hidden,definition,renew:()=>{state.auth.user.id=state.auth.user.id===id(100)?id(200):id(201);},lookupCount:()=>state.calls.filter(x=>x.url.includes('resource=attempt')).length,send:()=>q('send').emit('click'),recover:()=>q('recover').emit('click'),poll:()=>state.intervals.at(-1)()};
