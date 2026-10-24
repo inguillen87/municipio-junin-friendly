@@ -12,8 +12,23 @@ export function positionComparisonQuery(v){need(salaryExact(v,['year','revision'
 export function positionComparisonFilters(v){need(salaryExact(v,['active','order','view'])&&['all','yes','no'].includes(v.active)&&['number','name'].includes(v.order)&&['simple','detailed'].includes(v.view),'Revisá estado, orden y vista.');return {...v};}
 export const emptyPositionComparisonFilters=()=>({active:'all',order:'number',view:'simple'});
 const uuidSet=(list,key)=>{const s=new Set();for(const e of list){need(salaryUuid(e[key])&&!s.has(e[key]),'Una fuente está incompleta o repetida.');s.add(e[key]);}return s;};
+const populationSourceKeys=new Set(['employmentFacts','periodParticipation','workingTime','agreementWorkingTime','salaryConditions','periodContext','monthlyDays','monthlyDaysScope','monthlyDayDeclarations']);
+const sourceObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&Object.getPrototypeOf(v)===Object.prototype;
+async function verifiedPopulationProof(c){
+ const proof=c.populationProof;
+ need(salaryExact(proof,['version','shape','sources'])&&proof.version==='own-position-population-proof.v1'&&['employees','sources'].includes(proof.shape)&&sourceObject(proof.sources),'No se verificó la prueba de la población original.');
+ const keys=Object.keys(proof.sources);
+ need((proof.shape==='employees')===(keys.length===0)&&keys.every(k=>populationSourceKeys.has(k)&&sourceObject(proof.sources[k])),'La forma o las fuentes de la población original cambiaron.');
+ need(Object.hasOwn(proof.sources,'monthlyDays')===Object.hasOwn(proof.sources,'monthlyDaysScope'),'Los días originales necesitan su captura y ámbito completos.');
+ // Exactly one declared preimage, never an array/object fallback. Interior
+ // nulls, array order and all original source bytes as JSON remain significant.
+ const original=proof.shape==='employees'?c.population.employees:{employees:c.population.employees,...proof.sources};
+ need(await budgetHash(original)===c.population.version,'La huella de la población original no coincide con sus fuentes completas.');
+}
 export async function verifiedPositionComparison(v,query){
- need(salaryExact(v,['version','year','revision','period','liquidationType','scopeVersion','annual','complete','groups','employees','captures'])&&v.version==='own-position-comparison.v1'&&v.complete===true&&salaryHash(v.scopeVersion),'No se verificó la comparación completa.');
+ need(salaryExact(v,['version','year','revision','period','liquidationType','scopeVersion','annual','complete','groups','employees','captures'])&&['own-position-comparison.v1','own-position-comparison.v2'].includes(v.version)&&v.complete===true&&salaryHash(v.scopeVersion),'No se verificó la comparación completa.');
+ need(new TextEncoder().encode(salarySerialized(v)).byteLength<=COMPARISON_MAX_BYTES,'La comparación completa supera la capacidad; no se omitieron filas.');
+ const sourceProof=v.version==='own-position-comparison.v2';
  const q=positionComparisonQuery({year:v.year,revision:v.revision,period:v.period,liquidationType:v.liquidationType});if(query)need(Object.keys(q).every(k=>q[k]===query[k]),'La respuesta corresponde a otra consulta.');
  await verifiedAnnualBudgetBootstrap(v.annual,v.year);need(v.scopeVersion===v.annual.scopeVersion&&v.annual.proposals.some(p=>p.status==='approved'&&p.decision.revision===v.revision),'No se conservó la versión normativa elegida.');
  need(Array.isArray(v.groups)&&v.groups.length<=1000&&Array.isArray(v.employees)&&v.employees.length<=10000&&Array.isArray(v.captures)&&v.captures.length<=10000,'La consulta excede la capacidad completa. No se muestran filas parciales.');
@@ -21,9 +36,10 @@ export async function verifiedPositionComparison(v,query){
  for(const g of v.groups)need(salaryExact(g,['id','snapshotSha256','recordedAt','employeeCount','populationCount','populationComplete'])&&salaryHash(g.snapshotSha256)&&instant(g.recordedAt)&&Number.isInteger(g.employeeCount)&&g.employeeCount>0&&Number.isInteger(g.populationCount)&&g.populationCount>=g.employeeCount&&g.populationCount<=10000&&typeof g.populationComplete==='boolean'&&g.populationComplete===(g.employeeCount===g.populationCount),'Un grupo cerrado no informó su cobertura original.');
  const norms=new Map();for(const p of v.annual.proposals.filter(p=>p.status==='approved'))norms.set(p.decision.revision,{p,hash:await budgetHash(p.body.definition)});
  for(const c of v.captures){
-  need(salaryExact(c,['id','payloadSha256','population','positions','dimensions'])&&salaryHash(c.payloadSha256)&&salaryExact(c.population,['complete','version','employees'])&&c.population.complete===true&&salaryHash(c.population.version)&&Array.isArray(c.population.employees)&&c.population.employees.length>0&&c.population.employees.length<=10000,'La población original no está completa.');uuidSet(c.population.employees,'contractId');
+  need(salaryExact(c,['id','payloadSha256','population','positions','dimensions',...(sourceProof?['populationProof']:[])])&&salaryHash(c.payloadSha256)&&salaryExact(c.population,['complete','version','employees'])&&c.population.complete===true&&salaryHash(c.population.version)&&Array.isArray(c.population.employees)&&c.population.employees.length>0&&c.population.employees.length<=10000,'La población original no está completa.');uuidSet(c.population.employees,'contractId');
   for(const e of c.population.employees)need(salaryExact(e,['contractId','employeeNumber','agreementCode','categoryCode','departmentCode','identityToken','origin'])&&ownPayrollEmployeeNumber(e.employeeNumber)&&['agreementCode','categoryCode','departmentCode'].every(k=>code(e[k]))&&salaryHash(e.identityToken)&&e.origin==='MUNICONTROL','La población no corresponde a contratos propios.');
-  need(await budgetHash(c.population.employees)===c.population.version,'La huella de la población original no coincide.');
+  if(sourceProof)await verifiedPopulationProof(c);
+  else need(await budgetHash(c.population.employees)===c.population.version,'La huella de la población original no coincide.');
   await verifiedPositionRunCapture(c.positions,{id:c.id,payloadSha256:c.payloadSha256,body:{period:v.period,liquidationType:v.liquidationType},payload:{population:c.population}});
   for(const e of c.positions.payload?.employees||[])for(const a of e.allocations){const n=norms.get(a.budgetRevision),row=n?.p.body.definition.rows.find(r=>r.code===a.rowCode);need(n&&row&&a.definitionSha256===n.hash&&a.normative.approvalId===n.p.decision.id&&a.normative.proposalId===n.p.id&&salarySerialized(a.normative.row)===salarySerialized(row)&&salarySerialized(a.normative.source)===salarySerialized(n.p.body.definition.source),'Una asignación no coincide con su norma anual original.');}
   const d=c.dimensions;need(salaryExact(d,['version','captureId','capturePayloadSha256','status','payload','payloadSha256'])&&d.version==='own-run-position-dimensions.v1'&&d.captureId===c.id&&d.capturePayloadSha256===c.payloadSha256&&['captured','not_captured'].includes(d.status),'No se verificaron las dimensiones originales.');
