@@ -42,15 +42,17 @@ export async function prepareOwnF931(value,details,receipts,fiscalCensus=null){
   const item=contracts.get(employee.contractId)??{tokens:new Set(),employeeNumbers:new Set(),types:new Set(),participations:0},person=captured.get(params.period+':'+type+':'+employee.runId)?.payload?.population?.employees.find(p=>p.contractId===employee.contractId);
   item.tokens.add(person?.origin==='MUNICONTROL'?person.identityToken:null);item.employeeNumbers.add(employee.employeeNumber);item.types.add(type);item.participations++;contracts.set(employee.contractId,item);
  }
- const fiscalCoverage={queried:facts!==null,contracts:contracts.size,reviewed:0,missing:0,stale:0,identityNotCaptured:0,fields:Object.fromEntries(FISCAL_FACT_FIELDS.map(n=>[n,0]))};
+ const fiscalCoverage={queried:facts!==null,contracts:contracts.size,reviewed:0,missing:0,stale:0,identityNotCaptured:0,notQueried:0,fields:Object.fromEntries(FISCAL_FACT_FIELDS.map(n=>[n,0]))};
  const fiscalRows=[];
  for(const [id,item]of contracts){
   const {tokens}=item,row=byContract.get(id);let state,knownFields=null,unknownFields=null;
+  // The original closure can prove a missing identity without a fiscal query.
+  // An unqueried registry cannot prove that an approved review is absent.
   if(tokens.has(null)){fiscalCoverage.identityNotCaptured++;state='identity_not_captured';}
+  else if(facts===null){fiscalCoverage.notQueried++;state='not_queried';}
   else if(!row){fiscalCoverage.missing++;state='missing';}
   else if(!row.current||tokens.size!==1||!tokens.has(row.configuration.identityToken)){fiscalCoverage.stale++;state='stale';}
   else{fiscalCoverage.reviewed++;knownFields=0;for(const n of FISCAL_FACT_FIELDS)if(row.configuration.definition.fields[n]!==null){fiscalCoverage.fields[n]++;knownFields++;}unknownFields=FISCAL_FACT_FIELDS.length-knownFields;state=unknownFields?'unknown_fields':'documented';}
-  if(facts===null)state='not_queried';
   fiscalRows.push({contractId:id,employeeNumbers:[...item.employeeNumbers],types:[...item.types],participations:item.participations,state,knownFields,unknownFields,...OWN_F931_FISCAL_STATUSES[state]});
  }
  if(fiscalCoverage.missing)issues.push({code:'FISCAL_FACTS_MISSING',type:null,count:fiscalCoverage.missing,action:'Registrar y revisar los datos fiscales de los contratos cerrados para este período. No se toman del mes anterior.'});
@@ -68,6 +70,12 @@ export async function prepareOwnF931(value,details,receipts,fiscalCensus=null){
  trusted.add(result);return result;
 }
 export function trustedOwnF931(value){need(trusted.has(value),'Verificá nuevamente todos los cierres antes de descargar la preparación.');return value;}
+// Shared by the on-screen summary and its nonnominal control CSV.
+export function ownF931FiscalCoverageText(value){
+ const f=trustedOwnF931(value).fiscalCoverage;
+ if(!f.queried)return f.notQueried+' contratos sin consultar. No se verificó la existencia de revisiones fiscales para este período. '+f.identityNotCaptured+' sin identidad propia capturada en el cierre.';
+ return f.reviewed+' de '+f.contracts+' contratos con revisión vigente · '+f.missing+' sin revisión · '+f.stale+' con fuente modificada · '+f.identityNotCaptured+' sin identidad capturada.';
+}
 export function ownF931Proof(value){const v=trustedOwnF931(value);return salarySerialized({params:v.params,sourceProof:v.sourceProof,hashes:v.sourceHashes,fiscalProof:v.fiscalProof});}
 export function ownF931VisibleFields(value,search='',page=1){const v=trustedOwnF931(value);need(Number.isSafeInteger(page)&&page>0,'Página inválida.');const term=String(search).trim().toLocaleLowerCase('es'),rows=v.fieldReferences.filter(r=>!term||[r.number,r.label,r.status].some(s=>String(s).toLocaleLowerCase('es').includes(term))),pages=Math.max(1,Math.ceil(rows.length/20)),current=Math.min(page,pages);return {rows:rows.slice((current-1)*20,current*20),filtered:rows.length,total:v.fieldReferences.length,page:current,pages};}
 export function ownF931VisibleContracts(value,search='',state='all',page=1){
@@ -80,7 +88,7 @@ export function ownF931PreparationCsv(value){
  const v=trustedOwnF931(value),rows=[['PREPARACIÓN F.931 · NO ES UN TXT FISCAL','Estado','Acción sugerida','Desde','Hasta','Longitud'],
   ['Período',v.params.period,'Fecha prevista de presentación: '+v.params.presentationDate,'','',''],
   ['Participaciones propias cerradas',String(v.participations),'No acredita la población fiscal completa.','','',''],
-  ['Datos fiscales documentados',String(v.fiscalCoverage.reviewed)+' contratos revisados vigentes',String(v.fiscalCoverage.missing)+' sin revisión; '+String(v.fiscalCoverage.stale)+' con fuente modificada; '+String(v.fiscalCoverage.identityNotCaptured)+' sin identidad capturada.','','',''],
+  ['Datos fiscales documentados',v.fiscalCoverage.queried?String(v.fiscalCoverage.reviewed)+' contratos revisados vigentes':'Datos fiscales sin consultar',ownF931FiscalCoverageText(v),'','',''],
   ...v.coverage.map(c=>['Tipo: '+c.type,String(c.closedParticipations)+' participaciones cerradas',String(c.notClosedRows)+' filas actuales sin cerrar; '+String(c.partialGroups)+' grupos parciales.','','','']),
   ...v.requirements.map(r=>[r.code,'Pendiente',r.action,'','','']),
   ...v.issues.map(r=>[r.code,r.type??'Conjunto completo',r.action,'','','']),
