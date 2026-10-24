@@ -56,12 +56,34 @@ test('same live session recovers or retries exactly its original leave body and 
  const posts=f.calls.filter(c=>c.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].body,first.body);assert.equal(posts[1].key,first.key);assert.equal(f.node(host,'pending').hidden,true);
 });
 
-test('new session of the same account does not inherit another session pending leave attempt',async t=>{
+test('renewed session of the same account recovers its original pending leave instead of allowing another request',async t=>{
  const f=fixture(t),first=await f.mount();await f.create(first);const original=f.calls.find(c=>c.method==='POST');f.controls[0].close();
  f.state.auth={...f.auth,user:{...f.auth.user,id:uid(3)}};const second=await f.mount();
- assert.equal(f.node(second,'pending').hidden,true);assert.equal(f.node(second,'create').hidden,false);assert.ok(!f.node(second,'reference').textContent.includes(original.key));
- await f.create(second);const later=f.calls.filter(c=>c.method==='POST').at(-1);assert.notEqual(later.key,original.key);f.controls[1].close();
- f.state.auth=f.auth;const restored=await f.mount();assert.match(f.node(restored,'reference').textContent,new RegExp(original.key));await f.node(restored,'recover').emit('click');await f.ready(restored);assert.equal(f.node(restored,'pending').hidden,true);assert.equal(f.calls.filter(c=>c.method==='POST').length,2);
+ assert.equal(f.node(second,'pending').hidden,false);assert.equal(f.node(second,'create').hidden,true);assert.match(f.node(second,'reference').textContent,new RegExp(original.key));
+ await f.node(second,'recover').emit('click');await f.ready(second);assert.equal(f.node(second,'pending').hidden,true);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+});
+
+test('renewed access only retries after404 and uses exactly the original leave bytes and key',async t=>{
+ const f=fixture(t),first=await f.mount();await f.create(first);const original=f.calls.find(c=>c.method==='POST');f.controls[0].close();f.state.auth={...f.auth,user:{...f.auth.user,id:uid(3)}};const second=await f.mount();
+ assert.match(f.node(second,'reference').textContent,new RegExp(original.key));assert.equal(f.node(second,'retry').disabled,true);f.state.missing=true;await f.node(second,'recover').emit('click');await f.ready(second);assert.equal(f.node(second,'retry').disabled,false);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+ f.state.missing=false;f.state.lost=false;await f.node(second,'retry').emit('click');await f.ready(second);const posts=f.calls.filter(c=>c.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].body,original.body);assert.equal(posts[1].key,original.key);assert.equal(f.node(second,'pending').hidden,true);
+});
+
+test('employee self-service remount after reauthentication recovers the same own request without an administrative endpoint',async t=>{
+ const f=fixture(t,{self:true}),first=f.makeHost();f.controls.push(await mountNativeSelf(first,{auth:f.auth}));await until(()=>first.querySelector(selector('refresh'))?.disabled===false);await f.create(first);const original=f.calls.find(c=>c.method==='POST');f.controls[0].close();
+ f.state.auth={...f.auth,user:{...f.auth.user,id:uid(3)}};const second=f.makeHost();f.controls.push(await mountNativeSelf(second,{auth:f.state.auth}));await until(()=>second.querySelector(selector('refresh'))?.disabled===false);
+ assert.equal(f.node(second,'pending').hidden,false);assert.equal(f.node(second,'create').hidden,true);assert.match(f.node(second,'reference').textContent,new RegExp(original.key));await f.node(second,'recover').emit('click');await f.ready(second);assert.equal(f.node(second,'pending').hidden,true);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);assert.ok(!f.calls.some(c=>c.url.startsWith('/api/internal-native-leave')));
+});
+
+test('renewal with a changed server scope cannot read or replace the original pending attempt',async t=>{
+ const f=fixture(t),first=await f.mount();await f.create(first);const original=f.calls.find(c=>c.method==='POST');f.controls[0].close();f.state.auth={...f.auth,user:{...f.auth.user,id:uid(3)}};f.state.bootstrap={...f.state.bootstrap,scopeVersion:'f'.repeat(64)};const otherScope=await f.mount();
+ assert.equal(f.node(otherScope,'content').hidden,true);assert.equal(f.node(otherScope,'pending').hidden,true);assert.equal(f.node(otherScope,'reference').textContent,'');assert.equal(f.node(otherScope,'create').hidden,true);assert.equal(f.calls.filter(c=>c.url.includes('resource=attempt')).length,0);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);f.controls[1].close();
+ f.state.bootstrap={...f.state.bootstrap,scopeVersion:'d'.repeat(64)};const restored=await f.mount();assert.match(f.node(restored,'reference').textContent,new RegExp(original.key));await f.node(restored,'recover').emit('click');await f.ready(restored);assert.equal(f.node(restored,'pending').hidden,true);
+});
+
+test('another account cannot take over the key; its owner can still recover after legitimate renewal',async t=>{
+ const f=fixture(t),first=await f.mount();await f.create(first);const original=f.calls.find(c=>c.method==='POST');f.controls[0].close();f.state.auth={...f.auth,user:{...f.auth.user,id:uid(3),email:'other-leave@example.test'}};const other=await f.mount();assert.equal(f.node(other,'pending').hidden,true);assert.ok(!f.node(other,'reference').textContent.includes(original.key));f.controls[1].close();
+ f.state.auth={...f.auth,user:{...f.auth.user,id:uid(4)}};const owner=await f.mount();assert.match(f.node(owner,'reference').textContent,new RegExp(original.key));await f.node(owner,'recover').emit('click');await f.ready(owner);assert.equal(f.node(owner,'pending').hidden,true);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
 });
 
 test('live leave panel withdraws data before rereading a contract when its session changes',async t=>{

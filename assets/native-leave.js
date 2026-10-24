@@ -28,10 +28,10 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  contractId=contractId.toLowerCase();host.dataset.nleaveMounted='true';host.classList.add('nleave-panel');
  const api=selfService?'/api/internal-native-self-leave':API;
  const stateKey=(selfService?'self:':'administration:')+contractId;
- // Bind the in-memory context only after reading the actual managed session.
- // A new session cannot inherit another session's body, key or recovery state.
+ // Bind only after validating the current session. A renewed session of the
+ // same account can locate its original attempt, subject to the fresh scope.
  let state={actor:null,scope:null,pending:null};
- let bootstrap=null,draft=null,decision=null,closed=false,busy=false,epoch=0,controller=null,authorityCaps=[];
+ let liveSessionActor=null,bootstrap=null,draft=null,decision=null,closed=false,busy=false,epoch=0,controller=null,authorityCaps=[];
  host.innerHTML=`<p class="nleave-note">Solicitudes y saldos del contrato propio. Las cantidades son días corridos o minutos solicitados; no son tiempo observado, haberes ni descuentos. Los derechos requieren respaldo municipal y revisión de otra persona.</p>
  <p data-nleave-status role="status" aria-live="polite"></p>
  <div class="nleave-actions"><button type="button" data-nleave-refresh>Actualizar licencias</button><button type="button" data-nleave-create hidden>Preparar solicitud</button><button type="button" data-nleave-profile hidden>Declarar saldo con respaldo</button></div>
@@ -69,10 +69,11 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  }
  async function authority(seq){
   const d=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
-  const {actor,caps}=nativeLeaveWorkspaceAccess(d);if(!(selfService?['leave.request.self.read','actions.read']:['workforce.employee.read','actions.read']).every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
-  if(state.actor&&state.actor!==actor){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
-  if(!state.actor){const key=actor+'|'+stateKey;state=contexts.get(key)??{actor,scope:null,pending:null};contexts.set(key,state);}
-  state.actor=actor;authorityCaps=caps;
+  const {actor,contextActor,caps}=nativeLeaveWorkspaceAccess(d);if(!(selfService?['leave.request.self.read','actions.read']:['workforce.employee.read','actions.read']).every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
+  if(liveSessionActor&&liveSessionActor!==actor){clearVisible();throw issue('ACTOR_CHANGED',409);}
+  if(state.actor&&state.actor!==contextActor){clearVisible();throw issue('ACTOR_CHANGED',409);}
+  if(!state.actor){const key=contextActor+'|'+stateKey;state=contexts.get(key)??{actor:contextActor,scope:null,pending:null};contexts.set(key,state);}
+  state.actor=contextActor;liveSessionActor=actor;authorityCaps=caps;
  }
  async function fresh(seq){
   const b=validateNativeLeaveBootstrap(await request(api+'?'+new URLSearchParams({resource:'bootstrap',contractId})),contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
