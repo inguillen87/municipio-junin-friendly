@@ -22,6 +22,7 @@
 </div><p id="formatHelp" class="help">Formato Junín identifica por DNI y contiene el importe con punto decimal. El sistema buscará el legajo de la fuente municipal para el período elegido. Otros formatos, como OSEP, no deben cargarse bajo este diseño.</p>
 <div class="actions"><button id="previewButton" class="primary" type="submit">Revisar TXT completo</button><button id="clearButton" type="button">Retirar archivo</button></div></fieldset></form>
 <p id="progress" role="status" aria-live="polite"></p><button id="cancelReview" type="button" hidden>Cancelar revisión</button>
+<details id="readIssuePanel" class="read-issues" hidden><summary id="readIssueCount"></summary><p class="help">Corregí las filas indicadas en el TXT original y volvé a revisar el archivo completo. Se muestran todas las incidencias, sin datos personales. No se guardó ninguna novedad.</p><ul id="readIssues" tabindex="0" aria-label="Todas las filas por revisar según la lectura local"></ul></details>
 </section>
 <section id="previewPanel" class="panel" hidden aria-labelledby="previewTitle"><div class="section-head"><span class="step">2</span><div><h2 id="previewTitle">Control de todos los registros</h2><p>La búsqueda y las páginas sólo cambian la vista, no las filas que se guardarán.</p></div></div>
 <div id="metrics" class="metrics"></div><p id="fileReference" class="reference"></p><div id="reviewStatus" class="notice" role="status"></div>
