@@ -17,5 +17,49 @@ test('a lost acknowledgement is recovered using the same key, body and original 
 test('an absent attempt permits only exact retransmission rather than a new key or changed content',async()=>{const h=await harness();await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);h.options.loseAck=true;h.options.notFound=true;await assert.rejects(h.workspace.send());await assert.rejects(h.workspace.send(true),{status:404});assert.equal(h.workspace.state().pending.retryReady,true);assert.throws(()=>h.workspace.prepare(reason+'changed',true));h.options.notFound=false;await h.workspace.send();assert.equal(h.posts.length,2);assert.deepEqual(h.posts[1],h.posts[0]);});
 test('an altered acknowledgement remains unconfirmed and can recover the real same-key result',async()=>{const h=await harness();await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);h.options.badAck=true;await assert.rejects(h.workspace.send());assert.equal(h.workspace.state().result,null);assert.ok(h.workspace.state().pending.uncertain);await h.workspace.send(true);assert.equal(h.posts.length,1);assert.equal(h.workspace.state().pending,null);});
 test('a changed actor or binding cannot reuse the previous attempt and does not send a business command',async()=>{for(const change of[c=>c.scope.bindingId=id(80),c=>c.authority.actor.personId=id(81),c=>c.authority.actor.email='different@example.invalid']){const h=await harness();await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);change(h.current);await assert.rejects(h.workspace.send(),{code:'OWNER_SALARY_ACTOR_CHANGED'});assert.equal(h.posts.length,0);assert.equal(h.workspace.state().pending,null);}});
+for(const [label,change] of [
+ ['municipal binding',c=>c.scope.bindingId=id(80)],
+ ['person',c=>c.authority.actor.personId=id(81)],
+ ['email',c=>c.authority.actor.email='different@example.invalid'],
+]){
+ test('lost approval remains recoverable after a temporary change of '+label,async()=>{
+  const h=await harness(),originalContext=structuredClone(h.current);
+  await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);h.options.loseAck=true;
+  await assert.rejects(h.workspace.send(),/Lost acknowledgement/);
+  const original=structuredClone(h.workspace.state().pending),post=structuredClone(h.posts[0]);
+  change(h.current);const before=h.events.length;
+  await assert.rejects(h.workspace.send(true),{code:'OWNER_SALARY_ACTOR_CHANGED',status:403});
+  assert.deepEqual(h.events.slice(before),['authority'],'The foreign context must not query the attempt');
+  assert.equal(h.posts.length,1);assert.equal(h.workspace.state().result,null);assert.equal(h.workspace.state().context,null);
+  assert.deepEqual(h.workspace.state().pending,{...original,retryReady:false});
+  await assert.rejects(h.workspace.load(h.raw.proposal.id),{code:'OWNER_SALARY_PENDING'});
+  assert.throws(()=>h.workspace.prepare(reason+' distinta',true),{code:'OWNER_SALARY_PENDING'});
+  Object.assign(h.current,originalContext);await h.workspace.send(true);
+  assert.equal(h.posts.length,1);assert.deepEqual(h.posts[0],post);
+  assert.equal(h.workspace.state().pending,null);assert.equal(h.workspace.state().result.receipt.requestKey,original.key);
+  assert.deepEqual(h.workspace.state().result.command,original.body);
+ });
+ test('a temporary change of '+label+' withdraws an earlier retry permission without losing the original send',async()=>{
+  const h=await harness(),originalContext=structuredClone(h.current);
+  await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);h.options.notFound=true;h.options.loseAck=true;
+  await assert.rejects(h.workspace.send(),/Lost acknowledgement/);await assert.rejects(h.workspace.send(true),{status:404});
+  const original=structuredClone(h.workspace.state().pending);assert.equal(original.retryReady,true);
+  change(h.current);const before=h.events.length;
+  await assert.rejects(h.workspace.send(),{code:'OWNER_SALARY_ACTOR_CHANGED',status:403});
+  assert.deepEqual(h.events.slice(before),['authority']);assert.equal(h.posts.length,1);
+  assert.deepEqual(h.workspace.state().pending,{...original,retryReady:false});
+  Object.assign(h.current,originalContext);
+  await assert.rejects(h.workspace.send(),{code:'OWNER_SALARY_PENDING'});assert.equal(h.posts.length,1);
+  await assert.rejects(h.workspace.send(true),{status:404});h.options.notFound=false;await h.workspace.send();
+  assert.equal(h.posts.length,2);assert.deepEqual(h.posts[1],h.posts[0]);assert.equal(h.workspace.state().pending,null);
+ });
+}
+test('explicit logout still forgets an uncertain owner approval and prevents recovery or retransmission',async()=>{
+ const h=await harness();await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);h.options.loseAck=true;
+ await assert.rejects(h.workspace.send(),/Lost acknowledgement/);h.workspace.invalidate({forget:true});
+ assert.equal(h.workspace.state().pending,null);assert.equal(h.workspace.state().result,null);
+ const before=h.events.length;await assert.rejects(h.workspace.send(true),{code:'OWNER_SALARY_PENDING'});
+ assert.equal(h.events.length,before);assert.equal(h.posts.length,1);
+});
 test('hiding the view erases its proposal but retains the exact uncertain attempt until a verified recovery',async()=>{const h=await harness();await h.workspace.load(h.raw.proposal.id);h.workspace.prepare(reason,true);const original=h.workspace.state().pending;h.hide();assert.equal(h.workspace.state().preview,null);assert.deepEqual(h.workspace.state().pending.body,original.body);assert.equal(h.workspace.state().pending.uncertain,true);await assert.rejects(h.workspace.send());h.show();await assert.rejects(h.workspace.send(true),{status:404});h.current.authority.actor.sessionId=id(91);h.current.authority.actor.sessionVersion++;h.options.rejectPreview=true;await assert.rejects(h.workspace.send(),{status:409});assert.equal(h.workspace.state().result,null);assert.deepEqual(h.workspace.state().pending.body,original.body);});
 test('a response is byte-bounded, complete UTF8/JSON, and a declared oversized body is cancelled',async()=>{let cancelled=false;const stream=new ReadableStream({pull(){},cancel(){cancelled=true;}});await assert.rejects(readOwnerSalaryResponse(new Response(stream,{headers:{'content-length':String(OWNER_SALARY_MAX_BYTES+1)}})),{status:503});assert.equal(cancelled,true);for(const bytes of[new Uint8Array([0xff]),new TextEncoder().encode('{"ok":true,')])await assert.rejects(readOwnerSalaryResponse(new Response(bytes)),{status:503});assert.deepEqual(await readOwnerSalaryResponse(json({complete:true})),{complete:true});});
