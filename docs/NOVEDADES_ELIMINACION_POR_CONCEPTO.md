@@ -17,6 +17,8 @@ Ocultar la pestaña o retirar un permiso quita las vistas. La clave y el cuerpo 
 
 Un rechazo de cancelación no se interpreta automáticamente como un error de autoría: el mismo código puede indicar pérdida de permisos. Primero se retiran las vistas nominales. Si la sesión, las capacidades y el ámbito se verifican nuevamente en el servidor, se muestra sólo el resumen y los comprobantes, con el intento rechazado conservado. Si la comprobación falla, la vista sigue retirada. No se omite el lote rechazado ni se envían los siguientes de forma automática.
 
+Cada petición tiene un plazo de 45 segundos que incluye recibir y leer su respuesta. Si vence durante un envío, no se afirma que haya fallado el registro: se conservan el mismo contenido, clave y comprobantes anteriores para recuperarlo. La recuperación demorada tampoco se interpreta como un intento ausente. No hay reenvíos automáticos. Ocultar la página cancela la espera y las respuestas tardías no cambian una consulta posterior.
+
 Al devolver a revisión un intento sin registro, los comprobantes anteriores siguen visibles como historial, ligados a la cuenta original. No constituyen un conjunto preparado. Sólo **Cerrar revisión conjunta** descarta esa vista local; no deshace las cancelaciones registradas.
 
 ## Alcance

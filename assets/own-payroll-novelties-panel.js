@@ -55,7 +55,31 @@ export function mountOwnPayrollNovelties(container,onLock=()=>{}){
  function withdraw(message){sequence++;controller?.abort();stopped=true;cancellation?.withdraw();access=null;boot=null;rows=[];selected.clear();prepared=null;detail=null;receipt=null;notFound=false;correction=null;correctionPrevious=null;approvalReview=null;$('correction').hidden=true;$('affected').replaceChildren();$('bulk-results').replaceChildren();
   $('content').hidden=true;for(const key of ['people','rows','detail','decisions'])$(key).replaceChildren();$('batch').replaceChildren();for(const e of container.querySelectorAll('input,textarea'))if(e.type==='checkbox')e.checked=false;else e.value='';$('type').value='monthly';$('confirm-box').hidden=true;$('download').hidden=true;status(message);controls();
  }
- async function request(url,options={}){const token=sequence,response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller?.signal,...options}),value=await response.json();if(token!==sequence||!live())throw Object.assign(Error('Vista retirada.'),{name:'AbortError'});if(!response.ok||value.ok===false)throw Object.assign(Error(value.error??'No se confirmó la consulta.'),{status:response.status,code:value.code});return value;}
+ async function request(url,options={}){
+  const token=sequence,sourceSignal=options.signal??controller?.signal,transport=new AbortController(),authority=url==='/api/internal-auth';
+  let finished=false,timer,knownStatus=0,rejectCancelled;
+  const cancelledError=()=>Object.assign(Error('Vista retirada.'),{name:'AbortError'});
+  const stale=()=>finished||token!==sequence||!live()||sourceSignal?.aborted;
+  const cancelled=new Promise((_,reject)=>{rejectCancelled=reject;});
+  const abort=()=>{if(finished)return;rejectCancelled(cancelledError());transport.abort();};
+  sourceSignal?.addEventListener('abort',abort,{once:true});
+  const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{
+   if(finished)return;
+   const message=authority?'No se verificó el acceso dentro del plazo. Actualizá para comprobarlo y recuperar el intento.':options.method==='POST'?'No se confirmó el envío dentro del plazo. Conservá el mismo intento y recuperá su comprobante antes de continuar.':url.includes('resource=attempt')?'La recuperación no respondió dentro del plazo. El intento se conserva; no se confirmó que esté ausente.':'La consulta no respondió dentro del plazo. Actualizá para volver a verificarla.';
+   reject(Object.assign(Error(message),{name:'TimeoutError',code:'OWN_NOVELTY_CLIENT_TIMEOUT',status:[401,403].includes(knownStatus)?knownStatus:408,authorityUnverified:authority}));transport.abort();
+  },45000);});
+  try{
+   if(sourceSignal?.aborted)abort();
+   const receive=(async()=>{if(stale())throw cancelledError();const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,signal:transport.signal});if(stale())throw cancelledError();knownStatus=response.status;if([401,403].includes(knownStatus))$('content').hidden=true;const value=await response.json();return {response,value};})();
+   const {response,value}=await Promise.race([receive,deadline,cancelled]);
+   if(stale())throw cancelledError();if(!response.ok||value.ok===false)throw Object.assign(Error(value.error??'No se confirmó la consulta.'),{status:response.status,code:value.code});return value;
+  }catch(error){
+   if(token!==sequence||!live()||sourceSignal?.aborted)throw cancelledError();
+   if([401,403].includes(knownStatus))error.status=knownStatus;
+   if(authority)error.authorityUnverified=true;
+   throw error;
+  }finally{finished=true;clearTimeout(timer);sourceSignal?.removeEventListener('abort',abort);}
+ }
  async function authorized(command){const next=ownRunWorkspaceAccess(await request('/api/internal-auth'));if(access&&next.key!==access.key||attempt&&next.key!==attempt.accessKey)throw Object.assign(Error('Cambió la sesión o el ámbito. Recuperá el intento desde su cuenta original.'),{status:403});access=next;if(!can(command))throw Object.assign(Error('Tu cuenta no permite esta operación.'),{status:403});}
  async function restoreCancellationRejection(error){
   // A coded403 is ambiguous. Retire all nominal views before fresh protected reads.
@@ -66,7 +90,7 @@ export function mountOwnPayrollNovelties(container,onLock=()=>{}){
    status('El servidor rechazó esta cancelación. '+error.message+' Se conservaron sólo el resumen y los comprobantes ya verificados. Recuperá el intento antes de continuar.');
   }catch(check){if(token===sequence&&check.name!=='AbortError')withdraw('No se verificó el acceso actual a la revisión. '+check.message);}
  }
- async function work(operation,groupOperation=false){if(busy||external||!live()||!groupOperation&&cancellation?.hasWork())return;busy=true;controller=new AbortController();const token=sequence;controls();try{await operation();}catch(e){if(token===sequence){if(groupOperation&&e.cancellationCommandRejected===true&&cancellation?.hasPending())await restoreCancellationRejection(e);else if([401,403].includes(e.status))withdraw(e.message);else if(e.name!=='AbortError')status(e.message);}}finally{busy=false;controls();}}
+ async function work(operation,groupOperation=false){if(busy||external||!live()||!groupOperation&&cancellation?.hasWork())return;busy=true;controller=new AbortController();const token=sequence;controls();try{await operation();}catch(e){if(token===sequence){if(groupOperation&&e.cancellationCommandRejected===true&&cancellation?.hasPending())await restoreCancellationRejection(e);else if(e.authorityUnverified===true||[401,403].includes(e.status))withdraw(e.message);else if(e.name!=='AbortError')status(e.message);}}finally{busy=false;controls();}}
  function renderPeople(){
   const query=$('search').value.trim().toLocaleLowerCase('es'),all=boot?.subjects??[],filtered=all.filter(s=>(s.legajo+' '+(s.employeeName??'')).toLocaleLowerCase('es').includes(query));page=Math.min(page,Math.max(0,Math.ceil(filtered.length/25)-1));$('people').replaceChildren();
   for(const s of filtered.slice(page*25,page*25+25)){const label=node('label');label.className='own-novelties-check';const check=node('input');check.type='checkbox';check.checked=selected.has(s.contractId);check.dataset.contract=s.contractId;check.addEventListener('change',()=>{if(attempt)return;check.checked?selected.add(s.contractId):selected.delete(s.contractId);invalidate();renderPeople();});label.append(check,node('span',s.legajo+' · '+(s.employeeName??'Nombre no informado')));$('people').append(label);}
