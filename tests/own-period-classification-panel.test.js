@@ -78,6 +78,42 @@ function assertClassificationAuthorityWithdrawn(h){
  assert.equal(h.q('content').hidden,true);assert.equal(h.q('comparison').hidden,true);assert.equal(h.q('provenance').textContent,'');assert.equal(h.q('subject').textContent,'No hay un legajo seleccionado.');assert.equal(h.q('startDate').value,'');assert.equal(h.q('reason').value,'');assert.equal(h.q('agreementCode').options.length,1);assert.equal(h.q('categoryCode').options.length,1);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('target').disabled,true);assert.equal(h.q('send').hidden,true);assert.equal(h.q('receipt').hidden,true);assert.equal(h.q('receipt').textContent,'');assert.equal(h.q('previous').hidden,true);
 }
 
+test('unsent discard: same-owner renewal can explicitly abandon its old draft before a fresh empty preparation',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.state.sessionId=renewedClassificationSession;await h.poll();assert.equal(h.q('target').disabled,true);await h.q('access').emit('click');assert.equal(h.q('target').disabled,true);assert.match(h.q('status').textContent,/Cambió la cuenta/);assert.equal(classificationWrites(h).length,0);
+ const before=h.requests.length;assert.equal(h.q('discard').hidden,false);assert.equal(h.q('discard').disabled,false);assert.equal(h.q('discard').textContent,'Descartar preparación sin enviar');await h.q('discard').emit('click');assert.equal(h.requests.length,before);assertClassificationAuthorityWithdrawn(h);assert.equal(h.q('discard').hidden,true);assert.equal(h.q('confirm').checked,false);
+ await h.q('access').emit('click');assert.equal(h.q('target').disabled,false,h.q('status').textContent);h.state.boot.preparation.source.version=sha('7');await h.start();for(const key of Object.keys(definition()))assert.equal(h.q(key).value,'');assert.equal(h.q('reason').value,'');assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').hidden,true);assert.equal(classificationWrites(h).length,0);
+ await h.prepare({documentReference:'Constancia nueva exclusivamente sintética QA'});assert.equal(classificationWrites(h).length,0);await h.q('send').emit('click');assert.equal(classificationWrites(h).length,1);const body=JSON.parse(classificationWrites(h)[0].body).payload;assert.equal(body.sourceVersion,sha('7'));assert.equal(body.definition.documentReference,'Constancia nueva exclusivamente sintética QA');
+});
+
+test('unsent discard: a new account can clear only the old local preparation without receiving its fields',async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.state.actorEmail='other@example.test';await h.poll();assert.equal(h.q('target').disabled,true);const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);await h.q('access').emit('click');assert.equal(h.q('target').disabled,false);await h.start();for(const key of Object.keys(definition()))assert.equal(h.q(key).value,'');assert.equal(h.q('reason').value,'');assert.equal(h.q('confirm').checked,false);assert.equal(classificationWrites(h).length,0);
+});
+
+test('unsent discard: an uncertain sent attempt cannot be cleared and keeps its original receipt recoverable',async t=>{
+ const{h,original}=await uncertainClassification(t);assert.equal(h.q('discard').hidden,true);assert.equal(h.q('discard').disabled,true);const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);assert.deepEqual(classificationWrites(h),[original]);await h.q('recover').emit('click');assert.equal(h.q('receipt').hidden,false);assert.deepEqual(classificationWrites(h),[original]);
+});
+
+test('unsent discard: a definitive rejection with404 still protects K and requires its existing correction path',async t=>{
+ const{h,original}=await rejectedClassification(t);assert.equal(h.q('discard').hidden,true);assert.equal(h.q('discard').disabled,true);const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);assert.equal(h.q('correct').hidden,false);await h.q('correct').emit('click');assert.equal(h.q('previous').hidden,false);assert.match(h.q('previous').textContent,new RegExp(original.headers['Idempotency-Key']));assert.deepEqual(classificationWrites(h),[original]);
+});
+
+test('unsent discard: even an allocated key that has not reached POST remains protected for original404 and retry',async t=>{
+ const h=harness(t);await h.start();await h.prepare();const count=h.state.authCount;h.state.onAuth=n=>{if(n===count+2)h.state.authFailure='network';};await h.q('send').emit('click');assert.equal(classificationWrites(h).length,0);assert.equal(h.q('recover').hidden,false);assert.equal(h.q('discard').hidden,true);assert.equal(h.q('discard').disabled,true);const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);
+ h.state.onAuth=null;h.state.authFailure=null;h.state.missing=true;await h.q('access').emit('click');await h.q('recover').emit('click');const key=new URL(classificationLookups(h)[0].url,'https://synthetic.test').searchParams.get('key');assert.equal(h.q('retry').disabled,false);await h.q('retry').emit('click');assert.equal(classificationWrites(h).length,1);assert.equal(classificationWrites(h)[0].headers['Idempotency-Key'],key);assert.deepEqual(JSON.parse(classificationWrites(h)[0].body).payload.definition,definition());
+});
+
+test('unsent discard: an acknowledged receipt remains protected and uses the existing new-preparation action',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.q('send').emit('click');const text=h.q('receipt').textContent;assert.equal(h.q('discard').hidden,true);assert.equal(h.q('discard').disabled,true);const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);assert.equal(h.q('receipt').textContent,text);assert.equal(h.q('receipt').hidden,false);assert.equal(h.q('new').hidden,false);assert.equal(classificationWrites(h).length,1);
+});
+
+test('unsent discard: an active source read cannot be cleared by a queued discard action',async t=>{
+ const h=harness(t);await h.start();await h.prepare();let release,entered;const started=new Promise(resolve=>entered=resolve);h.state.hold=async url=>{if(url.includes('resource=bootstrap')){entered();await new Promise(resolve=>release=resolve);}};const reading=h.q('refresh').emit('click');await started;try{const before=h.requests.length;assert.equal(h.q('discard').disabled,true);await h.q('discard').emit('click');assert.equal(h.requests.length,before);}finally{h.state.hold=null;release();await reading;}assert.equal(h.q('content').hidden,false);assert.equal(h.q('reason').value,reason);assert.equal(h.q('discard').hidden,false);assert.equal(classificationWrites(h).length,0);
+});
+
+test('unsent discard: a prior corrected-attempt reference survives abandoning the new draft in the same verified scope',async t=>{
+ const{h,original}=await rejectedClassification(t);await h.q('correct').emit('click');const previous=h.q('previous').textContent;assert.match(previous,new RegExp(original.headers['Idempotency-Key']));const before=h.requests.length;await h.q('discard').emit('click');assert.equal(h.requests.length,before);assert.equal(h.q('previous').hidden,true);await h.q('access').emit('click');await h.start();assert.equal(h.q('previous').hidden,false);assert.equal(h.q('previous').textContent,previous);for(const key of Object.keys(definition()))assert.equal(h.q(key).value,'');assert.equal(h.q('reason').value,'');assert.equal(h.q('confirm').checked,false);assert.deepEqual(classificationWrites(h),[original]);
+});
+
 for(const failure of ['network','abort','json','server','envelope'])test('unverified authority '+failure+': idle poll masks the view and preserves the same-context draft for a fresh read',async t=>{
  const h=harness(t);await h.start();await h.prepare();h.state.authFailure=failure;await h.poll();assertClassificationAuthorityWithdrawn(h);assert.equal(classificationWrites(h).length,0);
  h.state.authFailure=null;await h.q('access').emit('click');await h.q('refresh').emit('click');assert.equal(h.q('content').hidden,false,h.q('status').textContent);for(const[key,value]of Object.entries(definition()))assert.equal(h.q(key).value,value??'');assert.equal(h.q('reason').value,reason);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').hidden,true);assert.equal(classificationWrites(h).length,0);
