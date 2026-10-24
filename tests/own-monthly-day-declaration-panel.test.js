@@ -26,6 +26,70 @@ function harness(t,fixture=monthlyDayUiFixture()){
  return {fixture,q,p,host,start,queryDays,edit,prepare,send,hide,show,writes,document,doc,poll:async()=>{for(const item of [...timers.values()])if(item.interval)item.fn();await settle();}};
 }
 
+const renewedDaySession='dddddddd-0000-4000-8000-000000000002';
+const dayAttemptReads=h=>h.fixture.requests.filter(r=>r.url.includes('resource=attempt'));
+async function pendingTypedDays(t,{command='propose',missing=false}={}){
+ const h=harness(t);await h.start();await h.queryDays();await h.prepare({days:'16.25000001'});
+ if(command!=='propose'){
+  await h.send();await h.q('new').emit('click');h.fixture.state.actor='checker';
+  await h.queryDays();await h.start();await h.queryDays();h.q('proposal').value=[...h.fixture.proposals.keys()][0];await h.q('open').emit('click');
+  h.q('decision').value=command;await h.q('decision').emit('input');h.q('decision-reason').value='Decisión de días exclusivamente sintética QA';await h.q('decision-reason').emit('input');await h.q('review').emit('click');
+ }
+ if(missing)h.fixture.hooks.beforeSend=()=>{throw Error('Envío sintético no persistido');};
+ else h.fixture.hooks.afterCommit=()=>{throw Error('Acuse sintético perdido');};
+ await h.send();h.fixture.hooks.beforeSend=null;h.fixture.hooks.afterCommit=null;
+ const original=structuredClone(h.writes().at(-1));assert.ok(original);assert.equal(JSON.parse(original.body).payload.command,command);assert.equal(h.q('recover').hidden,false);assert.equal(h.q('receipt').hidden,true);
+ return{h,original};
+}
+
+for(const command of ['propose','approve','reject'])test('typed days '+command+': same-owner session renewal recovers the original outcome without another POST',async t=>{
+ const {h,original}=await pendingTypedDays(t,{command}),writes=h.writes().length;h.fixture.state.sessionId=renewedDaySession;
+ await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,1);assert.equal(dayAttemptReads(h)[0].url.includes(original.key),true);assert.equal(h.writes().length,writes);assert.deepEqual(h.writes().at(-1),original);assert.equal(h.q('receipt').hidden,false,h.q('status').textContent);
+ assert.match(h.q('receipt').textContent,command==='propose'?/Pendiente de revisión/:command==='approve'?/Aprobada/:/Rechazada/);
+ const body=JSON.parse(original.body).payload;assert.equal(body.period,'2026-10');assert.equal(body.definition?.recognizedDays??null,command==='propose'?'16.25000001':null);assert.equal(body.reviewConfirmed,command!=='propose');
+});
+
+test('typed days: fresh404 after renewal retries exactly the first non-persisted wire',async t=>{
+ const {h,original}=await pendingTypedDays(t,{missing:true});h.fixture.state.sessionId=renewedDaySession;await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,1);assert.equal(h.q('retry').disabled,false,h.q('status').textContent);
+ await h.q('retry').emit('click');assert.equal(h.writes().length,2);assert.deepEqual(h.writes()[1],original);assert.equal(h.fixture.ledger.size,1);assert.equal(h.q('receipt').hidden,false);
+});
+
+test('typed days: renewal after an earlier404 requires another lookup before its retry can send',async t=>{
+ const {h,original}=await pendingTypedDays(t,{missing:true});await h.q('recover').emit('click');assert.equal(h.q('retry').disabled,false);h.fixture.state.sessionId=renewedDaySession;
+ await h.q('retry').emit('click');assert.equal(h.writes().length,1);assert.equal(h.q('retry').hidden,true);await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,2);assert.equal(h.q('retry').disabled,false);
+ await h.q('retry').emit('click');assert.equal(h.writes().length,2);assert.deepEqual(h.writes()[1],original);assert.equal(h.q('receipt').hidden,false);
+});
+
+for(const [label,change]of [['account',s=>s.actor='other'],['municipality',s=>s.tenantId='eeeeeeee-0000-4000-8000-000000000001'],['role',s=>s.roleKey='OTHER']])test('typed days: another '+label+' cannot look up the pending key; the original owner with a new session can',async t=>{
+ const {h,original}=await pendingTypedDays(t),actor=h.fixture.state.actor;change(h.fixture.state);await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,0);assert.equal(h.q('receipt').hidden,true);assert.equal(h.writes().length,1);
+ h.fixture.state.actor=actor;delete h.fixture.state.tenantId;delete h.fixture.state.roleKey;h.fixture.state.sessionId=renewedDaySession;await h.q('access').emit('click');await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,1);assert.deepEqual(h.writes()[0],original);assert.equal(h.q('receipt').hidden,false,h.q('status').textContent);
+});
+
+test('typed days: renewal during GET requires a fresh lookup and cannot display a result refused by the server',async t=>{
+ const {h}=await pendingTypedDays(t);h.fixture.hooks.receipt=()=>{h.fixture.hooks.receipt=null;h.fixture.state.sessionId=renewedDaySession;};await h.q('recover').emit('click');assert.equal(h.q('receipt').hidden,true);assert.equal(h.q('new').hidden,true);
+ h.fixture.hooks.attempt=()=>{throw Object.assign(Error('Autorización sintética retirada'),{status:403});};await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,2);assert.equal(h.q('receipt').hidden,true);
+ h.fixture.hooks.attempt=null;await h.q('access').emit('click');await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,3);assert.equal(h.q('receipt').hidden,false);assert.equal(h.writes().length,1);
+});
+
+test('typed days: renewal during404 does not permit retransmission until another current-session lookup',async t=>{
+ const {h,original}=await pendingTypedDays(t,{missing:true});h.fixture.hooks.attempt=()=>{h.fixture.hooks.attempt=null;h.fixture.state.sessionId=renewedDaySession;};await h.q('recover').emit('click');assert.equal(h.q('retry').hidden,true);
+ await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,2);assert.equal(h.q('retry').disabled,false);await h.q('retry').emit('click');assert.deepEqual(h.writes()[1],original);assert.equal(h.q('receipt').hidden,false);
+});
+
+test('typed days: renewal after POST preserves uncertainty until a current-session GET',async t=>{
+ const h=harness(t);await h.start();await h.queryDays();await h.prepare({days:'27.50'});h.fixture.hooks.afterCommit=()=>{h.fixture.hooks.afterCommit=null;h.fixture.state.sessionId=renewedDaySession;};await h.send();assert.equal(h.writes().length,1);assert.equal(h.q('receipt').hidden,true);
+ await h.q('recover').emit('click');assert.equal(dayAttemptReads(h).length,1);assert.equal(h.q('receipt').hidden,false);assert.equal(h.writes().length,1);assert.equal(JSON.parse(h.writes()[0].body).payload.definition.recognizedDays,'27.50');
+});
+
+test('typed days: the existing poll retires only the renewed child view while retaining the parent target and pending key',async t=>{
+ const {h}=await pendingTypedDays(t);h.fixture.state.sessionId=renewedDaySession;await h.poll();assert.equal(h.q('content').hidden,true);assert.equal(h.q('approved').children.length,0);assert.equal(h.p('period').value,'2026-10');assert.equal(h.p('target').disabled,true);assert.equal(dayAttemptReads(h).length,0);assert.equal(h.writes().length,1);assert.equal(h.q('recover').disabled,false,h.q('status').textContent);
+ await h.q('recover').emit('click');assert.equal(h.q('receipt').hidden,false);assert.equal(h.writes().length,1);
+});
+
+test('typed days: hiding a pending attempt and renewing preserves its original declaration without a new command',async t=>{
+ const {h,original}=await pendingTypedDays(t);h.hide();h.fixture.state.sessionId=renewedDaySession;h.show();await h.q('access').emit('click');await h.q('recover').emit('click');assert.equal(h.q('receipt').hidden,false,h.q('status').textContent);assert.equal(h.writes().length,1);assert.deepEqual(h.writes()[0],original);
+});
+
 test('opening and choosing a shared target issue no typed preparation or POST and declare no default policy',async t=>{const h=harness(t);await h.start();assert.equal(h.q('content').hidden,true);assert.equal(h.q('recognized').value,'');assert.equal(h.q('full-month').checked,false);assert.equal(h.q('policy').checked,false);assert.equal(h.fixture.requests.some(r=>r.url.includes('internal-own-monthly-day-declaration')),false);assert.equal(h.writes().length,0);});
 
 test('complete employment coverage does not prefill recognizedDays or declare a liquidable full month',async t=>{const h=harness(t);await h.start();await h.queryDays();assert.equal(h.q('recognized').value,'');assert.equal(h.q('full-month').checked,false);assert.equal(h.q('policy').checked,false);assert.match(h.q('coverage').textContent,/por sí solo no acredita 30/);assert.equal(h.q('prepare').disabled,true);assert.equal(h.writes().length,0);});
