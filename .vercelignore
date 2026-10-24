@@ -438,3 +438,6 @@ local-agents/
 # Exact public source contracts required by population/ART build tests only.
 !scripts/migrations/210-own-position-population-proof.sql
 !scripts/migrations/211-own-art-full-source.sql
+
+# Public family request source only; native installation/admission remains pending.
+!scripts/migrations/195-native-family-self-service.sql
