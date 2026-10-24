@@ -174,6 +174,7 @@ const shellFiles = [
   'assets/task-workspace.js',
   'assets/report-analysis.js',
   'assets/report-document.js',
+  'assets/report-pdf-text.js',
   'assets/report-centre.js',
   'assets/budget-structure-model.js',
   'assets/budget-payroll-model.js',
