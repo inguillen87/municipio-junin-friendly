@@ -27,6 +27,7 @@ export function createEmploymentLifecycleHandler(deps = {}) {
         if (schoolCertificateHttp.header(req, 'content-type').split(';')[0].trim().toLowerCase() !== 'application/json') lifecycleFail('CONTENT_TYPE', 415, 'Se requiere un formulario JSON.');
         schoolCertificateHttp.checkLength(req, EMPLOYMENT_LIFECYCLE_MAX_BYTES);
       } else if (q.resource === 'bootstrap' && Object.keys(q).sort().join('|') === 'contractId|resource') { operation = 'bootstrap'; input = {contractId: q.contractId}; }
+      else if (q.resource === 'history' && Object.keys(q).sort().join('|') === 'contractId|resource') { operation = 'history'; input = {contractId: q.contractId}; }
       else if (q.resource === 'proposal' && Object.keys(q).sort().join('|') === 'contractId|id|resource') { operation = 'proposal'; input = {contractId: q.contractId, id: q.id}; }
       else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'contractId|key|resource') { operation = 'attempt'; input = {contractId: q.contractId, key: q.key}; }
       else lifecycleFail('QUERY_INVALID', 400, 'Consulta inválida.');

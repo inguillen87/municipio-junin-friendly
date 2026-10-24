@@ -11,9 +11,10 @@ const matches=(node,selector)=>{
 export class NativeLeavePanelElement extends PayrollPanelElement{
  constructor(tag='div'){super(tag);this.classList={add(){}};}
  add(node){this.append(node);}
+ scrollIntoView(){}
  prepend(...nodes){for(const node of [...nodes].reverse()){node.parentElement=this;this.children.unshift(node);}}
  insertBefore(node,before){const old=node.parentElement;if(old)old.children=old.children.filter(child=>child!==node);const index=this.children.indexOf(before);node.parentElement=this;if(index<0)this.children.push(node);else this.children.splice(index,0,node);return node;}
- set innerHTML(value){super.innerHTML=value;const decorate=node=>{for(const child of node.children){Object.setPrototypeOf(child,NativeLeavePanelElement.prototype);child.classList={add(){}};decorate(child);}};decorate(this);}
+ set innerHTML(value){super.innerHTML=value;const decorate=node=>{for(const child of node.children){Object.setPrototypeOf(child,NativeLeavePanelElement.prototype);child.classList={add(){}};for(const [name,text] of Object.entries(child.attributes))if(name.startsWith('data-'))child.dataset[name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=text;decorate(child);}};decorate(this);}
  querySelectorAll(selector){
   const selectors=selector.split(',').map(s=>s.trim().split(/\s+/)),out=[];
   const accepted=(node,parts)=>{if(!matches(node,parts.at(-1)))return false;let parent=node.parentElement;for(let i=parts.length-2;i>=0;i--){while(parent&&parent!==this&&!matches(parent,parts[i]))parent=parent.parentElement;if(!parent||parent===this&&!matches(parent,parts[i]))return false;parent=parent.parentElement;}return true;};

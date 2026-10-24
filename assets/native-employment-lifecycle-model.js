@@ -3,6 +3,7 @@ import {catalogUuid, catalogAttemptKey} from './native-employment-catalog-model.
 
 export const LIFECYCLE_VERSION='native-employment-lifecycle.v1';
 export const ADOPTED_LIFECYCLE_VERSION='native-employment-lifecycle.v2';
+export const LIFECYCLE_HISTORY_VERSION='native-employment-lifecycle-history.v1';
 export const LIFECYCLE_MOVEMENTS=Object.freeze({terminate:'Baja',reenter:'Reingreso'});
 export const LIFECYCLE_STATUSES=Object.freeze({active:'Activo',inactive:'Inactivo',pending_start:'Ingreso futuro',unknown:'Fechas pendientes de verificar',state_error:'Estado pendiente de revisión'});
 export {catalogUuid as lifecycleUuid,catalogAttemptKey as lifecycleAttemptKey};
@@ -73,6 +74,15 @@ export function validateLifecycleBootstrap(v,id){
 export function validateLifecycleProposal(v,id,proposalId){
  contract(exact(v,['version','proposal'])&&validVersion(v.version));const p=v.proposal;summary(p,true);contract(catalogUuid(p.contractId)&&p.contractId.toLowerCase()===id.toLowerCase()&&p.id.toLowerCase()===proposalId.toLowerCase());subject(p.subject,id,v.version);contract(exact(p.before,['intervals'])&&exact(p.after,['intervals']));const before=intervals(p.before.intervals,v.version),after=intervals(p.after.intervals,v.version);let expected;try{expected=lifecycleAfter(before,p.movement,p.date,v.version);}catch{contract(false);}contract(JSON.stringify(expected)===JSON.stringify(after));
  contract(p.status==='pending'?p.review===null:exact(p.review,['decision','reason','reviewedAt','reviewerLabel'])&&p.review.decision===(p.status==='approved'?'approve':'reject')&&typeof p.review.reason==='string'&&[...p.review.reason].length>=10&&[...p.review.reason].length<=1000&&stamp(p.review.reviewedAt)&&typeof p.review.reviewerLabel==='string'&&p.review.reviewerLabel.length>0&&[...p.review.reviewerLabel].length<=160);return v;
+}
+// The legacy bootstrap remains a twenty-summary view. Complete discovery has
+// a separate envelope and must contain exactly its current recent prefix.
+export function validateLifecycleHistory(v,id){
+ contract(exact(v,['version','bootstrap','proposals','total','complete'])&&v.version===LIFECYCLE_HISTORY_VERSION&&v.complete===true&&Number.isSafeInteger(v.total)&&v.total>=0&&v.total<=100&&Array.isArray(v.proposals)&&v.proposals.length===v.total);
+ const b=validateLifecycleBootstrap(v.bootstrap,id);contract(b.proposals.length===Math.min(v.total,20)&&b.historyTruncated===(v.total>20));
+ const ids=new Set();for(const p of v.proposals){summary(p);contract(!ids.has(p.id.toLowerCase()));ids.add(p.id.toLowerCase());}
+ for(let i=0;i<b.proposals.length;i++)contract(Object.entries(b.proposals[i]).every(([key,value])=>v.proposals[i][key]===value));
+ return v;
 }
 export function validateLifecycleReceipt(v,id){
  contract(exact(v,['version','operation','contractId','proposalId','status','employmentVersion','revision','replayed','payrollModified'])&&validVersion(v.version)&&['propose','review'].includes(v.operation)&&catalogUuid(v.contractId)&&v.contractId.toLowerCase()===id.toLowerCase()&&catalogUuid(v.proposalId)&&['pending','approved','rejected'].includes(v.status)&&hash(v.employmentVersion)&&Number.isSafeInteger(v.revision)&&v.revision>=0&&v.revision<=100&&typeof v.replayed==='boolean'&&v.payrollModified===false&&(v.operation==='propose'?v.status==='pending':v.status!=='pending')&&(v.status!=='approved'||v.revision>0));return v;
