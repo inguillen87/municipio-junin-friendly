@@ -449,6 +449,7 @@ const shellFiles = [
   'assets/payroll-native-monthly-review.css',
   'assets/own-payroll-novelties-model.js',
   'assets/own-payroll-novelties-panel.js',
+  'assets/own-payroll-novelty-cancellation.js',
   'assets/own-payroll-novelties-panel.css',
   'assets/payroll-monthly-decisions.js',
   'assets/payroll-monthly-decisions-model.js',
