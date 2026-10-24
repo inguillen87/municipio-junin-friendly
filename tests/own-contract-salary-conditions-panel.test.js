@@ -126,3 +126,9 @@ test('a session renewal before any send still retires the prepared view rather t
  const h=await harness(t);h.renew();h.state.interval();await h.idle();
  assert.equal(h.q('content').hidden,true);assert.equal(h.q('rows').children.length,0);assert.equal(h.q('send').hidden,true);assert.equal(h.state.posts.length,0);assert.equal(h.lookupCount(),0);
 });
+
+test('losing a retry acknowledgement withdraws the earlier404 permission until another lookup',async t=>{
+ const h=await harness(t);await h.send();h.state.notFound=true;h.state.saved=null;await h.recover();assert.equal(h.q('retry').disabled,false);
+ h.state.notFound=false;h.state.loseAck=true;await h.q('retry').emit('click');assert.equal(h.state.posts.length,2);assert.deepEqual(h.state.posts[1],h.state.posts[0]);
+ assert.equal(h.q('retry').hidden,true);assert.equal(h.q('receipt').hidden,true);await h.recover();assert.equal(h.lookupCount(),2);assert.equal(h.state.posts.length,2);assert.equal(h.q('receipt').hidden,false);
+});
