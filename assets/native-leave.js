@@ -2,6 +2,7 @@ import {nativeLeaveUuid,nativeLeaveCommand,nativeLeaveSame,validateNativeLeaveBo
 import {nativeLeavePayload,nativeLeaveProfile,nativeLeaveAllocations,NATIVE_LEAVE_STATES,NATIVE_LEAVE_UNITS,NATIVE_LEAVE_POLICY_VERSION} from './native-leave-model.js';
 import {getTitleViCatalog,reasonPolicyMapping} from './mendoza-title-vi.js';
 import {assertNativeLeaveExportSame,nativeLeaveCsv,nativeLeaveXlsx} from './native-leave-export.js';
+import {nativeLeaveWorkspaceAccess} from './native-leave-access.js';
 
 const API='/api/internal-native-leave',contexts=new Map(),active=new Set();
 const reasonCodes=['3','4','5','6','7','8','9','10','11','12','13','14','16','19','21','30','31','32','33','36'];
@@ -27,7 +28,9 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  contractId=contractId.toLowerCase();host.dataset.nleaveMounted='true';host.classList.add('nleave-panel');
  const api=selfService?'/api/internal-native-self-leave':API;
  const stateKey=(selfService?'self:':'administration:')+contractId;
- const state=contexts.get(stateKey)??{actor:null,scope:null,pending:null};contexts.set(stateKey,state);
+ // Bind the in-memory context only after reading the actual managed session.
+ // A new session cannot inherit another session's body, key or recovery state.
+ let state={actor:null,scope:null,pending:null};
  let bootstrap=null,draft=null,decision=null,closed=false,busy=false,epoch=0,controller=null,authorityCaps=[];
  host.innerHTML=`<p class="nleave-note">Solicitudes y saldos del contrato propio. Las cantidades son días corridos o minutos solicitados; no son tiempo observado, haberes ni descuentos. Los derechos requieren respaldo municipal y revisión de otra persona.</p>
  <p data-nleave-status role="status" aria-live="polite"></p>
@@ -66,9 +69,9 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  }
  async function authority(seq){
   const d=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
-  const caps=d.access?.tenantCapabilities,email=d.user?.email;if(d.authenticated!==true||typeof email!=='string'||!Array.isArray(caps)||!(selfService?['leave.request.self.read','actions.read']:['workforce.employee.read','actions.read']).every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
-  const actor=JSON.stringify([email.toLowerCase().trim(),d.access.tenant?.id??null,d.access.tenant?.membershipId??null,d.access.tenant?.roleKey??d.user.role??null]);
+  const {actor,caps}=nativeLeaveWorkspaceAccess(d);if(!(selfService?['leave.request.self.read','actions.read']:['workforce.employee.read','actions.read']).every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
   if(state.actor&&state.actor!==actor){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
+  if(!state.actor){const key=actor+'|'+stateKey;state=contexts.get(key)??{actor,scope:null,pending:null};contexts.set(key,state);}
   state.actor=actor;authorityCaps=caps;
  }
  async function fresh(seq){
@@ -79,7 +82,7 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  }
  function failure(error){
   if([401,403].includes(error.status)||['CONTRACT_INVALID','ACTOR_CHANGED'].includes(error.code))clearVisible();
-  const message=error.code==='ACTOR_CHANGED'?'Cambió la cuenta o el ámbito. El intento original se conserva y requiere el acceso original.':error.code==='CONTRACT_INVALID'?'La respuesta no pudo verificarse. Conservamos la referencia del envío sin confirmar.':[401,403].includes(error.status)?'Tu acceso cambió. Se retiraron los datos. Cerrá y volvé a abrir la ficha con una cuenta autorizada.':error.message||'No se confirmó la operación. Consultá el mismo intento antes de continuar.';say(message,true);
+  const message=error.code==='ACTOR_CHANGED'?'Cambió la cuenta, la sesión o el ámbito. El intento original se conserva y requiere el acceso original.':error.code==='CONTRACT_INVALID'?'La respuesta no pudo verificarse. Conservamos la referencia del envío sin confirmar.':[401,403].includes(error.status)?'Tu acceso cambió. Se retiraron los datos. Cerrá y volvé a abrir la ficha con una cuenta autorizada.':error.message||'No se confirmó la operación. Consultá el mismo intento antes de continuar.';say(message,true);
  }
  function field(name,label,type='text',choices=null){
   const wrapper=el('label',label),n=el(choices?'select':type==='textarea'?'textarea':'input');n.dataset.nleaveField=name;n.name=name;
@@ -171,17 +174,18 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  }
  async function send(recover=false){
   if(busy||closed||!state.pending)return;const seq=epoch,attempt=state.pending;busy=true;controls();say(recover?'Consultando la confirmación original…':'Guardando la operación revisada…');let started=false,confirmed=false;
+  const current=()=>valid(seq)&&state.pending===attempt;
   try{
-   await authority(seq);if(attempt.actor!==state.actor||attempt.scope!==state.scope)throw issue('ACTOR_CHANGED',409);
+   await authority(seq);if(!current())return;if(attempt.actor!==state.actor||attempt.scope!==state.scope)throw issue('ACTOR_CHANGED',409);
    let receipt;
    if(recover){receipt=await request(api+'?'+new URLSearchParams({resource:'attempt',contractId,key:attempt.key}));}
    else{
-    const b=await fresh(seq);if(!valid(seq))return;if(!attempt.uncertain)freshMatches(attempt,b);else if(b.scopeVersion!==attempt.body.payload.scopeVersion)throw issue('ACTOR_CHANGED',409);
+    const b=await fresh(seq);if(!current())return;if(!attempt.uncertain)freshMatches(attempt,b);else if(b.scopeVersion!==attempt.body.payload.scopeVersion)throw issue('ACTOR_CHANGED',409);
     started=true;receipt=await request(api,{method:'POST',headers:{'content-type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes});
    }
-   if(!valid(seq))return;validateNativeLeaveReceipt(receipt,contractId,attempt.body.payload);if(receipt.requestSha256!==attempt.fingerprint)throw issue('CONTRACT_INVALID',503);
+   if(!current())return;validateNativeLeaveReceipt(receipt,contractId,attempt.body.payload);if(receipt.requestSha256!==attempt.fingerprint)throw issue('CONTRACT_INVALID',503);
    state.pending=null;draft=null;decision=null;$('[data-nleave-form]').hidden=true;$('[data-nleave-decision]').hidden=true;confirmed=true;
-  }catch(error){if(!valid(seq))return;if(recover||attempt.uncertain||started&&(!error.status||error.status>=500||[401,403].includes(error.status))){attempt.uncertain=true;attempt.retryReady=recover&&error.status===404;}else state.pending=null;failure(error);if(bootstrap)render();}
+  }catch(error){if(!current())return;if(recover||attempt.uncertain||started&&(!error.status||error.status>=500||[401,403].includes(error.status))){attempt.uncertain=true;attempt.retryReady=recover&&error.status===404;}else state.pending=null;failure(error);if(bootstrap)render();}
   finally{if(valid(seq)){busy=false;controls();}}
   if(confirmed&&valid(seq)){await load();if(valid(epoch)&&bootstrap)say('Operación confirmada. Se conserva el historial. No se modificaron haberes ni pagos.');}
  }

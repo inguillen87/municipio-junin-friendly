@@ -93,6 +93,7 @@ const shellFiles = [
   'assets/position-assignment.css',
   'assets/release-status-model.js',
   'assets/native-leave.js',
+  'assets/native-leave-access.js',
   'assets/native-leave-export.js',
   'assets/native-leave-model.js',
   'assets/native-leave-contract.js',
