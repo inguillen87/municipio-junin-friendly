@@ -10,7 +10,7 @@ El archivo contiene legajos e importes; corresponde al circuito municipal autori
 
 Los campos de texto, códigos e importes llevan un marcador literal de texto para evitar fórmulas de planilla y conservar ceros iniciales y toda la precisión original. Se usan punto decimal, separador punto y coma, comillas escapadas, UTF-8 y líneas CRLF. Es una copia para control; no constituye un formato bancario, fiscal o de intercambio contable.
 
-Antes de descargar se vuelve a leer la propuesta íntegra y verificar sus hashes, aprobación vigente, revisión actual, configuración contable y estado cerrado. La sesión se comprueba nuevamente después de preparar el archivo y antes de habilitarlo. Un cambio de selección, cuenta, permiso, tarea o visibilidad retira la vista y la descarga. Una respuesta tardía no restituye datos retirados.
+Antes de descargar se vuelve a leer la propuesta íntegra y verificar sus hashes, aprobación vigente, revisión actual, configuración contable y estado cerrado. Al finalizar la preparación del archivo se consultan otra vez la misma aprobación y sus fuentes, y se comprueba la sesión antes de habilitarlo. Si cambiaron, la descarga se descarta y se debe abrir una revisión vigente. Un cambio de selección, cuenta, permiso, tarea o visibilidad retira la vista y la descarga. Una respuesta tardía no restituye datos retirados.
 
 Un envío pendiente mantiene su cuerpo y clave y bloquea la descarga. El botón no registra otra operación ni cambia ese intento. Las propuestas pendientes, rechazadas, reemplazadas o cuyo cierre se reabrió conservan su historia, pero no habilitan una copia aprobada vigente. No hay persistencia en el navegador ni una API nueva.
 
