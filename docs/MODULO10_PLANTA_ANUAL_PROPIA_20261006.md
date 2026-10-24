@@ -13,3 +13,11 @@ SQL127 agrega una tabla vacía y once funciones; el runtime sólo ejecuta tres f
 No extrae ni reconstruye la integración histórica bloqueada de PR50/SQL111 presupuestario, ni SQL114/115 o el resolvedor/evaluador rechazados. El contexto del tenant conserva su vinculación certificada; ninguna consulta del registro usa GRH como motor o como fuente de posiciones anuales.
 
 Pendientes del módulo10: incorporar y revisar los anexos autorizados, vincular posiciones propias por vigencia y conservar esa asignación en la liquidación original, cotejarla contra la versión anual aplicable y emitir el PDF comparativo simple/detallado. La liquidación propia actual conserva convenio, categoría y repartición; esos datos no bastan para inferir el cargo presupuestario histórico. La habilitación de nuevos permisos y la aceptación de Noelia/Hugo son estados separados de instalación y publicación.
+
+## Descarga de la comparación propia · corrección local del 24/10/2026
+
+El estado anterior corresponde al incremento del 06/10. La ruta posterior de comparación propia está montada en `/estructura` mediante `position-comparison-panel.js` y consulta `detail-v2`; no debe confundirse con el cotejo documental de presencia `budget-payroll*`.
+
+Se corrigió una carrera en esa descarga: después de esperar la huella final, se vuelve a comprobar que la consulta siga vigente y conserve permiso antes de comparar la huella o crear el archivo. Ocultar la página, retirar el acceso, cerrar sesión o cambiar la consulta durante esa espera impide descargar. Una huella antigua distinta tampoco retira una consulta nueva.
+
+Cuatro pruebas focales reproducen la retirada durante el hash final y la consulta nueva, y conservan controles positivos PDF/Excel/CSV. Montan el panel y cliente reales con DOM, autorización, modelos, hashes y renderizadores sintéticos; no importan el motor. Esta evidencia acredita la guarda de interfaz, no el contenido de un PDF real, los contratos de dominio, PostgreSQL, publicación o disponibilidad municipal del módulo completo.
