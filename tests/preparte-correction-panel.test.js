@@ -50,7 +50,7 @@ async function panel(count=60){
     return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json'}});
   };
   const source=fs.readFileSync('assets/attendance-preparte-panel.js','utf8');
-  const context={...model,preparteXlsx,document,fetch,Map,Set,URLSearchParams,AbortSignal,Blob,setTimeout,
+  const context={...model,preparteXlsx,document,fetch,Map,Set,URLSearchParams,AbortSignal,AbortController,Blob,setTimeout,
     URL:{createObjectURL:()=> 'blob:synthetic',revokeObjectURL(){}},window:{confirm:message=>{confirms.push(message);return state.confirm;}}};
   vm.createContext(context);vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace('export function mountAttendancePreparte','function mountAttendancePreparte'),context);
   const controller=context.mountAttendancePreparte(host,{canUse:()=>state.allowed,period:()=>state.period,payrollType:()=>state.payrollType,
