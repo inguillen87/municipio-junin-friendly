@@ -30,7 +30,17 @@ export function createOwnNoveltyCancellation(deps){
  const changed=()=>deps.onChange?.();
  const guard=token=>{if(token!==epoch||!live())throw Object.assign(Error('Se retiró la revisión conjunta.'),{name:'AbortError'});};
  const read=async(promise,token)=>{const value=await promise;guard(token);return value;};
- async function authorize(token){const key=await read(deps.authorize(),token);if(typeof key!=='string'||!key||ownerKey!==null&&key!==ownerKey)throw Object.assign(Error('Cambió la cuenta o el ámbito. Se conserva el intento de la revisión original.'),{status:403});visible=true;return key;}
+ async function authorize(token){const key=await read(deps.authorize(),token);if(typeof key!=='string'||!key||ownerKey!==null&&key!==ownerKey)throw Object.assign(Error('Cambió la cuenta o el ámbito. Se conserva el intento de la revisión original.'),{status:403});return key;}
+ async function restoreAccess(token){
+  if(ownerKey===null)throw Object.assign(Error('No se verificó la cuenta original de la revisión.'),{status:403});
+  const key=await authorize(token),bootstrap=ownNoveltyBootstrap(await read(deps.readBootstrap(),token));
+  if(!bootstrap.permissions.canPrepare)throw Object.assign(Error('No se verificó el permiso actual de cancelación.'),{status:403});
+  const current=new Map(bootstrap.batches.map(item=>[item.id,item]));
+  const references=plan?.census??results.map(result=>({id:result.batchId,periodMonth:result.scope.periodMonth,payrollType:result.scope.payrollType,rowCount:result.rowCount,preparedBy:result.preparedBy}));
+  for(const reference of references){const value=current.get(reference.id);if(!value||['periodMonth','payrollType','rowCount','preparedBy'].some(field=>salarySerialized(value[field])!==salarySerialized(reference[field])))throw Object.assign(Error('No se verificó que la revisión conservada pertenezca al ámbito actual.'),{status:403});}
+  if(await authorize(token)!==key)throw Object.assign(Error('Cambió la cuenta durante la recuperación de la consulta.'),{status:403});
+  guard(token);visible=true;
+ }
  async function batch(id,token){const value=ownNoveltyBatch(await read(deps.readDetail(id),token));if(value.id!==id||value.rowsSha256!==await read(deps.hash(value.rows.map(({values,subject})=>({values,subject}))),token))fail('No se verificó el detalle completo del lote solicitado.');return value;}
  async function approvedBlock(value,token){
   if(value.version===OWN_NOVELTY_SUCCESSION_BATCH)return 'El reemplazo aprobado requiere una nueva corrección explícita.';
@@ -46,7 +56,7 @@ export function createOwnNoveltyCancellation(deps){
   try{return await fn(token);}catch(error){if(token===epoch&&visible){message=error.message;changed();}throw error;}finally{busy=false;changed();}
  }
  async function locate(input){return operation(async token=>{
-  if(pending||plan)fail('Terminá o cerrá la revisión conjunta antes de abrir otra.');
+  if(pending||plan||results.length)fail('Terminá o cerrá la revisión conjunta antes de abrir otra.');
   const scope=ownNoveltyCancellationScope(input),key=await authorize(token),bootstrap=ownNoveltyBootstrap(await read(deps.readBootstrap(),token));
   if(!bootstrap.permissions.canPrepare)throw Object.assign(Error('Tu cuenta no permite preparar esta operación.'),{status:403});
   const census=ownNoveltyCancellationCensus(bootstrap,scope),targets=[],blocked=[];
@@ -61,7 +71,7 @@ export function createOwnNoveltyCancellation(deps){
   if(await authorize(token)!==key)throw Object.assign(Error('Cambió la cuenta durante la revisión del conjunto.'),{status:403});
   const final=ownNoveltyCancellationCensus(await read(deps.readBootstrap(),token),scope);
   if(salarySerialized(final)!==salarySerialized(census))fail('Cambió el inventario de lotes. Volvé a localizar el conjunto completo.');
-  plan=frozen({scope,census,targets,blocked,matchingRows});ownerKey=key;results=[];cursor=0;reasonReference=null;notFound=false;
+  plan=frozen({scope,census,targets,blocked,matchingRows});ownerKey=key;results=[];cursor=0;reasonReference=null;notFound=false;visible=true;
   message=blocked.length?'Hay lotes que requieren revisión individual. No se habilitó ninguna cancelación conjunta.':targets.length?'Conjunto completo revisado. La autoría se comprueba en el servidor al registrar cada cancelación.':'No hay novedades activas que coincidan con ese concepto, mes y tipo.';
   changed();return view();
  });}
@@ -81,16 +91,17 @@ export function createOwnNoveltyCancellation(deps){
   ownNoveltyReceipt(value,pending);const snapshot=value.snapshot,target=plan.targets[cursor];
   if(value.requestSha256!==await read(deps.hash(value.body),token)||snapshot.rowsSha256!==await read(deps.hash(snapshot.rows.map(({values,subject})=>({values,subject}))),token)||salarySerialized(pin(snapshot))!==salarySerialized({...target,status:'cancelled',revision:target.revision+1}))fail('El comprobante no conserva el lote completo de esta revisión. Recuperá el mismo intento.');
   guard(token);
-  results.push(frozen({batchId:snapshot.id,rowCount:snapshot.rowCount,revision:snapshot.revision,rowsSha256:snapshot.rowsSha256,requestKey:value.requestKey,requestSha256:value.requestSha256,body:structuredClone(value.body)}));
+  results.push(frozen({batchId:snapshot.id,rowCount:snapshot.rowCount,revision:snapshot.revision,rowsSha256:snapshot.rowsSha256,requestKey:value.requestKey,requestSha256:value.requestSha256,body:structuredClone(value.body),scope:plan.scope,preparedBy:structuredClone(target.preparedBy)}));
   pending=null;notFound=false;cursor++;message=cursor===plan.targets.length?'Se verificaron todos los comprobantes de cancelación del conjunto.':'Se verificó el comprobante de un lote. Los restantes todavía no se enviaron.';changed();
  }
  async function recoverCurrent(token){
-  await authorize(token);
+  if(!visible)await restoreAccess(token);else await authorize(token);
   try{await accept(await read(deps.readAttempt(pending.key),token),token);return true;}
   catch(error){if(error.status!==404)throw error;notFound=true;message='No hay comprobante registrado para este intento. Reintentá su misma clave o devolvé el conjunto a revisión.';changed();return false;}
  }
  async function execute(confirmed){return operation(async token=>{
   if(!plan||!confirmed||plan.blocked.length||!plan.targets.length)fail('Localizá y revisá el conjunto completo antes de confirmar.');
+  if(!visible)await restoreAccess(token);
   if(pending){if(!await recoverCurrent(token)){
    await preflight(plan.targets[cursor],token);await accept(await read(deps.send(pending),token),token);
   }}
@@ -105,17 +116,23 @@ export function createOwnNoveltyCancellation(deps){
   return view();
  });}
  async function recover(){return operation(async token=>{if(!pending)return;await recoverCurrent(token);return view();});}
+ async function restore(){return operation(async token=>{
+  if(!plan&&!pending&&!results.length)return view();
+  visible=false;changed();await restoreAccess(token);
+  message=pending?'Se recuperó la consulta de la revisión. Recuperá el comprobante pendiente antes de continuar.':plan?'Se recuperó la revisión y sus comprobantes históricos. Cualquier envío exige confirmar y verificar nuevamente las fuentes.':'Se recuperaron los comprobantes de la revisión anterior. No hay un conjunto preparado para enviar.';
+  changed();return view();
+ });}
  async function reviseMissing(){return operation(async token=>{
   if(!pending||!notFound)fail('Recuperá primero el comprobante del intento pendiente.');
   if(await recoverCurrent(token))return view();
-  pending=null;notFound=false;plan=null;ownerKey=null;reasonReference=null;cursor=0;message='El intento sin registro volvió a revisión. Las cancelaciones ya verificadas se conservan y no se deshacen.';changed();return view();
+  pending=null;notFound=false;plan=null;if(!results.length)ownerKey=null;reasonReference=null;cursor=0;message='El intento sin registro volvió a revisión. Las cancelaciones ya verificadas se conservan y no se deshacen.';changed();return view();
  });}
  function close(){if(busy||pending)fail('Recuperá primero el intento pendiente; su clave se conserva.');plan=null;results=[];cursor=0;ownerKey=null;reasonReference=null;notFound=false;message='Revisión cerrada. No se deshicieron cancelaciones registradas.';changed();}
  function withdraw(){epoch++;visible=false;message='Se retiró la revisión. Actualizá el acceso para recuperar el intento pendiente.';changed();}
  function view(){
   const base={active:plan!==null||pending!==null||results.length>0,pending:pending!==null,notFound,busy,visible,message};
   if(!visible)return {...base,scope:null,targets:[],blocked:[],results:[],matchingRows:0,remaining:0,complete:false};
-  return {...base,scope:plan?.scope??null,targets:plan?.targets??[],blocked:plan?.blocked??[],results:[...results],matchingRows:plan?.matchingRows??0,remaining:plan?plan.targets.length-cursor:0,complete:!!plan&&plan.targets.length>0&&cursor===plan.targets.length};
+  return {...base,scope:plan?.scope??results[0]?.scope??null,targets:plan?.targets??[],blocked:plan?.blocked??[],results:[...results],matchingRows:plan?.matchingRows??results.reduce((sum,result)=>sum+result.rowCount,0),remaining:plan?plan.targets.length-cursor:0,complete:!!plan&&plan.targets.length>0&&cursor===plan.targets.length,historyOnly:!plan&&results.length>0};
  }
- return {locate,execute,recover,reviseMissing,close,withdraw,view,hasWork:()=>plan!==null||pending!==null||results.length>0,hasPending:()=>pending!==null};
+ return {locate,execute,recover,restore,reviseMissing,close,withdraw,view,hasWork:()=>plan!==null||pending!==null||results.length>0,hasPending:()=>pending!==null};
 }

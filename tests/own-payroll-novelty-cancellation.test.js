@@ -158,4 +158,31 @@ test('logical recovery locator survives session renewal without equating session
  for(const key of [salarySerializedForTest(['S2','another@example.invalid',uid(99000),'role']),salarySerializedForTest(['S2','synthetic@example.invalid',uid(99001),'role']),salarySerializedForTest(['S2','synthetic@example.invalid',uid(99000),'other-role'])])assert.notEqual(ownNoveltyCancellationOwnerKey(first),ownNoveltyCancellationOwnerKey(key));
  assert.throws(()=>ownNoveltyCancellationOwnerKey('not-json'));assert.throws(()=>ownNoveltyCancellationOwnerKey(JSON.stringify(['S1','email','invalid','role'])));
 });
+test('partial review with no pending attempt restores history under current read authority without accepting a changed census',async()=>{
+ const f=fixture();f.hooks.afterCommit=(attempt,result,n)=>{if(n===1)f.saved.get(uid(20002)).revision++;};await f.controller.locate(scope);await assert.rejects(f.controller.execute(true));f.controller.withdraw();
+ const restored=await f.controller.restore();assert.equal(restored.visible,true);assert.equal(restored.results.length,1);assert.equal(restored.remaining,2);assert.equal(restored.complete,false);assert.deepEqual(restored.scope,scope);assert.equal(f.posts.length,1);assert.equal(f.gets.length,0);
+ await assert.rejects(f.controller.execute(true),/conjunto revisado/);assert.equal(f.posts.length,1);
+});
+test('restore cannot reveal preserved references on another account or failed/incomplete protected scope',async()=>{
+ for(const kind of ['account','403','503','invalid','missing-id','prepared-by','row-count','period','prepare']){
+  const f=fixture();await f.controller.locate(scope);f.controller.withdraw();const exposed=[];f.hooks.change=controller=>{const state=controller.view();if(state.visible)exposed.push(state);};
+  const original=f.deps.readBootstrap;
+  if(kind==='account')f.setAuth('another-session-scope');
+  else f.deps.readBootstrap=async()=>{if(kind==='403'||kind==='503')throw Object.assign(Error('Rejected scope'),{status:Number(kind)});if(kind==='invalid')return {complete:false};const value=await original();if(kind==='missing-id')value.batches.shift();if(kind==='prepared-by')value.batches[0].preparedBy={membershipId:uid(97000),personId:uid(97001)};if(kind==='row-count')value.batches[0].rowCount++;if(kind==='period')value.batches[0].periodMonth='2026-09-01';if(kind==='prepare')value.permissions.canPrepare=false;return value;};
+  await assert.rejects(f.controller.restore());assert.equal(f.controller.view().visible,false);assert.equal(f.controller.view().targets.length,0);assert.equal(exposed.length,0);assert.equal(f.posts.length,0);assert.equal(f.gets.length,0);
+ }
+});
+test('hiding while the protected restore read is in flight discards the response without exposing historical pins',async()=>{
+ const f=fixture();await f.controller.locate(scope);f.controller.withdraw();const original=f.deps.readBootstrap;let release;f.deps.readBootstrap=async()=>{const value=await original();await new Promise(resolve=>{release=resolve;});return value;};
+ const restoring=f.controller.restore();while(!release)await new Promise(resolve=>setImmediate(resolve));f.controller.withdraw();release();await assert.rejects(restoring,{name:'AbortError'});assert.equal(f.controller.view().visible,false);assert.equal(f.controller.view().targets.length,0);assert.equal(f.posts.length,0);assert.equal(f.gets.length,0);
+});
+test('restore of an uncertain attempt reveals context only and never looks up or sends that attempt',async()=>{
+ const f=fixture();f.hooks.beforeSend=()=>{throw Error('No response');};await f.controller.locate(scope);await assert.rejects(f.controller.execute(true));f.controller.withdraw();const restored=await f.controller.restore();assert.equal(restored.pending,true);assert.equal(restored.results.length,0);assert.equal(restored.remaining,3);assert.equal(f.gets.length,0);assert.equal(f.posts.length,1);assert.equal(restored.notFound,false);
+});
+test('history retained after a confirmed404 stays owner-bound without claiming a prepared or completed group',async()=>{
+ const f=fixture();f.hooks.beforeSend=(attempt,n)=>{if(n===2)throw Error('No response');};await f.controller.locate(scope);await assert.rejects(f.controller.execute(true));const original=structuredClone(f.posts[0]);await f.controller.recover();await f.controller.reviseMissing();
+ assert.equal(f.controller.view().historyOnly,true);assert.equal(f.controller.view().complete,false);assert.equal(f.controller.view().results.length,1);assert.deepEqual(f.controller.view().scope,scope);await assert.rejects(f.controller.locate(scope),/cerrá la revisión/);
+ f.controller.withdraw();f.setAuth('another-session-scope');await assert.rejects(f.controller.restore(),{status:403});assert.equal(f.controller.view().visible,false);
+ f.setAuth('synthetic-session-scope');const restored=await f.controller.restore();assert.equal(restored.historyOnly,true);assert.equal(restored.results[0].requestKey,original.key);assert.equal(restored.matchingRows,2);assert.equal(restored.targets.length,0);assert.equal(restored.complete,false);assert.equal(f.posts.length,2);
+});
 const salarySerializedForTest=JSON.stringify;

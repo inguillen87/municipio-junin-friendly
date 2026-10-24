@@ -24,13 +24,14 @@ function mounted(){
  for(let i=1;i<=3;i++){const value=batch(2,{id:uid(20000+i),status:'draft',decidedBy:null,approvals:[]});for(const [index,row]of value.rows.entries()){const id=uid(i*100+index+1),legajo='N/'+(i*100+index+1);Object.assign(row.values,{contractId:id,legajo});Object.assign(row.subject,{contractId:id,legajo,registrationId:uid(10000+i*100+index)});}value.rowsSha256=hash(value.rows.map(({values,subject})=>({values,subject})));saved.set(value.id,value);}
  const caps=new Set([...model.OWN_NOVELTY_READ,'payroll.novelty.prepare']);
  const fetch=async(url,options={})=>{
-  let data,status=200;if(url==='/api/internal-auth')return {ok:true,status,json:async()=>({ok:true})};
+  const failure=value=>({ok:false,status:value.status,json:async()=>({ok:false,code:value.code,error:value.message??'Rechazo sintético del servidor'})});
+  let data,status=200;if(url==='/api/internal-auth'){const denied=await hooks.auth?.();return denied?failure(denied):{ok:true,status,json:async()=>({ok:true})};}
   const parsed=new URL(url,'https://synthetic.invalid'),resource=parsed.searchParams.get('resource');
-  if(resource==='bootstrap')data={version:'own-payroll-novelty-bootstrap.v1',complete:true,subjects:[...saved.values()].flatMap(value=>value.rows.map(row=>row.subject)),batches:[...saved.values()].map(value=>Object.fromEntries(['id','revision','status','periodMonth','payrollType','rowCount','preparedBy'].map(key=>[key,structuredClone(value[key])]))),permissions:{canPrepare:true,canApprove:false}};
+  if(resource==='bootstrap'){const denied=await hooks.bootstrap?.();if(denied)return failure(denied);data={version:'own-payroll-novelty-bootstrap.v1',complete:true,subjects:[...saved.values()].flatMap(value=>value.rows.map(row=>row.subject)),batches:[...saved.values()].map(value=>Object.fromEntries(['id','revision','status','periodMonth','payrollType','rowCount','preparedBy'].map(key=>[key,structuredClone(value[key])]))),permissions:{canPrepare:true,canApprove:false}};if(hooks.bootstrapData)data=hooks.bootstrapData(data);}
   else if(resource==='detail')data=structuredClone(saved.get(parsed.searchParams.get('id')));
   else if(resource==='attempt'){const key=parsed.searchParams.get('key');attemptReads.push(key);data=structuredClone(receipts.get(key));if(!data){status=404;data=null;}}
   else if(options.method==='POST'){
-   const body=JSON.parse(options.body).payload,key=options.headers['Idempotency-Key'];posts.push({body,key});await hooks.beforePost?.(posts.length);
+   const body=JSON.parse(options.body).payload,key=options.headers['Idempotency-Key'];posts.push({body,key});const denied=await hooks.beforePost?.(posts.length);if(denied)return failure(denied);
    const original=saved.get(body.batchId),snapshot={...structuredClone(original),status:'cancelled',revision:original.revision+1};data={version:'own-payroll-novelty-receipt.v1',requestKey:key,requestSha256:hash(body),body,snapshot,replayed:false};saved.set(snapshot.id,snapshot);receipts.set(key,data);await hooks.afterCommit?.(posts.length);
   }else throw Error('Unexpected synthetic route: '+url);
   return {ok:status===200,status,json:async()=>status===200?{ok:true,data}:{ok:false,error:'No hay registro',code:'OWN_NOVELTY_NOT_FOUND'}};
@@ -73,4 +74,46 @@ test('real capability event hides group detail and preserves an uncertain key un
 test('another account cannot recover the retained group key or expose its rows',async()=>{
  const f=mounted();f.hooks.beforePost=()=>{throw Error('Sin respuesta');};await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();assert.equal(f.posts.length,1);
  f.panel.deny();f.changeAccount();await f.$('refresh').fire();await f.$('recover').fire();assert.equal(f.attemptReads.length,0);assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.panel.hasPending(),true);assert.equal(f.posts.length,1);
+});
+test('partial group without a pending attempt restores receipts and original scope after hide and refresh',async()=>{
+ const f=mounted();f.hooks.afterCommit=n=>{if(n===1)f.saved.get(uid(20002)).revision++;};await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();assert.equal(f.posts.length,1);assert.equal(f.$('recover').hidden,true);
+ f.document.hidden=true;await f.document.fire('visibilitychange');f.document.hidden=false;await f.$('refresh').fire();
+ assert.match(f.text(f.$('bulk-results')),/1 lotes con comprobante \(2 filas\)/);assert.match(f.text(f.$('bulk-results')),/concepto 120.*2026-10.*Mensual/);assert.equal(f.$('bulk-send').hidden,false);assert.equal(f.$('bulk-confirm').checked,false);assert.equal(f.$('bulk-send').disabled,true);assert.equal(f.attemptReads.length,0);assert.equal(f.posts.length,1);
+});
+test('complete group without a pending attempt restores all receipts after hide without allowing a new send',async()=>{
+ const f=mounted();await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();f.document.hidden=true;await f.document.fire('visibilitychange');f.document.hidden=false;await f.$('refresh').fire();
+ assert.match(f.text(f.$('bulk-results')),/3 lotes con comprobante \(6 filas\)/);assert.equal(f.$('bulk-send').hidden,true);assert.equal(f.posts.length,3);assert.equal(f.attemptReads.length,0);
+});
+test('coded403 of a cancel preserves only verified group context after current protected reads',async()=>{
+ const f=mounted();f.hooks.beforePost=n=>n===2?{status:403,code:'OWN_NOVELTY_FORBIDDEN'}:null;await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();
+ assert.equal(f.posts.length,2);assert.equal(f.$('content').hidden,false);assert.match(f.text(f.$('bulk-results')),/1 lotes con comprobante \(2 filas\)/);assert.equal(f.$('recover').hidden,false);assert.equal(f.panel.hasPending(),true);assert.equal(f.$('bulk-confirm').checked,false);assert.equal(f.$('people').children.length,0);assert.equal(f.$('detail').children.length,0);assert.equal(f.$('fields').hidden,true);assert.equal(f.$('batches').hidden,true);assert.equal(f.attemptReads.length,0);
+ await f.$('recover').fire();await f.$('revise').fire();assert.match(f.text(f.$('bulk-results')),/revisión anterior/);assert.match(f.text(f.$('bulk-results')),new RegExp(f.posts[0].key));assert.equal(f.$('bulk-send').hidden,true);await f.$('bulk-close').fire();assert.equal(f.$('fields').hidden,false);assert.equal(f.$('batches').hidden,false);assert.equal(f.panel.hasPending(),false);assert.equal(f.posts.length,2);
+});
+test('a coded cancel403 does not retain any view when a current protected read or capability rejects it',async()=>{
+ for(const kind of ['bootstrap403','read-capability','binding']){
+  const f=mounted();let rejected=false,rechecked=0;f.hooks.beforePost=n=>{if(n!==2)return;rejected=true;if(kind==='read-capability')f.caps.delete('workforce.employee.read');if(kind==='binding')f.saved.delete(uid(20002));return {status:403,code:'OWN_NOVELTY_FORBIDDEN'};};
+  f.hooks.bootstrap=()=>{if(!rejected)return;rechecked++;assert.equal(f.$('content').hidden,true);assert.equal(f.$('people').children.length,0);assert.equal(f.$('bulk-results').children.length,0);if(kind==='bootstrap403')return {status:403,code:'OWN_NOVELTY_FORBIDDEN'};};
+  await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.panel.hasPending(),true);assert.equal(f.posts.length,2);assert.equal(f.attemptReads.length,0);assert.equal(rechecked,kind==='read-capability'?0:1);
+ }
+});
+test('gateway403, an unrelated domain403 and401 still withdraw without automatic recovery reads',async()=>{
+ for(const failure of [{status:403},{status:403,code:'OWN_NOVELTY_INDEPENDENT_REQUIRED'},{status:401,code:'OWN_NOVELTY_FORBIDDEN'}]){
+  const f=mounted();let rejected=false,rechecked=0;f.hooks.beforePost=n=>{if(n===2){rejected=true;return failure;}};f.hooks.bootstrap=()=>{if(rejected)rechecked++;};await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.panel.hasPending(),true);assert.equal(rechecked,0);assert.equal(f.posts.length,2);
+ }
+});
+test('a failed or incomplete restoration after refresh cannot expose old receipt history',async()=>{
+ for(const kind of ['503','incomplete']){
+  const f=mounted();f.hooks.afterCommit=n=>{if(n===1)f.saved.get(uid(20002)).revision++;};await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();f.document.hidden=true;await f.document.fire('visibilitychange');f.document.hidden=false;let reads=0;
+  f.hooks.bootstrap=()=>{reads++;if(reads===2&&kind==='503')return {status:503,code:'OWN_NOVELTY_UNAVAILABLE'};};f.hooks.bootstrapData=value=>reads===2&&kind==='incomplete'?{...value,complete:false}:value;
+  await f.$('refresh').fire();assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.posts.length,1);assert.equal(f.attemptReads.length,0);assert.equal(f.panel.hasPending(),true);
+ }
+});
+test('history with no remaining plan restores its receipt keys but never a new send or another account access',async()=>{
+ const f=mounted();f.hooks.beforePost=n=>{if(n===2)throw Error('No response');};await f.locate();f.$('bulk-confirm').checked=true;await f.$('bulk-send').fire();await f.$('recover').fire();await f.$('revise').fire();
+ assert.match(f.text(f.$('bulk-results')),new RegExp(f.posts[0].key));assert.match(f.text(f.$('bulk-results')),/sin conjunto preparado/);assert.equal(f.$('bulk-send').hidden,true);f.document.hidden=true;await f.document.fire('visibilitychange');f.document.hidden=false;await f.$('refresh').fire();assert.match(f.text(f.$('bulk-results')),new RegExp(f.posts[0].key));assert.equal(f.$('bulk-send').hidden,true);
+ f.panel.deny();f.changeAccount();await f.$('refresh').fire();assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.posts.length,2);
+});
+test('hiding during the403 revalidation discards its late protected read and preserves the same pending command',async()=>{
+ const f=mounted();let rejected=false,release;f.hooks.beforePost=n=>{if(n===2){rejected=true;return {status:403,code:'OWN_NOVELTY_FORBIDDEN'};}};f.hooks.bootstrap=()=>{if(rejected)return new Promise(resolve=>{release=resolve;});};await f.locate();f.$('bulk-confirm').checked=true;const sending=f.$('bulk-send').fire();while(!release)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);f.document.hidden=true;await f.document.fire('visibilitychange');release();await sending;assert.equal(f.$('content').hidden,true);assert.equal(f.$('bulk-results').children.length,0);assert.equal(f.panel.hasPending(),true);assert.equal(f.posts.length,2);assert.equal(f.attemptReads.length,0);
 });

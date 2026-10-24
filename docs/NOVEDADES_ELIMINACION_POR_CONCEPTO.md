@@ -13,6 +13,12 @@ La carga propia permite localizar el conjunto completo de lotes activos de un co
 
 Ocultar la pestaña o retirar un permiso quita las vistas. La clave y el cuerpo del intento incierto se conservan en memoria. Al volver, se verifica acceso actual; se muestra nuevamente el concepto, mes y tipo originales y se exige una nueva confirmación. Renovar la sesión de la misma cuenta no convierte su UUID en la identidad del preparador: el servidor sigue comprobando la autoría en cada lectura y comando.
 
+**Actualizar carga propia** recupera también la consulta de un conjunto parcial o terminado que ya no tenga un intento pendiente. Antes de mostrar sus comprobantes vuelve a verificar la cuenta y el inventario protegido de lotes. Los comprobantes son antecedentes: mostrarlos no acepta cambios en las fuentes ni envía los lotes restantes. La continuación conserva su verificación completa antes de cada envío.
+
+Un rechazo de cancelación no se interpreta automáticamente como un error de autoría: el mismo código puede indicar pérdida de permisos. Primero se retiran las vistas nominales. Si la sesión, las capacidades y el ámbito se verifican nuevamente en el servidor, se muestra sólo el resumen y los comprobantes, con el intento rechazado conservado. Si la comprobación falla, la vista sigue retirada. No se omite el lote rechazado ni se envían los siguientes de forma automática.
+
+Al devolver a revisión un intento sin registro, los comprobantes anteriores siguen visibles como historial, ligados a la cuenta original. No constituyen un conjunto preparado. Sólo **Cerrar revisión conjunta** descarta esa vista local; no deshace las cancelaciones registradas.
+
 ## Alcance
 
 - Opera sobre lotes propios completos; no elimina filas aisladas de un lote mixto ni introduce importes cero para simular una baja.
