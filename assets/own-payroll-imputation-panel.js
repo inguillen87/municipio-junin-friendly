@@ -10,6 +10,11 @@ const sameDistribution=(left,right)=>left.scopeVersion===right.scopeVersion
  &&['id','requestSha256','sourceVersion','allocationSha256','status'].every(k=>left.proposal[k]===right.proposal[k])
  &&left.source.sourceVersion===right.source.sourceVersion&&left.allocationSha256===right.allocationSha256
  &&['command','revision','recordedAt','actorLabel','reason'].every(k=>left.proposal.decision?.[k]===right.proposal.decision?.[k]);
+// Incidences also cover incomplete configurations. Keep their own current
+// source binding without requiring a ready or approved distribution.
+const samePreview=(left,right)=>left.source.scopeVersion===right.source.scopeVersion
+ &&left.source.group.groupId===right.source.group.groupId&&left.source.fiscalYear===right.source.fiscalYear
+ &&left.source.sourceVersion===right.source.sourceVersion&&left.allocationSha256===right.allocationSha256&&left.revision===right.revision;
 export function mountOwnPayrollImputation(container){
  if(!container||container.dataset.imputationMounted)return;container.dataset.imputationMounted='true';
  if(!document.querySelector('link[data-imputation-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-payroll-imputation-panel.css',import.meta.url).href;link.dataset.imputationStyle='true';document.head.append(link);}
@@ -78,7 +83,17 @@ export function mountOwnPayrollImputation(container){
  $('recover').addEventListener('click',()=>perform(async current=>{await session(caps(attempt.body.command));try{const value=await verifiedImputationReceipt((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(attempt.key))).data,attempt);if(current())showReceipt(value);}catch(e){if(e.status===404&&current()){notFound=true;status('No se encontró el intento. Se conserva su contenido y clave; podés reintentar o revisar de nuevo.');}else throw e;}}));
  $('revise').addEventListener('click',()=>perform(async current=>{if(!attempt||!notFound)return;await session(caps(attempt.body.command));const old=attempt;await request(endpoint+'?resource=attempt&key='+encodeURIComponent(old.key)).then(()=>{throw Error('El intento existe. Consultalo antes de iniciar otro.');},e=>{if(e.status!==404)throw e;});if(!current())return;attempt=null;receipt=null;notFound=false;clearViews();await loadBoot(current);status('Intento inexistente retirado. Elegí la fuente y revisá de nuevo.');}));
  $('new').addEventListener('click',()=>perform(async current=>{if(!receipt)return;await session();if(!current())return;attempt=null;receipt=null;notFound=false;clearViews();await loadBoot(current);}));
- $('csv').addEventListener('click',()=>perform(async current=>{if(!preview||detail)throw Error('Abrí una previa actual completa.');const old=preview;await session();const fresh=await imputationPreview((await request(endpoint+'?resource=source&'+new URLSearchParams({id:old.source.group.groupId,fiscalYear:old.source.fiscalYear}))).data);await session();if(!current())return;if(fresh.source.scopeVersion!==old.source.scopeVersion||fresh.source.sourceVersion!==old.source.sourceVersion||fresh.allocationSha256!==old.allocationSha256||fresh.revision!==old.revision){preview=null;$('review').hidden=true;throw Error('Cambió la fuente; revisala antes de descargar.');}const blob=new Blob(['\uFEFF'+imputationIncidentCsv(fresh.allocation)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='incidencias-imputacion-'+old.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);status(fresh.allocation.issues.length||fresh.allocation.globalIssues.length?'Incidencias completas descargadas.':'Revisión sin observaciones; CSV con encabezados.');}));
+ $('csv').addEventListener('click',()=>perform(async current=>{
+  if(!preview||detail)throw Error('Abrí una previa actual completa.');
+  const old=preview,urlSource=endpoint+'?resource=source&'+new URLSearchParams({id:old.source.group.groupId,fiscalYear:old.source.fiscalYear});
+  await session();const fresh=await imputationPreview((await request(urlSource)).data);await session();if(!current())return;
+  if(!samePreview(old,fresh))throw Error('Cambió la fuente; revisala antes de descargar.');
+  const bytes='\uFEFF'+imputationIncidentCsv(fresh.allocation);
+  const final=await imputationPreview((await request(urlSource)).data);if(!current())return;await session();if(!current())return;
+  if(!samePreview(fresh,final))throw Error('Cambió la fuente durante la preparación; revisala antes de descargar.');
+  const blob=new Blob([bytes],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='incidencias-imputacion-'+old.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);
+  status(fresh.allocation.issues.length||fresh.allocation.globalIssues.length?'Incidencias completas descargadas.':'Revisión sin observaciones; CSV con encabezados.');
+ }));
  $('export-csv').addEventListener('click',()=>perform(async current=>{
   if(!detail||attempt)throw Error('Abrí una imputación aprobada vigente, sin un envío pendiente.');
   const old=detail;await session();
