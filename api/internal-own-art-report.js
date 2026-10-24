@@ -16,7 +16,7 @@ export function createOwnArtReportHandler(deps={}){
   let params;try{params=ownArtParams({period:q.period,types:q.types.split(',')});}catch{return res.status(400).json({ok:false,code:'OWN_ART_INPUT_INVALID',error:'Elegí período y tipos válidos, sin repetirlos.'});}
   const access=await authorize(req,res,{env,requiredCapabilities:OWN_ART_READ,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
   if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,OWN_ART_READ))return res.status(403).json({ok:false,code:'OWN_ART_FORBIDDEN',error:'Tu cuenta no permite consultar ART nominal propio.'});
-  const ctx=employeeContext(access.principal,sessionFor(access,env)),sql=await getSql(env),rows=await sql.query('SELECT public.own_art_report_source_v1($1::jsonb,$2::jsonb) AS result',[JSON.stringify(ctx),JSON.stringify(params)]),data=(Array.isArray(rows)?rows:rows?.rows)?.[0]?.result;
+  const ctx=employeeContext(access.principal,sessionFor(access,env)),sql=await getSql(env),rows=await sql.query('SELECT public.own_art_report_source_full_v1($1::jsonb,$2::jsonb) AS result',[JSON.stringify(ctx),JSON.stringify(params)]),data=(Array.isArray(rows)?rows:rows?.rows)?.[0]?.result;
   if(Buffer.byteLength(JSON.stringify(data??null))>OWN_ART_MAX_BYTES)throw Error('OWN_ART_LIMIT');
   try{await verifiedOwnArtSource(data);if(salarySerialized(data.content.params)!==salarySerialized(params))throw Error('different query');}catch{throw Error('OWN_ART_CONTRACT_INVALID');}
   return await sendOwnArtSource(res,data);

@@ -434,3 +434,7 @@ local-agents/
 !scripts/sql/own-monetary-manifest.sql
 !scripts/sql/own-monetary-program-definition.sql
 !scripts/sql/own-monetary-program-command-core.sql
+
+# Exact public source contracts required by population/ART build tests only.
+!scripts/migrations/210-own-position-population-proof.sql
+!scripts/migrations/211-own-art-full-source.sql
