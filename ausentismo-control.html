@@ -481,7 +481,7 @@
           <div class="kpi-grid">
             <article class="kpi"><span class="kpi-label">Eventos registrados</span><strong class="kpi-value" id="eventsValue">—</strong><span class="kpi-note">Registros administrativos que cumplen los filtros.</span></article>
             <article class="kpi"><span class="kpi-label">Legajos afectados</span><strong class="kpi-value" id="contractsValue">—</strong><span class="kpi-note">Legajos distintos con al menos un evento.</span></article>
-            <article class="kpi"><span class="kpi-label">Días declarados en GRH</span><strong class="kpi-value" id="daysValue">—</strong><span class="kpi-note">Suma de cantidades informadas; no representa jornadas perdidas.</span></article>
+            <article class="kpi"><span class="kpi-label">Días declarados completos en GRH</span><strong class="kpi-value" id="daysValue">—</strong><span class="kpi-note" id="daysCoverage">Cobertura no informada.</span><span class="kpi-note">No representa jornadas perdidas.</span></article>
           </div>
         </section>
 
@@ -513,7 +513,7 @@
             <div class="comparison-grid" id="comparisonContent" hidden>
               <article class="comparison-card"><h4>Eventos registrados</h4><div class="comparison-values"><div><span id="eventsCurrentLabel">Actual</span><strong id="eventsCurrent">—</strong></div><div><span id="eventsPreviousLabel">Previo</span><strong id="eventsPrevious">—</strong></div></div><p class="comparison-change" id="eventsChange">Variación: —</p></article>
               <article class="comparison-card"><h4>Legajos afectados</h4><div class="comparison-values"><div><span id="contractsCurrentLabel">Actual</span><strong id="contractsCurrent">—</strong></div><div><span id="contractsPreviousLabel">Previo</span><strong id="contractsPrevious">—</strong></div></div><p class="comparison-change" id="contractsChange">Variación: —</p></article>
-              <article class="comparison-card"><h4>Días declarados GRH</h4><div class="comparison-values"><div><span id="daysCurrentLabel">Actual</span><strong id="daysCurrent">—</strong></div><div><span id="daysPreviousLabel">Previo</span><strong id="daysPrevious">—</strong></div></div><p class="comparison-change" id="daysChange">Variación: —</p></article>
+               <article class="comparison-card"><h4>Días declarados GRH</h4><div class="comparison-values"><div><span id="daysCurrentLabel">Actual</span><strong id="daysCurrent">—</strong></div><div><span id="daysPreviousLabel">Previo</span><strong id="daysPrevious">—</strong></div></div><p class="comparison-change" id="daysChange">Variación: —</p><p class="panel-note" id="daysComparisonCoverage"></p></article>
             </div>
             <p class="panel-note" style="margin-top:12px">La variación es descriptiva: no constituye una tasa, una evaluación de desempeño ni evidencia de causalidad.</p>
           </article>
@@ -605,6 +605,24 @@
       function text(value) { return value === null || value === undefined ? '' : String(value).trim(); }
       function finite(value) { if (value === null || value === undefined || typeof value === 'boolean' || String(value).trim() === '') return null; var number = typeof value === 'number' ? value : Number(String(value === undefined || value === null ? '' : value).replace(',', '.')); return Number.isFinite(number) ? number : null; }
       function nonNegative(value) { var number = finite(value); return number !== null && number >= 0 ? number : null; }
+      // A canonical null is evidence of an unknown total, never an alias lookup.
+      function declaredDaysMetric(row) {
+        row = object(row);
+        var events = finite(row.events), withDays = finite(row.eventsWithDeclaredDays), withoutDays = finite(row.eventsWithoutDeclaredDays);
+        var known = finite(row.knownSourceDeclaredDays), total = row.sourceDeclaredDays === null ? null : finite(row.sourceDeclaredDays);
+        if (![events,withDays,withoutDays].every(function(n){return Number.isSafeInteger(n) && n >= 0;}) || withDays + withoutDays !== events
+            || (events === 0 ? known !== 0 : withDays === 0 ? known !== null : known === null)
+            || (withoutDays === 0 ? total !== known : total !== null)) throw Error('No se verificó la cobertura de días declarados. Volvé a consultar.');
+        return {declaredDays:total,knownDeclaredDays:known,eventsWithDeclaredDays:withDays,eventsWithoutDeclaredDays:withoutDays};
+      }
+      function formatDeclaredDays(value) { var n = finite(value); return n === null ? 'No informado' : decimalFormat.format(n); }
+      function declaredDaysCoverage(metric) {
+        var withDays = metric.eventsWithDeclaredDays, withoutDays = metric.eventsWithoutDeclaredDays, events = withDays + withoutDays;
+        if (events === 0) return 'Sin eventos en este filtro; no acredita asistencia completa.';
+        var text = 'Días informados en ' + formatInteger(withDays) + ' de ' + formatInteger(events) + ' eventos.';
+        if (withoutDays && withDays) text += ' Suma parcial informada: ' + formatDeclaredDays(metric.knownDeclaredDays) + '.';
+        return text;
+      }
       function first(root, paths) {
         for (var index = 0; index < paths.length; index += 1) {
           var current = root;
@@ -644,25 +662,23 @@
 
       function normalizeRank(value) {
         return array(value).map(function (item) {
-          if (typeof item === 'string') return { label: item, count: null };
           var row = object(item);
-          return {
+          return Object.assign({
             label: text(first(row, [['label'], ['name'], ['motivo'], ['reason'], ['sector']])),
             count: nonNegative(first(row, [['count'], ['events'], ['total'], ['value'], ['cantidad']]))
-          };
+          }, declaredDaysMetric(row));
         }).filter(function (item) { return item.label; });
       }
 
       function normalizeMonthly(value) {
         return array(value).map(function (item) {
           var row = object(item);
-          return {
+          return Object.assign({
             month: text(first(row, [['month'], ['period'], ['mes'], ['date']])),
             events: nonNegative(first(row, [['events'], ['totalEvents'], ['count'], ['total'], ['cantidad']])),
             contracts: nonNegative(first(row, [['affectedContracts'], ['contracts'], ['people'], ['persons'], ['legajos']])),
-            declaredDays: nonNegative(first(row, [['sourceDeclaredDays'], ['declaredDays'], ['days'], ['diasDeclarados'], ['durationDays']])),
             partial: first(row, [['partial'], ['isPartial']]) === true
-          };
+          }, declaredDaysMetric(row));
         }).filter(function (item) { return item.month; });
       }
 
@@ -712,11 +728,10 @@
             effective: { from: effectiveFrom, to: effectiveTo },
             clamped: { from: clampedRange.from === true, to: clampedRange.to === true }
           },
-          summary: {
+          summary: Object.assign({
             events: nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) !== null ? nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) : nonNegative(first(data, [['totalEvents'], ['eventsCount']])),
             contracts: nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) !== null ? nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) : nonNegative(first(data, [['affectedContracts'], ['uniqueContracts']])),
-            declaredDays: nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) !== null ? nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) : nonNegative(first(data, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared']]))
-          },
+          }, declaredDaysMetric(summary)),
           monthly: normalizeMonthly(first(data, [['monthly'], ['series'], ['monthlySeries'], ['trends', 'monthly']])),
           reasons: normalizeRank(first(data, [['reasons'], ['reasonRanking'], ['rankings', 'reasons'], ['topReasons']])),
           sectors: normalizeRank(first(data, [['sectors'], ['sectorRanking'], ['rankings', 'sectors'], ['topSectors']])),
@@ -746,8 +761,13 @@
 
       function normalizeComparison(value) {
         var source = object(value);
+        if (source.available !== true) return {available:false,basis:comparisonBasisLabel(text(source.basis)),explanation:text(source.reason)};
         var current = object(first(source, [['current'], ['actual']]));
         var previous = object(first(source, [['previous'], ['prior'], ['anterior']]));
+        var currentDays = declaredDaysMetric(current), previousDays = declaredDaysMetric(previous);
+        var completeDays = currentDays.eventsWithoutDeclaredDays === 0 && previousDays.eventsWithoutDeclaredDays === 0;
+        var daysChange = completeDays && previousDays.declaredDays !== 0
+          ? Math.round(((currentDays.declaredDays - previousDays.declaredDays) / previousDays.declaredDays) * 1000) / 10 : null;
         var changes = first(source, [['changePercent'], ['changes'], ['variationPercent']]);
         var changeObject = object(changes);
         function metric(row, paths) { return nonNegative(first(row, paths)); }
@@ -773,18 +793,21 @@
           current: {
             events: metric(current, [['events'], ['totalEvents']]),
             contracts: metric(current, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
-            days: metric(current, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
+            days: currentDays.declaredDays
           },
           previous: {
             events: metric(previous, [['events'], ['totalEvents']]),
             contracts: metric(previous, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
-            days: metric(previous, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
+            days: previousDays.declaredDays
           },
           change: {
             events: change([['events'], ['totalEvents']]),
             contracts: change([['affectedContracts'], ['contracts'], ['uniqueContracts']]),
-            days: change([['sourceDeclaredDays'], ['declaredDays'], ['days']])
-          }
+            days: daysChange
+          },
+          currentDays: currentDays,
+          previousDays: previousDays,
+          daysReason: !completeDays ? 'incomplete_declared_days' : previousDays.declaredDays === 0 ? 'zero_previous_declared_days' : null
         };
       }
 
@@ -808,8 +831,8 @@
           untilDate: text(first(row, [['untilDate'], ['to'], ['endDate'], ['fechaHasta']])),
           reason: text(first(row, [['reason'], ['reasonLabel'], ['motivo'], ['absenceType'], ['type']])),
           sector: text(first(row, [['sector'], ['sectorLabel'], ['organization'], ['area'], ['contract', 'sector']])),
-          declaredDays: nonNegative(first(row, [['sourceDeclaredDays'], ['declaredDays'], ['days'], ['durationDays'], ['diasDeclarados'], ['quantity']])),
-          sourceQuantity: nonNegative(first(row, [['sourceQuantity'], ['quantity']])),
+          declaredDays: finite(Object.prototype.hasOwnProperty.call(row,'sourceDeclaredDays') ? row.sourceDeclaredDays : first(row, [['declaredDays'], ['days'], ['durationDays'], ['diasDeclarados']])),
+          sourceQuantity: finite(Object.prototype.hasOwnProperty.call(row,'sourceQuantity') ? row.sourceQuantity : first(row, [['quantity']])),
           rangeIntegrity: text(first(row, [['rangeIntegrity']])),
           flags: object(first(row, [['flags']]))
         };
@@ -961,7 +984,7 @@
           host.appendChild(visual);
 
           var row = document.createElement('tr');
-          [monthLabel(item.month), formatInteger(item.events), formatInteger(item.contracts), formatDecimal(item.declaredDays)].forEach(function (cellValue) { var cell = document.createElement('td'); cell.textContent = cellValue; row.appendChild(cell); });
+          [monthLabel(item.month), formatInteger(item.events), formatInteger(item.contracts), formatDeclaredDays(item.declaredDays) + ' · ' + declaredDaysCoverage(item)].forEach(function (cellValue) { var cell = document.createElement('td'); cell.textContent = cellValue; row.appendChild(cell); });
           rows.appendChild(row);
         });
       }
@@ -987,10 +1010,12 @@
         ['events', 'contracts', 'days'].forEach(function (metric) {
           setText(metric + 'CurrentLabel', comparison.currentLabel);
           setText(metric + 'PreviousLabel', comparison.previousLabel);
-          setText(metric + 'Current', metric === 'days' ? formatDecimal(comparison.current[metric]) : formatInteger(comparison.current[metric]));
-          setText(metric + 'Previous', metric === 'days' ? formatDecimal(comparison.previous[metric]) : formatInteger(comparison.previous[metric]));
+          setText(metric + 'Current', metric === 'days' ? formatDeclaredDays(comparison.current[metric]) : formatInteger(comparison.current[metric]));
+          setText(metric + 'Previous', metric === 'days' ? formatDeclaredDays(comparison.previous[metric]) : formatInteger(comparison.previous[metric]));
           setText(metric + 'Change', formatChange(comparison.change[metric]));
         });
+        setText('daysComparisonCoverage', 'Actual: ' + declaredDaysCoverage(comparison.currentDays) + ' Previo: ' + declaredDaysCoverage(comparison.previousDays)
+          + (comparison.daysReason === 'incomplete_declared_days' ? ' Sin variación de días: falta cobertura completa.' : comparison.daysReason === 'zero_previous_declared_days' ? ' Sin variación de días: el valor previo es cero.' : ''));
       }
 
       function renderRanking(id, items) {
@@ -1021,7 +1046,9 @@
           fill.className = 'rank-fill';
           fill.style.width = Math.round(((item.count || 0) / maximum) * 100) + '%';
           track.appendChild(fill);
-          row.append(head, track);
+          var coverage = document.createElement('p'); coverage.className = 'panel-note';
+          coverage.textContent = 'Días: ' + formatDeclaredDays(item.declaredDays) + ' · ' + declaredDaysCoverage(item);
+          row.append(head, track, coverage);
           host.appendChild(row);
         });
       }
@@ -1087,7 +1114,8 @@
         if(drafts.length)setText('filterSummary','Hay cambios en los filtros sin aplicar. Los resultados conservan la consulta anterior.');
         setText('eventsValue', formatInteger(analytics.summary.events));
         setText('contractsValue', formatInteger(analytics.summary.contracts));
-        setText('daysValue', formatDecimal(analytics.summary.declaredDays));
+        setText('daysValue', formatDeclaredDays(analytics.summary.declaredDays));
+        setText('daysCoverage', declaredDaysCoverage(analytics.summary));
         setBadge('summaryBadge', analytics.summary.events === 0 ? 'warning' : analytics.status === 'ready' ? 'ready' : 'warning', analytics.summary.events === 0 ? 'Sin coincidencias' : analytics.status === 'ready' ? 'Datos disponibles' : 'Con pendientes');
         byId('absenceEmpty').hidden = analytics.summary.events !== 0;
         byId('removeReason').hidden = !state.applied.reason;
@@ -1163,7 +1191,7 @@
             appendCell(row, 'Persona / legajo', person);
             appendCell(row, 'Motivo', event.reason || 'Sin motivo informado');
             appendCell(row, 'Sector', event.sector || 'Sin sector informado');
-            appendCell(row, 'Días declarados', event.declaredDays === null ? 'No informado' : formatDecimal(event.declaredDays), 'numeric');
+            appendCell(row, 'Días declarados', formatDeclaredDays(event.declaredDays), 'numeric');
             var control = event.rangeIntegrity === 'valid_source_range'
               ? 'Fechas en orden'
               : event.rangeIntegrity === 'extended_source_range' ? 'Duración extensa: revisar'
@@ -1188,7 +1216,7 @@
               add('h3','Ausencia de '+(event.name||'persona sin nombre informado'));
               add('p',(event.reason||'Motivo no informado')+' · '+safeDate(event.date)+' → '+safeDate(event.untilDate));
               var facts=document.createElement('dl');facts.className='definition-list';
-              [['Días declarados',formatDecimal(event.declaredDays)],['Cantidad de origen',formatDecimal(event.sourceQuantity)],['Sector al corte',event.sector||'No informado'],['Control de fechas',control]].forEach(function(pair){var part=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=pair[0];dd.textContent=pair[1];part.append(dt,dd);facts.append(part);});box.append(facts);
+              [['Días declarados',formatDeclaredDays(event.declaredDays)],['Cantidad de origen',formatDeclaredDays(event.sourceQuantity)],['Sector al corte',event.sector||'No informado'],['Control de fechas',control]].forEach(function(pair){var part=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=pair[0];dd.textContent=pair[1];part.append(dt,dd);facts.append(part);});box.append(facts);
               if(event.rangeIntegrity==='extended_source_range'){var warning=add('div','');warning.className='notice';var mark=document.createElement('span');mark.className='notice-mark';mark.textContent='!';var copy=document.createElement('div');copy.textContent='La fecha final produce un rango superior a 366 días. Revisá el original; la fecha no fue corregida ni convertida en días a descontar.';warning.append(mark,copy);}
               var rules=document.createElement('ul');[['isLeave','Clasificado como licencia'],['affectsAttendanceBonus','Afecta presentismo en el catálogo'],['generatesDiscountedDays','Genera días descontados en el catálogo']].forEach(function(pair){var li=document.createElement('li');li.textContent=pair[1]+': '+(event.flags[pair[0]]===true?'Sí':event.flags[pair[0]]===false?'No':'No informado');rules.append(li);});box.append(rules);
               add('p','El catálogo describe el origen; no acredita justificación, aprobación ni descuento liquidado. Conservás el período, la búsqueda y la página.');
@@ -1257,7 +1285,7 @@
           if (error.status === 403) {
             readController.abort(); loadingRequest++; analyticsReady = false; lastAnalytics = lastEvents = null;
             ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
-            ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
+            ['eventsValue','contractsValue','daysValue','daysCoverage','daysComparisonCoverage'].forEach(function(id){setText(id,'—');});
             document.dispatchEvent(new Event('mc:absence-cleared')); showError('Tu perfil no habilita esta consulta. No se conservan datos nominales en pantalla.'); return;
           }
           setText(part + 'ReadStatus', error.name === 'TimeoutError' ? 'La consulta demoró demasiado. Reintentá esta sección.' : error.message);
@@ -1267,7 +1295,7 @@
         if (!eventsOnly) {
           analyticsReady = false; analyticsLoading = true; lastAnalytics = null;
           byId('summaryMetrics').setAttribute('aria-busy','true'); setText('analyticsReadStatus','Consultando indicadores…'); byId('analyticsRetry').hidden=true;
-          ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
+          ['eventsValue','contractsValue','daysValue','daysCoverage','daysComparisonCoverage'].forEach(function(id){setText(id,'—');});
           ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
           byId('comparisonContent').hidden=true; byId('absenceEmpty').hidden=true; setBadge('summaryBadge','warning','Consultando');
           tasks.push(fetchJson(analyticsQuery,signal).then(function(payload){if(!active())return;lastAnalytics=payload;renderAnalytics(normalizeAnalytics(payload));analyticsReady=true;setText('analyticsReadStatus','Indicadores actualizados para los filtros aplicados.');}).catch(function(e){failed(e,'analytics');}).finally(function(){if(active()){analyticsLoading=false;byId('summaryMetrics').setAttribute('aria-busy','false');}}));

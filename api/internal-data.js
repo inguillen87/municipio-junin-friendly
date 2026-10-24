@@ -1148,10 +1148,27 @@ function absenceBoolean(value) {
 }
 
 function absenceSummaryRow(row = {}) {
+  // Coverage belongs to this exact aggregate, never to a global quality count.
+  // DIAS_24 can contain negative historical values; this is a read, not a rule.
+  const numeric = value => typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  const events = numeric(row.events);
+  const eventsWithDeclaredDays = numeric(row.eventsWithDeclaredDays);
+  const eventsWithoutDeclaredDays = numeric(row.eventsWithoutDeclaredDays);
+  const knownSourceDeclaredDays = row.knownSourceDeclaredDays === null ? null : numeric(row.knownSourceDeclaredDays);
+  if (![events, eventsWithDeclaredDays, eventsWithoutDeclaredDays].every(value => Number.isSafeInteger(value) && value >= 0)
+      || eventsWithDeclaredDays + eventsWithoutDeclaredDays !== events
+      || (events === 0 ? knownSourceDeclaredDays !== 0
+        : eventsWithDeclaredDays === 0 ? knownSourceDeclaredDays !== null : !Number.isFinite(knownSourceDeclaredDays))) {
+    throw Error('ABSENCE_DECLARED_DAYS_CONTRACT_INVALID');
+  }
   return {
-    events: absenceNumber(row.events),
+    events,
     affectedContracts: absenceNumber(row.affectedContracts),
-    sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays)
+    sourceDeclaredDays: eventsWithoutDeclaredDays === 0 ? knownSourceDeclaredDays : null,
+    knownSourceDeclaredDays,
+    eventsWithDeclaredDays,
+    eventsWithoutDeclaredDays,
   };
 }
 
@@ -1269,7 +1286,9 @@ async function queryAbsenceSummary(sql, filters, marker = 'summary') {
     /* absence:${marker} */
     SELECT count(*)::int AS events,
            count(DISTINCT contract.id)::int AS "affectedContracts",
-           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+           (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+           count(absence.dias)::int AS "eventsWithDeclaredDays",
+           count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
     ${absenceFromSql(Boolean(filters.search), { employee: Boolean(filters.sector || filters.search), reason: false })}
     WHERE ${scope.where}
   `, scope.values);
@@ -1325,9 +1344,11 @@ export async function absenceAnalytics(sql, req) {
       SELECT to_char(date_trunc('${request.bucket}', absence.fecha), 'YYYY-MM-DD') AS period,
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+              (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
              (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
-               OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
+                OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial,
+              count(absence.dias)::int AS "eventsWithDeclaredDays",
+              count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { employee: Boolean(filters.sector), reason: false })}
       WHERE ${scope.where}
       GROUP BY 1, 5 ORDER BY 1
@@ -1342,7 +1363,9 @@ export async function absenceAnalytics(sql, req) {
              (reason.source_payload ->> 'calendarDays')::boolean AS "calendarDays",
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+              (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+              count(absence.dias)::int AS "eventsWithDeclaredDays",
+              count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { employee: Boolean(filters.sector) })}
       WHERE ${scope.where}
       GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY events DESC, label
@@ -1352,7 +1375,9 @@ export async function absenceAnalytics(sql, req) {
       SELECT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS label,
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+             (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+             count(absence.dias)::int AS "eventsWithDeclaredDays",
+             count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { reason: false })}
       WHERE ${scope.where}
       GROUP BY 1 ORDER BY events DESC, label
@@ -1395,6 +1420,10 @@ export async function absenceAnalytics(sql, req) {
     comparisonPromise
   ]);
 
+  const completeDeclaredDays = previous !== null
+    && summary.eventsWithoutDeclaredDays === 0 && previous.eventsWithoutDeclaredDays === 0;
+  const declaredDaysChange = completeDeclaredDays
+    ? percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays) : null;
   const comparison = previous ? {
     available: true,
     basis: 'previous_year_same_calendar_window',
@@ -1403,8 +1432,13 @@ export async function absenceAnalytics(sql, req) {
     changePercent: {
       events: percentChange(summary.events, previous.events),
       affectedContracts: percentChange(summary.affectedContracts, previous.affectedContracts),
-      sourceDeclaredDays: percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays)
-    }
+      sourceDeclaredDays: declaredDaysChange
+    },
+    declaredDaysComparison: {
+      available: declaredDaysChange !== null,
+      reason: !completeDeclaredDays ? 'incomplete_declared_days'
+        : previous.sourceDeclaredDays === 0 ? 'zero_previous_declared_days' : null,
+    },
   } : {
     available: false,
     basis: 'previous_year_same_calendar_window',

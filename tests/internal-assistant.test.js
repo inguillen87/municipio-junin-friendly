@@ -53,20 +53,20 @@ const absence = {
   payload: {
     ok: true,
     data: {
-      summary: { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 },
+      summary: { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400, knownSourceDeclaredDays: 17400, eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0 },
       reasons: [
-        { code: '01', label: 'Licencia anual ordinaria', events: 583, affectedContracts: 411, sourceDeclaredDays: 8930 },
-        { code: '07', label: 'Enfermedad', events: 314, affectedContracts: 205, sourceDeclaredDays: 2110 },
+        { code: '01', label: 'Licencia anual ordinaria', events: 583, affectedContracts: 411, sourceDeclaredDays: 8930, knownSourceDeclaredDays: 8930, eventsWithDeclaredDays: 583, eventsWithoutDeclaredDays: 0 },
+        { code: '07', label: 'Enfermedad', events: 314, affectedContracts: 205, sourceDeclaredDays: 2110, knownSourceDeclaredDays: 2110, eventsWithDeclaredDays: 314, eventsWithoutDeclaredDays: 0 },
       ],
       sectors: [
-        { label: 'Servicios públicos', events: 298, affectedContracts: 133, sourceDeclaredDays: 2400 },
-        { label: 'Administración', events: 265, affectedContracts: 121, sourceDeclaredDays: 1980 },
+        { label: 'Servicios públicos', events: 298, affectedContracts: 133, sourceDeclaredDays: 2400, knownSourceDeclaredDays: 2400, eventsWithDeclaredDays: 298, eventsWithoutDeclaredDays: 0 },
+        { label: 'Administración', events: 265, affectedContracts: 121, sourceDeclaredDays: 1980, knownSourceDeclaredDays: 1980, eventsWithDeclaredDays: 265, eventsWithoutDeclaredDays: 0 },
       ],
       comparison: {
         available: true,
         basis: 'previous_year_same_calendar_window',
-        current: { range: { from: '2026-01-01', to: '2026-08-06' }, events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 },
-        previous: { range: { from: '2025-01-01', to: '2025-08-06' }, events: 1331, affectedContracts: 567, sourceDeclaredDays: 16567 },
+        current: { range: { from: '2026-01-01', to: '2026-08-06' }, events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400, knownSourceDeclaredDays: 17400, eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0 },
+        previous: { range: { from: '2025-01-01', to: '2025-08-06' }, events: 1331, affectedContracts: 567, sourceDeclaredDays: 16567, knownSourceDeclaredDays: 16567, eventsWithDeclaredDays: 1331, eventsWithoutDeclaredDays: 0 },
         changePercent: { events: 17.1, affectedContracts: 4.1, sourceDeclaredDays: 5 },
       },
     },
@@ -962,7 +962,7 @@ test('ausentismo responde sólo con agregados GRH, rango comparable y límites m
     reasonCode: '01',
     bucket: 'month',
   });
-  assert.deepEqual(res.payload.data.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 });
+  assert.deepEqual(res.payload.data.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400, knownSourceDeclaredDays: 17400, eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0 });
   assert.equal(res.payload.data.comparison.changePercent.events, 17.1);
   assert.equal(res.payload.data.topReasons[0].label, 'Licencia anual ordinaria');
   assert.equal(res.payload.data.topSectors[0].label, 'Servicios públicos');
@@ -997,6 +997,9 @@ test('el proveedor externo de ausentismo recibe rankings agregados y nunca filas
     events: 10,
     affectedContracts: 1,
     sourceDeclaredDays: 10,
+    knownSourceDeclaredDays: 10,
+    eventsWithDeclaredDays: 10,
+    eventsWithoutDeclaredDays: 0,
   });
   payloadWithNominalTrap.payload.data.comparison.previous.affectedContracts = 1;
   const res = await post(
@@ -1029,9 +1032,9 @@ test('el proveedor externo de ausentismo recibe rankings agregados y nunca filas
 test('ausentismo no externaliza cohortes menores a cinco contratos', async () => {
   let fetchCalls = 0;
   const smallCohort = JSON.parse(JSON.stringify(absence));
-  smallCohort.payload.data.summary = { events: 1, affectedContracts: 1, sourceDeclaredDays: 1 };
-  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 1, affectedContracts: 1, sourceDeclaredDays: 1 }];
-  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 1, affectedContracts: 1, sourceDeclaredDays: 1 }];
+  smallCohort.payload.data.summary = { events: 1, affectedContracts: 1, sourceDeclaredDays: 1, knownSourceDeclaredDays: 1, eventsWithDeclaredDays: 1, eventsWithoutDeclaredDays: 0 };
+  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 1, affectedContracts: 1, sourceDeclaredDays: 1, knownSourceDeclaredDays: 1, eventsWithDeclaredDays: 1, eventsWithoutDeclaredDays: 0 }];
+  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 1, affectedContracts: 1, sourceDeclaredDays: 1, knownSourceDeclaredDays: 1, eventsWithDeclaredDays: 1, eventsWithoutDeclaredDays: 0 }];
 
   const res = await post(
     { intent: 'absence_analysis', enhance: true, sector: 'Sector pequeño' },
@@ -1073,7 +1076,7 @@ test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fil
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.intent, 'executive_analysis');
   assert.deepEqual(absenceQuery, { from: '', to: '', sector: '', reasonCode: '', bucket: 'month' });
-  assert.deepEqual(res.payload.data.absence.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 });
+  assert.deepEqual(res.payload.data.absence.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400, knownSourceDeclaredDays: 17400, eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0 });
   assert.equal(res.payload.data.quality.meta.sourceCutoff, null);
   assert.equal(res.payload.sources.find((source) => source.relation === 'quality_overview').asOf, null);
   assert.equal('rows' in res.payload.data.absence, false);
@@ -1090,9 +1093,9 @@ test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fil
 test('el análisis ejecutivo tampoco externaliza un filtro de ausentismo con cohorte pequeña', async () => {
   let fetchCalls = 0;
   const smallCohort = JSON.parse(JSON.stringify(absence));
-  smallCohort.payload.data.summary = { events: 2, affectedContracts: 1, sourceDeclaredDays: 2 };
-  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 2, affectedContracts: 1, sourceDeclaredDays: 2 }];
-  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 2, affectedContracts: 1, sourceDeclaredDays: 2 }];
+  smallCohort.payload.data.summary = { events: 2, affectedContracts: 1, sourceDeclaredDays: 2, knownSourceDeclaredDays: 2, eventsWithDeclaredDays: 2, eventsWithoutDeclaredDays: 0 };
+  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 2, affectedContracts: 1, sourceDeclaredDays: 2, knownSourceDeclaredDays: 2, eventsWithDeclaredDays: 2, eventsWithoutDeclaredDays: 0 }];
+  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 2, affectedContracts: 1, sourceDeclaredDays: 2, knownSourceDeclaredDays: 2, eventsWithDeclaredDays: 2, eventsWithoutDeclaredDays: 0 }];
 
   const res = await post(
     { intent: 'executive_analysis', enhance: true, sector: 'Sector pequeño' },

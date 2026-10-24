@@ -1295,6 +1295,18 @@
         }).filter(Boolean);
       }
 
+      function absenceDaysValue(row) {
+        return row.sourceDeclaredDays === null || row.sourceDeclaredDays === undefined ? 'No informado' : factValue(row.sourceDeclaredDays);
+      }
+      function absenceDaysCoverage(row) {
+        var withDays = row.eventsWithDeclaredDays, withoutDays = row.eventsWithoutDeclaredDays;
+        if (![row.events,withDays,withoutDays].every(function(n){return Number.isSafeInteger(n) && n >= 0;}) || withDays + withoutDays !== row.events) return 'Cobertura no informada';
+        if (row.events === 0) return 'Sin eventos en este filtro; no acredita asistencia completa';
+        var coverage = 'Días informados en ' + factValue(withDays) + ' de ' + factValue(row.events) + ' eventos';
+        if (withoutDays > 0 && withDays > 0 && typeof row.knownSourceDeclaredDays === 'number' && Number.isFinite(row.knownSourceDeclaredDays)) coverage += '. Suma parcial informada: ' + factValue(row.knownSourceDeclaredDays);
+        return coverage;
+      }
+
       function factsFromPayload(payload) {
         var explicit = normalizeFacts(payload.facts || (payload.data && payload.data.facts));
         if (explicit.length) return explicit;
@@ -1376,7 +1388,8 @@
           var topSector = Array.isArray(data.topSectors) ? data.topSectors[0] : null;
           add('Eventos administrativos', summary.events);
           add('Contratos laborales afectados', summary.affectedContracts);
-          add('Días declarados en GRH (no jornadas perdidas)', summary.sourceDeclaredDays);
+          add('Días declarados en GRH (no jornadas perdidas)', absenceDaysValue(summary));
+          add('Cobertura de días declarados', absenceDaysCoverage(summary));
           if (effectiveRange.from && effectiveRange.to) add('Rango efectivo', cleanText(effectiveRange.from) + ' a ' + cleanText(effectiveRange.to));
           if (comparison.available === true && change.events !== null && change.events !== undefined) facts.push('Variación interanual de eventos: ' + factValue(change.events) + '%');
           if (topReason) facts.push('Motivo principal: ' + cleanText(topReason.label, 'Sin clasificar') + ' · ' + factValue(topReason.events) + ' eventos');
@@ -1433,7 +1446,8 @@
           add('Cobertura de identidad', integrationView.crosswalk && integrationView.crosswalk.coveragePct !== undefined ? factValue(integrationView.crosswalk.coveragePct) + '%' : null);
           add('Eventos administrativos de ausencia', absenceSummary.events);
           add('Contratos afectados por ausencias', absenceSummary.affectedContracts);
-          add('Días declarados en GRH (no jornadas perdidas)', absenceSummary.sourceDeclaredDays);
+          add('Días declarados en GRH (no jornadas perdidas)', absenceDaysValue(absenceSummary));
+          add('Cobertura de días declarados', absenceDaysCoverage(absenceSummary));
         } else if (intent === 'employee_search') {
           var rows = Array.isArray(data.data) ? data.data.slice(0, 10) : [];
           rows.forEach(function (row) {
@@ -1601,7 +1615,8 @@
           metrics([
             visibleMetric('Eventos', summary.events),
             visibleMetric('Contratos vinculados', summary.affectedContracts),
-            visibleMetric('Días declarados en origen', summary.sourceDeclaredDays),
+            visibleMetric('Días declarados en origen', absenceDaysValue(summary)),
+            visibleMetric('Cobertura de días', absenceDaysCoverage(summary)),
             visibleMetric('Desde', effectiveRange.from),
             visibleMetric('Hasta', effectiveRange.to)
           ]);
