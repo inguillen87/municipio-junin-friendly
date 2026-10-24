@@ -8,6 +8,7 @@ import{splitPostgresStatements}from'./sql-statements.mjs';
 import{ownerDecisionQaLiteral as q}from'./municipal-owner-adoption-decision-qa.mjs';
 import{monthlyDaySqlFixture}from'../../tests/fixtures/own-monthly-day-policy-sql-synthetic.js';
 import{monthlyDayLegacyCompatibilityFixture,MONTHLY_DAY_LEGACY_FIXTURE_SOURCE}from'./monthly-day-policy-legacy-fixture.mjs';
+import{memoizeInstallationPhaseText}from'./installation-phase-text-map.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex'),body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'MONTHLY192_BODY_REQUIRED');return m[2];};
 export function monthlyDayQaHeader(sql){return sql.replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp').replaceAll("SET search_path TO ''pg_catalog'', ''public'', ''pg_temp''",'SET search_path=pg_catalog,public,pg_temp').replaceAll('SET "TimeZone" TO \'UTC\'',"SET timezone='UTC'").replaceAll('SET "TimeZone" TO \'\'UTC\'\'',"SET timezone=''UTC''");}
 export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operationalPairBaseline,foundation}){
@@ -15,7 +16,9 @@ export function buildMonthlyDayPolicyQa({major,sourceCommit,read,schema,operatio
  const qa=resolveMonthlyDayQaFoundation({major,sourceCommit,read,schema,operationalPairBaseline,foundation},buildOwnerProgramQa),batch=buildMonthlyDayPolicyInstallation({read,sourceCommit,operationalPairBaseline});
  const hashes={};let stable=false;for(let pass=0;pass<12;pass++){let changed=false;for(const d of[...batch.newDefinitions,...batch.adapted]){let local=qa.normalized(monthlyDayQaHeader(d));for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);const raw=hash(body(d)),next=hash(body(local));if(hashes[raw]!==next){hashes[raw]=next;changed=true;}}if(!changed){stable=true;break;}}assert.ok(stable,'MONTHLY192_HASH_GRAPH_CYCLE');
  const normalized=sql=>{let local=qa.normalized(monthlyDayQaHeader(sql));for(const[a,b]of Object.entries(hashes))local=local.replaceAll(a,b);return local;};
- const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback'].map(k=>[k,batch[k].map(normalized)]));
+ // Preserve an injected foundation's opaque callback semantics and call count.
+ const phaseText=foundation===undefined?memoizeInstallationPhaseText(normalized):normalized;
+ const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback'].map(k=>[k,batch[k].map(phaseText)]));
  // These grants are fixture restoration from the exact published groups and
  // their last ACL, not changes to product grants or an error-triggered retry.
  const runtimeGrants=monthlyQaRuntimeGrants({read,sourceHashes:qa.sourceHashes});

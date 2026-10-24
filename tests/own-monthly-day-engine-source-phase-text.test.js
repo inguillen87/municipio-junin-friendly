@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mapInstallationPhaseText} from '../scripts/lib/installation-phase-text-map.mjs';
+import {mapInstallationPhaseText, memoizeInstallationPhaseText} from '../scripts/lib/installation-phase-text-map.mjs';
 
 const phases = ['rehearsal', 'installation', 'repetition', 'verification', 'rollback'];
 const original = (batch, transform) => Object.fromEntries(
@@ -75,4 +75,27 @@ test('a transform failure propagates the same error and stops before later state
  assert.throws(() => mapInstallationPhaseText(batch, value => {seen.push(value); throw error;}), value => value === error);
  assert.deepEqual(seen, ['reject']);
  assert.deepEqual(mapInstallationPhaseText(batch, value => value), original(batch, value => value));
+});
+
+for (const [name, order] of [
+ ['192', ['rehearsal', 'installation', 'repetition', 'verification', 'rollback']],
+ ['193', ['rehearsal', 'installation', 'verification', 'repetition']],
+ ['157', ['rehearsal', 'installation', 'verification', 'repetition', 'rollback', 'rollbackVerification']]
+]) test('text reuse keeps the complete '+name+' phase order and transforms repeated bytes once', () => {
+ // Synthetic strings only: this does not import a QA constructor or parse SQL.
+ const text = "literal '$&' and '$`'\r\n".repeat(32);
+ const batch = Object.fromEntries(order.map(phase => [phase, [text, phase, text, '']]));
+ const before = structuredClone(batch), naiveCalls = [], cachedCalls = [];
+ const plain = value => {naiveCalls.push(value); return 'fixed context:' + value;};
+ const once = memoizeInstallationPhaseText(value => {cachedCalls.push(value); return 'fixed context:' + value;});
+ const expected = Object.fromEntries(order.map(phase => [phase, batch[phase].map(plain)]));
+ const actual = Object.fromEntries(order.map(phase => [phase, batch[phase].map(once)]));
+ assert.deepEqual(actual, expected);
+ assert.deepEqual(Object.keys(actual), order);
+ assert.deepEqual(batch, before);
+ assert.equal(naiveCalls.length, 4 * order.length);
+ assert.deepEqual(cachedCalls, [text, order[0], '', ...order.slice(1)]);
+ assert.equal(cachedCalls.length, new Set(order.flatMap(phase => batch[phase])).size);
+ for (const phase of order) assert.notEqual(actual[phase], batch[phase]);
+ if (name === '157') assert.equal(actual.rollbackVerification[0], 'fixed context:' + text);
 });
