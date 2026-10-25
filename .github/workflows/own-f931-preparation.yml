@@ -1,10 +1,10 @@
 name: Own F931 preparation
 on:
   pull_request:
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/payroll-f931-physical-*', 'assets/payroll-f931-workbench.js', 'tests/payroll-f931-physical-package.test.js', 'scripts/verify-f931-physical-package-browser.mjs', 'sw.js', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/payroll-f931-physical-*', 'assets/payroll-f931-workbench.js', 'tests/payroll-f931-physical-package.test.js', 'scripts/verify-f931-physical-package-browser.mjs', 'sw.js', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
 permissions:
   contents: read
 concurrency:
@@ -38,11 +38,16 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-f931-fiscal-coverage-browser.mjs
+      - name: Complete local three-file physical comparison
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-f931-physical-package-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: own-f931-preparation-${{ github.run_id }}
           path: |
+            verification/f931-physical-browser
             verification/own-f931-browser-20261011
             verification/own-f931-coverage-browser-20261011
             verification/payroll-formula-transport/fragmented-regression

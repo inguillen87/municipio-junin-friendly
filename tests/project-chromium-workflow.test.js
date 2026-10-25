@@ -9,12 +9,17 @@ const workflows=[
  ['.github/workflows/own-art.yml',5],
  ['.github/workflows/payroll-fixed-novelties-release.yml',10],
  ['.github/workflows/own-fiscal-facts.yml',2],
- ['.github/workflows/own-f931-preparation.yml',3],
+ ['.github/workflows/own-f931-preparation.yml',4,[
+  'verify-source-preview-fragmented-transport.mjs',
+  'verify-own-f931-preparation-browser.mjs',
+  'verify-own-f931-fiscal-coverage-browser.mjs',
+  'verify-f931-physical-package-browser.mjs',
+ ]],
  ['.github/workflows/own-salary-seniority.yml',2],
  ['.github/workflows/own-period-participation.yml',2],
  ['.github/workflows/own-payroll-liquidation.yml',3],
 ];
-for(const [file,expected] of workflows)test(file+': the native QA preload is scoped to explicit verifier steps',()=>{
+for(const [file,expected,allowedVerifiers] of workflows)test(file+': the native QA preload is scoped to explicit verifier steps',()=>{
  const text=read(file);assert.doesNotMatch(text,/GITHUB_ENV/);
  assert.equal(text.split("'tests/project-chromium-workflow.test.js'").length-1,2,'PR and master changes must run this gate');
  if(file.endsWith('payroll-fixed-novelties-release.yml')){
@@ -25,7 +30,7 @@ for(const [file,expected] of workflows)test(file+': the native QA preload is sco
  }
  const occurrences=[...text.matchAll(/NODE_OPTIONS: --import \.\/scripts\/lib\/project-chromium\.mjs/g)];
  assert.equal(occurrences.length,expected);
- const starts=[...text.matchAll(/^      - /gm)].map(m=>m.index);let scoped=0;
+ const starts=[...text.matchAll(/^      - /gm)].map(m=>m.index);let scoped=0;const observedVerifiers=[];
  for(let index=0;index<starts.length;index++){
   const step=text.slice(starts[index],starts[index+1]??text.length);
   if(!step.includes(projectOption))continue;
@@ -33,8 +38,9 @@ for(const [file,expected] of workflows)test(file+': the native QA preload is sco
   assert.match(step,/^\s+(?:- )?run: node scripts\/verify-/m);
   assert.doesNotMatch(step,/^\s+(?:- )?uses:/m);
   assert.doesNotMatch(step,/run: (?:npm|npx|psql|echo)/);
-  assert.ok(step.includes('scripts/verify-'));scoped++;
+  assert.ok(step.includes('scripts/verify-'));observedVerifiers.push(step.match(/run: node scripts\/([^\s]+\.mjs)/)?.[1]);scoped++;
  }assert.equal(scoped,expected);
+ if(allowedVerifiers)assert.deepEqual(observedVerifiers,allowedVerifiers,'only the reviewed F931 verifier steps receive the preload');
  assert.match(text,/node scripts\/install-project-chromium\.mjs --purpose=release-verification/);
  assert.match(text,/node scripts\/verify-source-preview-fragmented-transport\.mjs/);
 });
