@@ -1,0 +1,72 @@
+name: PM10 reception monitor
+on:
+  push:
+    branches: ['chatgpt/clock-fleet-review-20260915', 'master']
+    paths:
+      - 'assets/pm10-reception.*'
+      - 'tests/pm10-monitor.test.js'
+      - 'scripts/verify-pm10-monitor-*.mjs'
+      - '.github/workflows/pm10-monitor.yml'
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'assets/pm10-reception.*'
+      - 'tests/pm10-monitor.test.js'
+      - 'scripts/verify-pm10-monitor-*.mjs'
+      - '.github/workflows/pm10-monitor.yml'
+permissions:
+  contents: read
+concurrency:
+  group: pm10-monitor-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: node scripts/build-friendly.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Existing full-page receipt integration
+        run: node scripts/verify-pm10-reception-browser.mjs
+      - name: Monitor age, privacy, navigation and responsive states
+        run: node scripts/verify-pm10-monitor-browser.mjs
+      - name: Preserve restored identity
+        run: node scripts/verify-restored-brand-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-monitor-synthetic-evidence
+          path: |
+            verification/pm10-monitor/
+            verification/pm10-reception-browser.json
+            verification/restored-brand-browser.json
+          retention-days: 5
+  production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Exact public assets and anonymous access boundary
+        run: node scripts/verify-pm10-monitor-production.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm10-monitor-production-evidence
+          path: verification/pm10-monitor/production.json
+          retention-days: 5
+          if-no-files-found: error
