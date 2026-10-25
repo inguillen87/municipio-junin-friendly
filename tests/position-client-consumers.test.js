@@ -29,7 +29,17 @@ test('a late receipt verifier cannot consume or clear a newer pending assignment
 test('another mounted view cannot overwrite the pending attempt created while its preflight waited',async t=>{
  const h=assignment(t,{holdBootstrapCalls:[2],holdPostCalls:[1]});await h.submit();h.q('reason').value='Synthetic proposal from A';const a=h.submitProposal();await h.waitBootstrap(2);
  const second=h.mountAnotherAssignment();second.q('year').value='2026';second.q('query').fire('submit');await h.lastTask();second.q('reason').value='Synthetic proposal from B';second.q('form').fire('submit');const b=h.lastTask();await h.waitPost(1);const attemptB=h.attempt();h.releaseBootstrap(2);await a;
- assert.equal(h.attempt(),attemptB);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);h.releasePost(1);await b;assert.equal(h.attempt(),null);
+ assert.equal(h.attempt(),attemptB);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);assert.match(h.q('status').textContent,/Se creó un envío pendiente desde otra vista/);assert.equal(h.q('recover').hidden,false);h.releasePost(1);await b;assert.equal(h.attempt(),null);
+});
+test('a current view explains when another view has already resolved its pending assignment',async t=>{
+ const h=assignment(t,{holdReceiptCall:1});await h.submit();h.q('reason').value='Synthetic proposal from A';const sending=h.submitProposal();await h.waitReceipt(1);
+ const second=h.mountAnotherAssignment();await second.start('recover');assert.equal(h.attempt(),null);const sent=h.requests.length,otherStatus=second.q('status').textContent;h.releaseReceipt(1);await sending;
+ assert.match(h.q('status').textContent,/El envío se resolvió desde otra vista/);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('query').querySelector('button').disabled,false);assert.equal(h.requests.length,sent);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);assert.equal(second.q('status').textContent,otherStatus);assert.equal(second.q('content').hidden,false);
+});
+test('a current view explains a replacement pending assignment without consuming or resending it',async t=>{
+ const h=assignment(t,{holdReceiptCall:1,holdPostCalls:[2]});await h.submit();h.q('reason').value='Synthetic proposal from A';const sending=h.submitProposal();await h.waitReceipt(1);const attemptA=h.attempt();
+ const second=h.mountAnotherAssignment();await second.start('recover');second.q('reason').value='Synthetic proposal from B';second.q('form').fire('submit');const b=h.lastTask();await h.waitPost(2);const attemptB=h.attempt(),body=JSON.stringify(attemptB.body),sent=h.requests.length;assert.notEqual(attemptA.key,attemptB.key);h.releaseReceipt(1);await sending;
+ assert.match(h.q('status').textContent,/Hay otro envío pendiente para este contrato/);assert.equal(h.attempt(),attemptB);assert.equal(JSON.stringify(h.attempt().body),body);assert.equal(h.requests.length,sent);assert.equal(h.requests.filter(r=>r.method==='POST').length,2);assert.equal(h.q('recover').hidden,false);h.releasePost(2);await b;assert.equal(h.attempt(),null);
 });
 test('a retired capture-opening session cannot replace the newer capture or trigger extra reads',async t=>{
  const h=harness(t,{mode:'capture',holdCall:0,holdSessionCalls:[1],initialCaps:captureAuthority});h.mounted.setCapture({id:'capture-a'});const a=h.start('open');await h.waitSession(1);h.mounted.setCapture({id:'capture-b'});await h.start('open');const sent=h.requests.length,status=h.q('status').textContent;h.releaseSession(1);await a;

@@ -20,19 +20,20 @@ export function mountPositionAssignment(container,{contractId}){
  function review(){const p=proposal();$('proposal').replaceChildren();$('confirm').checked=false;$('decision-reason').value='';if(p){$('proposal').append(node('p',`${states[p.status]} · ${p.authorLabel} · ${p.createdAt.slice(0,10)}`),node('p',p.body.reason),table(boot.state.allocations,'Conjunto aprobado actual completo'),table(p.allocations,'Conjunto propuesto completo'));if(p.decision)$('proposal').append(node('p',`${p.decision.actorLabel}: ${p.decision.reason} · revisión ${p.decision.revision}.`));}controls();}
  function render({value,map}){boot=value;hashes=map;$('year').value=String(boot.year);$('content').hidden=false;$('summary').textContent=`Ejercicio ${boot.year} · ${boot.state.revision?'versión aprobada '+boot.state.revision:'sin asignación aprobada'} · ${boot.state.allocations.length} asignaciones. La liquidación conservará los cargos que correspondan al período al crear su captura original.`;$('current').replaceChildren(table(boot.state.allocations,'Conjunto anual aprobado completo'));draft=boot.state.allocations.map(refs);editor(0);$('reason').value='';$('proposals').replaceChildren();for(const p of boot.proposals){const o=node('option',`${states[p.status]} · ${p.authorLabel} · ${p.createdAt.slice(0,10)}`);o.value=p.id;$('proposals').append(o);}review();}
  async function settle(op,receipt,attempt){
-  const current=()=>op.valid()&&ctx.attempt===attempt;if(!current())return;
+  const current=()=>{if(!op.valid())return false;if(ctx.attempt===attempt)return true;status(ctx.attempt?'Hay otro envío pendiente para este contrato. Consultá ese envío.':'El envío se resolvió desde otra vista. Consultá nuevamente.');return false;};if(!current())return;
   await verifiedPositionReceipt(receipt,attempt);if(!current())return;
   const fresh=await read(op,attempt.body.year);if(!current())return;
   await op.session();if(current()){ctx.attempt=null;render(fresh);status('Operación conservada con su contenido original y su historial.');}
  }
  function send(kind){client.perform(async(valid,op)=>{
   const original=boot;if(ctx.attempt||!original)throw Error('Consultá el ejercicio y cualquier envío pendiente.');
-  const fresh=(await read(op,original.year)).value;if(!valid()||ctx.attempt||boot!==original)return;
+  const ready=()=>{if(!valid()||boot!==original)return false;if(!ctx.attempt)return true;status('Se creó un envío pendiente desde otra vista. Consultá ese envío.');return false;};
+  const fresh=(await read(op,original.year)).value;if(!ready())return;
   if(fresh.scopeVersion!==original.scopeVersion||kind==='propose'&&(fresh.state.version!==original.state.version||fresh.annual.catalog.version!==original.annual.catalog.version))throw Error('Cambió el contrato, la asignación o la norma. Consultá nuevamente.');
   let body={command:kind,contractId,year:original.year,scopeVersion:fresh.scopeVersion,baseVersion:fresh.state.version,annualVersion:fresh.annual.catalog.version,reason:$('reason').value,reviewConfirmed:false};
   if(kind==='propose'){if(!fresh.permissions.canPropose||!client.has([...POSITION_READ,POSITION_CAPS.propose]))throw Error('Tu cuenta no permite preparar esta asignación.');body.allocations=positionReferences(draft,original.year);}
   else{const p=proposal(),current=fresh.proposals.find(x=>x.id===p?.id);if(!p||!current?.canReview||!$('confirm').checked||current.requestSha256!==p.requestSha256)throw Error('Revisá ambos conjuntos completos con otra persona habilitada.');body={...body,baseVersion:p.body.baseVersion,annualVersion:p.body.annualVersion,proposalId:p.id,proposalSha256:p.requestSha256,reason:$('decision-reason').value,reviewConfirmed:true};}
-  body=positionCommand(body);if(!valid()||ctx.attempt||boot!==original)return;
+  body=positionCommand(body);if(!ready())return;
   const attempt=positionFreeze({key:crypto.randomUUID(),body:structuredClone(body),accessKey:client.accessKey});ctx.attempt=attempt;controls();
   await settle(op,await op.request(null,attempt.body,attempt.key),attempt);
  });}

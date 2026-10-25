@@ -25,3 +25,9 @@ La exportación conserva sus guardas entre lecturas y huellas. Ocultar, cerrar s
 Un intento pendiente de asignación conserva objeto, clave y cuerpo originales. Recuperar o reintentar captura ese intento antes de esperar la sesión; la respuesta sólo puede limpiar ese mismo objeto. Otro montaje no puede sobrescribirlo mientras espera su comprobación previa. Esto conserva la recuperación explícita, sin POST automático desde una continuación vieja ni duplicación por cambio de clave.
 
 Validación local:28casos únicos,18nuevos y10regresiones de M10. Montan paneles y cliente reales con DOM, autenticación, verificadores, modelos, hashes y renderizadores sintéticos; no importan el motor. Se comprobaron respuestas tardías, cambio de cuenta, timeout, claves/cuerpos pendientes y controles PDF/Excel/CSV. No acredita archivos reales, cálculo, contratos de dominio, PostgreSQL, navegador, publicación o disponibilidad municipal del módulo completo. Un transporte que nunca retorna no está cubierto por una garantía nueva de resolución anticipada; se comprueba su inercia si retorna después del aborto.
+
+## Asignación consultada desde varias vistas · 25/10/2026
+
+Si otra vista resuelve el envío o crea un pendiente mientras la primera esperaba una respuesta, la vista vigente explica lo ocurrido y ofrece consultar nuevamente o recuperar ese envío. Conserva el intento, su clave y su cuerpo; no realiza otro envío ni cambia el resultado mostrado en la otra vista. Una operación retirada mantiene el mensaje de retirada.
+
+Verificación local:30 casos únicos con el mismo arnés sintético, incluidos dos nuevos de resolución y sustitución del pendiente desde otra vista y una comprobación ampliada del envío concurrente. Son mejoras de información al operador; se mantienen los límites de validación y publicación anteriores.
