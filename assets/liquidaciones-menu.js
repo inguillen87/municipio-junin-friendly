@@ -7,6 +7,10 @@ export const LIQUIDACIONES_TASKS = Object.freeze([
   {label:'Historial de corridas',href:'/nomina#historial',capability:'payroll.read'},
   {label:'Parámetros salariales',href:'/nomina#parametros',capability:'payroll.read'},
   {label:'Solicitudes de corrección',href:'/nomina#correcciones',capability:'payroll.read'},
+  {label:'Calcular',href:'/nomina#calculo',capability:'payroll.calculation.read'},
+  {label:'Confirmar y anular',href:'/nomina#decisiones',capability:'payroll.calculation.read'},
+  {label:'Anular período',href:'/nomina#anulacion',capability:'payroll.calculation.read'},
+  {label:'Cerrar liquidación',href:'/nomina#cierre',capability:'payroll.calculation.read'},
 ].map(task=>Object.freeze(task)));
 export function visibleLiquidacionesTasks(capabilities){const allowed=new Set(Array.isArray(capabilities)?capabilities:[]);return LIQUIDACIONES_TASKS.filter(task=>allowed.has(task.capability));}
 export function activeLiquidacionesTask(pathname,hash=''){
@@ -19,7 +23,7 @@ export async function mountLiquidacionesMenu(){
   if(!sidebar||!gate?.ready||sidebar.querySelector('[data-liquidaciones-menu]'))return null;
   const access=await gate.ready;if(!access||sidebar.querySelector('[data-liquidaciones-menu]'))return null;
   const tasks=visibleLiquidacionesTasks([...access.tenantCapabilities]);if(!tasks.length)return null;
-  const group=document.createElement('details');group.className='mc-liquidaciones-menu';group.dataset.liquidacionesMenu='';group.setAttribute('data-requires-any-capability','payroll.read payroll.novelty.read');
+  const group=document.createElement('details');group.className='mc-liquidaciones-menu';group.dataset.liquidacionesMenu='';group.setAttribute('data-requires-any-capability','payroll.read payroll.novelty.read payroll.calculation.read');
   const summary=document.createElement('summary'),icon=document.createElement('span'),label=document.createElement('span');icon.className='mc-liquidaciones-icon';icon.textContent='LI';icon.setAttribute('aria-hidden','true');label.textContent='Liquidaciones';summary.append(icon,label);group.append(summary);
   const links=document.createElement('nav');links.setAttribute('aria-label','Tareas de liquidaciones');group.append(links);
   for(const task of tasks){const link=document.createElement('a');link.href=task.href;link.textContent=task.label;link.setAttribute('data-requires-all-capability',task.capability);links.append(link);}

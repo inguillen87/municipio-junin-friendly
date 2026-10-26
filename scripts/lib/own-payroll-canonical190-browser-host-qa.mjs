@@ -12,6 +12,7 @@ import http from 'node:http';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 import {noeliaCircuitRosterRead} from './noelia-payroll-circuit-qa.mjs';
+import {principalHasCapabilities} from '../../lib/internal-resource-access.js';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 
 export const PUBLIC_ROOT=fileURLToPath(new URL('../../',import.meta.url));
@@ -67,7 +68,7 @@ export async function createCanonical190BrowserHost({h,actors,getSql,handlers,ou
  const byMembership=principal=>[...actors.values()].find(actor=>actor.principal.tenant.membershipId===principal?.tenant?.membershipId)??null;
  const presented=(name,actor)=>{const base={userId:actor.raw.actorSessionId,caps:actor.principal.tenant.effectiveCapabilities};return identity?{...base,...identity(name,actor)}:base;};
  const deps={env,
-  requireAccess:async(req,res)=>{const actor=actorOf(req);if(!actor){res.status(401).json({ok:false,code:'QA_UNAUTHENTICATED',error:'Sesión sintética ausente.'});return null;}return{mode:'managed',principal:actor.principal};},
+  requireAccess:async(req,res,options={})=>{const actor=actorOf(req);if(!actor){res.status(401).json({ok:false,code:'QA_UNAUTHENTICATED',error:'Sesión sintética ausente.'});return null;}if(!principalHasCapabilities(actor.principal,options.requiredCapabilities??[],options.capabilityMode??'all')){res.status(403).json({ok:false,code:'QA_CAPABILITY_REQUIRED',error:'La sesión sintética no tiene la capacidad requerida.'});return null;}return{mode:'managed',principal:actor.principal};},
   sessionFor:access=>{const actor=byMembership(access.principal);assert.ok(actor,'CANONICAL190_BROWSER_FOREIGN_PRINCIPAL');return actor.session;},
   getSql};
  const routes=handlers(deps);assert.ok(routes instanceof Map);

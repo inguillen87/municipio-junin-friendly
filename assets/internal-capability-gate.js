@@ -25,7 +25,7 @@
     'relojes-marcaciones.html': { any: ['attendance.read'] },
     'estructura.html': { any: ['workforce.structure.read'] },
     'integracion-datos.html': { any: ['lineage.read'] },
-    'nomina-control.html': { any: ['payroll.read'] },
+    'nomina-control.html': { any: ['payroll.read', 'payroll.calculation.read'] },
     'novedades-nomina.html': { any: ['payroll.novelty.read'] },
     'importar-novedades-grh.html': { all: ['payroll.novelty.read','payroll.novelty.prepare','payroll.novelty.nominal.read','workforce.employee.read'] },
     'gestion-comparativa.html': { any: ['management.analytics.read'] },
