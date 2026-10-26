@@ -8,7 +8,7 @@ const TABLE='own_payroll_receipt_event',SLOT='municontrol_receipt126_installatio
 const MODERN=['own_receipt_params_v1','own_receipt_self_v1','own_receipt_snapshot_v1'];
 const ADDED=['own_receipt_attempt_v1','own_receipt_batch_v1','own_receipt_batch_value_v1','own_receipt_command_v1','own_receipt_context_v1','own_receipt_event_v1','own_receipt_immutable_v1','own_receipt_list_v1','own_receipt_preview_v1','own_receipt_source_version_v1','own_receipt_text_v1'];
 const PINS=Object.freeze([
- ['scripts/lib/own-payroll-receipt126-same190-support.mjs',18177,'35e47c9f2af2ef393602774d968a306e5d8b0a13b7131e8d168a9b2082c6c1c2'],
+ ['scripts/lib/own-payroll-receipt126-same190-support.mjs',18177,'960d715088b539f0218ae70df9070f6323ce60d75b0c55768cf29c7dcd923751'],
  ['scripts/lib/own-payroll-receipt126-same190-shape.mjs',25756,'3ac45cc8cc26a967d52d5cce59bac28a8b22ffc269ea0837b241efbf5073a2dc'],
  ['scripts/migrations/004-tenant-iam-control-plane.sql',44500,'d22712fc9179d529bcec4d8347a9d845ed873dabee9c005db44b507c731a2195'],
  ['scripts/verify-municipal-owner-program.mjs',44977,'627938ce6d429b5df4d4ba43323e08859197c0a19eb7eaed79354a31e158bda3'],
@@ -57,15 +57,15 @@ function ledgerSql(schema,major,capKeys,slot){
   sharedDependencies:aggregate(`SELECT d.* FROM pg_shdepend d WHERE d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND ${objectScope('d')}`,'v.classid,v.objid,v.objsubid,v.refclassid,v.refobjid,v.deptype')
  };
  const catalogText=Object.entries(catalogs).map(([key,value])=>q(key)+','+value).join(',');
- return `DO $receipt126_ledger$ DECLARE t record;row_count bigint;row_hash text;kept_count bigint;kept_hash text;rows_value jsonb:='[]';sequence_value jsonb:='[]';sequence_state jsonb;ledger jsonb;BEGIN
+ return `DO $receipt126_ledger$ DECLARE target_relation record;row_count bigint;row_hash text;kept_count bigint;kept_hash text;rows_value jsonb:='[]';sequence_value jsonb:='[]';sequence_state jsonb;ledger jsonb;BEGIN
  IF current_setting('transaction_isolation')<>'repeatable read' OR current_setting('transaction_read_only')<>'off' OR current_setting('server_version_num')::integer/10000<>${major} OR current_user<>'postgres' OR (SELECT nspowner FROM pg_namespace WHERE oid=${ns}::regnamespace)<>current_user::regrole THEN RAISE EXCEPTION 'RECEIPT126_INSTALL_CONTEXT_CHANGED';END IF;
  IF EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=${ns}::regnamespace AND relkind='f') THEN RAISE EXCEPTION 'RECEIPT126_INSTALL_FOREIGN_ROW_SOURCE_UNSUPPORTED';END IF;
- FOR t IN SELECT c.oid,c.relname,c.relkind FROM pg_class c WHERE c.relnamespace=${ns}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
-  EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${ns},t.relname) INTO row_count,row_hash;
-  IF t.relname='iam_capability' THEN EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r WHERE capability_key NOT IN (${capKeys.map(q).join(',').replaceAll("'","''")})',${ns},t.relname) INTO kept_count,kept_hash;ELSE kept_count:=row_count;kept_hash:=row_hash;END IF;
-  rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',t.oid,'name',t.relname,'kind',t.relkind,'count',row_count,'sha256',row_hash,'preservedCount',kept_count,'preservedSha256',kept_hash));
+ FOR target_relation IN SELECT c.oid,c.relname,c.relkind FROM pg_class c WHERE c.relnamespace=${ns}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
+  EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${ns},target_relation.relname) INTO row_count,row_hash;
+  IF target_relation.relname='iam_capability' THEN EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r WHERE capability_key NOT IN (${capKeys.map(q).join(',').replaceAll("'","''")})',${ns},target_relation.relname) INTO kept_count,kept_hash;ELSE kept_count:=row_count;kept_hash:=row_hash;END IF;
+  rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',target_relation.oid,'name',target_relation.relname,'kind',target_relation.relkind,'count',row_count,'sha256',row_hash,'preservedCount',kept_count,'preservedSha256',kept_hash));
  END LOOP;
- FOR t IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${ns}::regnamespace AND c.relkind='S' ORDER BY c.oid LOOP EXECUTE format('SELECT jsonb_build_object(''lastValue'',last_value,''isCalled'',is_called) FROM %I.%I',${ns},t.relname) INTO sequence_state;sequence_value:=sequence_value||jsonb_build_array(jsonb_build_object('oid',t.oid,'value',sequence_state));END LOOP;
+ FOR target_relation IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${ns}::regnamespace AND c.relkind='S' ORDER BY c.oid LOOP EXECUTE format('SELECT jsonb_build_object(''lastValue'',last_value,''isCalled'',is_called) FROM %I.%I',${ns},target_relation.relname) INTO sequence_state;sequence_value:=sequence_value||jsonb_build_array(jsonb_build_object('oid',target_relation.oid,'value',sequence_state));END LOOP;
  ledger:=jsonb_build_object('epoch',${epochSql(schema,major)},'rows',rows_value,'sequenceValues',sequence_value,'catalogs',jsonb_build_object(${catalogText}),
  'capabilities',(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY capability_key COLLATE "C"),'[]') FROM ${schema}.iam_capability c),
  'functionAcls',(SELECT coalesce(jsonb_agg(jsonb_build_object('oid',p.oid,'name',p.proname,'entries',(SELECT coalesce(jsonb_agg(jsonb_build_object('grantorOid',a.grantor::bigint,'granteeOid',a.grantee::bigint,'privilege',a.privilege_type,'grantable',a.is_grantable) ORDER BY a.grantor,a.grantee,a.privilege_type,a.is_grantable),'[]') FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a)) ORDER BY p.oid),'[]') FROM pg_proc p WHERE p.pronamespace=${ns}::regnamespace),

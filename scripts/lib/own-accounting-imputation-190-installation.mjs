@@ -120,10 +120,10 @@ function identityProof(records,version,epoch,sourceCommit){
 // function prosrc/new functions and203 allocation CHECK projected out.
 function conservation(h,epoch,{changed=[],added=[],checks=[],checkTable='own_payroll_imputation_event'}){
  const schema=h.qa.schema,changedNames=changed.length?changed.map(q).join(','):"''",addedNames=added.length?added.map(q).join(','):"''",checkNames=checks.length?checks.map(q).join(','):"''";
- const snapshot=slot=>`DO $accounting190_preserve$ DECLARE t record;rows_value jsonb:='[]';n bigint;fingerprint text;BEGIN
- FOR t IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${q(schema)}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
- EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${q(schema)},t.relname) INTO n,fingerprint;
- rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',t.oid,'rows',n,'sha256',fingerprint));END LOOP;
+ const snapshot=slot=>`DO $accounting190_preserve$ DECLARE target_relation record;rows_value jsonb:='[]';row_count bigint;fingerprint text;BEGIN
+ FOR target_relation IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${q(schema)}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
+ EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${q(schema)},target_relation.relname) INTO row_count,fingerprint;
+ rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',target_relation.oid,'rows',row_count,'sha256',fingerprint));END LOOP;
  PERFORM set_config('municontrol_accounting190_${epoch}.${slot}',jsonb_build_object('rows',rows_value,
  'tables',(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.oid),'[]') FROM pg_class c WHERE c.relnamespace=${q(schema)}::regnamespace),
  'attributes',(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.attrelid,a.attnum),'[]') FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid WHERE c.relnamespace=${q(schema)}::regnamespace),

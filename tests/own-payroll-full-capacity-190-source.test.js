@@ -20,6 +20,23 @@ const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,
 const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file)))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
 const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
 
+test('preservation locals cannot shadow catalog aliases in their own PLpgSQL block',()=>{
+ for(const[file,anchor]of[
+  ['scripts/lib/own-payroll-full-capacity-190-installation.mjs','function conservation('],
+  ['scripts/lib/own-accounting-imputation-190-installation.mjs','function conservation('],
+  ['scripts/lib/own-payroll-receipt126-same190-installation.mjs','function ledgerSql(']
+ ]){
+  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),start=source.indexOf(anchor);assert.ok(start>=0,file);
+  const boundaries=['\nfunction ','\nexport '].map(x=>source.indexOf(x,start+anchor.length)).filter(n=>n>=0),scope=source.slice(start,boundaries.length?Math.min(...boundaries):undefined);
+  const declaration=/\bDECLARE\b([\s\S]*?)\bBEGIN\b/.exec(scope);assert.ok(declaration,file);
+  const locals=declaration[1].split(';').map(part=>/^\s*([a-z_][a-z0-9_]*)\s+/.exec(part)?.[1]).filter(Boolean);assert.ok(locals.length>2,file);
+  const records=[...declaration[1].matchAll(/\b([a-z_][a-z0-9_]*)\s+record\b/gi)].map(m=>m[1]);assert.equal(records.length,1,file);
+  const aliases=new Set([...scope.matchAll(/\b(?:FROM|JOIN)\s+pg_[a-z_]+\s+(?:AS\s+)?([a-z_][a-z0-9_]*)/gi)].map(m=>m[1].toLowerCase()));assert.ok(aliases.has('t'),file);
+  for(const local of locals)assert.equal(aliases.has(local.toLowerCase()),false,'PLpgSQL local shadows a catalog alias: '+file+':'+local);
+  for(const record of records)assert.ok(scope.includes('FOR '+record+' IN'),file);
+ }
+});
+
 test('expected native adapters retain exact new sources, runtime closure and CI focal',()=>{
  const wrapper=fs.readFileSync(new URL('../scripts/verify-own-payroll-full-capacity.mjs',import.meta.url),'utf8'),workflow=fs.readFileSync(new URL('../.github/workflows/own-payroll-full-capacity.yml',import.meta.url),'utf8');
  assert.equal(Object.keys(OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS).length,2);

@@ -22,10 +22,10 @@ export function ownFullCapacity190Snapshot(h){
 // All9 old function OIDs and non-body catalog fields remain in the comparison.
 function conservation(h,{legacyNames,newNames}){
  const s=h.qa.schema,old=legacyNames.map(q).join(','),added=newNames.map(q).join(','),checks=['own_payroll_close_event_snapshot_check','own_payroll_close_event_receipt_check','own_payroll_annul_event_receipt_check'].map(q).join(',');
- const snapshot=slot=>`DO $m7_preservation$ DECLARE t record;rows_value jsonb:='[]';row_count bigint;row_hash text;BEGIN
- FOR t IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${q(s)}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
- EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${q(s)},t.relname) INTO row_count,row_hash;
- rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',t.oid,'rows',row_count,'sha256',row_hash));END LOOP;
+ const snapshot=slot=>`DO $m7_preservation$ DECLARE target_relation record;rows_value jsonb:='[]';row_count bigint;row_hash text;BEGIN
+ FOR target_relation IN SELECT c.oid,c.relname FROM pg_class c WHERE c.relnamespace=${q(s)}::regnamespace AND c.relkind IN('r','p','m') ORDER BY c.oid LOOP
+ EXECUTE format('SELECT count(*),encode(public.digest(coalesce(string_agg(to_jsonb(r)::text,chr(10) ORDER BY to_jsonb(r)::text COLLATE "C"),''''),''sha256''),''hex'') FROM %I.%I r',${q(s)},target_relation.relname) INTO row_count,row_hash;
+ rows_value:=rows_value||jsonb_build_array(jsonb_build_object('oid',target_relation.oid,'rows',row_count,'sha256',row_hash));END LOOP;
  PERFORM set_config('municontrol_capacity190.${slot}',jsonb_build_object('rows',rows_value,
  'tables',(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.oid),'[]') FROM pg_class c WHERE c.relnamespace=${q(s)}::regnamespace),
  'attributes',(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.attrelid,a.attnum),'[]') FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid WHERE c.relnamespace=${q(s)}::regnamespace),

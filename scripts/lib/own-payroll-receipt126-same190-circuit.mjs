@@ -11,7 +11,7 @@ const FULL_JSON='application/vnd.municontrol.payroll-full.v1+json';
 const SOURCE_PINS=Object.freeze([
  ["scripts/lib/own-payroll-full-capacity-190-continuation.mjs",38385,"5b1970aa5d8afecb7f407bdc9d3ee310586f87f3c129fab051f9ab2c3f15e00a"],
  ["scripts/lib/own-payroll-full-capacity-190-rpc.mjs",3957,"2743c3f4a9069a119500839ceb18e97a931b2a1feee8a27c1c363eb595e21d4f"],
- ["scripts/lib/own-payroll-full-capacity-190-installation.mjs",11554,"6cdeffb5922424d50d8b5caf2e9b9e7f91be702c1b103b9631bda60410b23aaf"],
+ ["scripts/lib/own-payroll-full-capacity-190-installation.mjs",11610,"f88d5a1979201c17572ae3c6932675dc991641cb736b9480895fd2ff761153eb"],
  ["scripts/lib/own-payroll-report-census-190-iam-fixture.mjs",9508,"c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1"],
  ["scripts/lib/own-annulment-preparation-209-actors-fixture.mjs",23392,"d848365436ca52975cd0ef7529de03bbace8fb94612fd6fce04a65fcbe6e3984"],
  ["scripts/lib/own-monthly-day-engine-circuit-fixture.mjs",11909,"77e62e74e9cfc80a2310f17bc81e90f5dde1e6a90072e28ae291152f34cf4d35"],
@@ -43,7 +43,7 @@ const SOURCE_PINS=Object.freeze([
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
  ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",37794,"76624193e83ddda779a51c0ef3aff35faebd02bfabef9ccd9c21f833dbf9e34f"],
- ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18177,"35e47c9f2af2ef393602774d968a306e5d8b0a13b7131e8d168a9b2082c6c1c2"],
+ ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18177,"960d715088b539f0218ae70df9070f6323ce60d75b0c55768cf29c7dcd923751"],
  ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25756,"3ac45cc8cc26a967d52d5cce59bac28a8b22ffc269ea0837b241efbf5073a2dc"],
 ]);
 const RPC=new Map([

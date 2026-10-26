@@ -44,7 +44,7 @@ const required=Object.freeze([
  ['own_program_exact_v1','public.own_program_exact_v1(jsonb,text[])','graph190',false]
 ]);
 const SOURCE_PINS=Object.freeze({
-  "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "6cdeffb5922424d50d8b5caf2e9b9e7f91be702c1b103b9631bda60410b23aaf",
+  "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "f88d5a1979201c17572ae3c6932675dc991641cb736b9480895fd2ff761153eb",
   "scripts/lib/own-payroll-installation.mjs": "6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0",
   "scripts/lib/native-leave-installation.mjs": "57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef",
   "scripts/lib/own-novelty-succession-qa.mjs": "f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929",
