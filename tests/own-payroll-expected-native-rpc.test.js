@@ -106,7 +106,7 @@ test('bind y servicio reales conservan el código seguro después del retorno na
   fixture.access.principal.tenant.effectiveCapabilities.push('payroll.calculation.read', 'payroll.calculation.nominal.read', 'payroll.calculation.approve');
   const context = JSON.stringify(employeeContext(fixture.access.principal, fixture.session)), calls = [];
   const h = {qa: {schema: 'mc_qa_fixed_092_' + 'b'.repeat(32)},
-    json(statements, options) {calls.push({kind: 'normal', statements, options});return {connection: {pid: 7, backendStart: 'synthetic-start'}, result: {normal: true}};},
+    json(statements, options) {calls.push({kind: 'normal', statements, options});return {connection: {pid: 7, backendStart: '2026-10-26T12:00:00.123456Z'}, result: {normal: true}};},
     expectRollback(statements, code, options) {calls.push({kind: 'expected', statements, code, options});return {status: 3, stderr: 'ERROR: OWN_LIQ_LIMIT\nCONTEXT: PRIVATE_SYNTHETIC\n'};}
   };
   const db = bindOwnFullCapacity190(h);
@@ -114,7 +114,7 @@ test('bind y servicio reales conservan el código seguro después del retorno na
     ownLiquidationOperation(db, fixture.access.principal, fixture.session, 'detail', {id}, {fullJson: false}),
     error => error.code === 'OWN_LIQ_LIMIT' && error.status === 422 && !error.message.includes('PRIVATE_SYNTHETIC')));
   assert.equal(calls.length, 1);assert.equal(calls[0].kind, 'expected');assert.equal(calls[0].code, 'OWN_LIQ_LIMIT');assert.deepEqual(calls[0].options, {command: true});
-  assert.equal(calls[0].statements[0], 'SET LOCAL ROLE municontrol_actions_runtime_app');assert.match(calls[0].statements[1], /own_liquidation_detail_v1/);
+  assert.match(calls[0].statements[0], /^DO \$connection_capture\$/);assert.equal(calls[0].statements[1], 'SET LOCAL ROLE municontrol_actions_runtime_app');assert.match(calls[0].statements[2], /^DO \$connection_guard\$/);assert.match(calls[0].statements.at(-1), /own_liquidation_detail_v1/);
   assert.equal(db.connections.length, 0, 'expected error has no fabricated connection envelope');db.assertNoExpectedRpc();
   assert.deepEqual(await db.query(text, [context, id]), [{result: {normal: true}}]);assert.equal(calls.at(-1).kind, 'normal');assert.equal(calls.at(-1).options.fullJson, true);
 });
@@ -175,4 +175,147 @@ test('completado ajeno, duplicado o inválido atrapado también invalida el scop
     }),/EXTRA_INVOCATION/);
     n.assertIdle();assert.throws(()=>complete(n,expected),/RESULT_SCOPE/);
   }
+});
+
+function connectionObservationWire({tamperCapturedPid=false}={}){
+ const calls=[];
+ function invoke(kind,statements,options,code){
+  assert.ok(Array.isArray(statements)&&statements.length>0);
+  const call={kind,statements:[...statements],options:{...options},code,events:[],statsReads:[],resultRows:0};
+  calls.push(call);
+  // Fresh native invocations may even reuse PID; backendStart distinguishes them.
+  const actual={pid:731,backendStart:kind==='expected'
+   ?'2026-10-26T12:00:03.123456Z'
+   :'2026-10-26T12:00:'+String(calls.length).padStart(2,'0')+'.123456Z'};
+  const slot='municontrol_capacity190.native_connection',local=new Map();let role='owner',envelopes=0,commands=0;
+  const visibleStats=()=>{call.statsReads.push(role);return{pid:actual.pid,backendStart:role==='owner'?actual.backendStart:null};};
+  let response;
+  for(const[index,statement]of statements.entries()){
+   if(/^DO\s+\$/.test(statement)&&statement.includes('pg_stat_activity')&&statement.includes('set_config(')){
+    assert.ok(statement.includes('pg_backend_pid()'),'capture reads the actual backend, not a fixed identity');
+    assert.match(statement,/PERFORM\s+(?:pg_catalog\.)?set_config\(/);
+    assert.match(statement,/,\s*true\s*\)/,'identity is transaction LOCAL');
+    const slots=[...statement.matchAll(/set_config\('([^']+)'/g)].map(m=>m[1]);assert.equal(slots.length,1);
+    assert.deepEqual(slots,[slot]);assert.equal(local.has(slot),false,'capture exactly once per invocation');
+    assert.ok(statement.includes('current_user')&&statement.includes('session_user')&&statement.includes("'postgres'"),'capture checks its owner/session source');
+    const captured=visibleStats();local.set(slot,tamperCapturedPid?{...captured,pid:captured.pid+1}:captured);call.events.push('capture:'+role);continue;
+   }
+   if(statement==='SET LOCAL ROLE municontrol_actions_runtime_app'){
+    role='runtime';call.events.push('role:runtime');continue;
+   }
+   if(statement.startsWith('DO $connection_guard$')){
+    assert.ok(statement.includes("current_setting('"+slot+"'"));
+    assert.ok(statement.includes('pg_backend_pid()')&&/->>?\s*'pid'/.test(statement),'guard compares captured PID with current backend');
+    assert.ok(statement.includes("'backendStart'"),'guard checks captured stamp is present');
+    let saved=local.get(slot);assert.ok(saved,'guard cannot reuse a previous transaction GUC');
+    call.events.push('guard:'+role);
+    if(saved.pid!==actual.pid||typeof saved.backendStart!=='string'||!saved.backendStart.trim())throw Error('M7_190_CONNECTION_IDENTITY_CHANGED');
+    continue;
+   }
+   if(statement.startsWith("SELECT jsonb_build_object('connection',")){
+    assert.equal(index,statements.length-1,'only final statement returns JSON');
+    envelopes++;call.events.push('envelope:'+role);
+    const slots=[...statement.matchAll(/current_setting\('([^']+)'/g)].map(m=>m[1]);
+    let connection;
+    if(slots.length){
+     assert.equal(new Set(slots).size,1,'envelope reads the captured identity slot');
+     const saved=local.get(slots[0]);assert.ok(saved,'a fresh transaction cannot reuse an earlier GUC');
+     assert.deepEqual([...new Set(slots)],[slot]);
+     assert.doesNotMatch(statement,/pg_stat_activity/,'final envelope only reads the captured GUC');
+     connection={...saved};
+    }else{
+     // The old observer reads stats here, after SET ROLE: runtime sees null.
+     assert.ok(statement.includes('pg_stat_activity'),'unknown observer SQL shape');
+     connection=visibleStats();
+    }
+    if(kind==='normal'){
+     call.resultRows++;response={connection,result:'opaque-wire-result-'+calls.length};
+    }
+    continue;
+   }
+   assert.ok(!/^SELECT\b/.test(statement),'technical capture may not add a top-level result row');
+   assert.equal(index,statements.length-1,'command-only keeps its final command');
+   commands++;call.events.push('command:'+role);
+  }
+  if(envelopes){assert.equal(envelopes,1);assert.equal(commands,0);}
+  else{assert.equal(commands,1);assert.equal(local.size,0,'no capture added to command-only');}
+  call.localSlotsAtEnd=local.size;local.clear();call.localSlotsAfterTransaction=local.size;
+  if(kind==='expected')return{status:3,stderr:'ERROR: '+code+'\n'};
+  return response??'COMMAND ONLY';
+ }
+ const h={qa:{schema:'mc_qa_fixed_092_'+'9'.repeat(32)},
+  json:(statements,options)=>invoke('normal',statements,options),
+  expectRollback:(statements,code,options)=>invoke('expected',statements,options,code),
+ };
+ return{h,calls};
+}
+const connectionProbeId='12345678-1234-4234-8234-123456789abc';
+const connectionProbeContext=JSON.stringify({actorEmail:'observer@example.invalid',actorSessionId:'12345678-1234-4234-8234-123456789abd',actorSessionVersion:1,releaseSha:'a'.repeat(40),tenantId:'12345678-1234-4234-8234-123456789abe',membershipId:'12345678-1234-4234-8234-123456789abf'});
+const connectionProbeRpc='SELECT public.own_liquidation_detail_v1($1::jsonb,$2::uuid) AS result';
+
+test('bind captures real identity before reduced-role stats and preserves the sole opaque result',async()=>{
+ const wire=connectionObservationWire(),db=bindOwnFullCapacity190(wire.h);
+ assert.equal(await db.run('SELECT 42',false),'opaque-wire-result-1');
+ assert.equal(await db.run('SELECT 42',true),'opaque-wire-result-2');
+ assert.deepEqual(await db.query(connectionProbeRpc,[connectionProbeContext,connectionProbeId]),[{result:'opaque-wire-result-3'}]);
+ assert.equal(wire.calls.length,3);
+ assert.deepEqual(wire.calls[0].events,['capture:owner','guard:owner','envelope:owner']);
+ for(const call of wire.calls.slice(1))assert.deepEqual(call.events,['capture:owner','role:runtime','guard:runtime','envelope:runtime']);
+ for(const call of wire.calls){
+  assert.deepEqual(call.statsReads,['owner'],'stats never reread under runtime');
+  assert.equal(call.resultRows,1,'DO capture adds no JSON/result row');
+  assert.equal(call.localSlotsAtEnd,1);assert.equal(call.localSlotsAfterTransaction,0);
+ }
+ assert.deepEqual(wire.calls.map(c=>c.options),[
+  {command:false,fullJson:true},{command:true,fullJson:true},{command:true,fullJson:true},
+ ]);
+ assert.equal(db.connections.length,3);assert.equal(new Set(db.connections).size,3,'same PID with fresh backendStart cannot reuse stale identity');
+ assert.deepEqual(db.trace,[{sql:connectionProbeRpc}]);db.assertNoExpectedRpc();
+});
+
+test('bind rejects a captured identity for another backend instead of reporting valid metadata',async()=>{
+ const wire=connectionObservationWire({tamperCapturedPid:true}),db=bindOwnFullCapacity190(wire.h);
+ await assert.rejects(db.run('SELECT 42',true));
+ assert.deepEqual(wire.calls[0].statsReads,['owner']);assert.equal(db.connections.length,0);
+});
+
+test('observe requires positive PID and a finite nonempty native timestamp, including six fractional digits',async()=>{
+ const start='2026-10-26T12:34:56.123456+00:00';
+ for(const connection of [
+  {pid:731,backendStart:null},{pid:731,backendStart:''},{pid:731,backendStart:'   '},
+  {pid:731,backendStart:'not-a-date'},{pid:731,backendStart:123},
+  {pid:0,backendStart:start},{pid:-1,backendStart:start},{pid:'731',backendStart:start},{pid:2147483648,backendStart:start},
+ ]){
+  const db=bindOwnFullCapacity190({qa:wireSchema(),json(){return{connection,result:'opaque'};}});
+  await assert.rejects(db.run('SELECT 42',false));assert.equal(db.connections.length,0);
+ }
+ const db=bindOwnFullCapacity190({qa:wireSchema(),json(){return{connection:{pid:731,backendStart:start},result:'opaque'};}});
+ assert.equal(await db.run('SELECT 42',false),'opaque');assert.deepEqual(db.connections,['731:'+start]);
+ function wireSchema(){return{schema:'mc_qa_fixed_092_'+'8'.repeat(32)};}
+});
+
+test('expected query/run errors keep original matcher and native code, with no connection/result invented',async()=>{
+ const wire=connectionObservationWire(),db=bindOwnFullCapacity190(wire.h),values=[connectionProbeContext,connectionProbeId];
+ await db.expectQueryError({caseId:'269-connection-query',nativeCode:'OWN_LIQ_LIMIT',text:connectionProbeRpc,values},()=>assert.rejects(db.query(connectionProbeRpc,values),/OWN_LIQ_LIMIT/));
+ await db.expectRunError({caseId:'269-connection-run',nativeCode:'OWN_LIQ_LIMIT',statement:'SELECT 42',runtime:true},()=>assert.rejects(db.run('SELECT 42',true),/OWN_LIQ_LIMIT/));
+ assert.equal(wire.calls.length,2);
+ for(const call of wire.calls){
+  assert.equal(call.kind,'expected');assert.equal(call.code,'OWN_LIQ_LIMIT');assert.deepEqual(call.options,{command:true});
+  assert.deepEqual(call.events,['capture:owner','role:runtime','guard:runtime','envelope:runtime']);
+  assert.deepEqual(call.statsReads,['owner']);assert.equal(call.resultRows,0);
+ }
+ assert.ok(wire.calls[0].statements.at(-1).includes(connectionProbeId));
+ assert.ok(wire.calls[0].statements.at(-1).includes(connectionProbeContext.replaceAll("'","''")));
+ assert.ok(wire.calls[1].statements.at(-1).includes("'result',(42)"));
+ assert.equal(db.connections.length,0);db.assertNoExpectedRpc();
+});
+
+test('command-only has no envelope/capture and retains technical/runtime transaction options',async()=>{
+ const wire=connectionObservationWire(),db=bindOwnFullCapacity190(wire.h),command='DO $connection_command_only$ BEGIN NULL;END $connection_command_only$';
+ assert.equal(await db.run(command,false),'COMMAND ONLY');assert.equal(await db.run(command,true),'COMMAND ONLY');
+ assert.deepEqual(wire.calls[0].statements,[command]);
+ assert.deepEqual(wire.calls[1].statements,['SET LOCAL ROLE municontrol_actions_runtime_app',command]);
+ assert.deepEqual(wire.calls.map(c=>c.options),[{command:false},{command:true}]);
+ for(const call of wire.calls){assert.equal(call.resultRows,0);assert.deepEqual(call.statsReads,[]);}
+ assert.equal(db.connections.length,0);db.assertNoExpectedRpc();
 });

@@ -57,17 +57,43 @@ async function seedLiteralProgramme(db,qa){
 }
 function bind(h){
  const {qa}=h,connections=[],trace=[],negatives=createOwn190NativeErrorExpectations();
- const observe=value=>{assert.ok(value?.connection&&Object.hasOwn(value,'result'),'M7_190_NATIVE_RESPONSE');assert.ok(Number.isSafeInteger(value.connection.pid));assert.equal(typeof value.connection.backendStart,'string');connections.push(value.connection.pid+':'+value.connection.backendStart);return value.result;};
- const envelope=expression=>"SELECT jsonb_build_object('connection',jsonb_build_object('pid',pg_backend_pid(),'backendStart',(SELECT backend_start FROM pg_stat_activity WHERE pid=pg_backend_pid())),'result',("+expression+'))';
- const run=async(text,runtime=false)=>{assert.equal(typeof text,'string');const statement=text;const prefix=runtime?['SET LOCAL ROLE municontrol_actions_runtime_app']:[];
-  const query=/^SELECT /.test(statement)&&!statement.includes(';'),statements=[...prefix,query?envelope(statement.slice(7)):statement],expected=negatives.consumeRun({statement,runtime});
+ // The runtime cannot read the postgres backend's start time from the stats
+ // view. Capture only this connection before SET ROLE, inside the same frame.
+ // LOCAL state emits no row and cannot survive the native transaction.
+ const connectionCapture=`DO $connection_capture$
+ DECLARE native_pid integer:=pg_backend_pid();native_started timestamptz;
+ BEGIN
+  IF current_user IS DISTINCT FROM 'postgres' OR session_user IS DISTINCT FROM 'postgres'
+  THEN RAISE EXCEPTION 'M7_190_CONNECTION_CAPTURE_ROLE';END IF;
+  SELECT activity.backend_start INTO STRICT native_started
+  FROM pg_catalog.pg_stat_activity activity
+  WHERE activity.pid=native_pid AND activity.usename=session_user
+    AND activity.datname=current_database() AND activity.backend_type='client backend';
+  IF native_started IS NULL THEN RAISE EXCEPTION 'M7_190_CONNECTION_START_REQUIRED';END IF;
+  PERFORM set_config('municontrol_capacity190.native_connection',
+   jsonb_build_object('pid',native_pid,'backendStart',
+    to_char(native_started AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))::text,true);
+ END $connection_capture$`;
+ const connectionGuard=`DO $connection_guard$ DECLARE captured jsonb:=current_setting('municontrol_capacity190.native_connection')::jsonb;
+ BEGIN
+  IF jsonb_typeof(captured) IS DISTINCT FROM 'object'
+   OR jsonb_typeof(captured->'pid') IS DISTINCT FROM 'number'
+   OR(captured->>'pid')::bigint IS DISTINCT FROM pg_backend_pid()
+   OR jsonb_typeof(captured->'backendStart') IS DISTINCT FROM 'string'
+   OR btrim(captured->>'backendStart')=''
+  THEN RAISE EXCEPTION 'M7_190_CONNECTION_IDENTITY_CHANGED';END IF;
+ END $connection_guard$`;
+ const observe=value=>{assert.ok(value?.connection&&Object.hasOwn(value,'result'),'M7_190_NATIVE_RESPONSE');assert.ok(Number.isSafeInteger(value.connection.pid)&&value.connection.pid>0&&value.connection.pid<=2147483647,'M7_190_NATIVE_PID');assert.equal(typeof value.connection.backendStart,'string');assert.ok(value.connection.backendStart.trim().length>0&&Number.isFinite(Date.parse(value.connection.backendStart)),'M7_190_NATIVE_BACKEND_START');connections.push(value.connection.pid+':'+value.connection.backendStart);return value.result;};
+ const envelope=expression=>"SELECT jsonb_build_object('connection',current_setting('municontrol_capacity190.native_connection')::jsonb,'result',("+expression+'))';
+ const run=async(text,runtime=false)=>{assert.equal(typeof text,'string');const statement=text;
+  const query=/^SELECT /.test(statement)&&!statement.includes(';'),role=runtime?['SET LOCAL ROLE municontrol_actions_runtime_app']:[],prefix=query?[connectionCapture,...role,connectionGuard]:role;
+  const statements=[...prefix,query?envelope(statement.slice(7)):statement],expected=negatives.consumeRun({statement,runtime});
   if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:runtime}));
   if(query)return observe(h.json(statements,{command:runtime,fullJson:true}));
-  // Command-only batches have terminal tags rather than a JSON row. Framing,
-  // exit status and the complete transaction remain checked by the same latch.
+  // Command-only batches retain their original role, tags and latch profile.
   return h.json(statements,{command:runtime});
  };
- const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema),statements=['SET LOCAL ROLE municontrol_actions_runtime_app',envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
+ const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema),statements=[connectionCapture,'SET LOCAL ROLE municontrol_actions_runtime_app',connectionGuard,envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
   const expected=negatives.consumeQuery({text,values});
   if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:true}));
   return[{result:observe(h.json(statements,{command:true,fullJson:true}))}];
