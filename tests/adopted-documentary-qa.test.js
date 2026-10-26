@@ -20,8 +20,8 @@ test('only the two declared QA major versions can produce a foundation',()=>{
  for(const value of [16,19,0,'17',undefined])assert.throws(()=>documentaryQaFoundation(value));
 });
 test('process identity is rejected before reading a pid file if a listener is another process or host',()=>{
- const value={process:{ProcessId:5988},listener:{OwningProcess:5990,LocalAddress:'127.0.0.1',LocalPort:55417}};assert.throws(()=>assertDocumentaryQaProcess(root,17,value));
- value.listener.OwningProcess=5988;value.listener.LocalAddress='0.0.0.0';assert.throws(()=>assertDocumentaryQaProcess(root,17,value));
+ const value={process:{ProcessId:13604},listener:{OwningProcess:5990,LocalAddress:'127.0.0.1',LocalPort:55417}};assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual===5990&&e.expected===13604);
+ value.listener.OwningProcess=13604;value.listener.LocalAddress='0.0.0.0';assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual==='0.0.0.0'&&e.expected==='127.0.0.1');
  value.process.ProcessId=34448;assert.throws(()=>assertDocumentaryQaProcess(root,17,value),/DOCUMENTARY_QA_PROCESS_CHANGED/);
 });
 test('178 QA relocation retains every canonical guard and exactly rehashes isolated qualified bodies',()=>{

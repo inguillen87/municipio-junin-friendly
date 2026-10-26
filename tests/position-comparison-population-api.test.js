@@ -129,6 +129,7 @@ test('el recurso detail anterior conserva su RPC y DTO v1 sin adoptar v2 implíc
 
 test('el panel solicita detail-v2 explícito, sin fallback silencioso a detail',()=>{
  const source=fs.readFileSync(new URL('../assets/position-comparison-panel.js',import.meta.url),'utf8');
- assert.match(source,/client\.request\(\{resource:'detail-v2',year:String\(q\.year\)/);
- assert.doesNotMatch(source,/client\.request\(\{resource:'detail',/);
+ assert.match(source,/op\.request\(\{resource:'detail-v2',year:String\(q\.year\)/);
+ assert.doesNotMatch(source,/(?:op|client)\.request\(\{resource:'detail',/);
+ assert.doesNotMatch(source,/client\.(?:request|session)\(/);
 });

@@ -44,7 +44,7 @@ test('context, source hashes and the host seed and phase inputs remain guarded w
 
 test('all prior source pins and the complete eleven-definition projection remain exact',()=>{
  const text=source();
- assert.equal(hash(section(text,'const SOURCES=Object.freeze({','const body=d=>')),'5c2c747c6320a58a2acf3502e496aebf5933a821e416a32cb585a3e7937457f5');
+ assert.equal(hash(section(text,'const SOURCES=Object.freeze({','const body=d=>')),'f060efe2e51890776a267144098c4478929df58cb604dacfac284f287f5e136d');
  assert.equal(hash(section(text,'function projection({qa,batch}){','export function buildOwnMonetaryProgramQaProjection(options){')),'94ca485aa52c9779e455e02ac0a76f21edb22184da3beb382ba03cf3d8726b85');
 });
 

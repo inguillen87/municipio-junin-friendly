@@ -36,7 +36,7 @@ const SOURCE_PINS=Object.freeze([
  ["assets/own-payroll-close-model.js",17340,"a761bcf5fcfc8d160200799d9ac729efb8af535cea9e4aa3df760bc5836a3264"],
  ["assets/own-payroll-report-model.js",24510,"2f7ddb3989c55f0435fbb998ebf605353e818fcf13cb44369eb457114dcf3a98"],
  ["scripts/migrations/112-native-salary-definitions.sql",25276,"da72986b8eb8b834f8f11f0cdfd793708eba90c96de59c399ff063fe31a95cd3"],
- ["centro-acciones.html",233131,"0f664e11d1a670f345b489ea5eaad953e8ba23a04a76287580cdfb8c29129db2"],
+ ["centro-acciones.html",235783,"fea6d0ef13f9aa0c4dabe4ca0a1a574fb89685b602a4217a572f7cf9ec21b449"],
  ["lib/internal-native-employees.js",5272,"0f044bb371566fe2225ae875ca0383657c05f27fc876019b08ba779d80e121d8"],
  ["lib/private-json-body.js",3950,"fab88ee69c88ba5357df6e2184c03db6106f6f533a84f166c01c0c563e7de7f5"],
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],

@@ -11,7 +11,11 @@ import {OWN_CURRENT190_UI_SOURCE_PINS,OWN_CURRENT190_UI_NEW_SOURCE_PINS,projectC
 import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS,projectCurrent190RevocationRawSourceToParent} from './fixtures/current190-revocation-source-projection.js';
 import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
-const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
+import {OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
+const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));
 const raw=file=>projectOwnNative645RawSourceToParent(file,projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file))))),read=file=>raw(file).toString('utf8'),hash=v=>createHash('sha256').update(v).digest('hex');
 

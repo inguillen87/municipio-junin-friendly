@@ -29,7 +29,7 @@ const q=s=>"'"+String(s).replaceAll("'","''")+"'";
 const isObject=value=>!!value&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const OPTION_KEYS=Object.freeze(['check','expectRollback','foundation','json','qa','readFullSnapshot','setPhase','sourceCustody','technicalEpochs']);
 const SOURCE_PINS=Object.freeze({
- 'scripts/lib/own-monetary-program-qa-projection.mjs':'9a67899adb5ad25630321d6dfe3abfdd9581699795b4298e7a586e1241ae604f',
+ 'scripts/lib/own-monetary-program-qa-projection.mjs':'60cc7b6ad3a868b923b51b26c7361a25a12a062f715f8be77dbcd3483e50d837',
  'scripts/lib/own-monetary-program-guarded-installation.mjs':'0c55c03740a792e86061dbd8bcc05fb80969d46a5d2ca58969d5789532ecd243',
  'scripts/verify-municipal-owner-adoption-authority.mjs':'6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb',
 });

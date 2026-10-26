@@ -11,7 +11,11 @@ import {OWN_CURRENT190_UI_SOURCE_PINS,OWN_CURRENT190_UI_NEW_SOURCE_PINS,projectC
 import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS,projectCurrent190RevocationRawSourceToParent} from './fixtures/current190-revocation-source-projection.js';
 import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
-const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
+import {OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
+const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));
 const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file)))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
 const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
@@ -589,7 +593,7 @@ test('owner190 native outcome RAW succession preserves five complete d7 parents 
  ];
  assert.deepEqual(Object.keys(OWNER190_NATIVE_OUTCOME_SOURCE_PINS).sort(),expected.sort());
  for(const[file,pin]of Object.entries(OWNER190_NATIVE_OUTCOME_SOURCE_PINS)){
-  const current=fs.readFileSync(new URL('../'+file,import.meta.url));
+  const current=owner190IdentityParentRaw(file);
   assert.equal(current.length,pin.afterBytes,file+' complete reviewed current RAW bytes');assert.equal(hash(current),pin.after,file+' complete reviewed current RAW SHA');
   const parent=projectOwner190NativeOutcomeRawSourceToParent(file,current);
   assert.equal(parent.length,pin.beforeBytes,file+' complete d7 parent RAW bytes');assert.equal(hash(parent),pin.before,file+' complete d7 parent RAW SHA');
@@ -606,4 +610,41 @@ test('owner190 native outcome RAW succession preserves five complete d7 parents 
  assert.equal(Object.keys(OWN_RECEIPT126_CONSUMER_SOURCE_PINS).length,11);assert.equal(Object.keys(OWN_RECEIPT126_NEW_SOURCE_PINS).length,8);
  const unrelated=Buffer.from('unrelated outcome source remains the exact input');assert.strictEqual(projectOwner190NativeOutcomeRawSourceToParent('tests/unrelated-owner190-source.js',unrelated),unrelated);
  assert.throws(()=>projectOwner190NativeOutcomeRawSourceToParent(expected[0],'not raw bytes'));
+});
+
+test('QA source reconciliation preserves complete historical parents and rejects unreviewed bytes',()=>{
+ for(const[file,pin]of Object.entries(OWNER190_QA_RECONCILIATION_SOURCE_PINS)){
+  const current=fs.readFileSync(new URL('../'+file,import.meta.url)),parent=projectOwner190QaReconciliationRawSourceToParent(file,current);
+  assert.equal(current.length,pin.afterBytes);assert.equal(hash(current),pin.after);
+  assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before);
+  assert.throws(()=>projectOwner190QaReconciliationRawSourceToParent(file,Buffer.concat([current,Buffer.from('unreviewed')])));
+  const mutation=Buffer.from(current);mutation[0]^=1;assert.throws(()=>projectOwner190QaReconciliationRawSourceToParent(file,mutation));
+  assert.throws(()=>projectOwner190QaReconciliationRawSourceToParent(file,parent));
+ }
+ const other=Buffer.from('unrelated');assert.strictEqual(projectOwner190QaReconciliationRawSourceToParent('unrelated',other),other);
+ assert.throws(()=>projectOwner190QaReconciliationRawSourceToParent('unrelated','not raw'));
+});
+
+test('PG17 identity RAW succession preserves five complete bae parents before every historical layer',()=>{
+ const expected=[
+  'scripts/verify-municipal-owner-program.mjs',
+  'scripts/lib/own-payroll-receipt126-same190-installation.mjs',
+  'tests/own-payroll-full-capacity-190-source.test.js',
+  'tests/own-accounting-imputation-190-source.test.js',
+  'tests/own-novelty-succession-source-projection.test.js'
+ ];
+ assert.deepEqual(Object.keys(OWNER190_PG17_IDENTITY_SOURCE_PINS).sort(),expected.sort());
+ for(const[file,pin]of Object.entries(OWNER190_PG17_IDENTITY_SOURCE_PINS)){
+  const current=reconciledRaw(file);
+  assert.equal(current.length,pin.afterBytes,file+' complete reviewed identity RAW bytes');assert.equal(hash(current),pin.after,file+' complete reviewed identity RAW SHA');
+  const parent=projectOwner190Pg17IdentityRawSourceToParent(file,current);
+  assert.equal(parent.length,pin.beforeBytes,file+' complete bae parent RAW bytes');assert.equal(hash(parent),pin.before,file+' complete bae parent RAW SHA');
+  assert.throws(()=>projectOwner190Pg17IdentityRawSourceToParent(file,Buffer.concat([current,Buffer.from('\n-- unreviewed identity source trailer')])));
+  const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>projectOwner190Pg17IdentityRawSourceToParent(file,changed));
+  assert.throws(()=>projectOwner190Pg17IdentityRawSourceToParent(file,parent));
+ }
+ assert.equal(Object.keys(OWNER190_NATIVE_OUTCOME_SOURCE_PINS).length,5);assert.equal(Object.keys(OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS).length,2);
+ assert.equal(Object.keys(OWN_RECEIPT126_CONSUMER_SOURCE_PINS).length,11);assert.equal(Object.keys(OWN_RECEIPT126_NEW_SOURCE_PINS).length,8);
+ const unrelated=Buffer.from('unrelated identity source remains the exact input');assert.strictEqual(projectOwner190Pg17IdentityRawSourceToParent('tests/unrelated-owner190-identity.js',unrelated),unrelated);
+ assert.throws(()=>projectOwner190Pg17IdentityRawSourceToParent(expected[0],'not raw bytes'));
 });

@@ -20,7 +20,7 @@ const SOURCES=Object.freeze({
  'scripts/lib/own-novelty-succession-qa.mjs':'f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929',
  'scripts/lib/own-payroll-installation.mjs':'6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0',
  'scripts/lib/own-monthly-day-engine-source-qa.mjs':'d013cdd06d2f16e0196db3675c874a9f2765d5a3c42539cdd7e228684a4de8f1',
- 'scripts/lib/own-monthly-day-policy-qa.mjs':'d711476b6673dd5c0e2e08606016c7294966677fe3b832674f0c4ebcadf8aca4',
+ 'scripts/lib/own-monthly-day-policy-qa.mjs':'f3f0634b734cba71fd516410fd6d8637e6bf743493ff786a1f3699822e55a5bb',
  'scripts/verify-municipal-owner-adoption-authority.mjs':'6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb',
 });
 const body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m,'MONETARY_QA_FUNCTION_BODY_REQUIRED');return m[2];};
