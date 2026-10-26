@@ -12,7 +12,7 @@ const exact=(o,keys)=>assert.deepEqual(Reflect.ownKeys(o).sort(),[...keys].sort(
 const positive=n=>Number.isSafeInteger(n)&&n>0&&n<=4294967295;
 export function owner190OwnedSchemaSql(schema,sourceCommit){
  validSchema(schema);assert.match(sourceCommit,/^[a-f0-9]{40}$/);
- return "SELECT jsonb_build_object('version','owner190-owned-schema.v1','schema',n.nspname,'schemaOid',n.oid,'ownerOid',n.nspowner,'serverVersionNum',current_setting('server_version_num')::integer,'sourceCommit',"+q(sourceCommit)+") FROM pg_namespace n WHERE n.nspname="+q(schema)+" AND n.nspowner=current_user::regrole";
+ return "SELECT jsonb_build_object('version','owner190-owned-schema.v1','schema',n.nspname,'schemaOid',n.oid::bigint,'ownerOid',n.nspowner::bigint,'serverVersionNum',current_setting('server_version_num')::integer,'sourceCommit',"+q(sourceCommit)+") FROM pg_namespace n WHERE n.nspname="+q(schema)+" AND n.nspowner=current_user::regrole";
 }
 export function assertOwner190OwnedSchema(value,{schema,sourceCommit}){
  exact(value,['version','schema','schemaOid','ownerOid','serverVersionNum','sourceCommit']);
@@ -45,7 +45,7 @@ function inventorySql({schema,schemaOid,ownerOid,sourceCommit,serverVersionNum})
  "IF actual_owner IS DISTINCT FROM "+own+"::oid THEN RAISE EXCEPTION 'OWNER190_CLEANUP_OBJECT_OWNER_OR_SCOPE_CHANGED';END IF;",
  "description:=pg_describe_object(node.classid,node.objid,node.objsubid);",
  "IF description IS NULL OR description='' OR description~'[[:cntrl:]]' THEN RAISE EXCEPTION 'OWNER190_CLEANUP_DESCRIPTION_INVALID';END IF;",
- "objects:=objects||jsonb_build_array(jsonb_build_object('classid',node.classid,'objid',node.objid,'objsubid',node.objsubid,'description',description));",
+ "objects:=objects||jsonb_build_array(jsonb_build_object('classid',node.classid::bigint,'objid',node.objid::bigint,'objsubid',node.objsubid,'description',description));",
  "IF jsonb_array_length(objects)>16384 OR octet_length(objects::text)>8388608 THEN RAISE EXCEPTION 'OWNER190_CLEANUP_INVENTORY_LIMIT';END IF;",
  "END LOOP;",
  "IF jsonb_array_length(objects)<2 THEN RAISE EXCEPTION 'OWNER190_CLEANUP_UNSUPPORTED_EMPTY_SCHEMA';END IF;",

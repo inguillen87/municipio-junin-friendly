@@ -1,9 +1,10 @@
 // Synthetic pure transcript checks. No connection, subprocess or SQL execution.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {createOwner190NativeOutcomeLatch} from '../scripts/lib/owner190-native-outcome.mjs';
 import {registerOwner190CleanupProfile,inspectOwner190CleanupNotice} from '../scripts/lib/owner190-cleanup-profile.mjs';
-import {assertOwner190OwnedSchema,composeOwner190CanonicalCleanup,bindOwner190CanonicalCleanup} from '../scripts/lib/owner190-canonical-cleanup.mjs';
+import {owner190OwnedSchemaSql,assertOwner190OwnedSchema,composeOwner190CanonicalCleanup,bindOwner190CanonicalCleanup} from '../scripts/lib/owner190-canonical-cleanup.mjs';
 import {finalReviewAdmissionQaCleanup} from '../scripts/lib/final-grh-source-review-admission-qa.mjs';
 const schema='mc_qa_fixed_092_'+'a'.repeat(32),sqlFile='C:/synthetic/verification/cleanup/255.sql',token='01234567-89ab-4cde-8fab-0123456789ab';
 const outerBefore={tables:0,fingerprint:'d'.repeat(64)},sourceCommit='e'.repeat(40);
@@ -100,4 +101,21 @@ test('the actual compositor binds the complete guarded transaction and the obser
   assert.throws(()=>createOwner190NativeOutcomeLatch().begin({...plan.transaction,sql:plan.transaction.sql+'SELECT 1',token,fullJson:true,noticeProfile:profile}),/COMPLETE_SQL_CHANGED/);
  }
  for(const serverVersionNum of [160011,190000,NaN,170011.5])assert.throws(()=>assertOwner190OwnedSchema({version:'owner190-owned-schema.v1',schema,schemaOid:500,ownerOid:10,serverVersionNum,sourceCommit},{schema,sourceCommit}));
+});
+
+test('OID JSON fields are numeric at the SQL producer and string OIDs remain inadmissible',()=>{
+ const owned={version:'owner190-owned-schema.v1',schema,schemaOid:500,ownerOid:10,serverVersionNum:170011,sourceCommit};
+ for(const key of ['schemaOid','ownerOid'])assert.throws(()=>assertOwner190OwnedSchema({...owned,[key]:String(owned[key])},{schema,sourceCommit}));
+ const capture=owner190OwnedSchemaSql(schema,sourceCommit);assert.ok(capture.includes("'schemaOid',n.oid::bigint,'ownerOid',n.nspowner::bigint"));
+ const plan=composeOwner190CanonicalCleanup({schema,pins:"IF false THEN RAISE EXCEPTION 'SYNTHETIC_DESTINATION';END IF;",ownedSchema:owned,outerBefore,sourceCommit});
+ assert.ok(plan.transaction.sql.includes("'classid',node.classid::bigint,'objid',node.objid::bigint,'objsubid',node.objsubid"));
+ for(const key of ['classid','objid']){const s=setup();s.pre.objects[0][key]=String(s.pre.objects[0][key]);s.result.stdout=s.stdout();rejects(s,/equal|Assertion|falsy/i);}
+});
+
+test('an admitted seed is recorded before the independently validated ownership capture',()=>{
+ const runner=fs.readFileSync(new URL('../scripts/verify-municipal-owner-program.mjs',import.meta.url),'utf8');
+ const begin=runner.indexOf("phase='seed';"),accepted=runner.indexOf('seeded=true;',begin),capture=runner.indexOf('ownedSchema=assertOwner190OwnedSchema(',begin);
+ assert.ok(begin>=0&&accepted>begin&&capture>accepted);assert.equal(runner.slice(begin,accepted).includes('seedNotices:true'),true);
+ assert.equal(runner.slice(accepted,capture).includes('run('),false,'nothing can throw between accepted seed state and capture');
+ assert.throws(()=>composeOwner190CanonicalCleanup({schema,pins:'synthetic',ownedSchema:null,outerBefore,sourceCommit}),'a committed seed alone cannot mint cleanup authority');
 });
