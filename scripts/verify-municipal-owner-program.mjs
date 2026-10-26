@@ -19,7 +19,33 @@ import {salaryCommand,salaryBootstrap} from '../assets/native-salary-catalog-mod
 import {ownerProgramPreview,ownerProgramCommand,ownerProgramAttempt} from '../assets/municipal-owner-program-model.js';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 const root=path.resolve(import.meta.dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8').replace(/\r\n?/g,'\n'),j=v=>q(JSON.stringify(v))+'::jsonb';
-export const OWNER_PROGRAM_QA_ENTRIES=['scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js','tests/owner-qa-source-closure-reader.test.js','tests/owner190-native-outcome.test.js'];
+// One explicit HTTP negative, never a global allowance for RPC failures.
+export function createOwnerProgramQaMissingAttemptProbe(){
+ let active=null;
+ const text='SELECT public.municipal_owner_program_attempt_v1($1::jsonb,$2::uuid) AS result';
+ return Object.freeze({
+  async withMissingAttempt(key,work){
+   assert.equal(active,null,'OWNER_PROGRAM_QA_NEGATIVE_REENTRANT');
+   assert.match(key,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+   assert.equal(typeof work,'function');
+   const context={descriptor:Object.freeze({phase:'http-negatives',kind:'owner',text,key,code:'OWN_PROGRAM_NOT_FOUND',end:'ROLLBACK'}),consumed:0};active=context;
+   try{const value=await work();assert.strictEqual(active,context);assert.equal(context.consumed,1,'OWNER_PROGRAM_QA_NEGATIVE_NOT_OBSERVED');return value;}
+   finally{assert.strictEqual(active,context);active=null;}
+  },
+  query(request,invoke){
+   const descriptor=active?.descriptor;
+   const matches=descriptor&&request.phase===descriptor.phase&&request.kind===descriptor.kind&&request.text===descriptor.text&&Array.isArray(request.values)&&request.values.length===2&&request.values[1]===descriptor.key;
+   let expected=null;
+   if(matches){assert.equal(active.consumed,0,'OWNER_PROGRAM_QA_NEGATIVE_ALREADY_CONSUMED');active.consumed=1;expected=descriptor;}
+   // Invocation/persistence/latch errors propagate unchanged. Only a validated
+   // EXPECTED_SQL_ERROR value is translated into the driver's error surface.
+   const result=invoke(expected);
+   if(expected){assert.equal(result?.status,3);assert.equal(typeof result.stderr,'string');assert.match(result.stderr,/\bERROR:[^\r\n]*\bOWN_PROGRAM_NOT_FOUND\b/);throw new Error(result.stderr);}
+   return[{result}];
+  }
+ });
+}
+export const OWNER_PROGRAM_QA_ENTRIES=['scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js','tests/owner-qa-source-closure-reader.test.js','tests/owner190-native-outcome.test.js','tests/owner-program-qa-rpc-error.test.js'];
 export function ownerProgramQaOptions(options){
  assert.ok(options&&typeof options==='object'&&!Array.isArray(options),'OWNER_PROGRAM_QA_OPTIONS_REQUIRED');
  assert.ok(Reflect.ownKeys(options).every(k=>['major','output','sourceCommit','transport','operationalPairBaseline'].includes(k)),'OWNER_PROGRAM_QA_OPTION_UNKNOWN');
@@ -112,7 +138,14 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  const guard=()=>{const proof=run(tx([OWNER_ADOPTION_QA_IDENTITY_SQL],{readOnly:true}));if(destinationIdentity)return assertOwnerAdoptionQaDestination(proof,destinationIdentity);destinationIdentity=captureOwnerAdoptionQaDestination(proof,{major,transport,localIdentity:identity});pins=ownerAdoptionQaDestinationGuard(destinationIdentity);return proof;};
  const snapshot=()=>run(tx([performancePreservationSnapshot(),"SELECT jsonb_build_object('fingerprint',encode(public.digest(current_setting('municontrol_documentary_install.after')::jsonb::text,'sha256'),'hex'),'tables',jsonb_array_length(current_setting('municontrol_documentary_install.after')::jsonb->'tables'))"],{readOnly:true}));
  const query=(sql,actor=qa.actor)=>run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(sql.replace('$ACTOR',j(actor)))],{command:true})),ok=label=>checks.push(label),currentAccess=()=>ownerProgramQaAccess(run(tx([ownerProgramQaAccessSql(qa.schema,qa.actor)],{readOnly:true})),qa.actor);
- const env={},sessionFor=a=>({id:a.principal.session.id,email:a.principal.user.email,version:a.principal.session.version,releaseSha:qa.actor.releaseSha}),sqlFor=kind=>({query:async(text,values)=>{const mapped=kind==='owner'?ownerProgramQaQuery(text,values,qa.schema):ownerProgramQaOrdinaryQuery(text,values,qa.schema),result=run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(mapped)],{command:true}));rpc.push({phase,kind,text,values});return[{result}];}}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
+ const rpcNegative=createOwnerProgramQaMissingAttemptProbe();
+ const env={},sessionFor=a=>({id:a.principal.session.id,email:a.principal.user.email,version:a.principal.session.version,releaseSha:qa.actor.releaseSha}),sqlFor=kind=>({query:async(text,values)=>{
+  const mapped=kind==='owner'?ownerProgramQaQuery(text,values,qa.schema):ownerProgramQaOrdinaryQuery(text,values,qa.schema);
+  return rpcNegative.query({phase,kind,text,values},expected=>{
+   const result=run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(mapped)],{command:true,end:expected?.end??'COMMIT'}),expected?.code);
+   rpc.push({phase,kind,text,values});return result;
+  });
+ }}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
  try{
   const beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,operationalPairBaseline,destinationIdentity,beforeGuard,outerBefore,sourceClosure,sourceBefore,sourceReadsBefore,consumedBeforeClosure:recorder.consumed(),sourceHashes:qa.sourceHashes},null,2));
   phase='seed';run(tx([qa.seed]),undefined,{seedNotices:true});seeded=true;run(tx(qa.predecessorInstallation));
@@ -135,7 +168,15 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
   run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',normal(qa.actor)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_FORBIDDEN');const swap=`DELETE FROM ${qa.schema}.iam_role_capability WHERE capability_key='payroll.parameter.prepare' AND role_key=(SELECT role_key FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.ids.membership)});INSERT INTO ${qa.schema}.iam_role_capability(role_key,capability_key) SELECT role_key,'payroll.parameter.approve' FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.ids.membership)}`;
   run(tx([swap,'SET LOCAL ROLE municontrol_actions_runtime_app',normal(qa.actor)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_INDEPENDENT_REQUIRED');const checkerReview=ownerProgramQaIndependentReview(query,qa.checker,preview.proposal);assert.notEqual(checkerReview.scopeVersion,review.scopeVersion);const ordinaryObservation=run(tx(ownerProgramQaIndependentObservation(qa.schema,normal(qa.checker,checkerReview)),{command:true,end:'ROLLBACK'}));assert.equal(ordinaryObservation.receipt.status,'approved');assert.equal(ordinaryObservation.ownerProvenance,0);assert.deepEqual(snapshot(),beforeReview);ok('ordinary approval still rejects its preparer and accepts a distinct real checker with that checker’s own canonical scope, without owner provenance');
   for(const change of[{previewSha256:'f'.repeat(64)},{proposalSha256:'e'.repeat(64)},{definitionSha256:'d'.repeat(64)},{salaryItemsSha256:'c'.repeat(64)},{baseVersion:'b'.repeat(64)},{salaryVersion:'a'.repeat(64)}]){run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(`SELECT public.municipal_owner_program_command_v1(${j(qa.actor)},${j({...command,...change})},${q(randomUUID())})`)],{command:true,end:'ROLLBACK'}),'OWNER_PROGRAM_PREVIEW_CHANGED');assert.deepEqual(snapshot(),beforeReview);}ok('changed complete definition, salary items, proposal, preview, base or salary version cannot authorize a decision');
-  phase='http-negatives';await ownerDecisionQaHttp(ownerHandler,async origin=>{env.INTERNAL_APP_ORIGIN=origin;for(const[resource,key,expected]of[['attempt',randomUUID(),404],['attempt','ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF',400]]){const response=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource,key}));assert.equal(response.status,expected);}const response=await fetch(origin+'/api/internal-municipal-owner-program',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:JSON.stringify({operation:'approve_owner',payload:{...command,reviewConfirmed:false}})});assert.equal(response.status,422);});assert.deepEqual(snapshot(),beforeReview);ok('the actual Node HTTP boundary rejects uppercase keys and missing explicit confirmation without a business decision');
+  phase='http-negatives';await ownerDecisionQaHttp(ownerHandler,async origin=>{
+   env.INTERNAL_APP_ORIGIN=origin;const missingKey=randomUUID();
+   await rpcNegative.withMissingAttempt(missingKey,async()=>{
+    const response=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource:'attempt',key:missingKey})),wire=await response.json();
+    assert.equal(response.status,404);assert.equal(wire.ok,false);assert.equal(wire.code,'OWN_PROGRAM_NOT_FOUND');assert.equal(nativeOutcome.stopped,false);
+   });
+   const invalid=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource:'attempt',key:'ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF'}));assert.equal(invalid.status,400);
+   const response=await fetch(origin+'/api/internal-municipal-owner-program',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:JSON.stringify({operation:'approve_owner',payload:{...command,reviewConfirmed:false}})});assert.equal(response.status,422);
+  });assert.deepEqual(snapshot(),beforeReview);ok('the actual Node HTTP boundary observes missing-key SQL404 and rejects uppercase keys and missing explicit confirmation without a business decision');
   phase='browser';const browser=await ownerProgramQaBrowser({root,output:destination,proposalId,definition:qa.definition,env,handlers:{'/api/internal-own-payroll-program':programHandler,'/api/internal-municipal-owner-program':ownerHandler},auth:async()=>{const a=currentAccess(),membership=run(tx([`SELECT jsonb_build_object('roleKey',role_key) FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.actor.membershipId)} AND tenant_id=${q(qa.actor.tenantId)}`],{readOnly:true}));return ownerProgramQaAuthPayload(a,membership.roleKey);},afterSave:async raw=>{const saved=await ownerProgramAttempt(raw);assert.equal(saved.receipt.independence,false);}});ok('the existing programme panel makes one explicit owner decision; a withheld acknowledgement recovers by actual GET with the same key/body, reciprocal locks and desktop390/320 intact');
   phase='recovery';const saved=browser.saved,publication=assertOwnerProgramQaPublication(query('SELECT public.own_program_bootstrap_v1($ACTOR)'),saved.receipt,qa.definition,preview.proposal.salaryVersion),key=saved.receipt.requestKey,recovered=await ownerProgramAttempt(query(`SELECT public.municipal_owner_program_attempt_v1($ACTOR,${q(key)})`)),replay=await ownerProgramAttempt(query(`SELECT public.municipal_owner_program_command_v1($ACTOR,${j(saved.command)},${q(key)})`));assert.equal(recovered.receipt.replayed,true);assert.deepEqual(recovered.command,saved.command);assert.equal(replay.receipt.replayed,true);assert.equal(replay.receipt.eventId,saved.receipt.eventId);
   run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(`SELECT public.municipal_owner_program_command_v1(${j(qa.actor)},${j({...saved.command,reason:'Otro contenido exclusivamente ficticio QA190'})},${q(key)})`)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_IDEMPOTENCY_REUSE');ok('the canonical published consumer and stored/replayed receipt retain the complete programme, salary version and identical event; a changed same-key body is refused');
