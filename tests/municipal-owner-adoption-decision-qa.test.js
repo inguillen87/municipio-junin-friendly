@@ -1,7 +1,8 @@
 import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import{IncomingMessage,ServerResponse}from'node:http';
-import{buildOwnerDecisionQa,ownerDecisionQaEmbeddedPins,ownerDecisionQaHash,ownerDecisionQaColumnAudit}from'../scripts/lib/municipal-owner-adoption-decision-qa.mjs';
+import{buildOwnerDecisionQa,buildOwnerDecisionQaDefinitions,ownerDecisionQaEmbeddedPins,ownerDecisionQaHash,ownerDecisionQaColumnAudit}from'../scripts/lib/municipal-owner-adoption-decision-qa.mjs';
 import{ownerDecisionQaHttp,ownerDecisionQaQuery,ownerDecisionQaTransaction}from'../scripts/verify-municipal-owner-adoption-decision.mjs';
 import{ownInstallationFunctionPin}from'../scripts/lib/own-payroll-installation.mjs';
+import{buildOwnCloseSql}from'../scripts/lib/own-payroll-close-sql.mjs';
 import{ownerAdoptionFixture}from'./fixtures/municipal-owner-adoption-synthetic.js';
 import{sealAdoptionReview}from'../assets/employment-adoption-review-model.js';
 import{ownerDecisionCommand,ownerDecisionPreview}from'../assets/municipal-adoption-owner-decision-model.js';
@@ -145,6 +146,28 @@ test('canonical190 seeds the complete reviewed146 predecessor before the unchang
  }
  assert.ok(qa.tables.tables.includes('own_payroll_annul_event'));assert.ok(qa.tables.statements.some(s=>s.startsWith('CREATE TABLE public.own_payroll_annul_event(')));
  for(const token of ['CREATE TABLE public.own_payroll_annul_event(','ALTER TABLE public.own_payroll_annul_event ENABLE ROW LEVEL SECURITY','REVOKE ALL ON public.own_payroll_annul_event FROM PUBLIC,municontrol_actions_runtime_app','CREATE TRIGGER own_annul_event_immutable BEFORE UPDATE OR DELETE ON public.own_payroll_annul_event','CREATE TRIGGER own_annul_event_no_truncate BEFORE TRUNCATE ON public.own_payroll_annul_event'])assert.ok(qa.seed.includes(qa.relocate(token)),'complete146 table protection: '+token);
+});
+
+test('canonical190 preserves both125 close guards required by197 without reverting capture/readiness',()=>{
+ const close=buildOwnCloseSql(read),expected=[['own_liquidation_command_v1','d9cb410d0ba21a298d50c23672e0afb9e3b661cc4fd23ba63175ab47c1eb3753','575d80c105d2ebf149e914bbfd975f21dbafa8c8bdd64d0eaf3e55ff357b96bc',true],['own_liquidation_rows_v1','c3698d0ea703d4d87028c5b414a1f244dfe0158bd2a8ff7caaeda115b89acb17','7220b153509fc944c787104ce52c12af15678b8db29dbebf1dbecb32f993ea25',false]];
+ for(const[name,beforeSha,afterSha,runtime]of expected){
+  const current=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.'+name+'(')),before=close.before.find(d=>d.startsWith('CREATE FUNCTION public.'+name+'(')),after=close.adapted.find(d=>d.startsWith('CREATE OR REPLACE FUNCTION public.'+name+'('));
+  assert.ok(current&&before&&after,name);assert.equal(ownerDecisionQaHash(body(before)),beforeSha);assert.equal(ownerDecisionQaHash(body(after)),afterSha);assert.equal(ownerDecisionQaHash(body(current)),afterSha,name+' retains the close125 protection');assert.ok(body(current)===body(after));
+  const pin=ownInstallationFunctionPin(current),selected=qa.graph.desired.find(p=>p.signature===pin.signature);assert.equal(pin.sha256,afterSha);assert.equal(selected.sha256,afterSha);assert.equal(selected.runtime,runtime);
+  assert.ok(qa.graph.pool.has(pin.signature+'|'+beforeSha));assert.ok(qa.graph.pool.has(pin.signature+'|'+afterSha));
+  assert.deepEqual({...ownInstallationFunctionPin(before),sha256:null},{...ownInstallationFunctionPin(after),sha256:null},'signature and security metadata unchanged');
+  assert.ok(qa.seed.includes(qa.normalized(current.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '))));
+  assert.ok(qa.seed.includes('REVOKE ALL ON FUNCTION '+qa.relocate(pin.signature)+' FROM PUBLIC,municontrol_actions_runtime_app'));
+  assert.equal(qa.seed.includes('GRANT EXECUTE ON FUNCTION '+qa.relocate(pin.signature)+' TO municontrol_actions_runtime_app'),runtime);
+ }
+ const rows=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.own_liquidation_rows_v1(')),command=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.own_liquidation_command_v1('));
+ assert.match(rows,/own_close_active_v1/);assert.match(command,/PERFORM public\.own_close_guard_v1/);
+});
+
+test('a future early124 requirement cannot be silently overwritten by the125 seed selection',()=>{
+ const before=buildOwnCloseSql(read).before.find(d=>d.startsWith('CREATE FUNCTION public.own_liquidation_rows_v1(')),pin=ownInstallationFunctionPin(before);
+ const batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([pin])};
+ assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA125_EARLY_EPOCH_DEPENDENCY/);
 });
 
 test('physical-column aliases are scoped per statement and nested SELECT, including lateral JSON rows',()=>{

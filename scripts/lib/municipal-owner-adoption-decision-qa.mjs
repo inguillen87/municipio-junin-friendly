@@ -7,6 +7,7 @@ import{buildOwnerAuthorityQa}from'../verify-municipal-owner-adoption-authority.m
 import{SALARY_ADMINISTRATIVE_CONTEXT}from'./salary-administrative-identity-installation.mjs';
 import{ADOPTION_ADMINISTRATIVE_CONTEXT}from'./adoption-administrative-identity-installation.mjs';
 import{CONSUMER_BEFORE_PINS}from'./adopted-consumers-installation-pins.mjs';
+import{buildOwnCloseSql}from'./own-payroll-close-sql.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
 export const ownerDecisionQaHash=value=>createHash('sha256').update(value).digest('hex');
 export const ownerDecisionQaLiteral=value=>"'"+String(value).replaceAll("'","''")+"'";
@@ -85,6 +86,22 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
  const annulRuntime=new Set(['own_annul_detail_v1','own_annul_attempt_v1','own_annul_command_v1']);assert.equal(annulDefinitions.length,5,'OWNER_DECISION_QA146_FUNCTION_SET');
  const annulPins=annulDefinitions.map(d=>{const p=identity(d);return{...p,runtime:annulRuntime.has(p.name)};});assert.equal(annulPins.filter(p=>p.runtime).length,3,'OWNER_DECISION_QA146_RUNTIME_SET');
  for(const pin of annulPins){assert.ok(pool.has(pin.signature+'|'+pin.sha256),'OWNER_DECISION_QA146_DEFINITION_MISSING:'+pin.signature);assert.ok(!desired.has(pin.signature)||desired.get(pin.signature).sha256===pin.sha256,'OWNER_DECISION_QA146_PIN_CONFLICT:'+pin.signature);desired.set(pin.signature,pin);}
+ // SQL197 requires the close125 protections on these two liquidation bodies.
+ // Preserve their complete124 preimages, and select only the two reviewed125
+ // successors. Capture/readiness have their own later composition and stay put.
+ assert.equal(ownerDecisionQaHash(load('scripts/lib/own-payroll-close-sql.mjs')),'b30aa8751521a4df39f43b76ecc521308a9a0f8f158757a7c4c7e84e30f833f7','OWNER_DECISION_QA125_HELPER_CHANGED');
+ const close125=buildOwnCloseSql(load),close125Selections=[
+  ['own_liquidation_command_v1','d9cb410d0ba21a298d50c23672e0afb9e3b661cc4fd23ba63175ab47c1eb3753','575d80c105d2ebf149e914bbfd975f21dbafa8c8bdd64d0eaf3e55ff357b96bc',true],
+  ['own_liquidation_rows_v1','c3698d0ea703d4d87028c5b414a1f244dfe0158bd2a8ff7caaeda115b89acb17','7220b153509fc944c787104ce52c12af15678b8db29dbebf1dbecb32f993ea25',false]
+ ];
+ for(const[functionName,beforeSha,afterSha,runtime]of close125Selections){
+  const before=close125.before.filter(d=>name(d)===functionName),after=close125.adapted.filter(d=>name(d)===functionName);assert.equal(before.length,1);assert.equal(after.length,1);
+  const beforePin=identity(before[0]),afterPin=identity(after[0]);assert.equal(beforePin.sha256,beforeSha,'OWNER_DECISION_QA125_BEFORE_CHANGED');assert.equal(afterPin.sha256,afterSha,'OWNER_DECISION_QA125_AFTER_CHANGED');
+  assert.deepEqual({...beforePin,sha256:null},{...afterPin,sha256:null},'OWNER_DECISION_QA125_METADATA_CHANGED');
+  assert.ok(pool.has(beforePin.signature+'|'+beforeSha),'OWNER_DECISION_QA125_PREIMAGE_MISSING');
+  assert.equal(desired.has(beforePin.signature),false,'OWNER_DECISION_QA125_EARLY_EPOCH_DEPENDENCY');
+  add(after[0]);desired.set(afterPin.signature,{...afterPin,runtime});
+ }
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));
