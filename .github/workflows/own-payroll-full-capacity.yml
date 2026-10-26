@@ -42,6 +42,8 @@ jobs:
         run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/own-monthly-day-saved-input-integrity.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
       - name: Synthetic092 supports before technical192 with recording transports
         run: node --test tests/own-monthly-full-legacy-support.test.js
+      - name: Administrative liquidation history authority and preservation
+        run: node --test tests/own-liquidation-bootstrap213-installation.test.js
       - name: Exact native rejection adapters with synthetic services
         run: node --test tests/own-payroll-expected-native-rpc.test.js
       - name: Canonical transaction modes with recording transports
@@ -86,6 +88,9 @@ jobs:
             scripts/lib/monthly-day-policy-legacy-fixture.mjs
             scripts/verify-payroll-fixed-novelties-sql.mjs
             tests/own-monthly-full-legacy-support.test.js
+            scripts/migrations/213-own-liquidation-bootstrap-administrative-operator.sql
+            scripts/lib/own-liquidation-bootstrap213-installation.mjs
+            tests/own-liquidation-bootstrap213-installation.test.js
             scripts/lib/own-payroll-full-capacity-190-*.mjs
             scripts/lib/own-payroll-expected-native-rpc.mjs
             tests/own-payroll-expected-native-rpc.test.js
