@@ -19,7 +19,7 @@ const sourcePins=Object.freeze({
  "scripts/migrations/123-own-payroll-runs.sql": "a9fe1129e921bb7c01985b8caadb009f6086aef9866e2298398175f7f25b4b6b",
  "scripts/migrations/176-own-payroll-administrative-operator.sql": "f75fa2cddf6fe2e837044e73c6465eecdf41fbad7ec740745527e1bd54b94732",
  "scripts/lib/municipal-owner-program-qa.mjs": "c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb",
- "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "fc572cea16849315b1a7c7d0efc2d90a1ce8ca47f10dd7461245c324ea678c93",
+ "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "d62a0d49837109e09dcdd352452069204b59901ce17e377f58e467edbc5b5755",
  "scripts/lib/own-payroll-report-census-190-iam-fixture.mjs": "c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1",
  "scripts/lib/own-payroll-full-capacity-190-continuation.mjs": "5b1970aa5d8afecb7f407bdc9d3ee310586f87f3c129fab051f9ab2c3f15e00a",
  "lib/internal-native-employees.js": "0f044bb371566fe2225ae875ca0383657c05f27fc876019b08ba779d80e121d8",

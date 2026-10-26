@@ -8,6 +8,7 @@ import{SALARY_ADMINISTRATIVE_CONTEXT}from'./salary-administrative-identity-insta
 import{ADOPTION_ADMINISTRATIVE_CONTEXT}from'./adoption-administrative-identity-installation.mjs';
 import{CONSUMER_BEFORE_PINS}from'./adopted-consumers-installation-pins.mjs';
 import{buildOwnCloseSql}from'./own-payroll-close-sql.mjs';
+import{buildSalaryAuxiliaryNamespaceSql}from'./salary-auxiliary-namespace-installation.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
 export const ownerDecisionQaHash=value=>createHash('sha256').update(value).digest('hex');
 export const ownerDecisionQaLiteral=value=>"'"+String(value).replaceAll("'","''")+"'";
@@ -102,6 +103,16 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
   assert.equal(desired.has(beforePin.signature),false,'OWNER_DECISION_QA125_EARLY_EPOCH_DEPENDENCY');
   add(after[0]);desired.set(afterPin.signature,{...afterPin,runtime});
  }
+ // SQL201 protects the jurisdiction/namespace snapshot already in its source
+ // predecessor. Only this private helper enters the seed; the namespace batch
+ // also contains six older consumers which must keep their later selections.
+ assert.equal(ownerDecisionQaHash(load('scripts/lib/salary-auxiliary-namespace-installation.mjs')),'6d492a4c56adba6a78242604f27b86ba18067359c1b28dc39879e50d43eed9b9','OWNER_DECISION_QA_SNAPSHOT_NAMESPACE_SOURCE_CHANGED');
+ const namespaceSnapshot=buildSalaryAuxiliaryNamespaceSql({read:load,sourceCommit}),snapshotSignature='public.own_close_snapshot_v1(jsonb,jsonb)';
+ const originalSnapshot=[...pool.values()].filter(d=>identity(d).signature===snapshotSignature&&identity(d).sha256==='02ef5825c524bb7b7168b2ec8f567c323482fee8ac7ac7fbfeba8071c37ee14f');assert.equal(originalSnapshot.length,1,'OWNER_DECISION_QA_SNAPSHOT125_REQUIRED');
+ const jurisdictionSnapshot=namespaceSnapshot.originals.filter(d=>identity(d).signature===snapshotSignature),selectedSnapshot=namespaceSnapshot.changed.filter(d=>identity(d).signature===snapshotSignature);assert.equal(jurisdictionSnapshot.length,1);assert.equal(selectedSnapshot.length,1);
+ const snapshotPin=identity(selectedSnapshot[0]);assert.equal(snapshotPin.sha256,'11d46e478ab606b0a9d4602e83a072a16924e47d7b8d2da064ed1d7abd2885b0','OWNER_DECISION_QA_SNAPSHOT201_PREDECESSOR');assert.equal(snapshotPin.runtime,false,'OWNER_DECISION_QA_SNAPSHOT_MUST_STAY_PRIVATE');
+ for(const historical of [originalSnapshot[0],jurisdictionSnapshot[0]]){assert.deepEqual({...identity(historical),sha256:null},{...snapshotPin,sha256:null},'OWNER_DECISION_QA_SNAPSHOT_SECURITY_CHANGED');add(historical);}
+ assert.ok(!desired.has(snapshotSignature),'OWNER_DECISION_QA_SNAPSHOT_EARLY_EPOCH_DEPENDENCY');add(selectedSnapshot[0]);desired.set(snapshotSignature,snapshotPin);
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));

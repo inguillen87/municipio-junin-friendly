@@ -42,12 +42,12 @@ const SOURCE_PINS=Object.freeze({
  [SQL201]:'46de1308360a076eff1453f57a9e4f4d6c14ba176d73cf8531b7b0821ed35b1b',
  [SQL208]:'2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402',
  [OWN_ANNUL_PREPARATION209_SQL]:OWN_ANNUL_PREPARATION209_SQL_SHA256,
- 'scripts/lib/own-payroll-annulment-review-v2-installation.mjs':'325cb19cb4878774f514a26f3819e2380a7dd87150b24026db1e2f56e4199559',
+ 'scripts/lib/own-payroll-annulment-review-v2-installation.mjs':'d6fd90d8ef3fd63b69b141effa647ddeaeabf44e927ff4cf30de9cc7f136eddb',
  'scripts/lib/own-novelty-succession-metadata.mjs':'cb9b87bfd695a67f978dee540c3fef3bd3eb0256cfdfdac0adc998c97a56b845',
  'scripts/lib/own-novelty-succession-installation.mjs':'627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0',
  'scripts/lib/own-novelty-succession-qa.mjs':'f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929',
- 'scripts/lib/municipal-owner-adoption-decision-qa.mjs':'fc572cea16849315b1a7c7d0efc2d90a1ce8ca47f10dd7461245c324ea678c93',
- 'scripts/lib/own-payroll-full-capacity-190-installation.mjs':'b8cf0c7854d0d2a2d5180bf711fff461c06bd4516d30e5153ab9163ab5b77aaa',
+ 'scripts/lib/municipal-owner-adoption-decision-qa.mjs':'d62a0d49837109e09dcdd352452069204b59901ce17e377f58e467edbc5b5755',
+ 'scripts/lib/own-payroll-full-capacity-190-installation.mjs':'6cdeffb5922424d50d8b5caf2e9b9e7f91be702c1b103b9631bda60410b23aaf',
  'scripts/lib/own-payroll-installation.mjs':'6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0',
  'scripts/lib/native-leave-installation.mjs':'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',
  'scripts/verify-documentary-roster-performance.mjs':'e058f3450118b23bf16ee1cf7e75b866624153246ce163aed3bf3c96d5f96124',
@@ -333,10 +333,10 @@ export async function installOwnAnnulPreparation209On190({h,db,admission208,inst
  assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});
  const plan=composeOwnAnnulPreparation209On190({h,db,admission208,installation208});assert.ok(baselineSnapshot&&typeof baselineSnapshot==='object');assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_BASELINE_CHANGED_BEFORE_INSTALL');
  const early="DO $annul209_early$ BEGIN RAISE EXCEPTION 'ANNUL209_EARLY_INSTALL_FAILURE';END $annul209_early$",late="DO $annul209_late$ BEGIN RAISE EXCEPTION 'ANNUL209_LATE_INSTALL_FAILURE';END $annul209_late$";
- await assert.rejects(async()=>h.json([...plan.beforeApply,early],{end:'ROLLBACK',fullJson:true}),error=>/ANNUL209_EARLY_INSTALL_FAILURE/.test(error.message));assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_EARLY_ROLLBACK_CHANGED_STATE');
+ const rejectedEarly=h.expectRollback([...plan.beforeApply,early],'ANNUL209_EARLY_INSTALL_FAILURE');assert.equal(rejectedEarly.status,3);assert.match(rejectedEarly.stderr,/\bERROR:[^\r\n]*\bANNUL209_EARLY_INSTALL_FAILURE\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_EARLY_ROLLBACK_CHANGED_STATE');
  const rehearsal=h.json(plan.statements,{end:'ROLLBACK',fullJson:true});proofCheck(rehearsal,plan);assert.equal(rehearsal.mode,'install');assert.equal(rehearsal.beforeStateSha256,rehearsal.priorStateSha256);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_REHEARSAL_NOT_ROLLED_BACK');
- await assert.rejects(async()=>h.json([...plan.statements,late],{end:'ROLLBACK',fullJson:true}),error=>/ANNUL209_LATE_INSTALL_FAILURE/.test(error.message));assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_LATE_ROLLBACK_CHANGED_STATE');
- await assert.rejects(async()=>h.json([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],{end:'ROLLBACK',fullJson:true}),error=>/ANNUL209_DEFAULT_ACL_CHANGED/.test(error.message));assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_DEFAULT_ACL_ROLLBACK_CHANGED_STATE');
+ const rejectedLate=h.expectRollback([...plan.statements,late],'ANNUL209_LATE_INSTALL_FAILURE');assert.equal(rejectedLate.status,3);assert.match(rejectedLate.stderr,/\bERROR:[^\r\n]*\bANNUL209_LATE_INSTALL_FAILURE\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_LATE_ROLLBACK_CHANGED_STATE');
+ const rejectedDefaults=h.expectRollback([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],'ANNUL209_DEFAULT_ACL_CHANGED');assert.equal(rejectedDefaults.status,3);assert.match(rejectedDefaults.stderr,/\bERROR:[^\r\n]*\bANNUL209_DEFAULT_ACL_CHANGED\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL209_DEFAULT_ACL_ROLLBACK_CHANGED_STATE');
  const installed=h.json(plan.statements,{fullJson:true}),durable=h.json(plan.verification,{readOnly:true,fullJson:true}),repeated=h.json(plan.statements,{fullJson:true});
  for(const value of [installed,durable,repeated])proofCheck(value,plan);
  assert.equal(installed.mode,'install');assert.equal(durable.mode,'verify');assert.equal(repeated.mode,'verify');assert.equal(installed.transactionDataPreserved,true);assert.equal(repeated.transactionDataPreserved,true);assert.equal(durable.transactionDataPreserved,false);

@@ -44,12 +44,12 @@ const required=Object.freeze([
  ['own_program_exact_v1','public.own_program_exact_v1(jsonb,text[])','graph190',false]
 ]);
 const SOURCE_PINS=Object.freeze({
-  "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "b8cf0c7854d0d2a2d5180bf711fff461c06bd4516d30e5153ab9163ab5b77aaa",
+  "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "6cdeffb5922424d50d8b5caf2e9b9e7f91be702c1b103b9631bda60410b23aaf",
   "scripts/lib/own-payroll-installation.mjs": "6ad8f07733adfb17b6a32a6efd228073bfb3566844b858167581e2d7896bb3d0",
   "scripts/lib/native-leave-installation.mjs": "57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef",
   "scripts/lib/own-novelty-succession-qa.mjs": "f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929",
   "scripts/lib/own-novelty-succession-installation.mjs": "627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0",
-  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "fc572cea16849315b1a7c7d0efc2d90a1ce8ca47f10dd7461245c324ea678c93",
+  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "d62a0d49837109e09dcdd352452069204b59901ce17e377f58e467edbc5b5755",
   "scripts/verify-documentary-roster-performance.mjs": "e058f3450118b23bf16ee1cf7e75b866624153246ce163aed3bf3c96d5f96124",
   "scripts/lib/adopted-documentary-installation.mjs": "9d420e046e9debbef0e584aa47f965f495214bdb4fa6db5de4564edb917d707b"
 });
@@ -179,8 +179,8 @@ export async function installOwnAnnulmentReviewV2On190({h,db,baselineSnapshot,ad
  const plan=composeOwnAnnulmentReviewV2On190({h,db,admission});assert.ok(baselineSnapshot&&typeof baselineSnapshot==='object','ANNUL208_VERIFIED_BASELINE_SNAPSHOT_REQUIRED');assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_BASELINE_CHANGED_BEFORE_INSTALL');
  const rehearsal=h.json(plan.statements,{end:'ROLLBACK',fullJson:true});proofCheck(rehearsal,plan);assert.equal(rehearsal.mode,'install');assert.equal(rehearsal.transactionDataPreserved,true);assert.equal(rehearsal.beforeStateSha256,rehearsal.priorStateSha256);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_REHEARSAL_NOT_ROLLED_BACK');
  const late='DO $annul208_late$ BEGIN RAISE EXCEPTION \'ANNUL208_LATE_INSTALL_FAILURE\';END $annul208_late$';
- await assert.rejects(async()=>h.json([...plan.statements,late],{end:'ROLLBACK',fullJson:true}),e=>/ANNUL208_LATE_INSTALL_FAILURE/.test(e.message));assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_LATE_INSTALL_ROLLBACK_CHANGED_STATE');
- await assert.rejects(async()=>h.json([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],{end:'ROLLBACK',fullJson:true}),e=>/OWN_ANNUL_REVIEW_DEFAULT_ACL_CHANGED/.test(e.message));assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_DEFAULT_ACL_ROLLBACK_CHANGED_STATE');
+ const rejectedLate=h.expectRollback([...plan.statements,late],'ANNUL208_LATE_INSTALL_FAILURE');assert.equal(rejectedLate.status,3);assert.match(rejectedLate.stderr,/\bERROR:[^\r\n]*\bANNUL208_LATE_INSTALL_FAILURE\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_LATE_INSTALL_ROLLBACK_CHANGED_STATE');
+ const rejectedDefaults=h.expectRollback([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],'OWN_ANNUL_REVIEW_DEFAULT_ACL_CHANGED');assert.equal(rejectedDefaults.status,3);assert.match(rejectedDefaults.stderr,/\bERROR:[^\r\n]*\bOWN_ANNUL_REVIEW_DEFAULT_ACL_CHANGED\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),baselineSnapshot,'ANNUL208_DEFAULT_ACL_ROLLBACK_CHANGED_STATE');
  const installed=h.json(plan.statements,{fullJson:true}),durable=h.json(plan.verification,{readOnly:true,fullJson:true}),repeated=h.json(plan.statements,{fullJson:true});
  for(const value of [installed,durable,repeated])proofCheck(value,plan);
  assert.equal(installed.mode,'install');assert.equal(durable.mode,'verify');assert.equal(repeated.mode,'verify');assert.equal(installed.transactionDataPreserved,true);assert.equal(repeated.transactionDataPreserved,true);assert.equal(durable.transactionDataPreserved,false);

@@ -68,7 +68,7 @@ export async function installOwnFullCapacity190(h){
  h.check('M7 canonical200 old-epoch rehearsal/install/durable/repeat completed before201 successor');
  const at200=ownFullCapacity190Snapshot(h),fullRehearsal=h.json(plan.statements,{end:'ROLLBACK'});assert.equal(fullRehearsal.priorStatePreserved,true);assert.deepEqual(ownFullCapacity190Snapshot(h),at200);
  // Untrusted default ACL must fail the complete same transaction, not be reset.
- await assert.rejects(async()=>h.json([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],{end:'ROLLBACK'}),e=>/OWN_DECISION_CAPACITY_DEFAULT_ACL_CHANGED/.test(e.message));assert.deepEqual(ownFullCapacity190Snapshot(h),at200);
+ const rejectedDefaults=h.expectRollback([`ALTER DEFAULT PRIVILEGES IN SCHEMA ${h.qa.schema} GRANT EXECUTE ON FUNCTIONS TO pg_monitor`,...plan.statements],'OWN_DECISION_CAPACITY_DEFAULT_ACL_CHANGED');assert.equal(rejectedDefaults.status,3);assert.match(rejectedDefaults.stderr,/\bERROR:[^\r\n]*\bOWN_DECISION_CAPACITY_DEFAULT_ACL_CHANGED\b/);assert.deepEqual(ownFullCapacity190Snapshot(h),at200);
  const fullInstalled=h.json(plan.statements),fullDurable=h.json(plan.verification,{readOnly:true});assert.deepEqual(fullDurable,fullInstalled);assert.equal(fullDurable.businessWrites,0);assert.equal(fullDurable.priorStatePreserved,true);
  h.check('M7 whole201R4 rehearsal/commit/fresh postflight preserves old rows/authority/ACL and rejects inherited third-party defaults');
  return{version:'own-full-capacity-canonical190-epochs.v1',sourceSqlSha256:plan.sourceSha256,epoch200:{installed,durable,repeated},epoch201:{rehearsal:fullRehearsal,installed:fullInstalled,durable:fullDurable},plan};

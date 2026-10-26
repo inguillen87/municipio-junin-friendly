@@ -3,6 +3,9 @@ import{buildOwnerDecisionQa,buildOwnerDecisionQaDefinitions,ownerDecisionQaEmbed
 import{ownerDecisionQaHttp,ownerDecisionQaQuery,ownerDecisionQaTransaction}from'../scripts/verify-municipal-owner-adoption-decision.mjs';
 import{ownInstallationFunctionPin}from'../scripts/lib/own-payroll-installation.mjs';
 import{buildOwnCloseSql}from'../scripts/lib/own-payroll-close-sql.mjs';
+import{buildSalaryAuxiliaryNamespaceSql}from'../scripts/lib/salary-auxiliary-namespace-installation.mjs';
+import{composeOwnFullCapacity190Installation}from'../scripts/lib/own-payroll-full-capacity-190-installation.mjs';
+import{splitPostgresStatements}from'../scripts/lib/sql-statements.mjs';
 import{ownerAdoptionFixture}from'./fixtures/municipal-owner-adoption-synthetic.js';
 import{sealAdoptionReview}from'../assets/employment-adoption-review-model.js';
 import{ownerDecisionCommand,ownerDecisionPreview}from'../assets/municipal-adoption-owner-decision-model.js';
@@ -168,6 +171,24 @@ test('a future early124 requirement cannot be silently overwritten by the125 see
  const before=buildOwnCloseSql(read).before.find(d=>d.startsWith('CREATE FUNCTION public.own_liquidation_rows_v1(')),pin=ownInstallationFunctionPin(before);
  const batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([pin])};
  assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA125_EARLY_EPOCH_DEPENDENCY/);
+});
+
+test('canonical seed owns the exact namespace close snapshot and resolves every201 predecessor from source',()=>{
+ const namespace=buildSalaryAuxiliaryNamespaceSql({read,sourceCommit}),expected=namespace.changed.find(d=>d.startsWith('CREATE OR REPLACE FUNCTION public.own_close_snapshot_v1('));assert.ok(expected);
+ const current=qa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.own_close_snapshot_v1('));assert.equal(current.length,1);assert.equal(body(current[0]),body(expected));
+ const pin=ownInstallationFunctionPin(current[0]);assert.equal(pin.sha256,'11d46e478ab606b0a9d4602e83a072a16924e47d7b8d2da064ed1d7abd2885b0');
+ assert.equal(qa.graph.pool.get(pin.signature+'|'+pin.sha256),current[0]);const selected=qa.graph.desired.find(p=>p.signature===pin.signature);assert.equal(selected.sha256,pin.sha256);assert.equal(selected.runtime,false);
+ assert.ok(qa.seed.includes(qa.normalized(current[0].replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '))));
+ assert.ok(qa.seed.includes('REVOKE ALL ON FUNCTION '+qa.relocate(pin.signature)+' FROM PUBLIC,municontrol_actions_runtime_app'));assert.ok(!qa.seed.includes('GRANT EXECUTE ON FUNCTION '+qa.relocate(pin.signature)+' TO municontrol_actions_runtime_app'));
+ const original=splitPostgresStatements(buildOwnCloseSql(read).base).map(d=>d.replace(/^(?:\s*--[^\n]*(?:\n|$))+/g,'').trim()).find(d=>d.startsWith('CREATE FUNCTION public.own_close_snapshot_v1('));
+ for(const before of [original,namespace.originals.find(d=>d.startsWith('CREATE OR REPLACE FUNCTION public.own_close_snapshot_v1('))]){assert.ok(before);const old=ownInstallationFunctionPin(before);assert.ok(qa.graph.pool.has(old.signature+'|'+old.sha256),'complete historical snapshot stays available');assert.deepEqual({...old,sha256:null},{...pin,sha256:null});}
+ const h={read,sourceCommit,qa:{schema,operationalPairBaseline:'published107',normalized:qa.normalized,foundation:{foundation:{foundation:{owner:{graph:qa.graph}}}}}};
+ const plan=composeOwnFullCapacity190Installation(h);assert.equal(plan.preLocal.length,11);assert.equal(plan.postLocal.length,27);assert.equal(plan.preLocal.find(p=>p.name===pin.name).runtime,false);
+});
+
+test('an earlier snapshot obligation cannot be overwritten by the namespace source selection',()=>{
+ const pin=ownInstallationFunctionPin(qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.own_close_snapshot_v1('))),batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([{...pin,sha256:'02ef5825c524bb7b7168b2ec8f567c323482fee8ac7ac7fbfeba8071c37ee14f'}])};
+ assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA_SNAPSHOT_EARLY_EPOCH_DEPENDENCY/);
 });
 
 test('physical-column aliases are scoped per statement and nested SELECT, including lateral JSON rows',()=>{
