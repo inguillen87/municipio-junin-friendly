@@ -12,7 +12,7 @@ import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOUR
 import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
-import {OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+import {OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS,OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
 const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
@@ -28,6 +28,16 @@ test('expected native adapters retain exact new sources, runtime closure and CI 
   assert.ok(wrapper.includes("'"+file+"'"),file);assert.ok(workflow.slice(workflow.indexOf('path: |')).includes(file),file);
  }
  assert.ok(workflow.includes('run: node --test tests/own-payroll-expected-native-rpc.test.js'));
+});
+
+test('owned cleanup retains its four exact sources and CI keeps private RAW optional',()=>{
+ const runner=fs.readFileSync(new URL('../scripts/verify-municipal-owner-program.mjs',import.meta.url),'utf8');assert.equal(Object.keys(OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS).length,4);
+ const workflows=['.github/workflows/own-payroll-full-capacity.yml','.github/workflows/municipal-owner-program.yml'].map(file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'));
+ for(const[file,pin]of Object.entries(OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS)){
+  const raw=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(raw.length,pin.bytes,file);assert.equal(hash(raw),pin.sha256,file);assert.ok(runner.includes("'"+file+"'"),file);
+  for(const workflow of workflows)assert.ok(workflow.slice(workflow.indexOf('path: |')).includes(file),file);
+ }
+ for(const workflow of workflows)assert.ok(workflow.includes('run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js'));
 });
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
@@ -45,7 +55,7 @@ function projectOwnD7ArtifactWorkflowToParent(file,value){
 test('Vercel bundle retains every pinned full-capacity source while private inputs stay excluded',()=>{
  const rules=fs.readFileSync(new URL('../.vercelignore',import.meta.url),'utf8').split(/\r?\n/).map(rule=>rule.trim()).filter(rule=>rule&&!rule.startsWith('#'));
  const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),pattern=neg?rule.slice(1):rule;if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))keep=neg;}return keep;};
- for(const file of [...Object.keys({...p.candidatePins,...p.dependencies}),'tests/fixtures/native645-causal-source-projection.js','tests/fixtures/owner-reader-callers-source-projection.js','tests/fixtures/current190-ui-source-projection.js','tests/fixtures/current190-revocation-source-projection.js',...Object.keys(OWN_CURRENT190_UI_NEW_SOURCE_PINS),...Object.keys(OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS),'scripts/lib/owner-qa-source-closure-reader.mjs','tests/owner-qa-source-closure-reader.test.js'])assert.ok(included(file),'Build dependency excluded: '+file);
+ for(const file of [...Object.keys(OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS),...Object.keys({...p.candidatePins,...p.dependencies}),'tests/fixtures/native645-causal-source-projection.js','tests/fixtures/owner-reader-callers-source-projection.js','tests/fixtures/current190-ui-source-projection.js','tests/fixtures/current190-revocation-source-projection.js',...Object.keys(OWN_CURRENT190_UI_NEW_SOURCE_PINS),...Object.keys(OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS),'scripts/lib/owner-qa-source-closure-reader.mjs','tests/owner-qa-source-closure-reader.test.js'])assert.ok(included(file),'Build dependency excluded: '+file);
  for(const file of ['.handoff/result.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/result.json','source.sql','source.sql.gz','private.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,file);
 });
 test('M7 source bytes pin the exact canonical190 overlay and admitted source dependencies',()=>{

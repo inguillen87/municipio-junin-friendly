@@ -1,6 +1,7 @@
 // SOURCE PROPOSAL: no I/O. Framing is not yet empirically verified with psql.
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {OWNER190_CLEANUP_NOTICE_VERSION,compileOwner190CleanupProfile,evaluateOwner190CleanupProfile} from './owner190-cleanup-profile.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const decode=bytes=>new TextDecoder('utf-8',{fatal:true}).decode(bytes);
@@ -67,10 +68,12 @@ export function createOwner190NativeOutcomeLatch(){
    const marker='MC_OWNER190_'+token.replaceAll('-','');assert.equal(sql.includes(marker),false,'OWNER190_NATIVE_FRAME_COLLISION');
    // The original SQL is still one contiguous, unchanged substring.
    const framedSql='\\set QUIET off\n\\echo '+marker+':BEGIN\n'+sql+'\n\\echo '+marker+':END\n';
-   const notices=noticeProfile===null?null:canonicalSeedNotices({sql,framedSql,end,expectedCode,fullJson,profile:noticeProfile});
+   const notices=noticeProfile===null?null:noticeProfile.version===OWNER190_CLEANUP_NOTICE_VERSION
+    ?compileOwner190CleanupProfile({sql,framedSql,end,expectedCode,fullJson,profile:noticeProfile})
+    :canonicalSeedNotices({sql,framedSql,end,expectedCode,fullJson,profile:noticeProfile});
    const attempt=Object.freeze({id:++sequence,end,expectedCode,fullJson,marker,maxBuffer:(fullJson?40:20)*1024*1024,framedSql,noticeProfile:notices});
    pending={attempt,receipt:{version:'owner190-native-outcome.proposed.v1',id:attempt.id,state:'PENDING',sqlSha256:hash(Buffer.from(sql,'utf8')),sqlBytes:Buffer.byteLength(sql,'utf8'),expectedEnd:end,expectedCode,fullJson,maxBuffer:attempt.maxBuffer,attempted:false,returned:false,status:null,signal:null,error:null,stdout:null,stderr:null,rawPersisted:false,transactionTerminalObserved:false,observedEnd:null,rollbackObserved:false,descriptorClosureEstablished:false,protocolEmpiricallyVerified:false}};
-   if(notices)pending.receipt.noticeProfile={version:notices.version,schema:notices.schema,sqlFile:notices.sqlFile,expectedCount:3,sourceLines:notices.notices.map(n=>n.line)};
+   if(notices)pending.receipt.noticeProfile={version:notices.version,schema:notices.schema,sqlFile:notices.sqlFile,expectedCount:notices.kind==='cleanup'?1:3,sourceLines:notices.kind==='cleanup'?notices.sourceLines:notices.notices.map(n=>n.line)};
    return attempt;
   },
   markInvoked(attempt){active(attempt).receipt.attempted=true;},
@@ -110,6 +113,9 @@ export function createOwner190NativeOutcomeLatch(){
     assert.deepEqual(terminals,[attempt.end],'OWNER190_NATIVE_TERMINAL_MISMATCH');assert.equal(lines.at(-2),attempt.end,'OWNER190_NATIVE_TERMINAL_NOT_LAST');
     if(attempt.noticeProfile===null){
      assert.equal(stderr,'','OWNER190_NATIVE_STDERR_NONEMPTY');
+    }else if(attempt.noticeProfile.kind==='cleanup'){
+     const cleanup=evaluateOwner190CleanupProfile({profile:attempt.noticeProfile,lines,stderr});
+     value=cleanup.value;noticeDiagnostics={...cleanup.diagnostics,sqlSha256:r.sqlSha256,stderrSha256:r.stderr.sha256};
     }else{
      const profile=attempt.noticeProfile;
      assert.ok(stderr===profile.lf||stderr===profile.crlf,'OWNER190_NATIVE_NOTICE_STDERR_MISMATCH');
@@ -117,7 +123,7 @@ export function createOwner190NativeOutcomeLatch(){
     }
     // Preserve the existing last-row convention ONLY after the complete terminal frame.
     // The actual psql tag/row transcript remains a separate HARD_PENDING proof.
-    const line=lines.slice(1,-2).at(-1);value=line?.startsWith('{')||line?.startsWith('[')?JSON.parse(line):line;
+    if(attempt.noticeProfile?.kind!=='cleanup'){const line=lines.slice(1,-2).at(-1);value=line?.startsWith('{')||line?.startsWith('[')?JSON.parse(line):line;}
     if(attempt.fullJson)assert.ok(value&&typeof value==='object','OWNER190_NATIVE_FULL_JSON_REQUIRED');
     state='TERMINAL_FRAME';observedEnd=attempt.end;
    }

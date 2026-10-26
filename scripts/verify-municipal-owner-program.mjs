@@ -6,6 +6,7 @@ import {ownerProgramQaBrowser} from './lib/municipal-owner-program-browser.mjs';
 import {prepareOwnerProgramQaContinuation} from './lib/owner-program-qa-continuation-preparation.mjs';
 import {createRecordingSourceReader,assertConsumedWithinClosure,createClosureSourceReader} from './lib/owner-qa-source-closure-reader.mjs';
 import {createOwner190NativeOutcomeLatch} from './lib/owner190-native-outcome.mjs';
+import {owner190OwnedSchemaSql,assertOwner190OwnedSchema,composeOwner190CanonicalCleanup,bindOwner190CanonicalCleanup,assertOwner190CanonicalCleanupProof} from './lib/owner190-canonical-cleanup.mjs';
 import {ownerDecisionQaHash as hash,ownerDecisionQaLiteral as q} from './lib/municipal-owner-adoption-decision-qa.mjs';
 import {ownerAuthorityQaOptions,ownerAuthorityQaSourceClosure,assertOwnerAuthorityQaSourceBookend,ownerAuthorityQaCases} from './verify-municipal-owner-adoption-authority.mjs';
 import {ownerDecisionQaTransaction,ownerDecisionQaHttp} from './verify-municipal-owner-adoption-decision.mjs';
@@ -45,7 +46,7 @@ export function createOwnerProgramQaMissingAttemptProbe(){
   }
  });
 }
-export const OWNER_PROGRAM_QA_ENTRIES=['scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js','tests/owner-qa-source-closure-reader.test.js','tests/owner190-native-outcome.test.js','tests/owner-program-qa-rpc-error.test.js'];
+export const OWNER_PROGRAM_QA_ENTRIES=['scripts/lib/owner190-canonical-cleanup.mjs','scripts/lib/owner190-cleanup-profile.mjs','tests/owner190-cleanup-profile.test.js','tests/owner190-cleanup-raw255.local.test.js','scripts/lib/final-grh-source-review-admission-qa.mjs','scripts/verify-documentary-roster-performance.mjs','scripts/verify-municipal-owner-adoption-decision.mjs','scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js','tests/owner-qa-source-closure-reader.test.js','tests/owner190-native-outcome.test.js','tests/owner-program-qa-rpc-error.test.js'];
 export function ownerProgramQaOptions(options){
  assert.ok(options&&typeof options==='object'&&!Array.isArray(options),'OWNER_PROGRAM_QA_OPTIONS_REQUIRED');
  assert.ok(Reflect.ownKeys(options).every(k=>['major','output','sourceCommit','transport','operationalPairBaseline'].includes(k)),'OWNER_PROGRAM_QA_OPTION_UNKNOWN');
@@ -101,17 +102,18 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  const sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});
  const sourceReadsBefore=assertConsumedWithinClosure(recorder.consumed(),sourceClosure),closureReader=createClosureSourceReader({root,closure:sourceClosure});
  const sourceCustody=Object.freeze({closure:sourceClosure,committedBytes,sourceCommit});
- const identity=connection.processGuardRequired?await processGuard(major):null,{runtime,args}=connection;fs.mkdirSync(destination);let sequence=0,seeded=false,phase='preflight',report,failure,cleanupFailure,outerFailure,sourceFailure,outerBefore,destinationIdentity=null;const checks=[],rpc=[],nativeOutcome=createOwner190NativeOutcomeLatch();
+ const identity=connection.processGuardRequired?await processGuard(major):null,{runtime,args}=connection;fs.mkdirSync(destination);let sequence=0,seeded=false,ownedSchema=null,phase='preflight',report,failure,cleanupFailure,outerFailure,sourceFailure,outerBefore,destinationIdentity=null;const checks=[],rpc=[],nativeOutcome=createOwner190NativeOutcomeLatch();
  let pins=transport==='ci'?ownerAdoptionQaCiInitialGuard({major}):`IF current_database()<>'own_payroll_run_qa' OR current_user<>'postgres' OR current_setting('server_version_num')::int/10000<>${major} OR inet_server_port()<>${55400+major} OR host(inet_server_addr())<>'127.0.0.1' OR ${finalReviewAdmissionQaDirectoryPredicate(identity.directory)} OR floor(extract(epoch FROM pg_postmaster_start_time()))::bigint<>${major===17?1792971723:1792025448} OR nullif(current_setting('neon.project_id',true),'') IS NOT NULL OR nullif(current_setting('neon.branch_id',true),'') IS NOT NULL THEN RAISE EXCEPTION 'OWNER_PROGRAM_QA_DESTINATION_CHANGED';END IF;`;
  // Internal descriptor: the canonical composer still supplies the original SQL unchanged.
  const tx=(statements,options={})=>Object.freeze({sql:ownerDecisionQaTransaction({schema:qa.schema,pins,statements,...options}),end:options.end??'COMMIT'});
  const saveFailure=(name,value)=>{try{fs.writeFileSync(path.join(destination,name),value);}catch(error){sourceFailure??=error;}};
- const run=(transaction,expected,{fullJson=false,seedNotices=false}={})=>{
+ const run=(transaction,expected,{fullJson=false,seedNotices=false,cleanupPlan=null}={})=>{
   assert.equal(typeof seedNotices,'boolean','OWNER190_NATIVE_SEED_NOTICES_INVALID');
+  assert.ok(cleanupPlan===null||!seedNotices,'OWNER190_NATIVE_NOTICE_PROFILE_CONFLICT');
   // Computing this owned path is not an I/O operation. No file is written
   // until begin has validated and latched the exact framed invocation.
   const file=path.join(destination,String(sequence+1).padStart(3,'0')+'.sql');
-  const noticeProfile=seedNotices?{version:'canonical-seed-drop-if-exists.v1',schema:qa.schema,sqlFile:file}:null;
+  const noticeProfile=cleanupPlan!==null?bindOwner190CanonicalCleanup(cleanupPlan,transaction,file):seedNotices?{version:'canonical-seed-drop-if-exists.v1',schema:qa.schema,sqlFile:file}:null;
   const attempt=nativeOutcome.begin({...transaction,expectedCode:expected??null,fullJson,token:randomUUID(),noticeProfile});
   sequence++;
   let result,stage='input-persistence';
@@ -148,7 +150,9 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  }}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
  try{
   const beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,operationalPairBaseline,destinationIdentity,beforeGuard,outerBefore,sourceClosure,sourceBefore,sourceReadsBefore,consumedBeforeClosure:recorder.consumed(),sourceHashes:qa.sourceHashes},null,2));
-  phase='seed';run(tx([qa.seed]),undefined,{seedNotices:true});seeded=true;run(tx(qa.predecessorInstallation));
+  phase='seed';run(tx([qa.seed]),undefined,{seedNotices:true});
+  ownedSchema=assertOwner190OwnedSchema(run(tx([owner190OwnedSchemaSql(qa.schema,sourceCommit)],{readOnly:true}),undefined,{fullJson:true}),{schema:qa.schema,sourceCommit});
+  seeded=true;run(tx(qa.predecessorInstallation));
   const salary=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')),salaryProposal=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryCommand({command:'propose',scopeVersion:salary.scopeVersion,baseVersion:salary.catalog.version,classificationVersion:salary.classification.version,proposalId:null,proposalSha256:null,items:qa.items,reason:'Maestro completo exclusivamente ficticio QA190',reviewConfirmed:false}))},${q(randomUUID())})`),salaryPending=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===salaryProposal.proposalId),salaryReview=ownerSalaryQaIndependentReview(query,qa.checker,salaryPending),salaryReceipt=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryReview)},${q(randomUUID())})`,qa.checker);assert.equal(salaryReceipt.status,'approved');
   const firstBoot=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')),priorBody=prepareProgramWorkspace(firstBoot,qa.priorDefinition,'Programa anterior exclusivamente ficticio QA190'),priorProposed=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorBody)},${q(randomUUID())})`),priorPending=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===priorProposed.proposalId),priorReview=ownerProgramQaIndependentReview(query,qa.checker,priorPending),priorApproved=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorReview)},${q(randomUUID())})`,qa.checker);assert.equal(priorApproved.status,'approved');
   const priorEventIds=[priorProposed.eventId,priorApproved.eventId],priorEvents=()=>run(tx([`SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM ${qa.schema}.own_payroll_program_event e WHERE id=ANY(ARRAY[${priorEventIds.map(q).join(',')}]::uuid[])`],{readOnly:true})),priorEventsBefore=priorEvents();
@@ -200,7 +204,14 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  }catch(error){failure=error;saveFailure('failure.txt',error.stack??String(error));saveFailure('failure.json',JSON.stringify({passed:false,major,sourceCommit,operationalPairBaseline,phase,checksPassed:checks.length,checks,message:error.message,nativeOutcome:nativeOutcome.snapshot()},null,2));}
  finally{
   let cleanupAttempted=false,cleanupCompleted=false;
-  try{if(!nativeOutcome.stopped&&seeded){cleanupAttempted=true;run(tx(finalReviewAdmissionQaCleanup(qa.schema)));cleanupCompleted=true;}}catch(error){cleanupFailure=error;saveFailure('cleanup-failure.txt',error.stack??String(error));}
+  try{if(!nativeOutcome.stopped&&seeded){
+   assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});
+   assertConsumedWithinClosure(recorder.consumed(),sourceClosure);assertConsumedWithinClosure(closureReader.consumed(),sourceClosure);
+   const cleanupPlan=composeOwner190CanonicalCleanup({schema:qa.schema,pins,ownedSchema,outerBefore,sourceCommit});
+   cleanupAttempted=true;
+   const cleanupProof=run(cleanupPlan.transaction,undefined,{fullJson:true,cleanupPlan});
+   assertOwner190CanonicalCleanupProof(cleanupProof,cleanupPlan);cleanupCompleted=true;
+  }}catch(error){cleanupFailure=error;saveFailure('cleanup-failure.txt',error.stack??String(error));}
   try{if(!nativeOutcome.stopped){const outerAfter=outerBefore?snapshot():null,postflight=guard(),processAfter=connection.processGuardRequired?await processGuard(major):null;fs.writeFileSync(path.join(destination,'postflight.json'),JSON.stringify({outerBefore,outerAfter,postflight,processAfter},null,2));if(outerBefore)assert.deepEqual(outerAfter,outerBefore);if(report){report.priorDatabasePreserved=true;report.syntheticSchemaRemoved=!cleanupFailure;report.postflightOtherClients=0;}}else{saveFailure('native-uncertainty-stop.json',JSON.stringify({nativeOutcome:nativeOutcome.snapshot(),cleanup:{attempted:cleanupAttempted,completed:cleanupCompleted},skipped:[...(!cleanupAttempted?['cleanup']:[]),'snapshot','guard','processGuard'],noFurtherSqlOrOsInvoked:true},null,2));}}catch(error){outerFailure=error;saveFailure('conservation-failure.txt',error.stack??String(error));}
   try{const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});const sourceReadsAfter={beforeClosure:assertConsumedWithinClosure(recorder.consumed(),sourceClosure),duringRun:assertConsumedWithinClosure(closureReader.consumed(),sourceClosure)};fs.writeFileSync(path.join(destination,'source-bookend.json'),JSON.stringify({sourceCommit,sourceClosure,sourceBefore,sourceAfter,sourceReadsAfter},null,2));if(report)report.sourceAfter=sourceAfter;if(report)report.sourceReadsAfter=sourceReadsAfter;}catch(error){sourceFailure??=error;saveFailure('source-bookend-failure.txt',error.stack??String(error));}
  }

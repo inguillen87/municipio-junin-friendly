@@ -42,6 +42,8 @@ jobs:
         run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/own-monthly-day-saved-input-integrity.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
       - name: Exact native rejection adapters with synthetic services
         run: node --test tests/own-payroll-expected-native-rpc.test.js
+      - name: Owned QA cleanup with synthetic transcripts
+        run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js
       - run: npm run build
       - name: Prepare only the existing disposable synthetic service
         env:
@@ -66,6 +68,10 @@ jobs:
             scripts/verify-own-payroll-full-capacity.mjs
             scripts/verify-own-monthly-payroll-full-capacity.mjs
             scripts/verify-municipal-owner-program.mjs
+            scripts/lib/owner190-canonical-cleanup.mjs
+            scripts/lib/owner190-cleanup-profile.mjs
+            tests/owner190-cleanup-profile.test.js
+            tests/owner190-cleanup-raw255.local.test.js
             scripts/verify-own-monthly-day-engine-source.mjs
             scripts/lib/owner-program-qa-continuation-preparation.mjs
             scripts/lib/own-monthly-day-qa-foundation.mjs

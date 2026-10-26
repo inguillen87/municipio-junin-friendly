@@ -11,7 +11,7 @@ const PINS=Object.freeze([
  ['scripts/lib/own-payroll-receipt126-same190-support.mjs',18177,'35e47c9f2af2ef393602774d968a306e5d8b0a13b7131e8d168a9b2082c6c1c2'],
  ['scripts/lib/own-payroll-receipt126-same190-shape.mjs',25756,'3ac45cc8cc26a967d52d5cce59bac28a8b22ffc269ea0837b241efbf5073a2dc'],
  ['scripts/migrations/004-tenant-iam-control-plane.sql',44500,'d22712fc9179d529bcec4d8347a9d845ed873dabee9c005db44b507c731a2195'],
- ['scripts/verify-municipal-owner-program.mjs',43626,'7a97d795ee973c98e71b4f6dc0034ef2fe5cea6e100f9dd1bd44be6da7fba25e'],
+ ['scripts/verify-municipal-owner-program.mjs',44977,'6cee3a0043187c34bf4c93b9168feea8a05dd6fe5892473e2186d87c22c13ffb'],
  ['scripts/verify-municipal-owner-adoption-decision.mjs',25136,'ee53a88231e0b5694029460a3bff30a4044eba1fff9509bf64d1f91185680cfb']
 ]);
 const sha=raw=>createHash('sha256').update(raw).digest('hex');
