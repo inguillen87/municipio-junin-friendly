@@ -10,12 +10,15 @@ import {ownRunOperation,RUN_CALCULATE,ownRunHash} from '../../lib/internal-own-p
 import {ownLiquidationOperation,OWN_LIQ_REVIEW} from '../../lib/internal-own-payroll-liquidation.js';
 import {ownAnnulOperation} from '../../lib/internal-own-payroll-annulment.js';
 import {ownCloseOperation,OWN_CLOSE_WRITE} from '../../lib/internal-own-payroll-close.js';
-import {ownCloseSnapshot} from '../../assets/own-payroll-close-model.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
+import {ownCloseSnapshot,ownCloseCommand} from '../../assets/own-payroll-close-model.js';
+import {ownAnnulCommand} from '../../assets/own-payroll-annulment-model.js';
 import {employeeDraft,validCuil} from '../../assets/native-employee-contract.js';
 import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-model.js';
 import {ownerProgramQaAccessSql,ownerProgramQaAccess} from './municipal-owner-program-qa.mjs';
 import {buildOwnReportCensus190IamFixture,assertOwnReportCensus190IamFixture} from './own-payroll-report-census-190-iam-fixture.mjs';
 import {ownFullCapacity190Rpc} from './own-payroll-full-capacity-190-rpc.mjs';
+import {createOwn190NativeErrorExpectations} from './own-payroll-expected-native-rpc.mjs';
 import {installOwnFullCapacity190,ownFullCapacity190Snapshot} from './own-payroll-full-capacity-190-installation.mjs';
 import {runOwnAccountingImputation190Continuation} from './own-accounting-imputation-190-continuation.mjs';
 import {assertOwnAccountingImputation190SourceBookend} from './own-accounting-imputation-190-installation.mjs';
@@ -53,16 +56,25 @@ async function seedLiteralProgramme(db,qa){
  const published=ownProgramBootstrap(await db.run('SELECT own_program_bootstrap_v1('+maker+')',true));assert.deepEqual(published.program.definition,definition);assert.deepEqual(published.salaryCatalog.items,items);return published.program.definition;
 }
 function bind(h){
- const {qa}=h,connections=[],trace=[];
+ const {qa}=h,connections=[],trace=[],negatives=createOwn190NativeErrorExpectations();
  const observe=value=>{assert.ok(value?.connection&&Object.hasOwn(value,'result'),'M7_190_NATIVE_RESPONSE');assert.ok(Number.isSafeInteger(value.connection.pid));assert.equal(typeof value.connection.backendStart,'string');connections.push(value.connection.pid+':'+value.connection.backendStart);return value.result;};
  const envelope=expression=>"SELECT jsonb_build_object('connection',jsonb_build_object('pid',pg_backend_pid(),'backendStart',(SELECT backend_start FROM pg_stat_activity WHERE pid=pg_backend_pid())),'result',("+expression+'))';
  const run=async(text,runtime=false)=>{assert.equal(typeof text,'string');const statement=text;const prefix=runtime?['SET LOCAL ROLE municontrol_actions_runtime_app']:[];
-  if(/^SELECT /.test(statement)&&!statement.includes(';'))return observe(h.json([...prefix,envelope(statement.slice(7))],{command:runtime,fullJson:true}));
-  return h.json([...prefix,statement],{command:runtime,fullJson:true});
+  const query=/^SELECT /.test(statement)&&!statement.includes(';'),statements=[...prefix,query?envelope(statement.slice(7)):statement],expected=negatives.consumeRun({statement,runtime});
+  if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:runtime}));
+  if(query)return observe(h.json(statements,{command:runtime,fullJson:true}));
+  // Command-only batches have terminal tags rather than a JSON row. Framing,
+  // exit status and the complete transaction remain checked by the same latch.
+  return h.json(statements,{command:runtime});
  };
- const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema);trace.push({sql:text});return[{result:observe(h.json(['SET LOCAL ROLE municontrol_actions_runtime_app',envelope(rendered.slice(7,-' AS result'.length))],{command:true,fullJson:true}))}];};
- return{run,query,connections,trace};
+ const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema),statements=['SET LOCAL ROLE municontrol_actions_runtime_app',envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
+  const expected=negatives.consumeQuery({text,values});
+  if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:true}));
+  return[{result:observe(h.json(statements,{command:true,fullJson:true}))}];
+ };
+ return{run,query,connections,trace,expectQueryError:negatives.expectQueryError,expectRunError:negatives.expectRunError,assertNoExpectedRpc:negatives.assertIdle};
 }
+export {bind as bindOwnFullCapacity190};
 function access(h,actor){
  const value=h.json([ownerProgramQaAccessSql(h.qa.schema,actor)],{readOnly:true}),a=ownerProgramQaAccess(value,actor);assert.equal(a.principal.authorized,true);assert.equal(a.principal.session.mfa,true);assert.equal(a.principal.session.id,actor.actorSessionId);
  return{principal:a.principal,session:{id:a.session.id,email:actor.actorEmail,version:a.session.version,releaseSha:actor.releaseSha}};
@@ -89,6 +101,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  const installation=await installOwnFullCapacity190(h),db=bind(h),ownerQa={...qa,actors:{maker:qa.actor,checker:qa.checker}};
  const definition=await seedLiteralProgramme(db,ownerQa),contracts=await registerPopulation(h,db),maker=access(h,qa.actor),reviewer=access(h,qa.checker),checks=[],ok=(condition,label)=>{assert.ok(condition,label);checks.push(label);h.check(label);};
  assert.notEqual(qa.actor.actorEmail,qa.checker.actorEmail);assert.notEqual(qa.actor.membershipId,qa.checker.membershipId);for(const c of RUN_CALCULATE)assert.ok(maker.principal.tenant.effectiveCapabilities.includes(c));for(const c of [...OWN_LIQ_REVIEW,...OWN_CLOSE_WRITE])assert.ok(reviewer.principal.tenant.effectiveCapabilities.includes(c));
+ const checkerContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  const run=(op,input,fullJson=true)=>ownRunOperation(db,maker.principal,maker.session,op,input,{fullJson}),liq=(op,input,fullJson=true)=>ownLiquidationOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson}),annul=(op,input,fullJson=true)=>ownAnnulOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson}),close=(op,input,fullJson=true)=>ownCloseOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson});
  const period='2026-10';
  const calculate=async()=>{const b=await run('bootstrap');return run('calculate',{body:{version:'own-payroll-run-command.v2',period,liquidationType:'monthly',liquidationDate:period+'-15',selection:{kind:'all',values:[]},scopeVersion:b.scopeVersion,programVersion:b.programVersion,populationDomain:'native_registered'},key:randomUUID()});};
@@ -107,24 +120,35 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  // phase adds only four declared IAM transactions, never a business event.
  const sqlRevocationBrowser=annulmentV2BrowserEnabled?await verifyOwnSqlRevocationBrowserOn190(Object.freeze({version:'own-sql-revocation-live190-context.v1',h,db,qa,maker,reviewer,capture:first,readSnapshot:()=>ownFullCapacity190Snapshot(h)})):null;
  if(sqlRevocationBrowser){assert.equal(sqlRevocationBrowser.passed,true);assert.equal(sqlRevocationBrowser.sqlLevelRevocationProven,true);assert.equal(sqlRevocationBrowser.temporaryIamWriteCalls,4);assert.equal(sqlRevocationBrowser.existingOverrideRowsRestored,2);assert.equal(sqlRevocationBrowser.cases.length,2);for(const key of ['addedCaptures','addedSavedResults','addedLiquidationDecisions','addedAnnulments','addedCloseEvents','businessHttpPosts','newRoles','newGrants','newSessions','newIdentities','newRpcDescriptors'])assert.equal(sqlRevocationBrowser[key],0);ok(true,'actual SQL reviewer and nominal revocation withdraw previously loaded855 detail with unchanged auth/session; exact existing overrides restored');}
- await sameStateReject(()=>db.run('SELECT own_liquidation_detail_capacity_core_v2('+j(qa.checker)+','+q(first.id)+'::uuid,33554432)',true),e=>/permission denied/.test(e.message),'runtime cannot call the private capacity core or choose its budget');
- await sameStateReject(()=>liq('detail',{id:first.id},false),e=>e.code==='OWN_LIQ_LIMIT'&&e.status===422,'legacy detail refuses the whole capture without rows or metadata changes');
+ const privateCoreBefore=ownFullCapacity190Snapshot(h),privateCoreProof=h.json([
+  'SET LOCAL ROLE municontrol_actions_runtime_app',
+  `DO $private855$ DECLARE state_value text;BEGIN BEGIN PERFORM ${qa.schema}.own_liquidation_detail_capacity_core_v2(${j(qa.checker)},${q(first.id)}::uuid,33554432);RAISE EXCEPTION 'QA_PRIVATE855_UNEXPECTED_SUCCESS';EXCEPTION WHEN insufficient_privilege THEN GET STACKED DIAGNOSTICS state_value=RETURNED_SQLSTATE;IF state_value IS DISTINCT FROM '42501' THEN RAISE EXCEPTION 'QA_PRIVATE855_SQLSTATE_CHANGED';END IF;PERFORM set_config('municontrol_private855.proof',jsonb_build_object('caseId','855-private-core','denied',true,'sqlstate',state_value)::text,true);END;END $private855$`,
+  "SELECT current_setting('municontrol_private855.proof')::jsonb"
+ ],{command:true,end:'ROLLBACK',fullJson:true});
+ assert.deepEqual(privateCoreProof,{caseId:'855-private-core',denied:true,sqlstate:'42501'});assert.deepEqual(ownFullCapacity190Snapshot(h),privateCoreBefore);ok(true,'runtime cannot call the private capacity core or choose its budget; exact42501 observed in a complete ROLLBACK');
+ await db.expectQueryError({caseId:'855-legacy-liquidation-detail',nativeCode:'OWN_LIQ_LIMIT',text:'SELECT public.own_liquidation_detail_v1($1::jsonb,$2::uuid) AS result',values:[checkerContext,first.id]},()=>sameStateReject(()=>liq('detail',{id:first.id},false),e=>e.code==='OWN_LIQ_LIMIT'&&e.status===422,'legacy detail refuses the whole capture without rows or metadata changes'));
  await sameStateReject(()=>run('calculate',{body:first.body,key:first.key},false),e=>e.code==='OWN_RUN_LIMIT'&&e.status===422,'legacy recovery cannot relabel or truncate a stored full calculation');
  const decide=async(d,command)=>liq('command',{key:randomUUID(),body:{runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command,selection:{kind:'all',values:[]},reason:'Decisión independiente exclusivamente sintética de capacidad M7',reviewConfirmed:true}});
  await decide(detail,'confirm');let ann=await annul('detail',{period,liquidationType:'monthly'});ok(ann.runs.length===1&&ann.runs[0].capture.saved.result.rowCount===17100,'consolidated review retains exactly the confirmed full capture');
- await sameStateReject(()=>annul('detail',{period,liquidationType:'monthly'},false),e=>e.code==='OWN_LIQ_LIMIT'&&e.status===422,'legacy consolidated detail fails atomically above4MiB');
+ await db.expectQueryError({caseId:'855-legacy-annul-detail',nativeCode:'OWN_LIQ_LIMIT',text:'SELECT public.own_annul_detail_v1($1::jsonb,$2::text,$3::text) AS result',values:[checkerContext,period,'monthly']},()=>sameStateReject(()=>annul('detail',{period,liquidationType:'monthly'},false),e=>e.code==='OWN_LIQ_LIMIT'&&e.status===422,'legacy consolidated detail fails atomically above4MiB'));
  const annulBody={period,liquidationType:'monthly',scopeVersion:ann.scopeVersion,stateVersion:ann.stateVersion,selection:{kind:'all',values:[]},reason:'Anulación exclusivamente sintética de855 contratos completos M7',reviewConfirmed:true};
  await db.run("CREATE FUNCTION qa_capacity_late_annul_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'QA_M7_CAPACITY_LATE_ANNUL_FAULT';END $$;CREATE TRIGGER qa_capacity_late_annul_fault BEFORE INSERT ON own_payroll_annul_event FOR EACH ROW EXECUTE FUNCTION qa_capacity_late_annul_fault()");
- const lateFaultKey=randomUUID();
- try{await sameStateReject(()=>db.run('SELECT own_annul_command_full_v1('+j(qa.checker)+','+j(annulBody)+','+q(lateFaultKey)+'::uuid)',true),e=>/ERROR:.*QA_M7_CAPACITY_LATE_ANNUL_FAULT/.test(e.message),'late consolidated write fault rolls back every child event, receipt and control metadata');}finally{await db.run('DROP TRIGGER qa_capacity_late_annul_fault ON own_payroll_annul_event;DROP FUNCTION qa_capacity_late_annul_fault()');}
+ const lateFaultKey=randomUUID(),lateFaultStatement='SELECT own_annul_command_full_v1('+j(qa.checker)+','+j(annulBody)+','+q(lateFaultKey)+'::uuid)';
+ try{await db.expectRunError({caseId:'855-late-annul',nativeCode:'QA_M7_CAPACITY_LATE_ANNUL_FAULT',statement:lateFaultStatement,runtime:true},()=>sameStateReject(()=>db.run(lateFaultStatement,true),e=>/ERROR:.*QA_M7_CAPACITY_LATE_ANNUL_FAULT/.test(e.message),'late consolidated write fault rolls back every child event, receipt and control metadata'));}finally{await db.run('DROP TRIGGER qa_capacity_late_annul_fault ON own_payroll_annul_event;DROP FUNCTION qa_capacity_late_annul_fault()');}
  const annulKey=randomUUID(),annulled=await annul('command',{key:annulKey,body:annulBody});ok(annulled.affected.length===855,'one full atomic annulment covers855 exact contracts');assert.deepEqual(await annul('command',{key:annulKey,body:annulBody}),{...annulled,replayed:true});assert.deepEqual(await annul('attempt',{key:annulKey}),{...annulled,replayed:true});
- await sameStateReject(()=>annul('command',{key:annulKey,body:{...annulBody,reason:'Cambio exclusivamente sintético del cuerpo original'}}),e=>e.code==='OWN_LIQ_IDEMPOTENCY_REUSE','same-key different body is refused without persistent change');
+ const changedAnnulBody={...annulBody,reason:'Cambio exclusivamente sintético del cuerpo original'};
+ await db.expectQueryError({caseId:'855-annul-key-body-reuse',nativeCode:'OWN_LIQ_IDEMPOTENCY_REUSE',text:'SELECT public.own_annul_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[checkerContext,JSON.stringify(ownAnnulCommand(changedAnnulBody)),annulKey]},()=>sameStateReject(()=>annul('command',{key:annulKey,body:changedAnnulBody}),e=>e.code==='OWN_LIQ_IDEMPOTENCY_REUSE','same-key different body is refused without persistent change'));
  const second=await calculate();ok(second.id!==first.id,'annulled full scope recalculates into another immutable run');assert.deepEqual(second.saved.result.rows,first.saved.result.rows);assert.deepEqual(second.saved.result.employeeTotals,first.saved.result.employeeTotals);await decide(await liq('detail',{id:second.id}),'confirm');
  const query={period,liquidationType:'monthly'},beforeClose=await close('detail',query),closeBody={...query,scopeVersion:beforeClose.scopeVersion,stateVersion:beforeClose.stateVersion,selection:{kind:'all',values:[]},command:'close',groupId:null,reason:'Cierre completo exclusivamente sintético de capacidad M7',reviewConfirmed:true},closeKey=randomUUID();
- await sameStateReject(()=>close('command',{key:closeKey,body:closeBody},false),e=>e.code==='OWN_CLOSE_LIMIT'&&e.status===422,'legacy close refuses full scope without committing any partial group');
+ const serializedCloseBody=JSON.stringify(ownCloseCommand(closeBody));
+ await db.expectQueryError({caseId:'855-legacy-first-close',nativeCode:'OWN_CLOSE_LIMIT',text:'SELECT public.own_close_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[checkerContext,serializedCloseBody,closeKey]},()=>sameStateReject(()=>close('command',{key:closeKey,body:closeBody},false),e=>e.code==='OWN_CLOSE_LIMIT'&&e.status===422,'legacy close refuses full scope without committing any partial group'));
  const closed=await close('command',{key:closeKey,body:closeBody});assert.deepEqual(closed.snapshot,ownCloseSnapshot(beforeClose,closeBody.selection));ok(closed.snapshot.employeeCount===855&&closed.snapshot.conceptCount===17100&&closed.snapshot.populationComplete,'full close freezes all855 employees and17100 concepts');ok(bytes(closed)>FOUR&&bytes(closed)<=FULL,'large close receipt stays inside the negotiated32MiB envelope');
  assert.deepEqual(await close('group',{id:closed.groupId}),{...closed,replayed:true});assert.deepEqual(await close('attempt',{key:closeKey}),{...closed,replayed:true});assert.deepEqual(await close('command',{key:closeKey,body:closeBody}),{...closed,replayed:true});
- for(const [op,input]of [['group',{id:closed.groupId}],['attempt',{key:closeKey}],['command',{key:closeKey,body:closeBody}]])await sameStateReject(()=>close(op,input,false),e=>e.code==='OWN_CLOSE_LIMIT'&&e.status===422,'legacy '+op+' cannot truncate an original full receipt');
+ for(const [op,input,caseId,text,values]of [
+  ['group',{id:closed.groupId},'855-legacy-close-group','SELECT public.own_close_group_v1($1::jsonb,$2::uuid) AS result',[checkerContext,closed.groupId]],
+  ['attempt',{key:closeKey},'855-legacy-close-attempt','SELECT public.own_close_attempt_v1($1::jsonb,$2::uuid) AS result',[checkerContext,closeKey]],
+  ['command',{key:closeKey,body:closeBody},'855-legacy-close-command','SELECT public.own_close_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',[checkerContext,serializedCloseBody,closeKey]]
+ ])await db.expectQueryError({caseId,nativeCode:'OWN_CLOSE_LIMIT',text,values},()=>sameStateReject(()=>close(op,input,false),e=>e.code==='OWN_CLOSE_LIMIT'&&e.status===422,'legacy '+op+' cannot truncate an original full receipt'));
  const closedCensus=await close('report-census',query);await verifiedOwnReportCensus(closedCensus);assert.equal(closedCensus.eventCount,1);assert.equal(closedCensus.groups.length,1);assert.equal(closedCensus.groups[0].id,closed.groupId);assert.equal(closedCensus.groups[0].state,'closed');assert.equal(closedCensus.groups[0].employeeCount,855);assert.equal(closedCensus.groups[0].snapshotSha256,closed.snapshotSha256);assert.ok(bytes(closedCensus)<=FOUR);
  const receiptTail=await runOwnReceipt126Backend190Continuation({version:'own-receipt126-backend-after-closed127.v1',h,db,qa,maker,contracts,second,closed,closedCensus});
  let receiptPrimary=null;try{
@@ -141,7 +165,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  // the stale JS principal so SQL must independently reauthorize recovery.
  const override=h.json([`SELECT to_jsonb(o) FROM ${qa.schema}.tenant_membership_capability_override o WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key='payroll.calculation.approve'`],{readOnly:true});assert.equal(override.allow_override,true);assert.equal(override.deny_override,false);
  h.json([`UPDATE ${qa.schema}.tenant_membership_capability_override SET allow_override=false,deny_override=true WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key='payroll.calculation.approve'`]);
- try{await sameStateReject(()=>close('attempt',{key:closeKey}),e=>e.status===403,'real IAM denial defeats a stale full-profile JS principal');}finally{h.json([`UPDATE ${qa.schema}.tenant_membership_capability_override SET allow_override=true,deny_override=false WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key='payroll.calculation.approve'`]);}
+ try{await db.expectQueryError({caseId:'855-revoked-close-attempt',nativeCode:'OWN_CLOSE_FORBIDDEN',text:'SELECT public.own_close_attempt_full_v1($1::jsonb,$2::uuid) AS result',values:[checkerContext,closeKey]},()=>sameStateReject(()=>close('attempt',{key:closeKey}),e=>e.status===403,'real IAM denial defeats a stale full-profile JS principal'));}finally{h.json([`UPDATE ${qa.schema}.tenant_membership_capability_override SET allow_override=true,deny_override=false WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key='payroll.calculation.approve'`]);}
  assert.deepEqual(h.json([`SELECT to_jsonb(o) FROM ${qa.schema}.tenant_membership_capability_override o WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key='payroll.calculation.approve'`],{readOnly:true}),override);
  const final=ownFullCapacity190Snapshot(h);h.json([installation.plan.postflight],{readOnly:true});assert.deepEqual(ownFullCapacity190Snapshot(h),final);
  assert.ok(db.connections.length>0);assert.equal(new Set(db.connections).size,db.connections.length,'M7_190_CONNECTION_REUSED');const nativeAfter=runtime();assert.deepEqual(nativeAfter,nativeBefore);

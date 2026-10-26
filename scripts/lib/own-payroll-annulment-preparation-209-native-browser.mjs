@@ -13,6 +13,7 @@ import {chromium} from 'playwright';
 import {createOwnAnnulHandler} from '../../api/internal-own-payroll-annulment.js';
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../../api/internal-own-payroll-run.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 import {createOwnAnnulPreparationHandler} from '../../api/internal-own-payroll-annulment-preparation.js';
 import {createEmploymentCatalogHandler} from '../../api/internal-employment-catalog.js';
 import {createOwnProgramHandler} from '../../api/internal-own-payroll-program.js';
@@ -213,13 +214,19 @@ export async function verifyOwnAnnulPreparation209BrowserOn190(context,fixture){
    // A later real confirmation in the annulled scope: the receiver sees the
    // actual cause, keeps the reference and no draft or calculation appears.
    const receiverPage=await open('receiver');
-   await receiverPage.page.goto(handoffLink);await receiverPage.$('projected-preparation').waitFor({state:'visible'});await receiverPage.settled();
-   assert.equal(purposeCount(),1);assert.equal(purposeReads[0].status,409);
-   const status=await receiverPage.$('status').innerText();
-   check(status.includes('Cambió una liquidación del alcance anulado')&&!status.includes('intento'),'current-state rejection is reported as such in the real panel');
-   check((await receiverPage.options()).length===1&&(await receiverPage.chips()).length===0&&!await receiverPage.$('confirm').isChecked()&&!await receiverPage.$('projected-preparation').isHidden()&&!await receiverPage.$('projected-load').isDisabled(),'rejected209 keeps the reference without any draft rows');
-   check(pagePosts.length===0&&calculationPosts===0&&mutations===0,'rejected209 sends nothing');
-   assert.deepEqual(readSnapshot(),baseline);
+   const receiverNativeContext=JSON.stringify(employeeContext(receiver.principal,receiver.session));
+   await db.expectQueryError({
+    caseId:'209-browser-current-state-changed',nativeCode:'OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',
+    text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,sourceId]
+   },async()=>{
+    await receiverPage.page.goto(handoffLink);await receiverPage.$('projected-preparation').waitFor({state:'visible'});await receiverPage.settled();
+    assert.equal(purposeCount(),1);assert.equal(purposeReads[0].status,409);
+    const status=await receiverPage.$('status').innerText();
+    check(status.includes('Cambió una liquidación del alcance anulado')&&!status.includes('intento'),'current-state rejection is reported as such in the real panel');
+    check((await receiverPage.options()).length===1&&(await receiverPage.chips()).length===0&&!await receiverPage.$('confirm').isChecked()&&!await receiverPage.$('projected-preparation').isHidden()&&!await receiverPage.$('projected-load').isDisabled(),'rejected209 keeps the reference without any draft rows');
+    check(pagePosts.length===0&&calculationPosts===0&&mutations===0,'rejected209 sends nothing');
+    assert.deepEqual(readSnapshot(),baseline);
+   });
    await receiverPage.browserContext.close();
    result={version:'own-annul-preparation209-live190-native-browser.v1',phase,passed:true,sourceCommit:h.sourceCommit,major:h.major,sourceIdJsonSha256:sha(sourceId),checks,httpEvidence,sourceBookend,purposeReads,loginTargets:loginTargets.length,pagePosts:pagePosts.length,calculationPosts,mutations,actualSql:true,actualHttp:true,actualBrowser:true,receiptToPreparationBrowserProven:false,currentStateRejectionBrowserProven:true,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
   }else{

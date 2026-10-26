@@ -15,6 +15,7 @@ import {employeeContext} from '../../lib/internal-native-employees.js';
 import {ownLiquidationOperation} from '../../lib/internal-own-payroll-liquidation.js';
 import {ownAnnulOperation} from '../../lib/internal-own-payroll-annulment.js';
 import {ownCloseOperation} from '../../lib/internal-own-payroll-close.js';
+import {ownCloseCommand} from '../../assets/own-payroll-close-model.js';
 import {readReceipt126Same190Inventory} from './own-payroll-receipt126-same190-inventory.mjs';
 import {ownAnnulPreparationOperation,annulPreparationError} from '../../lib/internal-own-payroll-annulment-preparation.js';
 import {createOwnAnnulPreparationHandler} from '../../api/internal-own-payroll-annulment-preparation.js';
@@ -39,7 +40,7 @@ const reason='Decisión exclusivamente sintética de custodia209 en el host190 e
 const expectedPins=Object.freeze({
  'scripts/migrations/209-own-annulment-preparation-projection.sql':'5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56',
  'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'ed9df7ffb278ea879d8c420fb3e49938890e6c668869453524ec2f2eadb39283',
- 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'816d1a9d187f181d8003442d2292be9c36dd1eaa98a4c6ae11b1d15681126781',
+ 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'3a1032013f116e332bc56066a6a3aac7402f7b323d437df58370c2cdd26da1e3',
  'assets/own-payroll-annulment-preparation-model.js':'f431df5c55db1a38bff70337cfed8bc6e2bf8a66a093ef1c8e381933c2982b3e'
 });
 
@@ -113,6 +114,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const readSnapshot=()=>base.readSnapshot();
  const sameStateReject=async(operation,predicate,label)=>{const before=readSnapshot();await assert.rejects(operation,predicate);assert.deepEqual(readSnapshot(),before);ok(true,label);};
  const reviewer=managedAccess(h,qa.checker);
+ const reviewerNativeContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  assert.ok(!reviewer.principal.tenant.effectiveCapabilities.includes('payroll.calculation.prepare'),'ANNUL209_CHECKER_MUST_REMAIN_WITHOUT_PREPARE');
  const liq=(operation,input={},fullJson=true)=>ownLiquidationOperation(db,reviewer.principal,reviewer.session,operation,input,{fullJson});
  const annul=(operation,input={},fullJson=true)=>ownAnnulOperation(db,reviewer.principal,reviewer.session,operation,input,{fullJson});
@@ -124,11 +126,16 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // FIRST actor-fixture construction is here, AFTER208 has returned. Its late
  // fault runs on the existing guarded host and is rolled back, not repaired.
  const actorPlan=buildOwnAnnulPreparation209ActorsFixture({qa,contracts,read:h.read});
- await assert.rejects(async()=>h.json([...actorPlan.statements,actorPlan.lateFaultStatement],{end:'ROLLBACK',fullJson:true}),error=>/QA_ANNUL209_ACTORS_LATE_FAULT/.test(error.message));
+ const actorsLate=h.expectRollback([...actorPlan.statements,actorPlan.lateFaultStatement],
+  'QA_ANNUL209_ACTORS_LATE_FAULT');
+ assert.equal(actorsLate.status,3);
+ assert.match(actorsLate.stderr,/\bERROR:[^\r\n]*\bQA_ANNUL209_ACTORS_LATE_FAULT\b/);
  assert.deepEqual(readSnapshot(),beforeActors);assert.deepEqual(rowMultiset(h),prefixBeforeActors);
  const actorProof=h.json(actorPlan.statements,{fullJson:true}),actors=assertOwnAnnulPreparation209ActorsProof(actorPlan,actorProof);
  assertPrefix(prefixBeforeActors,rowMultiset(h));
  const accesses=Object.fromEntries(Object.entries(actorPlan.actors).map(([name,actor])=>[name,managedAccess(h,actor)]));
+ const receiverNativeContext=JSON.stringify(employeeContext(accesses.receiver.principal,accesses.receiver.session));
+ const creator1NativeContext=JSON.stringify(employeeContext(accesses.creator1.principal,accesses.creator1.session));
  assert.notEqual(accesses.creator1.session.id,accesses.creator2.session.id);
  assert.notEqual(accesses.creator1.principal.user.email,accesses.creator2.principal.user.email);
  for(const name of['creator1','creator2','receiver']){
@@ -167,11 +174,28 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(receipt.affected.length,855);assert.equal(receipt.receipts.length,2);assert.deepEqual(receipt.affected.map(row=>row.contractId).sort(),contracts);
  const receiptReplay=await annul('attempt',{key:receipt.key});assert.deepEqual(receiptReplay,{...receipt,replayed:true});
  // Existing ownership/approval gates stay closed to a real third preparer.
- for(const capture of captures){
-  await sameStateReject(()=>run('receiver','attempt',{key:capture.key}),error=>error.code==='OWN_RUN_NOT_FOUND'&&error.status===404,'receiver cannot recover another creator\'s old run attempt');
-  await sameStateReject(()=>ownLiquidationOperation(db,accesses.receiver.principal,accesses.receiver.session,'detail',{id:capture.id},{fullJson:true}),error=>error.code==='OWN_LIQ_FORBIDDEN'&&error.status===403,'receiver cannot download another creator\'s old liquidation detail');
+ const captureNegativeCases=[
+  {capture:captures[0],runCase:'209-other-creator1-attempt',detailCase:'209-other-creator1-detail',legacyCase:'209-legacy-creator1-detail'},
+  {capture:captures[1],runCase:'209-other-creator2-attempt',detailCase:'209-other-creator2-detail',legacyCase:'209-legacy-creator2-detail'}
+ ];
+ assert.equal(captureNegativeCases.length,2);
+ for(const {capture,runCase,detailCase} of captureNegativeCases){
+  await db.expectQueryError({
+   caseId:runCase,nativeCode:'OWN_RUN_NOT_FOUND',
+   text:'SELECT public.own_run_attempt_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,capture.key]
+  },()=>sameStateReject(()=>run('receiver','attempt',{key:capture.key}),error=>error.code==='OWN_RUN_NOT_FOUND'&&error.status===404,
+   'receiver cannot recover another creator\'s old run attempt'));
+  await db.expectQueryError({
+   caseId:detailCase,nativeCode:'OWN_LIQ_FORBIDDEN',
+   text:'SELECT public.own_liquidation_detail_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,capture.id]
+  },()=>sameStateReject(()=>ownLiquidationOperation(db,accesses.receiver.principal,accesses.receiver.session,'detail',{id:capture.id},{fullJson:true}),
+   error=>error.code==='OWN_LIQ_FORBIDDEN'&&error.status===403,'receiver cannot download another creator\'s old liquidation detail'));
  }
- await sameStateReject(()=>ownAnnulOperation(db,accesses.receiver.principal,accesses.receiver.session,'attempt',{key:receipt.key},{fullJson:true}),error=>error.code==='OWN_LIQ_FORBIDDEN'&&error.status===403,'receiver gains no approval access to the old annulment-attempt route');
+ await db.expectQueryError({
+  caseId:'209-receiver-old-annul-attempt',nativeCode:'OWN_LIQ_FORBIDDEN',
+  text:'SELECT public.own_annul_attempt_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,receipt.key]
+ },()=>sameStateReject(()=>ownAnnulOperation(db,accesses.receiver.principal,accesses.receiver.session,'attempt',{key:receipt.key},{fullJson:true}),
+  error=>error.code==='OWN_LIQ_FORBIDDEN'&&error.status===403,'receiver gains no approval access to the old annulment-attempt route'));
  await sameStateReject(()=>ownAnnulPreparationOperation(db,reviewer.principal,reviewer.session,'detail',{id:receipt.id},{fullJson:true}),error=>error.code==='OWN_ANNUL_PREPARATION_FORBIDDEN'&&error.status===403,'checker without prepare cannot use209');
  // Verify ALL855 and both runs FIRST. Date filtering below is local only.
  const projectionBefore=readSnapshot(),traceStart=db.trace.length,projection=await preparation(receipt.id);
@@ -195,7 +219,13 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
   measurements.projections.push({receiptVersion:projection.source.receiptVersion,accept,wireBytes,maximumBytes:accept===OWN_RUN_FULL_JSON?FULL:FOUR,affected:855,projectedRuns:2,above4MiB:wireBytes>FOUR});
   assert.deepEqual(readSnapshot(),projectionBefore);
  }
- for(const capture of captures)await sameStateReject(()=>liq('detail',{id:capture.id},false),error=>error.code==='OWN_LIQ_LIMIT'&&error.status===422,'actual855/17100 capture above4MiB still rejects whole legacy download');
+ for(const {capture,legacyCase} of captureNegativeCases){
+  await db.expectQueryError({
+   caseId:legacyCase,nativeCode:'OWN_LIQ_LIMIT',
+   text:'SELECT public.own_liquidation_detail_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,capture.id]
+  },()=>sameStateReject(()=>liq('detail',{id:capture.id},false),error=>error.code==='OWN_LIQ_LIMIT'&&error.status===422,
+   'actual855/17100 capture above4MiB still rejects whole legacy download'));
+ }
  assertSameOwnAnnulPreparation(projection,await preparation(receipt.id));
  const legacy=await preparation(base.annulled.id);assert.equal(legacy.source.receiptVersion,'own-annul-receipt.v1');assert.equal(legacy.affected.length,855);assert.equal(legacy.runs.length,1);assert.equal(legacy.runs[0].id,first.id);assert.equal(legacy.scopeVersion,bootstraps.receiver.scopeVersion);
  ok(true,'real third managed preparer reads complete855 from two distinct creator scopes while old gates and checker separation remain intact');
@@ -239,7 +269,12 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const revoked=await nativeRejected('revoked-session','ACTION_SESSION_INVALID',{changes:[`UPDATE ${schema}.tenant_identity_session SET status='revoked',revoked_at=transaction_timestamp(),revoked_by_user_email=${q(qa.actor.actorEmail)},version=version+1 WHERE id=${q(currentContext.actorSessionId)}::uuid`]});assert.equal(revoked.status,401);
  const denied=await nativeRejected('prepare-revoked','OWN_ANNUL_PREPARATION_FORBIDDEN',{changes:[`INSERT INTO ${schema}.tenant_membership_capability_override(membership_id,capability_key,allow_override,deny_override,reason,granted_by_user_email) VALUES(${q(currentContext.membershipId)}::uuid,'payroll.calculation.prepare',false,true,${q(reason)},${q(qa.actor.actorEmail)})`]});assert.equal(denied.status,403);
  const bindingError=await nativeRejected('binding-unverified','ACTION_SOURCE_BINDING_REQUIRED',{changes:[`UPDATE ${schema}.platform_tenant_source_binding SET verified=false,verified_at=NULL WHERE id=${q(qa.ids.binding)}::uuid`]});assert.equal(bindingError.status,503);assert.equal(bindingError.code,'OWN_ANNUL_PREPARATION_UNAVAILABLE');
- await sameStateReject(()=>preparation(randomUUID()),error=>error.code==='OWN_ANNUL_PREPARATION_NOT_FOUND'&&error.status===404,'unknown source ID never exposes another receipt');
+ const unknownSourceId=randomUUID();
+ await db.expectQueryError({
+  caseId:'209-unknown-source',nativeCode:'OWN_ANNUL_PREPARATION_NOT_FOUND',
+  text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,unknownSourceId]
+ },()=>sameStateReject(()=>preparation(unknownSourceId),error=>error.code==='OWN_ANNUL_PREPARATION_NOT_FOUND'&&error.status===404,
+  'unknown source ID never exposes another receipt'));
  const ledger=()=>db.run(`SELECT jsonb_build_object('captures',(SELECT count(*)::integer FROM own_payroll_run_capture c WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'saved',(SELECT count(*)::integer FROM own_payroll_run_capture c JOIN own_payroll_run_result r ON r.capture_id=c.id WHERE c.tenant_id=${q(qa.actor.tenantId)}::uuid AND c.source_binding_id=${q(qa.ids.binding)}::uuid AND c.body->>'period'=${q(period)} AND c.body->>'liquidationType'='monthly'),'creators',(SELECT count(DISTINCT actor_membership_id)::integer FROM own_payroll_run_capture WHERE tenant_id=${q(qa.actor.tenantId)}::uuid AND source_binding_id=${q(qa.ids.binding)}::uuid AND body->>'period'=${q(period)} AND body->>'liquidationType'='monthly'),'liquidationEvents',(SELECT count(*)::integer FROM own_payroll_liquidation_event),'closeEvents',(SELECT count(*)::integer FROM own_payroll_close_event))`);
  let previous=projection,census=await ledger();assert.equal(census.captures,12);assert.equal(census.saved,12);assert.equal(census.creators,2);measurements.census.push({stage:'after-two-creator-annulment',...census});
  // SEPARATE INDIVIDUAL124 PHASE. H1/projection and its12/12/2 census above
@@ -272,7 +307,11 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const decisionConfirmedRows=new Map(decisionConfirm.affected.map(row=>[row.contractId,row]));
  for(const row of decisionReceipt.affected){const confirmed=decisionConfirmedRows.get(row.contractId);assert.ok(confirmed);assert.equal(row.liquidationVersion,confirmed.liquidationVersion);assert.equal(row.version,confirmed.version+1);}
  assert.deepEqual(await liq('attempt',{key:decisionReceipt.key}),{...decisionReceipt,replayed:true});
- await sameStateReject(()=>ownLiquidationOperation(db,accesses.creator1.principal,accesses.creator1.session,'attempt',{key:decisionReceipt.key},{fullJson:true}),error=>error.code==='OWN_LIQ_NOT_FOUND'&&error.status===404,'P cannot recover R\'s individual receipt even knowing its key');
+ await db.expectQueryError({
+  caseId:'209-creator1-reviewer-receipt',nativeCode:'OWN_LIQ_NOT_FOUND',
+  text:'SELECT public.own_liquidation_attempt_v1($1::jsonb,$2::uuid) AS result',values:[creator1NativeContext,decisionReceipt.key]
+ },()=>sameStateReject(()=>ownLiquidationOperation(db,accesses.creator1.principal,accesses.creator1.session,'attempt',{key:decisionReceipt.key},{fullJson:true}),
+  error=>error.code==='OWN_LIQ_NOT_FOUND'&&error.status===404,'P cannot recover R\'s individual receipt even knowing its key'));
  const decisionDraft=ownLiquidationDecisionPreparation(await readDetail(captures[0].id),decisionReceipt.id);assert.deepEqual(decisionDraft.selection,{kind:'contracts',values:[...decisionIds].sort()});assert.equal(decisionDraft.liquidationDate,dates[0]);assert.equal(decisionDraft.runId,captures[0].id);
  const decisionAfter=(await readIndex()).index.find(row=>row.id===captures[0].id).states;assert.deepEqual(decisionAfter,{...decisionBefore,calculated:decisionBefore.calculated-decisionIds.length,annulled:decisionBefore.annulled+decisionIds.length});
  const decisionCensus=await ledger();assert.deepEqual(decisionCensus,{...decisionLedgerBefore,liquidationEvents:decisionLedgerBefore.liquidationEvents+2});assert.notDeepEqual(readSnapshot(),decisionSnapshotBefore);
@@ -325,7 +364,9 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(originalAffectedEmployee.state,'annulled');const stateBefore=await readDetail(captures[1].id);
  assert.equal(stateBefore.employees.find(row=>row.contractId===affectedId).state,'calculated');
  const reconfirmed=await confirm(captures[1],[affectedId]);assert.equal(reconfirmed.affected.length,1);
- await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'global confirmation on another creator blocks whole historical preparation');
+ await db.expectQueryError({caseId:'209-after-other-creator-confirmation',nativeCode:'OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',
+  text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,receipt.id]},
+  ()=>sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'global confirmation on another creator blocks whole historical preparation'));
  // Distinct negative phase after the real cross-creator reconfirmation. Its
  // result cannot substitute the positive handoffBrowser proof or enable its flag.
  const rejectionBefore=readSnapshot();
@@ -346,7 +387,9 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // real combined state; it is not an isolated counterfactual close predicate.
  const closing=await close('detail',query),closedNow=await close('command',{key:randomUUID(),body:{...query,scopeVersion:closing.scopeVersion,stateVersion:closing.stateVersion,selection:contractsSelection([affectedId]),command:'close',groupId:null,reason,reviewConfirmed:true}});
  assert.equal(closedNow.snapshot.employeeCount,1);
- await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'active native close blocks whole historical preparation');
+ await db.expectQueryError({caseId:'209-after-native-single-close',nativeCode:'OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',
+  text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,receipt.id]},
+  ()=>sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'active native close blocks whole historical preparation'));
  const reopening=await close('detail',query);await close('command',{key:randomUUID(),body:{...query,scopeVersion:reopening.scopeVersion,stateVersion:reopening.stateVersion,selection:contractsSelection([affectedId]),command:'reopen',groupId:closedNow.groupId,reason,reviewConfirmed:true}});
  index=await readIndex();const finalReview=await loadOwnAnnulReview(index,readDetail),finalBody={version:'own-annul-command.v2',...query,scopeVersion:index.scopeVersion,stateVersion:index.stateVersion,reviewSha256:index.reviewSha256,selection:contractsSelection([affectedId]),reason,reviewConfirmed:true};
  const finalAttempt=ownAnnulReviewAttempt(randomUUID(),finalBody,'qa-native209-final:'+qa.checker.membershipId,ownAnnulReviewSelection(finalReview,finalBody.selection)),finalAnnulled=await annul('command-v2',{key:finalAttempt.key,body:finalAttempt.body});await verifiedOwnAnnulReviewReceipt(finalAnnulled,finalAttempt);assert.equal(finalAnnulled.affected.length,1);
@@ -475,7 +518,9 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.deepEqual(confirmedIndex.liquidationHistory.filter(row=>!confirmationIds.has(row.id)),recalcIndex.liquidationHistory);
  assert.deepEqual(confirmedIndex.closeHistory,recalcIndex.closeHistory);assert.deepEqual(confirmedIndex.closed,recalcIndex.closed);
  for(const decision of confirmationReceipts)assert.deepEqual(confirmedIndex.liquidationHistory.find(row=>row.id===decision.id),{id:decision.id,runId:decision.runId,bodySha256:decision.bodySha256});
- await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'original209 preparation rejects the newly confirmed global state without a write');
+ await db.expectQueryError({caseId:'209-after-recalculation-confirmations',nativeCode:'OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',
+  text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,receipt.id]},
+  ()=>sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'original209 preparation rejects the newly confirmed global state without a write'));
  // SEPARATE POSITIVE AGREEMENT PHASE. The original confirmations retain their
  // exact +2 events and index15 above. Capture0's complete285 convenio1 is now
  // confirmed and unclosed. SQL124 cannot confirm an annulled source again:
@@ -531,7 +576,12 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const sourceByContract=new Map(activeCloseCaptures.flatMap(capture=>capture.saved.input.employees.map(employee=>[employee.contractId,capture])));
  for(const row of closeDetail.rows){const capture=sourceByContract.get(row.contractId);assert.equal(row.runId,capture.id);assert.equal(row.resultSha256,capture.saved.resultSha256);assert.deepEqual(closeDetail.captures.find(value=>value.id===row.runId).saved,capture.saved);}
  let legacyDetailRejected=false;
- if(closeDetailBytes>FOUR){await sameStateReject(()=>close('detail',query,false),error=>error.code==='OWN_CLOSE_LIMIT'&&error.status===422,'legacy close detail rejects the measured whole source above4MiB');legacyDetailRejected=true;}
+ if(closeDetailBytes>FOUR){
+  await db.expectQueryError({caseId:'209-legacy-close-detail',nativeCode:'OWN_CLOSE_LIMIT',
+   text:'SELECT public.own_close_detail_v1($1::jsonb,$2::text,$3::text) AS result',values:[reviewerNativeContext,period,'monthly']},
+   ()=>sameStateReject(()=>close('detail',query,false),error=>error.code==='OWN_CLOSE_LIMIT'&&error.status===422,'legacy close detail rejects the measured whole source above4MiB'));
+  legacyDetailRejected=true;
+ }
  const closeBody={...query,scopeVersion:closeDetail.scopeVersion,stateVersion:closeDetail.stateVersion,selection:contractsSelection(contracts),command:'close',groupId:null,reason,reviewConfirmed:true},closeKey=randomUUID();
  assert.notEqual(closeKey,receipt.key);assert.ok(!confirmationReceipts.some(row=>row.key===closeKey));assert.ok(!recalculated.some(row=>row.key===closeKey));
  const closedRecalculation=await close('command',{key:closeKey,body:closeBody});assert.equal(closedRecalculation.replayed,false);assert.equal(closedRecalculation.key,closeKey);assert.deepEqual(closedRecalculation.body,closeBody);assert.notEqual(closedRecalculation.groupId,closed.groupId);
@@ -545,14 +595,27 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const closedSnapshot=readSnapshot(),closedLedger=await ledger();assert.deepEqual(closedLedger,{...agreementAfter,closeEvents:agreementAfter.closeEvents+1});
  const closeIdentity=value=>{assert.equal(value.replayed,true);for(const field of['version','id','key','bodySha256','groupId','snapshotSha256','recordedAt'])assert.equal(value[field],closedRecalculation[field]);assert.deepEqual(value.body,closedRecalculation.body);assert.deepEqual(value.snapshot,snapshot);};
  const closeRecoveryMeasurements=[];let legacyReceiptRejections=0;
- for(const[operation,input]of[['group',{id:closedRecalculation.groupId}],['attempt',{key:closeKey}],['command',{key:closeKey,body:closeBody}]]){
-  const value=await close(operation,input);closeIdentity(value);assert.deepEqual(readSnapshot(),closedSnapshot);assert.deepEqual(await ledger(),closedLedger);closeRecoveryMeasurements.push({operation,bytes:bytes(value),recoveryAndReplayAddedRows:0,storedIdentityAndHashesExact:true});
-  if(bytes(value)>FOUR){await sameStateReject(()=>close(operation,input,false),error=>error.code==='OWN_CLOSE_LIMIT'&&error.status===422,'legacy '+operation+' rejects this measured full receipt without truncation');legacyReceiptRejections++;}
+ const closeLegacyCases=[
+  {operation:'group',input:{id:closedRecalculation.groupId},caseId:'209-legacy-close-group',text:'SELECT public.own_close_group_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,closedRecalculation.groupId]},
+  {operation:'attempt',input:{key:closeKey},caseId:'209-legacy-close-attempt',text:'SELECT public.own_close_attempt_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,closeKey]},
+  {operation:'command',input:{key:closeKey,body:closeBody},caseId:'209-legacy-close-command',text:'SELECT public.own_close_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[reviewerNativeContext,JSON.stringify(ownCloseCommand(closeBody)),closeKey]}
+ ];
+ for(const {operation,input,caseId,text,values} of closeLegacyCases){
+  const value=await close(operation,input);closeIdentity(value);
+  assert.deepEqual(readSnapshot(),closedSnapshot);assert.deepEqual(await ledger(),closedLedger);
+  closeRecoveryMeasurements.push({operation,bytes:bytes(value),recoveryAndReplayAddedRows:0,storedIdentityAndHashesExact:true});
+  if(bytes(value)>FOUR){
+   await db.expectQueryError({caseId,nativeCode:'OWN_CLOSE_LIMIT',text,values},
+    ()=>sameStateReject(()=>close(operation,input,false),error=>error.code==='OWN_CLOSE_LIMIT'&&error.status===422,'legacy '+operation+' rejects this measured full receipt without truncation'));
+   legacyReceiptRejections++;
+  }
  }
  const closedIndex=await preserveAfterAgreementHistory();assert.deepEqual(closedIndex.index.map(row=>({id:row.id,states:row.states,confirmedContractIds:row.confirmedContractIds})),activeConfirmedIndex.index.map(row=>({id:row.id,states:row.states,confirmedContractIds:row.confirmedContractIds})));assert.deepEqual(closedIndex.liquidationHistory,activeConfirmedIndex.liquidationHistory);
  assert.deepEqual(closedIndex.closeHistory.filter(row=>row.id!==closedRecalculation.id),activeConfirmedIndex.closeHistory);assert.deepEqual(closedIndex.closeHistory.find(row=>row.id===closedRecalculation.id),{id:closedRecalculation.id,bodySha256:closedRecalculation.bodySha256,snapshotSha256:closedRecalculation.snapshotSha256});
  const newClosedReferences=contracts.map(contractId=>({runId:sourceByContract.get(contractId).id,contractId,groupId:closedRecalculation.groupId}));assert.deepEqual(closedIndex.closed,[...activeConfirmedIndex.closed,...newClosedReferences].sort((left,right)=>left.contractId<right.contractId?-1:1));
- await sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'original209 preparation rejects the active new closure without a write');
+ await db.expectQueryError({caseId:'209-after-new-full-close',nativeCode:'OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED',
+  text:'SELECT public.own_annul_preparation_full_v1($1::jsonb,$2::uuid) AS result',values:[receiverNativeContext,receipt.id]},
+  ()=>sameStateReject(()=>preparation(receipt.id),error=>error.code==='OWN_ANNUL_PREPARATION_CURRENT_STATE_CHANGED'&&error.status===409,'original209 preparation rejects the active new closure without a write'));
  for(const capture of recalculated)assert.deepEqual((await readDetail(capture.id)).capture.saved,capture.saved);
  assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);for(const capture of captures)assert.deepEqual((await readDetail(capture.id)).capture.saved,capture.saved);assert.deepEqual((await readDetail(recovered124.id)).capture.saved,recovered124.saved);assert.deepEqual((await readDetail(agreementReplacement.id)).capture.saved,agreementReplacement.saved);
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);

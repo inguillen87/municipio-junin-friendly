@@ -12,13 +12,23 @@ import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOUR
 import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
-import {OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+import {OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
 const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));
 const historicalRaw=(file,encoding)=>{const current=projectOwnerReaderCallerRawSourceToParent(file,projectCurrent190UiRawSourceToParent(file,projectCurrent190RevocationRawSourceToParent(file,receipt126ParentRaw(file)))),parent=projectOwnNative645RawSourceToParent(file,current);assert.ok(encoding===undefined||encoding==='utf8');return encoding?parent.toString('utf8'):parent;};
 const read=file=>projectOwnD7ArtifactWorkflowToParent(file,projectOwnClaude209HandoffSourceToParent(file,projectOwnIndividualHandoffSourceToParent(file,projectOwnClaude124EntrySourceToParent(file,projectOwnMonetarySourceToParent(file,historicalRaw(file,'utf8')))))),hash=value=>createHash('sha256').update(value).digest('hex');
+
+test('expected native adapters retain exact new sources, runtime closure and CI focal',()=>{
+ const wrapper=fs.readFileSync(new URL('../scripts/verify-own-payroll-full-capacity.mjs',import.meta.url),'utf8'),workflow=fs.readFileSync(new URL('../.github/workflows/own-payroll-full-capacity.yml',import.meta.url),'utf8');
+ assert.equal(Object.keys(OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS).length,2);
+ for(const[file,pin]of Object.entries(OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS)){
+  const raw=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(raw.length,pin.bytes,file);assert.equal(hash(raw),pin.sha256,file);
+  assert.ok(wrapper.includes("'"+file+"'"),file);assert.ok(workflow.slice(workflow.indexOf('path: |')).includes(file),file);
+ }
+ assert.ok(workflow.includes('run: node --test tests/own-payroll-expected-native-rpc.test.js'));
+});
 // Inert workflow custody only. Existing source guards receive their exact9e6 parent.
 function projectOwnD7ArtifactWorkflowToParent(file,value){
  if(file!=='.github/workflows/own-payroll-full-capacity.yml')return value;

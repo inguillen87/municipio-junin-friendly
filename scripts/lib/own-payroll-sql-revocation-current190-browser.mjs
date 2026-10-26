@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
@@ -17,8 +18,8 @@ const LIQ='/api/internal-own-payroll-liquidation';
 const BOOT='SELECT public.own_liquidation_bootstrap_v1($1::jsonb) AS result';
 const DETAIL='SELECT public.own_liquidation_detail_full_v1($1::jsonb,$2::uuid) AS result';
 const CASES=Object.freeze([
- {capability:'payroll.calculation.approve',nativeCode:'OWN_LIQ_FORBIDDEN'},
- {capability:'payroll.calculation.nominal.read',nativeCode:'OWN_RUN_FORBIDDEN'}
+ {caseId:'855-revocation-approval',capability:'payroll.calculation.approve',nativeCode:'OWN_LIQ_FORBIDDEN'},
+ {caseId:'855-revocation-nominal',capability:'payroll.calculation.nominal.read',nativeCode:'OWN_RUN_FORBIDDEN'}
 ]);
 const ASSETS=Object.freeze(['own-payroll-liquidation-panel.js','own-payroll-liquidation-model.js',
  'own-payroll-individual-panel.js','own-payroll-response.js','own-payroll-run-workspace-model.js',
@@ -35,14 +36,14 @@ export async function verifyOwnSqlRevocationBrowserOn190(context){
  assert.equal(qa.operationalPairBaseline,'published107');
  assert.equal(capture.saved.result.employeeCount,855);assert.equal(capture.saved.result.rowCount,17100);
  assert.equal(capture.saved.input.rules.length,20);assert.equal(typeof readSnapshot,'function');
- assert.equal(typeof db.query,'function');assert.equal(typeof db.run,'function');
+ assert.equal(typeof db.query,'function');assert.equal(typeof db.run,'function');assert.equal(typeof db.expectQueryError,'function');
  assert.equal(reviewer.principal.authorized,true);assert.equal(reviewer.principal.session.mfa,true);
  assert.equal(reviewer.session.id,qa.checker.actorSessionId);assert.equal(maker.session.id,qa.actor.actorSessionId);
  assert.equal(reviewer.principal.tenant.membershipId,qa.checker.membershipId);
  assert.notEqual(qa.actor.membershipId,qa.checker.membershipId);
  assert.ok(OWN_LIQ_REVIEW.every(cap=>reviewer.principal.tenant.effectiveCapabilities.includes(cap)));
  assert.ok(!reviewer.principal.tenant.effectiveCapabilities.includes('payroll.calculation.prepare'));
- const stalePrincipal=structuredClone(reviewer.principal),staleSession=structuredClone(reviewer.session);
+ const stalePrincipal=structuredClone(reviewer.principal),staleSession=structuredClone(reviewer.session),reviewerContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  const sameClient=()=>{assert.deepEqual(reviewer.principal,stalePrincipal);assert.deepEqual(reviewer.session,staleSession);};
  const schema=qa.schema,overrideTable=schema+'.tenant_membership_capability_override';
  const readRow=capability=>h.json([`SELECT to_jsonb(o) FROM ${overrideTable} o WHERE membership_id=${q(qa.checker.membershipId)}::uuid AND capability_key=${q(capability)}`],{readOnly:true});
@@ -131,8 +132,12 @@ export async function verifyOwnSqlRevocationBrowserOn190(context){
     assert.deepEqual(revoked.overrides,beforeAudit.overrides.map(row=>rowKey(row)===rowKey(original)?denied:row));
     const expectedEffective=beforeAudit.effective.map(row=>row.membershipId===qa.checker.membershipId?{...row,capabilities:row.capabilities.filter(cap=>cap!==probe.capability)}:row);
     assert.deepEqual(revoked.effective,expectedEffective);assert.equal(revoked.reviewerRole,beforeAudit.reviewerRole);
-    await $('history').locator('[data-liq-run-id="'+capture.id+'"]').click();const observed=await response;if(observed.error)throw observed.error;const forbidden=observed.value;assert.equal((await forbidden.json()).code,'OWN_LIQ_FORBIDDEN');await settled();
-    assert.ok(nativeDenials.length>nativeBefore);assert.ok(nativeDenials.slice(nativeBefore).every(row=>row.capability===probe.capability&&row.nativeCode===probe.nativeCode&&row.runId===capture.id));
+    const detailBefore=detailCalls.length;
+    await db.expectQueryError({caseId:probe.caseId,nativeCode:probe.nativeCode,text:DETAIL,values:[reviewerContext,capture.id]},async()=>{
+     await $('history').locator('[data-liq-run-id="'+capture.id+'"]').click();const observed=await response;if(observed.error)throw observed.error;const forbidden=observed.value;assert.equal((await forbidden.json()).code,'OWN_LIQ_FORBIDDEN');await settled();
+     assert.equal(nativeDenials.length,nativeBefore+1);assert.equal(detailCalls.length,detailBefore+1);
+     assert.ok(nativeDenials.slice(nativeBefore).every(row=>row.capability===probe.capability&&row.nativeCode===probe.nativeCode&&row.runId===capture.id));
+    });
     assert.equal(await $('detail').isHidden(),true);assert.equal(await $('review').isHidden(),true);assert.equal(await $('individual').isHidden(),true);
     for(const key of ['history','totals','rows','trace','values','review-rows','review-totals','individual','summary','range','page','review-summary','review-range','review-page'])assert.equal((await $(key).innerText()).trim(),'','REVOCATION190_NOMINAL_VIEW_RETAINED:'+key);
     for(const key of ['command','kind','reason'])assert.equal(await $(key).inputValue(),'');assert.equal(await $('confirm').isChecked(),false);

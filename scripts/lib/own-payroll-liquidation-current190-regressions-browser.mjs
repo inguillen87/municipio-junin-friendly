@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
 import {createCanonical190BrowserHost,PUBLIC_ROOT} from './own-payroll-canonical190-browser-host-qa.mjs';
@@ -58,6 +59,7 @@ export async function verifyOwnLiquidationCurrent190Regressions(context,fixture)
  const extraCalculated=detailBefore.employees.find(employee=>employee.state==='calculated'&&employee.blockedBy===null&&!contractIds.includes(employee.contractId));assert.ok(extraCalculated);
  exact(fixture.actors,['reviewer','creator','receiver']);
  const {reviewer,creator,receiver}=fixture.actors;
+ const reviewerNativeContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  for(const actor of[reviewer,creator,receiver]){assert.equal(actor.principal.authorized,true);assert.equal(actor.principal.session.mfa,true);assert.equal(actor.session.id,actor.raw.actorSessionId);}
  assert.ok(OWN_LIQ_REVIEW.every(cap=>reviewer.principal.tenant.effectiveCapabilities.includes(cap)));
  assert.ok(!reviewer.principal.tenant.effectiveCapabilities.includes('payroll.calculation.prepare'));
@@ -144,7 +146,10 @@ export async function verifyOwnLiquidationCurrent190Regressions(context,fixture)
   assert.equal(frozen.body.command,'confirm');assert.deepEqual(frozen.body.selection,{kind:'contracts',values:sorted(contractIds)});
   assert.deepEqual(readSnapshot(),before);assert.deepEqual(await ledger(),beforeLedger);
   await $('reason').evaluate(element=>{element.value='DOM cannot replace the original pending reason';element.dispatchEvent(new Event('input',{bubbles:true}));});
-  await $('recover').click();await settled();assert.equal(await $('revise').isVisible(),true);assert.equal(attemptReads.at(-1).status,404);assert.equal(posts.length,1);
+  const attemptsBeforeMissing=attemptReads.length;
+  await db.expectQueryError({caseId:'855-browser-liquidation-unsent-recover',nativeCode:'OWN_LIQ_NOT_FOUND',text:'SELECT public.own_liquidation_attempt_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,frozen.key]},async()=>{
+   await $('recover').click();await settled();assert.equal(await $('revise').isVisible(),true);assert.equal(attemptReads.length,attemptsBeforeMissing+1);assert.deepEqual(attemptReads.at(-1),{status:404,keyJsonSha256:sha(frozen.key)});assert.equal(posts.length,1);assert.deepEqual(readSnapshot(),before);assert.deepEqual(await ledger(),beforeLedger);
+  });
   assert.deepEqual(readSnapshot(),before);assert.deepEqual(await ledger(),beforeLedger);
   // Same explicit pending send reaches124 exactly once; only its ACK is lost.
   loss='after';await $('send').click();await settled();assert.equal(posts.length,2);assert.equal(posts[1].reachedSql,true);assert.equal(posts[1].replayed,false);assert.ok(committedReceipt);assert.equal(await $('recover').isVisible(),true);

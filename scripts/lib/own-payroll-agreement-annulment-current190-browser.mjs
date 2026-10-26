@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 import {OWN_LIQ_REVIEW,verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_FULL_JSON} from '../../assets/own-payroll-response.js';
 import {createCanonical190BrowserHost,PUBLIC_ROOT} from './own-payroll-canonical190-browser-host-qa.mjs';
@@ -26,6 +27,7 @@ export async function verifyOwnAgreementAnnulmentRecoveryOn190(context,fixture){
  for(const value of[db.query,db.run,readSnapshot,readLedger])assert.equal(typeof value,'function');
  exact(fixture,['run','detailBefore','actors','reason']);exact(fixture.actors,['reviewer','creator']);
  const{run,detailBefore,actors,reason}=fixture;assert.ok(typeof reason==='string'&&reason.length>=10);
+ const reviewerNativeContext=JSON.stringify(employeeContext(actors.reviewer.principal,actors.reviewer.session));
  for(const actor of Object.values(actors)){exact(actor,['principal','session','raw','roleKey']);assert.equal(actor.principal.authorized,true);assert.equal(actor.principal.session.mfa,true);assert.equal(actor.session.id,actor.raw.actorSessionId);assert.equal(actor.principal.tenant.membershipId,actor.raw.membershipId);}
  assert.ok(OWN_LIQ_REVIEW.every(cap=>actors.reviewer.principal.tenant.effectiveCapabilities.includes(cap)));assert.ok(!actors.reviewer.principal.tenant.effectiveCapabilities.includes('payroll.calculation.prepare'));
  assert.notEqual(actors.reviewer.raw.membershipId,actors.creator.raw.membershipId);assert.equal(run.saved.result.employeeCount,285);assert.equal(run.saved.result.rowCount,5700);assert.equal(run.saved.input.rules.length,20);
@@ -69,9 +71,15 @@ export async function verifyOwnAgreementAnnulmentRecoveryOn190(context,fixture){
   await $('confirm').check();loseBefore=true;await $('send').click();await settled();assert.equal(posts.length,1);assert.equal(posts[0].reachedSql,false);assert.equal(posts[0].receipt,null);const frozen=structuredClone({key:posts[0].key,body:posts[0].body});
   assert.deepEqual(frozen.body,{runId:detailBefore.id,resultSha256:run.saved.resultSha256,scopeVersion:detailBefore.scopeVersion,stateVersion:detailBefore.stateVersion,command:'annul',selection:{kind:'agreements',values:['1']},reason,reviewConfirmed:true});
   assert.deepEqual(readSnapshot(),before);assert.deepEqual(await readLedger(),beforeLedger);assert.equal(await $('recover').isVisible(),true);
-  const missing=await get(ENDPOINT+'?resource=attempt&key='+frozen.key);assert.equal(missing.response.status(),404);assert.equal(missing.body.code,'OWN_LIQ_NOT_FOUND');assert.deepEqual(readSnapshot(),before);
+  await db.expectQueryError({caseId:'855-browser-agreement-unsent-oracle',nativeCode:'OWN_LIQ_NOT_FOUND',text:'SELECT public.own_liquidation_attempt_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,frozen.key]},async()=>{
+   const missing=await get(ENDPOINT+'?resource=attempt&key='+frozen.key);assert.equal(missing.response.status(),404);assert.equal(missing.body.code,'OWN_LIQ_NOT_FOUND');assert.deepEqual(readSnapshot(),before);assert.deepEqual(await readLedger(),beforeLedger);assert.equal(posts.length,1);
+  });
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});assert.equal(await $('detail').isHidden(),true);assert.equal(await $('totals').innerText(),'');assert.equal(await $('review-rows').locator('tr').count(),0);
-  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});await $('refresh').click();await settled();await $('recover').click();await settled();assert.equal(await $('revise').isVisible(),true);assert.equal(await $('send').isEnabled(),true);assert.deepEqual(readSnapshot(),before);assert.deepEqual(await readLedger(),beforeLedger);
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});await $('refresh').click();await settled();
+  const attemptsBeforeMissing=attemptReads.length;
+  await db.expectQueryError({caseId:'855-browser-agreement-unsent-recover',nativeCode:'OWN_LIQ_NOT_FOUND',text:'SELECT public.own_liquidation_attempt_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,frozen.key]},async()=>{
+   await $('recover').click();await settled();assert.equal(await $('revise').isVisible(),true);assert.equal(await $('send').isEnabled(),true);assert.equal(attemptReads.length,attemptsBeforeMissing+1);assert.deepEqual(attemptReads.at(-1),{status:404,keySha256:sha(frozen.key)});assert.deepEqual(readSnapshot(),before);assert.deepEqual(await readLedger(),beforeLedger);assert.equal(posts.length,1);
+  });
   await $('reason').evaluate(element=>{element.value='DOM edit cannot replace the original agreement annulment reason';element.dispatchEvent(new Event('input',{bubbles:true}));});
   await $('send').click();await settled();assert.equal(posts.length,2);assert.equal(posts[1].reachedSql,true);assert.deepEqual({key:posts[1].key,body:posts[1].body},frozen);
   receipt=await verifiedOwnLiquidationReceipt(posts[1].receipt);assert.equal(receipt.replayed,false);assert.equal(receipt.key,frozen.key);assert.deepEqual(receipt.body,frozen.body);assert.equal(receipt.runId,run.id);assert.equal(receipt.resultSha256,run.saved.resultSha256);assert.equal(receipt.affected.length,285);assert.deepEqual(sorted(receipt.affected.map(row=>row.contractId)),sorted([...people.keys()]));

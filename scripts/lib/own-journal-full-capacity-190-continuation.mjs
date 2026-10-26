@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {journalOperation} from '../../lib/internal-own-payroll-journal.js';
-import {JOURNAL_READ,JOURNAL_CAPS,journalSource,journalDetail,calculateJournal,prepareJournal,decideJournal,journalReceipt} from '../../assets/own-payroll-journal-model.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
+import {JOURNAL_READ,JOURNAL_CAPS,journalSource,journalDetail,calculateJournal,prepareJournal,decideJournal,journalReceipt,journalCommand} from '../../assets/own-payroll-journal-model.js';
 import {accountingHash} from '../../assets/own-payroll-accounting-model.js';
 const LEGACY=16*1024*1024,FULL=32*1024*1024,bytes=v=>Buffer.byteLength(JSON.stringify(v),'utf8');
 
@@ -38,6 +39,7 @@ export async function runOwnJournalFullCapacity190Continuation({h,db,maker,revie
  for(const [value,actor]of [[maker,h.qa.actor],[reviewer,h.qa.checker]]){assert.equal(value.principal.authorized,true);assert.equal(value.principal.session.mfa,true);assert.equal(value.principal.tenant.membershipId,actor.membershipId);assert.equal(value.session.id,actor.actorSessionId);}
  for(const capability of [...JOURNAL_READ,...JOURNAL_CAPS.propose])assert.ok(maker.principal.tenant.effectiveCapabilities.includes(capability),capability);
  for(const capability of [...JOURNAL_READ,...JOURNAL_CAPS.post])assert.ok(reviewer.principal.tenant.effectiveCapabilities.includes(capability),capability);
+ const makerContext=JSON.stringify(employeeContext(maker.principal,maker.session));
  const makerOp=(operation,input,fullJson=true)=>journalOperation(db,maker.principal,maker.session,operation,input,{fullJson});
  const reviewerOp=(operation,input,fullJson=true)=>journalOperation(db,reviewer.principal,reviewer.session,operation,input,{fullJson});
  const rejected=async(operation,predicate,label)=>{const before=ledgerSnapshot(h);await sameStateReject(operation,predicate,label);assert.deepEqual(ledgerSnapshot(h),before,'JOURNAL190_FOUR_LEDGER_NEGATIVE_CHANGED');};
@@ -55,19 +57,21 @@ export async function runOwnJournalFullCapacity190Continuation({h,db,maker,revie
  const body=await prepareJournal(source,postingDate,rules,'Propuesta de asiento exclusivamente sintética del cierre855 real de QA190');
  assert.equal(body.journalSha256,await accountingHash(calculated));assert.ok(bytes({operation:'command',payload:body})<8*1024*1024);
  assert.ok(bytes(source)>LEGACY&&bytes({ok:true,data:source})<=FULL,'JOURNAL190_REAL_FULL_SOURCE_BUDGET');
- await rejected(()=>makerOp('source',{basis:'imputation',id:approvedImputation.proposal.id},false),e=>e.code==='JOURNAL_LIMIT'&&e.status===422,'legacy journal source refuses complete actual855 input without trimming or ledger changes');
- await rejected(()=>makerOp('command',{body:{...body,journalSha256:'0'.repeat(64)},key:randomUUID()}),e=>e.code==='JOURNAL_SOURCE_CHANGED','changed journal hash cannot create a proposal in any of the four ledgers');
+ await db.expectQueryError({caseId:'855-journal-legacy-imputation-source',nativeCode:'IMPUTATION_LIMIT',text:'SELECT public.own_journal_source_v1($1::jsonb,$2::text,$3::uuid) AS result',values:[makerContext,'imputation',approvedImputation.proposal.id]},()=>rejected(()=>makerOp('source',{basis:'imputation',id:approvedImputation.proposal.id},false),e=>e.code==='JOURNAL_LIMIT'&&e.status===422,'legacy journal source refuses complete actual855 input without trimming or ledger changes'));
+ const forgedJournalBody={...body,journalSha256:'0'.repeat(64)},forgedJournalKey=randomUUID();
+ await db.expectQueryError({caseId:'855-journal-forged-hash',nativeCode:'JOURNAL_SOURCE_CHANGED',text:'SELECT public.own_journal_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[makerContext,JSON.stringify(journalCommand(forgedJournalBody)),forgedJournalKey]},()=>rejected(()=>makerOp('command',{body:forgedJournalBody,key:forgedJournalKey}),e=>e.code==='JOURNAL_SOURCE_CHANGED','changed journal hash cannot create a proposal in any of the four ledgers'));
  const proposalKey=randomUUID(),proposed=await makerOp('command',{body,key:proposalKey});await journalReceipt(proposed,{body,key:proposalKey});
  assert.equal(proposed.status,'pending');assert.equal(proposed.accountingPosted,false);assert.equal(proposed.paymentExecuted,false);
  assert.equal(ledgerSnapshot(h).journal.count,baseline.journal.count+1);
  assert.deepEqual(await stable(()=>makerOp('command',{body,key:proposalKey})),{...proposed,replayed:true});
  assert.deepEqual(await stable(()=>makerOp('attempt',{key:proposalKey})),{...proposed,replayed:true});
- await rejected(()=>makerOp('command',{body:{...body,reason:'Cuerpo cambiado exclusivamente sintético'},key:proposalKey}),e=>e.code==='JOURNAL_IDEMPOTENCY_REUSE','same journal key with changed body fails atomically');
+ const changedJournalBody={...body,reason:'Cuerpo cambiado exclusivamente sintético'};
+ await db.expectQueryError({caseId:'855-journal-key-body-reuse',nativeCode:'JOURNAL_IDEMPOTENCY_REUSE',text:'SELECT public.own_journal_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[makerContext,JSON.stringify(journalCommand(changedJournalBody)),proposalKey]},()=>rejected(()=>makerOp('command',{body:changedJournalBody,key:proposalKey}),e=>e.code==='JOURNAL_IDEMPOTENCY_REUSE','same journal key with changed body fails atomically'));
  const pending=await reviewerOp('detail',{id:proposed.proposalId});await journalDetail(pending);assert.equal(pending.status,'pending');assert.equal(pending.canReview,true);
  assert.deepEqual(pending.body,body);assert.deepEqual(pending.journal,calculated);assert.equal(pending.requestSha256,await accountingHash(body));
  const makerBoot=await makerOp('bootstrap',query),selfBody={...body,command:'post',scopeVersion:makerBoot.scopeVersion,proposalId:pending.proposalId,proposalSha256:pending.requestSha256,reason:'Intento propio de revisión exclusivamente sintético'};
- let selfReviewRejectionCode;
- await rejected(()=>makerOp('command',{body:selfBody,key:randomUUID()}),e=>{selfReviewRejectionCode=e.code;return e.code==='JOURNAL_INDEPENDENT_REQUIRED'||e.code==='JOURNAL_FORBIDDEN';},'maker cannot register its own journal proposal (own authority and independent-review guards)');
+ let selfReviewRejectionCode;const selfPostKey=randomUUID();
+ await db.expectQueryError({caseId:'855-journal-author-post',nativeCode:'JOURNAL_FORBIDDEN',text:'SELECT public.own_journal_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[makerContext,JSON.stringify(journalCommand(selfBody)),selfPostKey]},()=>rejected(()=>makerOp('command',{body:selfBody,key:selfPostKey}),e=>{selfReviewRejectionCode=e.code;return e.code==='JOURNAL_FORBIDDEN'&&e.status===403;},'maker cannot register its own journal proposal (own authority and independent-review guards)'));
  const reviewBoot=await reviewerOp('bootstrap',query),postBody=await decideJournal(reviewBoot,pending,'post','Registro independiente exclusivamente sintético del asiento QA190');
  const postKey=randomUUID(),postedReceipt=await reviewerOp('command',{body:postBody,key:postKey});await journalReceipt(postedReceipt,{body:postBody,key:postKey});
  assert.equal(postedReceipt.accountingPosted,true);assert.equal(postedReceipt.paymentExecuted,false);
@@ -90,7 +94,7 @@ export async function runOwnJournalFullCapacity190Continuation({h,db,maker,revie
    assert.equal(historical.status,'posted');assert.equal(historical.sourceCurrent,false,'JOURNAL190_REOPEN_MUST_MAKE_ORIGINAL_HISTORICAL');
    assert.deepEqual(historical.body,posted.body);assert.deepEqual(historical.source,posted.source);assert.deepEqual(historical.journal,posted.journal);
    assert.equal(historical.requestSha256,posted.requestSha256);assert.equal(historical.journalSha256,posted.journalSha256);
-   await rejected(()=>makerOp('source',{basis:'imputation',id:approvedImputation.proposal.id}),e=>e.code==='JOURNAL_SOURCE_CHANGED','reopened close prevents a new initial journal while preserving its posted history');
+   await db.expectQueryError({caseId:'855-journal-new-source-after-reopen',nativeCode:'JOURNAL_SOURCE_CHANGED',text:'SELECT public.own_journal_source_full_v1($1::jsonb,$2::text,$3::uuid) AS result',values:[makerContext,'imputation',approvedImputation.proposal.id]},()=>rejected(()=>makerOp('source',{basis:'imputation',id:approvedImputation.proposal.id}),e=>e.code==='JOURNAL_SOURCE_CHANGED','reopened close prevents a new initial journal while preserving its posted history'));
    const reversalSource=await makerOp('source',{basis:'journal',id:posted.id});await journalSource(reversalSource);
    assert.equal(reversalSource.original.sourceCurrent,false);assert.equal(reversalSource.original.status,'posted');assert.equal(reversalSource.imputation,null);
    const reversalBody=await prepareJournal(reversalSource,postingDate,[],'Contrasiento exclusivamente sintético de un original histórico QA190');
@@ -111,7 +115,7 @@ export async function runOwnJournalFullCapacity190Continuation({h,db,maker,revie
    const reversalDetail=await makerOp('detail',{id:reversePosted.eventId});await journalDetail(reversalDetail);assert.equal(reversalDetail.status,'posted');assert.equal(reversalDetail.kind,'reversal');assert.deepEqual(reversalDetail.journal,reversedCalculation);
    const retained=await makerOp('detail',{id:posted.id});await journalDetail(retained);assert.equal(retained.status,'reversed');assert.equal(retained.reversedBy,reversePosted.eventId);assert.equal(retained.number,posted.number);
    assert.deepEqual(retained.body,posted.body);assert.deepEqual(retained.source,posted.source);assert.deepEqual(retained.journal,posted.journal);
-   await rejected(()=>makerOp('source',{basis:'journal',id:posted.id}),e=>e.code==='JOURNAL_DECIDED','an already reversed original cannot start another reversal');
+   await db.expectQueryError({caseId:'855-journal-second-reversal-source',nativeCode:'JOURNAL_DECIDED',text:'SELECT public.own_journal_source_full_v1($1::jsonb,$2::text,$3::uuid) AS result',values:[makerContext,'journal',posted.id]},()=>rejected(()=>makerOp('source',{basis:'journal',id:posted.id}),e=>e.code==='JOURNAL_DECIDED','an already reversed original cannot start another reversal'));
    const final=ledgerSnapshot(h);assert.equal(final.journal.count,baseline.journal.count+4);assert.deepEqual(final.accounting,baseline.accounting);assert.deepEqual(final.imputation,baseline.imputation);
    assert.notDeepEqual(final.close,baseline.close);assert.equal(final.close.count,baseline.close.count+1);
    assert.deepEqual(await stable(()=>reviewerOp('command',{body:postBody,key:postKey})),{...postedReceipt,replayed:true});

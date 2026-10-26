@@ -4,15 +4,16 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {Readable,Writable} from 'node:stream';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 
 const VERSION='own-receipt126-same190-circuit-source.v1',FULL=32*1024*1024;
 const FULL_JSON='application/vnd.municontrol.payroll-full.v1+json';
 const SOURCE_PINS=Object.freeze([
- ["scripts/lib/own-payroll-full-capacity-190-continuation.mjs",34482,"059b7da0e012d858b4147cadf60c855ee4deb97773e0f4ac68639b494a8d7c75"],
+ ["scripts/lib/own-payroll-full-capacity-190-continuation.mjs",38385,"5b1970aa5d8afecb7f407bdc9d3ee310586f87f3c129fab051f9ab2c3f15e00a"],
  ["scripts/lib/own-payroll-full-capacity-190-rpc.mjs",3957,"2743c3f4a9069a119500839ceb18e97a931b2a1feee8a27c1c363eb595e21d4f"],
  ["scripts/lib/own-payroll-full-capacity-190-installation.mjs",11446,"b8cf0c7854d0d2a2d5180bf711fff461c06bd4516d30e5153ab9163ab5b77aaa"],
  ["scripts/lib/own-payroll-report-census-190-iam-fixture.mjs",9508,"c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1"],
- ["scripts/lib/own-annulment-preparation-209-actors-fixture.mjs",23392,"816d1a9d187f181d8003442d2292be9c36dd1eaa98a4c6ae11b1d15681126781"],
+ ["scripts/lib/own-annulment-preparation-209-actors-fixture.mjs",23392,"3a1032013f116e332bc56066a6a3aac7402f7b323d437df58370c2cdd26da1e3"],
  ["scripts/lib/own-monthly-day-engine-circuit-fixture.mjs",11909,"77e62e74e9cfc80a2310f17bc81e90f5dde1e6a90072e28ae291152f34cf4d35"],
  ["scripts/lib/own-payroll-receipt-installation.mjs",9261,"0ac32b323abbe47661f1d2f29609829c05afd945e3b168be64ebc39ebf77dff6"],
  ["scripts/lib/own-payroll-receipt126-same190-inventory.mjs",7020,"ebd438ac7a791dec61a46223acece55b0b6d2599f901fb18f0a7406b4f2297cc"],
@@ -41,8 +42,8 @@ const SOURCE_PINS=Object.freeze([
  ["lib/private-json-body.js",3950,"fab88ee69c88ba5357df6e2184c03db6106f6f533a84f166c01c0c563e7de7f5"],
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
- ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",37794,"e9285a82ca99b99133192e4638bfcff323ffa39d52eb43867402df73413a4b8c"],
- ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18177,"5cbf1fb3bd6269be626df99faf572848509281cc0b79bd4920a905d9e58a3752"],
+ ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",37794,"b25b005a7d33d957461ee4d94051de71577c9f715ee235467062b6899dc4cab2"],
+ ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18177,"99a9b67ab911ad4737adadcecf75b0332d8ba721531d0eb8cbf94d9e92c467cc"],
  ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25756,"bf93dfc243ad5e37fdafec4a61ae0b7690d0b6eadeac76dd03fc5598db5f7a35"],
 ]);
 const RPC=new Map([
@@ -211,7 +212,17 @@ export async function runOwnReceipt126Same190Circuit(context,d){
   const filtered=d.ownReceiptVisibleRecords(snapshot,'SIN COINCIDENCIA SINTETICA QA126',1);assert.equal(filtered.rows.length,0);assert.equal(filtered.total,855);assert.equal(snapshot.records.length,855);check(true,'two full previews and no-match presentation preserve855/17100 and captured labels/units/totals');unchanged();
   const prepareBody=d.ownReceiptCommand({command:'prepare',scopeVersion:first.scopeVersion,sourceVersion:snapshot.sourceVersion,params,batchId:null,batchSha256:null,reason:'Preparación exclusivamente sintética de855 recibos completos',reviewConfirmed:false}),prepareKey=d.randomUUID();const prepared=await command(preparer,prepareBody,prepareKey);assert.equal(prepared.status,201);assert.equal(prepared.value.data.replayed,false);events.push(prepared.value.data);const batchId=prepared.value.data.batchId;assert.equal(batchId,prepared.value.data.id);
   for(const replay of [await command(preparer,prepareBody,prepareKey),await get(preparer,'attempt',{key:prepareKey})]){assert.equal(replay.status,200);assert.equal(replay.replayed,true);assert.deepEqual(replay.value.data,{...prepared.value.data,replayed:true});}
-  const changed=await command(preparer,{...prepareBody,reason:'Distinto cuerpo exclusivamente sintético de la misma clave'},prepareKey);assert.equal(changed.status,409);assert.equal(changed.value.code,'OWN_RECEIPT_IDEMPOTENCY_REUSE');const duplicate=await command(preparer,prepareBody,d.randomUUID());assert.equal(duplicate.status,409);assert.equal(duplicate.value.code,'OWN_RECEIPT_DUPLICATE');const foreign=await get(reviewer,'attempt',{key:prepareKey});assert.equal(foreign.status,404);assert.equal(foreign.value.code,'OWN_RECEIPT_NOT_FOUND');assert.equal(ledger(h).length,1);unchanged();
+  const preparerCtx=JSON.stringify(employeeContext(preparer.principal,preparer.session)),reviewerCtx=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
+  const changedBody={...prepareBody,reason:'Distinto cuerpo exclusivamente sintético de la misma clave'},duplicateKey=d.randomUUID();
+  await db.expectQueryError({caseId:'126-prepare-key-changed-body',nativeCode:'OWN_RECEIPT_IDEMPOTENCY_REUSE',text:'SELECT public.own_receipt_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[preparerCtx,JSON.stringify(d.ownReceiptCommand(changedBody)),prepareKey]},async()=>{
+   const changed=await command(preparer,changedBody,prepareKey);assert.equal(changed.status,409);assert.equal(changed.value.code,'OWN_RECEIPT_IDEMPOTENCY_REUSE');assert.equal(ledger(h).length,1);unchanged();
+  });
+  await db.expectQueryError({caseId:'126-prepare-duplicate-new-key',nativeCode:'OWN_RECEIPT_DUPLICATE',text:'SELECT public.own_receipt_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[preparerCtx,JSON.stringify(d.ownReceiptCommand(prepareBody)),duplicateKey]},async()=>{
+   const duplicate=await command(preparer,prepareBody,duplicateKey);assert.equal(duplicate.status,409);assert.equal(duplicate.value.code,'OWN_RECEIPT_DUPLICATE');assert.equal(ledger(h).length,1);unchanged();
+  });
+  await db.expectQueryError({caseId:'126-other-reviewer-attempt',nativeCode:'OWN_RECEIPT_NOT_FOUND',text:'SELECT public.own_receipt_attempt_v1($1::jsonb,$2::uuid) AS result',values:[reviewerCtx,prepareKey]},async()=>{
+   const foreign=await get(reviewer,'attempt',{key:prepareKey});assert.equal(foreign.status,404);assert.equal(foreign.value.code,'OWN_RECEIPT_NOT_FOUND');assert.equal(ledger(h).length,1);unchanged();
+  });
   const preparedBatch=d.ownReceiptBatch((await get(preparer,'batch',{id:batchId})).value.data);assert.equal(preparedBatch.state,'prepared');assert.equal(preparedBatch.sourceCurrent,true);assert.deepEqual(preparedBatch.snapshot,snapshot);assert.equal(preparedBatch.snapshotSha256,first.snapshotSha256);assert.deepEqual(preparedBatch.permissions,{canApprove:false,canWithdraw:false,canDownload:true});
   const decisionBase={scopeVersion:first.scopeVersion,sourceVersion:snapshot.sourceVersion,params:null,batchId,batchSha256:first.snapshotSha256,reason:'Revisión independiente exclusivamente sintética del conjunto completo',reviewConfirmed:true};for(const name of ['approve','withdraw']){const denied=await command(preparer,{...decisionBase,command:name},d.randomUUID());assert.equal(denied.status,403);assert.equal(denied.value.code,'OWN_RECEIPT_FORBIDDEN');assert.equal(denied.getSqlCalls,0);assert.equal(denied.rpcCalls,0);}assert.equal(ledger(h).length,1);unchanged();check(true,'prepare replay/attempt intact; same-key conflict/duplicate/foreign attempt rejected; checker approve/withdraw403 occur BEFORE SQL');
   const reviewerList=await get(reviewer,'list',{period:params.period});assert.equal(reviewerList.status,200);assert.deepEqual(reviewerList.value.data.items.map(r=>r.id),[batchId]);const approvable=d.ownReceiptBatch((await get(reviewer,'batch',{id:batchId})).value.data);assert.equal(approvable.permissions.canApprove,true);assert.notEqual(reviewerList.value.data.scopeVersion,first.scopeVersion);const approval=await command(reviewer,{...decisionBase,scopeVersion:reviewerList.value.data.scopeVersion,command:'approve'},d.randomUUID());assert.equal(approval.status,201);events.push(approval.value.data);const approved=d.ownReceiptBatch((await get(reviewer,'batch',{id:batchId})).value.data);assert.equal(approved.state,'approved');assert.equal(approved.sourceCurrent,true);assert.equal(approved.review.id,approval.value.data.id);assert.equal(approved.permissions.canDownload,true);assert.equal(approved.review.by,reviewer.native.actorLabel||'Autoridad municipal');assert.equal(ledger(h).length,2);unchanged();

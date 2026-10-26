@@ -10,6 +10,7 @@ import {chromium} from 'playwright';
 import {createOwnAnnulHandler} from '../../api/internal-own-payroll-annulment.js';
 import {createOwnLiquidationHandler} from '../../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../../api/internal-own-payroll-run.js';
+import {employeeContext} from '../../lib/internal-native-employees.js';
 import {verifiedOwnAnnulReviewIndex,verifiedOwnAnnulReviewReceipt} from '../../assets/own-payroll-annulment-review-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_PREPARE} from '../../assets/own-payroll-run-workspace-model.js';
@@ -39,6 +40,10 @@ async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
   exact(fixture,selected29?['captures','index','partitionIds','receiptHistory','confirmations']:['captures','index','partitionIds','receiptHistory']);
   assert.equal(context.version,'own-annulment-v2-live190-context.v1');
   const {h,db,qa,maker,reviewer,period,operations,readSnapshot}=context;
+  const reviewerNativeContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
+  const missingCaseIds=selected29?
+   {oracle:'208-browser29-unsent-oracle',recover:'208-browser29-unsent-recover'}:
+   {oracle:'208-browser855-unsent-oracle',recover:'208-browser855-unsent-recover'};
   assert.equal(h.qa,qa);assert.equal(qa.operationalPairBaseline,'published107');
   assert.ok([17,18].includes(h.major));assert.match(h.sourceCommit,/^[a-f0-9]{40}$/);
   assert.equal(context.monthlyBusinessCovered,false);assert.equal(typeof readSnapshot,'function');
@@ -101,7 +106,12 @@ async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
   const baseline=readSnapshot(),checks=[],posts=[],httpEvidence=[],external=[],pageErrors=[],serverErrors=[];
   let server,browser,browserContext,page,loss=null,clientWithdrawn=false,receipt=null;
   const check=(value,label)=>{assert.ok(value,label);checks.push(label);};
+  const attemptReadsByKey=new Map();
+  const attemptReadCount=key=>attemptReadsByKey.get(key)??0;
   const wireDb={query:async(statement,values)=>{
+    if(statement==='SELECT public.own_annul_attempt_full_v1($1::jsonb,$2::uuid) AS result'&&Array.isArray(values)&&values.length===2&&values[0]===reviewerNativeContext){
+      attemptReadsByKey.set(values[1],attemptReadCount(values[1])+1);
+    }
     const command=/^SELECT public\.own_annul_command(?:_full)?_v2\(/.test(statement);
     if(!command)return db.query(statement,values);
     const entry={key:values[2],body:JSON.parse(values[1]),reachedSql:false,replayed:null};posts.push(entry);
@@ -222,8 +232,18 @@ async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
     assert.equal(posts.length,1);assert.equal(posts[0].reachedSql,false);const frozen=structuredClone(posts[0]);
     check(await $('recover').isVisible(),'uncertain pre-SQL send keeps the original attempt recoverable');
     assert.deepEqual(readSnapshot(),baseline);
-    const missing=await request('/api/internal-own-payroll-annulment?resource=attempt&key='+frozen.key);
-    check(missing.response.status()===404&&missing.body.ok===false,'independent actual GET proves the original unsent key absent');
+    const oracleAttemptBefore=attemptReadCount(frozen.key);
+    await db.expectQueryError({
+      caseId:missingCaseIds.oracle,nativeCode:'OWN_LIQ_NOT_FOUND',
+      text:'SELECT public.own_annul_attempt_full_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,frozen.key]
+    },async()=>{
+      const missing=await request('/api/internal-own-payroll-annulment?resource=attempt&key='+frozen.key);
+      check(missing.response.status()===404&&missing.body.ok===false,'independent actual GET proves the original unsent key absent');
+      assert.equal(attemptReadCount(frozen.key),oracleAttemptBefore+1,'ANNUL208_ORACLE_EXACTLY_ONE_NATIVE_ATTEMPT');
+      assert.equal(posts.length,1);assert.equal(posts[0].reachedSql,false);
+      assert.equal(await $('recover').isVisible(),true);
+      assert.deepEqual(readSnapshot(),baseline);
+    });
     clientWithdrawn=true;
     await page.evaluate(next=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:next}})),caps.filter(cap=>cap!=='payroll.calculation.approve'));
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0&&await $('send').isDisabled(),'client authority withdrawal removes nominal rows and disables frozen retries');
@@ -232,8 +252,20 @@ async function verifyFixedAnnulmentBrowserOn190(context,fixture,scenario){
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
     check(await $('detail').isHidden()&&await $('rows').locator('tr').count()===0,'hiding the real product clears every nominal row');
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
-    await $('load').click();await settled();await $('recover').click();await settled();
-    check(await $('revise').isVisible(),'fresh actual recovery proves absence before permitting another decision');
+    await $('load').click();await settled();
+    const recoverAttemptBefore=attemptReadCount(frozen.key),recoverHttpBefore=outcomePageReads.length;
+    await db.expectQueryError({
+      caseId:missingCaseIds.recover,nativeCode:'OWN_LIQ_NOT_FOUND',
+      text:'SELECT public.own_annul_attempt_full_v1($1::jsonb,$2::uuid) AS result',values:[reviewerNativeContext,frozen.key]
+    },async()=>{
+      await $('recover').click();await settled();
+      const recoveryHttp=outcomePageReads.slice(recoverHttpBefore).filter(row=>row.path==='/api/internal-own-payroll-annulment'&&row.resource==='attempt'&&row.key===frozen.key);
+      assert.equal(recoveryHttp.length,1);assert.equal(recoveryHttp[0].status,404);
+      assert.equal(attemptReadCount(frozen.key),recoverAttemptBefore+1,'ANNUL208_RECOVERY_EXACTLY_ONE_NATIVE_ATTEMPT');
+      check(await $('revise').isVisible(),'fresh actual recovery proves absence before permitting another decision');
+      assert.equal(posts.length,1);assert.equal(posts[0].reachedSql,false);
+      assert.deepEqual(readSnapshot(),baseline);
+    });
     await $('reason').evaluate(element=>{element.value='A DOM edit must not rewrite the frozen attempt';element.dispatchEvent(new Event('input',{bubbles:true}));});
     loss='after';await $('send').click();await settled();
     assert.equal(posts.length,2);assert.deepEqual(posts[1].body,frozen.body);assert.equal(posts[1].key,frozen.key);
