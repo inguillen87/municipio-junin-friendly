@@ -10,7 +10,7 @@ import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {deriveClosedReportAuthorizationSource,buildOwnReportCensusAuthorityPins} from './own-payroll-report-census-authority.mjs';
 import {ownFullCapacity190Snapshot,composeOwnFullCapacity190Installation} from './own-payroll-full-capacity-190-installation.mjs';
-import {composeOwnCloseSnapshot214Plan,projectOwnCloseSnapshot214Postflight} from './own-close-snapshot214-installation.mjs';
+import {composeOwnCloseSnapshot215Plan,projectOwnCloseSnapshot215Postflight} from './own-close-snapshot215-installation.mjs';
 import {OWN_ACCOUNTING_IMPUTATION_190_SOURCE_PINS as SOURCE_PINS,OWN_ACCOUNTING_IMPUTATION_190_SOURCE_ENTRIES} from './own-accounting-imputation-190-source-pins.mjs';
 
 export {OWN_ACCOUNTING_IMPUTATION_190_SOURCE_ENTRIES};
@@ -175,8 +175,8 @@ export function composeOwnAccountingImputation190(h){
  // This explicit check covers constructor source modules as well as SQL inputs.
  for(const file of Object.keys(SOURCE_PINS))read(file);
  const decision=composeOwnFullCapacity190Installation({...h,read});
- const snapshot214=composeOwnCloseSnapshot214Plan({foundation:qa,major:qa.major,sourceCommit:h.sourceCommit,read:h.read});
- Object.assign(sourceHashes,snapshot214.sourceHashes);
+ const snapshot215=composeOwnCloseSnapshot215Plan({foundation:qa,major:qa.major,sourceCommit:h.sourceCommit,read:h.read});
+ Object.assign(sourceHashes,snapshot215.sourceHashes);
  const authority=deriveClosedReportAuthorizationSource({read,operationalPairBaseline:'published107'}),authorityProtocol=buildOwnReportCensusAuthorityPins({read});
  const original=[
   [147,buildOwnAccountingInstallation({read,sourceCommit:h.sourceCommit}),assertOwnAccountingDurability],
@@ -190,7 +190,7 @@ export function composeOwnAccountingImputation190(h){
  const current=()=>[...known.values()].sort((a,b)=>a.signature.localeCompare(b.signature));
  const currentCheck=records=>{localRecords(records,registry,normalize);return normalize(metadataCheck(records,'ACCOUNTING190_CURRENT_SOURCE_CHANGED'));};
  // The201 postflight is already relocalized by its canonical composer. Do not normalize it twice.
- const authorityChecks=[projectOwnCloseSnapshot214Postflight(h,snapshot214,decision.postflight),...[pinsCheck(authorityProtocol.pins,'ACCOUNTING190_AUTHORITY_CHANGED'),...authorityProtocol.checks].map(normalize)];
+ const authorityChecks=[projectOwnCloseSnapshot215Postflight(h,snapshot215,decision.postflight),...[pinsCheck(authorityProtocol.pins,'ACCOUNTING190_AUTHORITY_CHANGED'),...authorityProtocol.checks].map(normalize)];
  const rawTables=new Map(original.map(([id,batch])=>[id,batch.tableCheck]));
  const currentTables=()=>[rawTables.get(147),rawTables.get(148),rawTables.get(152)].filter(Boolean).map(normalize);
  for(const [id,batch,durability]of original){

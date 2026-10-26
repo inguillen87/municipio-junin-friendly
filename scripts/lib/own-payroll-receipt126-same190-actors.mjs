@@ -28,8 +28,8 @@ const SOURCE_PINS=Object.freeze([
  ['scripts/migrations/176-own-payroll-administrative-operator.sql',5003,'f75fa2cddf6fe2e837044e73c6465eecdf41fbad7ec740745527e1bd54b94732'],
  ['scripts/lib/municipal-owner-program-qa.mjs',16803,'c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb'],
  ['scripts/lib/own-payroll-report-census-190-iam-fixture.mjs',9508,'c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1'],
- ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',40927,'6e9f4a82a3c22e999da8f4c93aa244c87594cc1dd9080c03b92cd13c3f56f163'],
- ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'f09c2dfe128867aa03c1a05f185fb34dd272b53bdea648c9061a28b1e7607c9d']
+ ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',41250,'7ea143eb678674b3b6926adc6ad2d651708faaa9bd5acaf6909db652a1d3faa0'],
+ ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'b1a0e892dafe5e80eb5055e57c98193da8ca5006c57f92d96b28a56f6dc292b0']
 ]);
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";
 const j=value=>q(JSON.stringify(value))+'::jsonb';
