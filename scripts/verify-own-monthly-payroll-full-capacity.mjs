@@ -22,6 +22,7 @@ import {assertOwnMonthlyDaySharedPrerequisites} from './lib/own-monthly-day-shar
 import {ownerDecisionQaLiteral as q} from './lib/municipal-owner-adoption-decision-qa.mjs';
 import {buildOwnMonetaryProgramQaProjection} from './lib/own-monetary-program-qa-projection.mjs';
 import {verifyOwnMonetaryProgramTechnicalEpoch} from './lib/own-monetary-program-technical-epoch.mjs';
+import {composeMonthlyFullLegacySupportPlan,installMonthlyFullLegacySupport} from './lib/monthly-full-legacy-support-qa.mjs';
 
 const entries = [
   ...OWN_FULL_CAPACITY_190_QA_ENTRIES,
@@ -87,7 +88,8 @@ function prepareMonthly(h) {
   assert.deepEqual(monetary.fixedComposition.afterPins, monthly.fixedComposition.afterPins, 'MONTHLY_FULL_MONETARY_FIXED_SOURCE_CHANGED');
   assert.deepEqual(monetary.novelty197.afterPins, monthly.novelty197.afterPins, 'MONTHLY_FULL_MONETARY_NOVELTY_SOURCE_CHANGED');
   for (const key of ['local', 'local193', 'localFixed', 'local197']) assert.deepEqual(monetary[key], monthly[key], 'MONTHLY_FULL_MONETARY_PRIOR_PHASE_CHANGED:' + key);
-  return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes)])]};
+  const legacySupport=composeMonthlyFullLegacySupportPlan({monthly,foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
+  return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites, legacySupport}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes), ...legacySupport.sourceEntries])]};
 }
 
 async function monthlyThenFull(h, settings = {}) {
@@ -113,6 +115,8 @@ async function monthlyThenFull(h, settings = {}) {
   assert.strictEqual(monetary.actor, h.qa.actor);
   assert.strictEqual(monetary.checker, h.qa.checker);
   assert.ok(h.sourceCustody && h.sourceCustody.sourceCommit === h.sourceCommit, 'MONTHLY_FULL_SOURCE_CUSTODY_REQUIRED');
+  const legacySupport=installMonthlyFullLegacySupport(h);
+  assert.equal(legacySupport.passed,true);
   const proofs = {};
   const technical = verifyOwnMonthlyDayTechnicalEpochs({
     qa, proofs, fixedComposition: true, noveltySuccession: true,
@@ -155,7 +159,7 @@ async function monthlyThenFull(h, settings = {}) {
   h.check('same canonical190 foundation and live actors verify technical192/193/194/196/197 before unchanged full855 and one financial epoch owner');
   return {version: 'own-monthly-full-capacity-canonical190-native-qa.v1', passed: true,
     sourceCommit: h.sourceCommit, major: h.major, operationalPairBaseline: 'published107',
-    sharedFoundation: true, sharedPrerequisites, monthlyTechnical: technical, monetaryTechnical, capacity,
+    sharedFoundation: true, sharedPrerequisites, legacySupport, monthlyTechnical: technical, monetaryTechnical, capacity,
     monthlyBusinessCovered: false, monetaryBusinessCovered: false, synthetic: true, productionWrites: 0,
     municipalAcceptance: false};
 }
