@@ -141,7 +141,11 @@ export async function verifyOwnSqlRevocationBrowserOn190(context){
     assert.equal(await $('detail').isHidden(),true);assert.equal(await $('review').isHidden(),true);assert.equal(await $('individual').isHidden(),true);
     for(const key of ['history','totals','rows','trace','values','review-rows','review-totals','individual','summary','range','page','review-summary','review-range','review-page'])assert.equal((await $(key).innerText()).trim(),'','REVOCATION190_NOMINAL_VIEW_RETAINED:'+key);
     for(const key of ['command','kind','reason'])assert.equal(await $(key).inputValue(),'');assert.equal(await $('confirm').isChecked(),false);
-    assert.equal(await $('fields').isDisabled(),true);assert.equal(await $('send').isDisabled(),true);sameClient();assert.deepEqual(httpWrites,[]);
+     // Playwright's isDisabled() excludes FIELDSET itself. Check native HTML
+     // state and every interactive descendant rather than an inapplicable predicate.
+     const fieldsState=await $('fields').evaluate(fieldset=>({tag:fieldset.tagName,disabled:fieldset.disabled,nativeDisabled:fieldset.matches(':disabled'),controls:[...fieldset.querySelectorAll('input,select,textarea,button')].map(control=>control.matches(':disabled'))}));
+     assert.equal(fieldsState.tag,'FIELDSET');assert.equal(fieldsState.disabled,true);assert.equal(fieldsState.nativeDisabled,true);assert.ok(fieldsState.controls.length>0);assert.ok(fieldsState.controls.every(value=>value===true));
+     assert.equal(await $('send').isDisabled(),true);sameClient();assert.deepEqual(httpWrites,[]);
     assert.deepEqual(audit(),revoked,'failed current-authority read cannot alter rows, metadata or the temporary IAM state');
     cases.push({capability:probe.capability,nativeCode:probe.nativeCode,httpStatus:403,loadedPopulation:855,loadedConcepts:17100,individualConcepts:20,clientPrincipalPreserved:true,sessionPreserved:true,nominalViewsWithdrawn:true,businessHttpPosts:0});
    }catch(error){caseFailure=error;}

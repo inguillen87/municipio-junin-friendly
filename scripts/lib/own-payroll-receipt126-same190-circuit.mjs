@@ -30,7 +30,7 @@ const SOURCE_PINS=Object.freeze([
  ["lib/internal-own-payroll-receipts.js",5269,"3dfabfd0f9c30a9441e5cd0eff235444976cb6c016f885d9789e43e5c8a54554"],
  ["api/internal-own-payroll-receipts.js",5965,"a63cebe4544288e9960e83c3e13630f75bff388a1f2b09d3038cf399c61d7558"],
  ["lib/municipal-document-issuer.js",3527,"39163725cf7a5e739e90a45b24466fe19e7893d6d0b1ce163dfb964b96d22019"],
- ["scripts/lib/own-payroll-canonical190-browser-host-qa.mjs",9958,"a9e5cccf1630e97069844436b25dad45227b1121f17a6d16f5c6fcfe333205cc"],
+ ["scripts/lib/own-payroll-canonical190-browser-host-qa.mjs",10325,"6db672348b26013f82043d323c23cc5a7444317e3db47f40adfc5299571eed7e"],
  ["scripts/verify-own-payroll-annulment-v2-full-capacity.mjs",56710,"37a07d38f46c21dda40072418fdb6fc730ba5b20671a9e9ded2ba6c57a893c89"],
  ["assets/own-payroll-receipt-self.js",6183,"da05891711deb73d172c8639131aca867b34320f2ea7858a653852e1dbf3a5a2"],
  ["assets/payroll-detail-export.js",14037,"318bb8d5e698c1fa2baef59e6fee180001cea07bd707c00c14e3c884e0b7c6db"],
@@ -43,7 +43,7 @@ const SOURCE_PINS=Object.freeze([
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
  ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",37794,"5d7e3f9c4f4041ba8f27c9456ca1966bd78ca71d1412011a4be73259d5b59da4"],
- ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18177,"43200dedb03dcae7d97cb279c276af9ff1b0a4022057d679d0bc32d589b4a77e"],
+ ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"c3c7d4dd7e79c9fef89edd3825e0df9ceabddbcc44d755db7856cbf296bec0f0"],
  ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25756,"4e52d334bff4e8ea4e82260a7f3bc506bf73d73e3268c508aa9547acdb5ad806"],
 ]);
 const RPC=new Map([

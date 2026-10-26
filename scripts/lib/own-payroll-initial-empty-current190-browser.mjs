@@ -133,7 +133,8 @@ export async function verifyOwnInitialEmptyBrowserOn190(context){
   assert.equal(await calc('readiness').getAttribute('data-state'),'success');
   assert.ok((await calc('readiness-facts').innerText()).startsWith('855 legajos propios en la consulta completa · maestro aprobado, revisión '));
   assert.ok((await calc('readiness-facts').innerText()).includes(' · programa aprobado, revisión '));
-  assert.equal(await calc('fields').isDisabled(),false);assert.equal(await calc('confirm').isChecked(),false);assert.equal(await calc('send').isDisabled(),true);
+  const preparationFields=await calc('fields').evaluate(fieldset=>({tag:fieldset.tagName,disabled:fieldset.disabled,nativeDisabled:fieldset.matches(':disabled')}));
+  assert.deepEqual(preparationFields,{tag:'FIELDSET',disabled:false,nativeDisabled:false});assert.equal(await calc('confirm').isChecked(),false);assert.equal(await calc('send').isDisabled(),true);
   assert.equal(await calc('date').inputValue(),'');assert.equal(await calc('kind').inputValue(),'');
   assert.equal(await calc('result').isHidden(),true);assert.equal(await calc('recover').isHidden(),true);
   assert.equal(await calc('history').locator('[data-own-open]').count(),0);assert.equal((await calc('history').innerText()).trim(),'No hay cálculos propios guardados para esta cuenta.');
