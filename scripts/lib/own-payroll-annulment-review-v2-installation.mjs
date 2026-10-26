@@ -49,7 +49,7 @@ const SOURCE_PINS=Object.freeze({
   "scripts/lib/native-leave-installation.mjs": "57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef",
   "scripts/lib/own-novelty-succession-qa.mjs": "f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929",
   "scripts/lib/own-novelty-succession-installation.mjs": "627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0",
-  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "d62a0d49837109e09dcdd352452069204b59901ce17e377f58e467edbc5b5755",
+  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "13e70c867fb7d56a04da8131e6922239fe87107cf89bf5e3a3b31a4b98b31e1f",
   "scripts/verify-documentary-roster-performance.mjs": "e058f3450118b23bf16ee1cf7e75b866624153246ce163aed3bf3c96d5f96124",
   "scripts/lib/adopted-documentary-installation.mjs": "9d420e046e9debbef0e584aa47f965f495214bdb4fa6db5de4564edb917d707b"
 });

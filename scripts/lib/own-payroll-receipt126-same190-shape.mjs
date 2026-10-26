@@ -10,7 +10,7 @@ const SOURCE_PINS=Object.freeze([
  ['scripts/lib/own-payroll-receipt126-same190-inventory.mjs',7020,'ebd438ac7a791dec61a46223acece55b0b6d2599f901fb18f0a7406b4f2297cc'],
  ['scripts/lib/own-payroll-receipt126-inventory-model.mjs',7906,'3fb1ac17aea553ef37b5b832057482fdd3011c3bae26d9420a28675ece43232c'],
  ['scripts/verify-municipal-owner-adoption-authority.mjs',43441,'6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb'],
- ['scripts/lib/municipal-owner-adoption-decision-qa.mjs',51481,'d62a0d49837109e09dcdd352452069204b59901ce17e377f58e467edbc5b5755']
+ ['scripts/lib/municipal-owner-adoption-decision-qa.mjs',54610,'13e70c867fb7d56a04da8131e6922239fe87107cf89bf5e3a3b31a4b98b31e1f']
 ]);
 const COLUMNS=Object.freeze([
  ['id','uuid',true,'gen_random_uuid()'],['tenant_id','uuid',true,null],['source_binding_id','uuid',true,null],['batch_id','uuid',true,null],['command','text',true,null],

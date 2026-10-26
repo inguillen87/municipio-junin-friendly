@@ -113,6 +113,48 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
  const snapshotPin=identity(selectedSnapshot[0]);assert.equal(snapshotPin.sha256,'11d46e478ab606b0a9d4602e83a072a16924e47d7b8d2da064ed1d7abd2885b0','OWNER_DECISION_QA_SNAPSHOT201_PREDECESSOR');assert.equal(snapshotPin.runtime,false,'OWNER_DECISION_QA_SNAPSHOT_MUST_STAY_PRIVATE');
  for(const historical of [originalSnapshot[0],jurisdictionSnapshot[0]]){assert.deepEqual({...identity(historical),sha256:null},{...snapshotPin,sha256:null},'OWNER_DECISION_QA_SNAPSHOT_SECURITY_CHANGED');add(historical);}
  assert.ok(!desired.has(snapshotSignature),'OWNER_DECISION_QA_SNAPSHOT_EARLY_EPOCH_DEPENDENCY');add(selectedSnapshot[0]);desired.set(snapshotSignature,snapshotPin);
+ // Runtime exposure comes from the two complete published GRANT statements,
+ // not from the generic own_program/own_run header parser or a name prefix.
+ // Keep each final source body already chosen by the graph:125 command and177
+ // close detail must never be replaced by their older124/125 definitions here.
+ const publishedFacadeGroups=[
+  ['scripts/migrations/124-own-payroll-liquidation-decisions.sql','03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a','own_liquidation_',[
+   'public.own_liquidation_bootstrap_v1(jsonb)',
+   'public.own_liquidation_detail_v1(jsonb,uuid)',
+   'public.own_liquidation_attempt_v1(jsonb,uuid)',
+   'public.own_liquidation_command_v1(jsonb,jsonb,uuid)',
+  ]],
+  ['scripts/migrations/125-own-payroll-close.sql','443127dd55b9be5f37da47af303fcdd599b4d5dc0aad0a319a18253f8f139af5','own_close_',[
+   'public.own_close_detail_v1(jsonb,text,text)',
+   'public.own_close_attempt_v1(jsonb,uuid)',
+   'public.own_close_group_v1(jsonb,uuid)',
+   'public.own_close_command_v1(jsonb,jsonb,uuid)',
+  ]],
+ ];
+ const classifiedFacadeSignatures=new Set();
+ for(const[file,sourceSha,family,signatures]of publishedFacadeGroups){
+  const source=load(file);assert.equal(ownerDecisionQaHash(source),sourceSha,'OWNER_DECISION_QA124125_FACADE_SOURCE_CHANGED:'+file);
+  const statements=splitPostgresStatements(source).map(clean);
+  const grants=statements.filter(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes('public.'+family));
+  assert.deepEqual(grants,['GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'],'OWNER_DECISION_QA124125_FACADE_GRANT_CHANGED:'+file);
+  for(const signature of signatures){
+   assert.equal(classifiedFacadeSignatures.has(signature),false,'OWNER_DECISION_QA124125_FACADE_DUPLICATE');classifiedFacadeSignatures.add(signature);
+   const functionName=signature.slice(7,signature.indexOf('('));
+   const published=statements.filter(s=>s.startsWith('CREATE FUNCTION public.'+functionName+'('));
+   assert.equal(published.length,1,'OWNER_DECISION_QA124125_FACADE_DEFINITION_REQUIRED:'+signature);
+   const canonical=identity(fixed(published[0]));assert.equal(canonical.signature,signature);
+   const priorSelection=desired.get(signature);
+   if(priorSelection)assert.equal(priorSelection.runtime,true,'OWNER_DECISION_QA124125_EARLY_EPOCH_ACL_CONFLICT:'+signature);
+   const current=priorSelection?pool.get(signature+'|'+priorSelection.sha256):latest.get(signature);
+   assert.ok(current,'OWNER_DECISION_QA124125_FINAL_SOURCE_MISSING:'+signature);
+   const pin=identity(current);assert.equal(pin.signature,signature);
+   assert.equal(pool.get(signature+'|'+pin.sha256),current,'OWNER_DECISION_QA124125_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+   if(priorSelection)assert.equal(pin.sha256,priorSelection.sha256,'OWNER_DECISION_QA124125_FINAL_SOURCE_CHANGED:'+signature);
+   assert.deepEqual({...pin,sha256:null,runtime:null},{...canonical,sha256:null,runtime:null},'OWNER_DECISION_QA124125_FACADE_SECURITY_CHANGED:'+signature);
+   desired.set(signature,{...pin,runtime:true});
+  }
+ }
+ assert.equal(classifiedFacadeSignatures.size,8);
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));

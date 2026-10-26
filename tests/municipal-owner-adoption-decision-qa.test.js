@@ -211,3 +211,89 @@ test('physical-column aliases are scoped per statement and nested SELECT, includ
  assert.ok(audit('SELECT e.missing FROM public.employee e'+unionJson).some(x=>x.column==='missing'));
  assert.deepEqual(audit('SELECT e.id FROM public.employee e'+unionJson),[]);
 });
+
+test('canonical seed preserves all eight published124/125 facade grants on their final source bodies',()=>{
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
+ const groups=[
+  ['scripts/migrations/124-own-payroll-liquidation-decisions.sql','03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a',[
+   ['own_liquidation_bootstrap_v1','jsonb','cb2ff7973e93ad71e32045b2566a9bced4bac8a29fe71335aaf67b7482cc7a3b'],
+   ['own_liquidation_detail_v1','jsonb,uuid','806b3743cfb193dbc96de8ea9924f348854f484cde1a255d1d195e41f7668ded'],
+   ['own_liquidation_attempt_v1','jsonb,uuid','58a99622dc7c8270d18d5c01fab3d9a8ab8c3a480201c672e7972cd61ef0084b'],
+   ['own_liquidation_command_v1','jsonb,jsonb,uuid','575d80c105d2ebf149e914bbfd975f21dbafa8c8bdd64d0eaf3e55ff357b96bc'],
+  ]],
+  ['scripts/migrations/125-own-payroll-close.sql','443127dd55b9be5f37da47af303fcdd599b4d5dc0aad0a319a18253f8f139af5',[
+   ['own_close_detail_v1','jsonb,text,text','cf59ba377c978346872f88d3dfd144fac13d7c0615ec0ed289839451513b540f'],
+   ['own_close_attempt_v1','jsonb,uuid','4a0b209001ef38f926e6fc36109820298fd041150ee28b1ae5824225c7858e25'],
+   ['own_close_group_v1','jsonb,uuid','a3ce164f8ec9ebe298c76d4b9d88967f3add104457df7ca07f47d605faa75a86'],
+   ['own_close_command_v1','jsonb,jsonb,uuid','eb3df3a03688835055b365ff58961f677210987e523ce973c9fa3441e5c30b94'],
+  ]],
+ ];
+ const clean=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/g,'').trim();
+ for(const currentQa of [qa,published]){
+  const emitted=splitPostgresStatements(currentQa.seed).map(clean);
+  for(const[file,sourceSha,entries]of groups){
+   const source=read(file).replace(/\r\n?/g,'\n');assert.equal(ownerDecisionQaHash(source),sourceSha);
+   assert.equal(currentQa.sourceHashes[file],sourceSha);
+   const original=splitPostgresStatements(source).map(clean),signatures=entries.map(([name,types])=>'public.'+name+'('+types+')');
+   assert.ok(original.includes('GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'));
+   for(const[name,types,finalSha]of entries){
+    const signature='public.'+name+'('+types+')',localSignature=currentQa.relocate(signature);
+    const revoke='REVOKE ALL ON FUNCTION '+localSignature+' FROM PUBLIC,municontrol_actions_runtime_app';
+    const grant='GRANT EXECUTE ON FUNCTION '+localSignature+' TO municontrol_actions_runtime_app';
+    // Actual emitted ACL is the causal observation, not a pin boolean alone.
+    assert.equal(emitted.filter(s=>s===grant).length,1,name+' emitted published facade GRANT');
+    assert.equal(emitted.filter(s=>s===revoke).length,1,name+' emitted exact revocation first');
+    assert.ok(emitted.indexOf(grant)>emitted.indexOf(revoke),name+' grants only after revoking inherited exposure');
+    const definitions=currentQa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.'+name+'('));assert.equal(definitions.length,1,name);
+    const definition=definitions[0],pin=ownInstallationFunctionPin(definition);
+    assert.equal(pin.signature,signature);assert.equal(pin.sha256,finalSha,name+' keeps its current epoch body');
+    const sourceDefinition=original.filter(d=>d.startsWith('CREATE FUNCTION public.'+name+'('));assert.equal(sourceDefinition.length,1);
+    const originalPin=ownInstallationFunctionPin(sourceDefinition[0]);
+    assert.deepEqual({...pin,sha256:null,runtime:null},{...originalPin,sha256:null,runtime:null},name+' preserves complete signature/security metadata');
+    assert.ok(currentQa.graph.pool.has(signature+'|'+originalPin.sha256),name+' source predecessor remains available');
+    assert.equal(currentQa.graph.pool.get(signature+'|'+finalSha),definition);
+    const selected=currentQa.graph.desired.filter(p=>p.signature===signature);assert.equal(selected.length,1);
+    assert.equal(selected[0].sha256,finalSha);assert.equal(selected[0].runtime,true);
+    const expected=currentQa.normalized(definition.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '));
+    assert.equal(emitted.filter(s=>s===expected).length,1,name+' actual emitted full definition, not only a discoverable pool pin');
+    assert.ok(emitted.indexOf(expected)<emitted.indexOf(revoke),name+' ACL applied to the selected definition');
+   }
+  }
+  for(const[name,types,sha256]of[
+   ['own_close_snapshot_v1','jsonb,jsonb','11d46e478ab606b0a9d4602e83a072a16924e47d7b8d2da064ed1d7abd2885b0'],
+   ['own_annul_selected_v1','jsonb,jsonb','e191fd94787a93e809e79b97d751b1c9c9371833eb7275fe4d3c272eceeadd31'],
+  ]){
+   const signature='public.'+name+'('+types+')',localSignature=currentQa.relocate(signature);
+   const selected=currentQa.graph.desired.filter(p=>p.signature===signature);assert.equal(selected.length,1);
+   assert.equal(selected[0].sha256,sha256);assert.equal(selected[0].runtime,false);
+   assert.ok(emitted.includes('REVOKE ALL ON FUNCTION '+localSignature+' FROM PUBLIC,municontrol_actions_runtime_app'));
+   assert.ok(!emitted.some(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes(localSignature)),name+' stays private even in grouped grants');
+  }
+ }
+ assert.equal(ownerDecisionQaHash(read('scripts/migrations/201-own-full-payroll-decision-capacity.sql').replace(/\r\n?/g,'\n')),'46de1308360a076eff1453f57a9e4f4d6c14ba176d73cf8531b7b0821ed35b1b');
+});
+
+test('an earlier explicit private facade obligation is rejected instead of overwritten',()=>{
+ const definition=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.own_liquidation_detail_v1('));assert.ok(definition);
+ const pin=ownInstallationFunctionPin(definition),batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([{...pin,runtime:false}])};
+ assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA124125_EARLY_EPOCH_ACL_CONFLICT/);
+});
+
+test('all eleven201 predecessor ACLs agree with the emitted seed and separate200 facade',()=>{
+ const h={read,sourceCommit,qa:{schema,operationalPairBaseline:'published107',normalized:qa.normalized,foundation:{foundation:{foundation:{owner:{graph:qa.graph}}}}}};
+ const plan=composeOwnFullCapacity190Installation(h),emitted=splitPostgresStatements(qa.seed).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/g,'').trim());
+ assert.equal(plan.preLocal.length,11);assert.equal(plan.preLocal.filter(p=>p.runtime).length,9);
+ for(const p of plan.preLocal){
+  const grant='GRANT EXECUTE ON FUNCTION '+p.signature+' TO municontrol_actions_runtime_app';
+  const revoke='REVOKE ALL ON FUNCTION '+p.signature+' FROM PUBLIC,municontrol_actions_runtime_app';
+  if(p.name==='own_close_report_census_v1'){
+   assert.equal(p.runtime,true);assert.equal(plan.census.ownPin.runtime,true);
+   assert.equal(plan.census.migration[1],'REVOKE ALL ON FUNCTION public.own_close_report_census_v1(jsonb,text,text) FROM PUBLIC,municontrol_actions_runtime_app');
+   assert.equal(plan.census.migration[2],'GRANT EXECUTE ON FUNCTION public.own_close_report_census_v1(jsonb,text,text) TO municontrol_actions_runtime_app');
+   assert.ok(plan.censusStatements.join('\n').includes(revoke));assert.ok(plan.censusStatements.join('\n').includes(grant));
+  }else{
+   assert.equal(emitted.filter(s=>s===revoke).length,1,p.name);
+   assert.equal(emitted.filter(s=>s===grant).length,p.runtime?1:0,p.name+' actual201 predecessor exposure');
+  }
+ }
+});
