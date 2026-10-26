@@ -155,6 +155,35 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
   }
  }
  assert.equal(classifiedFacadeSignatures.size,8);
+ // Restore the exact three runtime facades already published by067.
+ // Select their current source bodies; never restore the older067 create body.
+ const native067File='scripts/migrations/067-native-employee-registration.sql';
+ const native067Source=load(native067File);
+ assert.equal(ownerDecisionQaHash(native067Source),'aa33538cea459a275de8056b8316f3eb4465ebb88ad1de54578bb24380c4d749','OWNER_DECISION_QA067_SOURCE_CHANGED');
+ const native067Signatures=[
+  'public.native_employee_bootstrap_v1(jsonb)',
+  'public.native_employee_attempt_v1(jsonb,uuid)',
+  'public.native_employee_create_v1(jsonb,jsonb,text,uuid)',
+ ];
+ const native067Statements=splitPostgresStatements(native067Source).map(clean);
+ const native067Grant='GRANT EXECUTE ON FUNCTION '+native067Signatures.map(s=>s.slice(7)).join(',')+' TO municontrol_actions_runtime_app';
+ assert.equal(native067Statements.filter(s=>s===native067Grant).length,1,'OWNER_DECISION_QA067_PUBLISHED_GRANT_REQUIRED');
+ const native067Definitions=native067Statements.filter(s=>/^CREATE(?: OR REPLACE)? FUNCTION /.test(s)).map(fixed);
+ for(const signature of native067Signatures){
+  const functionName=signature.slice(7,signature.indexOf('('));
+  const declarations=native067Definitions.filter(d=>d.startsWith('CREATE FUNCTION public.'+functionName+'('));
+  assert.equal(declarations.length,1,'OWNER_DECISION_QA067_DECLARATION_REQUIRED:'+signature);
+  const canonical=identity(declarations[0]);assert.equal(canonical.signature,signature);
+  const previous=desired.get(signature);
+  if(previous)assert.equal(previous.runtime,true,'OWNER_DECISION_QA067_EARLY_EPOCH_ACL_CONFLICT:'+signature);
+  const current=previous?pool.get(signature+'|'+previous.sha256):latest.get(signature);
+  assert.ok(current,'OWNER_DECISION_QA067_FINAL_SOURCE_REQUIRED:'+signature);
+  const pin=identity(current);assert.equal(pin.signature,signature);
+  assert.equal(pool.get(signature+'|'+pin.sha256),current,'OWNER_DECISION_QA067_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+  if(previous)assert.equal(pin.sha256,previous.sha256,'OWNER_DECISION_QA067_FINAL_BODY_CHANGED:'+signature);
+  assert.deepEqual({...pin,sha256:null,runtime:null},{...canonical,sha256:null,runtime:null},'OWNER_DECISION_QA067_METADATA_CHANGED:'+signature);
+  desired.set(signature,{...pin,runtime:true});
+ }
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));

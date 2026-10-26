@@ -1,3 +1,4 @@
+import{buildOwnReportCensus067RuntimeFixture}from'../scripts/lib/own-payroll-report-census-067-runtime-fixture.mjs';
 import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import{IncomingMessage,ServerResponse}from'node:http';
 import{buildOwnerDecisionQa,buildOwnerDecisionQaDefinitions,ownerDecisionQaEmbeddedPins,ownerDecisionQaHash,ownerDecisionQaColumnAudit}from'../scripts/lib/municipal-owner-adoption-decision-qa.mjs';
 import{ownerDecisionQaHttp,ownerDecisionQaQuery,ownerDecisionQaTransaction}from'../scripts/verify-municipal-owner-adoption-decision.mjs';
@@ -296,4 +297,73 @@ test('all eleven201 predecessor ACLs agree with the emitted seed and separate200
    assert.equal(emitted.filter(s=>s===grant).length,p.runtime?1:0,p.name+' actual201 predecessor exposure');
   }
  }
+});
+
+test('the QA seed preserves all three published067 facade ACLs and the final167 create body',()=>{
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
+ const entries=[
+  ['native_employee_bootstrap_v1','jsonb','9a31f55e678327485aeb28ac49246b5cffcc348d60119077b07728fa5a967b02'],
+  ['native_employee_attempt_v1','jsonb,uuid','68eba7e75a68d2150f54557d2f629b21154c8a69017e2817257b3d5b2d07d7f5'],
+  ['native_employee_create_v1','jsonb,jsonb,text,uuid','6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6'],
+ ];
+ const clean=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/g,'').trim();
+ const source=read('scripts/migrations/067-native-employee-registration.sql').replace(/\r\n?/g,'\n');
+ assert.equal(ownerDecisionQaHash(source),'aa33538cea459a275de8056b8316f3eb4465ebb88ad1de54578bb24380c4d749');
+ const canonical=splitPostgresStatements(source).map(clean);
+ assert.ok(canonical.includes('GRANT EXECUTE ON FUNCTION '+entries.map(([name,types])=>name+'('+types+')').join(',')+' TO municontrol_actions_runtime_app'));
+ for(const currentQa of[qa,published]){
+  const emitted=splitPostgresStatements(currentQa.seed).map(clean);
+  for(const[name,types,sha256]of entries){
+   const signature='public.'+name+'('+types+')',local=currentQa.relocate(signature);
+   const revoke='REVOKE ALL ON FUNCTION '+local+' FROM PUBLIC,municontrol_actions_runtime_app';
+   const grant='GRANT EXECUTE ON FUNCTION '+local+' TO municontrol_actions_runtime_app';
+   assert.equal(emitted.filter(s=>s===revoke).length,1,name+' exact inherited revocation');
+   assert.equal(emitted.filter(s=>s===grant).length,1,name+' actual emitted runtime grant');
+   assert.ok(emitted.indexOf(grant)>emitted.indexOf(revoke));
+   const definitions=currentQa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.'+name+'('));assert.equal(definitions.length,1);
+   const definition=definitions[0],pin=ownInstallationFunctionPin(definition);
+   assert.equal(pin.sha256,sha256,name+' current source epoch retained');
+   assert.equal(pin.runtime,false,'generic own_program/own_run parser was not broadened');
+   const sourceDefinitions=canonical.filter(d=>d.startsWith('CREATE OR REPLACE FUNCTION '+name+'('));assert.equal(sourceDefinitions.length,1);
+   const sourcePin=ownInstallationFunctionPin(sourceDefinitions[0]);
+   assert.deepEqual({...pin,sha256:null,runtime:null},{...sourcePin,sha256:null,runtime:null});
+   assert.ok(currentQa.graph.pool.has(signature+'|'+sourcePin.sha256),'original067 remains in source history');
+   const selected=currentQa.graph.desired.filter(p=>p.signature===signature);assert.equal(selected.length,1);
+   assert.equal(selected[0].sha256,sha256);assert.equal(selected[0].runtime,true);
+   const definitionSql=currentQa.normalized(definition.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '));
+   assert.equal(emitted.filter(s=>s===definitionSql).length,1);assert.ok(emitted.indexOf(definitionSql)<emitted.indexOf(revoke));
+  }
+  for(const[name,types]of[
+   ['native_employee_contract_guard_v1',''],['native_employee_person_guard_v1',''],
+   ['native_employee_context_v1','jsonb,boolean'],['native_employee_catalog_v1','jsonb'],
+   ['native_employee_next_number_v1','bigint'],['native_employee_receipt_v1','native_employee_registration'],
+  ]){
+   const local=currentQa.relocate('public.'+name+'('+types+')');
+   assert.ok(emitted.includes('REVOKE ALL ON FUNCTION '+local+' FROM PUBLIC,municontrol_actions_runtime_app'));
+   assert.ok(!emitted.some(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes(local)),name+' remains private');
+  }
+  const receipt=currentQa.graph.desired.find(p=>p.signature==='public.native_employee_receipt_v1(native_employee_registration)');
+  assert.equal(receipt.sha256,'1a57c2445f344f37d59c8c798237efefa0bb4671d101d9a177744c8fbac2c18e');assert.equal(receipt.runtime,false);
+ }
+});
+
+test('the existing census067 profile derives an already exposed seed without weakening metadata checks',()=>{
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
+ const censusQa={...published,operationalPairBaseline:'published107',foundation:{foundation:{foundation:{owner:{graph:published.graph}}}}};
+ const plan=buildOwnReportCensus067RuntimeFixture({qa:censusQa,read});
+ assert.deepEqual(plan.beforeRuntime,[
+  {signature:'public.native_employee_bootstrap_v1(jsonb)',runtime:true},
+  {signature:'public.native_employee_attempt_v1(jsonb,uuid)',runtime:true},
+  {signature:'public.native_employee_create_v1(jsonb,jsonb,text,uuid)',runtime:true},
+ ]);
+ assert.equal(plan.restoredFacades,0);assert.equal(plan.newRoles,0);assert.equal(plan.newFunctions,0);assert.equal(plan.definitionsChanged,0);
+ assert.ok(plan.statements[0].includes('CENSUS067_BEFORE_METADATA_CHANGED'));
+ assert.ok(plan.statements[3].includes('CENSUS067_AFTER_METADATA_CHANGED'));
+ assert.ok(plan.statements[4].includes('CENSUS067_UNRELATED_METADATA_CHANGED'));
+});
+
+test('an earlier explicit private067 facade obligation cannot be silently replaced',()=>{
+ const definition=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.native_employee_bootstrap_v1('));assert.ok(definition);
+ const pin=ownInstallationFunctionPin(definition),batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([{...pin,runtime:false}])};
+ assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA067_EARLY_EPOCH_ACL_CONFLICT/);
 });
