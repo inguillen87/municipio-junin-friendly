@@ -8,7 +8,7 @@ export const OWN_ACCOUNTING_IMPUTATION_190_SOURCE_PINS=Object.freeze({
   "scripts/lib/own-payroll-report-census-authority.mjs": "c0e030564bf40762960bc0c08fb7d48d82885dee6fb92a9f193841b73a2277d8",
   "scripts/lib/own-payroll-full-capacity-190-installation.mjs": "b8cf0c7854d0d2a2d5180bf711fff461c06bd4516d30e5153ab9163ab5b77aaa",
   "scripts/lib/municipal-owner-program-qa.mjs": "c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb",
-  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "d4585e5f28e12da5ea3b04a72cb0337d28d3fcfe59f8cc985490393684c0dec2",
+  "scripts/lib/municipal-owner-adoption-decision-qa.mjs": "9b16fb1550100f22fbd318a325de5eca336eec1ddad8d710ee15efdf3e7ae8cd",
   "scripts/lib/salary-administrative-identity-installation.mjs": "eb898f02b87eeeeca5edde201c9a0a7d9b03d777fce80ef6a22eac7d93820a71",
   "scripts/migrations/007-action-center-read-facades.sql": "d0e04ca20e3b67518d1340fe38d409fc3c7b339da4dee20e7a6850ebadbc8a1e",
   "scripts/migrations/103-native-employment-catalog.sql": "759bde35236dc0add938e55664f0addb3c301f79e4ecfdf0771300dbd9795cd6",

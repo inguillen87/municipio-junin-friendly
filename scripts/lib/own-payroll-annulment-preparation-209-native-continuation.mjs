@@ -38,8 +38,8 @@ const contractsSelection=values=>({kind:'contracts',values:[...values]});
 const reason='Decisión exclusivamente sintética de custodia209 en el host190 existente';
 const expectedPins=Object.freeze({
  'scripts/migrations/209-own-annulment-preparation-projection.sql':'5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56',
- 'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'dc07631c214de1d4780134577f94fcaa2891c9ff45dc4d8b1a580b7ee5e5a222',
- 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'c1c5b5e7d266f3d9a737327df5698883ebce96743dde9f4b91b1083db508df75',
+ 'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'c4bff8c6c39665fa1b63d22cc0db6200c964604cc33f40d692ba2179ae28e6a9',
+ 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'19d0a23ee623bf07b4d851937171f771419824e1b43d7b78078a8767063a07cc',
  'assets/own-payroll-annulment-preparation-model.js':'f431df5c55db1a38bff70337cfed8bc6e2bf8a66a093ef1c8e381933c2982b3e'
 });
 

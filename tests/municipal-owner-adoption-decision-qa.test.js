@@ -146,3 +146,24 @@ test('canonical190 seeds the complete reviewed146 predecessor before the unchang
  assert.ok(qa.tables.tables.includes('own_payroll_annul_event'));assert.ok(qa.tables.statements.some(s=>s.startsWith('CREATE TABLE public.own_payroll_annul_event(')));
  for(const token of ['CREATE TABLE public.own_payroll_annul_event(','ALTER TABLE public.own_payroll_annul_event ENABLE ROW LEVEL SECURITY','REVOKE ALL ON public.own_payroll_annul_event FROM PUBLIC,municontrol_actions_runtime_app','CREATE TRIGGER own_annul_event_immutable BEFORE UPDATE OR DELETE ON public.own_payroll_annul_event','CREATE TRIGGER own_annul_event_no_truncate BEFORE TRUNCATE ON public.own_payroll_annul_event'])assert.ok(qa.seed.includes(qa.relocate(token)),'complete146 table protection: '+token);
 });
+
+test('physical-column aliases are scoped per statement and nested SELECT, including lateral JSON rows',()=>{
+ const seed='CREATE TABLE public.employee(id uuid);';
+ const audit=sql=>ownerDecisionQaColumnAudit(seed,['CREATE FUNCTION public.example() RETURNS void LANGUAGE plpgsql AS $$ DECLARE r public.employee;BEGIN '+sql+' END $$']).unknown;
+ const json="SELECT e.value FROM jsonb_array_elements('[]'::jsonb) r CROSS JOIN LATERAL jsonb_array_elements(r.value) e;";
+ assert.deepEqual(audit(json+'SELECT e.id FROM public.employee e;'),[]);
+ assert.ok(audit(json+'SELECT e.missing FROM public.employee e;').some(x=>x.column==='missing'&&x.tables.includes('employee')));
+ const ordinal="SELECT e.value,e.ordinal FROM jsonb_array_elements('[]'::jsonb) WITH ORDINALITY AS e(value,ordinal);";
+ assert.deepEqual(audit(ordinal+'SELECT e.id FROM public.employee e;'),[]);
+ assert.ok(audit(ordinal+'SELECT e.missing FROM public.employee e;').some(x=>x.column==='missing'));
+ assert.ok(audit("SELECT e.missing,(SELECT e.value FROM jsonb_array_elements('[]'::jsonb) e) FROM public.employee e;").some(x=>x.column==='missing'));
+ assert.ok(audit("SELECT e.value,(SELECT e.missing FROM public.employee e) FROM jsonb_array_elements('[]'::jsonb) e;").some(x=>x.column==='missing'));
+ assert.ok(audit("SELECT (SELECT x.value FROM jsonb_array_elements('[]'::jsonb) x WHERE e.missing IS NULL) FROM public.employee e;").some(x=>x.column==='missing'));
+ assert.deepEqual(audit('SELECT e.id FROM public.employee e;SELECT r.id;'),[]);
+ assert.ok(audit('SELECT e.id FROM public.employee e;SELECT r.missing;').some(x=>x.column==='missing'));
+ const parameterSql='CREATE FUNCTION public.example(e public.employee) RETURNS void LANGUAGE plpgsql AS $$ BEGIN PERFORM e.missing;END $$';
+ assert.ok(ownerDecisionQaColumnAudit(seed,[parameterSql]).unknown.some(x=>x.column==='missing'&&x.tables.includes('employee')));
+ const unionJson=" UNION ALL SELECT e.value FROM jsonb_array_elements('[]'::jsonb) r CROSS JOIN LATERAL jsonb_array_elements(r.value) e;";
+ assert.ok(audit('SELECT e.missing FROM public.employee e'+unionJson).some(x=>x.column==='missing'));
+ assert.deepEqual(audit('SELECT e.id FROM public.employee e'+unionJson),[]);
+});
