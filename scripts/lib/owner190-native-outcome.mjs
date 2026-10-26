@@ -11,6 +11,42 @@ export function owner190NativeError(error){
 }
 const channel=bytes=>Buffer.isBuffer(bytes)?{available:true,bytes:bytes.length,sha256:hash(bytes)}:{available:false,bytes:null,sha256:null};
 
+// This finite profile belongs only to the canonical seed. Expected messages
+// are derived here, never supplied as a caller-controlled diagnostic allowlist.
+const SEED_NOTICE_VERSION='canonical-seed-drop-if-exists.v1';
+function canonicalSeedNotices({sql,framedSql,end,expectedCode,fullJson,profile}){
+ assert.ok(profile&&typeof profile==='object'&&!Array.isArray(profile),'OWNER190_NATIVE_NOTICE_PROFILE_INVALID');
+ assert.ok(Object.getPrototypeOf(profile)===Object.prototype||Object.getPrototypeOf(profile)===null,'OWNER190_NATIVE_NOTICE_PROFILE_INVALID');
+ assert.deepEqual(Reflect.ownKeys(profile).sort(),['schema','sqlFile','version'],'OWNER190_NATIVE_NOTICE_PROFILE_FIELDS');
+ assert.equal(profile.version,SEED_NOTICE_VERSION,'OWNER190_NATIVE_NOTICE_PROFILE_VERSION');
+ assert.match(profile.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/,'OWNER190_NATIVE_NOTICE_SCHEMA');
+ assert.equal(typeof profile.sqlFile,'string','OWNER190_NATIVE_NOTICE_SQL_FILE');
+ const sqlFile=profile.sqlFile.replaceAll('\\','/');
+ assert.ok(/^(?:[A-Za-z]:\/|\/)/.test(sqlFile)&&/\/[0-9]{3,}\.sql$/.test(sqlFile)&&!/[\0\r\n]/.test(sqlFile)&&!sqlFile.includes('//')&&!sqlFile.split('/').some(p=>p==='.'||p==='..'),'OWNER190_NATIVE_NOTICE_SQL_FILE');
+ assert.equal(end,'COMMIT','OWNER190_NATIVE_NOTICE_SEED_COMMIT');
+ assert.equal(expectedCode,null,'OWNER190_NATIVE_NOTICE_EXPECTED_ERROR');
+ assert.equal(fullJson,false,'OWNER190_NATIVE_NOTICE_FULL_JSON');
+ const unique=(text,anchor)=>{const at=text.indexOf(anchor);assert.ok(at>=0&&text.indexOf(anchor,at+anchor.length)===-1,'OWNER190_NATIVE_NOTICE_SQL_ANCHOR');return at;};
+ const schemaAt=unique(sql,'CREATE SCHEMA '+profile.schema+';');
+ const scopeAt=unique(sql,'SET LOCAL search_path='+profile.schema+',pg_catalog,public,pg_temp;');
+ assert.ok(schemaAt<scopeAt,'OWNER190_NATIVE_NOTICE_SCHEMA_SCOPE');
+ const specs=[
+  {statement:'ALTER TABLE internal_users DROP CONSTRAINT IF EXISTS internal_users_active_password_ck;',message:'constraint "internal_users_active_password_ck" of relation "internal_users" does not exist, skipping'},
+  {statement:'DROP TRIGGER IF EXISTS native_employment_catalog_proposal_immutable ON '+profile.schema+'.native_employment_catalog_proposal;',message:'trigger "native_employment_catalog_proposal_immutable" for relation "'+profile.schema+'.native_employment_catalog_proposal" does not exist, skipping'},
+  {statement:'DROP TRIGGER IF EXISTS native_employment_catalog_review_immutable ON '+profile.schema+'.native_employment_catalog_review;',message:'trigger "native_employment_catalog_review_immutable" for relation "'+profile.schema+'.native_employment_catalog_review" does not exist, skipping'}
+ ];
+ let priorAt=scopeAt;
+ const notices=specs.map(({statement,message})=>{
+  const sqlAt=unique(sql,statement);assert.ok(sqlAt>priorAt,'OWNER190_NATIVE_NOTICE_SQL_ORDER');priorAt=sqlAt;
+  const at=unique(framedSql,statement);
+  // psql reports the line containing this one-line statement's semicolon.
+  const line=framedSql.slice(0,at+statement.length).split('\n').length;
+  return Object.freeze({statement,line,text:'psql:'+sqlFile+':'+line+': NOTICE:  '+message});
+ });
+ const lines=notices.map(n=>n.text);
+ return Object.freeze({version:profile.version,schema:profile.schema,sqlFile,notices:Object.freeze(notices),lf:lines.join('\n')+'\n',crlf:lines.join('\r\n')+'\r\n'});
+}
+
 // This latch belongs ONLY to this live runner instance. It is not a global lock
 // and does not survive Node death or prove EOF, descendant or OS-handle closure.
 export function createOwner190NativeOutcomeLatch(){
@@ -21,7 +57,7 @@ export function createOwner190NativeOutcomeLatch(){
  return Object.freeze({
   get stopped(){return poisoned||pending!==null;},
   snapshot,
-  begin({sql,end,expectedCode=null,fullJson=false,token}){
+  begin({sql,end,expectedCode=null,fullJson=false,token,noticeProfile=null}){
    assert.equal(poisoned||pending!==null,false,'OWNER190_NATIVE_SQL_LATCHED');
    assert.equal(typeof sql,'string');assert.ok(sql.length>0,'OWNER190_NATIVE_SQL_REQUIRED');
    assert.ok(['COMMIT','ROLLBACK'].includes(end),'OWNER190_NATIVE_END_INVALID');
@@ -29,10 +65,12 @@ export function createOwner190NativeOutcomeLatch(){
    assert.ok(expectedCode===null||/^[A-Z][A-Z0-9_]{2,80}$/.test(expectedCode),'OWNER190_NATIVE_EXPECTED_CODE_INVALID');
    assert.match(token,/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/,'OWNER190_NATIVE_TOKEN_INVALID');
    const marker='MC_OWNER190_'+token.replaceAll('-','');assert.equal(sql.includes(marker),false,'OWNER190_NATIVE_FRAME_COLLISION');
-   const attempt=Object.freeze({id:++sequence,end,expectedCode,fullJson,marker,maxBuffer:(fullJson?40:20)*1024*1024,
-    // The original SQL is a contiguous, unchanged substring, never parsed or reconstructed.
-    framedSql:'\\set QUIET off\n\\echo '+marker+':BEGIN\n'+sql+'\n\\echo '+marker+':END\n'});
+   // The original SQL is still one contiguous, unchanged substring.
+   const framedSql='\\set QUIET off\n\\echo '+marker+':BEGIN\n'+sql+'\n\\echo '+marker+':END\n';
+   const notices=noticeProfile===null?null:canonicalSeedNotices({sql,framedSql,end,expectedCode,fullJson,profile:noticeProfile});
+   const attempt=Object.freeze({id:++sequence,end,expectedCode,fullJson,marker,maxBuffer:(fullJson?40:20)*1024*1024,framedSql,noticeProfile:notices});
    pending={attempt,receipt:{version:'owner190-native-outcome.proposed.v1',id:attempt.id,state:'PENDING',sqlSha256:hash(Buffer.from(sql,'utf8')),sqlBytes:Buffer.byteLength(sql,'utf8'),expectedEnd:end,expectedCode,fullJson,maxBuffer:attempt.maxBuffer,attempted:false,returned:false,status:null,signal:null,error:null,stdout:null,stderr:null,rawPersisted:false,transactionTerminalObserved:false,observedEnd:null,rollbackObserved:false,descriptorClosureEstablished:false,protocolEmpiricallyVerified:false}};
+   if(notices)pending.receipt.noticeProfile={version:notices.version,schema:notices.schema,sqlFile:notices.sqlFile,expectedCount:3,sourceLines:notices.notices.map(n=>n.line)};
    return attempt;
   },
   markInvoked(attempt){active(attempt).receipt.attempted=true;},
@@ -56,7 +94,7 @@ export function createOwner190NativeOutcomeLatch(){
    assert.equal(lines[0],begin,'OWNER190_NATIVE_FRAME_BEGIN');assert.equal(lines.filter(line=>line===begin).length,1,'OWNER190_NATIVE_FRAME_DUPLICATE');
    assert.equal(lines[1],'BEGIN','OWNER190_NATIVE_SQL_BEGIN_POSITION');assert.equal(lines.filter(line=>line==='BEGIN').length,1,'OWNER190_NATIVE_SQL_BEGIN_COUNT');
    const terminals=lines.filter(line=>line==='COMMIT'||line==='ROLLBACK');
-   let value,state,observedEnd=null;
+   let value,state,observedEnd=null,noticeDiagnostics=null;
    if(r.status===3&&attempt.expectedCode!==null){
     assert.equal(lines.includes(end),false,'OWNER190_NATIVE_ERROR_AFTER_FRAME');
     assert.equal(terminals.length,0,'OWNER190_NATIVE_ERROR_AFTER_TERMINAL');
@@ -68,16 +106,22 @@ export function createOwner190NativeOutcomeLatch(){
     value={status:3,stderr};state='EXPECTED_SQL_ERROR';
    }else{
     assert.equal(r.status,0,'OWNER190_NATIVE_EXIT_INVALID');assert.equal(attempt.expectedCode,null,'OWNER190_NATIVE_EXPECTED_ERROR_NOT_SEEN');
-    assert.equal(stderr,'','OWNER190_NATIVE_STDERR_NONEMPTY');
     assert.equal(lines.at(-1),end,'OWNER190_NATIVE_FRAME_END');assert.equal(lines.filter(line=>line===end).length,1,'OWNER190_NATIVE_FRAME_DUPLICATE');
     assert.deepEqual(terminals,[attempt.end],'OWNER190_NATIVE_TERMINAL_MISMATCH');assert.equal(lines.at(-2),attempt.end,'OWNER190_NATIVE_TERMINAL_NOT_LAST');
+    if(attempt.noticeProfile===null){
+     assert.equal(stderr,'','OWNER190_NATIVE_STDERR_NONEMPTY');
+    }else{
+     const profile=attempt.noticeProfile;
+     assert.ok(stderr===profile.lf||stderr===profile.crlf,'OWNER190_NATIVE_NOTICE_STDERR_MISMATCH');
+     noticeDiagnostics={version:profile.version,count:3,sourceLines:profile.notices.map(n=>n.line),sqlSha256:r.sqlSha256,stderrSha256:r.stderr.sha256};
+    }
     // Preserve the existing last-row convention ONLY after the complete terminal frame.
     // The actual psql tag/row transcript remains a separate HARD_PENDING proof.
     const line=lines.slice(1,-2).at(-1);value=line?.startsWith('{')||line?.startsWith('[')?JSON.parse(line):line;
     if(attempt.fullJson)assert.ok(value&&typeof value==='object','OWNER190_NATIVE_FULL_JSON_REQUIRED');
     state='TERMINAL_FRAME';observedEnd=attempt.end;
    }
-   const receipt={...r,state,rawPersisted:true,transactionTerminalObserved:observedEnd!==null,observedEnd,rollbackObserved:observedEnd==='ROLLBACK'};
+   const receipt={...r,state,rawPersisted:true,transactionTerminalObserved:observedEnd!==null,observedEnd,rollbackObserved:observedEnd==='ROLLBACK',...(noticeDiagnostics?{noticeDiagnostics}:{})};
    return{attempt,value,receipt};
   },
   complete(attempt,outcome){active(attempt);assert.strictEqual(outcome.attempt,attempt);last=copy(outcome.receipt);pending=null;},

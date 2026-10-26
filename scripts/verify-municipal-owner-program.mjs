@@ -80,9 +80,15 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  // Internal descriptor: the canonical composer still supplies the original SQL unchanged.
  const tx=(statements,options={})=>Object.freeze({sql:ownerDecisionQaTransaction({schema:qa.schema,pins,statements,...options}),end:options.end??'COMMIT'});
  const saveFailure=(name,value)=>{try{fs.writeFileSync(path.join(destination,name),value);}catch(error){sourceFailure??=error;}};
- const run=(transaction,expected,{fullJson=false}={})=>{
-  const attempt=nativeOutcome.begin({...transaction,expectedCode:expected??null,fullJson,token:randomUUID()});
-  const file=path.join(destination,String(++sequence).padStart(3,'0')+'.sql');let result,stage='input-persistence';
+ const run=(transaction,expected,{fullJson=false,seedNotices=false}={})=>{
+  assert.equal(typeof seedNotices,'boolean','OWNER190_NATIVE_SEED_NOTICES_INVALID');
+  // Computing this owned path is not an I/O operation. No file is written
+  // until begin has validated and latched the exact framed invocation.
+  const file=path.join(destination,String(sequence+1).padStart(3,'0')+'.sql');
+  const noticeProfile=seedNotices?{version:'canonical-seed-drop-if-exists.v1',schema:qa.schema,sqlFile:file}:null;
+  const attempt=nativeOutcome.begin({...transaction,expectedCode:expected??null,fullJson,token:randomUUID(),noticeProfile});
+  sequence++;
+  let result,stage='input-persistence';
   try{
    fs.writeFileSync(file+'.intent.json',JSON.stringify(nativeOutcome.snapshot(),null,2),{flag:'wx'});
    fs.writeFileSync(file,attempt.framedSql,{flag:'wx'});
@@ -109,7 +115,7 @@ export async function verifyMunicipalOwnerProgram(options,{continuation=null,con
  const env={},sessionFor=a=>({id:a.principal.session.id,email:a.principal.user.email,version:a.principal.session.version,releaseSha:qa.actor.releaseSha}),sqlFor=kind=>({query:async(text,values)=>{const mapped=kind==='owner'?ownerProgramQaQuery(text,values,qa.schema):ownerProgramQaOrdinaryQuery(text,values,qa.schema),result=run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(mapped)],{command:true}));rpc.push({phase,kind,text,values});return[{result}];}}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
  try{
   const beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,operationalPairBaseline,destinationIdentity,beforeGuard,outerBefore,sourceClosure,sourceBefore,sourceReadsBefore,consumedBeforeClosure:recorder.consumed(),sourceHashes:qa.sourceHashes},null,2));
-  phase='seed';run(tx([qa.seed]));seeded=true;run(tx(qa.predecessorInstallation));
+  phase='seed';run(tx([qa.seed]),undefined,{seedNotices:true});seeded=true;run(tx(qa.predecessorInstallation));
   const salary=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')),salaryProposal=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryCommand({command:'propose',scopeVersion:salary.scopeVersion,baseVersion:salary.catalog.version,classificationVersion:salary.classification.version,proposalId:null,proposalSha256:null,items:qa.items,reason:'Maestro completo exclusivamente ficticio QA190',reviewConfirmed:false}))},${q(randomUUID())})`),salaryPending=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===salaryProposal.proposalId),salaryReview=ownerSalaryQaIndependentReview(query,qa.checker,salaryPending),salaryReceipt=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryReview)},${q(randomUUID())})`,qa.checker);assert.equal(salaryReceipt.status,'approved');
   const firstBoot=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')),priorBody=prepareProgramWorkspace(firstBoot,qa.priorDefinition,'Programa anterior exclusivamente ficticio QA190'),priorProposed=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorBody)},${q(randomUUID())})`),priorPending=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===priorProposed.proposalId),priorReview=ownerProgramQaIndependentReview(query,qa.checker,priorPending),priorApproved=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorReview)},${q(randomUUID())})`,qa.checker);assert.equal(priorApproved.status,'approved');
   const priorEventIds=[priorProposed.eventId,priorApproved.eventId],priorEvents=()=>run(tx([`SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM ${qa.schema}.own_payroll_program_event e WHERE id=ANY(ARRAY[${priorEventIds.map(q).join(',')}]::uuid[])`],{readOnly:true})),priorEventsBefore=priorEvents();

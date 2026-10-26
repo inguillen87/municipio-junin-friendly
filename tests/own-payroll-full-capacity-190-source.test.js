@@ -605,7 +605,7 @@ test('owner190 native outcome RAW succession preserves five complete d7 parents 
  assert.deepEqual(Object.keys(OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS).sort(),additions.sort());
  for(const[file,pin]of Object.entries(OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS)){
   assert.equal(Object.hasOwn(OWNER190_NATIVE_OUTCOME_SOURCE_PINS,file),false,'new source has no fabricated ancestor');
-  const source=fs.readFileSync(new URL('../'+file,import.meta.url));assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256,file+' reviewed new source exact RAW pin');
+  const source=reconciledRaw(file);assert.equal(source.length,pin.bytes);assert.equal(hash(source),pin.sha256,file+' reviewed new source exact RAW pin');
  }
  assert.equal(Object.keys(OWN_RECEIPT126_CONSUMER_SOURCE_PINS).length,11);assert.equal(Object.keys(OWN_RECEIPT126_NEW_SOURCE_PINS).length,8);
  const unrelated=Buffer.from('unrelated outcome source remains the exact input');assert.strictEqual(projectOwner190NativeOutcomeRawSourceToParent('tests/unrelated-owner190-source.js',unrelated),unrelated);
