@@ -85,13 +85,15 @@ function bind(h){
  END $connection_guard$`;
  const observe=value=>{assert.ok(value?.connection&&Object.hasOwn(value,'result'),'M7_190_NATIVE_RESPONSE');assert.ok(Number.isSafeInteger(value.connection.pid)&&value.connection.pid>0&&value.connection.pid<=2147483647,'M7_190_NATIVE_PID');assert.equal(typeof value.connection.backendStart,'string');assert.ok(value.connection.backendStart.trim().length>0&&Number.isFinite(Date.parse(value.connection.backendStart)),'M7_190_NATIVE_BACKEND_START');connections.push(value.connection.pid+':'+value.connection.backendStart);return value.result;};
  const envelope=expression=>"SELECT jsonb_build_object('connection',current_setting('municontrol_capacity190.native_connection')::jsonb,'result',("+expression+'))';
- const run=async(text,runtime=false)=>{assert.equal(typeof text,'string');const statement=text;
-  const query=/^SELECT /.test(statement)&&!statement.includes(';'),role=runtime?['SET LOCAL ROLE municontrol_actions_runtime_app']:[],prefix=query?[connectionCapture,...role,connectionGuard]:role;
+ const run=async(text,runtime=false,{readCommitted=false}={})=>{assert.equal(typeof text,'string');assert.equal(typeof readCommitted,'boolean','M7_190_READ_COMMITTED_INVALID');const statement=text;
+  const query=/^SELECT /.test(statement)&&!statement.includes(';');
+  assert.ok(!readCommitted||query&&runtime===false,'M7_190_READ_COMMITTED_OWNER_QUERY_REQUIRED');
+  const command=runtime||readCommitted,role=runtime?['SET LOCAL ROLE municontrol_actions_runtime_app']:[],prefix=query?[connectionCapture,...role,connectionGuard]:role;
   const statements=[...prefix,query?envelope(statement.slice(7)):statement],expected=negatives.consumeRun({statement,runtime});
-  if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:runtime}));
-  if(query)return observe(h.json(statements,{command:runtime,fullJson:true}));
+  if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command}));
+  if(query)return observe(h.json(statements,{command,fullJson:true}));
   // Command-only batches retain their original role, tags and latch profile.
-  return h.json(statements,{command:runtime});
+  return h.json(statements,{command});
  };
  const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema),statements=[connectionCapture,'SET LOCAL ROLE municontrol_actions_runtime_app',connectionGuard,envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
   const expected=negatives.consumeQuery({text,values});

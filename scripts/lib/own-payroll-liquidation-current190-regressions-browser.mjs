@@ -27,11 +27,11 @@ const FOUR=4*1024*1024,FULL=32*1024*1024;
 function literalConcept(row){
  if(row.conceptCode==='1'){
   assert.equal(row.nature,'remuneration');assert.equal(row.unit,'money');assert.equal(row.amount,'100.20');
-  return{label:'Básico exclusivamente sintético',nature:'Remunerativo',value:'$ 100,20',kind:'concept'};
+  return{label:'Básico exclusivamente sintético posterior QA190',nature:'Remunerativo',value:'$ 100,20',kind:'concept'};
  }
  if(row.conceptCode==='101'){
   assert.equal(row.nature,'auxiliary');assert.equal(row.unit,'units');assert.equal(row.amount,'10');
-  return{label:'Mes exclusivamente sintético',nature:'Auxiliar',value:'10 · Unidades',kind:'auxiliary'};
+  return{label:'Mes exclusivamente sintético posterior QA190',nature:'Auxiliar',value:'10 · Unidades',kind:'auxiliary'};
  }
  assert.match(row.conceptCode,/^7(?:0[0-9]|1[0-7])$/);
  assert.equal(row.nature,'remuneration');assert.equal(row.unit,'money');assert.equal(row.amount,'1.00');

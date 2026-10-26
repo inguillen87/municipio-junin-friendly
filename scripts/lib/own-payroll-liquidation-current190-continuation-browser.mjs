@@ -44,8 +44,8 @@ function actor(value,required){
 // These are NOT constructed by product formatters or read from browser output.
 function concept(row,items){
  let label,nature,value,kind;
- if(row.conceptCode==='1'){assert.equal(row.nature,'remuneration');assert.equal(row.unit,'money');assert.equal(row.amount,'100.20');label='Básico exclusivamente sintético';nature='Remunerativo';value='$ 100,20';kind='concept';}
- else if(row.conceptCode==='101'){assert.equal(row.nature,'auxiliary');assert.equal(row.unit,'units');assert.equal(row.amount,'10');label='Mes exclusivamente sintético';nature='Auxiliar';value='10 · Unidades';kind='auxiliary';}
+ if(row.conceptCode==='1'){assert.equal(row.nature,'remuneration');assert.equal(row.unit,'money');assert.equal(row.amount,'100.20');label='Básico exclusivamente sintético posterior QA190';nature='Remunerativo';value='$ 100,20';kind='concept';}
+ else if(row.conceptCode==='101'){assert.equal(row.nature,'auxiliary');assert.equal(row.unit,'units');assert.equal(row.amount,'10');label='Mes exclusivamente sintético posterior QA190';nature='Auxiliar';value='10 · Unidades';kind='auxiliary';}
  else{assert.match(row.conceptCode,/^7(?:0[0-9]|1[0-7])$/);assert.equal(row.nature,'remuneration');assert.equal(row.unit,'money');assert.equal(row.amount,'1.00');label='Concepto exclusivamente sintético M7 '+row.conceptCode;nature='Remunerativo';value='$ 1,00';kind='concept';}
  const definitions=items.filter(item=>item.kind===kind&&item.agreementCode===row.agreementCode&&item.code===row.conceptCode);assert.equal(definitions.length,1);assert.equal(definitions[0].label,label);assert.equal(definitions[0].nature,row.nature);assert.equal(definitions[0].unit,row.unit);
  return{label,value,cells:[row.employeeNumber,row.conceptCode+' · '+label,nature,value,row.ruleReference]};

@@ -42,6 +42,8 @@ jobs:
         run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/own-monthly-day-saved-input-integrity.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
       - name: Exact native rejection adapters with synthetic services
         run: node --test tests/own-payroll-expected-native-rpc.test.js
+      - name: Canonical transaction modes with recording transports
+        run: node --test tests/canonical190-read-committed.test.js
       - name: Owned QA cleanup with synthetic transcripts
         run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js
       - run: npm run build
@@ -114,6 +116,10 @@ jobs:
             scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs
             scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs
             scripts/lib/own-payroll-canonical190-browser-host-qa.mjs
+            scripts/lib/own-payroll-post209-browser.mjs
+            tests/canonical190-read-committed.test.js
+            assets/own-payroll-close-panel.js
+            assets/own-payroll-close-model.js
             assets/own-payroll-liquidation-panel.js
             assets/own-payroll-liquidation-model.js
             assets/own-payroll-run-workspace-model.js

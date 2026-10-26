@@ -542,7 +542,7 @@ test('current190 UI succession pins exact physical sources and restores complete
  for(const[file,pin]of Object.entries(OWN_CURRENT190_UI_NEW_SOURCE_PINS)){const raw=receipt126ParentRaw(file);assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256,file+' complete new UI source');}
  // The five actual writers have closed, different source-asset profiles. This
  // FS-only assertion compares declarations; it does not invoke an artifact reader.
- const artifactSource=projectCurrent190RevocationRawSourceToParent('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',fs.readFileSync(new URL('../scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',import.meta.url))).toString('utf8');
+ const artifactSource=projectCurrent190RevocationRawSourceToParent('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',receipt126ParentRaw('scripts/verify-own-payroll-annulment-v2-full-capacity.mjs')).toString('utf8');
  function artifactProfiles(source){
   const match=/^const current190UiArtifactProfiles=Object.freeze\((\{[^\n]+\})\);$/m.exec(source);assert.ok(match,'literal closed artifact profiles required');
   assert.ok(source.includes('const profile=current190UiArtifactProfiles[relative]'));
@@ -571,7 +571,7 @@ test('actual SQL revocation source succession keeps five previous artifacts and 
   assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,Buffer.concat([raw,Buffer.from('\n-- unreviewed')])));const changed=Buffer.from(raw);changed[0]^=1;assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,changed));assert.throws(()=>projectCurrent190RevocationRawSourceToParent(file,parent));
  }
  const file='scripts/lib/own-payroll-sql-revocation-current190-browser.mjs';assert.deepEqual(Object.keys(OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS),[file]);const raw=receipt126ParentRaw(file),pin=OWN_CURRENT190_REVOCATION_NEW_SOURCE_PINS[file];assert.equal(raw.length,pin.bytes);assert.equal(hash(raw),pin.sha256);
- const entry='scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',entryRaw=fs.readFileSync(new URL('../'+entry,import.meta.url)),source=entryRaw.toString('utf8'),parent=projectCurrent190RevocationRawSourceToParent(entry,entryRaw).toString('utf8');
+ const entry='scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',entryRaw=receipt126ParentRaw(entry),source=entryRaw.toString('utf8'),parent=projectCurrent190RevocationRawSourceToParent(entry,entryRaw).toString('utf8');
  const profiles=text=>{const match=/^const current190UiArtifactProfiles=Object.freeze\((\{[^\n]+\})\);$/m.exec(text);assert.ok(match);return JSON.parse(match[1]);},current=profiles(source),previous=profiles(parent),sixth='liquidation124-actual-sql-revocation-browser/report.json';
  assert.equal(Object.keys(current).length,6);assert.equal(Object.keys(previous).length,5);const{[sixth]:revocationProfile,...preserved}=current;assert.deepEqual(preserved,previous,'the first five writer profiles are identical to074');
  const assets=/const ASSETS=Object.freeze\((\[[\s\S]*?\])\);/.exec(raw.toString('utf8'));assert.ok(assets);const declared=[...assets[1].matchAll(/'([^']+\.js)'/g)].map(row=>'assets/'+row[1]);assert.equal(declared.length,7);assert.deepEqual([...revocationProfile].sort(),declared.sort());

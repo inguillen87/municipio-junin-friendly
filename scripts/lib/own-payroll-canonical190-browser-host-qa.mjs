@@ -31,7 +31,7 @@ export function calculationPanelReads(db,schema){
  ]);
  return{query:async(text,values)=>{
   const roster=noeliaCircuitRosterRead(text,values,schema);
-  if(roster)return db.run('SELECT ('+roster+')');
+  if(roster)return db.run('SELECT ('+roster+')',false,{readCommitted:true});
   const name=functions.get(text);assert.ok(name,'CANONICAL190_BROWSER_READ_NOT_ALLOWED');
   assert.ok(Array.isArray(values)&&values.length===1&&typeof values[0]==='string','CANONICAL190_BROWSER_READ_ARITY');
   const context=JSON.parse(values[0]);assert.ok(context&&typeof context==='object'&&!Array.isArray(context));
