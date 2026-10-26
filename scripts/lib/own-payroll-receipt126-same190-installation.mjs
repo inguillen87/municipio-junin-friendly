@@ -8,7 +8,7 @@ const TABLE='own_payroll_receipt_event',SLOT='municontrol_receipt126_installatio
 const MODERN=['own_receipt_params_v1','own_receipt_self_v1','own_receipt_snapshot_v1'];
 const ADDED=['own_receipt_attempt_v1','own_receipt_batch_v1','own_receipt_batch_value_v1','own_receipt_command_v1','own_receipt_context_v1','own_receipt_event_v1','own_receipt_immutable_v1','own_receipt_list_v1','own_receipt_preview_v1','own_receipt_source_version_v1','own_receipt_text_v1'];
 const PINS=Object.freeze([
- ['scripts/lib/own-payroll-receipt126-same190-support.mjs',18178,'c3c7d4dd7e79c9fef89edd3825e0df9ceabddbcc44d755db7856cbf296bec0f0'],
+ ['scripts/lib/own-payroll-receipt126-same190-support.mjs',18178,'07c3d1b9ca3ac401f2c2317fd4f904f423a80f56c8e551285536ab8be2a4a9a1'],
  ['scripts/lib/own-payroll-receipt126-same190-shape.mjs',25756,'4e52d334bff4e8ea4e82260a7f3bc506bf73d73e3268c508aa9547acdb5ad806'],
  ['scripts/migrations/004-tenant-iam-control-plane.sql',44500,'d22712fc9179d529bcec4d8347a9d845ed873dabee9c005db44b507c731a2195'],
  ['scripts/verify-municipal-owner-program.mjs',44977,'627938ce6d429b5df4d4ba43323e08859197c0a19eb7eaed79354a31e158bda3'],

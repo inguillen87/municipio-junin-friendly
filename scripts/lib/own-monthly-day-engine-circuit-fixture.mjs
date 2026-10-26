@@ -50,19 +50,28 @@ export function buildMonthlyDayCircuitFixture({read,normalized,schema,foundation
  for(const name of [...groups.liquidation,...groups.close].map(s=>s.split('(')[0]))assert.ok(existing.has(name),'Missing190 lifecycle support:'+name);
  const readClose=file=>{const pin=sources[file]??closeSources[file];assert.ok(pin,'CIRCUIT_CLOSE_SOURCE_REQUIRED:'+file);const text=read(file).replace(/\r\n?/g,'\n');assert.equal(sha(text),pin,'CIRCUIT_CLOSE_SOURCE_CHANGED:'+file);return text;};
  for(const file of Object.keys(closeSources))readClose(file);
- const close=buildOwnCloseSql(readClose),closeBefore=[],closeAfter=[],closeAdaptationLedger=[];
+ const close=buildOwnCloseSql(readClose),closeBefore=[],closeAfter=[],closeAdaptationLedger=[],closeEpochs=[];
  for(const name of closeTargets){
   assert.equal(existingCounts.get(name),1,'CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED:'+name);
   const before=close.before.filter(d=>fnName(d)===name),after=close.adapted.filter(d=>fnName(d)===name);assert.equal(before.length,1);assert.equal(after.length,1);
   const beforePin=ownInstallationFunctionPin(before[0]),afterPin=ownInstallationFunctionPin(after[0]);assert.deepEqual({...beforePin,sha256:null},{...afterPin,sha256:null},'CIRCUIT_CLOSE_METADATA_CHANGED:'+name);assert.equal(beforePin.runtime,false,'CIRCUIT_CLOSE_PRIVATE_PREDECESSOR_REQUIRED:'+name);
   const projectedBefore=normalized(before[0]),projectedAfter=normalized(after[0]);
-  assert.equal(definitionIdentity(existing.get(name)),definitionIdentity(projectedBefore),'CIRCUIT_CLOSE_PREDECESSOR_CHANGED:'+name);
+  const actual=definitionIdentity(existing.get(name)),beforeIdentity=definitionIdentity(projectedBefore),afterIdentity=definitionIdentity(projectedAfter);
+  assert.ok(actual===beforeIdentity||actual===afterIdentity,'CIRCUIT_CLOSE_PREDECESSOR_CHANGED:'+name);
+  closeEpochs.push(actual===beforeIdentity?'124':'125');
   closeBefore.push({...beforePin,sha256:sha(body(projectedBefore))});closeAfter.push({...afterPin,sha256:sha(body(projectedAfter))});
   closeAdaptationLedger.push({name,sourceBeforeProsrcSha256:beforePin.sha256,sourceAfterProsrcSha256:afterPin.sha256,projectedBeforeProsrcSha256:sha(body(projectedBefore)),projectedAfterProsrcSha256:sha(body(projectedAfter)),sourceBeforeDefinitionSha256:sha(before[0]),sourceAfterDefinitionSha256:sha(after[0])});
  }
- // Reconcile only125's two missing lifecycle guards, before192--197 take their
- // conservation snapshots. Capture/complete and modern receipt bodies remain.
- const closeSupport=[normalized(pinsCheck(closeBefore,'CIRCUIT_CLOSE_PRIOR_METADATA')),...closeTargets.map(name=>normalized(close.adapted.find(d=>fnName(d)===name))),normalized(pinsCheck(closeAfter,'CIRCUIT_CLOSE_AFTER_METADATA'))];
+ // A whole source-derived pair defines the epoch. Mixed pairs and every
+ // posterior197 body are refused; this fixture never rewinds a later guard.
+ assert.equal(new Set(closeEpochs).size,1,'CIRCUIT_CLOSE_MIXED_EPOCH');const closePredecessorEpoch=closeEpochs[0];
+ // 124 needs both125 guards. The canonical seed already at125 must retain
+ // its complete bodies/OIDs/ACLs without emitting either replacement again.
+ // Runtime authority is derived from124's complete published facade group.
+ const existing125Pins=closeAfter.map(pin=>({...pin,runtime:groups.liquidation.includes(pin.signature.replace(/^public\./,''))}));
+ const closeSupport=closePredecessorEpoch==='124'
+  ?[normalized(pinsCheck(closeBefore,'CIRCUIT_CLOSE_PRIOR_METADATA')),...closeTargets.map(name=>normalized(close.adapted.find(d=>fnName(d)===name))),normalized(pinsCheck(closeAfter,'CIRCUIT_CLOSE_AFTER_METADATA'))]
+  :[normalized(pinsCheck(existing125Pins,'CIRCUIT_CLOSE_EXISTING125_METADATA'))];
  const receipt=all['scripts/migrations/126-own-payroll-receipts.sql'],definitions=receipt.filter(s=>fnName(s)?.startsWith('own_receipt_'));
  assert.equal(definitions.length,14);const addedDefinitions=definitions.filter(s=>!existing.has(fnName(s)));assert.equal(addedDefinitions.length,11);
  const statements=[],selectedKinds=[];
@@ -92,5 +101,5 @@ export function buildMonthlyDayCircuitFixture({read,normalized,schema,foundation
  const roles=[];for(const kind of ['maker','checker']){const actor=actors[kind];assert.match(actor.membershipId,/^[a-f0-9-]{36}$/);assert.match(actor.actorEmail,/@[^@]*\.invalid$/);roles.push(`INSERT INTO public.iam_role_capability(role_key,capability_key) SELECT member.role_key,c.key FROM public.tenant_membership member CROSS JOIN(VALUES${capabilities[kind].map(c=>'('+q(c)+')').join(',')}) c(key) WHERE member.id=${q(actor.membershipId)}::uuid AND NOT EXISTS(SELECT 1 FROM public.iam_role_capability prior WHERE prior.role_key=member.role_key AND prior.capability_key=c.key)`);}
  const support=[...closeSupport,...[...additionalCaps,...statements,...grants,...roles].map(normalized)];
  for(const name of modern)assert.ok(!support.some(s=>fnName(s)===name),'A modern receipt definition would be overwritten');
- return {version:'own-monthly-day-circuit-fixture.v1',statements:support,sourceHashes:{...sources,...closeSources,'assets/own-payroll-run-workspace-model.js':sha(modelSource)},preservedDefinitions:modern.map(name=>({name,sha256:sha(existing.get(name))})),closeAdaptationLedger,newReceiptDefinitions:addedDefinitions.map(fnName),runtimeFacades:Object.values(groups).flat(),capabilities,existingFunctionsReplaced:2,newFixtureTables:1,productRoleAssignments:0,fixtureOnly:true,connects:false,executesSql:false};
+ return {version:'own-monthly-day-circuit-fixture.v1',statements:support,sourceHashes:{...sources,...closeSources,'assets/own-payroll-run-workspace-model.js':sha(modelSource)},preservedDefinitions:modern.map(name=>({name,sha256:sha(existing.get(name))})),closeAdaptationLedger,newReceiptDefinitions:addedDefinitions.map(fnName),runtimeFacades:Object.values(groups).flat(),capabilities,closePredecessorEpoch,existingFunctionsReplaced:closePredecessorEpoch==='124'?2:0,newFixtureTables:1,productRoleAssignments:0,fixtureOnly:true,connects:false,executesSql:false};
 }

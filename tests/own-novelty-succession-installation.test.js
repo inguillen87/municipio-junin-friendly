@@ -87,17 +87,18 @@ test('197 installation mode projects all seven predecessor hashes as well as the
  assert.equal(projected.novelty197ProjectionLedger.length,15,'the posterior ledger keeps its original scope');
 });
 
-test('197 predecessor pins match the two close125 bodies actually installed by the circuit fixture',()=>{
+test('197 predecessor pins match the complete source125 pair preserved by the actual194 fixture',()=>{
  const{qa,projected}=plan(),fixture=buildMonthlyDayCircuitFixture({read,normalized:qa.normalized,schema:qa.schema,foundationSeed:qa.qa192.qa.seed,actors:{maker:qa.actor,checker:qa.checker}});
  const latest=new Map();
  for(const s of [qa.qa192.qa.seed,...fixture.statements].flatMap(sql=>splitPostgresStatements(sql))){
   const d=s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim(),m=new RegExp('^CREATE(?: OR REPLACE)? FUNCTION '+qa.schema+'\\.([a-z0-9_]+)\\(').exec(d);
   if(m)latest.set(m[1],d);
  }
- assert.equal(fixture.existingFunctionsReplaced,2);assert.equal(fixture.closeAdaptationLedger.length,2);
+ assert.equal(fixture.closePredecessorEpoch,'125');assert.equal(fixture.existingFunctionsReplaced,0);assert.equal(fixture.closeAdaptationLedger.length,2);
  for(const row of fixture.closeAdaptationLedger){
   const pin=projected.expectedQaBeforePins.find(p=>p.name===row.name);assert.ok(pin);
-  assert.equal(hash(body(latest.get(row.name))),pin.sha256,'source-built installed predecessor '+row.name);
+  assert.equal(hash(body(latest.get(row.name))),pin.sha256,'source-built preserved predecessor '+row.name);
+  assert.equal(fixture.statements.some(s=>new RegExp('^CREATE(?: OR REPLACE)? FUNCTION '+qa.schema+'\\.'+row.name+'\\(').test(s)),false,'No downgrade or duplicate replacement: '+row.name);
   assert.equal(row.projectedAfterProsrcSha256,pin.sha256);assert.notEqual(row.projectedBeforeProsrcSha256,pin.sha256,'old124 seed cannot satisfy125');
  }
 });

@@ -20,7 +20,7 @@ test('receipt supplement preserves modern bodies and reconciles exactly two cano
  const stubs=names.map(n=>'CREATE FUNCTION '+schema+'.'+n+'() RETURNS jsonb LANGUAGE sql AS $$ SELECT \'{}\'::jsonb $$'),foundationSeed=[...stubs,...before.map(normalized)].join(';\n');
  const options={schema,foundationSeed,read,normalized,actors:{maker:{membershipId:'10000000-0000-4000-8000-000000000001',actorEmail:'maker@example.invalid'},checker:{membershipId:'10000000-0000-4000-8000-000000000002',actorEmail:'checker@example.invalid'}}},fixture=buildMonthlyDayCircuitFixture(options);
  const hash=s=>createHash('sha256').update(s).digest('hex'),body=d=>/\bAS\s+(\$\w*\$)([\s\S]*)\1\s*;?\s*$/.exec(d)[2];
- assert.equal(fixture.existingFunctionsReplaced,2);assert.equal(fixture.productRoleAssignments,0);assert.equal(fixture.newReceiptDefinitions.length,11);assert.equal(fixture.preservedDefinitions.length,3);assert.equal(fixture.capabilities.checker.includes('payroll.calculation.prepare'),false);
+ assert.equal(fixture.closePredecessorEpoch,'124');assert.equal(fixture.existingFunctionsReplaced,2);assert.equal(fixture.productRoleAssignments,0);assert.equal(fixture.newReceiptDefinitions.length,11);assert.equal(fixture.preservedDefinitions.length,3);assert.equal(fixture.capabilities.checker.includes('payroll.calculation.prepare'),false);
  assert.deepEqual(fixture.closeAdaptationLedger.map(row=>row.name),targets);
  const metadata=s=>{const m=/jsonb_array_elements\('((?:[^']|'')*)'::jsonb\)/.exec(s);assert.ok(m);return JSON.parse(m[1].replaceAll("''","'"));},prior=metadata(fixture.statements[0]),next=metadata(fixture.statements[3]);
  for(const pins of [prior,next])assert.deepEqual(pins.map(({name,runtime})=>({name,runtime})),targets.map(name=>({name,runtime:false})),'Both close guards retain private ACL before the existing facade grant');
@@ -46,6 +46,49 @@ test('receipt supplement preserves modern bodies and reconciles exactly two cano
  for(const name of ['own_run_capture_v1','own_run_complete_v1'])assert.ok(!changed.some(s=>s.includes('FUNCTION '+schema+'.'+name+'(')));
  assert.equal(fixture.sourceHashes['scripts/lib/own-payroll-close-sql.mjs'],'b30aa8751521a4df39f43b76ecc521308a9a0f8f158757a7c4c7e84e30f833f7');
  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed+';CREATE FUNCTION '+schema+'.own_receipt_unexpected_v1() RETURNS jsonb LANGUAGE sql AS $$ SELECT \'{}\'::jsonb $$'}));
+});
+// Causal epoch regression: the actual canonical seed already owns both125
+// definitions. Only the source-derived124 pair still needs a replacement.
+test('receipt supplement preserves a complete125 pair and rejects mixed or posterior source epochs',()=>{
+ const schema='mc_qa_fixed_092_'+'0'.repeat(32),read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),normalized=s=>s.replaceAll('public.',schema+'.'),close=buildOwnCloseSql(read);
+ const names=['own_receipt_params_v1','own_receipt_snapshot_v1','own_receipt_self_v1','own_liquidation_bootstrap_v1','own_liquidation_detail_v1','own_liquidation_attempt_v1','own_close_detail_v1','own_close_attempt_v1','own_close_group_v1','own_close_command_v1'];
+ const targets=['own_liquidation_rows_v1','own_liquidation_command_v1'],before=targets.map(name=>close.before.find(d=>d.startsWith('CREATE FUNCTION public.'+name+'('))),after=targets.map(name=>close.adapted.find(d=>d.startsWith('CREATE OR REPLACE FUNCTION public.'+name+'(')));
+ const stubs=names.map(n=>'CREATE FUNCTION '+schema+'.'+n+'() RETURNS jsonb LANGUAGE sql AS $$ SELECT \'{}\'::jsonb $$'),seed=pair=>[...stubs,...pair.map(normalized)].join(';\n'),foundationSeed=seed(after);
+ const options={schema,foundationSeed,read,normalized,actors:{maker:{membershipId:'10000000-0000-4000-8000-000000000001',actorEmail:'maker@example.invalid'},checker:{membershipId:'10000000-0000-4000-8000-000000000002',actorEmail:'checker@example.invalid'}}},fixture=buildMonthlyDayCircuitFixture(options);
+ const hash=s=>createHash('sha256').update(s).digest('hex'),body=d=>/\bAS\s+(\$\w*\$)([\s\S]*)\1\s*;?\s*$/.exec(d)[2];
+ const metadata=s=>{const m=/jsonb_array_elements\('((?:[^']|'')*)'::jsonb\)/.exec(s);assert.ok(m);return JSON.parse(m[1].replaceAll("''","'"));},pins=metadata(fixture.statements[0]);
+ assert.equal(fixture.closePredecessorEpoch,'125');assert.equal(fixture.existingFunctionsReplaced,0);assert.equal(fixture.closeAdaptationLedger.length,2);
+ assert.ok(fixture.statements[0].includes('CIRCUIT_CLOSE_EXISTING125_METADATA'));
+ // The exact published124 facade GRANT is the independent ACL oracle. Rows
+ // stays private, and command keeps its existing runtime grant without DDL.
+ const sql124=monthly194SodStatements(read('scripts/migrations/124-own-payroll-liquidation-decisions.sql')).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim());
+ const grants124=sql124.filter(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes('public.own_liquidation_bootstrap_v1('));assert.equal(grants124.length,1);
+ const granted=[...grants124[0].matchAll(/public\.([a-z0-9_]+\([^)]*\))/g)].map(m=>'public.'+m[1].replace(/\s+/g,''));
+ assert.deepEqual(pins.map(p=>p.runtime),[false,true]);
+ for(let n=0;n<2;n++){
+  const row=fixture.closeAdaptationLedger[n],pin=pins[n];assert.equal(pin.name,targets[n]);assert.equal(pin.runtime,granted.includes(pin.signature.replace(schema+'.','public.')));
+  assert.equal(pin.sha256,hash(body(normalized(after[n]))));assert.equal(row.projectedAfterProsrcSha256,pin.sha256);assert.equal(row.sourceBeforeProsrcSha256,hash(body(before[n])));assert.equal(row.sourceAfterProsrcSha256,hash(body(after[n])));
+  const target=new RegExp('^CREATE(?: OR REPLACE)? FUNCTION '+schema+'\\.'+targets[n]+'\\(');
+  assert.equal(fixture.statements.filter(s=>target.test(s)).length,0,'125 body must not be recreated or replaced: '+targets[n]);
+  const changed=foundationSeed.replace(body(normalized(after[n])),()=>body(normalized(after[n]))+' ');assert.equal(changed.length,foundationSeed.length+1);
+  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:changed}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
+  for(const [needle,replacement]of [['RETURNS jsonb','RETURNS text'],['SECURITY DEFINER','SECURITY INVOKER'],['SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,public']]){
+   assert.equal(after[n].split(needle).length,2,'Source header anchor is unique');
+   const headerDrift=foundationSeed.replace(normalized(after[n]),()=>normalized(after[n].replace(needle,replacement)));
+   assert.notEqual(headerDrift,foundationSeed);assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:headerDrift}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
+  }
+  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed+';'+normalized(after[n])}),/CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED/);
+  assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:foundationSeed.replace(normalized(after[n]),'')}),/CIRCUIT_CLOSE_SINGLE_PREDECESSOR_REQUIRED|Missing190 lifecycle support/);
+ }
+ for(const pair of [[before[0],after[1]],[after[0],before[1]]])assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:seed(pair)}),/CIRCUIT_CLOSE_MIXED_EPOCH/);
+ // Use the actual197 function definitions, rather than a hand-written future
+ // sentinel. They must never be admitted and silently rewound to125.
+ const sql197=monthly194SodStatements(read('scripts/migrations/197-own-novelty-succession.sql')).map(s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim());
+ const posterior=targets.map(name=>{const matches=sql197.filter(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.'+name+'('));assert.equal(matches.length,1);return matches[0];});
+ for(let n=0;n<2;n++)assert.notEqual(body(posterior[n]),body(after[n]),'197 is a distinct source epoch');
+ for(const pair of [posterior,[after[0],posterior[1]],[posterior[0],after[1]]])assert.throws(()=>buildMonthlyDayCircuitFixture({...options,foundationSeed:seed(pair)}),/CIRCUIT_CLOSE_PREDECESSOR_CHANGED/);
+ for(const name of names.slice(0,3))assert.ok(!fixture.statements.some(s=>s.startsWith('CREATE FUNCTION '+schema+'.'+name+'(')));
+ assert.equal(fixture.productRoleAssignments,0);assert.equal(fixture.newFixtureTables,1);assert.equal(fixture.newReceiptDefinitions.length,11);
 });
 test('full-circuit continuation refuses execution outside admitted CI custody',async()=>{await assert.rejects(()=>verifyMonthlyDayEngineCircuit({synthetic:false,transport:'ci'}),/Only the guarded synthetic194 runner/);await assert.rejects(()=>verifyMonthlyDayEngineCircuit({synthetic:true,transport:'local'}),/SQL execution belongs/);});
 test('real run handler permits a read-only checker bootstrap and blocks POST before body/DB access',async()=>{const id=n=>'10000000-0000-4000-8000-'+String(n).padStart(12,'0'),principal={user:{email:'checker@example.invalid'},tenant:{source:'membership',id:id(1),membershipId:id(2),effectiveCapabilities:RUN_READ}},session={email:principal.user.email,id:id(3),version:1,releaseSha:'a'.repeat(40)},data={version:'own-payroll-bootstrap.v1',scopeVersion:'b'.repeat(64),programVersion:'c'.repeat(64),canCalculate:false,runs:[],complete:true};let queries=0,bodyReads=0;const handler=createOwnRunHandler({env:{INTERNAL_APP_ORIGIN:'https://qa194.example.invalid'},requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async()=>{queries++;return[{result:data}];}})}),response=()=>({setHeader(){},status(n){this.statusCode=n;return this;},json(v){this.value=v;return this;}});const res=response();await handler({method:'GET',url:'/api/internal-own-payroll-run?resource=bootstrap',query:{resource:'bootstrap'},headers:{}},res);assert.equal(res.statusCode,200);assert.equal(res.value.data.canCalculate,false);assert.equal(queries,1);const post={method:'POST',url:'/api/internal-own-payroll-run',query:{},headers:{origin:'https://qa194.example.invalid','content-type':'application/json','idempotency-key':id(4)}};Object.defineProperty(post,'body',{get(){bodyReads++;throw Error('POST must stop before reading the body');}});const denied=response();await handler(post,denied);assert.equal(denied.statusCode,403);assert.equal(bodyReads,0);assert.equal(queries,1);});
@@ -111,6 +154,16 @@ for(const operationalPairBaseline of ['pre107','published107'])test('194 compose
  assert.equal(qa.connects,false);assert.equal(qa.executesSql,false);assert.equal(qa.operationalPairBaseline,operationalPairBaseline);
  assert.notEqual(qa.actor.membershipId,qa.checker.membershipId);assert.notEqual(qa.actor.actorEmail,qa.checker.actorEmail);
  const circuit=buildMonthlyDayCircuitFixture({read,normalized:qa.normalized,schema,foundationSeed:qa.qa192.qa.seed,actors:{maker:qa.actor,checker:qa.checker}}),authority=monthly194ParameterAuthority(qa,circuit);
+ assert.equal(circuit.closePredecessorEpoch,'125');assert.equal(circuit.existingFunctionsReplaced,0);
+ const close=buildOwnCloseSql(read),targets=['own_liquidation_rows_v1','own_liquidation_command_v1'];
+ const strip=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/,'').trim(),identity=d=>{const s=strip(d).replace(/;\s*$/,''),at=s.search(/\bAS\s+\$/);assert.ok(at>0);return s.slice(0,at).replace(/^CREATE(?: OR REPLACE)? FUNCTION /,'CREATE OR REPLACE FUNCTION ').replace(/\s+/g,' ').trim()+' '+s.slice(at);};
+ const seedStatements=monthly194SodStatements(qa.qa192.qa.seed).map(strip);
+ for(const name of targets){
+  const target=new RegExp('^CREATE(?: OR REPLACE)? FUNCTION '+schema+'\\.'+name+'\\('),selected=seedStatements.filter(s=>target.test(s)),canonical=close.adapted.filter(d=>d.startsWith('CREATE OR REPLACE FUNCTION public.'+name+'('));
+  assert.equal(selected.length,1);assert.equal(canonical.length,1);
+  assert.equal(identity(selected[0]),identity(qa.normalized(canonical[0])),'The actual194 foundation selects complete source125 metadata/body: '+name);
+  assert.equal(circuit.statements.filter(s=>target.test(s)).length,0,'The fixture preserves the selected125 epoch: '+name);
+ }
  assert.equal(authority.conflict,true,'The actual canonical parameter conflict must remain installed');
  for(const kind of ['maker','checker'])assert.equal(authority[kind].includes('payroll.parameter.prepare')&&authority[kind].includes('payroll.parameter.approve'),false,'MONTHLY194_FIXTURE_EFFECTIVE_SOD_CONFLICT:'+kind);
  assert.deepEqual(authority.maker,['payroll.parameter.prepare','payroll.parameter.read']);
