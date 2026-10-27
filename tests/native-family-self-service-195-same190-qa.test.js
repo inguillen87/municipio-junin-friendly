@@ -158,3 +158,33 @@ test('self195 durability rejects a changed source, prior state, v5 epoch or unex
   assert.throws(()=>assertNativeFamilySelfService195Durability({batch:b,installed,durable:{...durable,...patch}}),JSON.stringify(patch));
  assert.throws(()=>assertNativeFamilySelfService195Durability({batch:b,installed:{...installed,beforeFingerprint:'7'.repeat(64)},durable}),/FAMILY_SELF195_PRIOR_CHANGED/);
 });
+
+// Native185 regression: the three approved capability additions are omitted from
+// row data only for the exact IAM relation, including after QA schema relocation.
+test('self195 prior snapshots relocate the exact capability relation without relaxing prior metadata or state guards',()=>{
+ const f=family(),b=f.self;
+ const sourceTarget="CASE WHEN c.oid='public.iam_capability'::regclass THEN ";
+ const qaTarget="CASE WHEN c.oid='"+schema+".iam_capability'::regclass THEN ";
+ const keys="'WHERE r.capability_key NOT IN(''employee.family.self.read'',''employee.family.self.submit'',''employee.family.review'')'";
+ for(const slot of ['before','after']){
+  const raw=b[slot],local=f.normalized(raw);
+  assert.equal(raw.split(sourceTarget).length-1,1,slot+' has one exact source relation gate');
+  assert.equal(local.split(qaTarget).length-1,1,slot+' gate points at the actual QA relation');
+  assert.ok(raw.includes(sourceTarget+keys+" ELSE '' END) INTO n,h;"));
+  assert.ok(local.includes(qaTarget+keys+" ELSE '' END) INTO n,h;"));
+  assert.doesNotMatch(local,/CASE WHEN c\.nspname='public' AND c\.relname='iam_capability'/);
+  assert.doesNotMatch(raw,/c\.relname='iam_capability'/,'no same-name relation outside this exact OID gets an exclusion');
+  for(const rows of [f.localSelf.rehearsal,f.localSelf.installation])assert.equal(rows.filter(sql=>sql===local).length,1,slot+' is the actual emitted snapshot');
+  if(slot==='after')assert.equal(f.localSelf.durable.filter(sql=>sql===local).length,1);
+  // Metadata and security of iam_capability remain part of the ordinary table
+  // snapshot; only the explicit three source-pinned rows can be excluded.
+  assert.ok(raw.includes("'columns',(SELECT jsonb_agg(jsonb_build_object('attribute',to_jsonb(a),'default',pg_get_expr(d.adbin,d.adrelid))"));
+  assert.ok(raw.includes("'constraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.oid) FROM pg_constraint k WHERE k.conrelid=c.oid)"));
+  assert.ok(raw.includes("'acl',c.relacl"));
+ }
+ assert.ok(b.priorAudit.includes("IF old-'triggers' IS DISTINCT FROM new-'triggers' THEN RAISE EXCEPTION 'FAMILY_SELF195_PRIOR_STATE_CHANGED';END IF;"));
+ assert.ok(b.priorAudit.includes("IF x IS DISTINCT FROM y THEN RAISE EXCEPTION 'FAMILY_SELF195_PRIOR_TRIGGER_CHANGED';END IF;"));
+ assert.ok(b.objectsCheck.includes("FAMILY_SELF195_CAPABILITIES"));
+ assert.ok(b.objectsCheck.includes("FAMILY_SELF195_UNEXPECTED_ASSIGNMENT"));
+ assert.equal(b.fixed.capabilityDefinitionsAdded,3);assert.equal(b.fixed.roleAssignmentsAdded,0);
+});

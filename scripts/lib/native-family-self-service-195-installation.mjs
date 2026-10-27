@@ -143,7 +143,7 @@ function previousSnapshot(slot){
  const filter='WHERE r.capability_key NOT IN('+CAP_KEYS.map(q).join(',')+')';
  const a=s.indexOf('  EXECUTE format('),z=s.indexOf(' INTO n,h;',a);
  assert.ok(a>0&&z>a);
- s=s.slice(0,a)+'  EXECUTE format('+q(query)+",c.nspname,c.relname,CASE WHEN c.nspname='public' AND c.relname='iam_capability' THEN "+q(filter)+" ELSE '' END)"+s.slice(z);
+ s=s.slice(0,a)+'  EXECUTE format('+q(query)+",c.nspname,c.relname,CASE WHEN c.oid='public.iam_capability'::regclass THEN "+q(filter)+" ELSE '' END)"+s.slice(z);
  assert.equal(s.includes('native_leave_'),false);return s;
 }
 
