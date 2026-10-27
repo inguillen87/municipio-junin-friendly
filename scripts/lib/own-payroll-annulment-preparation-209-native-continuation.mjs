@@ -3,6 +3,7 @@
 // business/browser unchanged, then invoke this tail on that SAME canonical190.
 // No foundation, transport, new schema, production data or automatic recalculation.
 import assert from 'node:assert/strict';
+import {assertPositions210SidecarPlan,readPositions210SidecarSnapshot,assertPositions210SidecarDelta} from './positions210-same190-sidecar.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
@@ -41,7 +42,7 @@ const reason='Decisión exclusivamente sintética de custodia209 en el host190 e
 const expectedPins=Object.freeze({
  'scripts/migrations/209-own-annulment-preparation-projection.sql':'5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56',
  'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'afff10e945df59d4b6b9c2ce828d9015a8a73514107eae47bfe1ea98ccd76d5b',
- 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'b1a0e892dafe5e80eb5055e57c98193da8ca5006c57f92d96b28a56f6dc292b0',
+ 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'c508f61f7a130585be36d4ff9298befb6d3897cce525f8315739a0dd63b65f9d',
  'assets/own-payroll-annulment-preparation-model.js':'f431df5c55db1a38bff70337cfed8bc6e2bf8a66a093ef1c8e381933c2982b3e'
 });
 
@@ -89,7 +90,8 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.equal(context?.version,'own-annul-preparation209-live190-context.v1');
  const {baselineContext:base,installation208,installation209,completed208}=context;
  assert.equal(base?.version,'own-annulment-v2-live190-context.v1');
- const {h,db,qa,contracts,definition,first,firstSaved,second,closed,reopened,period,query}=base;
+  const {h,db,qa,contracts,definition,first,firstSaved,second,closed,reopened,period,query}=base;
+  const positions210Sidecar=base.positions210Sidecar??null;if(positions210Sidecar)assertPositions210SidecarPlan({h,db,plan:positions210Sidecar});
  assert.strictEqual(h.qa,qa);assert.ok([17,18].includes(h.major));assert.equal(qa.operationalPairBaseline,'published107');
  assert.equal(period,'2026-10');assert.deepEqual(query,{period,liquidationType:'monthly'});
  assert.equal(base.monthlyBusinessCovered,false);assert.equal(completed208?.passed,true);
@@ -145,13 +147,14 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  }
  for(const name of['creator2','receiver'])assert.deepEqual([...accesses[name].principal.tenant.effectiveCapabilities].sort(),OWN_ANNUL_PREPARER_209_CAPABILITIES);
  const prefixBefore=rowMultiset(h),metadata=actorProof.after.metadata;
+  const sidecarBefore209=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const run=(name,operation,input={},fullJson=true)=>ownRunOperation(db,accesses[name].principal,accesses[name].session,operation,input,{fullJson});
  const preparation=(id,fullJson=true)=>ownAnnulPreparationOperation(db,accesses.receiver.principal,accesses.receiver.session,'detail',{id},{fullJson});
  const readDetail=async id=>verifiedOwnLiquidationDetail(await liq('detail',{id}));
  const bootstraps={};for(const name of['creator1','creator2','receiver']){bootstraps[name]=await run(name,'bootstrap',{contractVersion:'2'});assert.equal(bootstraps[name].version,'own-payroll-bootstrap.v2');assert.equal(bootstraps[name].canCalculate,true);}
  assert.equal(new Set(Object.values(bootstraps).map(row=>row.scopeVersion)).size,3);
  for(const row of actorProof.actors){const name=row.name==='secondCreator'?'creator2':'receiver';assert.equal(row.scopeVersion,bootstraps[name].scopeVersion);}
- const captures=[];
+  const captures=[],pendingCaptureIds=[];
  for(const [n,name]of['creator1','creator2'].entries()){
   const boot=await run(name,'bootstrap',{contractVersion:'2'}),body={version:'own-payroll-run-command.v2',...query,liquidationDate:dates[n],selection:all(),scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'},key=randomUUID();
   const capture=await run(name,'calculate',{body,key});
@@ -321,13 +324,14 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // epoch and its exact+2 events above remain unchanged. A fresh explicit P
  // action now adds ONE10-person/200-concept capture/result, never a decision.
  const recoveryOriginalDetail=await readDetail(captures[0].id),recoveryRowsBefore=rowMultiset(h),recoveryBefore=await ledger();assert.deepEqual(recoveryBefore,decisionCensus);
+  const sidecarRecoveryBefore=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  measurements.census.push({stage:'after-individual124-decision',...decisionCensus});
  const calculationRecoveryBrowser=await verifyOwnDecision124CalculationRecoveryOn190(Object.freeze({h,db,qa,readSnapshot,readLedger:ledger,synthetic:true}),Object.freeze({run:captures[0],decision:decisionReceipt,contractIds:decisionIds,actors:decisionActors,reason}));
  assert.equal(calculationRecoveryBrowser.version,'own-decision124-calculation-recovery-live190-browser.v1');assert.equal(calculationRecoveryBrowser.passed,true);assert.equal(calculationRecoveryBrowser.calculationContinuationProven,true);assert.equal(calculationRecoveryBrowser.lostCalculationAcknowledgementProven,true);
  assert.equal(calculationRecoveryBrowser.addedCaptures,1);assert.equal(calculationRecoveryBrowser.addedSavedResults,1);assert.equal(calculationRecoveryBrowser.addedLiquidationDecisions,0);assert.equal(calculationRecoveryBrowser.addedCloseEvents,0);assert.equal(calculationRecoveryBrowser.pagePosts,1);assert.equal(calculationRecoveryBrowser.captureRpcCalls,1);assert.equal(calculationRecoveryBrowser.completionRpcCalls,1);assert.equal(calculationRecoveryBrowser.recoveryAddedRows,0);
  const recovered124=calculationRecoveryBrowser.capture;assert.ok(recovered124.saved);assert.equal(recovered124.saved.result.employeeCount,10);assert.equal(recovered124.saved.result.rowCount,200);assert.deepEqual(recovered124.body.selection,contractsSelection(decisionIds));assert.notEqual(recovered124.id,captures[0].id);
  const recoveryAfter=await ledger();assert.deepEqual(recoveryAfter,{...recoveryBefore,captures:13,saved:13});assert.deepEqual(calculationRecoveryBrowser.after,recoveryAfter);measurements.census.push({stage:'after-individual124-calculation-recovery',...recoveryAfter});
- const recoveryRowsAfter=rowMultiset(h);assertPrefix(recoveryRowsBefore,recoveryRowsAfter);const recoveryTables=['own_payroll_run_capture','own_payroll_run_result'];assert.deepEqual(recoveryRowsAfter.filter(row=>!recoveryTables.includes(row.name)),recoveryRowsBefore.filter(row=>!recoveryTables.includes(row.name)),'DECISION124_RECOVERY_CHANGED_OTHER_LEDGER_OR_IAM');
+ const recoveryRowsAfter=rowMultiset(h);assertPrefix(recoveryRowsBefore,recoveryRowsAfter);const recoveryTables=['own_payroll_run_capture','own_payroll_run_result'];if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarRecoveryBefore,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'calculation',newCaptureIds:[recovered124.id]});}else{assert.deepEqual(recoveryRowsAfter.filter(row=>!recoveryTables.includes(row.name)),recoveryRowsBefore.filter(row=>!recoveryTables.includes(row.name)),'DECISION124_RECOVERY_CHANGED_OTHER_LEDGER_OR_IAM');}
  assert.deepEqual((await readDetail(captures[0].id)).capture.saved,captures[0].saved);assert.deepEqual((await readDetail(captures[0].id)).employees.map(row=>({contractId:row.contractId,state:row.state,version:row.version,liquidationVersion:row.liquidationVersion})),recoveryOriginalDetail.employees.map(row=>({contractId:row.contractId,state:row.state,version:row.version,liquidationVersion:row.liquidationVersion})));
  ok(true,'an explicit creator calculation after124 saves only the exact10 annulled legajos and200 concepts; lost completion ACK recovers the same immutable attempt without another write');
  // SQL197's stateVersion commits every liquidation event in this period/type.
@@ -348,7 +352,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  for(const name of['creator2','receiver']){
   const boot=await run(name,'bootstrap',{contractVersion:'2'}),pendingBody={version:'own-payroll-run-command.v2',...query,liquidationDate:dates[0],selection:all(),scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'},key=randomUUID();
   const result=await db.query('SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result',[JSON.stringify(employeeContext(accesses[name].principal,accesses[name].session)),JSON.stringify(pendingBody),key,ownRunAlgorithmHash()]);
-  const pending=result[0].result;assert.equal(pending.saved,null);assert.equal(pending.key,key);
+   const pending=result[0].result;assert.equal(pending.saved,null);assert.equal(pending.key,key);pendingCaptureIds.push(pending.id);
   const pendingRow=await db.run('SELECT jsonb_build_object(\'captureCount\',(SELECT count(*)::integer FROM own_payroll_run_capture WHERE id='+q(pending.id)+'::uuid),\'resultCount\',(SELECT count(*)::integer FROM own_payroll_run_result WHERE capture_id='+q(pending.id)+'::uuid))');assert.deepEqual(pendingRow,{captureCount:1,resultCount:0});
   const refreshed=await preparation(receipt.id);assert.deepEqual(refreshed.affected,projection.affected);assert.deepEqual(refreshed.runs,projectionPostIndividual124.runs);assert.notEqual(refreshed.sourceStateSha256,previous.sourceStateSha256);assert.notEqual(refreshed.preparationSha256,previous.preparationSha256);
   assert.throws(()=>assertSameOwnAnnulPreparation(previous,refreshed),error=>error.code==='OWN_ANNUL_PREPARATION_CHANGED');
@@ -406,7 +410,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const finalIndex=await readIndex();assert.equal(finalIndex.index.length,13);assert.equal(finalIndex.index.reduce((n,row)=>n+row.states.confirmed,0),0);
  const prefixAfter=rowMultiset(h);assertPrefix(prefixBefore,prefixAfter);
  const appended=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event','own_payroll_annul_event','own_payroll_close_event'];
- assert.deepEqual(prefixAfter.filter(row=>!appended.includes(row.name)),prefixBefore.filter(row=>!appended.includes(row.name)),'ANNUL209_UNRELATED_ROWS_CHANGED');
+ if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarBefore209,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'annul209',newCaptureIds:[...captures.map(capture=>capture.id),recovered124.id,...pendingCaptureIds]});}else{assert.deepEqual(prefixAfter.filter(row=>!appended.includes(row.name)),prefixBefore.filter(row=>!appended.includes(row.name)),'ANNUL209_UNRELATED_ROWS_CHANGED');}
  assert.deepEqual(h.json([actorPlan.metadataReadStatement],{readOnly:true,fullJson:true}),metadata);
  const source208=assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208}),source209=assertOwnAnnulPreparation209SourceBookend({h,db,installation:installation209});
  assert.equal(source209.priorBusinessRowsRecompared,false);
@@ -418,6 +422,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // Same db/run/receiver/programme: no new adapter, SQL, role, host or protocol.
  const recalcBefore=await ledger();assert.deepEqual(recalcBefore,finalCensus);
  const recalcPrefixBefore=rowMultiset(h),recalculated=[],recalculationMeasurements=[],recalculationBrowsers=[];
+  const sidecarRecalcBefore=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const post209HistoricalRunIds=Object.freeze(finalIndex.index.map(row=>row.id));assert.equal(post209HistoricalRunIds.length,13);
  let preparedBeforeCalculation=finalProjection;
  for(let n=0;n<dates.length;n++){
@@ -472,7 +477,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);
  assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);
  const recalcPrefixAfter=rowMultiset(h);assertPrefix(recalcPrefixBefore,recalcPrefixAfter);
- const calculationOnly=['own_payroll_run_capture','own_payroll_run_result'];assert.deepEqual(recalcPrefixAfter.filter(row=>!calculationOnly.includes(row.name)),recalcPrefixBefore.filter(row=>!calculationOnly.includes(row.name)),'ANNUL209_RECALC_CHANGED_OTHER_LEDGER_OR_IAM');
+ const calculationOnly=['own_payroll_run_capture','own_payroll_run_result'];if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarRecalcBefore,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'calculation',newCaptureIds:recalculated.map(capture=>capture.id)});}else{assert.deepEqual(recalcPrefixAfter.filter(row=>!calculationOnly.includes(row.name)),recalcPrefixBefore.filter(row=>!calculationOnly.includes(row.name)),'ANNUL209_RECALC_CHANGED_OTHER_LEDGER_OR_IAM');}
  const recalculationSource208=assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208}),recalculationSource209=assertOwnAnnulPreparation209SourceBookend({h,db,installation:installation209});assert.equal(recalculationSource209.priorBusinessRowsRecompared,false);
  const postPreparationRecalculation={version:'own-annul-preparation-explicit-recalculation.v1',passed:true,dates:[...dates],partitions:[285,570],populationUnion:855,conceptRowsUnion:17100,addedCaptures:2,addedSavedResults:2,addedLiquidationDecisions:0,addedCloseEvents:0,before:recalcBefore,after:recalcAfter,measurements:recalculationMeasurements,fresh209ReadAfterFirstCapture:true,recoveryAndReplayAddedRows:0,previousRowsPreserved:true,source208:recalculationSource208,source209:recalculationSource209,actualSql:true,actualCalculationService:true,actualCalculationApiHandler:recalculationBrowsers.length===2&&recalculationBrowsers.every(row=>row.actualApiHandler),actualHttp:recalculationBrowsers.length===2&&recalculationBrowsers.every(row=>row.actualHttp),actualBrowser:recalculationBrowsers.length===2&&recalculationBrowsers.every(row=>row.actualBrowser),browser:recalculationBrowsers,atomicGetToCalculation:false,durableReceiptLinkCreated:false,receiptLinkedRecalculationExecuted:false,automaticRecalculation:false,monthlyBusinessCovered:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
  ok(true,'two separate explicit current commands save285/570 after209 drafts, recover and replay exactly, and preserve all originals');
@@ -490,6 +495,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.notEqual(checkerPersonId,receiverPersonId);
  const confirmCloseBefore=await ledger();assert.deepEqual(confirmCloseBefore,recalcAfter);
  const confirmClosePrefixBefore=rowMultiset(h),newRunIds=new Set(recalculated.map(capture=>capture.id)),confirmationReceipts=[],confirmationMeasurements=[];let departmentConfirmationBrowser=null,secondConfirmationBrowser=null;
+  const sidecarConfirmCloseBefore=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  assert.equal(newRunIds.size,2);
  // A global current-state fingerprint may legitimately change. Compare the
  // historical run states and immutable source references without freezing it.
@@ -530,6 +536,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  // confirmed and unclosed. SQL124 cannot confirm an annulled source again:
  // explicitly calculate a NEW285 capture, then confirm it independently.
  const agreementBefore=await ledger(),agreementPrefixBefore=rowMultiset(h);assert.deepEqual(agreementBefore,{...confirmCloseBefore,liquidationEvents:confirmCloseBefore.liquidationEvents+2});
+  const sidecarAgreementBefore=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const agreementOriginalDetail=await readDetail(recalculated[0].id);assert.equal(agreementOriginalDetail.employees.length,285);assert.ok(agreementOriginalDetail.employees.every(row=>row.state==='confirmed'&&row.blockedBy===null&&row.allowedCommands.includes('annul')));
  const agreementAnnulmentBrowser=await verifyOwnAgreementAnnulmentRecoveryOn190(Object.freeze({h,db,qa,readSnapshot,readLedger:ledger,synthetic:true}),Object.freeze({run:recalculated[0],detailBefore:agreementOriginalDetail,actors:{reviewer:decisionActors.reviewer,creator:decisionActors.receiver},reason}));
  assert.equal(agreementAnnulmentBrowser.version,'own-agreement-annulment-loss-before-live190-browser.v1');assert.equal(agreementAnnulmentBrowser.passed,true);assert.equal(agreementAnnulmentBrowser.positiveAgreementAnnulmentProven,true);assert.equal(agreementAnnulmentBrowser.lostBeforeSqlRecovered,true);assert.equal(agreementAnnulmentBrowser.originalBodyAndKeyRetained,true);
@@ -558,7 +565,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  const preserveAfterAgreementHistory=async()=>{const current=await readIndex();assert.equal(current.index.length,16);assert.deepEqual(current.index.filter(row=>!agreementPhaseRuns.has(row.id)).map(historicalReference),historicalReferences);assert.deepEqual(historicalReference(current.index.find(row=>row.id===recalculated[0].id)),retiredAgreementReference);return current;};
  const activeConfirmedIndex=await preserveAfterAgreementHistory();assert.equal(activeConfirmedIndex.index.reduce((count,row)=>count+row.states.confirmed,0),855);for(const capture of activeCloseCaptures){const row=activeConfirmedIndex.index.find(value=>value.id===capture.id);assert.deepEqual(row.states,{calculated:0,confirmed:capture.saved.result.employeeCount,annulled:0,cancelled:0});assert.deepEqual(row.confirmedContractIds,capture.saved.input.employees.map(employee=>employee.contractId).sort());}
  const agreementNewEvents=new Set([agreementAnnulled.id,replacementConfirmation.id]);assert.equal(agreementNewEvents.size,2);assert.deepEqual(activeConfirmedIndex.liquidationHistory.filter(row=>!agreementNewEvents.has(row.id)),confirmedIndex.liquidationHistory);assert.deepEqual(activeConfirmedIndex.closeHistory,confirmedIndex.closeHistory);assert.deepEqual(activeConfirmedIndex.closed,confirmedIndex.closed);
- const agreementPrefixAfter=rowMultiset(h);assertPrefix(agreementPrefixBefore,agreementPrefixAfter);const agreementChangedTables=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event'];assert.deepEqual(agreementPrefixAfter.filter(row=>!agreementChangedTables.includes(row.name)),agreementPrefixBefore.filter(row=>!agreementChangedTables.includes(row.name)),'AGREEMENT190_CHANGED_OTHER_LEDGER_OR_IAM');
+ const agreementPrefixAfter=rowMultiset(h);assertPrefix(agreementPrefixBefore,agreementPrefixAfter);const agreementChangedTables=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event'];if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarAgreementBefore,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'agreement209',newCaptureIds:[agreementReplacement.id]});}else{assert.deepEqual(agreementPrefixAfter.filter(row=>!agreementChangedTables.includes(row.name)),agreementPrefixBefore.filter(row=>!agreementChangedTables.includes(row.name)),'AGREEMENT190_CHANGED_OTHER_LEDGER_OR_IAM');}
  assert.deepEqual((await readDetail(recalculated[0].id)).capture.saved,recalculated[0].saved);const retiredCurrentDetail=await readDetail(recalculated[0].id),retiredState=row=>({contractId:row.contractId,state:row.state,version:row.version,liquidationVersion:row.liquidationVersion,events:row.events});assert.deepEqual(retiredCurrentDetail.employees.map(retiredState),agreementAnnulledDetail.employees.map(retiredState));assert.ok(retiredCurrentDetail.employees.every(row=>row.blockedBy===agreementReplacement.id));assert.deepEqual((await readDetail(recalculated[1].id)).capture.saved,recalculated[1].saved);
  const agreementAnnulmentContinuation={version:'own-agreement-annulment-explicit-restoration190.v1',passed:true,before:agreementBefore,afterAnnul:agreementAfterAnnul,afterCalculation:agreementAfterCalculation,after:agreementAfter,agreementCode:'1',population:285,conceptRows:5700,addedCaptures:1,addedSavedResults:1,addedLiquidationDecisions:2,addedConsolidatedAnnulments:0,addedCloseEvents:0,recoveryAddedRows:0,initialConfirmationDecisionsPreserved:2,retiredRunId:recalculated[0].id,replacementRunId:agreementReplacement.id,replacementResultSha256:agreementReplacement.saved.resultSha256,replacementConfirmedVersions:replacementConfirmation.affected.map(row=>({contractId:row.contractId,version:row.version,liquidationVersion:row.liquidationVersion})),activeSourceRunIds:[...activeRunIds].sort(),sourceSavedBytesPreserved:true,historicalThirteenRunsPreserved:true,annulledSourceReconfirmationRejectedByCurrentContract:true,browser:agreementAnnulmentBrowser,replacementCalculationService:true,replacementCalculationBrowser:replacementCalculationBrowser.actualBrowser,replacementCalculationApiHandler:replacementCalculationBrowser.actualApiHandler,replacementCalculationHttp:replacementCalculationBrowser.actualHttp,replacementCalculationBrowserProof:replacementCalculationBrowser,replacementConfirmationService:true,replacementConfirmationBrowser:replacementConfirmationBrowser.actualBrowser,replacementConfirmationApiHandler:replacementConfirmationBrowser.actualApiHandler,replacementConfirmationHttp:replacementConfirmationBrowser.actualHttp,replacementConfirmationBrowserProof:replacementConfirmationBrowser,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false};
  measurements.census.push({stage:'after-positive-agreement-annul-replacement',...agreementAfter});
@@ -627,7 +634,7 @@ export async function runOwnAnnulPreparation209NativeContinuation(context){
  assert.deepEqual((await readDetail(first.id)).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id)).capture.saved,second.saved);for(const capture of captures)assert.deepEqual((await readDetail(capture.id)).capture.saved,capture.saved);assert.deepEqual((await readDetail(recovered124.id)).capture.saved,recovered124.saved);assert.deepEqual((await readDetail(agreementReplacement.id)).capture.saved,agreementReplacement.saved);
  assert.deepEqual(await annul('attempt',{key:receipt.key}),receiptReplay);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);
  const confirmClosePrefixAfter=rowMultiset(h);assertPrefix(confirmClosePrefixBefore,confirmClosePrefixAfter);
- const decisionTables=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event','own_payroll_close_event'];assert.deepEqual(confirmClosePrefixAfter.filter(row=>!decisionTables.includes(row.name)),confirmClosePrefixBefore.filter(row=>!decisionTables.includes(row.name)),'ANNUL209_CONFIRM_CLOSE_CHANGED_OTHER_LEDGER_OR_IAM');
+ const decisionTables=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event','own_payroll_close_event'];if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarConfirmCloseBefore,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'confirmClose209',newCaptureIds:[agreementReplacement.id]});}else{assert.deepEqual(confirmClosePrefixAfter.filter(row=>!decisionTables.includes(row.name)),confirmClosePrefixBefore.filter(row=>!decisionTables.includes(row.name)),'ANNUL209_CONFIRM_CLOSE_CHANGED_OTHER_LEDGER_OR_IAM');}
  assert.deepEqual(h.json([actorPlan.metadataReadStatement],{readOnly:true,fullJson:true}),metadata);
  const confirmCloseSource208=assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208}),confirmCloseSource209=assertOwnAnnulPreparation209SourceBookend({h,db,installation:installation209});assert.equal(confirmCloseSource209.priorBusinessRowsRecompared,false);
  assert.equal(postPreparationRecalculation.addedLiquidationDecisions,0);assert.equal(postPreparationRecalculation.addedCloseEvents,0);assert.deepEqual(postPreparationRecalculation.after,recalcAfter);

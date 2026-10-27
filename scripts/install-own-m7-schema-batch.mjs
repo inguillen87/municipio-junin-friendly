@@ -8,7 +8,7 @@ const proofOf=rows=>{const value=rows.at(-1)?.[0]?.proof;assert.ok(value&&typeof
 export async function executeOwnM7Stage({batch,stageId,major,client,record}){
  assert.ok(OWN_M7_STAGE_IDS.includes(stageId));assert.equal(typeof record,'function');
  const target=batch.targets.find(t=>t.major===major);assert.ok(target);const stage=target.stages.find(s=>s.id===stageId);assert.ok(stage);
- const stageBatch=batch.stageBatches?.[stageId];assert.ok(stageBatch,'OWN_M7_STAGE_BATCH_REQUIRED');const contract=batch.phaseContracts?.[stageId];assert.equal(contract?.stageId,stageId,'OWN_M7_STAGE_PHASE_CONTRACT_REQUIRED');
+ const stageBatch=target.stageBatches?.[stageId]??batch.stageBatches?.[stageId];assert.ok(stageBatch,'OWN_M7_STAGE_BATCH_REQUIRED');const contract=batch.phaseContracts?.[stageId];assert.equal(contract?.stageId,stageId,'OWN_M7_STAGE_PHASE_CONTRACT_REQUIRED');if(contract.kind==='successor'){assert.equal(stageBatch.major,major,'OWN_M7_SUCCESSOR_MAJOR_DRIFT');assert.equal(stageBatch.whole201AdmissionIncluded,true,'OWN_M7_WHOLE201_SOURCE_GUARD_REQUIRED');}
  const result={stage:stageId,version:stage.version,target:null,phase:'before-client',state:'PENDING',preflight:false,rehearsed:false,installed:false,durableObserved:false,durabilityVerified:false,repeated:false,businessOperations:0,nominalRowsReturned:0,automaticRetry:false};
  let recorded=false;
  try{
@@ -17,7 +17,7 @@ export async function executeOwnM7Stage({batch,stageId,major,client,record}){
   const tx=(s,readOnly)=>sql.transaction(s.map(statement=>sql.query(statement)),{isolationLevel:'RepeatableRead',readOnly});
   result.phase='preflight';record(result);await tx(stage.preflight,true);result.preflight=true;record(result);
   result.phase='rehearsal';record(result);let rehearsalError=null;try{await tx(stage.rehearsal,false);}catch(error){rehearsalError=error;}
-  if(!isOwnM7RehearsalRollback(rehearsalError,batch.rehearsalCode)){
+  if(!isOwnM7RehearsalRollback(rehearsalError,stage.rehearsalExpectedError??batch.rehearsalCode)){
    const error=Error('OWN_M7_REHEARSAL_UNCERTAIN_NO_FURTHER_SQL');error.code='OWN_M7_REHEARSAL_UNCERTAIN';error.uncertain=true;throw error;
   }
   result.phase='rollback-verification';record(result);await tx(stage.preflight,true);result.rehearsed=true;record(result);
@@ -26,7 +26,7 @@ export async function executeOwnM7Stage({batch,stageId,major,client,record}){
   result.phase='durable-verification';record(result);const durable=proofOf(await tx(stage.durableVerification,true));
   assertOwnM7StageProof(stageId,{phase:'durable',receipt:durable,batch:stageBatch,installed,contract});Object.assign(result,{durableObserved:true,durableProof:durable});record(result);
   let repeated;if(stage.repetition){result.phase='repetition';record(result);repeated=proofOf(await tx(stage.repetition,false));assertOwnM7StageProof(stageId,{phase:'repetition',receipt:repeated,batch:stageBatch,installed,contract});Object.assign(result,{repeated:true,repeatedProof:repeated});record(result);}
-  const validation=assertOwnM7StageDurability(stageId,{installed,durable,repeated,batch:stageBatch});Object.assign(result,{validation,durabilityVerified:true,state:'VALIDATED',phase:'complete'});record(result);return result;
+  const validation=assertOwnM7StageDurability(stageId,{installed,durable,repeated,batch:stageBatch});Object.assign(result,{validation,durabilityVerified:true,validatedReceiptCount:stage.repetition?3:2,nativeEquivalencePublicIncluded:false,state:'VALIDATED',phase:'complete'});record(result);return result;
  }catch(cause){
   const error=cause instanceof Error?cause:Object.assign(Error('OWN_M7_NON_ERROR_TRANSPORT_FAILURE'),{code:'OWN_M7_NON_ERROR_TRANSPORT_FAILURE'});
   Object.assign(result,{state:'UNCERTAIN',noFurtherSql:true,noCleanup:true,automaticRetry:false,failureCode:typeof error.code==='string'&&/^[A-Z0-9_]{1,80}$/.test(error.code)?error.code:'OWN_M7_STAGE_UNVALIDATED'});

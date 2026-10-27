@@ -2,6 +2,9 @@
 // Existing IAM/source/readiness/MFA190/177 and outer cleanup stay authoritative.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import {preparePositions210BeforeFirstCapture,readPositions210Comparison} from './positions210-same190-native-continuation.mjs';
+import {verifyLifecycle212Same190} from './positions211212-same190-fixture.mjs';
+import {assertPositions210SidecarPlan,readPositions210SidecarSnapshot,assertPositions210SidecarDelta} from './positions210-same190-sidecar.mjs';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 import {ownCapacityLiteralAdditions} from './own-payroll-capacity-literal-additions.mjs';
 import {salaryBootstrap,salaryItems,salaryRowKey} from '../../assets/native-salary-catalog-model.js';
@@ -17,7 +20,8 @@ import {employeeDraft,validCuil} from '../../assets/native-employee-contract.js'
 import {verifiedOwnReportCensus} from '../../assets/own-payroll-report-census-model.js';
 import {ownerProgramQaAccessSql,ownerProgramQaAccess} from './municipal-owner-program-qa.mjs';
 import {buildOwnReportCensus190IamFixture,assertOwnReportCensus190IamFixture} from './own-payroll-report-census-190-iam-fixture.mjs';
-import {ownFullCapacity190Rpc} from './own-payroll-full-capacity-190-rpc.mjs';
+import {canonical190Rpc} from './native-family-195-rpc.mjs';
+import {runNativeFamily195Business,FAMILY195_BUSINESS_CONTEXT_VERSION} from './native-family-195-same190-continuation.mjs';
 import {createOwn190NativeErrorExpectations} from './own-payroll-expected-native-rpc.mjs';
 import {installOwnFullCapacity190,ownFullCapacity190Snapshot} from './own-payroll-full-capacity-190-installation.mjs';
 import {composeOwnCloseSnapshot214Plan,installOwnCloseSnapshot214} from './own-close-snapshot214-installation.mjs';
@@ -97,7 +101,7 @@ function bind(h){
   // Command-only batches retain their original role, tags and latch profile.
   return h.json(statements,{command});
  };
- const query=async(text,values)=>{const rendered=ownFullCapacity190Rpc(text,values,qa.schema),statements=[connectionCapture,'SET LOCAL ROLE municontrol_actions_runtime_app',connectionGuard,envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
+ const query=async(text,values)=>{const {statement:rendered}=canonical190Rpc(text,values,qa.schema),statements=[connectionCapture,'SET LOCAL ROLE municontrol_actions_runtime_app',connectionGuard,envelope(rendered.slice(7,-' AS result'.length))];trace.push({sql:text});
   const expected=negatives.consumeQuery({text,values});
   if(expected)throw negatives.completeExpectedError(expected,h.expectRollback(statements,expected.nativeCode,{command:true}));
   return[{result:observe(h.json(statements,{command:true,fullJson:true}))}];
@@ -122,10 +126,14 @@ async function registerPopulation(h,db){
  assert.equal(hires.length,855);assert.equal(new Set(hires.map(v=>v.contractId)).size,855);assert.ok(hires.every(v=>v.origin==='MUNICONTROL'&&v.startDate==='2026-10-01'&&v.accountCreated===false&&v.payrollCalculated===false));assert.deepEqual(oldSources(),baseline,'M7_190_OLD_SOURCE_ROWS_CHANGED');return hires.map(v=>v.contractId).sort();
 }
 export async function runOwnFullCapacity190Continuation(h,options={}){
- assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null)&&Reflect.ownKeys(options).every(key=>key==='annulmentV2Browser'||key==='annulmentPreparation'),'M7_190_EXTENSION_OPTIONS_INVALID');
+ assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null)&&Reflect.ownKeys(options).every(key=>key==='annulmentV2Browser'||key==='annulmentPreparation'||key==='positions210'||key==='family195Business'),'M7_190_EXTENSION_OPTIONS_INVALID');
  const annulmentV2BrowserEnabled=Object.hasOwn(options,'annulmentV2Browser')?options.annulmentV2Browser:false;assert.equal(typeof annulmentV2BrowserEnabled,'boolean','M7_190_EXTENSION_BOOLEAN_REQUIRED');
  const annulmentPreparation=Object.hasOwn(options,'annulmentPreparation')?options.annulmentPreparation:false;assert.equal(typeof annulmentPreparation,'boolean','M7_190_PREPARATION_BOOLEAN_REQUIRED');assert.ok(!annulmentPreparation||annulmentV2BrowserEnabled,'M7_190_PREPARATION_REQUIRES_COMPLETE208');
- const {qa,major}=h;assert.ok([17,18].includes(major));assert.equal(qa.operationalPairBaseline,'published107');
+ const family195Business=Object.hasOwn(options,'family195Business')?options.family195Business:false;
+ assert.equal(typeof family195Business,'boolean','M7_190_FAMILY195_BOOLEAN_REQUIRED');
+ assert.ok(!family195Business||(annulmentV2BrowserEnabled&&annulmentPreparation),'M7_190_FAMILY195_REQUIRES_COMPLETE208_209');
+  const positions210Enabled=Object.hasOwn(options,'positions210')?options.positions210:false;assert.equal(typeof positions210Enabled,'boolean');assert.ok(!positions210Enabled||(annulmentV2BrowserEnabled&&annulmentPreparation),'POSITIONS210_REQUIRES_COMPLETE208_209');
+  const {qa,major}=h;assert.ok([17,18].includes(major));assert.equal(qa.operationalPairBaseline,'published107');
  const closeSnapshotPlan=composeOwnCloseSnapshot214Plan({foundation:qa,major,sourceCommit:h.sourceCommit,read:h.read});
  const closeIndexedPlan=composeOwnCloseSnapshot215Plan({foundation:qa,major,sourceCommit:h.sourceCommit,read:h.read});
  const runtime=()=>h.json(["SELECT jsonb_build_object('serverVersion',current_setting('server_version'),'serverVersionNum',current_setting('server_version_num'))"],{readOnly:true}),nativeBefore=runtime();assert.equal(Math.trunc(Number(nativeBefore.serverVersionNum)/10000),major);
@@ -139,7 +147,12 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.notEqual(qa.actor.actorEmail,qa.checker.actorEmail);assert.notEqual(qa.actor.membershipId,qa.checker.membershipId);for(const c of RUN_CALCULATE)assert.ok(maker.principal.tenant.effectiveCapabilities.includes(c));for(const c of [...OWN_LIQ_REVIEW,...OWN_CLOSE_WRITE])assert.ok(reviewer.principal.tenant.effectiveCapabilities.includes(c));
  const checkerContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  const run=(op,input,fullJson=true)=>ownRunOperation(db,maker.principal,maker.session,op,input,{fullJson}),liq=(op,input,fullJson=true)=>ownLiquidationOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson}),annul=(op,input,fullJson=true)=>ownAnnulOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson}),close=(op,input,fullJson=true)=>ownCloseOperation(db,reviewer.principal,reviewer.session,op,input,{fullJson});
- const period='2026-10';
+  const period='2026-10';
+  const positions210Admission=positions210Enabled?await preparePositions210BeforeFirstCapture({h,db,qa,contracts,period}):null;
+  const positions210Sidecar=positions210Enabled?assertPositions210SidecarPlan({h,db,plan:h.prepared.positions210Sidecar}):null;
+  const positions210SidecarProofs=[];
+  const positions210Initial=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
+  if(positions210Initial){assert.deepEqual(positions210Initial.captures,[]);assert.deepEqual(positions210Initial.positions,[]);assert.deepEqual(positions210Initial.dimensions,[]);}
  const calculate=async()=>{const b=await run('bootstrap');return run('calculate',{body:{version:'own-payroll-run-command.v2',period,liquidationType:'monthly',liquidationDate:period+'-15',selection:{kind:'all',values:[]},scopeVersion:b.scopeVersion,programVersion:b.programVersion,populationDomain:'native_registered'},key:randomUUID()});};
  const sameStateReject=async(operation,predicate,label)=>{const before=ownFullCapacity190Snapshot(h);await assert.rejects(operation,predicate);assert.deepEqual(ownFullCapacity190Snapshot(h),before);ok(true,label);};
  // Read-only initial UI epoch: the existing IAM/201/programme/855 population
@@ -147,7 +160,8 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  // Keep this proof separate; it adds no capture, saved result or decision.
  const initialEmptyBrowser=annulmentV2BrowserEnabled?await verifyOwnInitialEmptyBrowserOn190(Object.freeze({version:'own-initial-empty-live190-context.v1',h,db,qa,maker,reviewer,contracts,readSnapshot:()=>ownFullCapacity190Snapshot(h)})):null;
  if(initialEmptyBrowser){assert.equal(initialEmptyBrowser.passed,true);assert.equal(initialEmptyBrowser.initialVerifiedEmptyBrowserProven,true);assert.equal(initialEmptyBrowser.ownRosterComplete,855);for(const key of ['initialCaptures','initialSavedResults','httpWrites','addedCaptures','addedSavedResults','addedLiquidationDecisions','addedAnnulments','addedCloseEvents'])assert.equal(initialEmptyBrowser[key],0);ok(true,'initial actual empty review and own855 preparation are authenticated read-only before the first capture');}
- const first=await calculate();ok(first.saved.result.employeeCount===855&&first.saved.result.rowCount===17100,'855 actual native registrations produce all17100 concept rows');assert.deepEqual(first.saved.input.rules,definition.rules);
+  const first=await calculate();ok(first.saved.result.employeeCount===855&&first.saved.result.rowCount===17100,'855 actual native registrations produce all17100 concept rows');assert.deepEqual(first.saved.input.rules,definition.rules);
+  if(positions210Sidecar)positions210SidecarProofs.push(assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:positions210Initial,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'calculation',newCaptureIds:[first.id]}));
  assert.equal(first.payload.monthly.batches.length,0,'M7_190_UNEXPECTED_MONTHLY_SOURCE');assert.deepEqual(first.saved.input.employees.map(e=>e.contractId).sort(),contracts);assert.ok(first.saved.input.employees.every(e=>e.inputs.some(i=>i.key==='month'&&i.value==='10')),'M7_190_PERIOD_CONTEXT_CONSUMED');
  ok(bytes(first.body)+bytes(first.payload)+8192<FOUR&&bytes(first)>FOUR&&bytes(first)<=FULL,'same valid capture has small initial input and full response above4MiB without irrelevant padding');
  const firstSaved=structuredClone(first.saved),detail=await liq('detail',{id:first.id});assert.equal(detail.capture.saved.resultSha256,first.saved.resultSha256);assert.equal(detail.capture.saved.result.rowCount,17100);
@@ -174,7 +188,10 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  const annulKey=randomUUID(),annulled=await annul('command',{key:annulKey,body:annulBody});ok(annulled.affected.length===855,'one full atomic annulment covers855 exact contracts');assert.deepEqual(await annul('command',{key:annulKey,body:annulBody}),{...annulled,replayed:true});assert.deepEqual(await annul('attempt',{key:annulKey}),{...annulled,replayed:true});
  const changedAnnulBody={...annulBody,reason:'Cambio exclusivamente sintético del cuerpo original'};
  await db.expectQueryError({caseId:'855-annul-key-body-reuse',nativeCode:'OWN_LIQ_IDEMPOTENCY_REUSE',text:'SELECT public.own_annul_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[checkerContext,JSON.stringify(ownAnnulCommand(changedAnnulBody)),annulKey]},()=>sameStateReject(()=>annul('command',{key:annulKey,body:changedAnnulBody}),e=>e.code==='OWN_LIQ_IDEMPOTENCY_REUSE','same-key different body is refused without persistent change'));
- const second=await calculate();ok(second.id!==first.id,'annulled full scope recalculates into another immutable run');assert.deepEqual(second.saved.result.rows,first.saved.result.rows);assert.deepEqual(second.saved.result.employeeTotals,first.saved.result.employeeTotals);await decide(await liq('detail',{id:second.id}),'confirm');
+  const positions210BeforeSecond=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
+  const second=await calculate();ok(second.id!==first.id,'annulled full scope recalculates into another immutable run');assert.deepEqual(second.saved.result.rows,first.saved.result.rows);assert.deepEqual(second.saved.result.employeeTotals,first.saved.result.employeeTotals);
+  if(positions210Sidecar)positions210SidecarProofs.push(assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:positions210BeforeSecond,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'calculation',newCaptureIds:[second.id]}));
+  await decide(await liq('detail',{id:second.id}),'confirm');
  const query={period,liquidationType:'monthly'},beforeClose=await close('detail',query),closeBody={...query,scopeVersion:beforeClose.scopeVersion,stateVersion:beforeClose.stateVersion,selection:{kind:'all',values:[]},command:'close',groupId:null,reason:'Cierre completo exclusivamente sintético de capacidad M7',reviewConfirmed:true},closeKey=randomUUID();
  const serializedCloseBody=JSON.stringify(ownCloseCommand(closeBody));
  await db.expectQueryError({caseId:'855-legacy-first-close',nativeCode:'OWN_CLOSE_LIMIT',text:'SELECT public.own_close_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',values:[checkerContext,serializedCloseBody,closeKey]},()=>sameStateReject(()=>close('command',{key:closeKey,body:closeBody},false),e=>e.code==='OWN_CLOSE_LIMIT'&&e.status===422,'legacy close refuses full scope without committing any partial group'));
@@ -191,7 +208,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  const accountingImputationTail=await runOwnAccountingImputation190Continuation({h,db,maker,reviewer,closed,second,contracts,sameStateReject,ok});
  const journalTail=await runOwnJournalFullCapacity190Continuation({h,db,maker,reviewer,closed,approvedImputation:accountingImputationTail.approvedImputation,sameStateReject,ok});
  const current=await close('detail',query),reopenBody={...closeBody,scopeVersion:current.scopeVersion,stateVersion:current.stateVersion,command:'reopen',groupId:closed.groupId},reopenKey=randomUUID(),reopened=await close('command',{key:reopenKey,body:reopenBody});assert.deepEqual(reopened.snapshot,closed.snapshot);assert.equal(reopened.snapshotSha256,closed.snapshotSha256);assert.deepEqual(await close('attempt',{key:reopenKey}),{...reopened,replayed:true});assert.deepEqual(await close('command',{key:reopenKey,body:reopenBody}),{...reopened,replayed:true});
- const receipt126=await receiptTail.afterReopen(reopened);assert.equal(receipt126.passed,true);assert.equal(receipt126.actualNetworkHttp,false);assert.equal(receipt126.browserProven,false);assert.equal(receipt126.circuit.receiptEventsTotal,3);assert.equal(receipt126.circuit.receiptBatches,1);ok(true,'same190 receipt126 backend preserves855/17100, three receipt events and exact checker restoration without another close or reopen');
+ const receipt126=await receiptTail.afterReopen(reopened);assert.equal(receipt126.passed,true);assert.equal(receipt126.actualNetworkHttp,true);assert.equal(receipt126.browserProven,true);assert.equal(receipt126.circuit.browserProof.passed,true);assert.equal(receipt126.circuit.browserProof.originalBodyAndKeyHttpReplay,true);assert.equal(receipt126.circuit.receiptEventsTotal,3);assert.equal(receipt126.circuit.receiptBatches,1);ok(true,'same190 receipt126 backend preserves855/17100, three receipt events and exact checker restoration without another close or reopen');
  const accountingImputation=await accountingImputationTail.afterReopen(reopened),journal=await journalTail.afterReopen(reopened);
  const accountingImputationSourceBookend=assertOwnAccountingImputation190SourceBookend(h,accountingImputation.installation);
  assert.deepEqual((await liq('detail',{id:first.id})).capture.saved,firstSaved);assert.equal(ownRunHash(reopened.snapshot),closed.snapshotSha256);ok(true,'reopen and fresh recovery preserve the exact full snapshot and original first capture');
@@ -220,7 +237,7 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.equal(maker.session.id,qa.actor.actorSessionId);assert.equal(reviewer.session.id,qa.checker.actorSessionId);assert.notEqual(maker.session.id,reviewer.session.id);
  assert.equal(closed.snapshot.employeeCount,855);assert.equal(closed.snapshot.conceptCount,17100);assert.equal(reopened.body.command,'reopen');assert.equal(reopened.groupId,closed.groupId);assert.equal(reopened.snapshotSha256,closed.snapshotSha256);
  const baselineChecks=Object.freeze([...checks]),secondSaved=structuredClone(second.saved);
- const context=Object.freeze({version:'own-annulment-v2-live190-context.v1',h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot:closeBrowserSnapshot,closedCensus,reopenedCensus,accountingImputation,journal,accountingImputationSourceBookend,operations:Object.freeze({run,liq,annul,close,decide,calculate}),readSnapshot:()=>ownFullCapacity190Snapshot(h),sameStateReject,ok,monthlyBusinessCovered:false});
+ const context=Object.freeze({version:'own-annulment-v2-live190-context.v1',h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,...(positions210Sidecar?{positions210Sidecar}:{}),baselineSnapshot:closeBrowserSnapshot,closedCensus,reopenedCensus,accountingImputation,journal,accountingImputationSourceBookend,operations:Object.freeze({run,liq,annul,close,decide,calculate}),readSnapshot:()=>ownFullCapacity190Snapshot(h),sameStateReject,ok,monthlyBusinessCovered:false});
  const annulmentV2Browser=await runOwnAnnulmentV2NativeContinuation(context,{annulmentPreparation});
  assert.ok(annulmentV2Browser&&typeof annulmentV2Browser==='object'&&!Array.isArray(annulmentV2Browser),'M7_190_ANNUL_V2_REPORT_REQUIRED');assert.equal(annulmentV2Browser.passed,true);assert.equal(annulmentV2Browser.monthlyBusinessCovered,false);assert.equal(annulmentV2Browser.productionWrites,0);assert.equal(annulmentV2Browser.paymentExecuted,false);assert.equal(annulmentV2Browser.municipalAcceptance,false);
  // New decisions legitimately extend history. Keep the immutable originals;
@@ -228,6 +245,17 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  assert.deepEqual((await liq('detail',{id:first.id})).capture.saved,firstSaved);assert.deepEqual((await liq('detail',{id:second.id})).capture.saved,secondSaved);
  assert.deepEqual(await close('group',{id:closed.groupId}),{...closed,replayed:true});assert.deepEqual(await annul('attempt',{key:annulKey}),{...annulled,replayed:true});
  assert.deepEqual(checks.slice(0,baselineChecks.length),baselineChecks);assert.equal(new Set(db.connections).size,db.connections.length,'M7_190_ANNUL_V2_CONNECTION_REUSED');assert.deepEqual(runtime(),nativeBefore);
- return{...afterCloseBrowser,checks:baselineChecks,annulmentV2Browser};
+ // Fixed business hook AFTER the complete208/209 tail and replay assertions.
+ // Same h/db/qa/contracts, still inside the existing receiptTail disposal scope.
+ const family195BusinessReport=family195Business?await runNativeFamily195Business(Object.freeze({version:FAMILY195_BUSINESS_CONTEXT_VERSION,h,db,qa,maker,reviewer,contracts,definition,query,readSnapshot:()=>ownFullCapacity190Snapshot(h)})):null;
+ if(family195BusinessReport){assert.equal(family195BusinessReport.passed,true);assert.equal(family195BusinessReport.productionWrites,0);assert.equal(family195BusinessReport.municipalAcceptance,false);assert.equal(family195BusinessReport.scenarioRequestIds.length,5);assert.deepEqual(runtime(),nativeBefore);}
+  let positions210=null;
+  if(positions210Admission){
+   const comparison=await readPositions210Comparison({h,db,admission:positions210Admission});
+   const lifecycle212=await verifyLifecycle212Same190({h,db,admission:positions210Admission,contracts});
+   const finalSidecars=readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar});
+   positions210=Object.freeze({version:'positions210-212-same190-source-owned-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,sameCanonical190:true,existingNativePopulation:855,additionalEmployees:0,additionalContracts:0,sourceOwnedSyntheticNorm:true,municipalNormInstalled:false,operationalPair:{makerCapabilities:6,checkerCapabilities:13,contractsReserved:[...positions210Admission.pair.contractsReserved],nativeContextsVerified:positions210Admission.pair.nativeContextsVerified,administrativeQaCheckerReused:false},installation210:positions210Admission.installed,installation211212:positions210Admission.dependentInstallations,sidecarProofs:positions210SidecarProofs,captureSidecarsBijective:true,totalCaptures:finalSidecars.captures.length,totalPositionSidecars:finalSidecars.positions.length,totalDimensionSidecars:finalSidecars.dimensions.length,comparison,lifecycle212,art211NativeFinancialPositiveProven:false,m10Complete:false,positionBrowserProven:false,noeliaAdministrativeFlowProven:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false});
+  }
+  return{...afterCloseBrowser,checks:baselineChecks,annulmentV2Browser,...(family195BusinessReport?{family195Business:family195BusinessReport}:{}),...(positions210?{positions210}:{})};
  }catch(error){receiptPrimary=error;throw error;}finally{try{await receiptTail.dispose();}catch(error){if(receiptPrimary)throw new AggregateError([receiptPrimary,error],'M7_190_RECEIPT_PRIMARY_AND_DISPOSE_FAILURE',{cause:receiptPrimary});throw error;}}
 }

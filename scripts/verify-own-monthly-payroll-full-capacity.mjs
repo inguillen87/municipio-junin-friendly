@@ -97,12 +97,17 @@ function prepareMonthly(h) {
 
 async function monthlyThenFull(h, settings = {}) {
   assert.ok(settings && typeof settings === 'object' && !Array.isArray(settings) && (Object.getPrototypeOf(settings) === Object.prototype || Object.getPrototypeOf(settings) === null));
-  assert.ok(Reflect.ownKeys(settings).every(key => key === 'annulmentV2Browser' || key === 'annulmentPreparation'));
+  assert.ok(Reflect.ownKeys(settings).every(key => key === 'annulmentV2Browser' || key === 'annulmentPreparation' || key === 'positions210' || key === 'family195Business'));
   const annulmentV2Browser = Object.hasOwn(settings, 'annulmentV2Browser') ? settings.annulmentV2Browser : false;
   const annulmentPreparation = Object.hasOwn(settings, 'annulmentPreparation') ? settings.annulmentPreparation : false;
   assert.equal(typeof annulmentV2Browser, 'boolean');
   assert.equal(typeof annulmentPreparation, 'boolean');
   assert.ok(!annulmentPreparation || annulmentV2Browser, 'MONTHLY_209_REQUIRES_COMPLETE208');
+  const positions210=Object.hasOwn(settings,'positions210')?settings.positions210:false;assert.equal(typeof positions210,'boolean');
+  assert.ok(!positions210||(annulmentV2Browser&&annulmentPreparation),'POSITIONS210_REQUIRES_COMPLETE208_209');
+  const family195Business = Object.hasOwn(settings, 'family195Business') ? settings.family195Business : false;
+  assert.equal(typeof family195Business, 'boolean');
+  assert.ok(!family195Business || (annulmentV2Browser && annulmentPreparation), 'MONTHLY_FAMILY195_REQUIRES_COMPLETE208_209');
   const {monthly: qa, monetary, sharedPrerequisites} = h.prepared ?? {};
   assert.ok(qa && qa.version === 'own-novelty-succession-qa.v1');
   assert.equal(sharedPrerequisites?.passed, true);
@@ -156,7 +161,7 @@ async function monthlyThenFull(h, settings = {}) {
   // All original855 guards,20 rules,17100 rows and accounting epochs remain inside
   // this unchanged continuation. Never seed/reset a population to make them pass.
   const capacity = annulmentV2Browser
-    ? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true, annulmentPreparation})
+    ? await runOwnFullCapacity190Continuation(h, {annulmentV2Browser: true, annulmentPreparation, family195Business,...(positions210?{positions210:true}:{})})
     : await runOwnFullCapacity190Continuation(h);
   assert.equal(capacity.passed, true);
   assert.equal(capacity.population, 855);

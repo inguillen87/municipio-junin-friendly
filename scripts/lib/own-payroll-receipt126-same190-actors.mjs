@@ -13,6 +13,7 @@ const SELF_CAPS=['actions.read','payroll.receipt.self.read'].sort();
 const SOURCE_PINS=Object.freeze([
  ['scripts/internal-schema.sql',3933,'01361fcc19a1cd3bcb76eed457bc507c7db33079b713db043a6fb284cd097c3d'],
  ['scripts/migrations/004-tenant-iam-control-plane.sql',44500,'d22712fc9179d529bcec4d8347a9d845ed873dabee9c005db44b507c731a2195'],
+ ['scripts/verify-municipal-owner-adoption-authority.mjs',43441,'6194ab3f20092277c7b30c8a3c1fd7cb2bae3041ce8a3a63df107ea3b628cfeb'],
  ['scripts/migrations/005-tenant-identity-gateway.sql',104822,'dca8ae5d6dd0c5481bd4b0b8ec9799048e813df8f2248d5533e6d34b49fb7392'],
  ['scripts/migrations/006-tenant-action-authority.sql',82164,'0d00147d965884f163b614d2fc1f8f167c27dd91060b101495c08b2275563e4a'],
  ['scripts/migrations/009-tenant-lifecycle-hardening.sql',82664,'d2152fe1df92ac646ada498b6140523a8bc3f13901ac49a95da13744dc72dfe4'],
@@ -28,8 +29,8 @@ const SOURCE_PINS=Object.freeze([
  ['scripts/migrations/176-own-payroll-administrative-operator.sql',5003,'f75fa2cddf6fe2e837044e73c6465eecdf41fbad7ec740745527e1bd54b94732'],
  ['scripts/lib/municipal-owner-program-qa.mjs',16803,'c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb'],
  ['scripts/lib/own-payroll-report-census-190-iam-fixture.mjs',9508,'c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1'],
- ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',41250,'7ea143eb678674b3b6926adc6ad2d651708faaa9bd5acaf6909db652a1d3faa0'],
- ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'b1a0e892dafe5e80eb5055e57c98193da8ca5006c57f92d96b28a56f6dc292b0']
+ ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',46062,'995f1f701f4c96f5ca85f7f3e787b5939c0074ea8ab4066b8bdfcc19e6dd185b'],
+ ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'c508f61f7a130585be36d4ff9298befb6d3897cce525f8315739a0dd63b65f9d']
 ]);
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";
 const j=value=>q(JSON.stringify(value))+'::jsonb';
@@ -56,6 +57,27 @@ function readSources(readRaw){
  }
  return texts;
 }
+// Only the existing QA190 seed's two inherited definitions are projected.
+// Their labels/default are source evidence, not production catalogue admission.
+function qa190InheritedCapabilities(texts){
+ const producer=texts['scripts/verify-municipal-owner-adoption-authority.mjs'];
+ const capLists=[...producer.matchAll(/const caps=\[('(?:[^']|'')*'(?:,'(?:[^']|'')*')*)\];/g)];
+ assert.equal(capLists.length,1,'RECEIPT126_QA190_CAP_VECTOR_SOURCE_REQUIRED');
+ const seededKeys=[...capLists[0][1].matchAll(/'((?:[^']|'')*)'/g)].map(match=>match[1].replaceAll("''","'"));
+ assert.deepEqual(seededKeys,['actions.read','workforce.employee.read','employee.record.propose'],'RECEIPT126_QA190_CAP_VECTOR_CHANGED');
+ const inserts=[...producer.matchAll(/\.\.\.caps\.map\(c=>`INSERT INTO iam_capability\(capability_key,label,description,scope_kind\) VALUES\(\$\{q\(c\)\},('(?:[^']|'')*'),('(?:[^']|'')*'),('(?:[^']|'')*')\)`\)/g)];
+ assert.equal(inserts.length,1,'RECEIPT126_QA190_CAP_INSERT_SOURCE_REQUIRED');
+ const [label,description,scope_kind]=inserts[0].slice(1).map(value=>value.slice(1,-1).replaceAll("''","'"));
+ assert.equal(scope_kind,'tenant','RECEIPT126_QA190_CAP_SCOPE_CHANGED');
+ const tables=[...texts['scripts/migrations/004-tenant-iam-control-plane.sql'].matchAll(/CREATE TABLE IF NOT EXISTS iam_capability \(([\s\S]*?)\n\);/g)];
+ assert.equal(tables.length,1,'RECEIPT126_QA190_CAP_TABLE_SOURCE_REQUIRED');
+ const defaults=[...tables[0][1].matchAll(/\bsensitivity varchar\(16\) NOT NULL DEFAULT ('(?:[^']|'')*'),/g)];
+ assert.equal(defaults.length,1,'RECEIPT126_QA190_CAP_DEFAULT_SOURCE_REQUIRED');
+ const sensitivity=defaults[0][1].slice(1,-1).replaceAll("''","'");
+ assert.equal(sensitivity,'standard','RECEIPT126_QA190_CAP_DEFAULT_CHANGED');
+ return ['actions.read','workforce.employee.read'].map(capability_key=>({capability_key,label,description,scope_kind,sensitivity}));
+}
+
 function canonicalCapabilities(texts){
  const wanted=sorted([...new Set([...REVIEW_CAPS,...SELF_CAPS,'payroll.receipt.prepare'])]);
  const definitions={};
@@ -74,6 +96,9 @@ function canonicalCapabilities(texts){
   }
  }
  assert.deepEqual(sorted(Object.keys(definitions)),wanted,'RECEIPT126_CANONICAL_CAP_SOURCE_GAP');
+ const inherited=qa190InheritedCapabilities(texts);
+ assert.deepEqual(inherited.map(row=>row.capability_key),['actions.read','workforce.employee.read'],'RECEIPT126_QA190_CAP_PROJECTION_KEYS');
+ for(const row of inherited){assert.ok(Object.hasOwn(definitions,row.capability_key),'RECEIPT126_QA190_CAP_PROJECTION_MISSING');definitions[row.capability_key]=row;}
  return wanted.map(key=>definitions[key]);
 }
 function receiptContextBody(texts,schema){

@@ -42,9 +42,15 @@ export function calculationPanelReads(db,schema){
 // actors: Map name → {principal,session,raw,roleKey}. identity(name,actor) may
 // narrow capabilities or change the presented user id for a probe; it never
 // widens anything, because SQL still authorises the actor's real session.
-export async function createCanonical190BrowserHost({h,actors,getSql,handlers,outputName,identity=null}){
- assert.ok(actors instanceof Map&&actors.size>0);assert.equal(typeof getSql,'function');assert.equal(typeof handlers,'function');
+export async function createCanonical190BrowserHost({h,actors,getSql,handlers,outputName,identity=null,pages={},receiptSelfPage=false}){
+ assert.equal(typeof receiptSelfPage,'boolean');assert.ok(actors instanceof Map&&actors.size>0);assert.equal(typeof getSql,'function');assert.equal(typeof handlers,'function');
  for(const[name,actor]of actors){assert.match(name,/^[a-z]+$/);for(const key of['principal','session','raw','roleKey'])assert.ok(Object.hasOwn(actor,key),'CANONICAL190_BROWSER_ACTOR_'+key+':'+name);assert.equal(actor.principal.authorized,true);assert.equal(actor.session.id,actor.raw.actorSessionId);assert.equal(actor.principal.tenant.membershipId,actor.raw.membershipId);}
+ assert.ok(pages&&typeof pages==='object'&&!Array.isArray(pages)&&Reflect.ownKeys(pages).every(key=>typeof key==='string'),'CANONICAL190_BROWSER_PAGES');
+ const pageFiles=new Map([['/nomina','nomina-control.html']]);
+ for(const [route,file]of Object.entries(pages)){
+  assert.ok(route==='/nomina'&&file==='nomina-control.html'||route==='/acciones'&&file==='centro-acciones.html','CANONICAL190_BROWSER_PAGE_NOT_ALLOWED');
+  pageFiles.set(route,file);
+ }
  const env={},evidence={httpEvidence:[],external:[],pageErrors:[],serverErrors:[],loginTargets:[]};
  let server=null,browser=null,closing=null;const contexts=[];
  // Cleanup is available before the first resource is acquired. A failed
@@ -92,8 +98,8 @@ export async function createCanonical190BrowserHost({h,actors,getSql,handlers,ou
   if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'Unrelated QA service is outside this continuation'});return;}
   // Same rewrite as the published product: /nomina serves nomina-control.html.
   const publicRoot=path.join(PUBLIC_ROOT,'public');let file;
-  try{file=path.resolve(publicRoot,'.'+(url.pathname==='/nomina'?'/nomina-control.html':decodeURIComponent(url.pathname)));}catch{res.writeHead(400).end();return;}
-  const allowed=file===path.join(publicRoot,'nomina-control.html')||file.startsWith(path.join(publicRoot,'assets')+path.sep)&&/\.(js|css|png|svg|webp|woff2?)$/.test(file);
+  try{const selected=pageFiles.get(url.pathname);file=path.resolve(publicRoot,'.'+(selected?'/'+selected:decodeURIComponent(url.pathname)));}catch{res.writeHead(400).end();return;}
+  const allowed=[...pageFiles.values()].some(name=>file===path.join(publicRoot,name))||receiptSelfPage&&file===path.join(publicRoot,'centro-acciones.html')||file.startsWith(path.join(publicRoot,'assets')+path.sep)&&/\.(js|css|png|svg|webp|woff2?)$/.test(file);
   if(req.method!=='GET'||!allowed||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404).end();return;}
   const type=file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream';
   res.writeHead(200,{'Content-Type':type});res.end(fs.readFileSync(file));

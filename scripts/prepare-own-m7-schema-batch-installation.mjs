@@ -11,7 +11,7 @@ export const OWN_M7_SOURCE_REVIEW_ENTRIES=Object.freeze([
  'scripts/prepare-own-m7-schema-batch-installation.mjs',
  'scripts/install-own-m7-schema-batch.mjs',
  'scripts/lib/own-m7-public-schema-batch.mjs',
- 'tests/own-m7-public-schema-batch.test.js','package.json','package-lock.json'
+ 'tests/own-m7-public-schema-batch.test.js','tests/own-m7-public201215-executor.test.js','package.json','package-lock.json'
 ]);
 export function ownM7CommittedSourceClosure({root,sourceCommit,consumed,readBytes=file=>fs.readFileSync(path.join(root,file)),committedBytes=file=>execFileSync('git',['show',sourceCommit+':'+file],{cwd:root,maxBuffer:24*1024*1024})}){
  assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok(Array.isArray(consumed));

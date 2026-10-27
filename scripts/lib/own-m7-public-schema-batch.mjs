@@ -1,8 +1,9 @@
 // Public institutional batch for the M7 schema tail that the existing builders
 // already close from sources. Pure planning: no connection, SQL execution,
 // business command, QA seed, actor, capability seed or inverse relocation.
-// Order fixed by the source map:192→193→194→196→197→200. Stages that need the
-// QA foundation (201,213-215) or a live admission (208/209) are NOT composed here.
+// Order fixed by the source map:192→193→194→196→197→200→201→213→214→215.
+// Institutional201 and its public successors use their source builders; QA
+// foundations and business/live admissions208/209/195 are not composed here.
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {splitPostgresStatements} from './sql-statements.mjs';
@@ -15,11 +16,14 @@ import {buildOwnMonthlyDayEngineSourceInstallation,assertOwnMonthlyDayEngineSour
 import {buildMonthlyDayFixedCompositionInstallation,assertMonthlyDayFixedCompositionDurability} from './own-monthly-day-fixed-composition-installation.mjs';
 import {buildOwnNoveltySuccessionInstallation,assertOwnNoveltySuccessionDurability} from './own-novelty-succession-installation.mjs';
 import {buildOwnReportCensusInstallation,assertOwnReportCensusDurability,OWN_REPORT_CENSUS_SIGNATURE} from './own-payroll-report-census-installation.mjs';
+import {composeOwnFullCapacity190PublicInstallation,assertOwnFullCapacity190PublicProof,assertOwnFullCapacity190PublicDurability} from './own-full-capacity-190-public-installation.mjs';
+import {prepareOwnLiquidationBootstrap213PublicWith201,prepareOwnCloseSnapshot214PublicWith201,prepareOwnCloseSnapshot215PublicWith201} from './own-m7-public-successors201-bridge.mjs';
+import {assertOwnLiquidationBootstrap213Proof,assertOwnCloseSnapshot214Proof,assertOwnCloseSnapshot215Proof} from './own-m7-public-successors213215.mjs';
 import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
 import {ownInstallationSettings,ownInstallationDestination} from '../prepare-own-payroll-installation.mjs';
 
-export const OWN_M7_PUBLIC_BATCH_VERSION='own-m7-public-schema-batch.v1';
-export const OWN_M7_STAGE_IDS=Object.freeze(['policy192','declaration193','engine194','fixed196','novelty197','census200']);
+export const OWN_M7_PUBLIC_BATCH_VERSION='own-m7-public-schema-batch.v2';
+export const OWN_M7_STAGE_IDS=Object.freeze(['policy192','declaration193','engine194','fixed196','novelty197','census200','capacity201','bootstrap213','snapshot214','snapshot215']);
 export const OWN_M7_REHEARSAL_CODE='OWN_M7_REHEARSAL_ROLLBACK';
 export const OWN_M7_RUNTIME_ROLE='municontrol_actions_runtime_app';
 // Public lineage of the eight193 prerequisites: last source that defines each one.
@@ -99,7 +103,18 @@ const OWN_M7_ASSERT_SOURCE=Object.freeze({
  census200:['scripts/lib/own-payroll-report-census-installation.mjs','assertOwnReportCensusDurability','120667a2488524cfa226fbf3620adf94bd980be62404e5b3ae08dcd6f4338f2f']
 });
 const contractWords=literal=>[...literal.matchAll(/'([A-Za-z][A-Za-z0-9]*)'/g)].map(m=>m[1]);
+// Four finite adapters call the ORIGINAL exported proof asserters. Their complete
+// reviewed source pins close the different proof/version/mode contracts without
+// changing the six historical source-contract extractors above.
+const OWN_M7_TAIL_ASSERT_SOURCE=Object.freeze({
+ capacity201:['scripts/lib/own-full-capacity-190-public-installation.mjs','assertOwnFullCapacity190PublicProof','f220a79c990dc7f303fe52c49b3436af9c6b5924a5e1167810d8811127ee5378','capacity201'],
+ bootstrap213:['scripts/lib/own-liquidation-bootstrap213-installation.mjs','assertOwnLiquidationBootstrap213Proof','a4fbd75427be61efa24eaa1b78f10897d8706ad1619850cc7e9b496c4e45c9f5','successor'],
+ snapshot214:['scripts/lib/own-close-snapshot214-installation.mjs','assertOwnCloseSnapshot214Proof','720fc298b994cf69ea4d83fa35f4bcd8d772009cb9c186a4dc8511f2f1528fed','successor'],
+ snapshot215:['scripts/lib/own-close-snapshot215-installation.mjs','assertOwnCloseSnapshot215Proof','8b89907fd81e1b3554fe05e5e0e43a3c36f151f31721271dcaa0a8e25bc027f1','successor']
+});
 export function ownM7SourcePhaseContract(stageId,read,stageBatch){
+ const tail=OWN_M7_TAIL_ASSERT_SOURCE[stageId];
+ if(tail){const[file,asserter,reviewedSha256,kind]=tail,source=lf(read(file));assert.equal(hash(source),reviewedSha256,'OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED:'+stageId);const anchor='export function '+asserter+'(';assert.equal(source.split(anchor).length,2,'OWN_M7_ASSERT_SOURCE_PENDING');return Object.freeze({stageId,source:file,sourceSha256:reviewedSha256,asserter,kind});}
  const sourceEntry=OWN_M7_ASSERT_SOURCE[stageId];assert.ok(sourceEntry,'OWN_M7_UNKNOWN_STAGE');
  const [file,name,reviewedSha256]=sourceEntry,source=lf(read(file)),anchor='export function '+name+'(',at=source.indexOf(anchor);assert.equal(hash(source),reviewedSha256,'OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED:'+stageId);
  assert.ok(at>=0&&source.indexOf(anchor,at+anchor.length)<0,'OWN_M7_ASSERT_SOURCE_PENDING');const code=source.slice(at);
@@ -123,6 +138,19 @@ export function ownM7SourcePhaseContract(stageId,read,stageBatch){
 export function assertOwnM7StageProof(stageId,{phase,receipt,batch,installed,contract}){
  assert.equal(contract?.stageId,stageId,'OWN_M7_PHASE_SOURCE_CONTRACT_REQUIRED');
  assert.ok(['installation','durable','repetition'].includes(phase),'OWN_M7_UNKNOWN_PROOF_PHASE');
+ if(stageId==='capacity201'){
+  assert.equal(contract.kind,'capacity201','OWN_M7_201_PROOF_CONTRACT_REQUIRED');assert.notEqual(phase,'repetition','OWN_M7_201_REPETITION_FORBIDDEN');
+  assertOwnFullCapacity190PublicProof({proof:receipt,batch});
+  if(phase==='durable'){assert.ok(installed,'OWN_M7_REAL_INSTALL_RECEIPT_REQUIRED');assert.deepEqual(receipt,installed,'OWN_M7_201_DURABLE_PROOF_CHANGED');}
+  return{phaseValidated:true,stage:stageId,phase};
+ }
+ const successorAsserter={bootstrap213:assertOwnLiquidationBootstrap213Proof,snapshot214:assertOwnCloseSnapshot214Proof,snapshot215:assertOwnCloseSnapshot215Proof}[stageId];
+ if(successorAsserter){
+  assert.equal(contract.kind,'successor','OWN_M7_SUCCESSOR_PROOF_CONTRACT_REQUIRED');assert.equal(batch.whole201AdmissionIncluded,true,'OWN_M7_WHOLE201_SOURCE_GUARD_REQUIRED');
+  successorAsserter(receipt,batch);assert.equal(receipt.mode,phase==='installation'?'install':'verify','OWN_M7_SUCCESSOR_MODE_CHANGED');
+  if(phase!=='installation'){assert.ok(installed,'OWN_M7_REAL_INSTALL_RECEIPT_REQUIRED');assert.deepEqual({...receipt,mode:'install'},installed,'OWN_M7_SUCCESSOR_DURABLE_PROOF_CHANGED');}
+  return{phaseValidated:true,stage:stageId,phase};
+ }
  assert.ok(receipt&&typeof receipt==='object'&&!Array.isArray(receipt),'OWN_M7_PROOF_REQUIRED');
  assert.equal(receipt.version,batch.version);assert.equal(receipt.sourceCommit,batch.sourceCommit);assert.equal(receipt.mode,phase==='installation'?'install':'verify');
  if(contract.sqlHash)assert.equal(receipt.sqlSha256,batch.sqlSha256);else assert.deepEqual(receipt.sourceHashes,batch.sourceHashes);
@@ -155,6 +183,16 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
  const fixed196=buildMonthlyDayFixedCompositionInstallation(shared);
  const novelty197=buildOwnNoveltySuccessionInstallation(shared);
  const census200=buildOwnReportCensusInstallation({read,sourceCommit});
+ const capacity201=composeOwnFullCapacity190PublicInstallation({read,sourceCommit});
+ assert.deepEqual(capacity201.censusStatements,census200.statements,'OWN_M7_200_201_STATEMENTS_DRIFT');
+ assert.deepEqual(capacity201.censusVerification,census200.verification,'OWN_M7_200_201_VERIFICATION_DRIFT');
+ // These plans are target-specific and already include settings/destination.
+ // Only With201 may enter this executor: the basic successor plans omit201.
+ const successorsByMajor=Object.fromEntries(OWN_RELEASE_TARGETS.map(target=>[target.major,{
+  bootstrap213:prepareOwnLiquidationBootstrap213PublicWith201({target,capacityPlan:capacity201,sourceCommit,read}),
+  snapshot214:prepareOwnCloseSnapshot214PublicWith201({target,capacityPlan:capacity201,sourceCommit,read}),
+  snapshot215:prepareOwnCloseSnapshot215PublicWith201({target,capacityPlan:capacity201,sourceCommit,read})
+ }]));
  // Each top builder recomposes its ancestors internally. The separately built
  // stage batches must be byte-identical to those internal compositions, so the
  // installed predecessor is exactly what the successor expects.
@@ -169,32 +207,50 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
   {id:'engine194',version:engine194.version,batch:engine194,preflight:[engine194.beforeCheck],rehearsal:engine194.rehearsal,installation:engine194.installation,repetition:engine194.repetition,verification:engine194.verification,durability:'assertOwnMonthlyDayEngineSourceDurability'},
   {id:'fixed196',version:fixed196.version,batch:fixed196,preflight:[fixed196.beforeCheck],rehearsal:fixed196.rehearsal,installation:fixed196.installation,repetition:fixed196.repetition,verification:fixed196.verification,durability:'assertMonthlyDayFixedCompositionDurability'},
   {id:'novelty197',version:novelty197.version,batch:novelty197,preflight:[novelty197.beforeCheck],rehearsal:novelty197.rehearsal,installation:novelty197.installation,repetition:novelty197.repetition,verification:novelty197.verification,durability:'assertOwnNoveltySuccessionDurability'},
-  {id:'census200',version:census200.version,batch:census200,preflight:[novelty197.afterCheck,census200.contextCheck,census200.prerequisiteCheck,censusAbsent],rehearsal:[novelty197.afterCheck,...census200.statements],installation:[novelty197.afterCheck,...census200.statements],repetition:null,verification:census200.verification,durability:'assertOwnReportCensusDurability'}
+  {id:'census200',version:census200.version,batch:census200,preflight:[novelty197.afterCheck,census200.contextCheck,census200.prerequisiteCheck,censusAbsent],rehearsal:[novelty197.afterCheck,...census200.statements],installation:[novelty197.afterCheck,...census200.statements],repetition:null,verification:census200.verification,durability:'assertOwnReportCensusDurability'},
+  {id:'capacity201',version:capacity201.version,batch:capacity201,preflight:capacity201.preflight,rehearsal:capacity201.statements,installation:capacity201.statements,repetition:null,verification:capacity201.verification,durability:'assertOwnFullCapacity190PublicDurability'}
  ];
- assert.deepEqual(stages.map(s=>s.id),[...OWN_M7_STAGE_IDS]);
+ assert.deepEqual(stages.map(s=>s.id),OWN_M7_STAGE_IDS.slice(0,7));
  const phaseContracts=Object.fromEntries(stages.map(stage=>[stage.id,ownM7SourcePhaseContract(stage.id,read,stage.batch)]));
+ for(const[id,plan]of Object.entries(successorsByMajor[17]))phaseContracts[id]=ownM7SourcePhaseContract(id,read,plan);
+ for(const[id,plan]of Object.entries(successorsByMajor[18]))assert.deepEqual(ownM7SourcePhaseContract(id,read,plan),phaseContracts[id],'OWN_M7_TARGET_PROOF_CONTRACT_DRIFT');
  const sourceHashes={...prerequisites.sourceHashes};
  for(const contract of Object.values(phaseContracts)){if(Object.hasOwn(sourceHashes,contract.source))assert.equal(sourceHashes[contract.source],contract.sourceSha256,'OWN_M7_PHASE_SOURCE_HASH_CONFLICT');sourceHashes[contract.source]=contract.sourceSha256;}
  for(const stage of stages)for(const [file,digest] of Object.entries(stage.batch.sourceHashes??{})){if(Object.hasOwn(sourceHashes,file))assert.equal(sourceHashes[file],digest,'OWN_M7_SOURCE_HASH_CONFLICT:'+file);sourceHashes[file]=digest;}
- const targets=OWN_RELEASE_TARGETS.map(t=>Object.freeze({...t,stages:Object.freeze(stages.map(stage=>Object.freeze({
-  id:stage.id,version:stage.version,durability:stage.durability,
+ for(const plans of Object.values(successorsByMajor))for(const plan of Object.values(plans))for(const[file,digest]of Object.entries(plan.sourceHashes)){if(Object.hasOwn(sourceHashes,file))assert.equal(sourceHashes[file],digest,'OWN_M7_SOURCE_HASH_CONFLICT:'+file);sourceHashes[file]=digest;}
+ const targets=OWN_RELEASE_TARGETS.map(t=>Object.freeze({...t,stageBatches:Object.freeze(successorsByMajor[t.major]),stages:Object.freeze([...stages.map(stage=>Object.freeze({
+  id:stage.id,version:stage.version,durability:stage.durability,rehearsalExpectedError:OWN_M7_REHEARSAL_CODE,
   preflight:frozenList(['SET TRANSACTION READ ONLY',...ownInstallationSettings,ownInstallationDestination(t),readOnlyGuard,...stage.preflight]),
   rehearsal:frozenList([...ownInstallationSettings,ownInstallationDestination(t),...stage.rehearsal,rehearsalFault]),
   installation:frozenList([...ownInstallationSettings,ownInstallationDestination(t),...stage.installation]),
   durableVerification:frozenList(['SET TRANSACTION READ ONLY',...ownInstallationSettings,ownInstallationDestination(t),...stage.verification]),
   repetition:stage.repetition?frozenList([...ownInstallationSettings,ownInstallationDestination(t),...stage.repetition]):null
- })))}));
+ })),...Object.entries(successorsByMajor[t.major]).map(([id,plan])=>{
+  assert.equal(plan.whole201AdmissionIncluded,true,'OWN_M7_WHOLE201_SOURCE_GUARD_REQUIRED');assert.deepEqual(plan.target,t,'OWN_M7_SUCCESSOR_DESTINATION_DRIFT');
+  return Object.freeze({id,version:plan.version,durability:phaseContracts[id].asserter,rehearsalExpectedError:plan.rehearsalExpectedError,
+   preflight:frozenList(plan.preflight),rehearsal:frozenList(plan.rehearsal),installation:frozenList(plan.installation),durableVerification:frozenList(plan.verification),repetition:frozenList(plan.repetition),nativeEquivalencePublicIncluded:false});
+ })])}));
+ for(const target of targets)assert.deepEqual(target.stages.map(stage=>stage.id),[...OWN_M7_STAGE_IDS],'OWN_M7_STAGE_ORDER_DRIFT');
  return Object.freeze({version:OWN_M7_PUBLIC_BATCH_VERSION,sourceCommit,operationalPairBaseline,sourceHashes:Object.freeze(sourceHashes),
   prerequisitePins:Object.freeze(declaration193.prerequisitePins),prerequisiteRuntime:prerequisites.prerequisiteRuntime,prerequisiteAclEvidence:prerequisites.aclEvidence,phaseContracts:Object.freeze(phaseContracts),
   stageOrder:[...OWN_M7_STAGE_IDS],rehearsalCode:OWN_M7_REHEARSAL_CODE,
-  counts:Object.freeze({policy192:{newFunctions:2,adaptedFunctions:4},declaration193:{newTables:1,newFunctions:12,runtimeFacades:4},engine194:{adaptedFunctions:4},fixed196:{newFunctions:3,adaptedFunctions:6},novelty197:novelty197.counters,census200:{newFunctions:1,runtimeFacades:1}}),
+  counts:Object.freeze({policy192:{newFunctions:2,adaptedFunctions:4},declaration193:{newTables:1,newFunctions:12,runtimeFacades:4},engine194:{adaptedFunctions:4},fixed196:{newFunctions:3,adaptedFunctions:6},novelty197:novelty197.counters,census200:{newFunctions:1,runtimeFacades:1},capacity201:{newFunctions:16,adaptedFunctions:9,changedChecks:3},bootstrap213:{adaptedFunctions:1},snapshot214:{adaptedFunctions:1},snapshot215:{adaptedFunctions:1}}),
   stageBatches:Object.freeze(Object.fromEntries(stages.map(s=>[s.id,s.batch]))),
-  targets,notComposed:Object.freeze(['201','213','214','215','208','209','195']),
+  targets,notComposed:Object.freeze(['208','209','195']),nativeEquivalencePublicIncluded:false,
   connects:false,executesSql:false,businessOperations:0,roleAssignmentsAdded:0,capabilityDefinitionsAdded:0,qaSeedCopied:false,inverseRelocation:false});
 }
 // Durability dispatch: the stage's own exported asserter over the three receipts
 // (installed, durable RO, repeated RR/RW in verify mode); census200 has no repetition.
 export function assertOwnM7StageDurability(stageId,{installed,durable,repeated,batch}){
+ if(stageId==='capacity201'){assert.equal(repeated,undefined,'OWN_M7_201_REPETITION_FORBIDDEN');return assertOwnFullCapacity190PublicDurability({installed,durable,batch});}
+ const successorAsserter={bootstrap213:assertOwnLiquidationBootstrap213Proof,snapshot214:assertOwnCloseSnapshot214Proof,snapshot215:assertOwnCloseSnapshot215Proof}[stageId];
+ if(successorAsserter){
+  assert.equal(batch.whole201AdmissionIncluded,true,'OWN_M7_WHOLE201_SOURCE_GUARD_REQUIRED');assert.ok(repeated,'OWN_M7_REPETITION_RECEIPT_REQUIRED:'+stageId);
+  for(const receipt of[installed,durable,repeated])successorAsserter(receipt,batch);
+  assert.equal(installed.mode,'install');assert.equal(durable.mode,'verify');assert.equal(repeated.mode,'verify');
+  assert.deepEqual({...durable,mode:'install'},installed,'OWN_M7_SUCCESSOR_DURABLE_PROOF_CHANGED');assert.deepEqual(repeated,durable,'OWN_M7_SUCCESSOR_REPETITION_CHANGED');
+  return{passed:true,sourceCommit:batch.sourceCommit,priorStatePreserved:true,objectsDurable:true,realReceiptCount:3,businessWrites:0,nominalRowsReturned:0,nativeEquivalencePublicIncluded:false};
+ }
  const asserters={assertMonthlyDayInstallationDurability,assertOwnMonthlyDayDeclarationDurability,assertOwnMonthlyDayEngineSourceDurability,assertMonthlyDayFixedCompositionDurability,assertOwnNoveltySuccessionDurability,assertOwnReportCensusDurability};
  const name={policy192:'assertMonthlyDayInstallationDurability',declaration193:'assertOwnMonthlyDayDeclarationDurability',engine194:'assertOwnMonthlyDayEngineSourceDurability',fixed196:'assertMonthlyDayFixedCompositionDurability',novelty197:'assertOwnNoveltySuccessionDurability',census200:'assertOwnReportCensusDurability'}[stageId];
  assert.ok(name,'OWN_M7_UNKNOWN_STAGE:'+stageId);

@@ -2,6 +2,27 @@
 -- Adds one RPC, no tables or mutation/grant changes to existing functions.
 -- Source candidate only: successor native qualification must inventory this
 -- extra function; the prior 110/136 function-count guards are not replaced.
+DO $history_prerequisites$
+DECLARE required_signature text;
+BEGIN
+ IF to_regprocedure('public.native_employment_lifecycle_history_v2(jsonb,uuid)') IS NOT NULL THEN
+  RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_HISTORY_ALREADY_INSTALLED';
+ END IF;
+ IF to_regclass('public.native_employment_lifecycle_proposal') IS NULL THEN
+  RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_HISTORY_PREREQUISITE_MISSING';
+ END IF;
+ FOREACH required_signature IN ARRAY ARRAY[
+  'public.native_employment_lifecycle_bootstrap_v2(jsonb,uuid)',
+  'public.native_employment_lifecycle_adopted_context_v2(jsonb,text)',
+  'public.native_employment_lifecycle_scope_v1(jsonb,jsonb)',
+  'public.native_employment_lifecycle_summary_v1(jsonb,public.native_employment_lifecycle_proposal)'
+ ] LOOP
+  IF to_regprocedure(required_signature) IS NULL THEN
+   RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_HISTORY_PREREQUISITE_MISSING';
+  END IF;
+ END LOOP;
+END $history_prerequisites$;
+
 CREATE FUNCTION public.native_employment_lifecycle_history_v2(p jsonb,target uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE b jsonb; c jsonb; proposals jsonb; total integer;

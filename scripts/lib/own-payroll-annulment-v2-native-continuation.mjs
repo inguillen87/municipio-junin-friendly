@@ -1,6 +1,7 @@
 // SOURCE CANDIDATE ONLY. Fixed tail on the SAME, already admitted live190 host.
 // No seed, transport injection, namespace rewrite, CLI callback or top-level IO.
 import assert from 'node:assert/strict';
+import {assertPositions210SidecarPlan,readPositions210SidecarSnapshot,assertPositions210SidecarDelta} from './positions210-same190-sidecar.mjs';
 import {randomUUID} from 'node:crypto';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 import {installOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
@@ -52,7 +53,8 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  const annulmentPreparation=Object.hasOwn(options,'annulmentPreparation')?options.annulmentPreparation:false;assert.equal(typeof annulmentPreparation,'boolean');
  assert.equal(context?.version,'own-annulment-v2-live190-context.v1');
  const {h,db,qa,maker,reviewer,definition,contracts,first,firstSaved,second,closed,reopened,annulKey,annulled,query,period,installation,iam,baselineSnapshot}=context;
- const {run,liq,annul,close}=context.operations;
+  const positions210Sidecar=context.positions210Sidecar??null;if(positions210Sidecar)assertPositions210SidecarPlan({h,db,plan:positions210Sidecar});
+  const {run,liq,annul,close}=context.operations;
  const makerNativeContext=JSON.stringify(employeeContext(maker.principal,maker.session));
  const reviewerNativeContext=JSON.stringify(employeeContext(reviewer.principal,reviewer.session));
  assert.deepEqual(qa.actor,JSON.parse(makerNativeContext));
@@ -77,6 +79,7 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  assert.equal(installation208.passed,true);assert.equal(installation208.productionWrites,0);assert.equal(installation208.municipalAcceptance,false);
  // Exact immediate208 epoch: no208 business and no209 actors have run yet.
  const installation209=annulmentPreparation?await installOwnAnnulPreparation209On190({h,db,admission208,installation208,baselineSnapshot:context.readSnapshot()}):null;
+  const sidecarBefore208=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const readIndex=async label=>{const value=await verifiedOwnAnnulReviewIndex(await annul('review',query));measurements.indices.push({label,runs:value.index.length,confirmed:value.index.reduce((sum,row)=>sum+row.states.confirmed,0),bytes:bytes(value)});assert.ok(bytes(value)<=FULL);if(bytes(value)<=FOUR){const ordinary=await annul('review',query,false);assert.deepEqual(ordinary,value);}return value;};
  const readDetail=async(id,label)=>{const value=await liq('detail',{id});await verifiedOwnLiquidationDetail(value);measurements.details.push({label,id,bytes:bytes(value),employees:value.capture.saved.result.employeeCount,conceptRows:value.capture.saved.result.rowCount});assert.ok(bytes(value)<=FULL);return value;};
  const readReview=async(label,index)=>{const order=[],review=await loadOwnAnnulReview(index,async id=>{order.push(id);return readDetail(id,label);});assert.deepEqual(order,index.index.filter(row=>row.states.confirmed>0).map(row=>row.id));return review;};
@@ -335,7 +338,9 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  for(const reference of finalIndex.index){const original=capturesById.get(reference.id);assert.equal(reference.bodySha256,original.bodySha256);assert.equal(reference.payloadSha256,original.payloadSha256);assert.equal(reference.inputSha256,original.inputSha256);assert.equal(reference.resultSha256,original.resultSha256);assert.equal(reference.employeeCount,855);assert.equal(reference.conceptRowCount,17100);}
  const prefixAfter=rowMultiset(h,qa);assertPrefix(prefixBefore,prefixAfter);
  const appendOnly=['own_payroll_run_capture','own_payroll_run_result','own_payroll_liquidation_event','own_payroll_annul_event'];
- assert.deepEqual(prefixAfter.filter(row=>!appendOnly.includes(row.name)),prefixBefore.filter(row=>!appendOnly.includes(row.name)),'ANNUL208_NO_OTHER_BUSINESS_TABLE_CHANGED');
+  if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarBefore208,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'annul208',newCaptureIds:[...capturesById.keys()].filter(id=>id!==first.id&&id!==second.id)});}else{
+  assert.deepEqual(prefixAfter.filter(row=>!appendOnly.includes(row.name)),prefixBefore.filter(row=>!appendOnly.includes(row.name)),'ANNUL208_NO_OTHER_BUSINESS_TABLE_CHANGED');
+  }
  assert.deepEqual(tableSet(prefixAfter,['native_employee_registration']),tableSet(prefixBefore,['native_employee_registration']));
  assert.equal(h.json([`SELECT jsonb_build_object('count',count(*)::integer) FROM ${qa.schema}.native_employee_registration`],{readOnly:true}).count,855);
  const sourceBookend=await assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});
@@ -344,6 +349,7 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  // roster, programme, services, maker/checker and installed208/209 remain in use.
  const historicalReference29=row=>({id:row.id,bodySha256:row.bodySha256,payloadSha256:row.payloadSha256,inputSha256:row.inputSha256,resultSha256:row.resultSha256,algorithmSha256:row.algorithmSha256,employeeCount:row.employeeCount,conceptRowCount:row.conceptRowCount,totalsPrecision:row.totalsPrecision,createdAt:row.createdAt,liquidationDate:row.liquidationDate,states:row.states,confirmedContractIds:row.confirmedContractIds});
  const checkpoint8=finalIndex.index.map(historicalReference29),before29=context.readSnapshot(),prefixBefore29=rowMultiset(h,qa),ledgerBefore29=await ledgerCounts();
+  const sidecarBefore29=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const selectedPartitions29=Object.freeze([Object.freeze(contracts.slice(0,14)),Object.freeze(contracts.slice(14,29))]),selectedContracts29=selectedPartitions29.flat();
  assert.deepEqual(selectedPartitions29.map(ids=>ids.length),[14,15]);assert.equal(new Set(selectedContracts29).size,29);assert.ok(selectedContracts29.every(id=>contracts.includes(id)));
  const captures29=[],confirmations29=[];
@@ -396,7 +402,10 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
   for(const employee of detail.employees){const confirmed=expected.get(employee.contractId);if(confirmed){const affected=receipt29.affected.find(row=>row.contractId===employee.contractId);assert.ok(affected);assert.equal(affected.runId,capture.id);assert.equal(employee.state,'annulled');assert.equal(employee.version,affected.version);assert.equal(employee.version,confirmed.version+1);assert.equal(employee.liquidationVersion,affected.liquidationVersion);assert.equal(employee.liquidationVersion,confirmed.liquidationVersion);}else assert.equal(employee.state,'calculated');}
  }
  const ledgerAfter29=await ledgerCounts();assert.deepEqual(ledgerAfter29,{...ledgerBefore29,parents:ledgerBefore29.parents+1,children:ledgerBefore29.children+4,captures:ledgerBefore29.captures+2,results:ledgerBefore29.results+2});
- const prefixAfter29=rowMultiset(h,qa);assertPrefix(prefixBefore29,prefixAfter29);assert.deepEqual(prefixAfter29.filter(row=>!appendOnly.includes(row.name)),prefixBefore29.filter(row=>!appendOnly.includes(row.name)),'ANNUL208_SELECTED29_CHANGED_OTHER_BUSINESS_OR_IAM');
+  const prefixAfter29=rowMultiset(h,qa);assertPrefix(prefixBefore29,prefixAfter29);
+  if(positions210Sidecar){assertPositions210SidecarDelta({h,db,plan:positions210Sidecar,before:sidecarBefore29,after:readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}),phase:'annul208',newCaptureIds:captures29.map(capture=>capture.id)});}else{
+   assert.deepEqual(prefixAfter29.filter(row=>!appendOnly.includes(row.name)),prefixBefore29.filter(row=>!appendOnly.includes(row.name)),'ANNUL208_SELECTED29_CHANGED_OTHER_BUSINESS_OR_IAM');
+  }
  assert.deepEqual((await readDetail(first.id,'selected29-original-first')).capture.saved,firstSaved);assert.deepEqual((await readDetail(second.id,'selected29-original-second')).capture.saved,originalSecond);assert.deepEqual(await close('group',{id:closed.groupId}),originalGroup);assert.deepEqual(await verifiedOwnReportCensus(await close('report-census',query)),originalCensus);
  for(const oldReceipt of receiptHistory)await receiptStable(oldReceipt);
  const sourceBookend29=await assertOwnAnnulmentReviewV2SourceBookend({h,db,installation:installation208});assert.notDeepEqual(context.readSnapshot(),before29);

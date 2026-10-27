@@ -4,7 +4,7 @@ import '../assets/app-routes.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
+import {friendlyPwaIdentityVersion,transformFriendlyShellSource} from './lib/friendly-shell-page.mjs';
 import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildDocumentReader } from './build-document-reader.mjs';
@@ -571,11 +571,7 @@ for (const file of vendorFiles) {
 
 // Restore the verified identity using content-addressed icon URLs; older icon
 // URLs may still have a one-year immutable response in a browser cache.
-const identityHash = crypto.createHash('sha256');
-for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
-  identityHash.update(file).update(fs.readFileSync(path.join(root, file)));
-}
-const identityVersion = `identity-${identityHash.digest('hex').slice(0, 12)}`;
+const identityVersion = friendlyPwaIdentityVersion(file=>fs.readFileSync(path.join(root,file)));
 for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
   const destination = path.join(output, file.replace('assets/pwa/', `assets/pwa/${identityVersion}/`));
   fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -583,15 +579,7 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 }
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
-  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
-  const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
-    ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
-  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
-    ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
-  const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
-    ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
-  fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
+  fs.writeFileSync(destination,transformFriendlyShellSource(original,file,identityVersion,globalThis.MuniControlRoutes));
 }
 
 await buildLegalRegistry(root, output);
@@ -626,20 +614,3 @@ if(process.env.MC_EMAIL_FACTOR_PROVISION_EVENT){
   await approvedEmailFactorBuildStep();
 }
 
-function applyCleanRouteLinks(html, file) {
-  const routes = globalThis.MuniControlRoutes;
-  const base = 'https://municontrol.invalid/' + file;
-  // Only a page's own fixed login return is replaced. Authentication commands,
-  // destinations to other pages and the context allowlist remain source-owned.
-  const returnExpression = 'window.MuniControlRoutes.loginHref(window.location.href, window.location.href)';
-  const withReturns = html.replace(/(<script\b(?![^>]*\bsrc\s*=)[^>]*>)([\s\S]*?)(<\/script>)/gi, (_, open, source, close) => {
-    const ownReturn = 'login.html?next=' + file;
-    let routed = source.replaceAll("'" + ownReturn + "'", returnExpression).replaceAll('"' + ownReturn + '"', returnExpression);
-    routed = routed.replaceAll("'login.html?next='", "'/acceso?next='").replaceAll('"login.html?next="', '"/acceso?next="');
-    routed = routed.replaceAll("'login.html'", "'/acceso'").replaceAll('"login.html"', '"/acceso"');
-    if (file === 'internal-dashboard.html') routed = routed.replace("'internal-dashboard.html' + window.location.hash", 'window.location.pathname + window.location.search + window.location.hash');
-    return open + routed + close;
-  });
-  const linked = withReturns.replace(/(<a\b[^>]*?\bhref\s*=\s*)(["'])([^"']*)\2/gi, (_, prefix, quote, href) => prefix + quote + routes.canonicalHref(href, base) + quote);
-  return linked.includes('src="/assets/app-routes.js"') ? linked : linked.replace(/<head([^>]*)>/i, '<head$1>\n  <script src="/assets/app-routes.js"></script>');
-}

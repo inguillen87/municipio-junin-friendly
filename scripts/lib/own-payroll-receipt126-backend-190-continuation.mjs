@@ -1,4 +1,4 @@
-// Finite backend126 continuation on the SAME canonical190. No browser or new executor.
+// Finite126 continuation on the SAME canonical190; two existing decisions use the built UI and real HTTP.
 // Source authorship/adoption never grants native execution or releases GLOBAL_SQL_STOP.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -7,6 +7,7 @@ import {buildOwnReceipt126Same190Shape,assertOwnReceipt126Same190ShapeProof,rece
 import {buildOwnReceipt126Same190Installation,assertOwnReceipt126Same190InstallationProof,receipt126InstallationFailure} from './own-payroll-receipt126-same190-installation.mjs';
 import {buildOwnReceipt126Same190Actors,assertOwnReceipt126Same190ActorsProof,buildOwnReceipt126Same190CheckerRestore} from './own-payroll-receipt126-same190-actors.mjs';
 import {runOwnReceipt126Same190Circuit} from './own-payroll-receipt126-same190-circuit.mjs';
+import {createOwnReceipt126BrowserOn190} from './own-payroll-receipt126-browser190.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
@@ -19,6 +20,16 @@ import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
 
 // Explicit RAW dependencies not discoverable from JavaScript imports (including HTML/SQL).
 export const OWN_RECEIPT126_BACKEND_SOURCE_ENTRIES=Object.freeze([
+ 'scripts/lib/own-payroll-receipt126-browser190.mjs',
+ 'tests/own-payroll-receipt126-browser190.test.js',
+ 'nomina-control.html',
+ 'assets/native-salary-catalog-model.js',
+ 'assets/native-self.js',
+ 'assets/native-self-model.js',
+ 'assets/native-leave.js',
+ 'assets/native-leave-access.js',
+ 'assets/internal-capability-gate.js',
+ 'assets/payroll-navigation.js',
  'api/internal-own-payroll-receipts.js',
  'assets/own-payroll-close-model.js',
  'assets/own-payroll-receipt-model.js',
@@ -141,7 +152,7 @@ export async function runOwnReceipt126Backend190Continuation(context){
    assert.strictEqual(givenH,h);assert.strictEqual(plan,installationPlan);assert.strictEqual(proof,installation.proof);assert.equal(phase,'before-receipt-circuit');
    assert.equal(native.find(row=>row.phase==='installation-commit')?.returned,true);
    return assertOwnReceipt126Same190InstallationProof(plan,proof,{requestedEnd:'COMMIT',dependencies:SHAPE});
-  },assertActorsProof:assertOwnReceipt126Same190ActorsProof,buildCheckerRestore:(plan,proof)=>{assert.strictEqual(plan,actorsPlan);assert.strictEqual(proof,actorsProof);assert.ok(restorePlan);return restorePlan;},executeCheckerRestore:restore,ownerProgramQaAccess,createOwnReceiptHandler,ownReceiptParams,ownReceiptCommand,verifiedOwnReceiptPreview,ownReceiptBatch,ownReceiptSelf,ownReceiptVisibleRecords,ownReceiptPresentation,createOwnReceiptPdf,ownRunHash,randomUUID};
+  },assertActorsProof:assertOwnReceipt126Same190ActorsProof,buildCheckerRestore:(plan,proof)=>{assert.strictEqual(plan,actorsPlan);assert.strictEqual(proof,actorsProof);assert.ok(restorePlan);return restorePlan;},executeCheckerRestore:restore,ownerProgramQaAccess,createOwnReceiptHandler,ownReceiptParams,ownReceiptCommand,verifiedOwnReceiptPreview,ownReceiptBatch,ownReceiptSelf,ownReceiptVisibleRecords,ownReceiptPresentation,createOwnReceiptPdf,ownRunHash,randomUUID,createReceipt126Browser:createOwnReceipt126BrowserOn190};
   tail=await runOwnReceipt126Same190Circuit({version:'own-receipt126-after-closed127-context.v1',h,db,qa,maker,contracts,second,closed,closedCensus,actorsPlan,actorsProof,installationPlan,installationProof:installation.proof,readRaw},dependencies);
   assert.strictEqual(tail.checkerRestore,restoreProof);assert.equal(restoreAttempted,true);assert.equal(restoreReturned,true);
  }catch(error){primary=error;}
@@ -159,8 +170,8 @@ export async function runOwnReceipt126Backend190Continuation(context){
    assert.equal(disposed,false);assert.equal(reopenedDone,false,'RECEIPT126_BACKEND_REOPEN_ALREADY_CONSUMED');reopenedDone=true;
    const completed=await tail.afterReopen(reopened);
    assert.equal(completed.receiptEventsTotal,3);assert.equal(completed.receiptBatches,1);for(const key of ['additionalCaptures','additionalSavedResults','additionalLiquidationDecisions','additionalAnnulments','additionalCloseEvents','additionalReopens'])assert.equal(completed[key],0);
-   assert.strictEqual(completed.checkerRestore,restoreProof);
-   return{version:'own-receipt126-same190-backend-result.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,schema:qa.schema,circuit:completed,installation,actorsPlan,actorsProof,checkerRestore:restoreProof,native,counts,actualSql:true,realHandlerInvoked:true,actualNetworkHttp:false,browserProven:false,paymentExecuted:false,municipalAcceptance:false,GLOBAL_SQL_STOP:true};
+   assert.strictEqual(completed.checkerRestore,restoreProof);assert.equal(completed.browserProof?.passed,true);assert.equal(completed.browserProof.existingPrepareAndApproveSubstituted,true);assert.equal(completed.actualNetworkHttp,true);assert.equal(completed.browserProven,true);
+   return{version:'own-receipt126-same190-backend-result.v1',passed:true,sourceCommit:h.sourceCommit,major:h.major,schema:qa.schema,circuit:completed,installation,actorsPlan,actorsProof,checkerRestore:restoreProof,native,counts,actualSql:true,realHandlerInvoked:true,actualNetworkHttp:completed.actualNetworkHttp,browserProven:completed.browserProven,paymentExecuted:false,municipalAcceptance:false,GLOBAL_SQL_STOP:true};
   },
   dispose:async()=>{if(disposed)return{closed:true,alreadyDisposed:true};disposed=true;return tail.dispose();}
  });

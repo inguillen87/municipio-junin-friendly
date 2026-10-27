@@ -24,10 +24,10 @@ test('every target array carries the institutional settings/destination guard an
  for(const target of batch.targets)for(const stage of target.stages){
   for(const key of ['preflight','durableVerification'])assert.equal(stage[key][0],'SET TRANSACTION READ ONLY');
   for(const key of ['preflight','rehearsal','installation','durableVerification',...(stage.repetition?['repetition']:[])]){const list=stage[key],offset=key==='preflight'||key==='durableVerification'?1:0;assert.deepEqual(list.slice(offset,offset+ownInstallationSettings.length),[...ownInstallationSettings]);assert.match(list[offset+ownInstallationSettings.length],/^DO \$destination\$/);}
-  assert.match(stage.rehearsal.at(-1),new RegExp(OWN_M7_REHEARSAL_CODE));assert.deepEqual(stage.rehearsal.slice(0,-1),[...stage.installation]);
+  assert.match(stage.rehearsal.at(-1),new RegExp(stage.rehearsalExpectedError));assert.deepEqual(stage.rehearsal.slice(0,-1),[...stage.installation]);
   for(const list of Object.values(stage).filter(Array.isArray))for(const s of list)assert.ok(!/mc_qa_fixed_092_/.test(s),'OWN_M7_QA_SCHEMA_LEAK:'+stage.id);
  }
- assert.deepEqual(batch.notComposed,['201','213','214','215','208','209','195']);
+ assert.deepEqual(batch.notComposed,['208','209','195']);
 });
 test('a baseline other than the two reviewed ones or a missing prerequisite source is refused before any batch',()=>{
  assert.throws(()=>composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPairBaseline:'main'}),/OWN_M7_EXPLICIT_BASELINE_REQUIRED/);
@@ -70,7 +70,7 @@ test('failure to persist the initial invocation prevents even client acquisition
 });
 
 test('all six monophase contracts retain reviewed source and fixed196 exact shape',()=>{
- for(const stageId of OWN_M7_STAGE_IDS){
+ for(const stageId of OWN_M7_STAGE_IDS.slice(0,6)){
   const contract=ownM7SourcePhaseContract(stageId,read,{});
   assert.match(contract.sourceSha256,/^[a-f0-9]{64}$/);assert.ok(Object.keys(contract.counts).length>=7);
   assert.throws(()=>ownM7SourcePhaseContract(stageId,file=>read(file)+'\n// unreviewed asserter drift',{}),/OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED/);

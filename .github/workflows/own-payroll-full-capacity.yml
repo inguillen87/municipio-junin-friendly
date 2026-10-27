@@ -44,6 +44,8 @@ jobs:
         run: node --test tests/own-monthly-full-legacy-support.test.js
       - name: Administrative liquidation history authority and preservation
         run: node --test tests/own-liquidation-bootstrap213-installation.test.js
+      - name: Receipt126 real-browser boundary witnesses without native SQL
+        run: node --test tests/own-payroll-receipt126-browser190.test.js
       - name: Exact native rejection adapters with synthetic services
         run: node --test tests/own-payroll-expected-native-rpc.test.js
       - name: Canonical transaction modes with recording transports
@@ -141,6 +143,20 @@ jobs:
             assets/own-payroll-run-model.js
             assets/own-payroll-run-date.js
             assets/own-payroll-individual-panel.js
+            scripts/lib/own-payroll-receipt126-browser190.mjs
+            tests/own-payroll-receipt126-browser190.test.js
+            nomina-control.html
+            centro-acciones.html
+            assets/own-payroll-receipt-model.js
+            assets/own-payroll-receipt-panel.js
+            assets/own-payroll-receipt-pdf.js
+            assets/own-payroll-receipt-self.js
+            assets/payroll-detail-export.js
+            assets/native-self.js
+            assets/native-self-model.js
+            assets/native-leave.js
+            assets/native-leave-access.js
+            assets/internal-capability-gate.js
             scripts/lib/own-payroll-receipt126-inventory-model.mjs
             scripts/lib/own-payroll-receipt126-same190-inventory.mjs
             tests/own-payroll-receipt126-inventory-model.test.js

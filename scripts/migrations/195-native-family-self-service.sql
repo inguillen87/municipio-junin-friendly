@@ -32,7 +32,7 @@ BEGIN
  ('public.employee_family_declare_v2(text,uuid,integer,text,uuid,uuid,jsonb,text)','8e5636c0d63d41953995f3daf35955b03a1904502adad872060564d5214c9c71',ARRAY['search_path=pg_catalog, public, pg_temp']::text[],'v'),
  ('public.school_certificate_family_v3(jsonb,uuid,text,text,text,boolean)','56de0f30959b733db61e1359c2d7a03755f2d870e10e1560acd2125ec7790802',ARRAY['search_path=public, pg_temp']::text[],'v'),
  ('public.school_certificate_register_v3(text,uuid,integer,text,uuid,uuid,jsonb,text)','e24b10789a8821914c9e93ede0c2ee63bb6f494ab6f3e661902f38724fb85387',ARRAY['search_path=public, pg_temp']::text[],'v'),
- ('public.school_certificate_native_family_v5(jsonb,uuid)','9204d4fd4350ce9f66f5544422a01453421286e7b278a349d344a22f9338e042',ARRAY['search_path=pg_catalog, public, pg_temp']::text[],'v'),
+ ('public.school_certificate_native_family_v5(jsonb,uuid)','4a6051eca23e78e417505fa5537d31d3434f151e35311474151bec80cbc1c74c',ARRAY['search_path=pg_catalog, public, pg_temp']::text[],'v'),
  ('public.school_certificate_records_v3(jsonb,jsonb)','7e9a9a73620d39969442c245c8d8cd2f3698d1f213d1edb806875a3c95015929',ARRAY['search_path=public, pg_temp']::text[],'s'),
  ('public.school_certificate_date_v3(text,boolean)','2c24f93bf93796ba2b98388bc279c591fa6d6900c7d7f82e5db15bb8328cd9eb',ARRAY['search_path=public, pg_temp']::text[],'i'),
  ('public.native_salary_serialized_v1(jsonb)','44227bb4f1698c0b525bd4bbd1b529788ccbcb1518a1762bbe96b3d1490a3fff',ARRAY['search_path=pg_catalog, public, pg_temp']::text[],'i')
