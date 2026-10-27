@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {composeOwnM7PublicSchemaBatch,publicPrerequisiteDefinitions,publicPrerequisiteRuntime,OWN_M7_STAGE_IDS,OWN_M7_REHEARSAL_CODE,ownM7SourcePhaseContract} from '../scripts/lib/own-m7-public-schema-batch.mjs';
+import {composeOwnM7PublicSchemaBatch,publicPrerequisiteDefinitions,publicPrerequisiteRuntime,OWN_M7_STAGE_IDS,OWN_M7_ORIGINAL_STAGE_IDS,OWN_M7_REHEARSAL_CODE,ownM7SourcePhaseContract} from '../scripts/lib/own-m7-public-schema-batch.mjs';
 import {executeOwnM7Stage} from '../scripts/install-own-m7-schema-batch.mjs';
 import {MONTHLY193_PREREQUISITES} from '../scripts/lib/own-monthly-day-declaration-installation.mjs';
 import {ownInstallationSettings} from '../scripts/prepare-own-payroll-installation.mjs';
@@ -70,7 +70,7 @@ test('failure to persist the initial invocation prevents even client acquisition
 });
 
 test('all six monophase contracts retain reviewed source and fixed196 exact shape',()=>{
- for(const stageId of OWN_M7_STAGE_IDS.slice(0,6)){
+ for(const stageId of OWN_M7_ORIGINAL_STAGE_IDS.slice(0,6)){
   const contract=ownM7SourcePhaseContract(stageId,read,{});
   assert.match(contract.sourceSha256,/^[a-f0-9]{64}$/);assert.ok(Object.keys(contract.counts).length>=7);
   assert.throws(()=>ownM7SourcePhaseContract(stageId,file=>read(file)+'\n// unreviewed asserter drift',{}),/OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED/);

@@ -12,6 +12,10 @@ export const OWN_M7_SOURCE_REVIEW_ENTRIES=Object.freeze([
  'scripts/install-own-m7-schema-batch.mjs',
  'scripts/lib/own-m7-public-schema-batch.mjs',
  'scripts/lib/own-payroll-release-annulment-pg.mjs',
+ 'scripts/lib/own-m7-public-novelty217-source.mjs','scripts/lib/own-m7-prior-receipts.mjs',
+ 'tests/own-m7-public-novelty217-source.test.js','tests/own-m7-public-novelty217-cli.test.js',
+ 'scripts/lib/own-m10-public-phase-contracts.mjs','scripts/lib/own-m10-public-schema-plan.mjs','scripts/lib/own-m10-public-source-factors.mjs','scripts/lib/own-m10-public-successors216212.mjs',
+ 'tests/own-m10-public-schema-plan.test.js','tests/own-m10-public-cli-chain.test.js',
  'tests/own-m7-public-schema-batch.test.js','tests/own-m7-public201215-executor.test.js',
  'tests/own-m7-public-annulment208-source.test.js','tests/own-annul209-public-predecessor-registry.test.js',
  'tests/own-m7-public-annulment208209-transport.test.js','package.json','package-lock.json'
@@ -43,6 +47,6 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
   const batch=prepareOwnM7CommittedReview({root,sourceCommit,operationalPairBaseline:args.baseline});
   fs.writeFileSync(output,ownM7ReviewBytes(batch),{flag:'wx'});
-  console.log(JSON.stringify({sourceCommit,operationalPairBaseline:args.baseline,stages:batch.stageOrder,notComposed:batch.notComposed,connects:false,executesSql:false,roleAssignmentsAdded:0,capabilityDefinitionsAdded:0}));
+  console.log(JSON.stringify({sourceCommit,operationalPairBaseline:args.baseline,stages:batch.stageOrder,notComposed:batch.notComposed,connects:false,executesSql:false,roleAssignmentsAdded:0,capabilityDefinitionsAdded:batch.capabilityDefinitionsAdded}));
  }catch{console.error(JSON.stringify({ok:false,code:'OWN_M7_PREPARATION_FAILED'}));process.exitCode=1;}
 }

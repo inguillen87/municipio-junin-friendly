@@ -9,7 +9,7 @@ export const NATIVE_FAMILY195_PUBLIC_LAYOUT_QA_ENTRIES=Object.freeze([
  'scripts/contracts/native-family195-prerequisite-layout-query.sql'
 ]);
 const q=v=>"'"+String(v).replaceAll("'","''")+"'";
-const searchPath="SET LOCAL search_path='pg_catalog, public, pg_temp'";
+const searchPath="SET LOCAL search_path=pg_catalog, public, pg_temp";
 function changeCheck(schema,table,columns,{definition,duplicate=false,drop=false,rename=false}={}){
  const keys='ARRAY['+[...columns].sort().map(q).join(',')+']::text[]';
  const action=rename?"EXECUTE format('ALTER TABLE %s RENAME CONSTRAINT %I TO qa195_layout_renamed',r,c.conname);":

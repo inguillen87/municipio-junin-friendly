@@ -98,7 +98,7 @@ export function prepareNativeFamily195PublicMaterialPreflight({read,sourceCommit
  const plan=Object.freeze({version:VERSION,sourceCommit,major,sourceHashes:contract.sourceHashes,requiredRelations:contract.requiredRelations,
   layout:Object.freeze({contractSha256:layout.contractSha256,pending:0}),
   transaction:Object.freeze({isolation:'repeatable read',readOnly:true,end:'COMMIT'}),statements,
-  sql:"BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSET LOCAL search_path='pg_catalog, public, pg_temp';\n"+statements.join(';\n')+';\nCOMMIT;\n',
+  sql:"BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSET LOCAL search_path=pg_catalog, public, pg_temp;\n"+statements.join(';\n')+';\nCOMMIT;\n',
   connects:false,executesSql:false,assignsCapabilities:false,installationIncluded:false,productionAdmission:false});
  plans.set(plan,contract);return plan;
 }

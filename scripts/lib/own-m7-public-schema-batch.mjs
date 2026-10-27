@@ -1,7 +1,7 @@
 // Public institutional batch for the M7 schema tail that the existing builders
 // already close from sources. Pure planning: no connection, SQL execution,
 // business command, QA seed, actor, capability seed or inverse relocation.
-// Order fixed by the source map:192→193→194→196→197→200→201→213→214→215.
+// Order fixed by source:192→193→194→196→197→217→200→201→213→214→215.
 // Institutional201 and its public successors use their source builders; QA
 // foundations and business/live admissions208/209/195 are not composed here.
 import assert from 'node:assert/strict';
@@ -19,11 +19,14 @@ import {buildOwnReportCensusInstallation,assertOwnReportCensusDurability,OWN_REP
 import {composeOwnFullCapacity190PublicInstallation,assertOwnFullCapacity190PublicProof,assertOwnFullCapacity190PublicDurability} from './own-full-capacity-190-public-installation.mjs';
 import {prepareOwnLiquidationBootstrap213PublicWith201,prepareOwnCloseSnapshot214PublicWith201,prepareOwnCloseSnapshot215PublicWith201} from './own-m7-public-successors201-bridge.mjs';
 import {assertOwnLiquidationBootstrap213Proof,assertOwnCloseSnapshot214Proof,assertOwnCloseSnapshot215Proof} from './own-m7-public-successors213215.mjs';
+import {composeOwnM7PublicNovelty217,assertOwnM7PublicNovelty217Phase,assertOwnM7PublicNovelty217Durability,projectOwnM7Census200Through217} from './own-m7-public-novelty217-source.mjs';
+import {M10_PUBLIC_STAGE_ORDER,assertM10PublicStagePhase,assertM10PublicStageReceiptDurability} from './own-m10-public-schema-plan.mjs';
 import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
 import {ownInstallationSettings,ownInstallationDestination} from '../prepare-own-payroll-installation.mjs';
 
-export const OWN_M7_PUBLIC_BATCH_VERSION='own-m7-public-schema-batch.v2';
-export const OWN_M7_STAGE_IDS=Object.freeze(['policy192','declaration193','engine194','fixed196','novelty197','census200','capacity201','bootstrap213','snapshot214','snapshot215']);
+export const OWN_M7_PUBLIC_BATCH_VERSION='own-m7-public-schema-batch.v3';
+export const OWN_M7_ORIGINAL_STAGE_IDS=Object.freeze(['policy192','declaration193','engine194','fixed196','novelty197','census200','capacity201','bootstrap213','snapshot214','snapshot215']);
+export const OWN_M7_STAGE_IDS=Object.freeze([...OWN_M7_ORIGINAL_STAGE_IDS.slice(0,5),'novelty217',...OWN_M7_ORIGINAL_STAGE_IDS.slice(5)]);
 export const OWN_M7_REHEARSAL_CODE='OWN_M7_REHEARSAL_ROLLBACK';
 export const OWN_M7_RUNTIME_ROLE='municontrol_actions_runtime_app';
 // Public lineage of the eight193 prerequisites: last source that defines each one.
@@ -113,6 +116,8 @@ const OWN_M7_TAIL_ASSERT_SOURCE=Object.freeze({
  snapshot215:['scripts/lib/own-close-snapshot215-installation.mjs','assertOwnCloseSnapshot215Proof','8b89907fd81e1b3554fe05e5e0e43a3c36f151f31721271dcaa0a8e25bc027f1','successor']
 });
 export function ownM7SourcePhaseContract(stageId,read,stageBatch){
+ if(stageId.startsWith('m10-')){assert.ok(M10_PUBLIC_STAGE_ORDER.includes(stageId.slice(4)),'OWN_M7_UNKNOWN_M10_STAGE');const file='scripts/lib/own-m10-public-schema-plan.mjs',digest='e111bb69f2ce9ce59b23520276121d0ebf6eb786fa5d640451f5e891f2376091';assert.equal(hash(lf(read(file))),digest,'OWN_M7_M10_PROOF_SOURCE_CHANGED');return Object.freeze({stageId,source:file,sourceSha256:digest,kind:'m10',asserter:'assertM10PublicStageReceiptDurability'});}
+ if(stageId==='novelty217'){const file='scripts/lib/own-m7-public-novelty217-source.mjs',reviewedSha256='f2599785ce4851d8d14bffdc5c1db66c6485e4a799b9f92cbe4df3ae40d2dcd0',source=lf(read(file));assert.equal(hash(source),reviewedSha256,'OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED:'+stageId);for(const name of ['assertOwnM7PublicNovelty217Phase','assertOwnM7PublicNovelty217Durability'])assert.equal(source.split('export function '+name+'(').length,2,'OWN_M7_ASSERT_SOURCE_PENDING');return Object.freeze({stageId,source:file,sourceSha256:reviewedSha256,asserter:'assertOwnM7PublicNovelty217Durability',kind:'novelty217'});}
  const tail=OWN_M7_TAIL_ASSERT_SOURCE[stageId];
  if(tail){const[file,asserter,reviewedSha256,kind]=tail,source=lf(read(file));assert.equal(hash(source),reviewedSha256,'OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED:'+stageId);const anchor='export function '+asserter+'(';assert.equal(source.split(anchor).length,2,'OWN_M7_ASSERT_SOURCE_PENDING');return Object.freeze({stageId,source:file,sourceSha256:reviewedSha256,asserter,kind});}
  const sourceEntry=OWN_M7_ASSERT_SOURCE[stageId];assert.ok(sourceEntry,'OWN_M7_UNKNOWN_STAGE');
@@ -138,6 +143,8 @@ export function ownM7SourcePhaseContract(stageId,read,stageBatch){
 export function assertOwnM7StageProof(stageId,{phase,receipt,batch,installed,contract}){
  assert.equal(contract?.stageId,stageId,'OWN_M7_PHASE_SOURCE_CONTRACT_REQUIRED');
  assert.ok(['installation','durable','repetition'].includes(phase),'OWN_M7_UNKNOWN_PROOF_PHASE');
+ if(stageId.startsWith('m10-')){assert.equal(contract.kind,'m10');return assertM10PublicStagePhase({stage:batch,phase,receipt,installed});}
+ if(stageId==='novelty217'){assert.equal(contract.kind,'novelty217');return assertOwnM7PublicNovelty217Phase({targetPlan:batch,phase,receipt,installed});}
  if(stageId==='capacity201'){
   assert.equal(contract.kind,'capacity201','OWN_M7_201_PROOF_CONTRACT_REQUIRED');assert.notEqual(phase,'repetition','OWN_M7_201_REPETITION_FORBIDDEN');
   assertOwnFullCapacity190PublicProof({proof:receipt,batch});
@@ -182,6 +189,8 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
  const engine194=buildOwnMonthlyDayEngineSourceInstallation(shared);
  const fixed196=buildMonthlyDayFixedCompositionInstallation(shared);
  const novelty197=buildOwnNoveltySuccessionInstallation(shared);
+ const novelty217=composeOwnM7PublicNovelty217({read,sourceCommit,operationalPairBaseline,prerequisites});
+ assert.equal(novelty217.source217.predecessor.afterCheck,novelty197.afterCheck,'OWN_M7_197_217_WHOLE_SOURCE_DRIFT');
  const census200=buildOwnReportCensusInstallation({read,sourceCommit});
  const capacity201=composeOwnFullCapacity190PublicInstallation({read,sourceCommit});
  assert.deepEqual(capacity201.censusStatements,census200.statements,'OWN_M7_200_201_STATEMENTS_DRIFT');
@@ -210,15 +219,17 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
   {id:'census200',version:census200.version,batch:census200,preflight:[novelty197.afterCheck,census200.contextCheck,census200.prerequisiteCheck,censusAbsent],rehearsal:[novelty197.afterCheck,...census200.statements],installation:[novelty197.afterCheck,...census200.statements],repetition:null,verification:census200.verification,durability:'assertOwnReportCensusDurability'},
   {id:'capacity201',version:capacity201.version,batch:capacity201,preflight:capacity201.preflight,rehearsal:capacity201.statements,installation:capacity201.statements,repetition:null,verification:capacity201.verification,durability:'assertOwnFullCapacity190PublicDurability'}
  ];
- assert.deepEqual(stages.map(s=>s.id),OWN_M7_STAGE_IDS.slice(0,7));
+ assert.deepEqual(stages.map(s=>s.id),OWN_M7_ORIGINAL_STAGE_IDS.slice(0,7));
  const phaseContracts=Object.fromEntries(stages.map(stage=>[stage.id,ownM7SourcePhaseContract(stage.id,read,stage.batch)]));
+ phaseContracts.novelty217=ownM7SourcePhaseContract('novelty217',read,novelty217.source217);
  for(const[id,plan]of Object.entries(successorsByMajor[17]))phaseContracts[id]=ownM7SourcePhaseContract(id,read,plan);
  for(const[id,plan]of Object.entries(successorsByMajor[18]))assert.deepEqual(ownM7SourcePhaseContract(id,read,plan),phaseContracts[id],'OWN_M7_TARGET_PROOF_CONTRACT_DRIFT');
  const sourceHashes={...prerequisites.sourceHashes};
+ for(const[file,digest]of Object.entries(novelty217.sourceHashes)){if(Object.hasOwn(sourceHashes,file))assert.equal(sourceHashes[file],digest,'OWN_M7_217_SOURCE_HASH_CONFLICT:'+file);sourceHashes[file]=digest;}
  for(const contract of Object.values(phaseContracts)){if(Object.hasOwn(sourceHashes,contract.source))assert.equal(sourceHashes[contract.source],contract.sourceSha256,'OWN_M7_PHASE_SOURCE_HASH_CONFLICT');sourceHashes[contract.source]=contract.sourceSha256;}
  for(const stage of stages)for(const [file,digest] of Object.entries(stage.batch.sourceHashes??{})){if(Object.hasOwn(sourceHashes,file))assert.equal(sourceHashes[file],digest,'OWN_M7_SOURCE_HASH_CONFLICT:'+file);sourceHashes[file]=digest;}
  for(const plans of Object.values(successorsByMajor))for(const plan of Object.values(plans))for(const[file,digest]of Object.entries(plan.sourceHashes)){if(Object.hasOwn(sourceHashes,file))assert.equal(sourceHashes[file],digest,'OWN_M7_SOURCE_HASH_CONFLICT:'+file);sourceHashes[file]=digest;}
- const targets=OWN_RELEASE_TARGETS.map(t=>Object.freeze({...t,stageBatches:Object.freeze(successorsByMajor[t.major]),stages:Object.freeze([...stages.map(stage=>Object.freeze({
+ const baseTargets=OWN_RELEASE_TARGETS.map(t=>Object.freeze({...t,stageBatches:Object.freeze(successorsByMajor[t.major]),stages:Object.freeze([...stages.map(stage=>Object.freeze({
   id:stage.id,version:stage.version,durability:stage.durability,rehearsalExpectedError:OWN_M7_REHEARSAL_CODE,
   preflight:frozenList(['SET TRANSACTION READ ONLY',...ownInstallationSettings,ownInstallationDestination(t),readOnlyGuard,...stage.preflight]),
   rehearsal:frozenList([...ownInstallationSettings,ownInstallationDestination(t),...stage.rehearsal,rehearsalFault]),
@@ -230,11 +241,17 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
   return Object.freeze({id,version:plan.version,durability:phaseContracts[id].asserter,rehearsalExpectedError:plan.rehearsalExpectedError,
    preflight:frozenList(plan.preflight),rehearsal:frozenList(plan.rehearsal),installation:frozenList(plan.installation),durableVerification:frozenList(plan.verification),repetition:frozenList(plan.repetition),nativeEquivalencePublicIncluded:false});
  })])}));
+ const targets=baseTargets.map(target=>{
+  const targetPlan=novelty217.targets.find(plan=>plan.target.major===target.major);assert.ok(targetPlan,'OWN_M7_217_EXISTING_TARGET_REQUIRED');
+  const census=target.stages.find(stage=>stage.id==='census200'),projection=projectOwnM7Census200Through217({plan:novelty217,targetPlan,censusStage:census});
+  const next=[];for(const stage of target.stages){if(stage.id==='census200')next.push(targetPlan,projection.stage);else next.push(stage);}
+  return Object.freeze({...target,stageBatches:Object.freeze({...target.stageBatches,novelty217:targetPlan}),stages:Object.freeze(next),novelty217CensusProjection:projection.projection});
+ });
  for(const target of targets)assert.deepEqual(target.stages.map(stage=>stage.id),[...OWN_M7_STAGE_IDS],'OWN_M7_STAGE_ORDER_DRIFT');
  return Object.freeze({version:OWN_M7_PUBLIC_BATCH_VERSION,sourceCommit,operationalPairBaseline,sourceHashes:Object.freeze(sourceHashes),
   prerequisitePins:Object.freeze(declaration193.prerequisitePins),prerequisiteRuntime:prerequisites.prerequisiteRuntime,prerequisiteAclEvidence:prerequisites.aclEvidence,phaseContracts:Object.freeze(phaseContracts),
   stageOrder:[...OWN_M7_STAGE_IDS],rehearsalCode:OWN_M7_REHEARSAL_CODE,
-  counts:Object.freeze({policy192:{newFunctions:2,adaptedFunctions:4},declaration193:{newTables:1,newFunctions:12,runtimeFacades:4},engine194:{adaptedFunctions:4},fixed196:{newFunctions:3,adaptedFunctions:6},novelty197:novelty197.counters,census200:{newFunctions:1,runtimeFacades:1},capacity201:{newFunctions:16,adaptedFunctions:9,changedChecks:3},bootstrap213:{adaptedFunctions:1},snapshot214:{adaptedFunctions:1},snapshot215:{adaptedFunctions:1}}),
+  counts:Object.freeze({policy192:{newFunctions:2,adaptedFunctions:4},declaration193:{newTables:1,newFunctions:12,runtimeFacades:4},engine194:{adaptedFunctions:4},fixed196:{newFunctions:3,adaptedFunctions:6},novelty197:novelty197.counters,novelty217:novelty217.source217.counters,census200:{newFunctions:1,runtimeFacades:1},capacity201:{newFunctions:16,adaptedFunctions:9,changedChecks:3},bootstrap213:{adaptedFunctions:1},snapshot214:{adaptedFunctions:1},snapshot215:{adaptedFunctions:1}}),
   stageBatches:Object.freeze(Object.fromEntries(stages.map(s=>[s.id,s.batch]))),
   targets,notComposed:Object.freeze(['208','209','195']),nativeEquivalencePublicIncluded:false,
   connects:false,executesSql:false,businessOperations:0,roleAssignmentsAdded:0,capabilityDefinitionsAdded:0,qaSeedCopied:false,inverseRelocation:false});
@@ -242,6 +259,8 @@ export function composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPair
 // Durability dispatch: the stage's own exported asserter over the three receipts
 // (installed, durable RO, repeated RR/RW in verify mode); census200 has no repetition.
 export function assertOwnM7StageDurability(stageId,{installed,durable,repeated,batch}){
+ if(stageId.startsWith('m10-'))return assertM10PublicStageReceiptDurability({stage:batch,installed,durable,repeated});
+ if(stageId==='novelty217')return assertOwnM7PublicNovelty217Durability({targetPlan:batch,installed,durable,repeated});
  if(stageId==='capacity201'){assert.equal(repeated,undefined,'OWN_M7_201_REPETITION_FORBIDDEN');return assertOwnFullCapacity190PublicDurability({installed,durable,batch});}
  const successorAsserter={bootstrap213:assertOwnLiquidationBootstrap213Proof,snapshot214:assertOwnCloseSnapshot214Proof,snapshot215:assertOwnCloseSnapshot215Proof}[stageId];
  if(successorAsserter){

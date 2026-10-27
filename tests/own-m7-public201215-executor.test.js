@@ -1,7 +1,7 @@
 // Unit transport DTOs below are synthetic and never evidence of native SQL.
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {composeOwnM7PublicSchemaBatch,ownM7SourcePhaseContract,OWN_M7_STAGE_IDS,OWN_M7_REHEARSAL_CODE} from '../scripts/lib/own-m7-public-schema-batch.mjs';
+import {composeOwnM7PublicSchemaBatch,ownM7SourcePhaseContract,OWN_M7_STAGE_IDS,OWN_M7_ORIGINAL_STAGE_IDS,OWN_M7_REHEARSAL_CODE} from '../scripts/lib/own-m7-public-schema-batch.mjs';
 import {executeOwnM7Stage} from '../scripts/install-own-m7-schema-batch.mjs';
 import {ownM7CommittedSourceClosure,OWN_M7_SOURCE_REVIEW_ENTRIES} from '../scripts/prepare-own-m7-schema-batch-installation.mjs';
 import {createRecordingSourceReader} from '../scripts/lib/owner-qa-source-closure-reader.mjs';
@@ -10,7 +10,7 @@ const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'u
 let sourceBatch;
 const actualBatch=()=>sourceBatch??=composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPairBaseline:'published107'});
 test('public201 follows the same census200 and successors retain their own exact target and full201 epoch',()=>{
- const batch=actualBatch();assert.deepEqual(batch.stageOrder,['policy192','declaration193','engine194','fixed196','novelty197','census200','capacity201','bootstrap213','snapshot214','snapshot215']);
+ const batch=actualBatch();assert.deepEqual(batch.stageOrder,['policy192','declaration193','engine194','fixed196','novelty197','novelty217','census200','capacity201','bootstrap213','snapshot214','snapshot215']);
  const capacity=batch.stageBatches.capacity201;assert.deepEqual(capacity.censusStatements,batch.stageBatches.census200.statements);assert.equal(capacity.pre.length,11);assert.equal(capacity.post.length,27);
  for(const target of batch.targets){
   const stage201=target.stages.find(s=>s.id==='capacity201');assert.equal(stage201.repetition,null);assert.match(stage201.installation.join('\n'),/OWN_DECISION_CAPACITY_ALREADY_PRESENT/);
@@ -26,7 +26,7 @@ test('public201 follows the same census200 and successors retain their own exact
  assert.equal(batch.nativeEquivalencePublicIncluded,false);assert.deepEqual(batch.notComposed,['208','209','195']);
 });
 test('four new contracts bind their original proof asserter source and reject any whole-source drift',()=>{
- for(const stageId of OWN_M7_STAGE_IDS.slice(6)){
+ for(const stageId of OWN_M7_ORIGINAL_STAGE_IDS.slice(6)){
   const contract=ownM7SourcePhaseContract(stageId,read,{});assert.equal(contract.kind,stageId==='capacity201'?'capacity201':'successor');assert.match(contract.sourceSha256,/^[a-f0-9]{64}$/);
   assert.throws(()=>ownM7SourcePhaseContract(stageId,file=>read(file)+'\n// source drift',{}),/OWN_M7_ASSERT_REVIEWED_SOURCE_CHANGED/);
  }
@@ -61,7 +61,7 @@ test('201 validates TWO returned receipts, performs only five transactions and n
  assert.ok(fixture.records.slice(0,-1).every(r=>r.durabilityVerified===false));
 });
 test('each successor accepts its own exact rehearsal token and THREE separately returned proofs',async()=>{
- for(const stageId of OWN_M7_STAGE_IDS.slice(7)){
+ for(const stageId of OWN_M7_ORIGINAL_STAGE_IDS.slice(7)){
   const fixture=transportFixture(stageId),result=await executeOwnM7Stage({...fixture,stageId,major:17});
   assert.deepEqual(fixture.calls.map(r=>r.phase),['preflight','rehearsal','preflight','installation','durable','repetition']);assert.deepEqual(fixture.calls.map(r=>r.readOnly),[true,false,true,false,true,false]);
   assert.equal(result.validatedReceiptCount,3);assert.equal(result.durabilityVerified,true);assert.equal(result.nativeEquivalencePublicIncluded,false);
@@ -69,7 +69,7 @@ test('each successor accepts its own exact rehearsal token and THREE separately 
  }
 });
 test('invalid proof in every new stage stops before the following SQL and never claims durability',async()=>{
- for(const stageId of OWN_M7_STAGE_IDS.slice(6))for(const[options,expected]of[[{badInstalled:true},['preflight','rehearsal','preflight','installation']],[{badDurable:true},['preflight','rehearsal','preflight','installation','durable']],...(stageId==='capacity201'?[]:[[{badRepeated:true},['preflight','rehearsal','preflight','installation','durable','repetition']]])]){
+ for(const stageId of OWN_M7_ORIGINAL_STAGE_IDS.slice(6))for(const[options,expected]of[[{badInstalled:true},['preflight','rehearsal','preflight','installation']],[{badDurable:true},['preflight','rehearsal','preflight','installation','durable']],...(stageId==='capacity201'?[]:[[{badRepeated:true},['preflight','rehearsal','preflight','installation','durable','repetition']]])]){
   const fixture=transportFixture(stageId,options);await assert.rejects(()=>executeOwnM7Stage({...fixture,stageId,major:17}));assert.deepEqual(fixture.calls.map(r=>r.phase),expected);assert.equal(fixture.records.at(-1).state,'UNCERTAIN');assert.equal(fixture.records.at(-1).noFurtherSql,true);assert.equal(fixture.records.at(-1).durabilityVerified,false);
  }
 });

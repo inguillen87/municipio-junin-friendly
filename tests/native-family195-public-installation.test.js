@@ -36,7 +36,7 @@ test('plan reuses canonical195 phases, keeps destination guards and repeats only
  assert.deepEqual(p.phases.durable,p.phases.repetition);assert.ok(p.phases.installation.some(s=>s.startsWith('CREATE TABLE public.native_family_request')));
  assert.ok(p.phases.rehearsal.at(-1).includes('FAMILY_SELF195_REHEARSAL_LATE_FAILURE'));assert.ok(!p.phases.rehearsal.some(s=>s===p.phases.installation.at(-1)));
  for(const s of p.phases.repetition)assert.ok(!s.startsWith('CREATE '));
- for(const phase of Object.values(p.phases)){assert.ok(phase.some(s=>s.startsWith('DO $destination$')));assert.ok(phase.includes("SET LOCAL search_path='pg_catalog, public, pg_temp'"));}
+ for(const phase of Object.values(p.phases)){assert.ok(phase.some(s=>s.startsWith('DO $destination$')));assert.ok(phase.includes("SET LOCAL search_path=pg_catalog, public, pg_temp"));}
 });
 test('normal build binding validates both actual client classes and rejects old SHA, role, environment or target',()=>{
  const b=binding();assert.equal(bindingCheck({raw:b.bindingRaw,sha256:b.bindingSha256,sourceCommit,target:plan().target}).schemaReadinessProved,false);

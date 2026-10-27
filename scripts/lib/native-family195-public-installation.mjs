@@ -15,7 +15,7 @@ const own=(value,key)=>{const d=value&&typeof value==='object'?Object.getOwnProp
 const exact=(value,keys)=>assert.deepEqual(Object.keys(value).sort(),[...keys].sort());
 const nativeEqual=(a,b)=>a&&b&&a.pid===b.pid&&a.backendStart===b.backendStart&&a.serverVersionNum===b.serverVersionNum;
 const contextGuard=readOnly=>"DO $family195_context$ BEGIN IF current_setting('transaction_read_only')<>"+(readOnly?"'on'":"'off'")+" OR current_setting('transaction_isolation')<>'repeatable read' OR current_setting('standard_conforming_strings')<>'on' THEN RAISE EXCEPTION 'FAMILY195_PUBLIC_TRANSACTION_REQUIRED';END IF;END $family195_context$";
-const prefix=(target,readOnly)=>[...ownInstallationSettings,ownInstallationDestination(target),"SET LOCAL search_path='pg_catalog, public, pg_temp'",contextGuard(readOnly)];
+const prefix=(target,readOnly)=>[...ownInstallationSettings,ownInstallationDestination(target),"SET LOCAL search_path=pg_catalog, public, pg_temp",contextGuard(readOnly)];
 
 // Requires the actual, reviewed build-observation bytes. A boolean or an old SHA
 // cannot stand in for the two normal build clients on the selected branch.

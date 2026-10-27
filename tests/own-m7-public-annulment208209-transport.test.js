@@ -1,5 +1,6 @@
 // Proposed pure SOURCE/recording-transport tests. No object below is evidence
 // of a real PostgreSQL receipt, TLS connection, installation or rollback.
+import {mockedCompleteM7Tail} from './fixtures/own-m10-institutional-receipt-mocks.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,7 +8,7 @@ import {createHash} from 'node:crypto';
 import {OWN_RELEASE_TARGETS} from '../scripts/lib/own-payroll-release-target.mjs';
 import {ownReleasePgDependencySource,createOwnReleaseAnnulmentSessions,ownReleaseErrorObservation,ownReleaseErrorCode,ownReleaseReceiptObservation} from '../scripts/lib/own-payroll-release-annulment-pg.mjs';
 import {composeOwnM7PublicSchemaBatch,OWN_M7_STAGE_IDS} from '../scripts/lib/own-m7-public-schema-batch.mjs';
-import {composeOwnM7PublicSchemaBatchWithAnnulment,executeOwnM7PublicAnnulmentTail,assertOwnM7AnnulmentRehearsalDetail,OWN_M7_ANNULMENT_TAIL_STAGE} from '../scripts/lib/own-m7-public-annulment208209.mjs';
+import {composeOwnM7PublicSchemaBatchWithAnnulment,executeOwnM7PublicAnnulmentTail,assertOwnM7AnnulmentRehearsalDetail,OWN_M7_ANNULMENT_TAIL_STAGE,OWN_M7_STAGES_WITH_ANNULMENT,assertOwnM7PublicAnnulmentTailRecord} from '../scripts/lib/own-m7-public-annulment208209.mjs';
 import {OWN_ANNUL_REVIEW208_SQL_SHA256} from '../scripts/lib/own-m7-public-annulment208-source.mjs';
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),sourceCommit='a'.repeat(40);
 const pgVersion='8.23.1',pgIntegrity='sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==';
@@ -34,9 +35,9 @@ test('the dedicated driver accepts only the reviewed official exact pg dependenc
 
 test('the pure public review appends one closed two-stage tail while all ten existing HTTP stage descriptors remain exact',()=>{
  const p=batch(),base=composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPairBaseline:'published107'});
- assert.deepEqual(p.stageOrder,[...OWN_M7_STAGE_IDS,OWN_M7_ANNULMENT_TAIL_STAGE]);assert.deepEqual(p.notComposed,['195']);
+ assert.deepEqual(p.stageOrder,[...OWN_M7_STAGES_WITH_ANNULMENT]);assert.deepEqual(p.notComposed,['195']);
  for(const target of p.targets){
-  const before=base.targets.find(t=>t.major===target.major);assert.deepEqual(target.stages.slice(0,10),before.stages);
+  const before=base.targets.find(t=>t.major===target.major);assert.deepEqual(target.stages.slice(0,OWN_M7_STAGE_IDS.length),before.stages);
   const tail=target.stageBatches[OWN_M7_ANNULMENT_TAIL_STAGE];assert.equal(tail.target.major,target.major);assert.deepEqual(tail.subStageOrder,[208,209]);assert.equal(tail.receipt208FileAccepted,false);
   assert.equal(tail.review208.rehearsalFault.wholeInverse,true);assert.equal(tail.preparation209.rehearsalFault.wholeInverse,true);
   assert.equal(tail.review208.faults.length,2);assert.equal(tail.preparation209.faults.length,3);
@@ -250,4 +251,11 @@ test('a durable208 mismatch cannot mint the WeakMap admission, repeat or acquire
  const f=fullProtocol({durableDrift:true});await assert.rejects(()=>executeOwnM7PublicAnnulmentTail({batch:batch(),major:17,client:f.client,record:f.record}),/PUBLIC_ANNUL_IMMEDIATE_DURABILITY_CHANGED:objectSha256/);
  assert.equal(f.acquisitions,3);assert.ok(!f.calls.some(call=>call.id===209||call.slot==='repetition'));assert.equal(f.records.at(-1).review208DurabilityVerified,undefined);
  assert.equal(f.records.at(-1).state,'UNCERTAIN');assertRedacted(f.records);
+});
+
+test('a later schema consumer revalidates all eight stored proofs without minting208 or querying209 again',async()=>{
+ const record=await mockedCompleteM7Tail(batch()),checked=assertOwnM7PublicAnnulmentTailRecord({batch:batch(),major:17,record});assert.equal(checked.validatedOriginalNativeProofs,8);assert.equal(checked.queriesExecuted,0);assert.equal(checked.native208AdmissionMinted,false);assert.equal(checked.current209EpochReplayed,false);
+ for(const mutate of [r=>r.state='UNCERTAIN',r=>delete r.proofs[209].durable,r=>r.proofs[209].installed.epoch208PriorStateSha256='9'.repeat(64),r=>r.proofs[208].installed.businessWrites=1,r=>r.negativeObservations.pop(),r=>r.real208FunctionBookend.objectSha256='9'.repeat(64),r=>r.transportObservations[0].tlsObservations[0].ssl=false,r=>r.rehearsalObservations[208].validatedDetail.proofSha256='9'.repeat(64)]){
+  const changed=structuredClone(record);mutate(changed);assert.throws(()=>assertOwnM7PublicAnnulmentTailRecord({batch:batch(),major:17,record:changed}));
+ }
 });

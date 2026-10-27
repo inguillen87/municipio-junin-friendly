@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {prepareNativeFamily195PublicMaterialPreflight as prepare,classifyNativeFamily195PublicMaterialPreflight as classify,nativeFamily195PublicSourcePlan} from '../scripts/lib/native-family195-public-preflight.mjs';
+import {verifyNativeFamily195PublicLayoutOn190} from '../scripts/lib/native-family195-public-layout-qa.mjs';
 const root=new URL('../',import.meta.url),read=file=>fs.readFileSync(new URL(file,root),'utf8'),sourceCommit='a'.repeat(40);
 const contractFile='scripts/contracts/native-family195-prerequisite-layout-pg17.json';
 const queryFile='scripts/contracts/native-family195-prerequisite-layout-query.sql';
@@ -83,4 +84,25 @@ test('the full metadata statement collates extracted JSON text in both NOT NULL 
  }
  assert.equal(plan().sourceHashes[contractFile],'ab0ebf2eae47181ee71dc253202beb03d49f844e45a34cd3f1bde3ec3c3eeef2');
  assert.equal(JSON.parse(read(contractFile)).flatMap(table=>table.checks).length,60);
+});
+
+
+test('canonical layout path is three identifiers and the quoted single-name response stays rejected',()=>{
+ assert.match(plan().sql,/SET LOCAL search_path=pg_catalog, public, pg_temp;/);
+ assert.doesNotMatch(plan().sql,/SET LOCAL search_path='pg_catalog, public, pg_temp'/);
+ const observed=layout();observed.searchPath='"pg_catalog, public, pg_temp"';
+ assert.throws(()=>classify(plan(),observation(),observed));
+});
+
+test('the real same190 hook emits the identifier list before its first native layout observation',()=>{
+ // Only capture the real helper's first inspection request. No SQL is run and
+ // no layout/business proof is fabricated: stop before returning that request.
+ const schema='mc_qa_fixed_092_'+ '1'.repeat(32),stop=Error('LAYOUT_REQUEST_CAPTURED');let calls=0,captured;
+ const h={major:17,sourceCommit,sourceCustody:{sourceCommit},read,check:()=>assert.fail('inspection must not complete'),
+  qa:{major:17,sourceCommit,schema,normalized:sql=>sql.replaceAll('public.',schema+'.')},
+  json:(statements,options)=>{calls++;if(calls===1)return {absent:true};assert.equal(calls,2);captured={statements,options};throw stop;}};
+ assert.throws(()=>verifyNativeFamily195PublicLayoutOn190(h),error=>error===stop);assert.equal(calls,2);
+ assert.equal(captured.statements[0],'SET LOCAL search_path=pg_catalog, public, pg_temp');
+ assert.deepEqual(captured.options,{end:'ROLLBACK',readOnly:true,fullJson:true});
+ assert.equal(captured.statements.length,2);assert.ok(captured.statements[1].includes(schema+'.'));
 });

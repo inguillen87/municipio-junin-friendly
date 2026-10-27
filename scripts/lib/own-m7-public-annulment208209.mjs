@@ -2,20 +2,22 @@
 // Native results below are admitted only after exact target/source/epoch checks.
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {composeOwnM7PublicSchemaBatch,OWN_M7_STAGE_IDS} from './own-m7-public-schema-batch.mjs';
+import {composeM10PublicSchemaPlan,M10_PUBLIC_STAGE_ORDER} from './own-m10-public-schema-plan.mjs';
+import {composeOwnM7PublicSchemaBatch,OWN_M7_STAGE_IDS,ownM7SourcePhaseContract} from './own-m7-public-schema-batch.mjs';
 import {composeOwnAnnulmentReview208PublicSource,assertOwnAnnulmentReview208PublicProof,assertOwnAnnulmentReview208PublicDurability} from './own-m7-public-annulment208-source.mjs';
 import {composeOwnAnnul209PublicPredecessorRegistry,assertOwnAnnul209PublicPredecessorRegistry,bookendOwnAnnul209PublicPredecessorRegistry} from './own-annul209-public-predecessor-registry.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {performancePreservationSnapshot} from '../verify-documentary-roster-performance.mjs';
+import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
 import {ownInstallationSettings,ownInstallationDestination} from '../prepare-own-payroll-installation.mjs';
 import {ownReleasePgDependencySource,ownReleaseErrorObservation,ownReleaseReceiptObservation} from './own-payroll-release-annulment-pg.mjs';
 export const OWN_M7_ANNULMENT_TAIL_STAGE='annul208209';
-export const OWN_M7_STAGES_WITH_ANNULMENT=Object.freeze([...OWN_M7_STAGE_IDS,OWN_M7_ANNULMENT_TAIL_STAGE]);
+export const OWN_M7_STAGES_WITH_ANNULMENT=Object.freeze([...OWN_M7_STAGE_IDS,OWN_M7_ANNULMENT_TAIL_STAGE,...M10_PUBLIC_STAGE_ORDER.map(id=>'m10-'+id)]);
 const FILE='scripts/lib/own-m7-public-annulment208209.mjs',SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
 const SQL209_SHA='5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56';
 const I209='scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',I209_SHA='f334ee7ccd6cd80c8eca647bc15e658a91ae0c512e28e7ec01d1af4c6111ad5a';
-const producerPins=Object.freeze({'scripts/lib/own-m7-public-annulment208-source.mjs':'f13f13152461c9644eaf8a40742f91718668c8cbbe12612e967553927abb5aab','scripts/lib/own-annul209-public-predecessor-registry.mjs':'6727807be2e9fc61b970641278961b9a835c004afb99bb872e63ca7d1e5d2509'});
+const producerPins=Object.freeze({'scripts/lib/own-m7-public-annulment208-source.mjs':'10d66c7dfe282bcee4f47b8724e5918c090e190bb7745e96c280897d2646583d','scripts/lib/own-annul209-public-predecessor-registry.mjs':'75919bec83c38b838651259f4414db85ee5bd7e9448d2045015ecec193d31687'});
 const SHA=/^[a-f0-9]{64}$/,hash=v=>createHash('sha256').update(v).digest('hex'),q=v=>"'"+String(v).replaceAll("'","''")+"'";
 const names208=Object.freeze(['own_annul_review_core_v2','own_annul_selected_index_v2','own_annul_command_index_core_v2','own_annul_review_v2','own_annul_review_full_v2','own_annul_command_v2','own_annul_command_full_v2']);
 const signatures209=Object.freeze([['own_annul_preparation_core_v1','jsonb,uuid,integer',false],['own_annul_preparation_v1','jsonb,uuid',true],['own_annul_preparation_full_v1','jsonb,uuid',true]]);
@@ -126,7 +128,7 @@ export function composeOwnM7PublicSchemaBatchWithAnnulment(options){
  const base=composeOwnM7PublicSchemaBatch({...options,read:load}),registry=composeOwnAnnul209PublicPredecessorRegistry({...options,read:load});
  const dependencySource=ownReleasePgDependencySource({packageJson:load('package.json'),packageLock:load('package-lock.json')});
  const extraHashes={...producerPins,[FILE]:hash(lf(load(FILE))),'scripts/lib/own-payroll-release-target.mjs':hash(lf(load('scripts/lib/own-payroll-release-target.mjs'))),'scripts/lib/own-payroll-release-annulment-pg.mjs':hash(lf(load('scripts/lib/own-payroll-release-annulment-pg.mjs')))},sourceHashes=mergeHashes(base.sourceHashes,registry.sourceHashes,extraHashes);
- const targets=base.targets.map(original=>{
+ const m10Plans=[];const targets=base.targets.map(original=>{
   const target=targetOf(original),source208=composeOwnAnnulmentReview208PublicSource({read:load,sourceCommit,major:target.major});
   assert.equal(source208.sourceSqlSha256,registry.required208.sourceSqlSha256,'PUBLIC_ANNUL_208_REGISTRY_SQL_EPOCH_CHANGED');
   assert.deepEqual(source208.ownPins,registry.required208.pins,'PUBLIC_ANNUL_208_REGISTRY_FUNCTION_METADATA_CHANGED');
@@ -134,11 +136,14 @@ export function composeOwnM7PublicSchemaBatchWithAnnulment(options){
   const stage208=sourceStage208(source208,target),stage209=sourceStage209(registry,target,load,mergeHashes(extraHashes,source208.sourceHashes));
   const pair={version:'own-m7-public-annulment-tail.v1',sourceCommit,target,dependencySource,review208:stage208,preparation209:stage209,subStageOrder:[208,209],receipt208FileAccepted:false,executionAdmitted:false};
   freeze(pair);tails.set(pair,{source208,registry,raws,read:load});
-  return Object.freeze({...original,stageBatches:Object.freeze({...original.stageBatches,[OWN_M7_ANNULMENT_TAIL_STAGE]:pair}),stages:Object.freeze([...original.stages,Object.freeze({id:OWN_M7_ANNULMENT_TAIL_STAGE,version:pair.version,subStages:[stage208,stage209],dedicatedPgRequired:true,requiresReal208Admission:true})])});
+  const m10=composeM10PublicSchemaPlan({read:load,sourceCommit,target:OWN_RELEASE_TARGETS.find(t=>t.major===target.major)});m10Plans.push(m10);Object.assign(sourceHashes,mergeHashes(sourceHashes,m10.sourceHashes));
+  const m10Batches=Object.fromEntries(m10.stages.map(stage=>['m10-'+stage.id,stage]));
+  return Object.freeze({...original,m10PublicPlan:m10,stageBatches:Object.freeze({...original.stageBatches,[OWN_M7_ANNULMENT_TAIL_STAGE]:pair,...m10Batches}),stages:Object.freeze([...original.stages,Object.freeze({id:OWN_M7_ANNULMENT_TAIL_STAGE,version:pair.version,subStages:[stage208,stage209],dedicatedPgRequired:true,requiresReal208Admission:true}),...m10.stages.map(stage=>Object.freeze({...stage,id:'m10-'+stage.id,nativeEquivalencePublicIncluded:false}))])});
  });
- const sourceBookend=()=>{for(const[file,raw]of raws)assert.equal(read(file),raw,'PUBLIC_ANNUL_RAW_SOURCE_BOOKEND_CHANGED:'+file);bookendOwnAnnul209PublicPredecessorRegistry(registry);return{sourceCommit,sourceHashes};};sourceBookend();
- return Object.freeze({...base,version:'own-m7-public-schema-with-annulment.v1',sourceHashes:Object.freeze(sourceHashes),targets:Object.freeze(targets),stageOrder:[...OWN_M7_STAGES_WITH_ANNULMENT],notComposed:Object.freeze(['195']),counts:Object.freeze({...base.counts,annul208209:{newFunctions:10,privateHelpers:4,runtimeFacades:6,newTables:0,adaptedFunctions:0,roleAssignmentsAdded:0}}),
-  phaseContracts:Object.freeze({...base.phaseContracts,[OWN_M7_ANNULMENT_TAIL_STAGE]:{stageId:OWN_M7_ANNULMENT_TAIL_STAGE,source:FILE,sourceSha256:extraHashes[FILE],kind:'annulment-tail'}}),sourceBookend,sourceOnly:true});
+ const sourceBookend=()=>{for(const m10 of m10Plans)m10.sourceBookend();for(const[file,raw]of raws)assert.equal(read(file),raw,'PUBLIC_ANNUL_RAW_SOURCE_BOOKEND_CHANGED:'+file);bookendOwnAnnul209PublicPredecessorRegistry(registry);return{sourceCommit,sourceHashes};};sourceBookend();
+ return Object.freeze({...base,version:'own-m7-public-schema-with-annulment-m10.v2',sourceHashes:Object.freeze(sourceHashes),targets:Object.freeze(targets),stageOrder:[...OWN_M7_STAGES_WITH_ANNULMENT],notComposed:Object.freeze(['195']),counts:Object.freeze({...base.counts,annul208209:{newFunctions:10,privateHelpers:4,runtimeFacades:6,newTables:0,adaptedFunctions:0,roleAssignmentsAdded:0}}),
+  capabilityDefinitionsAdded:4,m10Scope:Object.freeze({stages:8,newTables:4,newFunctions:31,adaptedFunctions:12,capabilityDefinitionsAdded:4,roleAssignmentsAdded:0,businessOperations:0}),
+  phaseContracts:Object.freeze({...base.phaseContracts,...Object.fromEntries(M10_PUBLIC_STAGE_ORDER.map(id=>['m10-'+id,ownM7SourcePhaseContract('m10-'+id,load)])),[OWN_M7_ANNULMENT_TAIL_STAGE]:{stageId:OWN_M7_ANNULMENT_TAIL_STAGE,source:FILE,sourceSha256:extraHashes[FILE],kind:'annulment-tail'}}),sourceBookend,sourceOnly:true});
 }
 
 function assertNative(value,bundle,slot,major){
@@ -284,4 +289,39 @@ export async function executeOwnM7PublicAnnulmentTail({batch,major,client,record
   const error=cause instanceof Error?cause:Error('PUBLIC_ANNUL_NON_ERROR_FAILURE');Object.assign(result,{state:'UNCERTAIN',noFurtherSql:true,noCleanup:true,automaticRetry:false,durabilityVerified:false,failure:errorObservation(error)});if(initialRecorded)try{record(result);}catch{}
   error.uncertain=true;error.noFurtherSql=true;throw error;
  }
+}
+
+// Readback of an ORIGINAL final tail record for the later M10 schema stages.
+// This validates data only. It never creates an in-process208 admission, opens
+// a session, queries the current epoch, or replays209 after M10 adds triggers.
+export function assertOwnM7PublicAnnulmentTailRecord({batch,major,record}){
+ const target=batch.targets.find(t=>t.major===major),pair=target?.stageBatches?.[OWN_M7_ANNULMENT_TAIL_STAGE],seal=tails.get(pair);assert.ok(seal,'PUBLIC_ANNUL_UNMINTED_READBACK_PLAN');sourceBookend(pair);
+ const keys=['stage','version','sourceCommit','target','state','phase','proofs','phaseReceiptObservations','epochs','rehearsalObservations','negativeObservations','transportObservations','installedStages','installed','repeated','durableObserved','automaticRetry','cleanupAttempted','businessOperations','nominalRowsReturned','durabilityVerified','review208DurabilityVerified','preparation209DurabilityVerified','validatedNativeProofs','nativeRehearsalProofChannel','independentRollbackEpochsVerified','real208AdmissionUsed','metadataSource','nativeEquivalencePublicIncluded','real208FunctionBookend'];
+ for(const key of ['novelty217Prior','capacity201Prior'])if(Object.hasOwn(record??{},key))keys.push(key);exact(record,keys,'PUBLIC_ANNUL_FINAL_RECORD_FIELDS');
+ assert.equal(record.stage,OWN_M7_ANNULMENT_TAIL_STAGE);assert.equal(record.version,pair.version);assert.equal(record.sourceCommit,pair.sourceCommit);assert.deepEqual(record.target,pair.target);assert.equal(record.state,'VALIDATED');assert.equal(record.phase,'complete');
+ for(const key of ['installed','repeated','durableObserved','durabilityVerified','review208DurabilityVerified','preparation209DurabilityVerified','real208AdmissionUsed'])assert.equal(record[key],true,'PUBLIC_ANNUL_REAL_FINAL_RECORD_REQUIRED:'+key);
+ for(const key of ['automaticRetry','cleanupAttempted','nativeEquivalencePublicIncluded'])assert.equal(record[key],false);assert.equal(record.businessOperations,0);assert.equal(record.nominalRowsReturned,0);assert.equal(record.validatedNativeProofs,8);assert.equal(record.independentRollbackEpochsVerified,2);assert.equal(record.metadataSource,'public source only');assert.equal(record.nativeRehearsalProofChannel,'PostgreSQL ERROR DETAIL; not a returned SELECT');assert.deepEqual(record.installedStages,[208,209]);
+ exact(record.proofs,['208','209'],'PUBLIC_ANNUL_REAL_PROOF_PAIR_REQUIRED');exact(record.epochs,['208','209'],'PUBLIC_ANNUL_REAL_EPOCH_PAIR_REQUIRED');exact(record.phaseReceiptObservations,['208','209'],'PUBLIC_ANNUL_REAL_RECEIPT_OBSERVATIONS_REQUIRED');exact(record.rehearsalObservations,['208','209'],'PUBLIC_ANNUL_REAL_REHEARSAL_OBSERVATIONS_REQUIRED');
+ const expectations=[pair.review208,pair.preparation209];assert.equal(record.transportObservations.length,expectations.reduce((n,s)=>n+s.faults.length+1,0));assert.equal(record.negativeObservations.length,expectations.reduce((n,s)=>n+s.faults.length,0));
+ const observedBundle=(stage,purpose)=>{
+  const rows=record.transportObservations.filter(row=>row.stage===stage.stage&&row.purpose===purpose);assert.equal(rows.length,1,'PUBLIC_ANNUL_REAL_TRANSPORT_OBSERVATION_REQUIRED');const row=rows[0];exact(row,['stage','purpose','target','identities','tlsObservations'],'PUBLIC_ANNUL_TRANSPORT_OBSERVATION_FIELDS');
+  exact(row.target,[...targetKeys,'transport'],'PUBLIC_ANNUL_TARGET_FIELDS');for(const key of targetKeys)assert.equal(row.target[key],pair.target[key]);assert.equal(row.target.transport,'postgres_tls_dedicated');exact(row.identities,['epoch','rehearsal','installation','durable','repetition'],'PUBLIC_ANNUL_FIVE_DEDICATED_SLOTS_REQUIRED');
+  const observed={identities:row.identities};for(const[slot,native]of Object.entries(row.identities))assertNative(native,observed,slot,major);assert.equal(new Set(Object.values(row.identities).map(nativeKey)).size,5,'PUBLIC_ANNUL_FIVE_PHYSICAL_BACKENDS_REQUIRED');assert.equal(row.tlsObservations.length,5);
+  assert.deepEqual(row.tlsObservations.map(x=>x.slot).sort(),Object.keys(row.identities).sort());for(const tls of row.tlsObservations){exact(tls,['slot','ssl','native'],'PUBLIC_ANNUL_TLS_FIELDS');assert.equal(tls.ssl,true);assertNative(tls.native,observed,tls.slot,major);}return observed;
+ };
+ const redactedRollback=(error,code,bundle)=>{
+  assert.equal(error.version,'own-release-redacted-native-error.v1');assert.equal(error.code,'P0001');assert.equal(error.messageToken,code);assert.equal(error.fields?.message?.type,'string');assert.equal(error.fields.message.bytes,Buffer.byteLength(code));assert.equal(error.fields.message.sha256,hash(code));exact(error.ownedSession,['slot','native','sessionTerminated'],'PUBLIC_ANNUL_SAVED_OWNED_SESSION_FIELDS');assert.equal(error.ownedSession.slot,'rehearsal');assert.equal(error.ownedSession.sessionTerminated,true);assertNative(error.ownedSession.native,bundle,'rehearsal',major);assert.equal(Object.hasOwn(error,'transportFailure'),false,'PUBLIC_ANNUL_SAVED_TRANSPORT_AMBIGUITY');
+ };
+ for(const stage of expectations){
+  const p=record.proofs[stage.stage],bundle=observedBundle(stage,'four-proof-stage'),expected208=stage.stage===209?record.proofs[208].installed.priorStateSha256:undefined;exact(p,['rehearsal','installed','durable','repeated'],'PUBLIC_ANNUL_REAL_FOUR_PROOFS_REQUIRED');
+  for(const[key,mode,write,slot]of[['rehearsal','install',true,'rehearsal'],['installed','install',true,'installation'],['durable','verify',false,'durable'],['repeated','verify',true,'repetition']])assertStageProof(p[key],stage,mode,write,bundle,slot,expected208);
+  if(stage.stage===208)assertOwnAnnulmentReview208PublicDurability({batch:seal.source208,...p});
+  else for(const key of ['priorStateSha256','objectSha256','epoch208PriorStateSha256']){assert.equal(p.installed[key],p.durable[key]);assert.equal(p.installed[key],p.repeated[key]);}
+  const epochs=record.epochs[stage.stage];exact(epochs,['before','rollback'],'PUBLIC_ANNUL_REAL_ROLLBACK_EPOCHS_REQUIRED');for(const epoch of Object.values(epochs)){assertEpoch(epoch,stage,bundle);assert.equal(epoch.priorStateSha256,p.installed.priorStateSha256,'PUBLIC_ANNUL_SAVED_EPOCH_CHANGED');}
+  const error=record.rehearsalObservations[stage.stage];redactedRollback(error,stage.rehearsalFault.code,bundle);const ref=error.validatedDetail;exact(ref,['version','stage','sourceCommit','detailBytes','detailSha256','proofSha256'],'PUBLIC_ANNUL_SAVED_DETAIL_REFERENCE');assert.equal(ref.version,'public-annul-validated-detail-reference.v1');assert.equal(ref.stage,stage.stage);assert.equal(ref.sourceCommit,pair.sourceCommit);assert.equal(error.fields.detail.type,'string');assert.equal(ref.detailBytes,error.fields.detail.bytes);assert.equal(ref.detailSha256,error.fields.detail.sha256);assert.equal(ref.proofSha256,hash(JSON.stringify(p.rehearsal)));
+  const observations=record.phaseReceiptObservations[stage.stage];exact(observations,['installation','durable','repeated'],'PUBLIC_ANNUL_SAVED_PHASE_BYTES_FIELDS');for(const item of Object.values(observations)){exact(item,['version','bytes','sha256'],'PUBLIC_ANNUL_SAVED_PHASE_BYTES');assert.equal(item.version,'own-release-receipt-bytes.v1');assert.ok(Number.isSafeInteger(item.bytes)&&item.bytes>0);assert.match(item.sha256,SHA);}
+  for(const fault of stage.faults){const rows=record.negativeObservations.filter(row=>row.stage===stage.stage&&row.name===fault.name);assert.equal(rows.length,1,'PUBLIC_ANNUL_SAVED_NEGATIVE_REQUIRED');const n=rows[0];exact(n,['stage','name','error','rollbackEpoch'],'PUBLIC_ANNUL_SAVED_NEGATIVE_FIELDS');const prior=observedBundle(stage,'negative-'+fault.name);redactedRollback(n.error,fault.code,prior);assertEpoch(n.rollbackEpoch,stage,prior);assert.equal(n.rollbackEpoch.priorStateSha256,p.installed.priorStateSha256,'PUBLIC_ANNUL_SAVED_NEGATIVE_NOT_ROLLED_BACK');}
+ }
+ const source=seal.source208,bookend=record.real208FunctionBookend;exact(bookend,['version','sourceCommit','sourceSqlSha256','predecessorPinsSha256','objectSha256'],'PUBLIC209_208_BOOKEND_FIELDS');assert.equal(bookend.version,'own-annulment-review208-function-bookend.v1');assert.equal(bookend.sourceCommit,pair.sourceCommit);assert.equal(bookend.sourceSqlSha256,source.sourceSqlSha256);assert.equal(bookend.predecessorPinsSha256,source.predecessorPinsSha256);assert.equal(bookend.objectSha256,record.proofs[208].installed.objectSha256,'PUBLIC209_208_FUNCTION_BOOKEND_CHANGED');
+ return {passed:true,validatedOriginalNativeProofs:8,sourceCommit:pair.sourceCommit,actualTarget:record.target,queriesExecuted:0,native208AdmissionMinted:false,current209EpochReplayed:false};
 }
