@@ -30,5 +30,7 @@ export function prepareMonthlyWithPositions210(h,settings={}){
  const positions210Sidecar=composePositions210SidecarPlan({...options,positions210Plan:positions210});
  assert.strictEqual(positions210.foundation,h.qa);assert.strictEqual(positions211212.foundation,h.qa);
  return {foundation:h.qa,context:{...monthly.context,positions210,positions211212,positions210Sidecar},
-  sourceEntries:[...new Set([...monthly.sourceEntries,...positions210.sourceEntries,...positions211212.sourceEntries,...positions210Sidecar.sourceEntries,...POSITIONS210_QA_ENTRIES])]};
+  // The reviewed root API remains in E's explicit continuationEntries through
+  // POSITIONS210_QA_ENTRIES; this preparation tier admits non-root sources only.
+  sourceEntries:[...new Set([...monthly.sourceEntries,...positions210.sourceEntries,...positions211212.sourceEntries,...positions210Sidecar.sourceEntries,...POSITIONS210_QA_ENTRIES])].filter(file=>file!=='api/internal-own-art-report.js')};
 }
