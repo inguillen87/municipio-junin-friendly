@@ -8,6 +8,16 @@ import {verifyOwnAnnulmentV2FullCapacity} from './verify-own-payroll-annulment-v
 export async function verifyNativeFamily195Same190(options){
  const report=await verifyOwnAnnulmentV2FullCapacity(options,{family195:true,positions210:true});
  assert.equal(report.continuation?.family195Technical?.passed,true);
+ if(options.major===17){
+  const layout=report.continuation.family195Technical.publicTableLayout;
+  assert.equal(layout?.version,'native-family195-public-layout-native-qa.v1');assert.equal(layout.passed,true);
+  assert.equal(layout.major,17);assert.equal(layout.sourceCommit,report.sourceCommit);assert.equal(layout.constraints,60);
+  assert.equal(layout.mutations,11);assert.equal(layout.results.length,11);assert.equal(new Set(layout.results.map(x=>x.name)).size,11);
+  assert.ok(layout.results.every(x=>x.rollbackReadbackVerified===true));
+  for(const key of ['foreignSearchPathRejected','nonzeroPolicyGenerationAccepted','nonemptyFamilyHistoryAccepted'])assert.equal(layout[key],true);
+  assert.equal(layout.identitiesAdded,0);assert.equal(layout.production,false);assert.equal(layout.productionWrites,0);
+ }
+
  assert.equal(report.continuation?.family195Business?.passed,true);
  assert.strictEqual(report.continuation.family195Business,report.continuation.capacity.family195Business);
  return report;

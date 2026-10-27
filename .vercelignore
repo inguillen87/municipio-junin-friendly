@@ -446,3 +446,6 @@ local-agents/
 # Exact QA source succession fixtures; no private handoff or municipal inputs.
 !tests/fixtures/owner190-pg17-identity-source-projection.js
 !tests/fixtures/owner190-qa-source-reconciliation.js
+
+# Exact public family195 layout guard required by source tests; no private input.
+!scripts/contracts/native-family195-prerequisite-layout-query.sql

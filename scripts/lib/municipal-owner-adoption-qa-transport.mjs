@@ -7,7 +7,7 @@ import {noeliaCircuitRuntime} from './noelia-circuit-runtime.mjs';
 
 export const OWNER_ADOPTION_QA_REPOSITORY='inguillen87/municipio-junin-friendly';
 const database='own_payroll_run_qa',role='postgres',runtimeRole='municontrol_actions_runtime_app';
-const localStarts={17:1792971723,18:1792025448},localPids={17:13604,18:34448};
+const localStarts={17:1793106097,18:1792025448},localPids={17:25928,18:34448};
 const literal=v=>"'"+String(v).replaceAll("'","''")+"'";
 const frozen=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))frozen(x);Object.freeze(v);}return v;};
 const directory=v=>{assert.equal(typeof v,'string');assert.doesNotMatch(v,/[\0\r\n]/);return v.replaceAll('\\','/');};

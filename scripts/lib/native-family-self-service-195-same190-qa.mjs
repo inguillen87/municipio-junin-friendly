@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {bindNativeFamily195Technical} from './native-family-195-same190-continuation.mjs';
+import {verifyNativeFamily195PublicLayoutOn190,NATIVE_FAMILY195_PUBLIC_LAYOUT_QA_ENTRIES} from './native-family195-public-layout-qa.mjs';
 import {
  buildNativeFamilyPrerequisites190Installation,
  familyRelocationHashes,familyNormalizer,assertNativeFamilyPrerequisitesDurability
@@ -14,6 +15,7 @@ import {
 } from '../verify-own-monthly-payroll-full-capacity.mjs';
 
 export const FAMILY195_QA_ENTRIES=Object.freeze([
+ ...NATIVE_FAMILY195_PUBLIC_LAYOUT_QA_ENTRIES,
  'scripts/verify-native-family195-same190.mjs',
  'scripts/lib/native-family-prerequisites-190-installation.mjs',
  'scripts/lib/native-family-self-service-195-installation.mjs',
@@ -136,7 +138,11 @@ export function prepareMonthlyWithFamily195(h){
  };
 }
 
-export function installNativeFamily195Same190(h){
+export function installNativeFamily195Same190(h,options={}){
+ assert.ok(options&&typeof options==='object'&&!Array.isArray(options)&&(Object.getPrototypeOf(options)===Object.prototype||Object.getPrototypeOf(options)===null),'FAMILY195_LAYOUT_SETTINGS_CLOSED');
+ assert.ok(Reflect.ownKeys(options).every(key=>key==='publicLayout'),'FAMILY195_LAYOUT_SETTINGS_CLOSED');
+ const publicLayout=Object.hasOwn(options,'publicLayout')?options.publicLayout:false;assert.equal(typeof publicLayout,'boolean','FAMILY195_LAYOUT_BOOLEAN_REQUIRED');
+ if(publicLayout)assert.equal(h.major,17,'FAMILY195_LAYOUT_PG17_ONLY');
  const family=h.prepared?.family195;
  assert.equal(family?.version,'native-family195-same190-composition.v1');
  assert.strictEqual(family.foundation,h.qa);assert.equal(family.schema,h.qa.schema);
@@ -152,8 +158,14 @@ export function installNativeFamily195Same190(h){
    repeatCode:'NATIVE_FAMILY_ALREADY_INSTALLED',
    durable:assertNativeFamilySelfService195Durability}
  ];
- const proofs={};
+ const proofs={};let publicTableLayout=null;
  for(const stage of stages){
+  if(stage.id==='self195'&&publicLayout){
+   assert.equal(proofs.prerequisites?.durability?.passed,true,'FAMILY195_LAYOUT_REQUIRES_DURABLE_PREREQUISITES');
+   h.setPhase('family195-public-layout');
+   publicTableLayout=verifyNativeFamily195PublicLayoutOn190(h);
+   assert.equal(publicTableLayout.passed,true);assert.equal(publicTableLayout.sourceCommit,h.sourceCommit);
+  }
   h.setPhase('family195-'+stage.id+'-rehearsal');
   const prior=h.readFullSnapshot();
   const rehearsal=h.json(stage.local.rehearsal,{end:'ROLLBACK',fullJson:true});
@@ -183,7 +195,7 @@ export function installNativeFamily195Same190(h){
  return {
   version:'native-family195-same190-technical-proof.v1',passed:true,
   schema:h.qa.schema,sourceCommit:h.sourceCommit,major:h.major,
-  proofs,prerequisiteClosure:'native',nativeFamilyV5Source:'110',
+  proofs,publicTableLayout,prerequisiteClosure:'native',nativeFamilyV5Source:'110',
   newTables:11,newFunctions:40,runtimeFacades:12,
   self195:{newTables:3,newFunctions:23,runtimeFacades:10,capabilityDefinitionsAdded:3},
   roleAssignmentsAdded:0,actorsCreated:0,businessOperations:0,
@@ -196,7 +208,9 @@ export async function continueMonthlyWithFamily195(h,settings={}){
  assert.ok(settings&&typeof settings==='object'&&!Array.isArray(settings)&&(Object.getPrototypeOf(settings)===Object.prototype||Object.getPrototypeOf(settings)===null));
  assert.ok(Reflect.ownKeys(settings).every(key=>key==='positions210'),'FAMILY195_CONTINUE_SETTINGS_CLOSED');
  const positions210=Object.hasOwn(settings,'positions210')?settings.positions210:false;assert.equal(typeof positions210,'boolean');
- const family195Technical=installNativeFamily195Same190(h);
+ // The actual jointPG17 entry always requests all13 source-pinned native cases.
+ // Direct technical-stage tests and PG18 retain their explicitly narrower scope.
+ const family195Technical=installNativeFamily195Same190(h,{publicLayout:h.major===17});
  bindNativeFamily195Technical(h,family195Technical);
  const monthly=await continueOwnMonthlyFullCapacity(h,{
   annulmentV2Browser:true,annulmentPreparation:true,family195Business:true,...(positions210?{positions210:true}:{})

@@ -159,6 +159,26 @@ test('self195 durability rejects a changed source, prior state, v5 epoch or unex
  assert.throws(()=>assertNativeFamilySelfService195Durability({batch:b,installed:{...installed,beforeFingerprint:'7'.repeat(64)},durable}),/FAMILY_SELF195_PRIOR_CHANGED/);
 });
 
+
+
+test('public layout options are closed and cannot install an arbitrary hook or truthy admission',()=>{
+ for(const options of [null,'true',{publicLayout:'true'},{normalizer:()=>{}},{publicLayout:true,skipCase:true}]){
+  const {h,trace}=host();assert.throws(()=>installNativeFamily195Same190(h,options));assert.equal(trace.length,0);
+ }
+});
+
+test('requested public layout needs the real source reader after durable prerequisites and before self195 DDL',()=>{
+ const {h,trace}=host();
+ // This existing unit host deliberately has no source reader or live catalogue.
+ // The real hook must reject it, rather than manufacturing a passed layout DTO.
+ assert.equal(h.read,undefined);
+ assert.throws(()=>installNativeFamily195Same190(h,{publicLayout:true}),e=>e.code==='ERR_ASSERTION');
+ assert.equal(trace.filter(x=>x.type==='json').length,3);
+ assert.ok(trace.some(x=>x.type==='phase'&&x.phase==='family195-public-layout'));
+ assert.ok(!trace.some(x=>x.phase?.startsWith('family195-self195-')));
+ assert.ok(!trace.some(x=>x.type==='check'));
+});
+
 // Native185 regression: the three approved capability additions are omitted from
 // row data only for the exact IAM relation, including after QA schema relocation.
 test('self195 prior snapshots relocate the exact capability relation without relaxing prior metadata or state guards',()=>{

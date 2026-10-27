@@ -20,8 +20,8 @@ test('only the two declared QA major versions can produce a foundation',()=>{
  for(const value of [16,19,0,'17',undefined])assert.throws(()=>documentaryQaFoundation(value));
 });
 test('process identity is rejected before reading a pid file if a listener is another process or host',()=>{
- const value={process:{ProcessId:13604},listener:{OwningProcess:5990,LocalAddress:'127.0.0.1',LocalPort:55417}};assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual===5990&&e.expected===13604);
- value.listener.OwningProcess=13604;value.listener.LocalAddress='0.0.0.0';assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual==='0.0.0.0'&&e.expected==='127.0.0.1');
+ const value={process:{ProcessId:25928},listener:{OwningProcess:5990,LocalAddress:'127.0.0.1',LocalPort:55417}};assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual===5990&&e.expected===25928);
+ value.listener.OwningProcess=25928;value.listener.LocalAddress='0.0.0.0';assert.throws(()=>assertDocumentaryQaProcess(root,17,value),e=>e.code==='ERR_ASSERTION'&&e.actual==='0.0.0.0'&&e.expected==='127.0.0.1');
  value.process.ProcessId=34448;assert.throws(()=>assertDocumentaryQaProcess(root,17,value),/DOCUMENTARY_QA_PROCESS_CHANGED/);
 });
 test('178 QA relocation retains every canonical guard and exactly rehashes isolated qualified bodies',()=>{
@@ -43,6 +43,20 @@ test('explicit QA options allow only fixed local/CI transports and declared base
  const args=['--major=18','--output=verification/qa-synthetic','--source-commit='+'a'.repeat(40)];assert.deepEqual(documentaryQaOptions([...args,'--transport=ci','--baseline=observed']),{major:18,output:'verification/qa-synthetic',sourceCommit:'a'.repeat(40),transport:'ci',baseline:'observed'});
  for(const bad of ['--host=example.com','--database=other','--url=postgresql://example.com','--transport=remote','--baseline=unknown','--major=17'])assert.throws(()=>documentaryQaOptions([...args,bad]));
 });
+
+
+test('restarted PG17 documentary guard accepts only the reviewed PID and rejects stale process and pid-file ownership',t=>{
+ const directory=path.resolve(root,'verification/postgresql-qa-20261004/pg17-data'),executable=path.resolve(root,'verification/postgresql-qa-20261004/pg17/pgsql/bin/postgres.exe');
+ const pidFile=path.join(directory,'postmaster.pid');let reads=0,pidFilePid=25928;
+ t.mock.method(fs,'readFileSync',(file,encoding)=>{assert.equal(path.resolve(file),pidFile);assert.equal(encoding,'utf8');reads++;return String(pidFilePid)+'\n'+directory+'\n1793106097\n55417\n';});
+ const value={process:{ProcessId:25928,ExecutablePath:executable,CommandLine:'"'+executable+'" -D "'+directory+'" -p 55417 -h 127.0.0.1'},listener:{OwningProcess:25928,LocalAddress:'127.0.0.1',LocalPort:55417}};
+ const identity=assertDocumentaryQaProcess(root,17,value);assert.equal(identity.processId,25928);assert.equal(identity.directory,directory);assert.equal(reads,1);
+ for(const processId of [13604,25929])assert.throws(()=>assertDocumentaryQaProcess(root,17,{...value,process:{...value.process,ProcessId:processId}}),/DOCUMENTARY_QA_PROCESS_CHANGED/);
+ assert.equal(reads,1,'rejected process identity never reaches the pid file');
+ assert.throws(()=>assertDocumentaryQaProcess(root,17,{...value,listener:{...value.listener,OwningProcess:13604}}));assert.equal(reads,1);
+ pidFilePid=13604;assert.throws(()=>assertDocumentaryQaProcess(root,17,value));assert.equal(reads,2,'stale pid file cannot authenticate a reviewed live PID');
+});
+
 test('CI destination validation refuses an unrecognized workspace/context before opening a SQL connection',async()=>{
  await assert.rejects(()=>verifyDocumentaryQaProcess(path.join(root,'nonexistent-documentary-qa-workspace'),17,{transport:'ci'}),/QA_CI_CONTEXT_REQUIRED|QA_CI_WORKSPACE_CHANGED|ENOENT/);
 });

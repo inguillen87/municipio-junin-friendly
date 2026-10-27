@@ -52,6 +52,8 @@ prisma/
 !scripts/migrations/*.sql
 # Guarded public code fragment; municipal SQL dumps remain excluded.
 !scripts/sql/own-monthly-day-fixed-v1-composition.fragment.sql
+# Exact metadata query source; municipal SQL dumps remain excluded.
+!scripts/contracts/native-family195-prerequisite-layout-query.sql
 !scripts/clock-database/
 !scripts/clock-database/*.sql
 !scripts/tests/057-family-schooling-certificates.test.sql
