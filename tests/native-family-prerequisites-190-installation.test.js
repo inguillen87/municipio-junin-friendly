@@ -453,7 +453,7 @@ for(const closure of ['native','full'])test(closure+': durable prerequisites rem
 });
 
 for(const closure of ['native','full'])test(closure+': DDL segments preserve SQL creation dependencies and metadata verification follows ACL',()=>{
- const b=batch(closure),segments=[b.tables,[b.singleton],b.indexes,b.alters,b.rls,b.definitions,b.triggers,b.acl];
+ const b=batch(closure),segments=[b.tables,[b.singleton],b.alters,b.indexes,b.rls,b.definitions,b.triggers,b.acl];
  const at=s=>{
   const positions=[];for(let i=0;i<b.installation.length;i++)if(b.installation[i]===s)positions.push(i);
   assert.equal(positions.length,1,'one emitted DDL statement: '+s.slice(0,70));return positions[0];
@@ -568,3 +568,53 @@ test('durability checks reject changed source, prior state, object, authority or
  * - Source admission mutations do not demonstrate private inner-template branches:
  *   those are unreachable through an altered read without first rejecting the SHA.
  */
+
+// Regression for the native175 failure: observe dependencies in the actual emitted
+// installation, rather than merely asserting an ordering of named array fields.
+test('all five indexes see their source columns, including064 own_family_id added after CREATE TABLE',()=>{
+ const dependencies={
+  school_certificate_identity_idx:['school_certificate',['tenant_id','source_binding_id','contract_id','family_id','identity_token','recorded_at','id']],
+  employee_family_member_document_uk:['employee_family_member',['tenant_id','source_binding_id','contract_id','employee_person_id','dni']],
+  employee_family_member_subject_idx:['employee_family_member',['tenant_id','source_binding_id','contract_id','employee_person_id','name_key','birth_date']],
+  school_certificate_own_identity_idx:['school_certificate',['tenant_id','source_binding_id','contract_id','own_family_id','identity_token','recorded_at','id']],
+  school_certificate_record_identity_idx:['school_certificate_record',['tenant_id','source_binding_id','contract_id','family_kind','family_id','identity_token','recorded_at','id']],
+ };
+ for(const closure of ['native','full']){
+  const b=batch(closure),available=new Map(),visited=[];
+  let createdSchool=-1,addedOwn=-1,indexedOwn=-1;
+  for(const [position,sql] of b.installation.entries()){
+   const create=/^CREATE TABLE public\.(\w+)\s*\(/.exec(sql);
+   if(create){
+    const table=create[1],columns=new Set();
+    for(const [target,required] of Object.values(dependencies))if(target===table){
+     const declared=new Set([...sql.matchAll(/(?:^|[,(])\s*(\w+)\s+(?:uuid|text|timestamptz|date)\b/g)].map(match=>match[1]));for(const column of required)if(declared.has(column))columns.add(column);
+    }
+    assert.equal(available.has(table),false,'table must be created only once: '+table);
+    available.set(table,columns);
+    if(table==='school_certificate'){
+     createdSchool=position;
+     assert.equal(columns.has('own_family_id'),false,'064 adds this column;057 does not contain it');
+    }
+   }
+   const add=/^ALTER TABLE public\.(\w+) ADD COLUMN (\w+) /.exec(sql);
+   if(add){
+    const columns=available.get(add[1]);assert.ok(columns,'ALTER requires its table: '+add[1]);
+    assert.equal(columns.has(add[2]),false,'new column must not preexist: '+add[2]);columns.add(add[2]);
+    if(add[1]==='school_certificate'&&add[2]==='own_family_id')addedOwn=position;
+   }
+   const index=/^CREATE (?:UNIQUE )?INDEX (\w+) ON public\.(\w+)\(/.exec(sql);
+   if(index){
+    const expected=dependencies[index[1]];assert.ok(expected,'closed five-index contract: '+index[1]);
+    assert.equal(index[2],expected[0]);const columns=available.get(index[2]);assert.ok(columns,'index target must already exist');
+    for(const column of expected[1])assert.ok(columns.has(column),index[1]+' requires earlier column '+column);
+    visited.push(index[1]);
+    if(index[1]==='school_certificate_own_identity_idx'){
+     indexedOwn=position;
+     assert.match(sql,/ WHERE own_family_id IS NOT NULL$/,'predicate depends on the same earlier column');
+    }
+   }
+  }
+  assert.deepEqual(visited,Object.keys(dependencies),'each of the five actual indexes was checked once');
+  assert.ok(createdSchool>=0&&createdSchool<addedOwn&&addedOwn<indexedOwn,'CREATE TABLE -> ADD own_family_id -> dependent index');
+ }
+});

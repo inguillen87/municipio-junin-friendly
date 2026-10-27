@@ -232,7 +232,7 @@ export function buildNativeFamilyPrerequisites190Installation({read,sourceCommit
   ...pins.map(p=>'REVOKE ALL ON FUNCTION '+p.signature+' FROM PUBLIC,'+RUNTIME),
   ...pins.filter(p=>p.runtime).map(p=>'GRANT EXECUTE ON FUNCTION '+p.signature+' TO '+RUNTIME),
  ];
- const migration=[...tables,singleton,...indexes,...alters,...rls,...definitions,...triggers,...acl];
+ const migration=[...tables,singleton,...alters,...indexes,...rls,...definitions,...triggers,...acl];
  for(const s of migration){
   assert.ok(/^(CREATE TABLE public\.|CREATE (UNIQUE )?INDEX \w+ ON public\.|INSERT INTO public\.school_certificate_storage_policy|ALTER TABLE public\.|CREATE FUNCTION public\.|CREATE TRIGGER \w+ BEFORE |REVOKE ALL ON |GRANT EXECUTE ON FUNCTION public\.)/.test(s),'FAMILY195_STATEMENT_VERB:'+s.slice(0,60));
   // Verbs are whitelisted above (so UPDATE/DELETE/TRUNCATE/BEGIN cannot start a
@@ -272,8 +272,8 @@ export function buildNativeFamilyPrerequisites190Installation({read,sourceCommit
  PERFORM pg_advisory_xact_lock(57);PERFORM pg_advisory_xact_lock(64);PERFORM pg_advisory_xact_lock(91);PERFORM pg_advisory_xact_lock(102);
  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=${q(RUNTIME)} AND NOT rolsuper AND NOT rolbypassrls) OR to_regprocedure('public.digest(bytea,text)') IS NULL THEN RAISE EXCEPTION 'FAMILY195_DESTINATION_REQUIRED';END IF;
  IF EXISTS(SELECT 1 FROM unnest(ARRAY[${requiredRelations.map(q).join(',')}]) r WHERE to_regclass('public.'||r) IS NULL) THEN RAISE EXCEPTION 'FAMILY195_PRIOR_RELATION_REQUIRED';END IF;
- IF NOT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid='public.platform_tenant_source_binding'::regclass AND i.indisunique AND i.indisvalid AND i.indpred IS NULL AND (SELECT array_agg(a.attname ORDER BY k.n) FROM unnest(i.indkey) WITH ORDINALITY k(num,n) JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.num)=ARRAY['tenant_id','id'])
-  OR NOT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid='public.tenant_membership'::regclass AND i.indisunique AND i.indisvalid AND i.indpred IS NULL AND (SELECT array_agg(a.attname ORDER BY k.n) FROM unnest(i.indkey) WITH ORDINALITY k(num,n) JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.num)=ARRAY['id','tenant_id'])
+ IF NOT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid='public.platform_tenant_source_binding'::regclass AND i.indisunique AND i.indisvalid AND i.indpred IS NULL AND (SELECT array_agg(a.attname::text ORDER BY k.n) FROM unnest(i.indkey) WITH ORDINALITY k(num,n) JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.num)=ARRAY['tenant_id','id'])
+  OR NOT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid='public.tenant_membership'::regclass AND i.indisunique AND i.indisvalid AND i.indpred IS NULL AND (SELECT array_agg(a.attname::text ORDER BY k.n) FROM unnest(i.indkey) WITH ORDINALITY k(num,n) JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.num)=ARRAY['id','tenant_id'])
  THEN RAISE EXCEPTION 'FAMILY195_PRIOR_UNIQUE_KEY_REQUIRED';END IF;
  END $guard$`;
  const prerequisiteCheck=familyPinsCheck(prerequisites,'FAMILY195_PREREQUISITE_CHANGED',{acl:false}),ownCheck=familyPinsCheck(pins,'FAMILY195_NEW_FUNCTION_METADATA');

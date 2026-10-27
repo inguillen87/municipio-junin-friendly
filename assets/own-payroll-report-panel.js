@@ -1,6 +1,9 @@
 import {OWN_JURISDICTIONS,OWN_JURISDICTION_CHOICES,ownJurisdictionChoice} from './own-payroll-jurisdiction-model.js';
 import {OWN_RUN_TYPES,hasOwnRunAccess,ownRunWorkspaceAccess,ownRunEventCapabilities} from './own-payroll-run-workspace-model.js';
-import {OWN_CLOSE_NOMINAL,verifiedOwnCloseDetail,verifiedOwnCloseReceipt} from './own-payroll-close-model.js';
+import {OWN_CLOSE_NOMINAL,verifiedOwnCloseReceipt} from './own-payroll-close-model.js';
+import {verifiedOwnReportCensus} from './own-payroll-report-census-model.js';
+import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
+import {OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {ownReportQuery,ownReportPeriods,ownReportFilters,ownReportBundle,ownReportDocument,ownReportContracts,OWN_REPORT_MAX_BYTES,ownStatisticsChoices,ownStatisticsSelection,emptyOwnStatisticsSelection} from './own-payroll-report-model.js';
 import {reportPdf,reportXlsx,reportCsv,saveReportBytes} from './report-document.js';
@@ -40,8 +43,16 @@ export function mountOwnPayrollReports(host){
  function invalidate(message){seq++;controller?.abort();busy=false;clear();status(message,'warning');controls();}
  function suspend(message){access=null;for(const k of ['employeeFrom','employeeTo','departmentFrom','departmentTo','agreementFrom','agreementTo'])$(k).value='';invalidate(message);}
  async function session(){const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:controller?.signal});if(!response.ok)throw Object.assign(Error('La sesión venció. Volvé a ingresar.'),{status:response.status});const next=ownRunWorkspaceAccess(await response.json());if(!hasOwnRunAccess(next.caps,OWN_CLOSE_NOMINAL)||access&&access.key!==next.key)throw Object.assign(Error('Cambió la cuenta o faltan permisos para el histórico nominal. Consultá con la cuenta autorizada.'),{status:403});access=next;$('login').hidden=true;}
- async function request(params,budget,target=endpoint){if(!live())throw Object.assign(Error('Pantalla oculta.'),{name:'AbortError'});const response=await fetch(target+'?'+new URLSearchParams(params),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:controller?.signal});const text=await response.text();budget.bytes+=new TextEncoder().encode(text).length;if(budget.bytes>OWN_REPORT_MAX_BYTES)throw Error('El histórico completo supera la capacidad de consulta. No se omitieron ni dividieron filas.');let value;try{value=JSON.parse(text);}catch{throw Error('No se pudo verificar el histórico completo. Volvé a consultar.');}if(!response.ok||value.ok!==true)throw Object.assign(Error(value.error??'No se obtuvo el histórico completo.'),{status:response.status});return value.data;}
- async function load(q,valid,withVariables=false){const details=[],receipts=[],budget={bytes:0};for(const period of ownReportPeriods(q))for(const type of q.types){const d=await verifiedOwnCloseDetail(await request({resource:'detail',period,liquidationType:type},budget));if(!valid())throw Object.assign(Error('Consulta reemplazada.'),{name:'AbortError'});details.push(d);for(const g of d.groups.filter(g=>g.state==='closed'))receipts.push(await verifiedOwnCloseReceipt(await request({resource:'group',id:g.id},budget)));}
+ async function request(params,budget,target=endpoint){
+  if(!live())throw Object.assign(Error('Pantalla oculta.'),{name:'AbortError'});
+  const signal=controller?.signal,response=await fetch(target+'?'+new URLSearchParams(params),{credentials:'same-origin',cache:'no-store',headers:{Accept:OWN_RUN_FULL_JSON},signal});
+  const value=await readOwnPayrollResponse(response,{maxBytes:params.resource==='report-census'?OWN_RUN_MAX_RESPONSE:OWN_RUN_FULL_MAX_BYTES,signal});
+  if(!response.ok||value?.ok!==true)throw Object.assign(Error(value?.error??'No se obtuvo el histórico completo.'),{status:response.status});
+  const announced=response.headers.get('x-municontrol-json-bytes');
+  if(response.headers.get('content-type')?.split(';')[0]!==OWN_RUN_FULL_JSON||announced===null||!/^(0|[1-9][0-9]*)$/.test(announced))throw Error('No se verificó la lectura completa del histórico. Volvé a consultar.');
+  budget.bytes+=Number(announced);if(budget.bytes>OWN_REPORT_MAX_BYTES)throw Error('El histórico completo supera la capacidad de consulta. No se omitieron ni dividieron filas.');return value.data;
+ }
+ async function load(q,valid,withVariables=false){const details=[],receipts=[],budget={bytes:0};for(const period of ownReportPeriods(q))for(const type of q.types){const d=await verifiedOwnReportCensus(await request({resource:'report-census',period,liquidationType:type},budget));if(!valid())throw Object.assign(Error('Consulta reemplazada.'),{name:'AbortError'});details.push(d);for(const g of d.groups.filter(g=>g.state==='closed'))receipts.push(await verifiedOwnCloseReceipt(await request({resource:'group',id:g.id},budget)));}
   const base=ownReportBundle(q,details,receipts);let captures=null;
   if(withVariables){captures=[];for(const id of new Set(base.employees.map(r=>r.employee.runId))){
    const original=await verifiedOwnLiquidationDetail(await request({resource:'detail',id},budget,'/api/internal-own-payroll-liquidation'));
@@ -49,7 +60,7 @@ export function mountOwnPayrollReports(host){
    if(!valid())throw Object.assign(Error('Consulta reemplazada.'),{name:'AbortError'});captures.push(original.capture);
   }}
   const value=ownReportBundle(q,details,receipts,captures);
-  for(const d of details){const fresh=await verifiedOwnCloseDetail(await request({resource:'detail',period:d.period,liquidationType:d.liquidationType},budget));if(fresh.stateVersion!==d.stateVersion||fresh.scopeVersion!==d.scopeVersion)throw Error('Cambió el histórico durante la consulta. Consultá nuevamente; no se reunió una vista parcial.');}
+  for(const d of details){const fresh=await verifiedOwnReportCensus(await request({resource:'report-census',period:d.period,liquidationType:d.liquidationType},budget));if(fresh.sourceVersion!==d.sourceVersion||fresh.scopeVersion!==d.scopeVersion)throw Error('Cambió el histórico durante la consulta. Consultá nuevamente; no se reunió una vista parcial.');}
   await session();return value;
  }
  async function perform(work){if(!live()||busy)return;const version=++seq;busy=true;controller=new AbortController();const op=controller,timeout=setTimeout(()=>op.abort(),90000);controls();try{await work(()=>version===seq&&live());}catch(e){if(version===seq&&live()){clear();if([401,403].includes(e.status)){access=null;$('login').hidden=e.status!==401;}status(e.name==='AbortError'?'La consulta no se completó. Reintentá sin reducir el alcance.':e.message,'warning');}}finally{clearTimeout(timeout);if(version===seq){busy=false;controller=null;controls();}}}

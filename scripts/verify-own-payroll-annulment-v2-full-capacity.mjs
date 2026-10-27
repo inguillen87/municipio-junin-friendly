@@ -10,6 +10,7 @@ import {ownerAuthorityQaOptions} from './verify-municipal-owner-adoption-authori
 import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';
 import {prepareMonthlyWithPositions210,POSITIONS210_QA_ENTRIES} from './lib/positions210-same190-composition.mjs';
 import {FAMILY195_QA_ENTRIES,FAMILY195_ROOT_ENTRIES,prepareMonthlyWithFamily195,continueMonthlyWithFamily195} from './lib/native-family-self-service-195-same190-qa.mjs';
+import {OWN_REPORT_POST209_SOURCE_ENTRIES,assertOwnReportPost209Artifacts} from './lib/own-payroll-report-post209-browser.mjs';
 
 // The served product is read through fs by browser124, so every one of its
 // twelve raw source assets is an explicit entry before the owner source bookend.
@@ -51,6 +52,7 @@ const entries=[...OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,
   'tests/fixtures/current190-ui-source-projection.js',
   'scripts/lib/own-payroll-agreement-annulment-current190-browser.mjs',
   'scripts/lib/own-payroll-canonical190-browser-host-qa.mjs',
+  ...OWN_REPORT_POST209_SOURCE_ENTRIES,
   'scripts/lib/own-payroll-post209-browser.mjs',
   'tests/canonical190-read-committed.test.js',
   'assets/own-payroll-close-panel.js',
@@ -306,6 +308,15 @@ export async function verifyOwnAnnulmentV2FullCapacity(options,settings={}){
   assert.deepEqual(sqlRevocation.captureReference,browserArtifactCaptureReference(sqlRevocation.capture));assert.equal(sqlRevocation.capture.saved.result.employeeCount,855);assert.equal(sqlRevocation.capture.saved.result.rowCount,17100);assert.equal(sqlRevocation.capture.saved.resultSha256,report.continuation.capacity.fullResultSha256);
   const {capture:revocationCapture,...revocationWriter}=sqlRevocation;assert.strictEqual(revocationCapture,sqlRevocation.capture);
   const destination=path.resolve(import.meta.dirname,'..',options.output);
+  const reportM8=preparation.reportM8;
+  assert.equal(reportM8.sourceCommit,report.sourceCommit);assert.equal(reportM8.major,report.major);
+  assert.equal(reportM8.closedGroupId,confirmationClose.closedGroupId);assert.equal(reportM8.closedSnapshotSha256,confirmationClose.closedSnapshotSha256);
+  for(const field of ['actualSql','actualApiHandler','actualHttp','actualBrowser','readOnlyBusiness','ledgerUnchanged','sourceBeforeAfterEqual','emptySacVerified','allExportsIgnoreViewSearch'])assert.equal(reportM8[field],true);
+  assert.equal(reportM8.completeAuthenticationHandler,false);assert.equal(reportM8.productionWrites,0);assert.equal(reportM8.municipalAcceptance,false);
+  for(const pin of reportM8.sourceBookend)assert.equal(pin.sha256,report.sourceClosure.files[pin.path]);
+  assert.equal(reportM8.builtHtmlBookend.source.sha256,report.sourceClosure.files['nomina-control.html']);
+  const reportM8Artifacts=assertOwnReportPost209Artifacts(reportM8,destination);
+
   const current190UiArtifacts=Object.freeze([
     reconcileCurrent190UiArtifact(destination,'liquidation124-initial-verified-empty-browser/report.json',initial190,{state:'verified_empty_before_first_capture',ownRosterComplete:855,captures:0,saved:0,liquidationEvents:0,annulEvents:0,closeEvents:0},report),
     reconcileCurrent190UiArtifact(destination,'liquidation124-current-regressions-browser/report.json',regressionWriter,regression124.decisionReference,report),
@@ -360,7 +371,7 @@ export async function verifyOwnAnnulmentV2FullCapacity(options,settings={}){
     const familyPage=business.browser.sourceBookend.at(-1);assert.equal(familyPage.derived,true);assert.match(familyPage.builtSha256,/^[a-f0-9]{64}$/);
 
   }
-  return {...report,current190UiArtifacts,allLegacyDecisionUiCasesCovered:false};
+  return {...report,current190UiArtifacts,reportM8Artifacts,allLegacyDecisionUiCasesCovered:false};
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
