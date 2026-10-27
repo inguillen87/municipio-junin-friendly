@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+import {assertOwnReceipt126Same190InstallationProof} from '../scripts/lib/own-payroll-receipt126-same190-installation.mjs';
 import fs from 'node:fs';import path from 'node:path';import test from 'node:test';import assert from 'node:assert/strict';
 import {buildOwnReceiptInstallation,assertOwnReceiptDurability,SQL126_SHA} from '../scripts/lib/own-payroll-receipt-installation.mjs';
 import {prepareOwnReceiptInstallation} from '../scripts/prepare-own-payroll-receipt-installation.mjs';
@@ -10,3 +12,57 @@ test('preparación sólo revisa los dos destinos existentes, sin SQL ni permisos
 test('durabilidad exige mismo commit, datos anteriores idénticos y nuevo schema íntegro',()=>{const installed={sourceCommit:commit,sql126Sha256:SQL126_SHA,allChecksPassed:true,beforeFingerprint:'a',afterFingerprint:'a',newObjectFingerprint:'b'},durable={...installed};delete durable.beforeFingerprint;assertOwnReceiptDurability({installed,durable,sourceCommit:commit});for(const patch of [{newObjectFingerprint:'c'},{sourceCommit:'1'.repeat(40)},{afterFingerprint:'c'}])assert.throws(()=>assertOwnReceiptDurability({installed,durable:{...durable,...patch},sourceCommit:commit}));assert.throws(()=>assertOwnReceiptDurability({installed:{...installed,beforeFingerprint:'c'},durable,sourceCommit:commit}));});
 test('rechaza otro destino antes de iniciar la instalación',async()=>{const b=prepareOwnReceiptInstallation({read,sourceCommit:commit});let called=false;await assert.rejects(executeOwnReceiptInstallation({batch:b,major:17,client:async()=>({target:{...b.targets[0],host:'wrong.invalid'},sql:{transaction(){called=true;}}}),record(){}}),/DESTINATION_DRIFT/);assert.equal(called,false);});
 test('no reintenta un COMMIT incierto ni presenta durabilidad como probada',async()=>{const batch=prepareOwnReceiptInstallation({read,sourceCommit:commit}),target=batch.targets[0];let calls=0,records=0;const sql={query:s=>s,transaction:async()=>{calls++;if(calls===1)return [];throw Error('Unknown COMMIT');}};await assert.rejects(executeOwnReceiptInstallation({batch,major:17,client:async()=>({sql,target}),record(){records++;}}),/Unknown COMMIT/);assert.equal(calls,2);assert.equal(records,0);});
+
+// Unit DTO for the closed ledger verifier only. The shape dependency supplies
+// its already-validated numeric OID contract; real shape/SQL441 replay is separate.
+const ledger126Added=['own_receipt_attempt_v1','own_receipt_batch_v1','own_receipt_batch_value_v1','own_receipt_command_v1','own_receipt_context_v1','own_receipt_event_v1','own_receipt_immutable_v1','own_receipt_list_v1','own_receipt_preview_v1','own_receipt_source_version_v1','own_receipt_text_v1'];
+function ledger126Dto({major=17,tableOid=100}={}){
+ const schema='mc_qa_fixed_092_'+'c'.repeat(32),sourceCommit='a'.repeat(40),hex=v=>v.repeat(64),copy=structuredClone;
+ const epoch={database:'synthetic',databaseOid:1,backendPid:99,backendStart:'2026-10-26T00:00:00.000Z',transactionId:'10',snapshot:'10:10:',transactionAt:'2026-10-26T00:00:00.000Z',user:'postgres',ownerOid:10,runtimeRoleOid:20,schema,schemaOid:30,major,requiredMajor:major,isolation:'repeatable read',readOnly:'off'};
+ const catalogs=Object.fromEntries(['relations','attributes','defaults','constraints','indexes','triggers','policies','functions','types','rewrites','inherits','sequenceDefinitions','schemas','roles','roleMemberships','defaultAcls','extensions','dependencies','sharedDependencies'].map(k=>[k,[]]));
+ const modern=['own_receipt_params_v1','own_receipt_self_v1','own_receipt_snapshot_v1'],facadeNames=['own_receipt_self_v1','own_receipt_preview_v1','own_receipt_command_v1','own_receipt_attempt_v1','own_receipt_batch_v1','own_receipt_list_v1'];
+ catalogs.relations=[{oid:'1',relname:'native_employee_registration',relkind:'r'},{oid:'2',relname:'own_payroll_close_event',relkind:'r'},{oid:'3',relname:'iam_capability',relkind:'r'},...['4','5','6'].map((oid,i)=>({oid,relname:'old_index_'+i,relkind:'i'}))];
+ catalogs.attributes=[{attrelid:'1',attnum:1,attname:'kept_column',attnotnull:true}];catalogs.indexes=['4','5','6'].map((oid,i)=>({indexrelid:oid,indrelid:String(i+1)}));
+ catalogs.functions=modern.map((proname,i)=>({oid:String(11+i),proname,prosrc:'old exact body '+proname,proacl:['owner']}));
+ catalogs.roles=[{oid:'10',rolname:'synthetic_owner',rolsuper:true}];catalogs.schemas=[{oid:'30',nspname:schema,nspowner:'10'}];
+ const catalogClassIds={pg_class:'1259',pg_proc:'1255',pg_type:'1247',pg_constraint:'2606',pg_trigger:'2620',pg_attrdef:'2604',pg_rewrite:'2618',pg_authid:'1260'};
+ const priorDependency={classid:catalogClassIds.pg_class,objid:'1',objsubid:0,refclassid:catalogClassIds.pg_type,refobjid:'23',refobjsubid:0,deptype:'n'};catalogs.dependencies=[copy(priorDependency),copy(priorDependency)];
+ const row=(oid,name,count)=>({oid,name,kind:'r',count,sha256:hex('a'),preservedCount:count,preservedSha256:hex('a')});
+ const acl=enabled=>[{grantorOid:10,granteeOid:10,privilege:'EXECUTE',grantable:false},...(enabled?[{grantorOid:10,granteeOid:20,privilege:'EXECUTE',grantable:false}]:[])];
+ const before={epoch:copy(epoch),rows:[row('1','native_employee_registration',855),row('2','own_payroll_close_event',1),row('3','iam_capability',0)],sequenceValues:[],catalogs,capabilities:[],functionAcls:catalogs.functions.map(f=>({oid:f.oid,name:f.proname,entries:acl(false)})),catalogClassIds};
+ const after=copy(before),r=String(tableOid);after.catalogs.relations.push({oid:r,relname:'own_payroll_receipt_event',relkind:'r'},...['101','102','103'].map((oid,i)=>({oid,relname:'new_index_'+i,relkind:'i'})));after.rows.push(row(r,'own_payroll_receipt_event',0));
+ const capDefinitions=['read','prepare','approve'].map(k=>['payroll.receipt.'+k,'Synthetic '+k,'Unit receipt capability','tenant','restricted']);after.capabilities=capDefinitions.map(c=>({capability_key:c[0],label:c[1],description:c[2],scope_kind:c[3],sensitivity:c[4],created_at:epoch.transactionAt}));Object.assign(after.rows[2],{count:3,sha256:hex('b')});
+ after.catalogs.functions.find(f=>f.proname==='own_receipt_self_v1').proacl=['owner','runtime'];after.catalogs.functions.push(...ledger126Added.map((proname,i)=>({oid:String(200+i),proname,prosrc:'new exact body '+proname,proacl:['owner',...(facadeNames.includes(proname)?['runtime']:[])]})));
+ after.functionAcls=after.catalogs.functions.map(f=>({oid:f.oid,name:f.proname,entries:acl(facadeNames.includes(f.proname))}));
+ after.catalogs.attributes.push(...Array.from({length:18},(_,i)=>({attrelid:r,attnum:i+1,attname:'new_'+i,attnotnull:true})));after.catalogs.defaults=[{oid:'300',adrelid:r},{oid:'301',adrelid:r}];
+ const fkIds=Array.from({length:5},(_,i)=>400+i),refs=Array.from({length:10},(_,i)=>600+i);
+ after.catalogs.constraints=Array.from({length:major===18?35:18},(_,i)=>({oid:String(400+i),conrelid:r,contype:i<5?'f':i===5?'p':i<8?'u':i<18?'c':'n',confrelid:i<5?String(i%3+1):'0',conindid:i<5?String(i%3+4):i<8?String(101+i-5):'0'}));
+ after.catalogs.indexes.push(...['101','102','103'].map(indexrelid=>({indexrelid,indrelid:r})));
+ const foreign=after.catalogs.constraints.slice(0,5);after.catalogs.triggers=[...Array.from({length:12},(_,i)=>({oid:String(500+i),tgrelid:r,tgisinternal:i<10,tgconstraint:i<10?foreign[Math.floor(i/2)].oid:'0',tgconstrindid:i<10?foreign[Math.floor(i/2)].conindid:'0',tgconstrrelid:i<10?foreign[Math.floor(i/2)].confrelid:'0'})),...refs.map((id,i)=>{const c=foreign[Math.floor(i/2)];return{oid:String(id),tgrelid:c.confrelid,tgisinternal:true,tgconstraint:c.oid,tgconstrindid:c.conindid,tgconstrrelid:r};})];
+ after.catalogs.types=[{oid:'700',typrelid:r,typarray:'701',typelem:'0'},{oid:'701',typrelid:'0',typarray:'0',typelem:'700'}];
+ after.catalogs.dependencies.push({classid:catalogClassIds.pg_class,objid:r,objsubid:0,refclassid:catalogClassIds.pg_type,refobjid:'23',refobjsubid:0,deptype:'n'});
+ after.catalogs.sharedDependencies.push({dbid:'1',classid:catalogClassIds.pg_proc,objid:'12',objsubid:0,refclassid:catalogClassIds.pg_authid,refobjid:'20',deptype:'a'});
+ const version='own-receipt126-same190-installation-proof.v1',closeReference={unitReference:'same immutable first close'};
+ const plan={version,sourceCommit,schema,major,closeReference,shape:{unitValidatedShapeContract:true},support:{selfAclDelta:{name:'own_receipt_self_v1',fromRuntime:false,toRuntime:true,onlyAllowedExistingAclChange:true},modernPinsFromSource:modern.map(name=>({before:{name,runtime:false}}))},expected:{added:[...ledger126Added],capDefinitions,facadeNames},preservationScope:'unit complete old rows/catalog DTO'};
+ const checked={sourceCheckSemanticsVerified:true,tableOid,foreignConstraintOids:fkIds,referencedTriggerOids:refs};
+ const dependencies={assertShape:()=>copy(checked),exactForeignTriggerExclusion:()=>({foreignConstraintOids:copy(checked.foreignConstraintOids),referencedTriggerOids:copy(checked.referencedTriggerOids),exactForeignConstraints:5,maximumExcludedTriggers:10})};
+ const proof={version,sourceCommit,schema,major,closeReference:copy(closeReference),sourceSqlSha256:'9f3e93154590b79d027d30a1408d07251211a67e87b581e570bdef013c2d33dc',supportSourceChecksCompleted:true,shapeNative:{unitValidatedShapeContract:true},shapeEpoch:copy(epoch),beforeText:'',beforeSha256:'',afterText:'',afterSha256:'',sourceCheckSemanticsVerified:false,globalPreservationVerified:false,transactionEndObserved:false,installationAllowed:false};
+ const refresh=()=>{for(const[phase,value]of[['before',before],['after',after]]){proof[phase+'Text']=JSON.stringify(value);proof[phase+'Sha256']=createHash('sha256').update(proof[phase+'Text']).digest('hex');}return proof;};
+ const verify=()=>assertOwnReceipt126Same190InstallationProof(plan,refresh(),{requestedEnd:'ROLLBACK',dependencies});return{plan,proof,before,after,checked,refresh,verify};
+}
+test('I126 preserves native string catalog IDs and numeric epoch/shape/ACL IDs for PG17 and PG18',()=>{
+ for(const major of[17,18])for(const tableOid of[100,4294967295]){const f=ledger126Dto({major,tableOid}),proof=structuredClone(f.refresh()),result=f.verify();assert.equal(result.priorRowsAndCatalogsPreserved,true);assert.equal(result.epoch.ownerOid,10);assert.equal(result.shapeProof.unitValidatedShapeContract,true);assert.equal(result.installationAdmission,false);assert.deepEqual(f.proof,proof);assert.equal(typeof JSON.parse(f.proof.afterText).catalogs.relations[0].oid,'string');assert.equal(typeof JSON.parse(f.proof.afterText).epoch.ownerOid,'number');}
+});
+test('I126 rejects noncanonical, numeric, zero and out-of-range native catalog object IDs',()=>{
+ for(const bad of['01','+1','1.0','1e2',' 1','1 ','-1','0','4294967296',1,null]){const f=ledger126Dto();f.before.catalogs.relations[0].oid=bad;f.after.catalogs.relations[0].oid=bad;assert.throws(f.verify,/CATALOG_OID/);}
+ for(const change of[f=>{f.after.catalogs.constraints[0].conrelid=100;},f=>{f.after.catalogs.triggers[0].tgconstraint='0400';},f=>{f.after.functionAcls[0].oid=11;},f=>{f.before.catalogClassIds.pg_class='01259';f.after.catalogClassIds.pg_class='01259';}]){const f=ledger126Dto();change(f);assert.throws(f.verify,/CATALOG_OID/);}
+});
+test('I126 converts only validated numeric shape boundaries and keeps epoch numeric',()=>{
+ for(const bad of['100',0,-1,4294967296,NaN]){const f=ledger126Dto();f.checked.tableOid=bad;assert.throws(f.verify,/TYPED_OID/);}
+ for(const key of['foreignConstraintOids','referencedTriggerOids']){const f=ledger126Dto();f.checked[key][0]='400';assert.throws(f.verify,/TYPED_OID/);}
+ const f=ledger126Dto();f.before.epoch.ownerOid='10';f.after.epoch.ownerOid='10';f.proof.shapeEpoch.ownerOid='10';assert.throws(f.verify);
+});
+test('I126 retains old attribute/body/dependency multiplicity and exact numeric ACL guards',()=>{
+ for(const change of[f=>{f.after.catalogs.attributes[0].attname='changed';},f=>{f.after.catalogs.functions[1].prosrc='changed self body';},f=>{f.after.catalogs.dependencies.shift();},f=>{f.after.functionAcls.find(a=>a.name==='own_receipt_self_v1').entries[1].granteeOid=21;}]){const f=ledger126Dto();change(f);assert.throws(f.verify);}
+ const f=ledger126Dto();f.refresh();f.proof.beforeText+=' ';assert.throws(()=>assertOwnReceipt126Same190InstallationProof(f.plan,f.proof,{requestedEnd:'ROLLBACK',dependencies:{assertShape:()=>structuredClone(f.checked),exactForeignTriggerExclusion:()=>({...structuredClone(f.checked),exactForeignConstraints:5,maximumExcludedTriggers:10})}}),/LEDGER_HASH/);
+});
