@@ -48,7 +48,7 @@ export async function createCanonical190BrowserHost({h,actors,getSql,handlers,ou
  assert.ok(pages&&typeof pages==='object'&&!Array.isArray(pages)&&Reflect.ownKeys(pages).every(key=>typeof key==='string'),'CANONICAL190_BROWSER_PAGES');
  const pageFiles=new Map([['/nomina','nomina-control.html']]);
  for(const [route,file]of Object.entries(pages)){
-  assert.ok(route==='/nomina'&&file==='nomina-control.html'||route==='/acciones'&&file==='centro-acciones.html','CANONICAL190_BROWSER_PAGE_NOT_ALLOWED');
+  assert.ok(route==='/nomina'&&file==='nomina-control.html'||route==='/acciones'&&file==='centro-acciones.html'||route==='/estructura.html'&&file==='estructura.html'||route==='/internal-dashboard.html'&&file==='internal-dashboard.html','CANONICAL190_BROWSER_PAGE_NOT_ALLOWED');
   pageFiles.set(route,file);
  }
  const env={},evidence={httpEvidence:[],external:[],pageErrors:[],serverErrors:[],loginTargets:[]};

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {preparePositions210BeforeFirstCapture,readPositions210Comparison} from './positions210-same190-native-continuation.mjs';
 import {verifyLifecycle212Same190} from './positions211212-same190-fixture.mjs';
+import {verifyPositionAdministrative216BrowserOn190} from './position-administrative216-native-browser.mjs';
 import {assertPositions210SidecarPlan,readPositions210SidecarSnapshot,assertPositions210SidecarDelta} from './positions210-same190-sidecar.mjs';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
 import {ownCapacityLiteralAdditions} from './own-payroll-capacity-literal-additions.mjs';
@@ -23,7 +24,8 @@ import {buildOwnReportCensus190IamFixture,assertOwnReportCensus190IamFixture} fr
 import {canonical190Rpc} from './native-family-195-rpc.mjs';
 import {runNativeFamily195Business,FAMILY195_BUSINESS_CONTEXT_VERSION} from './native-family-195-same190-continuation.mjs';
 import {createOwn190NativeErrorExpectations} from './own-payroll-expected-native-rpc.mjs';
-import {installOwnFullCapacity190,ownFullCapacity190Snapshot} from './own-payroll-full-capacity-190-installation.mjs';
+import {composeOwnFullCapacity190Installation,installOwnFullCapacity190,ownFullCapacity190Snapshot} from './own-payroll-full-capacity-190-installation.mjs';
+import {assertNovelty217JointDownstream,advanceNovelty217JointAfter201} from './novelty-administrative217-joint.mjs';
 import {composeOwnCloseSnapshot214Plan,installOwnCloseSnapshot214} from './own-close-snapshot214-installation.mjs';
 import {composeOwnCloseSnapshot215Plan,installOwnCloseSnapshot215,projectOwnCloseSnapshot215Postflight} from './own-close-snapshot215-installation.mjs';
 import {runOwnAccountingImputation190Continuation} from './own-accounting-imputation-190-continuation.mjs';
@@ -138,7 +140,9 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
  const closeIndexedPlan=composeOwnCloseSnapshot215Plan({foundation:qa,major,sourceCommit:h.sourceCommit,read:h.read});
  const runtime=()=>h.json(["SELECT jsonb_build_object('serverVersion',current_setting('server_version'),'serverVersionNum',current_setting('server_version_num'))"],{readOnly:true}),nativeBefore=runtime();assert.equal(Math.trunc(Number(nativeBefore.serverVersionNum)/10000),major);
  const iamPlan=buildOwnReportCensus190IamFixture({qa,read:h.read}),iamProof=h.json(iamPlan.statements),iam=assertOwnReportCensus190IamFixture(iamPlan,iamProof);
+ if(h.prepared?.administrative217){const sourcePlan201=composeOwnFullCapacity190Installation(h);assertNovelty217JointDownstream(h,'201-post',sourcePlan201.postLocal);}
  const installation=await installOwnFullCapacity190(h);
+ if(h.prepared?.administrative217)advanceNovelty217JointAfter201(h,installation);
  // Preserve the complete200/201 admission above;214 is a distinct successor.
  const closeSnapshot214=installOwnCloseSnapshot214(h,closeSnapshotPlan);
  const closeSnapshot215=installOwnCloseSnapshot215(h,closeIndexedPlan);
@@ -253,8 +257,9 @@ export async function runOwnFullCapacity190Continuation(h,options={}){
   if(positions210Admission){
    const comparison=await readPositions210Comparison({h,db,admission:positions210Admission});
    const lifecycle212=await verifyLifecycle212Same190({h,db,admission:positions210Admission,contracts});
+   const administrative216Browser=positions210Admission.administrative216?await verifyPositionAdministrative216BrowserOn190({h,db,qa,admission:positions210Admission,contracts,lifecycle212,family195Business:family195BusinessReport}):null;
    const finalSidecars=readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar});
-   positions210=Object.freeze({version:'positions210-212-same190-source-owned-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,sameCanonical190:true,existingNativePopulation:855,additionalEmployees:0,additionalContracts:0,sourceOwnedSyntheticNorm:true,municipalNormInstalled:false,operationalPair:{makerCapabilities:6,checkerCapabilities:13,contractsReserved:[...positions210Admission.pair.contractsReserved],nativeContextsVerified:positions210Admission.pair.nativeContextsVerified,administrativeQaCheckerReused:false},installation210:positions210Admission.installed,installation211212:positions210Admission.dependentInstallations,sidecarProofs:positions210SidecarProofs,captureSidecarsBijective:true,totalCaptures:finalSidecars.captures.length,totalPositionSidecars:finalSidecars.positions.length,totalDimensionSidecars:finalSidecars.dimensions.length,comparison,lifecycle212,art211NativeFinancialPositiveProven:false,m10Complete:false,positionBrowserProven:false,noeliaAdministrativeFlowProven:false,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false});
+   positions210=Object.freeze({version:'positions210-212-same190-source-owned-native-qa.v1',passed:true,sourceCommit:h.sourceCommit,sameCanonical190:true,existingNativePopulation:855,additionalEmployees:0,additionalContracts:0,sourceOwnedSyntheticNorm:true,municipalNormInstalled:false,operationalPair:{makerCapabilities:6,checkerCapabilities:13,contractsReserved:[...positions210Admission.pair.contractsReserved],nativeContextsVerified:positions210Admission.pair.nativeContextsVerified,administrativeQaCheckerReused:false},installation210:positions210Admission.installed,installation211212:positions210Admission.dependentInstallations,...(positions210Admission.administrative216?{installationAdministrative216:positions210Admission.administrative216}:{}),...(administrative216Browser?{administrative216Browser}:{}),sidecarProofs:positions210SidecarProofs,captureSidecarsBijective:true,totalCaptures:finalSidecars.captures.length,totalPositionSidecars:finalSidecars.positions.length,totalDimensionSidecars:finalSidecars.dimensions.length,comparison,lifecycle212,art211NativeFinancialPositiveProven:false,m10Complete:false,positionBrowserProven:administrative216Browser?.passed===true,noeliaAdministrativeFlowProven:administrative216Browser?.passed===true,synthetic:true,productionWrites:0,paymentExecuted:false,municipalAcceptance:false});
   }
   return{...afterCloseBrowser,checks:baselineChecks,annulmentV2Browser,...(family195BusinessReport?{family195Business:family195BusinessReport}:{}),...(positions210?{positions210}:{})};
  }catch(error){receiptPrimary=error;throw error;}finally{try{await receiptTail.dispose();}catch(error){if(receiptPrimary)throw new AggregateError([receiptPrimary,error],'M7_190_RECEIPT_PRIMARY_AND_DISPOSE_FAILURE',{cause:receiptPrimary});throw error;}}

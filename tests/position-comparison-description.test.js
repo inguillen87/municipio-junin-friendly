@@ -44,7 +44,10 @@ test('M10 usa la denominación capturada aunque la norma elegida tenga el mismo 
  await verifiedPositionComparison(v);const d=positionComparisonDocument(v,detailed),simple=positionComparisonDocument(v,{...detailed,view:'simple'});
  assert.equal(d.rows[0][8],'Cargo exclusivamente sintético 1');assert.equal(d.rows[0][7],'Otra versión normativa');
  assert.equal(simple.rows.find(r=>r[0]==='QA0001')[1],'Cargo renombrado en revisión posterior');assert.equal(positionComparisonSummary(v).find(r=>r.code==='QA0001').difference,null);
- for(const text of [reportCsv(d),new TextDecoder().decode(reportXlsx(d)),pdfText(reportPdf(d))]){assert.ok(text.includes('Cargo exclusivamente sintético 1'));assert.ok(!text.includes('Cargo renombrado en revisión posterior'));}
+ const {positionAnnualSummary,...capturedDetail}=d;
+ for(const text of [reportCsv(d),new TextDecoder().decode(reportXlsx(d)),pdfText(reportPdf(capturedDetail))]){assert.ok(text.includes('Cargo exclusivamente sintético 1'));assert.ok(!text.includes('Cargo renombrado en revisión posterior'));}
+ assert.equal(positionAnnualSummary.rows.find(r=>r[0]==='QA0001')[1].startsWith('Cargo renombrado en revisión posterior'),true);
+ const fullPdf=pdfText(reportPdf(d));assert.ok(fullPdf.includes('Cargo exclusivamente sintético 1'));assert.ok(fullPdf.includes('Cargo renombrado en revisión posterior'));
 });
 
 test('M10 no inventa denominación cuando falta la captura o la asignación',async()=>{
@@ -74,7 +77,9 @@ test('M10 admite nueve columnas; otros límites de reporte siguen vigentes',asyn
  const d=positionComparisonDocument(await verifiedPositionComparison(await comparisonFixture(1)),detailed);
  assert.doesNotThrow(()=>reportCsv(d));
  assert.throws(()=>reportCsv({...d,layout:'generic.v1'}),/Reporte no válido/);
- assert.doesNotThrow(()=>reportCsv({...d,layout:'own-payroll-report.v1'}));
+ const {positionAnnualSummary,...withoutAnnual}=d;
+ assert.doesNotThrow(()=>reportCsv({...withoutAnnual,layout:'own-payroll-report.v1'}));
+ assert.throws(()=>reportCsv({...d,layout:'own-payroll-report.v1'}),/adjunta no válida/);
  assert.throws(()=>reportCsv({...d,columns:[...d.columns,d.columns[0]],rows:d.rows.map(r=>[...r,r[0]])}),/Reporte no válido/);
 });
 

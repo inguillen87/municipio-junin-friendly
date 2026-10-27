@@ -1,6 +1,7 @@
 // One enclosing canonical190/192/193/194/196 QA, one HTTP server and one
 // guarded SQL transport. Source construction/import does not execute this path.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {randomUUID,createHash} from 'node:crypto';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+import {verifyNovelty217AdministrativeCausality} from './novelty-administrative217-causal-qa.mjs';import {randomUUID,createHash} from 'node:crypto';
 import {salarySerialized} from '../../assets/native-salary-catalog-model.js';
 import {ownProgramBootstrap,ownProgramCommand,ownProgramReceipt} from '../../assets/own-payroll-program-model.js';
 import {monthlyDayDeclarationReceipt} from '../../assets/own-monthly-day-declaration-model.js';
@@ -50,7 +51,8 @@ export async function verifyMonthlyNativeFullCircuitOnCanonical190({qa,tailPlan,
    }finally{setCurrent(previous);}
   };
   const monthlyContext={schema:qa.schema,sourceCommit,normalized:context.qa.normalized,maker,checker,monthly,approveProgram,call,state,expect};
-  const joint=await verifyMonthlyNativeFullCircuit({...context,sourceCommit,period:'2026-10',output:destination,ok:check,original:b0.original,baseline:b0.baseline,readPhysical:b0.readPhysical,preserveOriginal,receiptHandler:handlers.receipt,monthlyContext,synthetic:true,transport:'ci'});
+  const joint=await verifyMonthlyNativeFullCircuit({...context,...(successionEnabled?{novelty217Causal:input=>verifyNovelty217AdministrativeCausality({...input,qa,json,expect})}:{}),sourceCommit,period:'2026-10',output:destination,ok:check,original:b0.original,baseline:b0.baseline,readPhysical:b0.readPhysical,preserveOriginal,receiptHandler:handlers.receipt,monthlyContext,synthetic:true,transport:'ci'});
+  if(successionEnabled){assert.equal(joint.journey.novelty217Causal?.passed,true);assert.equal(joint.journey.novelty217Causal.readAndPrepareWithoutParameterRead,true);assert.equal(joint.journey.novelty217Causal.negativeCases.length,2);assert.equal(joint.journey.novelty217Causal.allThreeCasesRollback,true);}
   let jointArchive=null;
   if(successionEnabled){setCurrent(maker);const capture=await api('liquidation',{resource:'detail',id:joint.journey.secondRunId}),receipt=await api('receipt',{resource:'batch',id:joint.journey.receiptBatchId}),group=await api('close',{resource:'group',id:joint.journey.closeGroupId});
    const priorSource=receipt.snapshot.sources.find(s=>s.id===b0.baseline.originalGroup.id),targetSource=receipt.snapshot.sources.find(s=>s.id===group.groupId);assert.ok(priorSource&&targetSource);assert.equal(priorSource.snapshotSha256,b0.baseline.originalGroup.snapshotSha256);assert.equal(targetSource.snapshotSha256,joint.bank.closeSnapshotSha256);assert.deepEqual(receipt.snapshot.sources,joint.journey.receiptSources);

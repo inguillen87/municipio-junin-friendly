@@ -449,3 +449,6 @@ local-agents/
 
 # Exact public family195 layout guard required by source tests; no private input.
 !scripts/contracts/native-family195-prerequisite-layout-query.sql
+
+# Exact public administrative position216 source; no municipal inputs.
+!scripts/migrations/216-own-position-administrative-identity.sql

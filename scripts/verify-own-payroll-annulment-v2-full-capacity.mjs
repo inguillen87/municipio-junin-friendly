@@ -9,6 +9,7 @@ import {verifyMunicipalOwnerProgram} from './verify-municipal-owner-program.mjs'
 import {ownerAuthorityQaOptions} from './verify-municipal-owner-adoption-authority.mjs';
 import {OWN_MONTHLY_FULL_CAPACITY_QA_ENTRIES,prepareOwnMonthlyFullCapacity,continueOwnMonthlyFullCapacity} from './verify-own-monthly-payroll-full-capacity.mjs';
 import {prepareMonthlyWithPositions210,POSITIONS210_QA_ENTRIES} from './lib/positions210-same190-composition.mjs';
+import {ADMIN216_BROWSER_ENTRIES,ADMIN216_BROWSER_ROOT_ENTRIES} from './lib/position-administrative216-native-browser.mjs';
 import {FAMILY195_QA_ENTRIES,FAMILY195_ROOT_ENTRIES,prepareMonthlyWithFamily195,continueMonthlyWithFamily195} from './lib/native-family-self-service-195-same190-qa.mjs';
 import {OWN_REPORT_POST209_SOURCE_ENTRIES,assertOwnReportPost209Artifacts} from './lib/own-payroll-report-post209-browser.mjs';
 
@@ -109,14 +110,15 @@ function reconcileCurrent190UiArtifact(destination,relative,expected,operationRe
 
 export async function verifyOwnAnnulmentV2FullCapacity(options,settings={}){
   assert.ok(settings&&typeof settings==='object'&&!Array.isArray(settings)&&(Object.getPrototypeOf(settings)===Object.prototype||Object.getPrototypeOf(settings)===null));
-  assert.ok(Reflect.ownKeys(settings).every(key=>key==='family195'||key==='positions210'),'POSITIONS210_ENTRY_SETTINGS_CLOSED');
+  assert.ok(Reflect.ownKeys(settings).every(key=>key==='family195'||key==='positions210'||key==='administrative216'),'POSITIONS210_ENTRY_SETTINGS_CLOSED');
   const family195=Object.hasOwn(settings,'family195')?settings.family195:false;assert.equal(typeof family195,'boolean');
   const positions210=Object.hasOwn(settings,'positions210')?settings.positions210:false;assert.equal(typeof positions210,'boolean');
+  const administrative216=Object.hasOwn(settings,'administrative216')?settings.administrative216:false;assert.equal(typeof administrative216,'boolean');assert.ok(!administrative216||(positions210&&family195),'ADMIN216_COMPLETE_JOINT_CONTEXT_REQUIRED');
   assert.ok(options.operationalPairBaseline===undefined||options.operationalPairBaseline==='published107');
   const report=await verifyMunicipalOwnerProgram({...options,operationalPairBaseline:'published107'},{
-    prepareContinuation:positions210?h=>prepareMonthlyWithPositions210(h,{family195}):family195?prepareMonthlyWithFamily195:prepareOwnMonthlyFullCapacity,
+    prepareContinuation:positions210?h=>prepareMonthlyWithPositions210(h,{family195,administrative216}):family195?prepareMonthlyWithFamily195:prepareOwnMonthlyFullCapacity,
     continuation:family195?h=>continueMonthlyWithFamily195(h,{positions210}):h=>continueOwnMonthlyFullCapacity(h,{annulmentV2Browser:true,annulmentPreparation:true,...(positions210?{positions210:true}:{})}),
-    continuationEntries:family195||positions210?[...new Set([...entries,...(family195?[...FAMILY195_QA_ENTRIES,...FAMILY195_ROOT_ENTRIES]:[]),...(positions210?POSITIONS210_QA_ENTRIES:[])])]:entries
+    continuationEntries:family195||positions210?[...new Set([...entries,...(family195?[...FAMILY195_QA_ENTRIES,...FAMILY195_ROOT_ENTRIES]:[]),...(positions210?POSITIONS210_QA_ENTRIES:[]),...(administrative216?[...ADMIN216_BROWSER_ENTRIES,...ADMIN216_BROWSER_ROOT_ENTRIES]:[])])]:entries
   });
   assert.equal(report.passed,true);assert.equal(report.priorDatabasePreserved,true);
   assert.equal(report.syntheticSchemaRemoved,true);assert.equal(report.sourceAfter?.passed,true);
@@ -131,7 +133,7 @@ export async function verifyOwnAnnulmentV2FullCapacity(options,settings={}){
   for(const key of['authenticationProviderFlowProven','paymentExecuted','digitalSignatureExecuted','municipalAcceptance'])assert.equal(receipt126Browser[key],false);
   assert.equal(receipt126Browser.receiptEventsAddedByBrowser,2);assert.equal(receipt126Browser.additionalReceiptEvents,0);assert.equal(receipt126Browser.fullSetRecords,855);assert.equal(receipt126Browser.fullSetConcepts,17100);assert.equal(receipt126Browser.ownRecords,1);assert.equal(receipt126Browser.ownConcepts,20);
   assert.equal(receipt126.circuit.receiptEventsTotal,3);assert.equal(receipt126.circuit.receiptBatches,1);assert.equal(receipt126.circuit.finalBatch.state,'withdrawn');assert.equal(receipt126.circuit.withdrawnSelf.items.length,0);assert.equal(receipt126.checkerRestore.exactOverrideRemoved,true);
-  if(positions210){const proof=report.continuation.capacity.positions210;assert.equal(proof?.passed,true);assert.equal(proof.sameCanonical190,true);assert.equal(proof.captureSidecarsBijective,true);assert.equal(proof.existingNativePopulation,855);assert.equal(proof.additionalEmployees,0);assert.equal(proof.m10Complete,false);assert.equal(proof.noeliaAdministrativeFlowProven,false);}
+  if(positions210){const proof=report.continuation.capacity.positions210;assert.equal(proof?.passed,true);assert.equal(proof.sameCanonical190,true);assert.equal(proof.captureSidecarsBijective,true);assert.equal(proof.existingNativePopulation,855);assert.equal(proof.additionalEmployees,0);assert.equal(proof.m10Complete,false);assert.equal(proof.noeliaAdministrativeFlowProven,administrative216);if(administrative216){const administrative=proof.administrative216Browser;assert.equal(administrative.passed,true);assert.equal(administrative.actualSql,true);assert.equal(administrative.actualHttp,true);assert.equal(administrative.actualBrowser,true);const comparisonPdf=administrative.nativeComparisonPdf;assert.equal(comparisonPdf.passed,true);assert.equal(comparisonPdf.actualSql,true);assert.equal(comparisonPdf.actualApiHandler,true);assert.equal(comparisonPdf.actualHttp,true);assert.equal(comparisonPdf.actualBrowser,true);assert.equal(comparisonPdf.dtoVersion,'own-position-comparison.v2');assert.equal(comparisonPdf.allNativeDtoCompared,true);assert.equal(comparisonPdf.allPdfCellsCompared,true);assert.equal(comparisonPdf.nativeDtoPdfBytesEqual,true);assert.equal(comparisonPdf.readOnlyBusiness,true);assert.equal(comparisonPdf.wholeStatePreserved,true);assert.equal(comparisonPdf.closedEmployees,855);assert.equal(administrative.confirmedBusinessRowsAdded,6);assert.equal(administrative.sqlRollbackProbes.length,3);assert.equal(administrative.originalBodyKeyPostReplay,true);assert.equal(administrative.recoveryGetSameKey,true);assert.equal(administrative.personalNoeliaSessionTested,false);assert.equal(administrative.productionWrites,0);assert.equal(administrative.municipalAcceptance,false);}}
   const tail=report.continuation.capacity.annulmentV2Browser;
   assert.equal(tail?.passed,true);assert.equal(tail.actualSql,true);
   assert.equal(tail.browser?.passed,true);assert.equal(tail.browser.actualHttp,true);

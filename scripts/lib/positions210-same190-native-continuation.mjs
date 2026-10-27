@@ -16,6 +16,7 @@ import {ownArtParams} from '../../assets/own-art-report-model.js';
 import {installPositions210Same190} from './positions210-same190-installation.mjs';
 import {composePositions210Actors,installPositions210Actors} from './positions210-same190-actors.mjs';
 import {installPositions211212Same190} from './positions211212-same190-installation.mjs';
+import {installPositionAdministrative216Same190,verifyPositionAdministrative216Epoch} from './position-administrative-identity216-same190-installation.mjs';
 
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";
 const TYPES=Object.freeze({
@@ -55,7 +56,9 @@ export function createPositions210Sql({h,db}){
 
 export async function preparePositions210BeforeFirstCapture({h,db,qa,contracts,period}){
  assert.strictEqual(h.qa,qa);assert.equal(period,'2026-10');assert.equal(contracts.length,855);assert.equal(new Set(contracts).size,855);assert.deepEqual(contracts,[...contracts].sort());
- const installed=installPositions210Same190(h),dependentInstallations=installPositions211212Same190(h),actorPlan=composePositions210Actors({qa,contracts,read:h.read}),pair=installPositions210Actors(h,actorPlan),sql=createPositions210Sql({h,db}),year=Number(period.slice(0,4));
+ const installed=installPositions210Same190(h);
+ const administrative216=h.prepared.positionAdministrative216?installPositionAdministrative216Same190(h,{positions210Installation:installed}):null;
+ const dependentInstallations=installPositions211212Same190(h),actorPlan=composePositions210Actors({qa,contracts,read:h.read}),pair=installPositions210Actors(h,actorPlan),sql=createPositions210Sql({h,db}),year=Number(period.slice(0,4));
  const immutableActors=structuredClone({maker:qa.actor,checker:qa.checker}),sameOriginalActors=()=>assert.deepEqual({maker:qa.actor,checker:qa.checker},immutableActors);
  const nativeCounts=()=>h.json([`SELECT jsonb_build_object('registrations',(SELECT count(*)::integer FROM ${qa.schema}.native_employee_registration),'captures',(SELECT count(*)::integer FROM ${qa.schema}.own_payroll_run_capture),'results',(SELECT count(*)::integer FROM ${qa.schema}.own_payroll_run_result),'annualEvents',(SELECT count(*)::integer FROM ${qa.schema}.annual_position_budget_event),'assignmentEvents',(SELECT count(*)::integer FROM ${qa.schema}.own_position_assignment_event),'positionCaptures',(SELECT count(*)::integer FROM ${qa.schema}.own_payroll_run_position_capture),'dimensionCaptures',(SELECT count(*)::integer FROM ${qa.schema}.own_payroll_run_position_dimensions))`],{readOnly:true});
  const before=nativeCounts();assert.deepEqual(before,{registrations:855,captures:0,results:0,annualEvents:0,assignmentEvents:0,positionCaptures:0,dimensionCaptures:0});
@@ -81,7 +84,7 @@ export async function preparePositions210BeforeFirstCapture({h,db,qa,contracts,p
   h.setPhase('positions210-synthetic-assignment-approval');const receipt=await assignment('checker','command',{body:decision,key:randomUUID()}),durable=await assignment('maker','bootstrap',{contractId,year});assert.equal(durable.state.revision,1);assert.equal(durable.state.allocations.length,1);assert.equal(durable.state.allocations[0].rowCode,selectedRow.code);assert.equal(durable.state.allocations[0].quantity,selectedRow.quantity);assignments.push({contractId,proposal:submitted,receipt,durable});
  }
  sameOriginalActors();const after=nativeCounts();assert.deepEqual(after,{...before,annualEvents:2,assignmentEvents:4});
- const admission=Object.freeze({version:'positions210-before-first-capture.v1',passed:true,sourceCommit:h.sourceCommit,installed,dependentInstallations,pair,year,period,normative,annualProposal:proposal,annualApproval:approved,annual:durableAnnual,assignments,before,after,registrations:855,newPeople:0,newContracts:0,businessCapturesAdded:0,syntheticOnlyNorm:true,productionWrites:0});
+ const admission=Object.freeze({version:'positions210-before-first-capture.v1',passed:true,sourceCommit:h.sourceCommit,installed,dependentInstallations,...(administrative216?{administrative216}:{}),pair,year,period,normative,annualProposal:proposal,annualApproval:approved,annual:durableAnnual,assignments,before,after,registrations:855,newPeople:0,newContracts:0,businessCapturesAdded:0,syntheticOnlyNorm:true,productionWrites:0});
  admissions.set(admission,{h,db,qa,sql});return admission;
 }
 
@@ -91,6 +94,7 @@ export function assertPositions210Admission({h,db,admission}){
 
 export async function readPositions210Comparison({h,db,admission,revision=1}){
  const {sql}=assertPositions210Admission({h,db,admission}),actor=admission.pair.actors.checker;
+ if(admission.administrative216)verifyPositionAdministrative216Epoch(h,admission.administrative216);
  const before=h.readFullSnapshot(),query={year:admission.year,revision,period:admission.period,liquidationType:'monthly'};
  const value=await positionComparisonOperation(sql,actor.principal,actor.session,'detail-v2',query);assert.equal(value.version,'own-position-comparison.v2');assert.deepEqual(h.readFullSnapshot(),before);return value;
 }

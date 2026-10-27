@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import {assertPositions210SidecarPlan,readPositions210SidecarSnapshot,assertPositions210SidecarDelta} from './positions210-same190-sidecar.mjs';
 import {randomUUID} from 'node:crypto';
 import {ownerDecisionQaLiteral as q} from './municipal-owner-adoption-decision-qa.mjs';
-import {installOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
+import {composeOwnAnnulmentReviewV2On190,installOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
+import {assertNovelty217JointDownstream} from './novelty-administrative217-joint.mjs';
 import {verifyOwnAnnulmentV2BrowserOn190,verifyOwnAnnulment29BrowserOn190} from './own-payroll-annulment-v2-native-browser.mjs';
-import {installOwnAnnulPreparation209On190} from './own-payroll-annulment-preparation-209-installation.mjs';
+import {composeOwnAnnulPreparation209On190,installOwnAnnulPreparation209On190} from './own-payroll-annulment-preparation-209-installation.mjs';
 import {runOwnAnnulPreparation209NativeContinuation} from './own-payroll-annulment-preparation-209-native-continuation.mjs';
 import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
 import {RUN_CALCULATE} from '../../lib/internal-own-payroll-run.js';
@@ -75,9 +76,11 @@ export async function runOwnAnnulmentV2NativeContinuation(context,options={}){
  const prefixBefore=rowMultiset(h,qa),originalSecond=structuredClone(second.saved),nativeBefore=h.json([`SELECT jsonb_build_object('count',count(*)::integer) FROM ${qa.schema}.native_employee_registration`],{readOnly:true});assert.equal(nativeBefore.count,855);
  const originalCensus=await verifiedOwnReportCensus(await close('report-census',query)),originalGroup=await close('group',{id:closed.groupId});
  const admission208={version:'own-annulment-review208-canonical-source.v1',sourceCommit:h.sourceCommit,monthly:h.prepared.monthly,capacityPlan:installation.plan};
+ if(h.prepared?.administrative217){const sourcePlan208=composeOwnAnnulmentReviewV2On190({h,db,admission:admission208});assertNovelty217JointDownstream(h,'208-predecessors',sourcePlan208.predecessorPins);}
  const installation208=await installOwnAnnulmentReviewV2On190({h,db,baselineSnapshot,admission:admission208});
  assert.equal(installation208.passed,true);assert.equal(installation208.productionWrites,0);assert.equal(installation208.municipalAcceptance,false);
  // Exact immediate208 epoch: no208 business and no209 actors have run yet.
+ if(annulmentPreparation&&h.prepared?.administrative217){const sourcePlan209=composeOwnAnnulPreparation209On190({h,db,admission208,installation208});assertNovelty217JointDownstream(h,'209-transitive',sourcePlan209.predecessorPins);}
  const installation209=annulmentPreparation?await installOwnAnnulPreparation209On190({h,db,admission208,installation208,baselineSnapshot:context.readSnapshot()}):null;
   const sidecarBefore208=positions210Sidecar?readPositions210SidecarSnapshot({h,db,plan:positions210Sidecar}):null;
  const readIndex=async label=>{const value=await verifiedOwnAnnulReviewIndex(await annul('review',query));measurements.indices.push({label,runs:value.index.length,confirmed:value.index.reduce((sum,row)=>sum+row.states.confirmed,0),bytes:bytes(value)});assert.ok(bytes(value)<=FULL);if(bytes(value)<=FOUR){const ordinary=await annul('review',query,false);assert.deepEqual(ordinary,value);}return value;};

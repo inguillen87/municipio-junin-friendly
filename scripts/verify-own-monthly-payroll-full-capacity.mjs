@@ -24,6 +24,7 @@ import {buildOwnMonetaryProgramQaProjection} from './lib/own-monetary-program-qa
 import {verifyOwnMonetaryProgramTechnicalEpoch} from './lib/own-monetary-program-technical-epoch.mjs';
 import {composeMonthlyFullLegacySupportPlan,installMonthlyFullLegacySupport} from './lib/monthly-full-legacy-support-qa.mjs';
 import {composeOwnLiquidationBootstrap213Plan,installOwnLiquidationBootstrap213,OWN_LIQUIDATION_BOOTSTRAP213_ENTRIES} from './lib/own-liquidation-bootstrap213-installation.mjs';
+import {prepareNovelty217Joint,installNovelty217Joint} from './lib/novelty-administrative217-joint.mjs';
 
 const entries = [
   ...OWN_FULL_CAPACITY_190_QA_ENTRIES,
@@ -92,7 +93,8 @@ function prepareMonthly(h) {
   for (const key of ['local', 'local193', 'localFixed', 'local197']) assert.deepEqual(monetary[key], monthly[key], 'MONTHLY_FULL_MONETARY_PRIOR_PHASE_CHANGED:' + key);
   const legacySupport=composeMonthlyFullLegacySupportPlan({monthly,foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
   const liquidationBootstrap213=composeOwnLiquidationBootstrap213Plan({foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
-  return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites, legacySupport, liquidationBootstrap213}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes), ...legacySupport.sourceEntries, ...liquidationBootstrap213.sourceEntries])]};
+  const administrative217=prepareNovelty217Joint(h,monthly);
+  return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites, legacySupport, liquidationBootstrap213, administrative217}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes), ...legacySupport.sourceEntries, ...liquidationBootstrap213.sourceEntries, ...Object.keys(administrative217.sourceHashes)])]};
 }
 
 async function monthlyThenFull(h, settings = {}) {
@@ -157,6 +159,7 @@ async function monthlyThenFull(h, settings = {}) {
   assert.equal(monetaryTechnical.passed, true);
   const liquidationBootstrap213=installOwnLiquidationBootstrap213(h);
   assert.equal(liquidationBootstrap213.passed,true);
+  const novelty217=installNovelty217Joint(h);assert.equal(novelty217.durability.passed,true);
   h.setPhase('monthly-full-capacity-business');
   // All original855 guards,20 rules,17100 rows and accounting epochs remain inside
   // this unchanged continuation. Never seed/reset a population to make them pass.
@@ -169,7 +172,7 @@ async function monthlyThenFull(h, settings = {}) {
   h.check('same canonical190 foundation and live actors verify technical192/193/194/196/197 before unchanged full855 and one financial epoch owner');
   return {version: 'own-monthly-full-capacity-canonical190-native-qa.v1', passed: true,
     sourceCommit: h.sourceCommit, major: h.major, operationalPairBaseline: 'published107',
-    sharedFoundation: true, sharedPrerequisites, legacySupport, liquidationBootstrap213, monthlyTechnical: technical, monetaryTechnical, capacity,
+    sharedFoundation: true, sharedPrerequisites, legacySupport, liquidationBootstrap213, monthlyTechnical: technical, monetaryTechnical, novelty217, capacity,
     monthlyBusinessCovered: false, monetaryBusinessCovered: false, synthetic: true, productionWrites: 0,
     municipalAcceptance: false};
 }

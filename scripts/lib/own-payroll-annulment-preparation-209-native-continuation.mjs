@@ -43,7 +43,7 @@ const reason='Decisión exclusivamente sintética de custodia209 en el host190 e
 const expectedPins=Object.freeze({
  'scripts/migrations/209-own-annulment-preparation-projection.sql':'5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56',
  'scripts/lib/own-payroll-annulment-preparation-209-installation.mjs':'f334ee7ccd6cd80c8eca647bc15e658a91ae0c512e28e7ec01d1af4c6111ad5a',
- 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'b45f6a3cd7dde3b21b3dc71ccf92db24e899a05419690693e14ec9e282f62f3d',
+ 'scripts/lib/own-annulment-preparation-209-actors-fixture.mjs':'0bf9547c02a6e8f58c0f14969c93e79e1284779f376f799ba350ae4df5df4194',
  'assets/own-payroll-annulment-preparation-model.js':'f431df5c55db1a38bff70337cfed8bc6e2bf8a66a093ef1c8e381933c2982b3e'
 });
 
