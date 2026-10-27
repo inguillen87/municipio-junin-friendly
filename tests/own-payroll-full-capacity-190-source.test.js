@@ -12,7 +12,7 @@ import {OWN_CURRENT190_REVOCATION_SOURCE_PINS,OWN_CURRENT190_REVOCATION_NEW_SOUR
 import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,projectReceipt126ConsumerRawSourceToParent} from './fixtures/receipt126-source-consumer-succession.js';
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
-import {OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS,OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+import {OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS,OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent,projectOwner190Receipt126LengthRawSourceToHead,projectOwner190Receipt126ReviewedRawSourceToPredecessor} from './fixtures/owner190-qa-source-reconciliation.js';
 import {buildOwnReceipt126Same190Shape} from '../scripts/lib/own-payroll-receipt126-same190-shape.mjs';
 const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
@@ -704,4 +704,46 @@ for(const major of[17,18])test('receipt126 emitted index audit keeps every guard
   "oc.opcnamespace<>'pg_catalog'::regnamespace OR oc.opcmethod<>ic.relam OR NOT oc.opcdefault OR oc.opcintype<>a.atttypid OR k.index_collation<>a.attcollation OR k.options<>0"
  ])assert.ok(audit[0].includes(guard),'index guard preserved: '+guard);
  assert.equal(plan.connects,false);assert.equal(plan.executesSql,false);assert.equal(plan.executionAdmission,false);
+});
+
+
+test('receipt126 reads complete governed RAW bytes and fixes three length-only mismatches without changing the source SHA',()=>{
+ const file='scripts/lib/own-payroll-full-capacity-190-continuation.mjs',raw=fs.readFileSync(new URL('../'+file,import.meta.url));
+ assert.ok(Buffer.isBuffer(raw));assert.equal(raw.length,47063);assert.equal(hash(raw),'99ce92a626b1e35d58b206162bf279dab757a451307245a29f602f9902a07a01');
+ const consumers=['scripts/lib/own-payroll-receipt126-same190-support.mjs','scripts/lib/own-payroll-receipt126-same190-actors.mjs','scripts/lib/own-payroll-receipt126-same190-circuit.mjs'];
+ const declared=(name,text)=>{
+  if(name.endsWith('support.mjs')){const match=/const SOURCE23=Object.freeze\((\[[^\n]*\])\.map/.exec(text);assert.ok(match);return JSON.parse(match[1]).find(pin=>pin.path===file);}
+  const match=text.split('\n').find(line=>line.includes(file));assert.ok(match);
+  const values=match.match(/["']scripts\/lib\/own-payroll-full-capacity-190-continuation\.mjs["'],([0-9]+),["']([a-f0-9]{64})["']/);assert.ok(values);return{bytes:Number(values[1]),sha256:values[2]};
+ };
+ for(const name of consumers){
+  const current=fs.readFileSync(new URL('../'+name,import.meta.url)),before=projectOwner190Receipt126LengthRawSourceToHead(name,current);
+  const oldPin=declared(name,before.toString('utf8')),newPin=declared(name,current.toString('utf8'));
+  // The prior SHA was already the complete correct blob: only its length was wrong.
+  assert.equal(oldPin.sha256,hash(raw));assert.equal(oldPin.bytes,46468);assert.notEqual(oldPin.bytes,raw.length);
+  assert.equal(newPin.sha256,oldPin.sha256);assert.equal(newPin.bytes,raw.length);
+ }
+ // Effective read chain: the owner supplies its governed Buffer reader; the
+ // backend passes that same reader to support, actors and circuit. No test RAW
+ // reconciliation or normalized text reader is inserted into native custody.
+ const owner=fs.readFileSync(new URL('../scripts/verify-municipal-owner-program.mjs',import.meta.url),'utf8');assert.ok(owner.includes('readRaw:closureReader.readRaw'));
+ const reader=fs.readFileSync(new URL('../scripts/lib/owner-qa-source-closure-reader.mjs',import.meta.url),'utf8');const live=reader.slice(reader.indexOf('export function createClosureSourceReader'));assert.ok(live.includes('return Buffer.from(bytes);'));assert.ok(!live.includes('projectOwner190'));
+ const backend=fs.readFileSync(new URL('../scripts/lib/own-payroll-receipt126-backend-190-continuation.mjs',import.meta.url),'utf8');assert.ok(backend.includes('const readRaw=h.readRaw'));assert.ok(backend.includes('buildOwnReceipt126Same190Installation({'));assert.ok(backend.includes('buildOwnReceipt126Same190Actors({qa,contracts,readRaw'));assert.ok(backend.includes('installationProof:installation.proof,readRaw}'));
+});
+
+test('all84 receipt126 runtime pins bind complete current RAW sources and retain the two reviewed Git predecessors',()=>{
+ const modules=[['scripts/lib/own-payroll-receipt126-same190-support.mjs',23],['scripts/lib/own-payroll-receipt126-same190-actors.mjs',20],['scripts/lib/own-payroll-receipt126-same190-circuit.mjs',36],['scripts/lib/own-payroll-receipt126-same190-installation.mjs',5]];
+ const pins=(name,text)=>{
+  if(name.endsWith('support.mjs')){const found=/const SOURCE23=Object.freeze\((\[[^\n]*\])\.map/.exec(text);assert.ok(found);return JSON.parse(found[1]);}
+  const marker=name.endsWith('installation.mjs')?'const PINS=Object.freeze([':'const SOURCE_PINS=Object.freeze([',start=text.indexOf(marker),end=text.indexOf(']);',start);assert.ok(start>=0&&end>start);
+  return [...text.slice(start,end).matchAll(/\[["']([^"']+)["'],\s*([0-9]+),\s*["']([a-f0-9]{64})["']\]/g)].map(m=>({path:m[1],bytes:Number(m[2]),sha256:m[3]}));
+ };
+ let total=0;for(const [name,count]of modules){const current=fs.readFileSync(new URL('../'+name,import.meta.url)),declared=pins(name,current.toString('utf8'));assert.equal(declared.length,count);total+=declared.length;
+  for(const pin of declared){const raw=fs.readFileSync(new URL('../'+pin.path,import.meta.url));assert.ok(Buffer.isBuffer(raw));assert.equal(raw.length,pin.bytes,name+' complete RAW size '+pin.path);assert.equal(hash(raw),pin.sha256,name+' complete RAW SHA '+pin.path);}
+ }
+ assert.equal(total,84);
+ const reviewed=[['scripts/lib/own-payroll-canonical190-browser-host-qa.mjs',10962,'8216140ad4794caf733b44fe75d9f9bfedeabffd9331e8b569030dcd92277dd0'],['scripts/verify-own-payroll-annulment-v2-full-capacity.mjs',66305,'2b447f4d05e3975b9d3f3a9df236533d8265cc57a885a40613be91343cc955f6']];
+ for(const [file,oldBytes,oldSha]of reviewed){const current=fs.readFileSync(new URL('../'+file,import.meta.url)),parent=projectOwner190Receipt126ReviewedRawSourceToPredecessor(file,current);assert.equal(parent.length,oldBytes);assert.equal(hash(parent),oldSha);assert.notEqual(hash(current),oldSha);
+  for(const name of [modules[0][0],modules[2][0]]){const raw=fs.readFileSync(new URL('../'+name,import.meta.url)),before=projectOwner190Receipt126LengthRawSourceToHead(name,raw),prior=pins(name,before.toString('utf8')).find(pin=>pin.path===file),after=pins(name,raw.toString('utf8')).find(pin=>pin.path===file);assert.ok(prior&&after);assert.equal(prior.bytes,parent.length);assert.equal(prior.sha256,hash(parent));assert.equal(after.bytes,current.length);assert.equal(after.sha256,hash(current));}
+ }
 });

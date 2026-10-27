@@ -49,7 +49,7 @@ function preservation209(slot,excludeNames){
  const owns=a=>`(${a}.classid='pg_proc'::regclass AND ${a}.objid IN(${ownIds}))`;
  const extras=` result:=result||jsonb_build_object(
  'dependencies',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.refobjsubid,d.deptype),'[]') FROM pg_depend d WHERE NOT coalesce(${owns('d')},false)),
- 'sharedDependencies',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.dbid,d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.refobjsubid,d.deptype),'[]') FROM pg_shdepend d WHERE NOT coalesce(${owns('d')} AND d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()),false)),
+ 'sharedDependencies',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.dbid,d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.deptype),'[]') FROM pg_shdepend d WHERE NOT coalesce(${owns('d')} AND d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()),false)),
  'descriptions',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.classoid,d.objoid,d.objsubid),'[]') FROM pg_description d WHERE NOT(d.classoid='pg_proc'::regclass AND d.objoid IN(${ownIds}))),
  'securityLabels',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.classoid,d.objoid,d.objsubid,d.provider),'[]') FROM pg_seclabel d WHERE NOT(d.classoid='pg_proc'::regclass AND d.objoid IN(${ownIds}))),
  'rewrites',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.oid),'[]') FROM pg_rewrite d),

@@ -57,7 +57,7 @@ function snapshot(slot,existing,helper){
  const owns=a=>a+".classid='pg_proc'::regclass AND "+a+'.objid=to_regprocedure('+q(helper.signature)+')';
  const extras=`,
  'dependencies',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.refobjsubid,d.deptype) FROM pg_depend d WHERE NOT coalesce((${owns('d')}),false)),
- 'sharedDependencies',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.dbid,d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.refobjsubid,d.deptype) FROM pg_shdepend d WHERE NOT coalesce((${owns('d')}) AND d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()),false)),
+ 'sharedDependencies',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.dbid,d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.deptype) FROM pg_shdepend d WHERE NOT coalesce((${owns('d')}) AND d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()),false)),
  'descriptions',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.classoid,d.objoid,d.objsubid) FROM pg_description d WHERE NOT coalesce(d.classoid='pg_proc'::regclass AND d.objoid=to_regprocedure(${q(helper.signature)}),false)),
  'securityLabels',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.classoid,d.objoid,d.objsubid,d.provider) FROM pg_seclabel d WHERE NOT coalesce(d.classoid='pg_proc'::regclass AND d.objoid=to_regprocedure(${q(helper.signature)}),false)),
  'rewrites',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.oid) FROM pg_rewrite d),

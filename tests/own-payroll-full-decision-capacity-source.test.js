@@ -68,3 +68,32 @@ test('all seven relevant UIs use the actual bounded shared reader with abort sig
  const comparison=read('assets/own-payroll-comparison-panel.js');assert.match(comparison,/firstProof!==verified.proof/);assert.match(comparison,/remaining-=fullResponseBytes.get\(response\)/);assert.match(comparison,/for\(const d of sources\)binding\(d,after\)/);
  const planilla=read('assets/own-payroll-receipt-planilla-panel.js');assert.match(planilla,/remaining-=fullResponseBytes.get\(sourceResponse\)/);assert.match(planilla,/prepareOwnPlanilla\(batch,closes,\$\('jurisdiction'\)\.value\)/);assert.match(planilla,/maxBytes=65536/);
 });
+
+
+test('217 and public208209 preserve complete dependency rows using the real PG17/18 shared columns',()=>{
+ // PG17/18 catalog-pg-shdepend: dbid,classid,objid,objsubid,refclassid,refobjid,deptype.
+ // refobjsubid is a pg_depend column. Read current filesystem source directly;
+ // no QA constructors, project imports, fixture projection or SQL execution.
+ const sharedOrder='d.dbid,d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.deptype';
+ const dependencyOrder='d.classid,d.objid,d.objsubid,d.refclassid,d.refobjid,d.refobjsubid,d.deptype';
+ const check=(source,label)=>{
+  const shared=source.split('\n').filter(line=>line.includes('FROM pg_shdepend d WHERE'));
+  const dependencies=source.split('\n').filter(line=>line.includes('FROM pg_depend d WHERE'));
+  assert.equal(shared.length,1,label);assert.equal(dependencies.length,1,label);
+  const order=line=>/jsonb_agg\(to_jsonb\(d\) ORDER BY ([^)]*)\)/.exec(line)?.[1];
+  assert.equal(order(shared[0]),sharedOrder,label+' shared catalog column order');
+  assert.equal(shared[0].includes('d.refobjsubid'),false,label+' shared catalog has no refobjsubid');
+  assert.equal(order(dependencies[0]),dependencyOrder,label+' pg_depend keeps refobjsubid');
+  for(const line of[shared[0],dependencies[0]]){
+   assert.ok(line.includes('to_jsonb(d)'),label+' keeps every row field');
+   assert.ok(line.includes('WHERE NOT coalesce('),label+' keeps foreign rows');
+   assert.ok(line.includes("${owns('d')}"),label+' keeps helper/owner exclusion');
+  }
+  assert.ok(shared[0].includes('d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database())'),label+' keeps database fence');
+ };
+ for(const file of['scripts/lib/novelty-administrative217-installation.mjs','scripts/lib/own-m7-public-annulment208209.mjs']){
+  const source=read(file);check(source,file);
+  // Reintroducing only the statement318 column must fail the same oracle.
+  assert.throws(()=>check(source.replace(sharedOrder,sharedOrder.replace(',d.deptype',',d.refobjsubid,d.deptype')),file+' old318'),/shared catalog column order/);
+ }
+});
