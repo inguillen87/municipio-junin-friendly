@@ -153,24 +153,42 @@ test('receipt126 refuses changed seed metadata or DEFAULT before generating any 
  }
 });
 
-// Transport boundary only: synthetic access DTOs are not native IAM evidence.
-// Uses the actual resolver; reverting to db.run(...,true) throws42501 below.
-test('receipt126 fixture identity requires owner RR/RW and rejects a runtime private-helper call',async()=>{
- const plan=buildOwnReceipt126Same190Actors(fixture().args),actorsProof={checkerCapabilitiesBefore:['actions.read']},checked={checkerRoleKey:'synthetic-existing-checker-role'};
+// Producer-shaped boundary fixtures:007 defines email;104 enriches actorEmail.
+// Agent/self463 committed with email and no actorEmail. No native execution here.
+test('receipt126 fixture identity requires owner RR/RW and the source-defined email shape',async()=>{
+ const f=fixture(),plan=buildOwnReceipt126Same190Actors(f.args),actorsProof={checkerCapabilitiesBefore:['actions.read']},checked={checkerRoleKey:'synthetic-existing-checker-role'};
+ const source=readRaw('scripts/migrations/007-action-center-read-facades.sql').toString('utf8'),returned=/RETURN jsonb_build_object\(([\s\S]*?)\n  \);/.exec(source);assert.ok(returned);
+ const sharedKeys=[...returned[1].matchAll(/^\s*'(\w+)',/gm)].map(m=>m[1]);assert.ok(sharedKeys.includes('email'));assert.ok(!sharedKeys.includes('actorEmail'));
+ const enriched=readRaw('scripts/migrations/104-native-employment-changes.sql').toString('utf8');assert.ok(enriched.includes("RETURN ctx||jsonb_build_object('actorEmail',lower(btrim(p->>'actorEmail'))"));
+ const shapes={
+  preparer:{operation:'prepare',extraKeys:['actorEmail','actorLabel','certifiedBindingId','parameterActorVerified'],contractId:null},
+  reviewer:{operation:'approve',extraKeys:['actorEmail','actorLabel','certifiedBindingId','parameterActorVerified'],contractId:plan.nativeIdentityContracts[0]},
+  agent:{operation:'self',extraKeys:[],contractId:plan.nativeIdentityContracts[1]}
+ };
  for(const descriptor of plan.accessDescriptors){
-  const raw=descriptor.raw,caps=descriptor.name==='preparer'?[...actorsProof.checkerCapabilitiesBefore,'payroll.receipt.prepare']:descriptor.expectedCapabilities;
-  const native={membershipId:raw.membershipId,actorEmail:raw.actorEmail,actorPersonId:id(30001),employmentContractId:id(30002)},packet={};
-  const access={principal:{authorized:true,session:{mfa:true},tenant:{membershipId:raw.membershipId,effectiveCapabilities:[...caps]}},session:{id:raw.actorSessionId,version:raw.actorSessionVersion}};
-  const calls=[],runtimeCalls=[];
+  const shape=shapes[descriptor.name],raw=descriptor.raw;assert.ok(shape);assert.equal(descriptor.operation,shape.operation);
+  const caps=descriptor.name==='preparer'?[...actorsProof.checkerCapabilitiesBefore,'payroll.receipt.prepare']:descriptor.expectedCapabilities;
+  const shared={email:raw.actorEmail,displayName:'Persona exclusivamente sintetica de contexto126',tenantId:raw.tenantId,membershipId:raw.membershipId,roleKey:descriptor.roleKey??checked.checkerRoleKey,sourceBindingId:f.args.qa.ids.binding,sourceCompanyId:101,sourceDatabase:'owner_qa_source',employmentContractId:shape.contractId,actorPersonId:id(30001+Object.keys(shapes).indexOf(descriptor.name)),capabilities:[...caps],areaScopes:[]};
+  assert.deepEqual(Object.keys(shared).sort(),[...sharedKeys].sort());
+  const extras={actorEmail:raw.actorEmail,actorLabel:'Persona exclusivamente sintetica de contexto126',certifiedBindingId:f.args.qa.ids.binding,parameterActorVerified:true};
+  const native={...shared,...Object.fromEntries(shape.extraKeys.map(k=>[k,extras[k]]))};assert.deepEqual(Object.keys(native).sort(),[...sharedKeys,...shape.extraKeys].sort());
+  const packet={},access={principal:{authorized:true,session:{mfa:true},tenant:{membershipId:raw.membershipId,effectiveCapabilities:[...caps]}},session:{id:raw.actorSessionId,version:raw.actorSessionVersion}};
+  let currentNative=native;const calls=[],runtimeCalls=[];
   const db={run(sql,runtime){runtimeCalls.push({sql,runtime});throw Object.assign(Error('permission denied for function own_receipt_context_v1'),{code:'42501'});},query(){assert.fail('fixture identity must not use a business RPC transport');}};
   const h={json(statements,options){
    calls.push({statements,options});
    if(statements[0]===descriptor.accessSql){assert.deepEqual(statements,[descriptor.accessSql]);assert.deepEqual(options,{readOnly:true});return packet;}
-   assert.deepEqual(statements,[descriptor.contextSql]);assert.deepEqual(options,{readOnly:false,fullJson:true},'FOR_SHARE_REQUIRES_OWNER_WRITABLE_RR');return native;
+   assert.deepEqual(statements,[descriptor.contextSql]);assert.deepEqual(options,{readOnly:false,fullJson:true},'FOR_SHARE_REQUIRES_OWNER_WRITABLE_RR');return currentNative;
   }};
   const ownerProgramQaAccess=(value,actor)=>{assert.strictEqual(value,packet);assert.deepEqual(actor,raw);return access;};
-  const result=await resolveOwnReceipt126Same190Actor({descriptor,h,db,actorsProof,checked,ownerProgramQaAccess});
-  assert.strictEqual(result.native,native);assert.strictEqual(result.principal,access.principal);assert.deepEqual(result.raw,raw);
+  const resolve=()=>resolveOwnReceipt126Same190Actor({descriptor,h,db,actorsProof,checked,ownerProgramQaAccess});
+  const result=await resolve();assert.strictEqual(result.native,native);assert.strictEqual(result.principal,access.principal);assert.deepEqual(result.raw,raw);
   assert.deepEqual(runtimeCalls,[]);assert.equal(calls.length,2);assert.equal(result.roleKey,descriptor.name==='preparer'?checked.checkerRoleKey:descriptor.roleKey);
+  const badByName={
+   preparer:[{...native,email:raw.actorEmail,actorEmail:'otro@example.invalid'}],
+   reviewer:[{...native,email:raw.actorEmail,actorEmail:'otro@example.invalid'}],
+   agent:[Object.fromEntries(Object.entries({...native,actorEmail:raw.actorEmail}).filter(([k])=>k!=='email')),{...native,email:'otro@example.invalid',actorEmail:raw.actorEmail}]
+  };
+  for(const bad of badByName[descriptor.name]){currentNative=bad;await assert.rejects(resolve,{code:'ERR_ASSERTION'});}
  }
 });
