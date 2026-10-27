@@ -68,3 +68,50 @@ test('a missing ACL hint is private only under the exact canonical seed producer
  }finally{graph.pinHints.delete(key);}
  assert.throws(()=>build(file=>read(file)+(file===producer?'\n':'')),/POSITIONS210_ACL_PRODUCER_CHANGED/);
 });
+
+
+// Native339 regression: only the two source-pinned capability rows of the exact
+// IAM relation may be omitted. The relation must follow the real QA relocation.
+test('127 and128 conserve prior state around their exact capability additions after real schema relocation',()=>{
+ const p=build(),schema=qa().schema;
+ const sourceTarget="CASE WHEN c.oid='public.iam_capability'::regclass THEN ";
+ const localTarget="CASE WHEN c.oid='"+schema+".iam_capability'::regclass THEN ";
+ const families=[['127',['workforce.structure.prepare','workforce.structure.approve']],
+  ['128',['workforce.structure.assignment.prepare','workforce.structure.assignment.approve']]];
+ for(const [id,keys]of families){
+  const stage=p.stages.find(value=>value.id===id),batch=stage.batch;
+  const filter="'WHERE r.capability_key NOT IN("+keys.map(key=>"''"+key+"''").join(',')+")'";
+  for(const slot of ['before','after']){
+   const raw=batch[slot],local=p.normalized(raw);
+   assert.equal(raw.split(sourceTarget).length-1,1,id+':'+slot+' has one source OID gate');
+   assert.equal(local.split(localTarget).length-1,1,id+':'+slot+' targets the relocated relation');
+   assert.ok(raw.includes(sourceTarget+filter+" ELSE '' END) INTO n,h;"));
+   assert.ok(local.includes(localTarget+filter+" ELSE '' END) INTO n,h;"));
+   assert.doesNotMatch(local,/CASE WHEN c\.nspname='public' AND c\.relname='iam_capability'/);
+   assert.doesNotMatch(raw,/c\.relname='iam_capability'/,'same-name tables outside the exact OID retain all rows');
+   assert.equal(stage.installation.filter(sql=>sql===local).length,1,'actual '+id+' installation emits '+slot);
+   if(slot==='after')assert.equal(stage.durableVerification.filter(sql=>sql===local).length,1);
+   // The IAM relation itself, metadata, ACL and all other old rows remain in
+   // the ordinary snapshot; no table-level or security exclusion is added.
+   assert.ok(raw.includes("'columns',(SELECT jsonb_agg(jsonb_build_object('attribute',to_jsonb(a),'default',pg_get_expr(d.adbin,d.adrelid))"));
+   assert.ok(raw.includes("'constraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.oid) FROM pg_constraint k WHERE k.conrelid=c.oid)"));
+   assert.ok(raw.includes("'acl',c.relacl"));
+  }
+  assert.ok(batch.priorAudit.includes("IF old-'triggers' IS DISTINCT FROM new-'triggers' THEN RAISE EXCEPTION 'SQL"+id+"_PRIOR_STATE_CHANGED';END IF;"));
+  assert.ok(batch.priorAudit.includes("IF x IS DISTINCT FROM y THEN RAISE EXCEPTION 'SQL"+id+"_PRIOR_TRIGGER_CHANGED';END IF;"));
+  assert.ok(batch.priorAudit.includes('SQL'+id+'_UNEXPECTED_TRIGGER'));
+  assert.ok(batch.objectsCheck.includes('SQL'+id+'_CAPABILITY_DEFINITION'));
+  const source=read('scripts/migrations/'+(id==='127'?'127-annual-position-budget.sql':'128-own-position-assignments.sql'));
+  assert.equal(hash(source.replace(/\r\n?/g,'\n')),id==='127'?'43466ffdfa8a93b5aa03066bbc275a5d0e247e2965def21278b338d65988f89d':'d50a2a14e478868b4086514fc0ddd47bd116ba761a88b0a2ff28e36866ce1e78');
+ }
+ // These three stages add no IAM capabilities and must retain the complete
+ // IAM data snapshot rather than inheriting either predecessor's exception.
+ for(const id of ['129','adopted-v2','210']){
+  const stage=p.stages.find(value=>value.id===id),snapshots=stage.installation.filter(sql=>sql.startsWith('DO $snapshot$'));
+  assert.equal(snapshots.length,2,id+' emits before and after snapshots');
+  for(const snapshot of snapshots){
+   assert.doesNotMatch(snapshot,/CASE WHEN c\.nspname='public' AND c\.relname='iam_capability'/);
+   assert.ok(!snapshot.includes('WHERE r.capability_key NOT IN('),id+' keeps all existing capabilities');
+  }
+ }
+});

@@ -106,12 +106,19 @@ function SHELL_reference(status='ready'){
  return{ok:true,status,sourcePolicy:{label:'RESPALDO SINTÉTICO DECLARADO',detail:'Referencia incorporada exclusivamente sintética'},latestClosed:closed,currentOpen:open,runs:[closed,open],quality:{ready:true,arithmeticReconciled:true},limitations:['Referencia sintética; no acredita un cálculo propio.']};
 }
 
-test('shell independiente conserva el gate canónico pendiente/permitido/denegado ante referencia fallida',async t=>{
- const h=SHELL_harness(t);assert.equal(h.main.hidden,true,'No gate means fail closed');
- const gate=await h.gate();assert.equal(h.main.hidden,false,'Canonical apply must expose authorized own workspace while historical fetch is pending');
- assert.equal(h.main.getAttribute('data-requires-any-capability'),'payroll.read');assert.match(h.byId('mcCapabilityGateStyle').textContent,/html:not\(\[data-mc-capability-ready="true"\]\) \[data-requires-any-capability\]/);
- gate.apply(h.document,{tenantCapabilities:[]},h.context.location.href);assert.equal(h.main.hidden,true);await h.reply({ok:false},503);assert.equal(h.main.hidden,true,'Historical error cannot undo a gate denial');assert.equal(h.main.getAttribute('aria-hidden'),'true');
+test('shell independiente conserva ambos accesos canónicos y la denegación ante referencia fallida',async t=>{
+ for(const capabilities of [['payroll.read'],['payroll.calculation.read']]){
+  const h=SHELL_harness(t);try{
+   assert.equal(h.main.hidden,true,'No gate means fail closed');
+   const gate=await h.gate(capabilities);assert.equal(h.main.hidden,false,'Either documented page access exposes the workspace while historical fetch is pending');
+   assert.deepEqual(h.main.getAttribute('data-requires-any-capability').split(/\s+/),['payroll.read','payroll.calculation.read']);
+   assert.match(h.byId('mcCapabilityGateStyle').textContent,/html:not\(\[data-mc-capability-ready="true"\]\) \[data-requires-any-capability\]/);
+   gate.apply(h.document,{tenantCapabilities:[]},h.context.location.href);assert.equal(h.main.hidden,true);
+   await h.reply({ok:false},503);assert.equal(h.main.hidden,true,'Historical error cannot undo a gate denial');assert.equal(h.main.getAttribute('aria-hidden'),'true');
+  }finally{h.dispose();}
+ }
 });
+
 test('shell independiente mantiene tarea y borrador durante pendiente,503 y Reintentar real',async t=>{
  const h=SHELL_harness(t);await h.gate();const originalTask=h.workspaceHost.dataset.activeTask,originalDraft=h.draft.value;
  assert.equal(originalTask,'calculo');assert.equal(h.main.hidden,false);await h.reply({ok:false},503);

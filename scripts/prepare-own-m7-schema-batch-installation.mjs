@@ -1,7 +1,7 @@
 // Review only. No connections, writes or business decisions.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
-import {composeOwnM7PublicSchemaBatch} from './lib/own-m7-public-schema-batch.mjs';
+import {composeOwnM7PublicSchemaBatchWithAnnulment as composeOwnM7PublicSchemaBatch} from './lib/own-m7-public-annulment208209.mjs';
 import {ownerAuthorityQaSourceClosure,assertOwnerAuthorityQaSourceBookend} from './verify-municipal-owner-adoption-authority.mjs';
 import {createRecordingSourceReader,assertConsumedWithinClosure} from './lib/owner-qa-source-closure-reader.mjs';
 export function prepareOwnM7SchemaBatch({read,sourceCommit,operationalPairBaseline}){return composeOwnM7PublicSchemaBatch({read,sourceCommit,operationalPairBaseline});}
@@ -11,7 +11,10 @@ export const OWN_M7_SOURCE_REVIEW_ENTRIES=Object.freeze([
  'scripts/prepare-own-m7-schema-batch-installation.mjs',
  'scripts/install-own-m7-schema-batch.mjs',
  'scripts/lib/own-m7-public-schema-batch.mjs',
- 'tests/own-m7-public-schema-batch.test.js','tests/own-m7-public201215-executor.test.js','package.json','package-lock.json'
+ 'scripts/lib/own-payroll-release-annulment-pg.mjs',
+ 'tests/own-m7-public-schema-batch.test.js','tests/own-m7-public201215-executor.test.js',
+ 'tests/own-m7-public-annulment208-source.test.js','tests/own-annul209-public-predecessor-registry.test.js',
+ 'tests/own-m7-public-annulment208209-transport.test.js','package.json','package-lock.json'
 ]);
 export function ownM7CommittedSourceClosure({root,sourceCommit,consumed,readBytes=file=>fs.readFileSync(path.join(root,file)),committedBytes=file=>execFileSync('git',['show',sourceCommit+':'+file],{cwd:root,maxBuffer:24*1024*1024})}){
  assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok(Array.isArray(consumed));
