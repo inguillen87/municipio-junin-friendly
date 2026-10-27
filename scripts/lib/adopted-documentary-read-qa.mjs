@@ -74,7 +74,7 @@ export function documentaryQaFoundation(major){
  return {...qa,sql:qa.sql.replace(anchor,()=>source+'\n'+anchor)};
 }
 export function assertDocumentaryQaProcess(root,major,value){
- assert.ok([17,18].includes(major));const expected=major===17?25928:34448;
+ assert.ok([17,18].includes(major));const expected=major===17?28544:34448;
  assert.equal(value.process.ProcessId,expected,'DOCUMENTARY_QA_PROCESS_CHANGED');assert.equal(value.listener.OwningProcess,expected);assert.equal(value.listener.LocalAddress,'127.0.0.1');assert.equal(value.listener.LocalPort,55400+major);
  const executable=path.resolve(root,'verification/postgresql-qa-20261004/pg'+major+'/pgsql/bin/postgres.exe'),directory=path.resolve(root,'verification/postgresql-qa-20261004/pg'+major+'-data');
  assert.equal(path.resolve(value.process.ExecutablePath).toLowerCase(),executable.toLowerCase());assert.ok(value.process.CommandLine.replaceAll('\\','/').includes(directory.replaceAll('\\','/')));assert.match(value.process.CommandLine,new RegExp('-p '+(55400+major)+' -h 127\\.0\\.0\\.1'));
@@ -87,7 +87,7 @@ export async function verifyDocumentaryQaProcess(root,major,{transport='local'}=
   noeliaCircuitRuntime({root,major,transport,browser:'chromium'});
   return{major,port:55400+major,host:'127.0.0.1',database:'own_payroll_run_qa',ciRuntimeVerified:true,processVerified:false,runId:process.env.GITHUB_RUN_ID,sourceCommit:process.env.GITHUB_SHA,guard:'canonical database/version/non-Neon guard on every SQL connection'};
  }
- assert.equal(process.platform,'win32','DOCUMENTARY_QA_WINDOWS_REQUIRED');assert.ok([17,18].includes(major));const pid=major===17?25928:34448;
+ assert.equal(process.platform,'win32','DOCUMENTARY_QA_WINDOWS_REQUIRED');assert.ok([17,18].includes(major));const pid=major===17?28544:34448;
  const script="$ErrorActionPreference='Stop';$p=Get-CimInstance -ClassName Win32_Process -Filter 'ProcessId="+pid+"';$l=Get-NetTCPConnection -State Listen -LocalPort "+(55400+major)+";if(@($p).Count -ne 1 -or @($l).Count -ne 1){throw 'QA_PROCESS_IDENTITY_AMBIGUOUS'};[pscustomobject]@{process=($p|Select-Object ProcessId,ExecutablePath,CommandLine);listener=($l|Select-Object LocalAddress,LocalPort,OwningProcess)}|ConvertTo-Json -Compress -Depth 4";
  const result=await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{encoding:'utf8',windowsHide:true,timeout:15000});return assertDocumentaryQaProcess(root,major,JSON.parse(result.stdout));
 }
