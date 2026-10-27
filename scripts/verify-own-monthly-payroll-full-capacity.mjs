@@ -40,6 +40,7 @@ const entries = [
   'scripts/lib/own-monetary-program-qa-projection.mjs',
   'scripts/lib/own-monetary-program-guarded-installation.mjs',
   'scripts/lib/own-monetary-program-technical-epoch.mjs',
+  'tests/novelty217-post199-source-epoch.test.js',
   ...OWN_LIQUIDATION_BOOTSTRAP213_ENTRIES
 ];
 
@@ -93,7 +94,7 @@ function prepareMonthly(h) {
   for (const key of ['local', 'local193', 'localFixed', 'local197']) assert.deepEqual(monetary[key], monthly[key], 'MONTHLY_FULL_MONETARY_PRIOR_PHASE_CHANGED:' + key);
   const legacySupport=composeMonthlyFullLegacySupportPlan({monthly,foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
   const liquidationBootstrap213=composeOwnLiquidationBootstrap213Plan({foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
-  const administrative217=prepareNovelty217Joint(h,monthly);
+  const administrative217=prepareNovelty217Joint(h,monthly,monetary,liquidationBootstrap213);
   return {foundation: h.qa, context: {monthly, monetary, sharedPrerequisites, legacySupport, liquidationBootstrap213, administrative217}, sourceEntries: [...new Set([...Object.keys(monthly.sourceHashes), ...Object.keys(monetary.sourceHashes), ...legacySupport.sourceEntries, ...liquidationBootstrap213.sourceEntries, ...Object.keys(administrative217.sourceHashes)])]};
 }
 
@@ -159,7 +160,7 @@ async function monthlyThenFull(h, settings = {}) {
   assert.equal(monetaryTechnical.passed, true);
   const liquidationBootstrap213=installOwnLiquidationBootstrap213(h);
   assert.equal(liquidationBootstrap213.passed,true);
-  const novelty217=installNovelty217Joint(h);assert.equal(novelty217.durability.passed,true);
+  const novelty217=installNovelty217Joint(h,{monetaryTechnical,liquidationBootstrap213});assert.equal(novelty217.durability.passed,true);
   h.setPhase('monthly-full-capacity-business');
   // All original855 guards,20 rules,17100 rows and accounting epochs remain inside
   // this unchanged continuation. Never seed/reset a population to make them pass.

@@ -7,21 +7,29 @@ import {memoizeInstallationPhaseText} from './installation-phase-text-map.mjs';
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const body=s=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(s);assert.ok(m);return m[2];};
 const owned=new WeakSet();
-export function buildNoveltyAdministrative217Qa({qa,read,sourceCommit,capacity201Epoch='pre201'}){
+export function buildNoveltyAdministrative217Qa({qa,read,sourceCommit,capacity201Epoch='pre201',monetary=null,liquidationBootstrap213=null}){
  assert.equal(qa?.version,'own-novelty-succession-qa.v1');assert.equal(qa.sourceCommit,sourceCommit);assert.match(qa.schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(typeof qa.normalized,'function');
  const prerequisiteDefinitions=qa.qa193?.foundation?.base?.definitions,prerequisitePins=qa.batch?.declaration?.prerequisitePins;
  assert.ok(Array.isArray(prerequisiteDefinitions)&&Array.isArray(prerequisitePins));
- const batch=buildNoveltyAdministrative217Installation({read,sourceCommit,capacity201Epoch,operationalPairBaseline:qa.operationalPairBaseline,prerequisiteDefinitions,prerequisiteRuntime:prerequisitePins.filter(p=>p.runtime).map(p=>p.signature)});
+ assert.equal(monetary===null,liquidationBootstrap213===null,'NOVELTY217_COMPLETE_TECHNICAL_PREDECESSORS_REQUIRED');
+ const technicalPredecessorEpoch=monetary===null?'post197':'post199-post213';
+ if(monetary!==null){
+  assert.equal(monetary.version,'own-monetary-program-qa-projection.v2');assert.strictEqual(monetary.qa192.qa,qa.qa192.qa);assert.strictEqual(monetary.actor,qa.actor);assert.strictEqual(monetary.checker,qa.checker);assert.equal(monetary.schema,qa.schema);assert.equal(monetary.sourceCommit,sourceCommit);assert.equal(monetary.monetaryFoundationMode,'existing');assert.equal(monetary.observedMetadataUsed,false);assert.equal(typeof monetary.monetaryNormalized,'function');
+  assert.strictEqual(liquidationBootstrap213.foundation,qa.qa192.qa);assert.equal(liquidationBootstrap213.schema,qa.schema);assert.equal(liquidationBootstrap213.sourceCommit,sourceCommit);
+ }
+ const batch=buildNoveltyAdministrative217Installation({read,sourceCommit,capacity201Epoch,technicalPredecessorEpoch,operationalPairBaseline:qa.operationalPairBaseline,prerequisiteDefinitions,prerequisiteRuntime:prerequisitePins.filter(p=>p.runtime).map(p=>p.signature)});
  assert.equal(batch.priorReadiness,qa.novelty197.ready);assert.deepEqual(batch.predecessor.supportPins,qa.novelty197.supportPins);assert.deepEqual(batch.predecessor.afterPins,qa.novelty197.afterPins);
- const baseNormalize=qa.normalized,base=s=>baseNormalize(monthlyFixedQaHeader(s)),baseText=memoizeInstallationPhaseText(base),definitions=[batch.priorContext,batch.priorReadiness,batch.helper,batch.context,batch.readiness,batch.capacity201Lineage.afterDefinition,batch.readinessPost201],hashes={};let stable=false;
+ if(monetary!==null){assert.equal(batch.technicalPredecessor.monetary.afterCheck,monetary.monetaryInstallation.afterCheck,'NOVELTY217_ACTUAL_MONETARY_PLAN_CHANGED');assert.deepEqual(batch.technicalPredecessor.bootstrap213.rawBefore,liquidationBootstrap213.rawBefore);assert.deepEqual(batch.technicalPredecessor.bootstrap213.rawAfter,liquidationBootstrap213.rawAfter);}
+ const baseNormalize=monetary===null?qa.normalized:monetary.monetaryNormalized,base=s=>{const value=baseNormalize(monthlyFixedQaHeader(s));return liquidationBootstrap213===null?value:value.replaceAll(liquidationBootstrap213.rawAfter.sha256,liquidationBootstrap213.afterPin.sha256);},baseText=memoizeInstallationPhaseText(base),definitions=[batch.priorContext,batch.priorReadiness,batch.helper,batch.context,batch.readiness,batch.capacity201Lineage.afterDefinition,batch.readinessPost201],hashes={};let stable=false;
  for(let pass=0;pass<32;pass++){let changed=false;for(const d of definitions){let local=baseText(d);for(const[from,to]of Object.entries(hashes))local=local.replaceAll(from,to);const from=hash(body(d)),to=hash(body(local));if(hashes[from]!==to){hashes[from]=to;changed=true;}}if(!changed){stable=true;break;}}
  assert.ok(stable,'NOVELTY217_QA_HASH_GRAPH_CYCLE');
  const normalized=sql=>{let local=base(sql);for(const[from,to]of Object.entries(hashes))local=local.replaceAll(from,to);return local;};
+ if(monetary!==null)assert.deepEqual(batch.technicalPredecessor.bootstrap213.prerequisites.map(p=>JSON.parse(base(JSON.stringify(p)))),liquidationBootstrap213.prerequisites,'NOVELTY217_ACTUAL_BOOTSTRAP_PREREQUISITES_CHANGED');
  const phases=['preflight','rehearsal','installation','verification','repetition','reversalHistoryGuard'];
  const phaseText=memoizeInstallationPhaseText(normalized);
  const local=Object.fromEntries(phases.map(k=>[k,batch[k].map(phaseText)]));
  assert.ok(local.verification.some(s=>s.includes(hashes[batch.helperPin.sha256])),'NOVELTY217_QA_HELPER_PIN_ABSENT');
- const result={version:'novelty-administrative217-qa.v1',sourceCommit,schema:qa.schema,actor:qa.actor,checker:qa.checker,batch,local,normalized,hashes,baseNormalize,sourceHashes:{...batch.sourceHashes},historical197ArraysPreserved:true,connects:false,executesSql:false,executionAdmitted:false};
+ const result={version:'novelty-administrative217-qa.v1',sourceCommit,schema:qa.schema,actor:qa.actor,checker:qa.checker,batch,local,normalized,hashes,baseNormalize,sourceHashes:{...batch.sourceHashes},historical197ArraysPreserved:true,technicalPredecessorEpoch,monetary,liquidationBootstrap213,connects:false,executesSql:false,executionAdmitted:false};
  owned.add(result);return result;
 }
 
@@ -32,8 +40,9 @@ export function advanceNovelty217Capacity201Same190({plan,prior,json,setPhase,in
  return{observed,durability:assertNovelty217Capacity201Bookend({plan:source,prior,observed,installation201}),readOnly:true,storedReadinessUnchanged:true};
 }
 
-// Invoke after the final197 technical reinstall/durable/repetition and before
-// IAM fixture/business. The caller retains the existing transport and receipts.
+// Invoke in the selected source epoch: post197 for the original engine, or
+// post monetary reinstallation/durable/repetition and213 for the same190 host.
+// Before IAM fixture/business. The caller retains the existing transport and receipts.
 export function installNoveltyAdministrative217Same190({plan,json,expectRollback,readFullSnapshot,check,setPhase}){
  assert.ok(owned.has(plan),'NOVELTY217_UNMINTED_QA_PLAN');for(const f of[json,expectRollback,readFullSnapshot,check,setPhase])assert.equal(typeof f,'function');
  setPhase('217-preflight-readonly');json(plan.local.preflight,{readOnly:true,expectJson:false});

@@ -8,6 +8,8 @@ import {splitPostgresStatements} from './sql-statements.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {performancePreservationSnapshot} from '../verify-documentary-roster-performance.mjs';
 import {installationPriorMetadataFingerprint} from './installation-prior-metadata.mjs';
+import {buildOwnMonetaryGuardedInstallation} from './own-monetary-program-guarded-installation.mjs';
+import {deriveOwnLiquidationBootstrap213,OWN_LIQUIDATION_BOOTSTRAP213_SOURCE_PINS} from './own-liquidation-bootstrap213-installation.mjs';
 import {NOVELTY217_SOURCE_PINS,NOVELTY217_HELPER_OPERATORS,NOVELTY217_CONTEXT_OPERATORS,NOVELTY217_EXPECTED} from './novelty-administrative217-source-contract.mjs';
 
 export const NOVELTY217_VERSION='novelty-administrative217-installation.v1';
@@ -75,7 +77,8 @@ function capacity201Lineage(source){
 }
 
 export function buildNoveltyAdministrative217Installation(options){
- const capacity201Epoch=Object.hasOwn(options??{},'capacity201Epoch')?options.capacity201Epoch:'pre201';assert.ok(['pre201','post201'].includes(capacity201Epoch),'NOVELTY217_CAPACITY_SOURCE_EPOCH_REQUIRED');const previousOptions={...options};delete previousOptions.capacity201Epoch;assert.deepEqual(Object.keys(previousOptions).sort(),['operationalPairBaseline','prerequisiteDefinitions','prerequisiteRuntime','read','sourceCommit']);
+ const technicalPredecessorEpoch=Object.hasOwn(options??{},'technicalPredecessorEpoch')?options.technicalPredecessorEpoch:'post197';assert.ok(['post197','post199-post213'].includes(technicalPredecessorEpoch),'NOVELTY217_TECHNICAL_SOURCE_EPOCH_REQUIRED');
+ const capacity201Epoch=Object.hasOwn(options??{},'capacity201Epoch')?options.capacity201Epoch:'pre201';assert.ok(['pre201','post201'].includes(capacity201Epoch),'NOVELTY217_CAPACITY_SOURCE_EPOCH_REQUIRED');const previousOptions={...options};delete previousOptions.capacity201Epoch;delete previousOptions.technicalPredecessorEpoch;assert.deepEqual(Object.keys(previousOptions).sort(),['operationalPairBaseline','prerequisiteDefinitions','prerequisiteRuntime','read','sourceCommit']);
  assert.equal(typeof options.read,'function');assert.match(options.sourceCommit,/^[a-f0-9]{40}$/);
  const sourceHashes={},cache=new Map(),read=file=>{if(!cache.has(file)){const s=options.read(file).replace(/\r\n?/g,'\n');cache.set(file,s);sourceHashes[file]=hash(s);}return cache.get(file);};
  for(const[file,p]of Object.entries(NOVELTY217_SOURCE_PINS)){const s=read(file);assert.equal(Buffer.byteLength(s),p.bytes,'NOVELTY217_SOURCE_BYTES:'+file);assert.equal(hash(s),p.sha256,'NOVELTY217_SOURCE_CHANGED:'+file);}
@@ -101,7 +104,26 @@ export function buildNoveltyAdministrative217Installation(options){
  const pre201Ready={definition:readiness},post201Ready=pre201Ready;
  const readinessBeforePin=pin(priorReadiness),readinessAfterPin=pin(readiness);assert.deepEqual(readinessBeforePin,predecessor.readinessPin);assert.deepEqual({...readinessBeforePin,sha256:null},{...readinessAfterPin,sha256:null});
  const beforePins=[contextBeforePin,readinessBeforePin],afterPins=[contextAfterPin,readinessAfterPin];
- const beforeCheck=capacity201Epoch==='post201'?projectText(predecessor.afterCheck,[capacityLineage.beforePin],[capacityLineage.afterPin]).value:predecessor.afterCheck;
+ // The public217 stage is post197. The existing same190 runner installs217
+ // after the final monetary reinstallation and forward213, without reordering
+ // either epoch. Derive its complete predecessor guard from those sources.
+ let technicalPredecessor=null,technicalBeforeCheck=predecessor.afterCheck;
+ if(technicalPredecessorEpoch==='post199-post213'){
+  assert.equal(hash(read('scripts/lib/own-monetary-program-guarded-installation.mjs')),'0c55c03740a792e86061dbd8bcc05fb80969d46a5d2ca58969d5789532ecd243','NOVELTY217_MONETARY_BUILDER_SOURCE_CHANGED');
+  assert.equal(hash(read('scripts/lib/own-liquidation-bootstrap213-installation.mjs')),'a4fbd75427be61efa24eaa1b78f10897d8706ad1619850cc7e9b496c4e45c9f5','NOVELTY217_BOOTSTRAP_BUILDER_SOURCE_CHANGED');
+  const monetary=buildOwnMonetaryGuardedInstallation({...previousOptions,read,noveltySuccession:true});
+  assert.equal(monetary.previous.afterCheck,predecessor.afterCheck,'NOVELTY217_MONETARY_WHOLE197_PREIMAGE_CHANGED');assert.equal(monetary.previous.ready,priorReadiness,'NOVELTY217_MONETARY_STORED_READINESS_CHANGED');
+  for(const [file,expected]of Object.entries(OWN_LIQUIDATION_BOOTSTRAP213_SOURCE_PINS))assert.equal(hash(read(file)),expected,'NOVELTY217_BOOTSTRAP_SOURCE_CHANGED:'+file);
+  const original=splitPostgresStatements(read('scripts/migrations/124-own-payroll-liquidation-decisions.sql')).map(clean).filter(s=>s.startsWith('CREATE FUNCTION public.own_liquidation_bootstrap_v1('));assert.equal(original.length,1);
+  const changed=deriveOwnLiquidationBootstrap213(original[0]),rawBefore={...pin(original[0]),runtime:true},rawAfter={...pin(changed),runtime:true};
+  assert.deepEqual(splitPostgresStatements(read('scripts/migrations/213-own-liquidation-bootstrap-administrative-operator.sql')).map(clean),[changed],'NOVELTY217_BOOTSTRAP_FORWARD_SOURCE_CHANGED');
+  const unique=(file,name)=>{const rows=splitPostgresStatements(read(file)).map(clean).filter(s=>s.startsWith('CREATE FUNCTION public.'+name+'(')||s.startsWith('CREATE OR REPLACE FUNCTION public.'+name+'('));assert.equal(rows.length,1,'NOVELTY217_BOOTSTRAP_PREREQUISITE_SOURCE_CHANGED:'+name);return rows[0];};
+  const prerequisites=[pin(unique('scripts/migrations/124-own-payroll-liquidation-decisions.sql','own_liquidation_context_v1')),pin(unique('scripts/migrations/176-own-payroll-administrative-operator.sql','own_run_context_v1')),pin(SALARY_ADMINISTRATIVE_CONTEXT)];
+  const bootstrapProjection=projectText(monetary.afterCheck,[rawBefore],[rawAfter],{requireTargets:false});
+  technicalBeforeCheck=bootstrapProjection.value+';'+pinsCheck([...prerequisites,rawAfter],'NOVELTY217_BOOTSTRAP213_METADATA');
+  technicalPredecessor={monetary,bootstrap213:{rawBefore,rawAfter,prerequisites,changed,projection:bootstrapProjection},sourceDerived:true,observedMetadataUsed:false};
+ }
+ const beforeCheck=capacity201Epoch==='post201'?projectText(technicalBeforeCheck,[capacityLineage.beforePin],[capacityLineage.afterPin]).value:technicalBeforeCheck;
  const externalFamilyScope=predecessor.ancestorMetadataLedger.objectScope.kind;
  assert.ok(['present','absent'].includes(externalFamilyScope),'NOVELTY217_EXTERNAL_FAMILY_SCOPE_REQUIRED');
  if(externalFamilyScope==='absent'){
@@ -131,13 +153,13 @@ export function buildNoveltyAdministrative217Installation(options){
  // sourceHashes was extended by compatibility reads; freeze proof inputs only
  // after all reads and then rebuild the proof-bearing arrays once.
  const installationFinal=installation('install'),repetition=installation('verify');
- const result=freeze({version:NOVELTY217_VERSION,sourceCommit:options.sourceCommit,operationalPairBaseline:options.operationalPairBaseline,sourceHashes,capacity201Epoch,capacity201Lineage:capacityLineage,readinessPre201:pre201Ready.definition,readinessPost201:post201Ready.definition,predecessor,helper,context,readiness,priorContext,priorReadiness,beforePins,afterPins,helperPin,mutations,beforeCheck,afterCheck,readyProjection,externalFamilyScope,afterProjection,before,after,conservation,readinessCheck,counters,mode,
+ const result=freeze({version:NOVELTY217_VERSION,sourceCommit:options.sourceCommit,operationalPairBaseline:options.operationalPairBaseline,sourceHashes,technicalPredecessorEpoch,technicalPredecessor,capacity201Epoch,capacity201Lineage:capacityLineage,readinessPre201:pre201Ready.definition,readinessPost201:post201Ready.definition,predecessor,helper,context,readiness,priorContext,priorReadiness,beforePins,afterPins,helperPin,mutations,beforeCheck,afterCheck,readyProjection,externalFamilyScope,afterProjection,before,after,conservation,readinessCheck,counters,mode,
   preflight:[transaction(true),beforeCheck,`DO $absence217$ BEGIN IF NOT(${absent}) THEN RAISE EXCEPTION 'NOVELTY217_HELPER_ALREADY_PRESENT';END IF;END $absence217$`,`SELECT jsonb_build_object('version','novelty217-preflight.v1','sourceCommit',${q(options.sourceCommit)},'mode','install','metadataGuardsPassed',true) AS proof`],
   installation:installationFinal,rehearsal:[...installationFinal,lateFault],rehearsalExpectedError:NOVELTY217_REHEARSAL_ERROR,
   verification:[transaction(true),afterCheck,readinessCheck,after,proof("'verify'",false)],repetition,
   reversalHistoryGuard:[transaction(false),afterCheck,predecessor.noHistory],compatibility,
   connects:false,executesSql:false,executionAdmitted:false,run7Included:false,storedAdoptionReadinessUpdated:true});
- minted.add(result);internals.set(result,previousOptions);return result;
+ minted.add(result);internals.set(result,{...previousOptions,technicalPredecessorEpoch});return result;
 }
 
 
