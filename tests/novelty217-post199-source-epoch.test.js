@@ -6,9 +6,11 @@ import {createHash} from 'node:crypto';
 import {buildOwnerProgramQa} from '../scripts/lib/municipal-owner-program-qa.mjs';
 import {prepareOwnMonthlyFullCapacity} from '../scripts/verify-own-monthly-payroll-full-capacity.mjs';
 import {buildNoveltyAdministrative217Qa} from '../scripts/lib/novelty-administrative217-qa.mjs';
-import {composeNovelty217Capacity201Bookend} from '../scripts/lib/novelty-administrative217-installation.mjs';
+import {composeNovelty217Capacity201Bookend,projectText} from '../scripts/lib/novelty-administrative217-installation.mjs';
 import {pinsCheck} from '../scripts/lib/native-leave-installation.mjs';
 import {installNovelty217Joint} from '../scripts/lib/novelty-administrative217-joint.mjs';
+import {ownNoveltySuccessionFunctionPin} from '../scripts/lib/own-novelty-succession-metadata.mjs';
+import {NOVELTY217_CONTEXT_OPERATORS,NOVELTY217_EXPECTED} from '../scripts/lib/novelty-administrative217-source-contract.mjs';
 const root=new URL('../',import.meta.url),read=file=>readFileSync(new URL(file,root),'utf8').replace(/\r\n?/g,'\n'),sourceCommit='a'.repeat(40),memo=new Map();
 function fixture(major=17){if(memo.has(major))return memo.get(major);const qa=buildOwnerProgramQa({major,sourceCommit,read,schema:'mc_qa_fixed_092_'+String(major).repeat(16),operationalPairBaseline:'published107'}),h={qa,major,sourceCommit,read},prepared=prepareOwnMonthlyFullCapacity(h);const value={h,...prepared.context};memo.set(major,value);return value;}
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -53,4 +55,34 @@ test('same190 cannot reach217 transport using a passed flag without real predece
 test('changed monetary or213 source fails while constructing the post199 predecessor guard',()=>{
  const f=fixture(),options={qa:f.monthly,sourceCommit,monetary:f.monetary,liquidationBootstrap213:f.liquidationBootstrap213};
  for(const file of ['scripts/sql/own-monetary-program-definition.sql','scripts/migrations/213-own-liquidation-bootstrap-administrative-operator.sql','scripts/lib/own-liquidation-bootstrap213-installation.mjs'])assert.throws(()=>buildNoveltyAdministrative217Qa({...options,read:name=>read(name)+(name===file?'\n-- changed source':'')}),/SOURCE_CHANGED/);
+});
+
+// Cheap real projection regression: --test-name-pattern='217 scalar pin' skips
+// the existing fixture-based constructors above. No SQL/catalogue input.
+test('217 scalar pin projection agrees with source body and JSON at every quote depth',()=>{
+ const prior=/^CREATE FUNCTION public\.own_novelty_context_v1\([\s\S]*?END \$\$;/m.exec(read('scripts/migrations/130-own-bulk-novelties.sql'))?.[0];assert.ok(prior);
+ let next=prior;for(const {before,after,count}of NOVELTY217_CONTEXT_OPERATORS){assert.equal(next.split(before).length,count+1);next=next.replaceAll(before,()=>after);}
+ const bodyHash=definition=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(definition);assert.ok(m);return hash(m[2]);};
+ const pin=definition=>({...ownNoveltySuccessionFunctionPin(definition),runtime:false}),old=pin(prior),final=pin(next);
+ assert.equal(old.sha256,NOVELTY217_EXPECTED.contextBeforeBodySha256);assert.equal(final.sha256,NOVELTY217_EXPECTED.contextAfterBodySha256);assert.equal(final.sha256,bodyHash(next));
+ assert.deepEqual({...old,sha256:null},{...final,sha256:null});
+ const block=/DO \$after_pins\$[\s\S]*?END \$after_pins\$;/.exec(read('scripts/migrations/197-own-novelty-succession.sql'))?.[0];assert.ok(block);
+ const originalTuple=block.split('\n').filter(line=>line.startsWith(" ('"+old.signature+"','"));assert.equal(originalTuple.length,1);assert.ok(originalTuple[0].includes("','"+old.sha256+"',"));
+ const encode=(text,depth)=>text.replaceAll("'","'".repeat(depth));
+ const contract=(value,expected,depth)=>{
+  let plain=value;for(let n=depth;n>1;n/=2)plain=plain.replaceAll("''","'");
+  const tuples=plain.split('\n').filter(line=>line.startsWith(" ('"+expected.signature+"','"));assert.equal(tuples.length,1);
+  const scalar=/^ \('[^']+','([a-f0-9]{64})',/.exec(tuples[0]);assert.ok(scalar);assert.equal(scalar[1],expected.sha256,'SCALAR_PIN_MUST_EQUAL_SOURCE_BODY');
+  const json=rows(plain).filter(row=>row.signature===expected.signature);assert.deepEqual(json,[expected]);assert.equal(json[0].sha256,scalar[1]);
+  assert.equal(tuples[0].replace(expected.sha256,'$BODY'),originalTuple[0].replace(old.sha256,'$BODY'),'COMPLETE_TUPLE_METADATA_PRESERVED');
+ };
+ // Starts0..9 exercise decimal/backreference ambiguity; the original real
+ // 5435... digest is included. JSON and the complete197 guard stay intact.
+ for(const start of '0123456789')for(const depth of [1,2,4]){
+  const from={...old,sha256:start+old.sha256.slice(1)},tuple=originalTuple[0].replace(old.sha256,from.sha256),raw=block.replace(originalTuple[0],tuple)+'\n'+pinsCheck([from],'SCALAR_SOURCE_TEST');
+  const input=encode(raw,depth),out=projectText(input,[from],[final]),expected=encode(block.replace(originalTuple[0],originalTuple[0].replace(old.sha256,final.sha256))+'\n'+pinsCheck([final],'SCALAR_SOURCE_TEST'),depth);
+  assert.equal(out.value,expected,'ONLY_COMPLETE_CONTEXT_PINS_CHANGE');assert.equal(out.counts[old.signature],2);assert.equal(out.wholeInverse,true);contract(out.value,final,depth);
+  const stale=out.value.replace(encode(originalTuple[0].replace(old.sha256,final.sha256),depth),encode(tuple,depth));assert.throws(()=>contract(stale,final,depth),/SCALAR_PIN_MUST_EQUAL_SOURCE_BODY/);
+ }
+ const raw=block+'\n'+pinsCheck([old],'SCALAR_SOURCE_TEST'),mixed=raw.replace(JSON.stringify(old),JSON.stringify({...old,runtime:true}));assert.throws(()=>projectText(mixed,[old],[final]),/NOVELTY217_MIXED_METADATA/);
 });

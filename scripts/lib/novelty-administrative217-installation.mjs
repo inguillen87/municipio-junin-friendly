@@ -28,13 +28,13 @@ const escaped=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
 // Restrict replacement to complete scalar pin objects or exact SQL pin tuples.
 // No unconstrained digest substitution; both complete directions are checked.
-function projectText(source,beforePins,afterPins,{family=false,requireTargets=true}={}){
+export function projectText(source,beforePins,afterPins,{family=false,requireTargets=true}={}){
  assert.equal(typeof source,'string');assert.equal(beforePins.length,afterPins.length);
  const change=(text,from,to)=>{
   const counts=Object.fromEntries(from.map(p=>[p.signature,0]));
   text=text.replace(metadataObject,literal=>{const row=JSON.parse(literal),n=from.findIndex(p=>p.signature===row.signature);if(n<0)return literal;assert.deepEqual(row,from[n],'NOVELTY217_MIXED_METADATA');counts[row.signature]++;return JSON.stringify(to[n]);});
   for(let n=0;n<from.length;n++){
-   const a=from[n],b=to[n],pattern=new RegExp("('+)("+escaped(a.signature)+")\\1,\\1"+a.sha256+"\\1",'g');
+   const a=from[n],b=to[n],pattern=new RegExp("('+)("+escaped(a.signature)+")\\1,\\1(?:"+a.sha256+")\\1",'g');
    text=text.replace(pattern,(_,quotes,signature)=>{counts[a.signature]++;return quotes+signature+quotes+','+quotes+b.sha256+quotes;});
   }
   return{value:text,counts};
