@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {buildOwnReceipt126Same190Actors} from '../scripts/lib/own-payroll-receipt126-same190-actors.mjs';
+import {resolveOwnReceipt126Same190Actor} from '../scripts/lib/own-payroll-receipt126-same190-circuit.mjs';
 
 // Synthetic QA metadata derived from pinned declarations, not a live catalogue.
 // Ten definitions come from005/026/041/123/124/126; exactly two inherit190+004.
@@ -149,5 +150,27 @@ test('receipt126 refuses changed seed metadata or DEFAULT before generating any 
   const f=fixture(path=>path===file?Buffer.from(original.replace(oldText,newText),'utf8'):readRaw(path));
   assert.throws(()=>buildOwnReceipt126Same190Actors(f.args),/RECEIPT126_RAW_(?:BYTES|HASH)_CHANGED/);
   assert.equal(f.generated(),0);
+ }
+});
+
+// Transport boundary only: synthetic access DTOs are not native IAM evidence.
+// Uses the actual resolver; reverting to db.run(...,true) throws42501 below.
+test('receipt126 fixture identity requires owner RR/RW and rejects a runtime private-helper call',async()=>{
+ const plan=buildOwnReceipt126Same190Actors(fixture().args),actorsProof={checkerCapabilitiesBefore:['actions.read']},checked={checkerRoleKey:'synthetic-existing-checker-role'};
+ for(const descriptor of plan.accessDescriptors){
+  const raw=descriptor.raw,caps=descriptor.name==='preparer'?[...actorsProof.checkerCapabilitiesBefore,'payroll.receipt.prepare']:descriptor.expectedCapabilities;
+  const native={membershipId:raw.membershipId,actorEmail:raw.actorEmail,actorPersonId:id(30001),employmentContractId:id(30002)},packet={};
+  const access={principal:{authorized:true,session:{mfa:true},tenant:{membershipId:raw.membershipId,effectiveCapabilities:[...caps]}},session:{id:raw.actorSessionId,version:raw.actorSessionVersion}};
+  const calls=[],runtimeCalls=[];
+  const db={run(sql,runtime){runtimeCalls.push({sql,runtime});throw Object.assign(Error('permission denied for function own_receipt_context_v1'),{code:'42501'});},query(){assert.fail('fixture identity must not use a business RPC transport');}};
+  const h={json(statements,options){
+   calls.push({statements,options});
+   if(statements[0]===descriptor.accessSql){assert.deepEqual(statements,[descriptor.accessSql]);assert.deepEqual(options,{readOnly:true});return packet;}
+   assert.deepEqual(statements,[descriptor.contextSql]);assert.deepEqual(options,{readOnly:false,fullJson:true},'FOR_SHARE_REQUIRES_OWNER_WRITABLE_RR');return native;
+  }};
+  const ownerProgramQaAccess=(value,actor)=>{assert.strictEqual(value,packet);assert.deepEqual(actor,raw);return access;};
+  const result=await resolveOwnReceipt126Same190Actor({descriptor,h,db,actorsProof,checked,ownerProgramQaAccess});
+  assert.strictEqual(result.native,native);assert.strictEqual(result.principal,access.principal);assert.deepEqual(result.raw,raw);
+  assert.deepEqual(runtimeCalls,[]);assert.equal(calls.length,2);assert.equal(result.roleKey,descriptor.name==='preparer'?checked.checkerRoleKey:descriptor.roleKey);
  }
 });
