@@ -13,7 +13,7 @@ import {splitPostgresStatements} from './sql-statements.mjs';
 
 const plans=new WeakMap();
 const ACL_PRODUCER="scripts/lib/municipal-owner-adoption-decision-qa.mjs";
-const ACL_PRODUCER_SHA256="3818ada20ee500085c8045e683b29c9bb55a4eaa03fc2137f7d817228f72136a";
+const ACL_PRODUCER_SHA256="e6d9d39d1dee48d24f01148d07997d85e51d8ca62ff5eefb4a6dc00679d99624";
 const ACL_PRODUCER_STATEMENT=" const acl=graph.definitions.map(d=>{const p=identity(d),pin=graph.desired.find(x=>x.signature===p.signature)??graph.pinHints.get(p.signature+'|'+p.sha256);return `REVOKE ALL ON FUNCTION ${r(p.signature)} FROM PUBLIC,municontrol_actions_runtime_app`+(pin?.runtime?`;GRANT EXECUTE ON FUNCTION ${r(p.signature)} TO municontrol_actions_runtime_app`:'');});";
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";
 const hash=s=>createHash('sha256').update(s).digest('hex');

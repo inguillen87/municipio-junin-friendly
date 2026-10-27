@@ -30,7 +30,7 @@ const SOURCE_PINS=Object.freeze([
  ['scripts/lib/municipal-owner-program-qa.mjs',16803,'c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb'],
  ['scripts/lib/own-payroll-report-census-190-iam-fixture.mjs',9508,'c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1'],
  ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',46062,'995f1f701f4c96f5ca85f7f3e787b5939c0074ea8ab4066b8bdfcc19e6dd185b'],
- ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'c508f61f7a130585be36d4ff9298befb6d3897cce525f8315739a0dd63b65f9d']
+ ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'b45f6a3cd7dde3b21b3dc71ccf92db24e899a05419690693e14ec9e282f62f3d']
 ]);
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";
 const j=value=>q(JSON.stringify(value))+'::jsonb';

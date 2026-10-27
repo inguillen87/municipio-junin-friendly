@@ -367,3 +367,64 @@ test('an earlier explicit private067 facade obligation cannot be silently replac
  const pin=ownInstallationFunctionPin(definition),batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([{...pin,runtime:false}])};
  assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA067_EARLY_EPOCH_ACL_CONFLICT/);
 });
+
+
+test('the seed emits the five complete published ART158159 facade ACLs and keeps all twelve bodies exact',()=>{
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
+ const groups=[
+  ['scripts/migrations/158-own-art-days.sql','c718f2480a28e4fdf566675146002dabb75b8fbb6b44a0bc56851520e74ce509',[
+   'public.own_art_days_bootstrap_v1(jsonb,uuid,text)',
+   'public.own_art_days_detail_v1(jsonb,uuid)',
+   'public.own_art_days_attempt_v1(jsonb,uuid)',
+   'public.own_art_days_command_v1(jsonb,jsonb,uuid)',
+  ]],
+  ['scripts/migrations/159-own-art-report.sql','789d1cead7ef09d16a6bc61ec714c8d77e669fb8cc51d37f095c429672561b7a',[
+   'public.own_art_report_source_v1(jsonb,jsonb)',
+  ]],
+ ];
+ const clean=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$))+/g,'').trim();
+ const sourceDefinitions=[],facades=new Set(groups.flatMap(([, ,signatures])=>signatures));
+ for(const[file,sha,signatures]of groups){
+  const source=read(file).replace(/\r\n?/g,'\n');assert.equal(ownerDecisionQaHash(source),sha);
+  const statements=splitPostgresStatements(source).map(clean);
+  assert.ok(statements.includes('GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'));
+  sourceDefinitions.push(...statements.filter(s=>/^CREATE FUNCTION public\.own_art_/.test(s)));
+ }
+ assert.equal(sourceDefinitions.length,12);assert.equal(facades.size,5);
+ for(const currentQa of[qa,published]){
+  const emitted=splitPostgresStatements(currentQa.seed).map(clean);
+  for(const sourceDefinition of sourceDefinitions){
+   const canonical=ownInstallationFunctionPin(sourceDefinition),signature=canonical.signature,local=currentQa.relocate(signature),runtime=facades.has(signature);
+   const definitions=currentQa.definitions.filter(d=>d.startsWith('CREATE FUNCTION public.'+canonical.name+'('));assert.equal(definitions.length,1);
+   assert.equal(definitions[0],sourceDefinition);assert.deepEqual(ownInstallationFunctionPin(definitions[0]),canonical);
+   assert.equal(currentQa.graph.pool.get(signature+'|'+canonical.sha256),sourceDefinition);
+   const expected=currentQa.normalized(sourceDefinition.replace(/^CREATE FUNCTION /,'CREATE OR REPLACE FUNCTION '));
+   assert.equal(emitted.filter(s=>s===expected).length,1,signature+' selected definition is actually emitted');
+   const revoke='REVOKE ALL ON FUNCTION '+local+' FROM PUBLIC,municontrol_actions_runtime_app',grant='GRANT EXECUTE ON FUNCTION '+local+' TO municontrol_actions_runtime_app';
+   assert.equal(emitted.filter(s=>s===revoke).length,1,signature+' revokes inherited exposure');
+   assert.equal(emitted.filter(s=>s===grant).length,runtime?1:0,signature+' actual source-derived exposure');
+   if(runtime){
+    assert.ok(emitted.indexOf(expected)<emitted.indexOf(revoke));assert.ok(emitted.indexOf(revoke)<emitted.indexOf(grant));
+    const selected=currentQa.graph.desired.filter(p=>p.signature===signature);assert.equal(selected.length,1);assert.deepEqual(selected[0],{...canonical,runtime:true});
+   }else assert.ok(!emitted.some(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes(local)),signature+' stays private even in grouped grants');
+  }
+ }
+});
+
+test('ART source exposure rejects earlier private obligations and changed complete metadata',()=>{
+ const signatures=[
+  'public.own_art_days_bootstrap_v1(jsonb,uuid,text)',
+  'public.own_art_days_detail_v1(jsonb,uuid)',
+  'public.own_art_days_attempt_v1(jsonb,uuid)',
+  'public.own_art_days_command_v1(jsonb,jsonb,uuid)',
+  'public.own_art_report_source_v1(jsonb,jsonb)',
+ ];
+ for(const signature of signatures){
+  const name=signature.slice(7,signature.indexOf('(')),definition=qa.definitions.find(d=>d.startsWith('CREATE FUNCTION public.'+name+'('));assert.ok(definition);
+  const canonical=ownInstallationFunctionPin(definition);
+  for(const changed of[{...canonical,runtime:false},{...canonical,runtime:true,definer:false}]){
+   const batch={...qa.graph.batch,originalReady:qa.graph.batch.originalReady+'\n-- '+JSON.stringify([changed])};
+   assert.throws(()=>buildOwnerDecisionQaDefinitions({read,sourceCommit,batch}),/OWNER_DECISION_QA_ART158159_EARLY_EPOCH_CONFLICT/);
+  }
+ }
+});

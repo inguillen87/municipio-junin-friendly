@@ -184,6 +184,43 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
   assert.deepEqual({...pin,sha256:null,runtime:null},{...canonical,sha256:null,runtime:null},'OWNER_DECISION_QA067_METADATA_CHANGED:'+signature);
   desired.set(signature,{...pin,runtime:true});
  }
+ // ART158/159 already publish exactly these five runtime facades. Their
+ // intermediate afterPins graph omits them; a generic header parser is not
+ // ACL authority. Recover only the two pinned GRANT contracts, retaining all
+ // twelve bodies and the seven private helpers unchanged.
+ const artFacadeGroups=[
+  ['scripts/migrations/158-own-art-days.sql','c718f2480a28e4fdf566675146002dabb75b8fbb6b44a0bc56851520e74ce509',[
+   'public.own_art_days_bootstrap_v1(jsonb,uuid,text)',
+   'public.own_art_days_detail_v1(jsonb,uuid)',
+   'public.own_art_days_attempt_v1(jsonb,uuid)',
+   'public.own_art_days_command_v1(jsonb,jsonb,uuid)',
+  ]],
+  ['scripts/migrations/159-own-art-report.sql','789d1cead7ef09d16a6bc61ec714c8d77e669fb8cc51d37f095c429672561b7a',[
+   'public.own_art_report_source_v1(jsonb,jsonb)',
+  ]],
+ ];
+ const classifiedArtSignatures=new Set();
+ for(const[file,sourceSha,signatures]of artFacadeGroups){
+  const source=load(file);assert.equal(ownerDecisionQaHash(source),sourceSha,'OWNER_DECISION_QA_ART158159_SOURCE_CHANGED:'+file);
+  const statements=splitPostgresStatements(source).map(clean);
+  const grants=statements.filter(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes('public.own_art_'));
+  assert.deepEqual(grants,['GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'],'OWNER_DECISION_QA_ART158159_GRANT_CHANGED:'+file);
+  for(const signature of signatures){
+   assert.equal(classifiedArtSignatures.has(signature),false,'OWNER_DECISION_QA_ART158159_DUPLICATE');classifiedArtSignatures.add(signature);
+   const functionName=signature.slice(7,signature.indexOf('('));
+   const declarations=statements.filter(d=>d.startsWith('CREATE FUNCTION public.'+functionName+'('));
+   assert.equal(declarations.length,1,'OWNER_DECISION_QA_ART158159_DEFINITION_REQUIRED:'+signature);
+   const definition=fixed(declarations[0]),canonical=identity(definition);assert.equal(canonical.signature,signature);
+   const expected={...canonical,runtime:true},previous=desired.get(signature),hint=pinHints.get(signature+'|'+canonical.sha256);
+   if(previous)assert.deepEqual(previous,expected,'OWNER_DECISION_QA_ART158159_EARLY_EPOCH_CONFLICT:'+signature);
+   if(hint)assert.deepEqual(hint,expected,'OWNER_DECISION_QA_ART158159_HINT_CONFLICT:'+signature);
+   const current=latest.get(signature);assert.ok(current,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_REQUIRED:'+signature);
+   assert.equal(current,definition,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_CHANGED:'+signature);
+   assert.equal(pool.get(signature+'|'+canonical.sha256),current,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+   desired.set(signature,expected);
+  }
+ }
+ assert.equal(classifiedArtSignatures.size,5);
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));

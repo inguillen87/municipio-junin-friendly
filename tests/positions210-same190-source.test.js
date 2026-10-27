@@ -48,7 +48,7 @@ test('source-plan brand and live readback reject copied plans or source drift',(
 test('a missing ACL hint is private only under the exact canonical seed producer contract',()=>{
  const q=qa(),owner=q.foundation.foundation.foundation.owner,graph=owner.graph,p=build();
  const producer='scripts/lib/municipal-owner-adoption-decision-qa.mjs';
- assert.equal(p.sourceHashes[producer],'3818ada20ee500085c8045e683b29c9bb55a4eaa03fc2137f7d817228f72136a');
+ assert.equal(p.sourceHashes[producer],'e6d9d39d1dee48d24f01148d07997d85e51d8ca62ff5eefb4a6dc00679d99624');
  assert.ok(p.sourceEntries.includes(producer));
  const missing=p.stages.flatMap(stage=>stage.prerequisites).find(pin=>
   graph.definitions.some(d=>d.includes('FUNCTION public.'+pin.name+'('))&&
