@@ -56,8 +56,8 @@ mismatch(relation,area,detail) AS (
   OR (current_setting('server_version_num')::integer<180000 AND EXISTS(SELECT 1 FROM con WHERE con.conrelid=r.oid AND con.contype='n'))
   OR (current_setting('server_version_num')::integer>=180000 AND(
    (SELECT count(*) FROM con WHERE con.conrelid=r.oid AND con.contype='n')<>(SELECT count(*) FROM jsonb_array_elements(r.t->'columns') x WHERE (x->>2)::boolean)
-   OR (SELECT coalesce(jsonb_agg(con.keys->>0 ORDER BY con.keys->>0 COLLATE "C"),'[]') FROM con WHERE con.conrelid=r.oid AND con.contype='n' AND cardinality(con.conkey)=1)
-    IS DISTINCT FROM (SELECT coalesce(jsonb_agg(x->>0 ORDER BY x->>0 COLLATE "C"),'[]') FROM jsonb_array_elements(r.t->'columns') x WHERE (x->>2)::boolean))))
+   OR (SELECT coalesce(jsonb_agg(con.keys->>0 ORDER BY (con.keys->>0) COLLATE "C"),'[]') FROM con WHERE con.conrelid=r.oid AND con.contype='n' AND cardinality(con.conkey)=1)
+    IS DISTINCT FROM (SELECT coalesce(jsonb_agg(x->>0 ORDER BY (x->>0) COLLATE "C"),'[]') FROM jsonb_array_elements(r.t->'columns') x WHERE (x->>2)::boolean))))
  -- G. primary key and unique constraints with their exact plain btree indexes
  UNION ALL SELECT name,'primary-key',NULL FROM r WHERE oid IS NOT NULL AND NOT EXISTS(SELECT 1 FROM con JOIN ix ON ix.indexrelid=con.conindid
   WHERE con.conrelid=r.oid AND con.contype='p' AND con.keys=r.t->'pk' AND ix.keys=r.t->'pk' AND ix.indisprimary AND ix.indisunique AND ix.plain

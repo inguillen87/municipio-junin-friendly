@@ -19,7 +19,7 @@ const list=values=>'ARRAY['+values.map(q).join(',')+']::text[]';
 const names=(statements,pattern)=>statements.flatMap(s=>[...s.matchAll(pattern)].map(m=>m[1]));
 
 const LAYOUT_CONTRACT='scripts/contracts/native-family195-prerequisite-layout-pg17.json',LAYOUT_QUERY='scripts/contracts/native-family195-prerequisite-layout-query.sql';
-const LAYOUT_CONTRACT_SHA='ab0ebf2eae47181ee71dc253202beb03d49f844e45a34cd3f1bde3ec3c3eeef2',LAYOUT_QUERY_SHA='09eddc8651051b1ab0570b925a2c8b5bb16f923810201f7a969a880b937f5ae0';
+const LAYOUT_CONTRACT_SHA='ab0ebf2eae47181ee71dc253202beb03d49f844e45a34cd3f1bde3ec3c3eeef2',LAYOUT_QUERY_SHA='e074f98831c06c15fc241829a527e2f59860ace717b9375f69bc992ebe7f580c';
 const deepFreeze=(value,seen=new WeakSet())=>{if(value&&typeof value==='object'&&!seen.has(value)){seen.add(value);for(const item of Object.values(value))deepFreeze(item,seen);Object.freeze(value);}return value;};
 function prepareLayout(read,major){
  assert.equal(major,17,'FAMILY195_LAYOUT_MAJOR_NOT_CLOSED');const raw=read(LAYOUT_CONTRACT),template=read(LAYOUT_QUERY);assert.equal(hash(raw),LAYOUT_CONTRACT_SHA,'FAMILY195_LAYOUT_CONTRACT_SOURCE');assert.equal(hash(template),LAYOUT_QUERY_SHA,'FAMILY195_LAYOUT_QUERY_SOURCE');

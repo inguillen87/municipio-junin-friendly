@@ -68,3 +68,19 @@ test('wrong major/namespace/source, prior pending contract and cloned plans reje
  for(const file of [contractFile,queryFile,'scripts/lib/native-family-self-service-195-installation.mjs'])assert.throws(()=>prepare({read:f=>f===file?read(f)+'\n':read(f),sourceCommit,major:17}));
  assert.throws(()=>prepare({read,sourceCommit,major:18}),/LAYOUT_MAJOR_NOT_CLOSED/);
 });
+
+
+test('the full metadata statement collates extracted JSON text in both NOT NULL inventories',()=>{
+ // The PG18 branch is still parsed and typed by PG17 before its condition can
+ // exclude it. This source regression is not a native SQL execution proof.
+ for(const sql of [read(queryFile),plan().statements.at(-1)]){
+  assert.match(sql,/current_setting\('server_version_num'\)::integer>=180000/);
+  assert.match(sql,/jsonb_agg\(con\.keys->>0 ORDER BY \(con\.keys->>0\) COLLATE "C"\)/);
+  assert.match(sql,/jsonb_agg\(x->>0 ORDER BY \(x->>0\) COLLATE "C"\)/);
+  assert.doesNotMatch(sql,/->>\s*\d+\s+COLLATE\s+"C"/);
+  assert.equal([...sql.matchAll(/COLLATE "C"/g)].length,3,'all three metadata orderings remain explicit');
+  assert.match(sql,/jsonb_agg\(a\.attname ORDER BY a\.attname COLLATE "C"\)/,'the direct name ordering is unchanged');
+ }
+ assert.equal(plan().sourceHashes[contractFile],'ab0ebf2eae47181ee71dc253202beb03d49f844e45a34cd3f1bde3ec3c3eeef2');
+ assert.equal(JSON.parse(read(contractFile)).flatMap(table=>table.checks).length,60);
+});
