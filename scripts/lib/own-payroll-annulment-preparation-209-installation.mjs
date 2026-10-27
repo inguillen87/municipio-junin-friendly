@@ -8,7 +8,9 @@ import {ownNoveltySuccessionHeader} from './own-novelty-succession-installation.
 import {pinsCheck} from './native-leave-installation.mjs';
 import {composeOwnAnnulmentReviewV2On190,assertOwnAnnulmentReviewV2SourceBookend} from './own-payroll-annulment-review-v2-installation.mjs';
 import {ownFullCapacity190Snapshot} from './own-payroll-full-capacity-190-installation.mjs';
+import {composeOwnCloseSnapshot215Plan,projectOwnCloseSnapshot215Postflight,OWN_CLOSE_SNAPSHOT215_SOURCE_PINS} from './own-close-snapshot215-installation.mjs';
 import {performancePreservationSnapshot} from '../verify-documentary-roster-performance.mjs';
+import {monthlyQaPrivateDateSource} from './own-monthly-participation-qa.mjs';
 
 export const OWN_ANNUL_PREPARATION209_SQL='scripts/migrations/209-own-annulment-preparation-projection.sql';
 export const OWN_ANNUL_PREPARATION209_SQL_SHA256='5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56';
@@ -30,7 +32,10 @@ const roots=Object.freeze(['own_run_context_v1','own_run_lock_v1','own_run_hash_
 const CAPABILITY_SOURCE006='scripts/migrations/006-tenant-action-authority.sql';
 const CAPABILITY_METADATA184='scripts/lib/municipal-owner-adoption-authority-installation.mjs';
 const CAPABILITY_SIGNATURE='public.tenant_iam_effective_capabilities(uuid)';
+const PRIVATE_DATE_SIGNATURE='public.payroll_fixed_registry_date_v1(text,boolean)';
 const SOURCE_PINS=Object.freeze({
+ 'scripts/lib/own-monthly-participation-qa.mjs':'6de0d23d57068bb237ff803d3cb60601d3d8e2986ce1e4c8c0b50415f7d2269f',
+ 'scripts/migrations/092-payroll-fixed-novelties.sql':'47b30fc484d04f3456e8710b2da04c3cdd19b700ea910ce1ea6a4cd00fa63d49',
  [CAPABILITY_SOURCE006]:'0d00147d965884f163b614d2fc1f8f167c27dd91060b101495c08b2275563e4a',
  [CAPABILITY_METADATA184]:'10f5fb42aef999deebb9d43deb0fcc903cb6913a973a93a9ebad95f4f76eb012',
  'scripts/migrations/123-own-payroll-runs.sql':'a9fe1129e921bb7c01985b8caadb009f6086aef9866e2298398175f7f25b4b6b',
@@ -42,7 +47,7 @@ const SOURCE_PINS=Object.freeze({
  [SQL201]:'46de1308360a076eff1453f57a9e4f4d6c14ba176d73cf8531b7b0821ed35b1b',
  [SQL208]:'2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402',
  [OWN_ANNUL_PREPARATION209_SQL]:OWN_ANNUL_PREPARATION209_SQL_SHA256,
- 'scripts/lib/own-payroll-annulment-review-v2-installation.mjs':'97892778b715d53d8cbedc352b1643c45f68f2956dc9374bf70a9487a9d212df',
+ 'scripts/lib/own-payroll-annulment-review-v2-installation.mjs':'e97dfbea42b57540a13aa1a91cf1babd547b73ad0c267d1b3a53fa97daf05f8f',
  'scripts/lib/own-novelty-succession-metadata.mjs':'cb9b87bfd695a67f978dee540c3fef3bd3eb0256cfdfdac0adc998c97a56b845',
  'scripts/lib/own-novelty-succession-installation.mjs':'627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0',
  'scripts/lib/own-novelty-succession-qa.mjs':'f49b9d3c07fa92734be9f23689dc0aa425ce7b827a951bec436f10ea3f95b929',
@@ -57,10 +62,10 @@ const installedPlans=new WeakMap();
 
 function checkedSources(h,admission208,sourcePlan208){
  const expected=new Map();
- for(const map of [h.qa.sourceHashes,admission208.monthly.sourceHashes,sourcePlan208.sourceHashes,SOURCE_PINS]){
+ for(const map of [h.qa.sourceHashes,admission208.monthly.sourceHashes,sourcePlan208.sourceHashes,SOURCE_PINS,OWN_CLOSE_SNAPSHOT215_SOURCE_PINS]){
   assert.ok(map&&typeof map==='object'&&!Array.isArray(map),'ANNUL209_CANONICAL_SOURCE_HASHES_REQUIRED');
   for(const[file,digest]of Object.entries(map)){
-   assert.match(file,/^(?:scripts|tests|assets|lib|api)\/[A-Za-z0-9_./-]+$/);assert.ok(!file.split('/').includes('..'));assert.match(digest,HASH);
+   assert.ok(/^(?:scripts|tests|assets|lib|api)\/[A-Za-z0-9_./-]+$/.test(file)||['package.json','package-lock.json','api/internal-municipal-owner-salary.js','src/islands/NativeSalaryCatalog.jsx','.vercelignore','api/internal-municipal-owner-program.js'].includes(file),'ANNUL209_SOURCE_PATH_REQUIRED');assert.ok(!file.split('/').includes('..'));assert.match(digest,HASH);
    if(expected.has(file))assert.equal(expected.get(file),digest,'ANNUL209_SOURCE_PIN_CONFLICT:'+file);expected.set(file,digest);
   }
  }
@@ -161,10 +166,349 @@ function tablePinsCheck(pins,code){
  THEN RAISE EXCEPTION '${code}' USING DETAIL=x->>'signature';END IF;
  END LOOP;END $annul209_table_metadata$`;
 }
+// PRIVATE TEXT PROPOSAL ONLY. No imports, construction, parsing or execution.
+// Intended splice into own-payroll-annulment-preparation-209-installation.mjs.
+// Uses that module's existing assert/hash/lf/body/pinOf/ownNoveltySuccessionHeader.
+// Inventory only: real source walk registry525/walk49 identifies eleven scalar
+// identities lacking effective hints. All expectations below are independently
+// derived from complete SQL sources byte-equal to Git66, never from parser.runtime
+// or a live catalogue. tenant_iam_effective_capabilities keeps its existing TABLE
+// resolver. The separate private date092 producer is NOT part of this clause.
+// No scope112/exact122 additions: those two were absent from the missing set.
+// Prefix-DO literals are evidence for FOUR CLOSED signatures, not classification
+// by glob.099 has one explicit REVOKE and zero GRANT statements; none is invented.
+
+const OWN_ANNUL209_PRIVATE_SCALAR_RULES=Object.freeze([
+ {
+  "name": "own_run_immutable_v1",
+  "signature": "public.own_run_immutable_v1()",
+  "file": "scripts/migrations/123-own-payroll-runs.sql",
+  "sourceSha256": "a9fe1129e921bb7c01985b8caadb009f6086aef9866e2298398175f7f25b4b6b",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   134,
+   134
+  ],
+  "revokeKind": "closed-source-family-do",
+  "revokeStatement": "DO $$ DECLARE fn record;BEGIN FOR fn IN SELECT oid::regprocedure signature FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_run_%' LOOP EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,municontrol_actions_runtime_app',fn.signature);END LOOP;END $$;",
+  "grantLines": [
+   135,
+   135
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.own_run_bootstrap_v1(jsonb),public.own_run_attempt_v1(jsonb,uuid),public.own_run_capture_v1(jsonb,jsonb,uuid,text),public.own_run_complete_v1(jsonb,uuid,jsonb,jsonb,text) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "own_liquidation_immutable_v1",
+  "signature": "public.own_liquidation_immutable_v1()",
+  "file": "scripts/migrations/124-own-payroll-liquidation-decisions.sql",
+  "sourceSha256": "03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   100,
+   100
+  ],
+  "revokeKind": "closed-source-family-do",
+  "revokeStatement": "DO $$ DECLARE fn record;BEGIN FOR fn IN SELECT oid::regprocedure signature FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_liquidation_%' LOOP EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,municontrol_actions_runtime_app',fn.signature);END LOOP;END $$;",
+  "grantLines": [
+   101,
+   101
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.own_liquidation_bootstrap_v1(jsonb),public.own_liquidation_detail_v1(jsonb,uuid),public.own_liquidation_attempt_v1(jsonb,uuid),public.own_liquidation_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "own_close_immutable_v1",
+  "signature": "public.own_close_immutable_v1()",
+  "file": "scripts/migrations/125-own-payroll-close.sql",
+  "sourceSha256": "443127dd55b9be5f37da47af303fcdd599b4d5dc0aad0a319a18253f8f139af5",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   115,
+   115
+  ],
+  "revokeKind": "closed-source-family-do",
+  "revokeStatement": "DO $$ DECLARE fn record;BEGIN FOR fn IN SELECT oid::regprocedure signature FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_close_%' LOOP EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,municontrol_actions_runtime_app',fn.signature);END LOOP;END $$;",
+  "grantLines": [
+   116,
+   116
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.own_close_detail_v1(jsonb,text,text),public.own_close_attempt_v1(jsonb,uuid),public.own_close_group_v1(jsonb,uuid),public.own_close_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "own_annul_immutable_v1",
+  "signature": "public.own_annul_immutable_v1()",
+  "file": "scripts/migrations/146-own-consolidated-annulment.sql",
+  "sourceSha256": "8337df26dc3c22fe8c156e19d7511db6c537f08b219633f6add981c774a48fe6",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   78,
+   78
+  ],
+  "revokeKind": "closed-source-family-do",
+  "revokeStatement": "DO $$ DECLARE fn record;BEGIN FOR fn IN SELECT oid::regprocedure signature FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'own_annul_%' LOOP EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,municontrol_actions_runtime_app',fn.signature);END LOOP;END $$;",
+  "grantLines": [
+   79,
+   79
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.own_annul_detail_v1(jsonb,text,text),public.own_annul_attempt_v1(jsonb,uuid),public.own_annul_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "native_salary_context_v1",
+  "signature": "public.native_salary_context_v1(jsonb)",
+  "file": "scripts/migrations/112-native-salary-definitions.sql",
+  "sourceSha256": "da72986b8eb8b834f8f11f0cdfd793708eba90c96de59c399ff063fe31a95cd3",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   170,
+   170
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.native_salary_immutable_v1(),public.native_salary_serialized_v1(jsonb),public.native_salary_row_key_v1(jsonb),public.native_salary_items_v1(jsonb),public.native_salary_context_v1(jsonb),public.native_salary_scope_v1(jsonb),public.native_salary_lock_v1(jsonb),public.native_salary_catalog_v1(jsonb),public.native_salary_proposal_v1(jsonb,public.native_salary_event),public.native_salary_bootstrap_v1(jsonb),public.native_salary_attempt_v1(jsonb,uuid),public.native_salary_command_v1(jsonb,jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   171,
+   171
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.native_salary_bootstrap_v1(jsonb),public.native_salary_attempt_v1(jsonb,uuid),public.native_salary_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "payroll_fixed_registry_subject_by_contract_v1",
+  "signature": "public.payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)",
+  "file": "scripts/migrations/093-native-fixed-novelties.sql",
+  "sourceSha256": "b77d0d467ae1acac3e0641494ba1c7af316d725a1a58a5f541f3912482b1ad6a",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   177,
+   178
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean),public.payroll_fixed_registry_native_dates_v1(jsonb,uuid,jsonb),\n public.payroll_fixed_registry_employee_by_contract_v1(jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   179,
+   179
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.payroll_fixed_registry_employee_by_contract_v1(jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "payroll_fixed_registry_subject_v1",
+  "signature": "public.payroll_fixed_registry_subject_v1(jsonb,text,boolean)",
+  "file": "scripts/migrations/092-payroll-fixed-novelties.sql",
+  "sourceSha256": "47b30fc484d04f3456e8710b2da04c3cdd19b700ea910ce1ea6a4cd00fa63d49",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   386,
+   393
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.payroll_fixed_registry_immutable_v1(),public.payroll_fixed_registry_context_v1(jsonb,text),public.payroll_fixed_registry_lock_v1(jsonb),public.payroll_fixed_registry_capacity_v1(),\n public.payroll_fixed_registry_effects_v1(),public.payroll_fixed_registry_date_v1(text,boolean),public.payroll_fixed_registry_text_v1(text,integer,integer),public.payroll_fixed_registry_subject_v1(jsonb,text,boolean),\n public.payroll_fixed_registry_identity_current_v1(jsonb,public.payroll_fixed_novelty),public.payroll_fixed_registry_proposal_json_v1(jsonb,public.payroll_fixed_novelty_event,boolean),\n public.payroll_fixed_registry_record_json_v1(jsonb,public.payroll_fixed_novelty),public.payroll_fixed_registry_validate_values_v1(jsonb),public.payroll_fixed_registry_receipt_v1(public.payroll_fixed_novelty_event,boolean),\n public.payroll_fixed_registry_event_identity_v1(jsonb,public.payroll_fixed_novelty_event),public.payroll_fixed_registry_bootstrap_v1(jsonb),public.payroll_fixed_registry_employee_v1(jsonb,text),\n public.payroll_fixed_registry_list_v1(jsonb,date),public.payroll_fixed_registry_detail_v1(jsonb,uuid),public.payroll_fixed_registry_attempt_v1(jsonb,text,uuid),\n public.payroll_fixed_registry_propose_v1(jsonb,jsonb,uuid),public.payroll_fixed_registry_review_v1(jsonb,jsonb,uuid),public.payroll_fixed_registry_export_v1(jsonb,date,text)\n FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   394,
+   396
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.payroll_fixed_registry_bootstrap_v1(jsonb),public.payroll_fixed_registry_employee_v1(jsonb,text),public.payroll_fixed_registry_list_v1(jsonb,date),\n public.payroll_fixed_registry_detail_v1(jsonb,uuid),public.payroll_fixed_registry_attempt_v1(jsonb,text,uuid),public.payroll_fixed_registry_propose_v1(jsonb,jsonb,uuid),\n public.payroll_fixed_registry_review_v1(jsonb,jsonb,uuid),public.payroll_fixed_registry_export_v1(jsonb,date,text) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "native_employment_change_lock_v1",
+  "signature": "public.native_employment_change_lock_v1(jsonb,uuid)",
+  "file": "scripts/migrations/104-native-employment-changes.sql",
+  "sourceSha256": "0f3e408bb12ef64c0d197826ce4331b263987c6d7f36719e528648f4b750de4a",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   562,
+   582
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.native_employment_change_immutable_v1(),\n public.native_employment_change_context_v1(jsonb,text),\n public.native_employment_change_lock_v1(jsonb,uuid),\n public.native_employment_change_capacity_v1(integer),\n public.native_employment_change_subject_v1(jsonb,uuid),\n public.native_employment_change_scope_v1(jsonb,jsonb),\n public.native_employment_change_version_v1(jsonb,jsonb,integer),\n public.native_employment_change_values_v1(jsonb),\n public.native_employment_change_display_v1(jsonb),\n public.native_employment_change_after_v1(jsonb,jsonb,jsonb),\n public.native_employment_change_state_v1(jsonb,uuid,jsonb),\n public.native_employment_change_can_review_v1(jsonb,public.native_employment_change_proposal),\n public.native_employment_change_summary_v1(jsonb,public.native_employment_change_proposal),\n public.native_employment_change_replay_v1(jsonb,uuid,uuid,text,text),\n public.native_employment_change_bootstrap_v1(jsonb,uuid),\n public.native_employment_change_proposal_v1(jsonb,uuid,uuid),\n public.native_employment_change_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_change_review_v1(jsonb,jsonb,uuid),\n public.native_employment_change_attempt_v1(jsonb,uuid,uuid),\n public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract),\n public.native_employment_change_application_guard_v1() FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   583,
+   587
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.native_employment_change_bootstrap_v1(jsonb,uuid),\n public.native_employment_change_proposal_v1(jsonb,uuid,uuid),\n public.native_employment_change_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_change_review_v1(jsonb,jsonb,uuid),\n public.native_employment_change_attempt_v1(jsonb,uuid,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "native_employment_change_subject_v1",
+  "signature": "public.native_employment_change_subject_v1(jsonb,uuid)",
+  "file": "scripts/migrations/104-native-employment-changes.sql",
+  "sourceSha256": "0f3e408bb12ef64c0d197826ce4331b263987c6d7f36719e528648f4b750de4a",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   562,
+   582
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.native_employment_change_immutable_v1(),\n public.native_employment_change_context_v1(jsonb,text),\n public.native_employment_change_lock_v1(jsonb,uuid),\n public.native_employment_change_capacity_v1(integer),\n public.native_employment_change_subject_v1(jsonb,uuid),\n public.native_employment_change_scope_v1(jsonb,jsonb),\n public.native_employment_change_version_v1(jsonb,jsonb,integer),\n public.native_employment_change_values_v1(jsonb),\n public.native_employment_change_display_v1(jsonb),\n public.native_employment_change_after_v1(jsonb,jsonb,jsonb),\n public.native_employment_change_state_v1(jsonb,uuid,jsonb),\n public.native_employment_change_can_review_v1(jsonb,public.native_employment_change_proposal),\n public.native_employment_change_summary_v1(jsonb,public.native_employment_change_proposal),\n public.native_employment_change_replay_v1(jsonb,uuid,uuid,text,text),\n public.native_employment_change_bootstrap_v1(jsonb,uuid),\n public.native_employment_change_proposal_v1(jsonb,uuid,uuid),\n public.native_employment_change_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_change_review_v1(jsonb,jsonb,uuid),\n public.native_employment_change_attempt_v1(jsonb,uuid,uuid),\n public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract),\n public.native_employment_change_application_guard_v1() FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   583,
+   587
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.native_employment_change_bootstrap_v1(jsonb,uuid),\n public.native_employment_change_proposal_v1(jsonb,uuid,uuid),\n public.native_employment_change_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_change_review_v1(jsonb,jsonb,uuid),\n public.native_employment_change_attempt_v1(jsonb,uuid,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "native_employment_catalog_lock_v1",
+  "signature": "public.native_employment_catalog_lock_v1(jsonb)",
+  "file": "scripts/migrations/103-native-employment-catalog.sql",
+  "sourceSha256": "759bde35236dc0add938e55664f0addb3c301f79e4ecfdf0771300dbd9795cd6",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   364,
+   377
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.native_employment_catalog_immutable_v1(),\n public.native_employment_catalog_context_v1(jsonb,text),\n public.native_employment_catalog_lock_v1(jsonb),\n public.native_employment_catalog_scope_v1(jsonb),\n public.native_employment_catalog_items_v1(jsonb),\n public.native_employment_catalog_capacity_v1(integer),\n public.native_employment_catalog_replay_v1(jsonb,uuid,text,text),\n public.native_employment_catalog_can_review_v1(jsonb,public.native_employment_catalog_proposal),\n public.native_employment_catalog_bootstrap_v1(jsonb),\n public.native_employment_catalog_proposal_v1(jsonb,uuid),\n public.native_employment_catalog_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_catalog_review_v1(jsonb,jsonb,uuid),\n public.native_employment_catalog_attempt_v1(jsonb,uuid),\n public.native_employment_catalog_grh_v1(jsonb) FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [
+   378,
+   382
+  ],
+  "grantStatements": [
+   "GRANT EXECUTE ON FUNCTION public.native_employment_catalog_bootstrap_v1(jsonb),\n public.native_employment_catalog_proposal_v1(jsonb,uuid),\n public.native_employment_catalog_propose_v1(jsonb,jsonb,uuid),\n public.native_employment_catalog_review_v1(jsonb,jsonb,uuid),\n public.native_employment_catalog_attempt_v1(jsonb,uuid) TO municontrol_actions_runtime_app;"
+  ]
+ },
+ {
+  "name": "grh_curated_source_read_lock_v1",
+  "signature": "public.grh_curated_source_read_lock_v1()",
+  "file": "scripts/migrations/099-grh-curated-consumers.sql",
+  "sourceSha256": "208ae997983d506d2761c6db6eaf272f367dec1483a9b4cd4d2140d972d1a95d",
+  "sourcePinOrigin": "complete unchanged Git 66b20395e81192a980c882633f73abd2740d60d1 SQL source; not catalogue or observed ACL",
+  "revokeLines": [
+   34,
+   34
+  ],
+  "revokeKind": "static-list",
+  "revokeStatement": "REVOKE ALL ON FUNCTION public.grh_curated_source_read_lock_v1() FROM PUBLIC,municontrol_actions_runtime_app;",
+  "grantLines": [],
+  "grantStatements": []
+ }
+]);
+
+function mergeOwnAnnul209PrivateScalarHints(sources,registry,hints){
+ assert.ok(sources?.texts instanceof Map&&sources.sourceHashes&&registry instanceof Map&&hints instanceof Map,'ANNUL209_PRIVATE_SCALAR_INPUT_REQUIRED');
+ assert.equal(OWN_ANNUL209_PRIVATE_SCALAR_RULES.length,11,'ANNUL209_PRIVATE_SCALAR_RULE_COUNT_CHANGED');
+ const descriptors=new Map(),provenance=new Map();
+ const headerOf=definition=>{
+  // graph190.fixed performs precisely this CREATE OR REPLACE -> CREATE rewrite.
+  // It changes no declared attributes. Every other normalized header byte stays
+  // equal, including argument names, boolean defaults, search_path and timezone.
+  const normalized=ownNoveltySuccessionHeader(definition).replace(/^CREATE OR REPLACE FUNCTION /,'CREATE FUNCTION '),at=normalized.search(/\bAS\s+\$/);
+  assert.ok(at>0,'ANNUL209_PRIVATE_SCALAR_HEADER_REQUIRED');return normalized.slice(0,at).trim();
+ };
+ for(const rule of OWN_ANNUL209_PRIVATE_SCALAR_RULES){
+  const source=sources.texts.get(rule.file);
+  assert.equal(typeof source,'string','ANNUL209_PRIVATE_SCALAR_SOURCE_UNSEALED:'+rule.file);
+  assert.equal(source,lf(source),'ANNUL209_PRIVATE_SCALAR_SOURCE_LF_REQUIRED:'+rule.file);
+  assert.equal(hash(source),rule.sourceSha256,'ANNUL209_PRIVATE_SCALAR_SOURCE_CHANGED:'+rule.file);
+  assert.equal(sources.sourceHashes[rule.file],rule.sourceSha256,'ANNUL209_PRIVATE_SCALAR_SOURCE_PIN_CHANGED:'+rule.file);
+  assert.equal(source.split(rule.revokeStatement).length,2,'ANNUL209_PRIVATE_SCALAR_REVOKE_CHANGED:'+rule.signature);
+  assert.ok(['static-list','closed-source-family-do'].includes(rule.revokeKind),'ANNUL209_PRIVATE_SCALAR_REVOKE_KIND_CHANGED');
+  if(rule.revokeKind==='static-list')assert.ok(rule.revokeStatement.includes(rule.signature),'ANNUL209_PRIVATE_SCALAR_REVOKE_IDENTITY_CHANGED:'+rule.signature);
+  // Whole-source seal + complete REVOKE and the complete GRANT statement set
+  // proves source privacy. The eleven CLOSED signatures are absent from these
+  // final runtime GRANTs.099 has an explicitly empty GRANT set by pinned source.
+  const sourceGrants=[...source.matchAll(/\bGRANT EXECUTE ON FUNCTION [\s\S]*?;/g)].map(match=>match[0]);
+  assert.deepEqual(sourceGrants,rule.grantStatements,'ANNUL209_PRIVATE_SCALAR_GRANT_SET_CHANGED:'+rule.signature);
+  for(const statement of rule.grantStatements){
+   assert.equal(source.split(statement).length,2,'ANNUL209_PRIVATE_SCALAR_GRANT_CHANGED:'+rule.signature);
+   assert.ok(source.indexOf(rule.revokeStatement)<source.indexOf(statement),'ANNUL209_PRIVATE_SCALAR_ACL_ORDER_CHANGED:'+rule.signature);
+   assert.ok(!statement.includes(rule.signature),'ANNUL209_PRIVATE_SCALAR_RUNTIME_GRANT_CONTRADICTION:'+rule.signature);
+  }
+  // Extract only this exact name from its exact pinned source; no arbitrary
+  // SQL family, guessed identity or unrecognized signature receives a hint.
+  const sourceDefs=[...source.matchAll(new RegExp('\\bCREATE(?: OR REPLACE)? FUNCTION public\\.'+rule.name+'\\(([\\s\\S]*?)\\bAS\\s+(\\$[\\w]*\\$)([\\s\\S]*?)\\2','g'))].map(match=>match[0]);
+  assert.equal(sourceDefs.length,1,'ANNUL209_PRIVATE_SCALAR_SOURCE_DEFINITION_UNRESOLVED:'+rule.signature);
+  const canonical=sourceDefs[0],parsed=pinOf(canonical);
+  assert.equal(parsed.name,rule.name,'ANNUL209_PRIVATE_SCALAR_SOURCE_NAME_CHANGED:'+rule.signature);
+  assert.equal(parsed.signature,rule.signature,'ANNUL209_PRIVATE_SCALAR_SOURCE_SIGNATURE_CHANGED:'+rule.signature);
+  assert.ok(source.indexOf(canonical)<source.indexOf(rule.revokeStatement),'ANNUL209_PRIVATE_SCALAR_DEFINITION_ACL_ORDER_CHANGED:'+rule.signature);
+  // pinOf contributes source header/body metadata, not ACL authority. false is
+  // assigned only after the exact source REVOKE/GRANT proof above has passed.
+  const descriptor={...parsed,runtime:false},key=descriptor.signature+'|'+descriptor.sha256;
+  const entry=registry.get(rule.signature);
+  assert.ok(entry&&typeof entry.definition==='string','ANNUL209_PRIVATE_SCALAR_GRAPH_REQUIRED:'+rule.signature);
+  const selected=pinOf(entry.definition),selectedIdentity=entry.rawPin??entry.pin;
+  assert.ok(selectedIdentity,'ANNUL209_PRIVATE_SCALAR_GRAPH_IDENTITY_REQUIRED:'+rule.signature);
+  assert.deepEqual({name:selectedIdentity.name,signature:selectedIdentity.signature,sha256:selectedIdentity.sha256},{name:descriptor.name,signature:descriptor.signature,sha256:descriptor.sha256},'ANNUL209_PRIVATE_SCALAR_SELECTED_IDENTITY_CHANGED:'+rule.signature);
+  assert.equal(headerOf(entry.definition),headerOf(canonical),'ANNUL209_PRIVATE_SCALAR_SELECTED_HEADER_CHANGED:'+rule.signature);
+  assert.equal(body(entry.definition),body(canonical),'ANNUL209_PRIVATE_SCALAR_SELECTED_BODY_CHANGED:'+rule.signature);
+  assert.deepEqual({...selected,runtime:false},descriptor,'ANNUL209_PRIVATE_SCALAR_SELECTED_METADATA_CHANGED:'+rule.signature);
+  if(hints.has(key))assert.deepEqual(hints.get(key),descriptor,'ANNUL209_PRIVATE_SCALAR_HINT_CONFLICT:'+key);
+  assert.ok(!descriptors.has(key),'ANNUL209_PRIVATE_SCALAR_DUPLICATE:'+key);
+  hints.set(key,descriptor);descriptors.set(key,descriptor);
+  provenance.set(key,{definitionSource:rule.file,metadataSource:rule.file,sourceSha256:rule.sourceSha256,sourceDefinitionSha256:hash(canonical),sourceBodySha256:descriptor.sha256,aclProvenance:'complete pinned SQL REVOKE and complete final function-GRANT set',revokeStatement:rule.revokeStatement,grantStatements:rule.grantStatements,runtime:false});
+ }
+ assert.equal(descriptors.size,11,'ANNUL209_PRIVATE_SCALAR_DESCRIPTOR_COUNT_CHANGED');
+ return{descriptors,provenance};
+}
+
+//092's DEFAULTtrue is already admitted by QA190's canonical producer.
+// Reuse that exact source record; this resolver never emits/recreates a function
+// or passes its definition through the scalar parser that cannot represent true.
+function indexOwnAnnul209PrivateDate(h,sources,registry,hints){
+ const canonical=monthlyQaPrivateDateSource(file=>{
+  assert.equal(file,'scripts/migrations/092-payroll-fixed-novelties.sql','ANNUL209_PRIVATE_DATE_SOURCE_FILE_CHANGED');
+  const source=sources.texts.get(file);assert.equal(typeof source,'string','ANNUL209_PRIVATE_DATE_SOURCE_UNSEALED');return source;
+ });
+ exact(h.qa.privateDate,['file','sourceSha256','definition','pin'],'ANNUL209_PRIVATE_DATE_QA_SOURCE_REQUIRED');
+ assert.deepEqual(h.qa.privateDate,canonical,'ANNUL209_PRIVATE_DATE_QA_SOURCE_CHANGED');
+ assert.equal(sources.sourceHashes[canonical.file],canonical.sourceSha256,'ANNUL209_PRIVATE_DATE_SOURCE_PIN_CHANGED');
+ assert.equal(canonical.pin.signature,PRIVATE_DATE_SIGNATURE);assert.equal(canonical.pin.defaults,'true');assert.equal(canonical.pin.runtime,false);
+ const key=canonical.pin.signature+'|'+canonical.pin.sha256;
+ assert.equal(registry.has(canonical.pin.signature),false,'ANNUL209_PRIVATE_DATE_GRAPH_DUPLICATE');
+ if(hints.has(key))assert.deepEqual(hints.get(key),canonical.pin,'ANNUL209_PRIVATE_DATE_HINT_CONFLICT');
+ hints.set(key,canonical.pin);
+ registry.set(canonical.pin.signature,{definition:canonical.definition,origin:'privateDate190',normalize:h.qa.normalized,pin:canonical.pin,privateDate:true});
+ return canonical;
+}
+function localOwnAnnul209PrivateDatePin(definition,normalize,schema,pin){
+ assert.equal(pin.signature,PRIVATE_DATE_SIGNATURE);assert.equal(pin.defaults,'true');assert.equal(pin.runtime,false);
+ const local=normalize(definition),at=local.search(/\bAS\s+\$/),sourceAt=definition.search(/\bAS\s+\$/);
+ assert.ok(at>0&&sourceAt>0,'ANNUL209_PRIVATE_DATE_HEADER_REQUIRED');
+ assert.equal(local.slice(0,at),normalize(definition.slice(0,sourceAt)),'ANNUL209_PRIVATE_DATE_LOCAL_HEADER_CHANGED');
+ const header=local.slice(0,at).replace(/\s+/g,' ').trim();
+ const match=/^CREATE OR REPLACE FUNCTION (?<schema>[a-z_][a-z0-9_]*)\.payroll_fixed_registry_date_v1\(value text,required boolean DEFAULT true\) RETURNS date LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path\s*=\s*(?<path>[a-z_][a-z0-9_]*(?:\s*,\s*[a-z_][a-z0-9_]*)*)$/.exec(header);
+ assert.ok(match,'ANNUL209_PRIVATE_DATE_DEFAULT_TRUE_HEADER_CHANGED');assert.equal(match.groups.schema,schema,'ANNUL209_PRIVATE_DATE_LOCAL_NAMESPACE_CHANGED');
+ return{...pin,signature:schema+'.payroll_fixed_registry_date_v1(text,boolean)',config:['search_path='+match.groups.path.split(',').map(value=>value.trim()).join(', ')],sha256:hash(body(local))};
+}
+
 function sourceClosure(h,admission208,sourcePlan208,sources,ownDefinitions){
  const monthly=admission208.monthly,graph=h.qa.foundation?.foundation?.foundation?.owner?.graph;
  assert.ok(graph?.pool instanceof Map&&graph.pinHints instanceof Map&&Array.isArray(graph.definitions),'ANNUL209_SAME190_SOURCE_GRAPH_REQUIRED');
- const registry=new Map(),hints=new Map(graph.pinHints);
+ const registry=new Map(),hints=new Map(graph.pinHints),authorityHints=new Map();
+ //184 already derives these descriptors from pinned source. The graph fixture
+ //visits operational/period but not authority; reuse the exact sealed184 pins
+ //locally rather than guessing a missing runtime ACL or changing the seed.
+ const authority=graph.batch?.authority;
+ assert.equal(authority?.version,'municipal-owner-adoption-authority-installation.v1','ANNUL209_AUTHORITY184_SOURCE_REQUIRED');
+ assert.equal(authority.sourceCommit,h.sourceCommit,'ANNUL209_AUTHORITY184_SOURCE_COMMIT_CHANGED');
+ assert.equal(authority.operationalPairBaseline,h.qa.operationalPairBaseline,'ANNUL209_AUTHORITY184_BASELINE_CHANGED');
+ assert.ok(authority.sourceHashes&&typeof authority.sourceHashes==='object'&&!Array.isArray(authority.sourceHashes),'ANNUL209_AUTHORITY184_SOURCE_HASHES_REQUIRED');
+ for(const[file,digest]of Object.entries(authority.sourceHashes)){
+  assert.match(digest,HASH);const source=sources.texts.get(file);
+  assert.equal(typeof source,'string','ANNUL209_AUTHORITY184_SOURCE_UNSEALED:'+file);
+  assert.equal(hash(source),digest,'ANNUL209_AUTHORITY184_SOURCE_CHANGED:'+file);
+ }
+ assert.ok(Array.isArray(authority.prerequisitePins)&&authority.prerequisitePins.length===6&&Array.isArray(authority.supportPins)&&authority.supportPins.length===2,'ANNUL209_AUTHORITY184_PIN_SET_CHANGED');
+ for(const descriptor of [...authority.prerequisitePins,...authority.supportPins]){
+  assert.ok(descriptor&&typeof descriptor.signature==='string'&&typeof descriptor.runtime==='boolean','ANNUL209_AUTHORITY184_PIN_REQUIRED');
+  assert.match(descriptor.sha256,HASH);const key=descriptor.signature+'|'+descriptor.sha256;
+  if(authorityHints.has(key))assert.deepEqual(authorityHints.get(key),descriptor,'ANNUL209_AUTHORITY184_PIN_CONFLICT:'+key);
+  if(hints.has(key))assert.deepEqual(hints.get(key),descriptor,'ANNUL209_CANONICAL_ACL_HINT_CONFLICT:'+key);
+  authorityHints.set(key,descriptor);hints.set(key,descriptor);
+ }
  const add=(definition,origin,normalize,expectedSource,expectedLocal)=>{
   let pin;try{pin=pinOf(definition);}catch{throw Error('ANNUL209_CANONICAL_HEADER_METADATA_UNRESOLVED:'+origin+':'+definition.slice(0,160));}
   const hint=expectedSource??hints.get(pin.signature+'|'+pin.sha256);
@@ -199,6 +543,8 @@ function sourceClosure(h,admission208,sourcePlan208,sources,ownDefinitions){
   const pin=pinOf(definition),expected=sourcePlan208.ownPins.find(value=>value.name===pin.name);assert.ok(expected,'ANNUL209_CANONICAL208_PIN_REQUIRED:'+pin.name);
   add(definition,'review208',h.qa.normalized,{...pin,runtime:expected.runtime},expected);
  }
+ const privateScalarHints=mergeOwnAnnul209PrivateScalarHints(sources,registry,hints);
+ const privateDateSource=indexOwnAnnul209PrivateDate(h,sources,registry,hints);
  const names=new Map();for(const[signature,value]of registry){const name=(value.pin??value.rawPin).name;const list=names.get(name)??[];list.push(signature);names.set(name,list);}
  const ownNames=new Set(ownSignatures.map(([name])=>name)),pending=[...roots],visited=new Set(),pins=[],provenance=[];
  // Public pgcrypto.digest remains an explicit external primitive of canonical
@@ -222,10 +568,14 @@ function sourceClosure(h,admission208,sourcePlan208,sources,ownDefinitions){
    else{
     let pin;try{pin=pinOf(entry.definition);}catch{throw Error('ANNUL209_CANONICAL_HEADER_METADATA_UNRESOLVED:'+entry.rawPin.signature);}
     assert.deepEqual({name:pin.name,signature:pin.signature,sha256:pin.sha256},entry.rawPin,'ANNUL209_GRAPH_PIN_IDENTITY_CHANGED:'+entry.rawPin.signature);
-    const hint=hints.get(pin.signature+'|'+pin.sha256);assert.equal(typeof hint?.runtime,'boolean','ANNUL209_CANONICAL_ACL_UNRESOLVED:'+pin.signature);entry.pin={...pin,runtime:hint.runtime};
+    const key=pin.signature+'|'+pin.sha256,hint=hints.get(key);assert.equal(typeof hint?.runtime,'boolean','ANNUL209_CANONICAL_ACL_UNRESOLVED:'+pin.signature);
+    if(authorityHints.has(key))assert.deepEqual({...pin,runtime:hint.runtime},authorityHints.get(key),'ANNUL209_AUTHORITY184_SOURCE_METADATA_CHANGED:'+pin.signature);
+    if(privateScalarHints.descriptors.has(key))assert.deepEqual({...pin,runtime:hint.runtime},privateScalarHints.descriptors.get(key),'ANNUL209_PRIVATE_SCALAR_METADATA_CHANGED:'+pin.signature);
+    entry.pin={...pin,runtime:hint.runtime};
    }
   }
-  const local=entry.pin.kind==='table'?localCapabilityPin(entry.definition,entry.normalize,h.qa.schema,entry.pin):localPin(entry.definition,entry.normalize,h.qa.schema,entry.pin.runtime);
+  const local=entry.privateDate?localOwnAnnul209PrivateDatePin(entry.definition,entry.normalize,h.qa.schema,entry.pin):entry.pin.kind==='table'?localCapabilityPin(entry.definition,entry.normalize,h.qa.schema,entry.pin):localPin(entry.definition,entry.normalize,h.qa.schema,entry.pin.runtime);
+  if(entry.privateDate)assert.equal(h.qa.hashes[entry.pin.sha256],local.sha256,'ANNUL209_PRIVATE_DATE_CANONICAL_RELOCATION_CHANGED');
   if(entry.expectedLocal?.record){const record=entry.expectedLocal.record;assert.equal(record.signature,local.signature);assert.equal(record.bodySha256,local.sha256);assert.deepEqual(record.argNames,local.argNames);assert.deepEqual(record.config,local.config);assert.equal(record.runtime,local.runtime);assert.equal(record.volatility,local.volatility);}
   else if(entry.expectedLocal)assert.deepEqual(local,entry.expectedLocal,'ANNUL209_CANONICAL_LOCAL_PIN_CHANGED:'+name);
   const text=body(entry.definition);
@@ -233,7 +583,7 @@ function sourceClosure(h,admission208,sourcePlan208,sources,ownDefinitions){
   // literal/dependency contract must be reviewed explicitly before construction.
   assert.ok(!/\bEXECUTE\s+(?!FUNCTION\b)/i.test(text),'ANNUL209_DYNAMIC_SQL_CLOSURE_UNRESOLVED:'+name);
   pending.push(...dependencies(text));
-  pins.push(local);provenance.push({name,signature:entry.pin.signature,origin:entry.origin,sourceBodySha256:entry.pin.sha256,sourceDefinitionSha256:hash(entry.definition),localBodySha256:local.sha256,localDefinitionSha256:hash(entry.normalize(entry.definition)),runtime:local.runtime,...(entry.pin.kind==='table'?{metadataKind:'table',publicDescriptor:entry.pin,localDescriptor:local,metadataSource:CAPABILITY_METADATA184,definitionSource:CAPABILITY_SOURCE006,aclProvenance:'source184 owner-only capability checker and canonical190 graph ACL seed'}:{})});
+  pins.push(local);provenance.push({name,signature:entry.pin.signature,origin:entry.origin,sourceBodySha256:entry.pin.sha256,sourceDefinitionSha256:hash(entry.definition),localBodySha256:local.sha256,localDefinitionSha256:hash(entry.normalize(entry.definition)),runtime:local.runtime,...(privateScalarHints.provenance.get(entry.pin.signature+'|'+entry.pin.sha256)??{}),...(entry.privateDate?{metadataKind:'private-date-default-true',definitionSource:privateDateSource.file,metadataSource:'scripts/lib/own-monthly-participation-qa.mjs',sourceSha256:privateDateSource.sourceSha256,defaultsPreserved:'true',aclProvenance:'canonical QA190 privateDate producer verifies092 whole source and final literal REVOKE'}:{}),...(entry.pin.kind==='table'?{metadataKind:'table',publicDescriptor:entry.pin,localDescriptor:local,metadataSource:CAPABILITY_METADATA184,definitionSource:CAPABILITY_SOURCE006,aclProvenance:'source184 owner-only capability checker and canonical190 graph ACL seed'}:{})});
  }
  const ordered=pins.map((pin,index)=>({pin,provenance:provenance[index]})).sort((a,b)=>a.pin.signature<b.pin.signature?-1:a.pin.signature>b.pin.signature?1:0);
  return{pins:ordered.map(value=>value.pin),provenance:ordered.map(value=>value.provenance),externalPrimitives:['public.digest from the existing canonical190 pgcrypto environment'],unresolvedMetadata:[],observedMetadataUsed:false};
@@ -305,12 +655,15 @@ export function composeOwnAnnulPreparation209On190({h,db,admission208,installati
  const expected208PriorStateSha256=installation208.proofs?.installed?.priorStateSha256;assert.match(expected208PriorStateSha256,HASH);
  const sourcePlan208=composeOwnAnnulmentReviewV2On190({h,db,admission:admission208});
  assert.equal(sourcePlan208.postflight.length,4,'ANNUL209_CANONICAL208_POSTFLIGHT_SHAPE_CHANGED');
+ // Keep the historical201 admission intact; all later209 guards require its exact215 successor.
+ const snapshot215=composeOwnCloseSnapshot215Plan({foundation:h.qa,major:h.major,sourceCommit:h.sourceCommit,read:h.read});
+ const capacityPostflight=projectOwnCloseSnapshot215Postflight(h,snapshot215,admission208.capacityPlan.postflight);
  const sources=checkedSources(h,admission208,sourcePlan208),source=sources.texts.get(OWN_ANNUL_PREPARATION209_SQL),definitions=embeddedDefinitions(source,'definition_209',3);
  const ownPins=definitions.map((definition,index)=>{const[name,args,runtime]=ownSignatures[index],pin=pinOf(definition);assert.equal(pin.name,name);assert.equal(pin.signature,'public.'+name+'('+args+')');assert.deepEqual(pin.argNames,index===0?['p','source_id','maximum_bytes']:['p','source_id']);assert.equal(pin.resultType,'jsonb');assert.deepEqual(pin.config,['search_path=pg_catalog, public, pg_temp','TimeZone=UTC']);return localPin(definition,h.qa.normalized,h.qa.schema,runtime);});
  const closure=sourceClosure(h,admission208,sourcePlan208,sources,definitions),triggers=ledgerTriggers(h,sources);
  const predecessorPins=closure.pins,predecessorPinsSha256=hash(JSON.stringify(predecessorPins));
  const scalarPredecessorPins=predecessorPins.filter(pin=>pin.kind!=='table'),tablePredecessorPins=predecessorPins.filter(pin=>pin.kind==='table');
- const predecessorCheck=[sourcePlan208.postflight[1],sourcePlan208.postflight[2],admission208.capacityPlan.postflight,pinsCheck(scalarPredecessorPins,'ANNUL209_TRANSITIVE_SOURCE_CHANGED'),tablePinsCheck(tablePredecessorPins,'ANNUL209_TRANSITIVE_TABLE_SOURCE_CHANGED'),aclAndOverloads(predecessorPins,'ANNUL209_TRANSITIVE_ACL_CHANGED'),triggers.sql].join(';\n');
+ const predecessorCheck=[sourcePlan208.postflight[1],sourcePlan208.postflight[2],capacityPostflight,pinsCheck(scalarPredecessorPins,'ANNUL209_TRANSITIVE_SOURCE_CHANGED'),tablePinsCheck(tablePredecessorPins,'ANNUL209_TRANSITIVE_TABLE_SOURCE_CHANGED'),aclAndOverloads(predecessorPins,'ANNUL209_TRANSITIVE_ACL_CHANGED'),triggers.sql].join(';\n');
  const ownCheck=[pinsCheck(ownPins,'ANNUL209_NEW_FUNCTION_SOURCE_CHANGED'),aclAndOverloads(ownPins,'ANNUL209_NEW_FUNCTION_ACL_CHANGED')].join(';\n');
  const names=ownSignatures.map(([name])=>name),s=h.qa.schema;
  const context=readOnly=>`DO $annul209_context$ BEGIN IF current_setting('transaction_isolation')<>'repeatable read' OR current_setting('transaction_read_only')<>${q(readOnly?'on':'off')} OR current_setting('standard_conforming_strings')<>'on' OR current_setting('server_version_num')::integer/10000<>${h.major} THEN RAISE EXCEPTION 'ANNUL209_NATIVE_CONTEXT_REQUIRED';END IF;END $annul209_context$`;

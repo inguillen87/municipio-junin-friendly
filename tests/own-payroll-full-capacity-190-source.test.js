@@ -13,6 +13,7 @@ import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,proje
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
 import {OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS,OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
+import {buildOwnReceipt126Same190Shape} from '../scripts/lib/own-payroll-receipt126-same190-shape.mjs';
 const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
@@ -684,4 +685,23 @@ test('PG17 identity RAW succession preserves five complete bae parents before ev
  assert.equal(Object.keys(OWN_RECEIPT126_CONSUMER_SOURCE_PINS).length,11);assert.equal(Object.keys(OWN_RECEIPT126_NEW_SOURCE_PINS).length,8);
  const unrelated=Buffer.from('unrelated identity source remains the exact input');assert.strictEqual(projectOwner190Pg17IdentityRawSourceToParent('tests/unrelated-owner190-identity.js',unrelated),unrelated);
  assert.throws(()=>projectOwner190Pg17IdentityRawSourceToParent(expected[0],'not raw bytes'));
+});
+
+
+for(const major of[17,18])test('receipt126 emitted index audit keeps every guard with an unreserved collation alias on PG'+major,()=>{
+ const plan=buildOwnReceipt126Same190Shape({schema:'mc_qa_fixed_092_'+'a'.repeat(32),major,sourceCommit:'b'.repeat(40),readRaw:file=>fs.readFileSync(new URL('../'+file,import.meta.url))});
+ const audit=plan.shapeSql.split('\n').filter(line=>line.includes("RAISE EXCEPTION 'RECEIPT126_INDEX_FLAGS'"));
+ assert.equal(audit.length,1,'one closed index guard in emitted SQL');
+ assert.equal(audit[0].split('WITH ORDINALITY k(att,opclass,index_collation,options,n)').length,2);
+ assert.equal(audit[0].split('k.index_collation<>a.attcollation').length,2);
+ assert.doesNotMatch(audit[0],/k\([^)]*\bcollation\b|\bk\.collation\b/);
+ for(const guard of[
+  '(SELECT count(*) FROM pg_index WHERE indrelid=r)<>3',
+  'NOT i.indisunique OR NOT i.indisvalid OR NOT i.indisready OR NOT i.indislive OR NOT i.indimmediate',
+  'i.indnullsnotdistinct OR i.indexprs IS NOT NULL OR i.indpred IS NOT NULL OR i.indnatts<>i.indnkeyatts',
+  "am.amname<>'btree' OR c.relowner<>(SELECT relowner FROM pg_class WHERE oid=r)",
+  'unnest(i.indkey::smallint[],i.indclass::oid[],i.indcollation::oid[],i.indoption::smallint[])',
+  "oc.opcnamespace<>'pg_catalog'::regnamespace OR oc.opcmethod<>ic.relam OR NOT oc.opcdefault OR oc.opcintype<>a.atttypid OR k.index_collation<>a.attcollation OR k.options<>0"
+ ])assert.ok(audit[0].includes(guard),'index guard preserved: '+guard);
+ assert.equal(plan.connects,false);assert.equal(plan.executesSql,false);assert.equal(plan.executionAdmission,false);
 });

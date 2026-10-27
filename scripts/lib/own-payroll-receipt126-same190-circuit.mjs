@@ -44,7 +44,7 @@ const SOURCE_PINS=Object.freeze([
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
  ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",37794,"cf3807b790b40ee7a07a3f24c1611c0e8475cbfdcb9d80739cc7805ee47c332a"],
  ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"bcc482ff815390e52247116296cf80bd16307aa2a8533d0bbc677f81f691fdda"],
- ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25756,"4e52d334bff4e8ea4e82260a7f3bc506bf73d73e3268c508aa9547acdb5ad806"],
+ ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25768,"41d845018cf6df361f82ffd6674a8a4ada944d2ae126ea36ff7d74c1c264b460"],
 ]);
 const RPC=new Map([
  ['SELECT public.own_receipt_preview_v1($1::jsonb,$2::jsonb) AS result',2],

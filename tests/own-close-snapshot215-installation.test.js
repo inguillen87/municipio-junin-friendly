@@ -1,12 +1,15 @@
 // Source/orchestration focals; no PostgreSQL or browser acceptance is inferred.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {buildOwnerProgramQa} from '../scripts/lib/municipal-owner-program-qa.mjs';
 import {deriveOwnCloseSnapshot215,composeOwnCloseSnapshot215Plan,installOwnCloseSnapshot215,assertOwnCloseSnapshot215Proof,projectOwnCloseSnapshot215Postflight,OWN_CLOSE_SNAPSHOT215_SOURCE_PINS,OWN_CLOSE_SNAPSHOT215_SQL,OWN_CLOSE_SNAPSHOT215_ENTRIES,OWN_CLOSE_SNAPSHOT215_SUBSTITUTIONS} from '../scripts/lib/own-close-snapshot215-installation.mjs';
 import {composeOwnFullCapacity190Installation} from '../scripts/lib/own-payroll-full-capacity-190-installation.mjs';
+import {prepareOwnMonthlyFullCapacity} from '../scripts/verify-own-monthly-payroll-full-capacity.mjs';
+import {composeOwnAnnulPreparation209On190} from '../scripts/lib/own-payroll-annulment-preparation-209-installation.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),commit='a'.repeat(40);
 const read=file=>fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n?/g,'\n');
 const source124='scripts/migrations/125-own-payroll-close.sql',source176='scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql';
@@ -109,4 +112,96 @@ test('post215 rejects any foreign201 guard, undeclared companion edit, or cloned
  const historical=composeOwnFullCapacity190Installation(h).postflight;
  for(const foreign of [historical+'\n',historical.replace('OWN_DECISION_CAPACITY_POST_METADATA_CHANGED','OTHER_TOKEN'),historical.replace(plan.historicalPin.sha256,plan.afterPin.sha256)])assert.throws(()=>projectOwnCloseSnapshot215Postflight(h,plan,foreign),/CLOSE_SNAPSHOT215_HISTORICAL201_GUARD_CHANGED/);
  assert.throws(()=>projectOwnCloseSnapshot215Postflight(h,{...plan},historical),/CLOSE_SNAPSHOT215_UNMINTED_PLAN/);
+});
+
+
+// Actual canonical209 composition, no SQL transport. These observations are
+// source-construction regressions, not native install/durability receipts.
+let source209;
+function canonical209Source(){
+ if(source209)return source209;
+ const qa=foundation(),calls=[];let drift=false;
+ const reader=file=>read(file)+(drift&&file==='scripts/lib/own-close-snapshot215-equivalence.mjs'?'\n-- source drift after preparation':'');
+ const forbidden=(...args)=>{calls.push(args);throw Error('source constructor attempted native I/O');};
+ const h={qa,major:qa.major,sourceCommit:commit,read:reader,json:forbidden,check:forbidden,sourceCustody:{sourceCommit:commit}};
+ const prepared=prepareOwnMonthlyFullCapacity(h);assert.strictEqual(prepared.foundation,qa);h.prepared=prepared.context;
+ const capacityPlan=composeOwnFullCapacity190Installation(h),admission208={version:'own-annulment-review208-canonical-source.v1',sourceCommit:commit,monthly:h.prepared.monthly,capacityPlan};
+ const installation208={version:'own-annulment-review208-canonical190-installation.v1',sourceCommit:commit,passed:true,proofs:{installed:{priorStateSha256:'b'.repeat(64)}}};
+ const db={query:forbidden,run:forbidden};
+ const args={h,db,admission208,installation208};
+ // Cache the real prepared context before plan admission: a rejected209 plan
+ //must not rebuild the same monthly source foundation for the next assertion.
+ let plan;source209={args,calls,qa,capacityPlan,get plan(){return plan??=composeOwnAnnulPreparation209On190(args);},setDrift:value=>{drift=value;}};
+ return source209;
+}
+
+test('all209 inherited install, verification and postflight paths retain the full201 guard with only its215 protected successor',()=>{
+ const x=canonical209Source(),historical=x.capacityPlan.postflight,hashes=structuredClone(x.qa.hashes),plan215=compose(x.qa,x.args.h.read);
+ const projected=projectOwnCloseSnapshot215Postflight(x.args.h,plan215,historical);
+ const count=(text,needle)=>text.split(needle).length-1;
+ for(const[file,digest]of Object.entries({'package.json':'d8d72993a01abb35ac33c996cc423f13e730f4a583f058a787a893b5be0ad074','package-lock.json':'1d7a8d9895311c83d2511e49147980cb14fab6bcb53f3b28a5453b422e442578','api/internal-municipal-owner-salary.js':'07e0a4ee32969f51258e807e29edb6aebec89d004d20ed28f250aedfb8e26d76','src/islands/NativeSalaryCatalog.jsx':'36e7e23ff91a0b47be59f751d609e8186cada516a5406f130f0150dce5cd506e','.vercelignore':'e981f38f3894d35594f8d57c09b1d46ab5de342c6de4bdfd47286c1b21411af5','api/internal-municipal-owner-program.js':'32c8dabe14b958b91760f4960a1c7bee0ff3f9563c432b0f914c5be55bba29d1'}))assert.equal(x.plan.sourceHashes[file],digest,'209 retains exact inherited foundation pin '+file);
+ for(const [field,expected]of [['beforeApply',1],['statements',2],['verification',1],['postflight',1]]){
+  const statements=x.plan[field];assert.ok(Array.isArray(statements),field);
+  const joined=statements.join(';\n');assert.equal(count(joined,projected),expected,'209 '+field+' must embed the complete projected guard');
+  assert.equal(count(joined,historical),0,'209 '+field+' must not embed the stale historical guard');
+ }
+ assert.equal(projected.replace(plan215.afterPin.sha256,plan215.historicalPin.sha256),historical);
+ assert.strictEqual(x.args.admission208.capacityPlan,x.capacityPlan);assert.equal(x.capacityPlan.postflight,historical);assert.deepEqual(x.qa.hashes,hashes);
+ for(const [file,sha256]of Object.entries(OWN_CLOSE_SNAPSHOT215_SOURCE_PINS))assert.equal(x.plan.sourceHashes[file],sha256,'209 bookend includes215 source '+file);
+ assert.equal(x.plan.predecessorPins.some(pin=>pin.name==='own_close_snapshot_v1'),false,'209 read closure does not call either close-command writer that owns snapshot dependency');
+ const graph=x.qa.foundation.foundation.foundation.owner.graph,authority=graph.batch.authority;
+ const capability=authority.prerequisitePins.find(pin=>pin.signature==='public.action_center_context_has_capability(jsonb,text)');
+ assert.ok(capability);assert.equal(capability.runtime,false,'007/184 keep capability predicate private');
+ assert.deepEqual(x.plan.predecessorPins.find(pin=>pin.name===capability.name),{...capability,signature:x.qa.schema+'.action_center_context_has_capability(jsonb,text)',sha256:createHash('sha256').update(x.qa.normalized(graph.pool.get(capability.signature+'|'+capability.sha256)).match(/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/)[2]).digest('hex'),config:['search_path=pg_catalog, '+x.qa.schema+', public, pg_temp']});
+ assert.equal(graph.pinHints.has(capability.signature+'|'+capability.sha256),false,'209 enrichment leaves the canonical graph map unchanged');
+ const privateNames=['own_run_immutable_v1','own_liquidation_immutable_v1','own_close_immutable_v1','own_annul_immutable_v1','native_salary_context_v1','payroll_fixed_registry_subject_by_contract_v1','payroll_fixed_registry_subject_v1','native_employment_change_lock_v1','native_employment_change_subject_v1','native_employment_catalog_lock_v1','grh_curated_source_read_lock_v1'];
+ for(const name of privateNames){const pin=x.plan.predecessorPins.find(value=>value.name===name),source=x.plan.predecessorSources.find(value=>value.name===name);assert.ok(pin,name);assert.equal(pin.runtime,false,name);assert.ok(source.definitionSource.startsWith('scripts/migrations/'),name);assert.equal(source.aclProvenance,'complete pinned SQL REVOKE and complete final function-GRANT set',name);}
+ const date=x.qa.privateDate,datePin=x.plan.predecessorPins.find(value=>value.name===date.pin.name),localDate=x.qa.normalized(date.definition);
+ assert.deepEqual(datePin,{...date.pin,signature:x.qa.schema+'.payroll_fixed_registry_date_v1(text,boolean)',sha256:createHash('sha256').update(localDate.match(/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/)[2]).digest('hex'),config:['search_path=pg_catalog, '+x.qa.schema+', public, pg_temp']});
+ assert.equal(datePin.defaults,'true');assert.equal(datePin.runtime,false);assert.ok(localDate.includes('required boolean DEFAULT true'));
+ assert.equal(x.plan.predecessorSources.find(value=>value.name===date.pin.name).metadataKind,'private-date-default-true');
+ assert.equal(graph.definitions.some(value=>value.includes('FUNCTION public.payroll_fixed_registry_date_v1(')),false,'date remains the already-installed QA190 source supplement, not a graph or seed rewrite');
+ assert.deepEqual(x.calls,[]);
+});
+
+test('209 refuses a foreign or already-projected201 guard and detects later215 input drift in its existing bookend',()=>{
+ const x=canonical209Source(),historical=x.capacityPlan.postflight,plan215=compose(x.qa,x.args.h.read),projected=projectOwnCloseSnapshot215Postflight(x.args.h,plan215,historical);
+ for(const postflight of [historical+'\n',historical.replace('OWN_DECISION_CAPACITY_POST_METADATA_CHANGED','OTHER_TOKEN'),projected]){
+  const admission208={...x.args.admission208,capacityPlan:{...x.capacityPlan,postflight}};
+  assert.throws(()=>composeOwnAnnulPreparation209On190({...x.args,admission208}),/CLOSE_SNAPSHOT215_HISTORICAL201_GUARD_CHANGED/);
+ }
+ const graph=x.qa.foundation.foundation.foundation.owner.graph,authority=graph.batch.authority,originalHints=graph.pinHints;
+ const capability=authority.prerequisitePins.find(pin=>pin.signature==='public.action_center_context_has_capability(jsonb,text)'),key=capability.signature+'|'+capability.sha256;
+ assert.ok(capability);const descriptorBefore=structuredClone(capability),hintsBefore=new Map(originalHints);
+ for(const contradictory of [{...capability,runtime:!capability.runtime},{...capability,volatility:'v'}]){
+  graph.pinHints=new Map([...originalHints,[key,contradictory]]);
+  try{assert.throws(()=>composeOwnAnnulPreparation209On190(x.args),/ANNUL209_CANONICAL_ACL_HINT_CONFLICT/);assert.deepEqual(x.calls,[]);}
+  finally{graph.pinHints=originalHints;}
+ }
+ capability.volatility='v';
+ try{assert.throws(()=>composeOwnAnnulPreparation209On190(x.args),/ANNUL209_AUTHORITY184_SOURCE_METADATA_CHANGED/);assert.deepEqual(x.calls,[]);}
+ finally{Object.assign(capability,descriptorBefore);}
+ assert.deepEqual(capability,descriptorBefore);assert.deepEqual(graph.pinHints,hintsBefore);assert.strictEqual(graph.pinHints,originalHints);
+ const date=x.qa.privateDate,dateKey=date.pin.signature+'|'+date.pin.sha256;
+ for(const changed of [{...date,pin:{...date.pin,defaults:'false'}},{...date,definition:date.definition.replace('DEFAULT true','DEFAULT false')}]){
+  x.qa.privateDate=changed;
+  try{assert.throws(()=>composeOwnAnnulPreparation209On190(x.args),/ANNUL209_PRIVATE_DATE_QA_SOURCE_CHANGED/);assert.deepEqual(x.calls,[]);}
+  finally{x.qa.privateDate=date;}
+ }
+ graph.pinHints=new Map([...originalHints,[dateKey,{...date.pin,runtime:true}]]);
+ try{assert.throws(()=>composeOwnAnnulPreparation209On190(x.args),/ANNUL209_PRIVATE_DATE_HINT_CONFLICT/);assert.deepEqual(x.calls,[]);}
+ finally{graph.pinHints=originalHints;}
+ assert.strictEqual(x.qa.privateDate,date);assert.strictEqual(graph.pinHints,originalHints);
+ const sourceHashes=x.qa.sourceHashes,originalRead=x.args.h.read;let readCount=0;
+ x.args.h.read=file=>{readCount++;return originalRead(file);};
+ try{for(const file of['.env','src/foreign.jsx','package.json/child']){
+  x.qa.sourceHashes={...sourceHashes,[file]:'c'.repeat(64)};
+  assert.throws(()=>composeOwnAnnulPreparation209On190(x.args),/ANNUL208_SOURCE_PATH_REQUIRED/);
+  assert.equal(readCount,0,'foreign source path rejected before reads');assert.deepEqual(x.calls,[]);
+ }}finally{x.qa.sourceHashes=sourceHashes;x.args.h.read=originalRead;}
+ assert.strictEqual(x.qa.sourceHashes,sourceHashes);assert.strictEqual(x.args.h.read,originalRead);
+ x.setDrift(true);
+ try{assert.throws(()=>x.plan.sourceBookend(),/ANNUL209_SOURCE_BOOKEND_CHANGED/);}
+ finally{x.setDrift(false);}
+ assert.equal(x.plan.sourceBookend().passed,true);assert.deepEqual(x.calls,[]);
 });

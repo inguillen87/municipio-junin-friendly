@@ -75,7 +75,7 @@ function checkedSources(h,monthly){
  const expected=new Map();
  for(const map of [h.qa.sourceHashes,monthly.sourceHashes,SOURCE_PINS,{[OWN_FULL_CAPACITY_190_SQL]:OWN_FULL_CAPACITY_190_SQL_SHA256,[NOVELTY197_SQL]:NOVELTY197_SHA256,[OWN_ANNUL_REVIEW208_SQL]:OWN_ANNUL_REVIEW208_SQL_SHA256}]){
   assert.ok(map&&typeof map==='object'&&!Array.isArray(map),'ANNUL208_SOURCE_HASHES_REQUIRED');
-  for(const [file,digest]of Object.entries(map)){assert.match(file,/^(?:scripts|tests|assets|lib|api)\/[A-Za-z0-9_./-]+$/,'ANNUL208_SOURCE_PATH_REQUIRED');assert.ok(!file.split('/').includes('..'));assert.match(digest,SHA,'ANNUL208_REVIEWED_SOURCE_PIN_REQUIRED:'+file);if(expected.has(file))assert.equal(expected.get(file),digest,'ANNUL208_SOURCE_PIN_CONFLICT:'+file);expected.set(file,digest);}
+  for(const [file,digest]of Object.entries(map)){assert.ok(/^(?:scripts|tests|assets|lib|api)\/[A-Za-z0-9_./-]+$/.test(file)||['package.json','package-lock.json','api/internal-municipal-owner-salary.js','src/islands/NativeSalaryCatalog.jsx','.vercelignore','api/internal-municipal-owner-program.js'].includes(file),'ANNUL208_SOURCE_PATH_REQUIRED');assert.ok(!file.split('/').includes('..'));assert.match(digest,SHA,'ANNUL208_REVIEWED_SOURCE_PIN_REQUIRED:'+file);if(expected.has(file))assert.equal(expected.get(file),digest,'ANNUL208_SOURCE_PIN_CONFLICT:'+file);expected.set(file,digest);}
  }
  const texts=new Map(),sourceHashes={};
  for(const [file,digest]of expected){const text=lf(h.read(file));assert.equal(hash(text),digest,'ANNUL208_SOURCE_CHANGED:'+file);texts.set(file,text);sourceHashes[file]=digest;}
