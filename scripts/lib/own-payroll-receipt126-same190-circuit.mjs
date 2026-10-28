@@ -87,7 +87,7 @@ function conservation(h){
  'roles',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.oid) FROM pg_roles r),
  'roleMemberships',(SELECT coalesce(jsonb_agg(to_jsonb(m) ORDER BY m.roleid,m.member),'[]') FROM pg_auth_members m),
  'defaultAcl',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.oid),'[]') FROM pg_default_acl d),
- 'namespace',(SELECT to_jsonb(n) FROM pg_namespace n WHERE n.oid=${s}::regnamespace))::text,true);
+ 'namespace',(SELECT to_jsonb(ns) FROM pg_namespace ns WHERE ns.oid=${s}::regnamespace))::text,true);
  END $receipt126_circuit_keep$;SELECT current_setting('municontrol_receipt126.circuit_keep')::jsonb`],{readOnly:true,fullJson:true});
 }
 const ledger=h=>h.json([`SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::jsonb) FROM ${h.qa.schema}.own_payroll_receipt_event e`],{readOnly:true,fullJson:true});
