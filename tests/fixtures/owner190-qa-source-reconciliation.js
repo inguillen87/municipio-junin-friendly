@@ -73,9 +73,11 @@ export function projectOwner190SharedDependencyOrderRawSourceToHead(path,value){
  }
  assert.equal(source.length,row.beforeBytes,'SHARED_DEPENDENCY_HEAD_RAW_BYTES');assert.equal(hash(source),row.beforeSha256,'SHARED_DEPENDENCY_HEAD_RAW_SHA');return source;
 }
-export const OWNER190_QA_RECONCILIATION_SOURCE_PINS=Object.freeze(Object.fromEntries(Object.entries(rows).map(([path,row])=>[path,Object.freeze({before:row.beforeSha256,after:annul209SyntaxRows[path]?.afterSha256??receipt126FixtureContextRows[path]?.afterSha256??sharedDependencyOrderRows[path]?.afterSha256??receipt126LengthRows[path]?.afterSha256??row.afterSha256,beforeBytes:row.beforeBytes,afterBytes:annul209SyntaxRows[path]?.afterBytes??receipt126FixtureContextRows[path]?.afterBytes??sharedDependencyOrderRows[path]?.afterBytes??receipt126LengthRows[path]?.afterBytes??row.afterBytes})])));
+import {RELEASE_CANDIDATE_WORKFLOW_PIN,projectReleaseCandidateWorkflowToParent} from './release-candidate-workflow-succession.js';
+export const OWNER190_QA_RECONCILIATION_SOURCE_PINS=Object.freeze(Object.fromEntries(Object.entries(rows).map(([path,row])=>[path,Object.freeze({before:row.beforeSha256,after:(path===RELEASE_CANDIDATE_WORKFLOW_PIN.path?RELEASE_CANDIDATE_WORKFLOW_PIN.after:undefined)??annul209SyntaxRows[path]?.afterSha256??receipt126FixtureContextRows[path]?.afterSha256??sharedDependencyOrderRows[path]?.afterSha256??receipt126LengthRows[path]?.afterSha256??row.afterSha256,beforeBytes:row.beforeBytes,afterBytes:(path===RELEASE_CANDIDATE_WORKFLOW_PIN.path?RELEASE_CANDIDATE_WORKFLOW_PIN.afterBytes:undefined)??annul209SyntaxRows[path]?.afterBytes??receipt126FixtureContextRows[path]?.afterBytes??sharedDependencyOrderRows[path]?.afterBytes??receipt126LengthRows[path]?.afterBytes??row.afterBytes})])));
 export function projectOwner190QaReconciliationRawSourceToParent(path,value){
  assert.equal(typeof path,'string');assert.ok(Buffer.isBuffer(value));
+ value=projectReleaseCandidateWorkflowToParent(path,value);
  value=projectOwner190Annul209SyntaxRawSourceToHead(path,value);
  value=projectOwner190SharedDependencyOrderRawSourceToHead(path,value);
  value=projectOwner190Receipt126LengthHistoricalRawSourceToHead(path,value);
