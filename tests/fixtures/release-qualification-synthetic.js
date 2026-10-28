@@ -9,6 +9,7 @@ import {RELEASE_CONTRACT as C} from '../../scripts/release-qualification-contrac
 import {stageBuildCommand} from '../../scripts/release-qualification-gate.mjs';
 import {OWN_RELEASE_TARGETS} from '../../scripts/lib/own-payroll-release-target.mjs';
 import {ATTESTATION_VERSION} from '../../scripts/verify-vercel-build-db-attestation.mjs';
+import {withPr250Collection} from './release-pr250-collection-synthetic.js';
 
 export const SHA='a'.repeat(40),OTHER='b'.repeat(40),TREE='c'.repeat(40),ADMIN='d'.repeat(64),PREVIOUS_ADMIN='e'.repeat(64);
 export const PREVIOUS='dpl_previous1',STAGED='dpl_staged1';
@@ -121,5 +122,5 @@ export function fakeWorld({obs=observation(),head=()=>SHA,promoteDomains=C.verce
   for(const d of domains)if(promoteDomains.includes(d))state.holder[d]=args.deploymentId;else state.pendingDomains.push([d,args.deploymentId]);return{exitCode:0};}};
  // A pause lets the provider converge: domains not moved by the adapter call arrive on the next read.
  const pause=async()=>{calls.push('pause');for(const [d,id] of state.pendingDomains.splice(0))state.holder[d]=id;};
- return{calls,state,adapter,pause,transport:{github,vercel,readRelease}};
+ return withPr250Collection({calls,state,adapter,pause,transport:{github,vercel,readRelease}},{obs,sha:SHA,staged:STAGED,stageRelease});
 }

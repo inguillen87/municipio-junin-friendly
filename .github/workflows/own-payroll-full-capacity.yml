@@ -1,12 +1,12 @@
 # Private source candidate. No run is admitted or dispatched by this file's creation.
 name: Own payroll complete capacity
 on:
-  pull_request:
-    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml']
-  push:
-    branches: ['master']
-    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml']
   workflow_dispatch:
+  pull_request:
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
+  push:
+    branches: ['master', 'codex/candidate-admission-20261028']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
 permissions:
   contents: read
 concurrency:
@@ -41,6 +41,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Record release candidate source before verification
+        run: node scripts/write-release-candidate-proof.mjs --workflow=capacity --major=${{ matrix.pg }} --phase=before
       - name: Source contracts only; no constructor or native SQL in this step
         run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/own-monthly-day-saved-input-integrity.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
       - name: Synthetic092 supports before technical192 with recording transports
@@ -55,7 +57,12 @@ jobs:
         run: node --test tests/canonical190-read-committed.test.js
       - name: Owned QA cleanup with synthetic transcripts
         run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js
-      - run: npm run build
+      - name: Full web suite and package
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p verification
+          npm run build 2>&1 | tee verification/release-full-suite.log
       - name: Prepare only the existing disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa
@@ -178,4 +185,13 @@ jobs:
             tests/own-payroll-annulment-preparation-ui-source.test.js
             tests/fixtures/own-payroll-annulment-preparation-source-projection.js
             tests/own-payroll-full-decision-capacity-source.test.js
+          retention-days: 5
+      - name: Record release candidate evidence
+        run: node scripts/write-release-candidate-proof.mjs --workflow=capacity --major=${{ matrix.pg }} --phase=after
+      - name: Upload release candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-capacity-pg${{ matrix.pg }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verification/release-candidate/capacity-pg${{ matrix.pg }}/
+          if-no-files-found: error
           retention-days: 5

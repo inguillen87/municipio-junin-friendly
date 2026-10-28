@@ -17,6 +17,8 @@ import {fileURLToPath} from 'node:url';
 import {RELEASE_CONTRACT as C} from './release-qualification-contract.mjs';
 import {evaluateQualification,evaluateProductionHolder,evaluateStage,evaluateBuildBinding,evaluateReadback,validateAdmission,stageBuildCommand} from './release-qualification-gate.mjs';
 import {readPublishedRelease} from '../assets/release-status-panel.js';
+import {collectPromotionCandidate,bindCollectedCandidate,deploymentFileReader} from './lib/release-candidate-promotion-hook.mjs';
+import {requireCandidateAdmission} from './lib/release-candidate-admission.mjs';
 
 export const RELEASE_RUNNER_VERSION='municontrol-release-promotion-runner.v3';
 const SHA=/^[a-f0-9]{40}$/,HASH=/^[a-f0-9]{64}$/,DEPLOYMENT=/^dpl_[A-Za-z0-9]+$/,HOST=/^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
@@ -158,10 +160,13 @@ export async function runReleasePromotion({sha,packet,admission,binding,adapter=
   const observationSha256=sha256(fs.readFileSync(at(packet,'STAGE_CREATE_OBSERVATION.json')));
   if(verified?.kind!=='stage'||verified.stageVerified!==true||verified.sha!==sha||verified.deploymentId!==createObservation?.id||verified.previousProductionDeploymentId!==previousId
    ||verified.createObservationSha256!==observationSha256)return finish('STAGE_PACKET_INVALID_NO_MUTATION');
+  // Long PR250 downloads precede ALL final fresh gates. No serialized admission is accepted.
+  const candidate=await collectPromotionCandidate({sha,deploymentId:createObservation.id,transport});
   const qualification=await freshQualification(sha,transport);record.qualification=qualification;save();
   if(!qualification.qualified)return finish('NOT_QUALIFIED_NO_MUTATION');
   const stage=await freshStage(qualification,createObservation,transport);record.stage=stage;save();
   if(!stage.stageVerified||stage.adminUiSha256!==verified.adminUiSha256)return finish('STAGE_REVERIFICATION_FAILED_NO_MUTATION');
+  record.candidate=bindCollectedCandidate(candidate,qualification,stage);save();
   const bound=evaluateBuildBinding({stage,binding,admission});record.binding=bound;save();
   if(!bound.bound)return finish('BUILD_BINDING_REJECTED_NO_MUTATION');
   if(typeof adapter?.promoteOnce!=='function'){
@@ -172,6 +177,7 @@ export async function runReleasePromotion({sha,packet,admission,binding,adapter=
   const holder=await freshHolder(previousId,transport);record.holder=holder;save();
   if(!holder.holds)return finish('PRODUCTION_HOLDER_MOVED_NO_MUTATION');
   if(await freshHead(transport)!==sha)return finish('HEAD_MOVED_NO_MUTATION');
+  requireCandidateAdmission(candidate,sha); // Original WeakSet identity, immediately before ONE promotion.
   once(packet,'PROMOTION_REQUESTED.json',{deploymentId:stage.deploymentId,previousId,sha,at:now()});
   record.mutationRequested=true;record.promotionRequested=true;record.state='PROMOTION_REQUESTED';save();
   // The adapter gets ONE provider call: a second one is refused, and the arguments are recorded first (wx).
@@ -259,7 +265,7 @@ export async function main(argv=process.argv.slice(2)){
  const pinnedBytes=(file,expected)=>{const raw=fs.readFileSync(file);if(!HASH.test(expected??'')||sha256(raw)!==expected)throw stop('INPUT_CHANGED:'+path.basename(file));return raw;};
  const pinnedJson=(file,expected)=>JSON.parse(pinnedBytes(file,expected));
  const sha=flag('sha'),packet=flag('packet'),admission=pinnedJson(flag('admission'),flag('admission-sha256'));
- const transport={github:githubTransport(),vercel:vercelTransport({cli:await resolveVercelCli()}),readRelease:releaseReader()};
+ const transport={github:githubTransport(),vercel:vercelTransport({cli:await resolveVercelCli()}),readRelease:releaseReader(),readDeploymentFile:deploymentFileReader()};
  if(command==='stage')return runReleaseStage({sha,packet,admission,transport});
  if(command==='readback')return runReleaseReadback({sha,packet,admission,transport});
  const binding=pinnedJson(flag('binding'),flag('binding-sha256'));

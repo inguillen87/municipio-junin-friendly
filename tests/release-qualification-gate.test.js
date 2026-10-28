@@ -13,6 +13,12 @@ const has=(mutate,code)=>{const r=q(mutate);assert.ok(r.reasons.includes(code),c
 const run0=(o,change)=>Object.assign(o.runsPages[0].workflow_runs[0],change);
 const jobsOf=(o,runId)=>o.jobsPagesByRun[runId][0].jobs;
 
+const capacityFullSuite='      - name: Full web suite and package\n        shell: bash\n        run: |\n          set -o pipefail\n          mkdir -p verification\n          npm run build 2>&1 | tee verification/release-full-suite.log\n';
+function assertCapacityFullSuite(source){
+ assert.equal(source.split(capacityFullSuite).length,2,'one exact full-suite capture with pipefail');
+ assert.equal([...source.matchAll(/^[ \t]+(?:- )?(?:run:[ \t]*)?npm run build\b/gm)].length,1,'one full build; no duplicate or filtered replacement');
+}
+
 test('contrato = bytes revisados del repo: rutas, nombres, matrices, pasos, atestación, artefactos, scripts y vercel.json',()=>{
  assert.ok(Object.isFrozen(C)&&Object.isFrozen(C.workflows[0].jobs[0].report.fields));
  assert.deepEqual(C.workflows.map(w=>w.path),['.github/workflows/noelia-payroll-circuit.yml','.github/workflows/own-payroll-full-capacity.yml']);
@@ -32,7 +38,8 @@ test('contrato = bytes revisados del repo: rutas, nombres, matrices, pasos, ates
  assert.ok(noelia.includes('      - name: Build and run all existing regressions\n        run: npm run build\n'),'full suite inside both Noelia jobs');
  assert.ok(noelia.includes('node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci\n'));
  assert.ok(capacity.includes('    name: M7, receipt126 and Family195 browser, positions210-212 SQL / PG${{ matrix.pg }} / published107\n')&&capacity.includes('        pg: [17, 18]\n'));
- assert.ok(capacity.includes('      - run: npm run build\n')&&capacity.includes('--major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}\n'));
+ assertCapacityFullSuite(capacity);
+ assert.ok(capacity.includes('--major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}\n'));
  assert.ok(capacity.includes('name: own-full-capacity-pg${{ matrix.pg }}-published107-${{ github.sha }}\n'));
  const pkg=JSON.parse(Buffer.from(repoBytes('package.json')).toString('utf8')),vercel=JSON.parse(Buffer.from(repoBytes('vercel.json')).toString('utf8'));
  for(const [k,v] of Object.entries(C.scripts))assert.equal(pkg.scripts[k],v,k);
@@ -231,4 +238,15 @@ test('ZIP: lee entradas reales con descriptor y rechaza CRC, truncado, duplicado
  code(()=>zipEntries(zipOf({'../x':'1'})),'ZIP_ENTRY_PATH');code(()=>zipEntries(zipOf({'/abs':'1'})),'ZIP_ENTRY_PATH');
  const dup=Buffer.from(zipOf({'aa':'1','ab':'2'}));const second=dup.lastIndexOf(Buffer.from('ab'));dup.write('aa',second);code(()=>zipEntries(new Uint8Array(dup)),'ZIP_ENTRY_DUPLICATE');
  const enc_=Buffer.from(zipOf({'a':'1'}));enc_.writeUInt16LE(9,enc_.indexOf(Buffer.from([0x50,0x4b,1,2]))+8);code(()=>zipEntries(new Uint8Array(enc_)),'ZIP_ENCRYPTED');
+});
+
+
+test('capacity full-suite evidence preserves pipefail, tee and one complete build',()=>{
+ const source=Buffer.from(repoBytes(CAPACITY.path)).toString('utf8');assertCapacityFullSuite(source);
+ for(const change of [
+  value=>value.replace('          set -o pipefail\n',''),
+  value=>value.replace(' 2>&1 | tee verification/release-full-suite.log',''),
+  value=>value.replace('npm run build 2>&1','npm run build -- --test-name-pattern=one 2>&1'),
+  value=>value+'      - run: npm run build\n'
+ ])assert.throws(()=>assertCapacityFullSuite(change(source)),assert.AssertionError);
 });

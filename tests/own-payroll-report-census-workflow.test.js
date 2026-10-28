@@ -39,8 +39,8 @@ test('same four190 cells execute originalpre107 or full190+censuspublished107 ex
 test('conditional, matrix, SHA or full evidence weakening fails the source contract',()=>{
  for(const mutate of[value=>value.replace("if: matrix.baseline == 'published107'","if: matrix.baseline == 'pre107'"),value=>value.replace('pg: [17, 18]','pg: [17]'),value=>value.replace(census,census.replace('--source-commit=${{ github.sha }}','--source-commit=HEAD')),value=>value.replace('            '+output+'/\n','            '+output+'/*.json\n'),value=>value.replace('            scripts/migrations/200-own-payroll-report-census.sql\n','')])assert.throws(()=>check(mutate(workflow)));
 });
-test('ordinary reports workflow stays byte-identical; source closure admits this pure contract',()=>{
- assert.equal(digest(read('.github/workflows/own-payroll-reports.yml')),'c8dc05d69cecdffd97a13831cb72a20ae0ee7ff510f33e8aedf120a2e592dcba');
+test('ordinary reports workflow admits candidate evidence without replacing its existing gates; source closure admits this pure contract',()=>{
+ assert.equal(digest(read('.github/workflows/own-payroll-reports.yml')),'3c4ed22b5afc20af7d513f143ce86d612df9b7a8092129f17c68a688ee8331db');
  const runner=read('scripts/verify-own-payroll-report-census.mjs');assert.ok(runner.includes("'tests/own-payroll-report-census-workflow.test.js'"));assert.ok(runner.includes('continuation:runOwnReportCensus190Continuation,continuationEntries:entries'));
  for(const file of['tests/fixtures/own-payroll-report-census-program-synthetic.js','tests/own-payroll-report-census-program-synthetic.test.js'])assert.ok(runner.includes("'"+file+"'"));
 });

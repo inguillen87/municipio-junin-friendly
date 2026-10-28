@@ -86,11 +86,12 @@ export const RELEASE_CONTRACT=deepFreeze({
     "Preserve synthetic evidence even when a check fails"
    ]},
   {path:'.github/workflows/own-payroll-full-capacity.yml',name:'Own payroll complete capacity',
-   sha256:'d95544cedfb35d913bf16b86b932e6827a5aa62491e6de48ef9c7116d3eab5dc',
+   sha256:'15078a679a845fa2f086e0b8bc8b23ef7f89764ccbe60ec08783169a86d502cc',
    jobs:[17,18].map(major=>({name:`M7, receipt126 and Family195 browser, positions210-212 SQL / PG${major} / published107`,major,artifact:`own-full-capacity-pg${major}-published107-<sha>`,
     report:{entry:`own-full-capacity-pg${major}/result.json`,fields:{version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit:'<sha>',transport:'ci',operationalPairBaseline:'published107'}}})),
    steps:[
     "Attest checkout equals the event commit",
+    "Record release candidate source before verification",
     "Source contracts only; no constructor or native SQL in this step",
     "Synthetic092 supports before technical192 with recording transports",
     "Administrative liquidation history authority and preservation",
@@ -98,9 +99,12 @@ export const RELEASE_CONTRACT=deepFreeze({
     "Exact native rejection adapters with synthetic services",
     "Canonical transaction modes with recording transports",
     "Owned QA cleanup with synthetic transcripts",
+    "Full web suite and package",
     "Prepare only the existing disposable synthetic service",
     "Install project Chromium for the unchanged190 programme flow",
-    "Same190 M7 and receipt126 browser, Family195 native/browser and positions210-212 SQL"
+    "Same190 M7 and receipt126 browser, Family195 native/browser and positions210-212 SQL",
+    "Record release candidate evidence",
+    "Upload release candidate evidence"
    ]}
  ]
 });

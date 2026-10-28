@@ -3,12 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { requireCandidateAdmission } from './lib/release-candidate-admission.mjs';
+import { candidateHttpReaders, collectCandidateAdmission } from './verify-release-candidate.mjs';
 export const RELEASE_REPOSITORY = 'inguillen87/municipio-junin-friendly';
 export const RELEASE_TEAM = 'team_BV1xuY6BnEzGanfok8GAyjZv';
 export const RELEASE_DOMAIN = 'municipio-junin-friendly.vercel.app';
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 const sha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
-export function verifyRemoteBaseEvidence({ expectedBase, phase, head, clean, ancestor, branch, status, deployment }) {
+export function verifyRemoteBaseEvidence({ expectedBase, phase, head, clean, ancestor, branch, status, deployment, candidateAdmission }) {
   if (!sha(expectedBase) || !sha(head) || !['start', 'publish'].includes(phase)) fail('REMOTE_BASE_ARGUMENT_INVALID');
   if (branch?.name !== 'master' || branch.commit?.sha !== expectedBase) fail('REMOTE_BASE_GITHUB_ADVANCED');
   if (!clean) fail('REMOTE_BASE_UNCOMMITTED_WORK');
@@ -24,11 +26,15 @@ export function verifyRemoteBaseEvidence({ expectedBase, phase, head, clean, anc
       || deployment.readyState !== 'READY' || !deployment.aliases?.includes(RELEASE_DOMAIN)) {
     fail('REMOTE_BASE_PRODUCTION_DIFFERS');
   }
+  // The base remains necessary, but its green deployment cannot admit new work.
+  // Only an in-process result of exact-candidate validation can close publish.
+  if (phase === 'publish') requireCandidateAdmission(candidateAdmission, head);
   return { version: 'municontrol-remote-base.v1', repository: RELEASE_REPOSITORY, phase,
     expectedBase, head, remoteHead: branch.commit.sha, deploymentId: deployment.id,
-    domain: RELEASE_DOMAIN, clean: true, aligned: true, databaseWrites: 0 };
+    domain: RELEASE_DOMAIN, clean: true, aligned: true, databaseWrites: 0,
+    ...(phase === 'publish' ? {candidateAdmission} : {}) };
 }
-export function readRemoteBase({ expectedBase, phase = 'start' } = {}) {
+export function readRemoteBase({ expectedBase, phase = 'start', candidateAdmission } = {}) {
   if (!sha(expectedBase) || !['start', 'publish'].includes(phase)) fail('REMOTE_BASE_ARGUMENT_INVALID');
   const root = fileURLToPath(new URL('../', import.meta.url));
   const run = (command, args) => {
@@ -47,12 +53,19 @@ export function readRemoteBase({ expectedBase, phase = 'start' } = {}) {
   const head = run('git', ['rev-parse', 'HEAD']);
   const clean = run('git', ['status', '--porcelain', '--untracked-files=normal']) === '';
   const ancestor = run('git', ['merge-base', expectedBase, head]) === expectedBase;
-  return { ...verifyRemoteBaseEvidence({ expectedBase, phase, head, clean, ancestor, branch, status, deployment }),
+  return { ...verifyRemoteBaseEvidence({ expectedBase, phase, head, clean, ancestor, branch, status, deployment, candidateAdmission }),
     checkedAt: new Date().toISOString() };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const { values } = parseArgs({ options: { base: { type: 'string' }, phase: { type: 'string', default: 'start' } }, strict: true });
-    console.log(JSON.stringify(readRemoteBase({ expectedBase: values.base, phase: values.phase }), null, 2));
-  } catch (error) { console.error(/^REMOTE_BASE_[A-Z_]+$/.test(error?.code || '') ? error.code : 'REMOTE_BASE_FAILED'); process.exitCode = 1; }
+    const { values } = parseArgs({ options: { base: { type: 'string' }, phase: { type: 'string', default: 'start' }, deployment: { type: 'string' } }, strict: true });
+    if (!sha(values.base) || !['start', 'publish'].includes(values.phase)) fail('REMOTE_BASE_ARGUMENT_INVALID');
+    let candidateAdmission;
+    if (values.phase === 'publish') {
+      const head = spawnSync('git', ['rev-parse', 'HEAD'], {cwd: fileURLToPath(new URL('../', import.meta.url)), encoding: 'utf8', timeout: 15000});
+      if (head.status !== 0 || !sha(head.stdout.trim())) fail('REMOTE_BASE_COMMAND_FAILED');
+      ({admission: candidateAdmission} = await collectCandidateAdmission({candidateSha: head.stdout.trim(), deploymentId: values.deployment, ...candidateHttpReaders()}));
+    }
+    console.log(JSON.stringify(readRemoteBase({ expectedBase: values.base, phase: values.phase, candidateAdmission }), null, 2));
+  } catch (error) { console.error(/^(?:REMOTE_BASE|CANDIDATE)_[A-Z_]+$/.test(error?.code || '') ? error.code : 'REMOTE_BASE_FAILED'); process.exitCode = 1; }
 }
