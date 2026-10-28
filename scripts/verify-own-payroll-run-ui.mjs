@@ -16,6 +16,7 @@ import {createInternalDataHandler} from '../api/internal-data.js';
 import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {RUN_CALCULATE,ownRunHash,ownRunOperation} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
+import {observeOwnRunJsonResponse} from './lib/own-payroll-run-response-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
@@ -26,7 +27,7 @@ const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.sch
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
 const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
-let report;
+let report,reviewResponseObservation=null;
 // Literal UI expectations for the unchanged six-rule synthetic programme.
 // Captured SQL metadata proves origin; no presentation helper builds the oracle.
 async function assertCapturedScreenRows(locator,capture,expectedRows,label){
@@ -230,9 +231,18 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run');await rs('send').click();const failedResponse=await failedResponsePromise,failedBody=await failedResponse.json();await idle();
+  reviewResponseObservation={mainFrameNavigations:0,failedCalculationRequests:[],observationCompleted:false};
+  const reviewNavigation=frame=>{if(frame===reviewPage.mainFrame())reviewResponseObservation.mainFrameNavigations++;};
+  const reviewRequestFailed=request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/internal-own-payroll-run')reviewResponseObservation.failedCalculationRequests.push(request.failure()?.errorText??'unknown');};
+  reviewPage.on('framenavigated',reviewNavigation);reviewPage.on('requestfailed',reviewRequestFailed);
+  let failedResponse;
+  try{
+    failedResponse=await observeOwnRunJsonResponse(reviewPage,r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run',()=>rs('send').click());
+    reviewResponseObservation.observationCompleted=true;
+  }finally{reviewPage.off('framenavigated',reviewNavigation);reviewPage.off('requestfailed',reviewRequestFailed);}
+  const failedBody=failedResponse.body;await idle();
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
-  check(failedResponse.status()===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  check(failedResponse.status===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   check((await rs('source-summary').innerText()).includes('31 novedades')&&(await rs('source-summary').innerText()).includes('31 registros'),'source review inspects all 31 actual approved SQL novelties');
@@ -257,8 +267,8 @@ try{
   check(reviewStored.captures===4&&reviewStored.results===3&&posts===reviewPosts+1,'review preserves exact retry and never creates an extra capture or result');
   check(await reviewPage.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('19041')||v.includes('own-run-source-review'))),'source review is not persisted in browser storage');check(errors.length===0,'source review has no browser errors');
   check(legacyDirectoryRequests.length===0,'the complete own calculation and recovery circuit uses zero historical employee lookups');
-  report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,actualProgramAndMonthlySources:true,nativeOwnPickerVerified:true,nativePickerFreshApply:true,nativePickerRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:false,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
-}catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,nativePickerDiagnostics:{ownRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,lastOwnRoster:nativeRosterResponses.at(-1)??null},synthetic:true,productiveInstallation:false};fs.writeFileSync(prefix+'-failure.log',e.stack??String(e));if(testPage){report.browserDiagnostic=await testPage.evaluate(()=>{const link=document.querySelector('[data-own-login]');return {url:location.pathname+location.hash,status:document.querySelector('[data-own-status]')?.textContent,loginHidden:link?.hidden,loginMarkup:link?.outerHTML,loginStyle:link?getComputedStyle(link).display:null,busy:document.querySelector('.own-run')?.getAttribute('aria-busy'),documentHidden:document.hidden};}).catch(()=>null);await testPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
+  report={passed:true,checks,reviewResponseObservation,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,actualProgramAndMonthlySources:true,nativeOwnPickerVerified:true,nativePickerFreshApply:true,nativePickerRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,sourceReviewVerified:true,sourceReviewRecords:31,sourceReviewStored:reviewStored,authenticationGatewayFixture:true,directoryProjectionFixture:false,historicalDashboardUnavailableFixture:true,runtime:args.browser,posts,stored,immutableReplayBodySha256:ownRunHash(lost.body),sourceReviewReplayBodySha256:ownRunHash(failed.body),municipalApprovalVerified:false,productiveInstallation:false,paymentExecuted:false};
+}catch(e){report={passed:false,checks,message:e.message,reviewResponseObservation,sqlDiagnostics,nativePickerDiagnostics:{ownRosterReads:nativeRosterRequests.length,legacyDirectoryRequests:legacyDirectoryRequests.length,lastOwnRoster:nativeRosterResponses.at(-1)??null},synthetic:true,productiveInstallation:false};fs.writeFileSync(prefix+'-failure.log',e.stack??String(e));if(testPage){report.browserDiagnostic=await testPage.evaluate(()=>{const link=document.querySelector('[data-own-login]');return {url:location.pathname+location.hash,status:document.querySelector('[data-own-status]')?.textContent,loginHidden:link?.hidden,loginMarkup:link?.outerHTML,loginStyle:link?getComputedStyle(link).display:null,busy:document.querySelector('.own-run')?.getAttribute('aria-busy'),documentHidden:document.hidden};}).catch(()=>null);await testPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
   held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));
   if(installed){try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');const state=await db.run("SELECT jsonb_build_object('removed',to_regnamespace("+q(qa.schema)+") IS NULL)");assert.equal(state.removed,true);report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}

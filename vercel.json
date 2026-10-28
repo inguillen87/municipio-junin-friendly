@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test --test-concurrency=4 tests/*.test.js && node scripts/build-friendly.mjs",
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {

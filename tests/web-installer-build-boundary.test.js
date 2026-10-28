@@ -15,3 +15,9 @@ test('web QA and Windows installer QA have explicit, non-overlapping source boun
  assert.match(workflow,/gh release view clock-installer-v1\.1\.0/);
  assert.doesNotMatch(workflow,/--clobber/);
 });
+test('Vercel bounds file concurrency while retaining every web gate before packaging',()=>{
+ const pkg=JSON.parse(read('package.json')),config=JSON.parse(read('vercel.json'));
+ assert.equal(pkg.scripts.test,'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js');
+ assert.equal(pkg.scripts.build,'npm run test && node scripts/build-friendly.mjs');
+ assert.equal(config.buildCommand,'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test --test-concurrency=4 tests/*.test.js && node scripts/build-friendly.mjs');
+});
