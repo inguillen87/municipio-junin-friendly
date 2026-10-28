@@ -83,12 +83,28 @@ test('every phase requires body validation/origin and rejects RLS policy evaluat
  const p=build(),guards=[p.preconditionGuard,...Object.values(p.catalog),...Object.values(p.rows).flatMap(r=>[r.before,r.after])];
  for(const guard of guards){
   for(const[setting,value]of[['check_function_bodies','on'],['session_replication_role','origin'],['row_security','off']])assert.ok(guard.includes("current_setting('"+setting+"')<>'"+value+"'"),setting+' fails closed');
-  assert.ok(guard.includes("c.relkind IN('r','p','m') AND c.relrowsecurity AND(c.relforcerowsecurity OR c.relowner<>current_user::regrole)"));
+  assert.ok(guard.includes("atomic_policy_relation.relkind IN('r','p','m') AND atomic_policy_relation.relrowsecurity AND(atomic_policy_relation.relforcerowsecurity OR atomic_policy_relation.relowner<>current_user::regrole)"));
   assert.ok(guard.includes("s.nspname NOT LIKE 'pg_%' AND s.nspname<>'information_schema'"));
   assert.ok(guard.includes('ANNUL_ATOMIC_ROW_POLICY_EVALUATION'));
  }
  for(const row of Object.values(p.rows))for(const when of['before','after'])assert.ok(row[when].indexOf('ANNUL_ATOMIC_ROW_POLICY_EVALUATION')<row[when].indexOf('EXECUTE format('),'guard precedes the first F row query');
  assert.ok(p.scope.requiresNoRowPolicyEvaluation&&p.scope.requiresCheckFunctionBodiesOn&&p.scope.requiresOriginReplicationRole&&p.scope.requiresRowSecurityOff);
+});
+
+test('pre-loop catalogue queries never dereference the unassigned local c record',()=>{
+ const p=build(),statements=[...Object.values(p.catalog),...Object.values(p.rows).flatMap(row=>[row.before,row.after])];
+ const check=sql=>{
+  assert.match(sql,/DECLARE c record/);const loop=sql.indexOf('FOR c IN SELECT ');assert.ok(loop>0);
+  const preLoop=sql.slice(0,loop).replace(/'(?:[^']|'')*'/g,"''");
+  assert.doesNotMatch(preLoop,/\bc\s*\./i,'c has no record shape before FOR assigns it');
+  assert.doesNotMatch(preLoop,/\b(?:FROM|JOIN)\s+(?:pg_catalog\.)?pg_class\s+c\b/i,'a SQL alias must not shadow the PLpgSQL record');
+ };
+ for(const sql of statements){
+  check(sql);
+  assert.throws(()=>check(sql.replaceAll('atomic_policy_relation','c')),assert.AssertionError,'reintroducing the failed policy alias is detected');
+ }
+ for(const row of Object.values(p.rows))for(const when of['before','after'])assert.throws(()=>check(row[when].replaceAll('atomic_foreign_relation','c')),assert.AssertionError,'reintroducing the foreign-table alias is detected');
+ const nativeSource=readRaw('scripts/lib/native-leave-installation.mjs');assert.equal(hash(nativeSource),'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef','historical source and its assigned FOR c are untouched');
 });
 
 test('inherited208 physical catalogue stop remains UNCERTAIN and digest authority is never learned from observations',()=>{
