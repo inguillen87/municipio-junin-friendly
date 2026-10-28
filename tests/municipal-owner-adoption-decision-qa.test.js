@@ -12,10 +12,6 @@ import{sealAdoptionReview}from'../assets/employment-adoption-review-model.js';
 import{ownerDecisionCommand,ownerDecisionPreview}from'../assets/municipal-adoption-owner-decision-model.js';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),sourceCommit='a'.repeat(40),schema='mc_qa_fixed_092_'+'b'.repeat(32);
 const qa=buildOwnerDecisionQa({major:17,sourceCommit,read,schema});
-// The four published-baseline consumers only read this fixture. Keep changed
-// sources, altered batches and invalid destinations on their fresh-build paths.
-let publishedQa;
-const publishedFixture=()=>publishedQa??=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
 const body=d=>/\bAS\s+(\$\w*\$)([\s\S]*)\1\s*;?$/.exec(d)[2];
 
 test('wire previews require client verification after HTTP serialization and reject a changed raw-review seal',async()=>{
@@ -218,7 +214,7 @@ test('physical-column aliases are scoped per statement and nested SELECT, includ
 });
 
 test('canonical seed preserves all eight published124/125 facade grants on their final source bodies',()=>{
- const published=publishedFixture();
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
  const groups=[
   ['scripts/migrations/124-own-payroll-liquidation-decisions.sql','03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a',[
    ['own_liquidation_bootstrap_v1','jsonb','cb2ff7973e93ad71e32045b2566a9bced4bac8a29fe71335aaf67b7482cc7a3b'],
@@ -304,7 +300,7 @@ test('all eleven201 predecessor ACLs agree with the emitted seed and separate200
 });
 
 test('the QA seed preserves all three published067 facade ACLs and the final167 create body',()=>{
- const published=publishedFixture();
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
  const entries=[
   ['native_employee_bootstrap_v1','jsonb','9a31f55e678327485aeb28ac49246b5cffcc348d60119077b07728fa5a967b02'],
   ['native_employee_attempt_v1','jsonb,uuid','68eba7e75a68d2150f54557d2f629b21154c8a69017e2817257b3d5b2d07d7f5'],
@@ -352,7 +348,7 @@ test('the QA seed preserves all three published067 facade ACLs and the final167 
 });
 
 test('the existing census067 profile derives an already exposed seed without weakening metadata checks',()=>{
- const published=publishedFixture();
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
  const censusQa={...published,operationalPairBaseline:'published107',foundation:{foundation:{foundation:{owner:{graph:published.graph}}}}};
  const plan=buildOwnReportCensus067RuntimeFixture({qa:censusQa,read});
  assert.deepEqual(plan.beforeRuntime,[
@@ -374,7 +370,7 @@ test('an earlier explicit private067 facade obligation cannot be silently replac
 
 
 test('the seed emits the five complete published ART158159 facade ACLs and keeps all twelve bodies exact',()=>{
- const published=publishedFixture();
+ const published=buildOwnerDecisionQa({major:17,sourceCommit,read,schema,operationalPairBaseline:'published107'});
  const groups=[
   ['scripts/migrations/158-own-art-days.sql','c718f2480a28e4fdf566675146002dabb75b8fbb6b44a0bc56851520e74ce509',[
    'public.own_art_days_bootstrap_v1(jsonb,uuid,text)',
