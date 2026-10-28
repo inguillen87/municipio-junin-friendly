@@ -5,6 +5,7 @@ import {monthlyNativeFullCycleFixture} from '../../tests/fixtures/own-monthly-na
 import {monthlyDayDeclarationBootstrap,prepareMonthlyDayDeclaration,monthlyDayDeclarationDetail,decideMonthlyDayDeclaration} from '../../assets/own-monthly-day-declaration-model.js';
 import {fixedEmployee,fixedReceipt} from '../../assets/payroll-fixed-novelties-model.js';
 import {salarySerialized} from '../../assets/native-salary-catalog-model.js';
+import {monthlyNativeHistoryPublished} from '../../tests/fixtures/monthly-native-programme-history-synthetic.js';
 import {verifyNativeEmployeePayrollCircuit} from './native-employee-payroll-circuit-qa.mjs';
 import {verifyNativeEmployeeBankTail} from './native-employee-bank-tail-qa.mjs';
 import {verifyNativeEmployeeAccountingTail} from './native-employee-accounting-tail-qa.mjs';
@@ -15,7 +16,7 @@ export async function prepareMonthlyNativeFullCycleSources({created,fixture,mont
  assert.equal(fixture.version,'monthly-native-full-cycle-synthetic.v1');
  assert.notEqual(maker.principal.tenant.membershipId,checker.principal.tenant.membershipId);
  for(const value of [api,state,expect,normalized])assert.equal(typeof value,'function');
- await approveProgram(fixture);
+ const approvedProgramme=monthlyNativeHistoryPublished(await approveProgram(fixture));
  const period=fixture.period,contractId=created.contractId;
  const approve=async definition=>{
   const boot=monthlyDayDeclarationBootstrap(await monthly('bootstrap',maker,{contractId,period}));
@@ -34,8 +35,8 @@ export async function prepareMonthlyNativeFullCycleSources({created,fixture,mont
  const fixedProposal=fixedReceipt(call('payroll_fixed_registry_propose_v1',['jsonb','uuid'],[payload,randomUUID()]),'propose',{expectedVersion:0});
  setCurrent(checker);const fixedReview={recordId:fixedProposal.recordId,proposalId:fixedProposal.proposalId,expectedVersion:fixedProposal.recordVersion,decision:'approve',reason};
  const fixedApproval=fixedReceipt(call('payroll_fixed_registry_review_v1',['jsonb','uuid'],[fixedReview,randomUUID()]),'review',fixedReview);setCurrent(maker);
- const prepared={contractId,registrationId:created.registrationId,programmeSha256:sha(fixture.definition),declaration:structuredClone(fixture.declaration),declarationProposalId:firstDeclaration.proposal.proposalId,declarationApprovalId:firstDeclaration.approval.eventId,fixedRecordId:fixedProposal.recordId,fixedProposalId:fixedProposal.proposalId,fixedApprovalEventId:fixedApproval.eventId,fixedIdentityToken:subject.identityToken};
- const captureBody=async()=>{setCurrent(maker);const boot=await api('run',{resource:'bootstrap'});return{period,liquidationType:'monthly',selection:{kind:'contracts',values:[contractId]},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered',version:'own-payroll-run-command.v2',liquidationDate:fixture.liquidationDate};};
+ const prepared={contractId,registrationId:created.registrationId,programmeSha256:approvedProgramme.programmeSha256,latestProgramVersion:approvedProgramme.latestProgramVersion,declaration:structuredClone(fixture.declaration),declarationProposalId:firstDeclaration.proposal.proposalId,declarationApprovalId:firstDeclaration.approval.eventId,fixedRecordId:fixedProposal.recordId,fixedProposalId:fixedProposal.proposalId,fixedApprovalEventId:fixedApproval.eventId,fixedIdentityToken:subject.identityToken};
+ const captureBody=async()=>{setCurrent(maker);const boot=await api('run',{resource:'bootstrap'});assert.equal(boot.programVersion,approvedProgramme.latestProgramVersion,'JOINT_APPROVED_PROGRAMME_CHANGED');return{period,liquidationType:'monthly',selection:{kind:'contracts',values:[contractId]},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered',version:'own-payroll-run-command.v2',liquidationDate:fixture.liquidationDate};};
  // This preparation-only full30 capture is never the principal first capture.
  // It supplies real saved SQL input/result for the private16-day guard witness.
  const fullBody=await captureBody(),fullKey=randomUUID(),preparation=await api('run',null,fullBody,fullKey,201);
@@ -54,6 +55,7 @@ export async function prepareMonthlyNativeFullCycleSources({created,fixture,mont
 export function assertMonthlyNativeFullCycleCapture(capture,{created,fixture,prepared}){
  assert.equal(prepared.contractId,created.contractId);
  assert.equal(sha(capture.payload.programState.program.definition),prepared.programmeSha256,'JOINT_CAPTURED_PROGRAMME_CHANGED');
+ assert.equal(capture.body.programVersion,prepared.latestProgramVersion,'JOINT_CAPTURED_PROGRAMME_VERSION_CHANGED');assert.equal(capture.payload.programState.program.version,prepared.latestProgramVersion,'JOINT_CAPTURED_PROGRAMME_VERSION_CHANGED');
  assert.deepEqual(capture.saved.input.employees.map(e=>e.contractId),[created.contractId]);
  assert.deepEqual(capture.saved.result.employeeTotals.map(e=>e.contractId),[created.contractId]);
  assert.equal(capture.body.version,'own-payroll-run-command.v2');

@@ -55,6 +55,7 @@ export async function verifyMonthlyDayEngineCircuit(h){
  actor(actors.maker);
  const bootstrap=await api('run'),secondBody={...captureBody,scopeVersion:bootstrap.scopeVersion,programVersion:bootstrap.programVersion,selection:structuredClone(captureBody.selection)},secondKey=randomUUID();
  const second=await api('run',{body:secondBody,key:secondKey,expected:201});
+ assert.equal(second.body.programVersion,original.body.programVersion);assert.deepEqual(second.payload.programState.program,original.payload.programState.program);
  assert.notEqual(second.id,run.id);assert.notEqual(second.key,run.key);
  assert.deepEqual(second.saved.input,original.saved.input);assert.deepEqual(second.saved.result,original.saved.result);
  assert.deepEqual(second.payload.monthlyDayDeclarations,original.payload.monthlyDayDeclarations);
