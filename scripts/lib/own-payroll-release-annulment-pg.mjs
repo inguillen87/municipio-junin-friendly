@@ -38,7 +38,7 @@ const backendStartPattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:
 const exactKeys=(value,keys,code)=>{assert.ok(value&&typeof value==='object'&&!Array.isArray(value),code);assert.deepEqual(Reflect.ownKeys(value).sort(),[...keys].sort(),code);};
 // The client-to-Neon TLS channel and the backend's pg_stat_ssl observation are
 // different facts. Only this socket/configuration check establishes client TLS.
-function clientTlsObservation(client,target){
+export function clientTlsObservation(client,target){
  const parameters=client.connectionParameters,connection=client.connection,stream=connection?.stream;
  assert.ok(parameters&&connection&&stream,'OWN_RELEASE_CLIENT_TLS_CHANNEL_REQUIRED');
  for(const [key,value]of Object.entries({host:target.host,port:5432,user:target.role,database:target.database}))assert.equal(parameters[key],value,'OWN_RELEASE_CLIENT_TLS_DESTINATION_REQUIRED:'+key);
