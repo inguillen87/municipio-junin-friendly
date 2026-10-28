@@ -13,7 +13,7 @@ import {performancePreservationSnapshot} from '../verify-documentary-roster-perf
 import {monthlyQaPrivateDateSource} from './own-monthly-participation-qa.mjs';
 
 export const OWN_ANNUL_PREPARATION209_SQL='scripts/migrations/209-own-annulment-preparation-projection.sql';
-export const OWN_ANNUL_PREPARATION209_SQL_SHA256='5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56';
+export const OWN_ANNUL_PREPARATION209_SQL_SHA256='eabc4f72cc0203a87af50287fcb6367a2ca81e6f957e73b5ee1c2b868aeb6dc4';
 const SQL208='scripts/migrations/208-own-annulment-review-index.sql',SQL201='scripts/migrations/201-own-full-payroll-decision-capacity.sql';
 const HASH=/^[a-f0-9]{64}$/,SCHEMA=/^mc_qa_fixed_092_[a-f0-9]{32}$/,prefix='municontrol_annul_preparation209.';
 const hash=value=>createHash('sha256').update(value).digest('hex'),lf=value=>value.replace(/\r\n?/g,'\n');

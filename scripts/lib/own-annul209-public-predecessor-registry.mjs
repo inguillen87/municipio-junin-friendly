@@ -56,7 +56,7 @@ const SOURCE_PINS=Object.freeze({
  "scripts/migrations/197-own-novelty-succession.sql": "13ad516bfd653a03b5fae8987486abeef1c13a5d629264b0c680d57c5a5bb43c",
  "scripts/migrations/201-own-full-payroll-decision-capacity.sql": "46de1308360a076eff1453f57a9e4f4d6c14ba176d73cf8531b7b0821ed35b1b",
  "scripts/migrations/208-own-annulment-review-index.sql": "2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402",
- "scripts/migrations/209-own-annulment-preparation-projection.sql": "5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56"
+ "scripts/migrations/209-own-annulment-preparation-projection.sql": "eabc4f72cc0203a87af50287fcb6367a2ca81e6f957e73b5ee1c2b868aeb6dc4"
 });
 const PRIVATE_SCALAR_RULES=Object.freeze([
  {

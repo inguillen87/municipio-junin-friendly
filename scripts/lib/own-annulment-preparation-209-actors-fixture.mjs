@@ -23,7 +23,7 @@ const sourcePins=Object.freeze({
  "scripts/lib/own-payroll-report-census-190-iam-fixture.mjs": "c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1",
  "scripts/lib/own-payroll-full-capacity-190-continuation.mjs": "99ce92a626b1e35d58b206162bf279dab757a451307245a29f602f9902a07a01",
  "lib/internal-native-employees.js": "0f044bb371566fe2225ae875ca0383657c05f27fc876019b08ba779d80e121d8",
- "scripts/migrations/209-own-annulment-preparation-projection.sql": "5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56"
+ "scripts/migrations/209-own-annulment-preparation-projection.sql": "eabc4f72cc0203a87af50287fcb6367a2ca81e6f957e73b5ee1c2b868aeb6dc4"
 });
 export const OWN_ANNUL_PREPARER_209_CAPABILITIES=Object.freeze([
  'actions.read','workforce.employee.read','payroll.parameter.read',

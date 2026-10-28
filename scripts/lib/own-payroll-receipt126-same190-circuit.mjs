@@ -13,7 +13,7 @@ const SOURCE_PINS=Object.freeze([
  ["scripts/lib/own-payroll-full-capacity-190-rpc.mjs",3957,"2743c3f4a9069a119500839ceb18e97a931b2a1feee8a27c1c363eb595e21d4f"],
  ["scripts/lib/own-payroll-full-capacity-190-installation.mjs",11610,"f88d5a1979201c17572ae3c6932675dc991641cb736b9480895fd2ff761153eb"],
  ["scripts/lib/own-payroll-report-census-190-iam-fixture.mjs",9508,"c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1"],
- ["scripts/lib/own-annulment-preparation-209-actors-fixture.mjs",23392,"0bf9547c02a6e8f58c0f14969c93e79e1284779f376f799ba350ae4df5df4194"],
+ ["scripts/lib/own-annulment-preparation-209-actors-fixture.mjs",23392,"0418f2681166f68327d5017e3b65946938fc2e91e3f077540f667b8c21fdac10"],
  ["scripts/lib/own-monthly-day-engine-circuit-fixture.mjs",12739,"0c989e0f9e69b6b2a41ca51fcf4c590b531c7bba7d2d36e4f4037c2991205e89"],
  ["scripts/lib/own-payroll-receipt-installation.mjs",9261,"0ac32b323abbe47661f1d2f29609829c05afd945e3b168be64ebc39ebf77dff6"],
  ["scripts/lib/own-payroll-receipt126-same190-inventory.mjs",7020,"ebd438ac7a791dec61a46223acece55b0b6d2599f901fb18f0a7406b4f2297cc"],
@@ -42,8 +42,8 @@ const SOURCE_PINS=Object.freeze([
  ["lib/private-json-body.js",3950,"fab88ee69c88ba5357df6e2184c03db6106f6f533a84f166c01c0c563e7de7f5"],
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
- ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",40174,"15ad862c7b6e4c4363a1a23816623ad73af260cacf2b76d4d8a25b42b6c67754"],
- ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"75e41462036a3fb7ff1ff15120f7c3dc4943a39c4a031d2649c614cc949b0230"],
+ ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",40174,"df7f099635a50344bb2fa699adc4f73f1a20cb6e06584ee59897ab2079d6e1af"],
+ ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"e9aae54460abc38ab3d2d56a22d5ee97091e11f3d70eb99fd47ff47892f77d38"],
  ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25768,"caeca88ce71f7d1f499c87bdd95a37e0611a66a98135d9c45ac695e9c89cc891"],
 ]);
 const RPC=new Map([
