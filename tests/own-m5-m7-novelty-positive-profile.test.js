@@ -10,13 +10,15 @@ const profile=await import('../scripts/lib/own-m5-m7-novelty-positive-profile.mj
 const {composeOwnM5M7ConnectedTransportSource}=await import('../scripts/lib/own-m5-m7-connected-transport-source.mjs');
 const {prepareOwnReleaseAnnulmentAtomicTestTarget}=await import('../scripts/lib/own-payroll-release-annulment-atomic-pg.mjs');
 const {ownM5M7PositiveOracle,runOwnM5M7NoveltyPositiveBusiness}=await import('../scripts/lib/own-m5-m7-novelty-positive-business.mjs');
+const {program:sourceNoveltyProgram,definitions:sourceNoveltyItems}=await import('./fixtures/own-payroll-program-synthetic.js');
+const {programOwnerQaDefinition}=await import('./fixtures/municipal-owner-program-synthetic.js');
 const {createHash}=await import('node:crypto'),sha=x=>createHash('sha256').update(x).digest('hex'),root=new URL('../',import.meta.url),readRaw=f=>fs.readFileSync(new URL(f,root));
 const commit='a'.repeat(40),runId='m5-m7-unit-profile-r1';
 // Offline target-shape fixture only. It cannot create a native observation.
 const raw=Buffer.from(JSON.stringify({branch:{id:'br-orange-rain-ac6uvvxu',project_id:'noisy-poetry-54471701',parent_id:'br-plain-dust-acpjgebb',primary:false,default:false},computes:[{id:'ep-aged-firefly-acoaqlsh',project_id:'noisy-poetry-54471701',branch_id:'br-orange-rain-ac6uvvxu',type:'read_write',disabled:false,pooler_enabled:false,host:'ep-aged-firefly-acoaqlsh.sa-east-1.aws.neon.tech'}]}));
 const target=()=>prepareOwnReleaseAnnulmentAtomicTestTarget({major:17,branchCreationRaw:raw,branchCreationSha256:sha(raw)});
 const build=reader=>profile.buildOwnM5M7NoveltyPositiveProfile({readRaw:reader??readRaw,sourceCommit:commit,testTargetAdmission:target(),runId});
-test('new profile preserves original programme and adds only copied120; seed has48 rows and two real operator identities',()=>{
+test('new profile preserves original programme and adds120 with QA-derived exact policy; seed has48 rows and two real operator identities',()=>{
  const p=build();assert.equal(profile.assertOwnM5M7NoveltyPositiveProfile(p),p);assert.equal(p.expected.operators,2);assert.equal(p.expected.personsAfterApiCreate,3);assert.deepEqual(Object.keys(p.actors),['maker','checker']);assert.equal(p.bootstrapOwner.statements.length,48);assert.equal(p.baselineExpectedCounts.roleCapabilities,27);
  assert.equal(p.canonical.program.rules.length,3);assert.deepEqual(p.canonical.program.rules.filter(r=>r.code!=='120'),p.programmeSources.baseDefinition.rules);assert.deepEqual(p.canonical.program.bindings.filter(b=>b.key!=='addition'),p.programmeSources.baseDefinition.bindings);
  assert.equal(p.actors.maker.capabilities.includes('payroll.novelty.prepare'),true);assert.equal(p.actors.maker.capabilities.includes('payroll.calculation.approve'),false);assert.equal(p.actors.checker.capabilities.includes('payroll.novelty.approve'),true);
@@ -25,6 +27,19 @@ test('new profile preserves original programme and adds only copied120; seed has
 test('extra capability INSERTs occur before their fresh membership and session, never as changes to existing roles',()=>{
  const p=build();for(const[name,cap]of[['maker','payroll.novelty.prepare'],['checker','payroll.novelty.approve']]){const role=p.actors[name].roleKey,rows=p.bootstrapOwner.statements,n=rows.findIndex(x=>x.text.startsWith('INSERT INTO public.iam_role_capability(')&&x.values[0]===role&&x.values[1]===cap);assert.ok(n>0);assert.ok(rows[n+1].text.startsWith('INSERT INTO public.tenant_membership('));assert.equal(rows[n+1].values[3],role);}
  assert.equal(p.bootstrapOwner.expectedCommands.filter(x=>x==='UPDATE').length,1);assert.equal(p.existingRolesUpdated,0);assert.equal(p.databaseGrantsAdded,0);
+});
+test('new120 inherits exact policy from pinned QA190; the former half_up policy is the causal regression, not a PostgreSQL proof',()=>{
+ const p=build(),base=programOwnerQaDefinition(),baseMoney=base.rules.find(r=>r.code==='1'),legacy=sourceNoveltyProgram().rules.find(r=>r.code==='120'),added=p.canonical.program.rules.find(r=>r.code==='120');
+ assert.equal(legacy.rounding.mode,'half_up');assert.equal(baseMoney.rounding.mode,'exact');
+ // SQL196 rejects any new non-exact rule. This source check does not execute SQL.
+ const guardSource=readRaw('scripts/migrations/196-own-fixed-forced-amount.sql').toString('utf8');assert.ok(guardSource.includes("candidate.value#>>'{rounding,mode}'<>'exact'"));assert.ok(guardSource.includes("RAISE EXCEPTION 'OWN_PROGRAM_PRECISION_REQUIRED'"));
+ assert.notDeepEqual(legacy.rounding,baseMoney.rounding);assert.deepEqual(added.rounding,baseMoney.rounding);
+ assert.equal(p.version,'own-m5-m7-novelty-positive-profile.v2');
+ const {rounding:oldPolicy,...originalRule}=legacy,{rounding:newPolicy,...preservedRule}=added;assert.deepEqual(preservedRule,originalRule);
+ assert.deepEqual(p.programmeSources.addedBinding,sourceNoveltyProgram().bindings.find(b=>b.key==='addition'));
+ assert.deepEqual(p.programmeSources.addedItem,sourceNoveltyItems().find(i=>i.kind==='concept'&&i.code==='120'&&i.agreementCode==='1'));
+ assert.deepEqual(p.programmeSources.roundingProvenance,{version:'own-m5-m7-novelty120-qa-rounding-source.v1',sourceFile:'tests/fixtures/municipal-owner-program-synthetic.js',sourceSha256:profile.OWN_M5_M7_SOURCE_PINS['tests/fixtures/municipal-owner-program-synthetic.js'],sourceRule:{agreementCode:baseMoney.agreementCode,code:baseMoney.code},inheritedPolicy:newPolicy,previousLegacyPolicy:oldPolicy,synthetic:true,municipalFormula:false});
+ const inverse={...p.canonical.program,rules:p.canonical.program.rules.filter(r=>r.code!=='120'),bindings:p.canonical.program.bindings.filter(b=>b.key!=='addition')};assert.deepEqual(inverse,base);assert.deepEqual(base,p.programmeSources.baseDefinition);
 });
 test('new mint rejects clones, observed flags and RAW drift',()=>{
  const p=build();assert.throws(()=>profile.assertOwnM5M7NoveltyPositiveProfile({...p}),/MINTED/);assert.throws(()=>profile.buildOwnM5M7NoveltyPositiveProfile({readRaw,sourceCommit:commit,testTargetAdmission:target(),runId,passed:true}),/OPTIONS/);

@@ -7,7 +7,7 @@ import {program as sourceNoveltyProgram,definitions as sourceNoveltyItems} from 
 import {ownProgramDefinition} from '../../assets/own-payroll-program-model.js';
 import {salaryItems,salarySerialized} from '../../assets/native-salary-catalog-model.js';
 
-export const OWN_M5_M7_PROFILE_VERSION='own-m5-m7-novelty-positive-profile.v1';
+export const OWN_M5_M7_PROFILE_VERSION='own-m5-m7-novelty-positive-profile.v2';
 export const OWN_M5_M7_PROTOCOL='published-monthly-fixed-v1+approved-native-novelty120.v1';
 const sha=x=>createHash('sha256').update(x).digest('hex'),minted=new WeakMap();
 const copy=x=>JSON.parse(JSON.stringify(x));
@@ -50,13 +50,17 @@ export function ownM5M7CanonicalProgram(){
  assert.equal(rules[0].nature,'non_remuneration');
  assert.equal(bindings[0].sourceKind,'monthly_amount');assert.equal(bindings[0].sourceCode,'120');
  assert.equal(bindings[0].onMissing,'zero');assert.equal(bindings[0].combine,'sum');
+ const monetary=base.rules.filter(r=>r.agreementCode===rules[0].agreementCode&&r.code==='1'&&r.nature==='remuneration'&&r.unit==='money');assert.equal(monetary.length,1);
+ assert.equal(monetary[0].rounding.mode,'exact','M5_M7_BASE_QA_EXACT_POLICY_REQUIRED');
+ const addedRule={...copy(rules[0]),rounding:copy(monetary[0].rounding)};
+ const roundingProvenance={version:'own-m5-m7-novelty120-qa-rounding-source.v1',sourceFile:'tests/fixtures/municipal-owner-program-synthetic.js',sourceSha256:OWN_M5_M7_SOURCE_PINS['tests/fixtures/municipal-owner-program-synthetic.js'],sourceRule:{agreementCode:monetary[0].agreementCode,code:monetary[0].code},inheritedPolicy:copy(monetary[0].rounding),previousLegacyPolicy:copy(rules[0].rounding),synthetic:true,municipalFormula:false};
  const extra=sourceNoveltyItems().filter(i=>i.kind==='concept'&&i.code==='120'&&i.agreementCode==='1');assert.equal(extra.length,1);
  const items=salaryItems([...copy(programOwnerQaItems()),copy(extra[0])]);
- const definition=ownProgramDefinition({...copy(base),rules:[...copy(base.rules),copy(rules[0])],bindings:[...copy(base.bindings),copy(bindings[0])]},items);
+ const definition=ownProgramDefinition({...copy(base),rules:[...copy(base.rules),addedRule],bindings:[...copy(base.bindings),copy(bindings[0])]},items);
  assert.equal(definition.rules.length,3);assert.equal(definition.bindings.length,2);
  const inverse={...copy(definition),rules:definition.rules.filter(r=>r.code!=='120'),bindings:definition.bindings.filter(b=>b.key!=='addition')};
  assert.deepEqual(inverse,base,'M5_M7_COMPLETE_PROGRAM_INVERSE');
- return freeze({items,definition,baseDefinition:copy(base),addedRule:copy(rules[0]),addedBinding:copy(bindings[0]),addedItem:copy(extra[0]),municipalFormula:false});
+ return freeze({items,definition,baseDefinition:copy(base),addedRule:copy(addedRule),addedBinding:copy(bindings[0]),addedItem:copy(extra[0]),roundingProvenance,municipalFormula:false});
 }
 const CAP_SQL='INSERT INTO public.iam_role_capability(role_key,capability_key) VALUES($1::text,$2::text)';
 const COUNTS=freeze({tenant:1,binding:1,policy:1,users:2,roles:2,roleCapabilities:27,memberships:2,authority:2,sessions:2,persons:2,contracts:2,registrations:2,links:2,catalogProposal:1,catalogReview:1});
