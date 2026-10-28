@@ -58,7 +58,10 @@ function recordShape(record,stage,batch,targetPlan){
  assert.equal(record.version,stage==='novelty217'?targetPlan.version:batch.stageBatches.capacity201.version,'M7_PRIOR_STAGE_VERSION_CHANGED');
  const target=targetPlan.target;exact(record.target,[...Object.keys(target),'transport','postgresSsl'],'M7_PRIOR_TARGET_SHAPE');
  for(const [key,value]of Object.entries(target))assert.equal(record.target[key],value,'M7_PRIOR_DESTINATION_CHANGED:'+key);
- assert.equal(record.target.transport,'neon_https');assert.equal(record.target.postgresSsl,true,'M7_PRIOR_SSL_REQUIRED');
+ // neon_https: TLS is enforced by the HTTPS transport itself (sslmode=verify-full, certificate checks and
+ // NODE_TLS_REJECT_UNAUTHORIZED guard in own-payroll-release-target.mjs). postgresSsl is the backend's own
+ // pg_stat_ssl observation, which Neon reports as false for that transport; it is recorded, never invented.
+ assert.equal(record.target.transport,'neon_https');assert.equal(typeof record.target.postgresSsl,'boolean','M7_PRIOR_SSL_OBSERVATION_REQUIRED');
  assert.equal(record.nativeEquivalencePublicIncluded,false);if(stage==='capacity201')assert.equal(record.novelty217BoundaryReceiptCount,2);
 }
 

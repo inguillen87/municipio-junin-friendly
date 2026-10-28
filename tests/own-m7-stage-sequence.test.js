@@ -182,3 +182,13 @@ test('U9: SAME fake executor produces canonical CLI-identical bytes accepted by 
  assert.deepEqual(sequencePrior.prior217Record,ordinaryPrior.prior217Record);assert.equal(sequencePrior.links.novelty217Prior.sha256,ordinaryPrior.links.novelty217Prior.sha256);assert.equal(sequencePrior.recheck(),true);assert.equal(ordinaryPrior.recheck(),true);
  assert.strictEqual(assertOwnM7PriorForStage({prior:sequencePrior,batch:f.batch,stageId:'census200',major:17}),sequencePrior);
 });
+test('U10: a real neon_https 217 record (pg_stat_ssl=false) is accepted as prior; a non-boolean observation is not',async t=>{
+ const f=fixture(t,{through:'novelty217'});useRealPrior(f);f.state.realWriter=true;
+ const neon=()=>{const r=mock217();return {...r,target:{...r.target,postgresSsl:false}};};
+ f.state.recordFor=id=>id==='novelty217'?neon():{stage:id,sourceCommit:COMMIT,state:'VALIDATED',installed:true,durabilityVerified:true,repeated:false};
+ await f.run();
+ const prior=readOwnM7PriorReceipts({root:f.root,file:f.output('novelty217'),batch:f.batch,stageId:'census200',major:17});
+ assert.equal(prior.prior217Record.target.postgresSsl,false);assert.equal(prior.recheck(),true);
+ const bad='verification/non-boolean-ssl-217.json',r=neon();r.target={...r.target,postgresSsl:'false'};fs.writeFileSync(path.join(f.root,bad),bytes(r));
+ assert.throws(()=>readOwnM7PriorReceipts({root:f.root,file:bad,batch:f.batch,stageId:'census200',major:17}),/M7_PRIOR_SSL_OBSERVATION_REQUIRED/);
+});
