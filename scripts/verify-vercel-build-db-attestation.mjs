@@ -14,11 +14,18 @@ export const BUILD_METADATA_SQL=`SELECT
  current_setting('transaction_read_only') AS "transactionReadOnly"`;
 const clients=Object.freeze(['DATABASE_URL','ACTIONS_DATABASE_URL']);
 const fields=Object.freeze(['serverMajor','database','currentUser','sessionUser','neonProjectId','neonBranchId','neonEndpointId','transactionReadOnly']);
-const codes=new Set(['BUILD_CONTEXT_REQUIRED','SOURCE_SHA_REQUIRED','SOURCE_SHA_MISMATCH','SQL_FACTORY_REQUIRED','OUTPUT_REQUIRED','CLIENT_CONFIGURATION_REQUIRED','CONFIGURED_HOSTNAME_INVALID','CLIENT_UNAVAILABLE','METADATA_INVALID','READ_ONLY_NOT_OBSERVED','OUTPUT_FAILED','NEON_IDENTITY_INCOMPLETE','ARGUMENTS_INVALID','UNEXPECTED_FAILURE']);
+const codes=new Set(['PROVISION_EVENT_PRESENT','BUILD_CONTEXT_REQUIRED','SOURCE_SHA_REQUIRED','SOURCE_SHA_MISMATCH','SQL_FACTORY_REQUIRED','OUTPUT_REQUIRED','CLIENT_CONFIGURATION_REQUIRED','CONFIGURED_HOSTNAME_INVALID','CLIENT_UNAVAILABLE','METADATA_INVALID','READ_ONLY_NOT_OBSERVED','OUTPUT_FAILED','NEON_IDENTITY_INCOMPLETE','ARGUMENTS_INVALID','UNEXPECTED_FAILURE']);
 class AttestationFailure extends Error{
  constructor(code,clientClass=null){super(code);this.code=code;this.clientClass=clientClass;}
 }
 const fail=(code,clientClass=null)=>{throw new AttestationFailure(code,clientClass);};
+// build-friendly.mjs runs an owner-approved provisioning step when this variable exists. An attested
+// release build must never carry it: PRESENCE (even empty) stops before any import, client, SQL or bundle.
+// Only the key is tested; its value is never read, compared, returned or printed.
+export const PROVISION_EVENT_KEY='MC_EMAIL_FACTOR_PROVISION_EVENT';
+function provisionAbsent(env){
+ if(env!==null&&typeof env==='object'&&Object.prototype.hasOwnProperty.call(env,PROVISION_EVENT_KEY))fail('PROVISION_EVENT_PRESENT');
+}
 function configuredBuildHostname(connection,clientClass){
  let hostname;try{hostname=new URL(connection).hostname;}catch{fail('CONFIGURED_HOSTNAME_INVALID',clientClass);}
  // Exact current Neon endpoint FQDN shape; never emit the URL or any other part.
@@ -54,6 +61,7 @@ function safeFailure(error,clientClass=null){
 export async function attestVercelBuildDatabases({env,sourceSha,createSql,writeLine}){
  let clientClass=null;
  try{
+  provisionAbsent(env);
   const context=buildContext(env,sourceSha);
   if(typeof createSql!=='function')fail('SQL_FACTORY_REQUIRED');
   if(typeof writeLine!=='function')fail('OUTPUT_REQUIRED');
@@ -92,6 +100,7 @@ export async function attestVercelBuildDatabases({env,sourceSha,createSql,writeL
 export async function main(argv=process.argv.slice(2),env=process.env){
  let createSql;
  try{
+  provisionAbsent(env);
   if(argv.length!==2||argv[0]!=='--source-sha')fail('ARGUMENTS_INVALID');
   buildContext(env,argv[1]);
   // Dynamic import only on direct CLI execution. Normal build env stays in memory.

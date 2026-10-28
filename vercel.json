@@ -1650,7 +1650,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "internal-*": false
+      "internal-*": false,
+      "master": false
     }
   }
 }
