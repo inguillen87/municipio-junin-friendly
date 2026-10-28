@@ -1,10 +1,11 @@
 name: Own payroll closed reports
 on:
+  workflow_dispatch:
   push:
-    branches: ['master', 'codex/own-payroll-reports-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
+    branches: ['master', 'codex/candidate-admission-20261028', 'codex/own-payroll-reports-20261005']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'package.json', 'package-lock.json', '.nvmrc', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'package.json', 'package-lock.json', '.nvmrc', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
 permissions:
   contents: read
 jobs:
@@ -36,10 +37,26 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Record release candidate source before verification
+        run: node scripts/write-release-candidate-proof.mjs --workflow=reports --major=${{ matrix.major }} --phase=before
       - run: mkdir -p verification
       - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: node --test tests/own-payroll-report*.test.js tests/own-payroll-close*.test.js tests/source-report-catalog.test.js tests/payroll-monthly-summary.test.js
-      - run: npm run build
+      - name: Full web suite and package
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p verification
+          npm run build 2>&1 | tee verification/release-full-suite.log
       - run: npx playwright install --with-deps chromium
       - name: Real HTTP and SQL, complete downloads, mobile and revocation
         run: node scripts/verify-own-payroll-report-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-reports-ui.json
+      - name: Record release candidate evidence
+        run: node scripts/write-release-candidate-proof.mjs --workflow=reports --major=${{ matrix.major }} --phase=after
+      - name: Upload release candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-reports-pg${{ matrix.major }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verification/release-candidate/reports-pg${{ matrix.major }}/
+          if-no-files-found: error
+          retention-days: 5
