@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {OWN_RUN_TYPES} from '../assets/own-payroll-run-workspace-model.js';
+import {OWN_RECEIPT_NOMINAL,OWN_RECEIPT_PREPARER} from '../assets/own-payroll-receipt-access.js';
 import {mountOwnPayrollReceipts} from '../assets/own-payroll-receipt-panel.js';
 import {mountOwnReceiptSelf} from '../assets/own-payroll-receipt-self.js';
 import {OWN_RECEIPT_SELF,OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
@@ -234,4 +235,32 @@ test('corregir un intento combinado restaura ambos rangos y los reintentos conse
  const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0];h.q('scope').value='combined';await h.act('scope','change');h.q('employeeFrom').value=record.employeeNumber;h.q('departmentFrom').value=record.departmentCode;await h.act('query','submit');h.q('reason').value='Corrección de alcance combinado exclusivamente sintética';await h.missingAfterRejection();const original=structuredClone(h.posts()[0]);h.state.sourceVersion=hash('c');await h.act('correct');
  assert.equal(h.q('scope').value,'combined');for(const kind of ['employee','department']){assert.equal(h.q(kind+'Range').hidden,false);assert.equal(h.q(kind+'Range').disabled,false);for(const end of ['From','To'])assert.equal(h.q(kind+end).value,original.body.payload.params.filters[kind+end]);}assert.equal(h.q('confirm').checked,false);assert.deepEqual(h.posts()[0],original);assert.match(h.q('previous').textContent,/Legajos:/);assert.match(h.q('previous').textContent,/Reparticiones:/);
  h.state.postError=null;h.state.network=true;await h.act('prepare');const pending=structuredClone(h.posts()[1]);assert.notEqual(pending.key,original.key);assert.deepEqual(pending.body.payload.params.filters,original.body.payload.params.filters);assert.equal(pending.body.payload.sourceVersion,hash('c'));assert.equal(h.q('fields').disabled,true);h.state.network=false;await h.act('retry');assert.deepEqual(h.posts()[2],pending);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('recover').hidden,true);
+});
+
+test('receipt preparer reads previews and prepares without any calculation write or receipt approval capability',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ for(const cap of ['payroll.calculation.prepare','payroll.calculation.approve','payroll.calculation.close','payroll.receipt.approve'])assert.equal(h.state.caps.includes(cap),false,cap);
+ assert.equal(h.q('result').hidden,false);assert.ok(!h.q('pdf').disabled);
+ await h.act('prepare');assert.equal(h.posts().length,1);assert.equal(h.posts()[0].body.payload.command,'prepare');
+ assert.equal(h.q('approve').disabled,true);assert.equal(h.q('withdraw').disabled,true);
+});
+test('receipt preparer withdrawal removes nominal content immediately when neither receipt prepare nor calculation approval remains',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:['actions.read',...OWN_RECEIPT_NOMINAL]});
+ assert.equal(h.q('result').hidden,true);assert.equal(h.q('recordDetails').textContent,'');assert.equal(h.q('pdf').disabled,true);
+ assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+});
+test('legacy reviewer retains the preview when preparation is withdrawn but calculation approval remains',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ const reviewer=['actions.read',...OWN_RECEIPT_READ];h.state.caps=reviewer;
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:reviewer});
+ assert.equal(h.q('result').hidden,false);assert.ok(!h.q('pdf').disabled);assert.equal(h.q('prepare').disabled,true);
+ await h.act('prepare');assert.equal(h.posts().length,0);
+});
+test('uncertain preparation by a receipt-only preparer recovers the same committed body and key without another POST',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ h.state.network=true;h.state.commitBeforeNetwork=true;await h.act('prepare');const original=structuredClone(h.posts()[0]);
+ assert.equal(h.q('recover').hidden,false);h.state.network=false;await h.act('recover');
+ assert.equal(h.posts().length,1);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('result').hidden,false);
+ assert.equal(h.q('approve').disabled,true);assert.equal(h.q('withdraw').disabled,true);
 });

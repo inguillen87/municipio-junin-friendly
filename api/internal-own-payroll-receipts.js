@@ -8,7 +8,8 @@ import {schoolCertificateSafeError} from '../lib/internal-family-certificates.js
 import {readRawPrivateJson} from '../lib/private-json-body.js';
 import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact} from '../assets/native-salary-catalog-model.js';
-import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,OWN_RECEIPT_SELF,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
+import {OWN_RECEIPT_APPROVE,OWN_RECEIPT_SELF,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
+import {OWN_RECEIPT_NOMINAL,OWN_RECEIPT_PREPARER,ownReceiptModuleAccess} from '../assets/own-payroll-receipt-access.js';
 import {receiptFail,receiptError,ownReceiptOperation} from '../lib/internal-own-payroll-receipts.js';
 import {municipalDocumentIssuerProfile} from '../lib/municipal-document-issuer.js';
 export const config={api:{bodyParser:false}};
@@ -28,14 +29,14 @@ export function createOwnReceiptHandler(deps={}){
   else if(q.resource==='batch'&&Object.keys(q).sort().join('|')==='id|resource'){operation='batch';input={id:q.id};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
   else if(method==='GET')receiptFail('QUERY_INVALID',400,'Consulta inválida.');
-  const required=operation==='self'?OWN_RECEIPT_SELF:OWN_RECEIPT_READ;
+  const required=operation==='self'?OWN_RECEIPT_SELF:OWN_RECEIPT_NOMINAL;
   const access=await authorize(req,res,{env,requiredCapabilities:required,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
-  if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,required))receiptFail('FORBIDDEN',403,'La membresía no permite esta operación.');const session=sessionFor(access,env),context=employeeContext(access.principal,session);
+  if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,required)||operation!=='self'&&!ownReceiptModuleAccess(access.principal.tenant.effectiveCapabilities))receiptFail('FORBIDDEN',403,'La membresía no permite esta operación.');const session=sessionFor(access,env),context=employeeContext(access.principal,session);
   if(operation==='issuer'){const data=municipalDocumentIssuerProfile(context,deps.issuerProfiles);if(fullJson)return await sendOwnPayrollStream(res,200,data);return res.status(200).json({ok:true,data});}
   if(method==='POST'){
    const body=await readRawPrivateJson(req,{maxBytes:16384,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>receiptFail(kind==='large'?'LIMIT':kind==='unavailable'?'UNAVAILABLE':'INPUT_INVALID',kind==='large'?413:kind==='unavailable'?503:400,'No se verificó el formulario completo. Consultá el mismo intento.')});
    if(salaryExact(body,['operation','params'])&&body.operation==='preview'){operation='preview';try{input={params:ownReceiptParams(body.params)};}catch{receiptFail('INPUT_INVALID',422,'Revisá alcance y datos declarados.');}}
-   else if(salaryExact(body,['operation','payload'])&&body.operation==='command'){operation='command';let payload;try{payload=ownReceiptCommand(body.payload);}catch{receiptFail('INPUT_INVALID',422,'Revisá la operación y su motivo.');}const caps=payload.command==='prepare'?OWN_RECEIPT_PREPARE:OWN_RECEIPT_APPROVE;if(!principalHasCapabilities(access.principal,caps))receiptFail('FORBIDDEN',403,'La cuenta no permite preparar o revisar esta emisión.');input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};}
+   else if(salaryExact(body,['operation','payload'])&&body.operation==='command'){operation='command';let payload;try{payload=ownReceiptCommand(body.payload);}catch{receiptFail('INPUT_INVALID',422,'Revisá la operación y su motivo.');}const caps=payload.command==='prepare'?OWN_RECEIPT_PREPARER:OWN_RECEIPT_APPROVE;if(!principalHasCapabilities(access.principal,caps))receiptFail('FORBIDDEN',403,'La cuenta no permite preparar o revisar esta emisión.');input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};}
    else receiptFail('INPUT_INVALID',400,'Formulario no admitido.');
   }
   const data=await ownReceiptOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');const status=operation==='command'&&!data.replayed?201:200;if(fullJson)return await sendOwnPayrollStream(res,status,data);return res.status(status).json({ok:true,data});
