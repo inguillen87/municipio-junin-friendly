@@ -25,6 +25,7 @@ const {buildOwnAnnulmentAtomicPreservation}=await import('../scripts/lib/own-ann
 const {ownInstallationDestination}=await import('../scripts/prepare-own-payroll-installation.mjs');
 const {createOwnReleaseAnnulmentAtomicSessions,ownReleaseAnnulmentAtomicFailureObservation}=await import('../scripts/lib/own-payroll-release-annulment-atomic-pg.mjs');
 const FILE='scripts/lib/own-m7-annul208209-atomic-protocol.mjs',SQL208='scripts/migrations/208-own-annulment-review-index.sql',SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
+const PROFILE_FILE='scripts/lib/own-annulment-ledger-trigger-profile.mjs';
 const sourceCommit='a'.repeat(40),sha=value=>createHash('sha256').update(value).digest('hex'),clone=value=>structuredClone(value);
 const freeze=value=>{if(value&&typeof value==='object'&&!Object.isFrozen(value)){for(const item of Object.values(value))freeze(item);Object.freeze(value);}return value;};
 const rawCache=new Map(),overrides=new Map(),read=file=>overrides.has(file)?overrides.get(file):(rawCache.has(file)?rawCache.get(file):(rawCache.set(file,fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')),rawCache.get(file)));
@@ -34,7 +35,7 @@ let cached;const components=()=>cached??=composeOwnM7Annul208209AtomicSource({re
 const planFor=(target=testTarget)=>compose({components:components(),read,target});
 const versions=plan=>plan.target.kind==='test'?'+test':'';
 function fakeProof(plan,slot,native){
- return{version:'own-m7-annul208209-atomic-proof.v1'+versions(plan),slot,sourceCommit,sourceManifestSha256:plan.sourceManifestSha256,payloadTemplateSha256:plan.phases[slot].payloadTemplateSha256,targetSha256:sha(JSON.stringify(plan.target)),native:clone(native),catalogBeforeSha256:'c'.repeat(64),catalogAfterSha256:'c'.repeat(64),rowsBeforeSha256:plan.phases[slot].readOnly?null:(slot==='rehearsal'?'a':'b').repeat(64),rowsAfterSha256:plan.phases[slot].readOnly?null:(slot==='rehearsal'?'a':'b').repeat(64),objectSha256:slot==='epoch'||slot==='rollbackObserver'?null:(slot==='rehearsal'?'d':'e').repeat(64),functionCount:slot==='epoch'||slot==='rollbackObserver'?0:10};
+ return{version:'own-m7-annul208209-atomic-proof.v2'+versions(plan),ledgerProfile:'positions128129-adopted.v2',slot,sourceCommit,sourceManifestSha256:plan.sourceManifestSha256,payloadTemplateSha256:plan.phases[slot].payloadTemplateSha256,targetSha256:sha(JSON.stringify(plan.target)),native:clone(native),catalogBeforeSha256:'c'.repeat(64),catalogAfterSha256:'c'.repeat(64),rowsBeforeSha256:plan.phases[slot].readOnly?null:(slot==='rehearsal'?'a':'b').repeat(64),rowsAfterSha256:plan.phases[slot].readOnly?null:(slot==='rehearsal'?'a':'b').repeat(64),objectSha256:slot==='epoch'||slot==='rollbackObserver'?null:(slot==='rehearsal'?'d':'e').repeat(64),functionCount:slot==='epoch'||slot==='rollbackObserver'?0:10};
 }
 function fakeBundle(plan,options={}){
  const events=[],identities=Object.fromEntries(SLOTS.map((slot,index)=>[slot,{pid:5100+index,backendStart:'2026-10-28T00:00:00.00000'+index+'+00:00',serverVersionNum:'170011'}]));
@@ -65,7 +66,7 @@ async function run(plan=planFor(),options={}){
 
 test('the new source plan retains exact G1/compatibility/registry guards and puts both whole SQL sources into each single RW transaction',()=>{
  const p=planFor(),c=components(),g1=buildOwnAnnulmentLedgerContract({readRaw:file=>Buffer.from(read(file)),sourceCommit}),preservation=buildOwnAnnulmentAtomicPreservation({readRaw:file=>Buffer.from(read(file)),sourceCommit,ownFunctionNames:[...c.ownPins208,...c.ownPins209].map(pin=>pin.name)});
- assert.deepEqual(p.phaseOrder,['epoch','rehearsal','rollbackObserver','installation','durable']);assert.equal(p.executionAdmitted,false);assert.equal(p.receiptIssued,false);assert.equal(p.sourcePlanOnly,true);
+ assert.deepEqual(p.phaseOrder,['epoch','rehearsal','rollbackObserver','installation','durable']);assert.equal(p.version,'own-m7-annul208209-atomic-plan.v2+test');assert.equal(p.ledgerProfile,'positions128129-adopted.v2');assert.equal(p.executionAdmitted,false);assert.equal(p.receiptIssued,false);assert.equal(p.sourcePlanOnly,true);assert.equal(p.sourceHashes[PROFILE_FILE],c.sourceHashes[PROFILE_FILE]);assert.deepEqual(p.sourceAdmissionContract.ledgerTriggerProjection,c.ledgerTriggerProjection);assert.equal(p.sourceAdmissionContract.ledgerHandlerPinsSha256,sha(JSON.stringify(c.ledgerHandlerPins)));
  for(const slot of SLOTS){const statements=p.phases[slot].statements;assert.ok(statements.includes(ownInstallationDestination(p.target)));assert.ok(statements.includes(g1.guard));assert.ok(statements.includes(preservation.preconditionGuard));assert.ok(statements.includes('SET LOCAL check_function_bodies=on'));assert.ok(statements.includes('SET LOCAL row_security=off'));assert.ok(preservation.preconditionGuard.includes("current_setting('session_replication_role')<>'origin'"));assert.equal(statements.some(sql=>sql.startsWith('SET TRANSACTION')),false);assert.equal(p.phases[slot].templateStatementSha256.length,statements.length);assert.deepEqual(p.phases[slot].templateStatementSha256,statements.map(sha));}
  assert.equal(p.sourceHashes['scripts/lib/own-payroll-release-annulment-atomic-pg.mjs'],'7f7cfb6500edef5a144a5370a9998b7afa08893e6b25d882cdc0841ede8d8456');assert.equal(p.sourceHashes['scripts/lib/own-payroll-release-annulment-pg.mjs'],'78ea06c3debc74dc5b577e33a73a31687ef18ddab97cb31cfafbe39e5cd01840');
  for(const slot of ['rehearsal','installation']){
@@ -74,6 +75,7 @@ test('the new source plan retains exact G1/compatibility/registry guards and put
   const lock=statements.findIndex(sql=>sql.includes('pg_advisory_xact_lock(208)'));assert.ok(lock>=0&&lock<statements.indexOf(preservation.catalog[slot+'Before']));assert.ok(statements.includes("SET LOCAL lock_timeout='5s'"));assert.ok(statements.includes("SET LOCAL statement_timeout='180s'"));assert.ok(statements.includes(preservation.rows[slot].compare));
  }
  for(const slot of ['epoch','rollbackObserver','durable']){const joined=p.phases[slot].statements.join('\n');assert.ok(!joined.includes('FROM %I.%I'));assert.ok(!joined.includes('last_value'));assert.ok(!joined.includes('is_called'));assert.ok(!joined.includes('rows_rehearsal'));assert.ok(!joined.includes('rows_installation'));}
+ for(const slot of SLOTS){assert.ok(p.phases[slot].statements.includes(c.registryGuards.ledgerTriggers));for(const pin of c.ledgerHandlerPins)assert.ok(p.phases[slot].statements.join('\n').includes(pin.sha256));assert.ok(!p.phases[slot].statements.includes(c.legacyRegistryGuards.ledgerTriggers));}
  assert.equal(p.phases.rehearsal.end,'ROLLBACK');assert.equal(p.phases.installation.end,'COMMIT');assert.ok(Object.isFrozen(p));assert.ok(Object.isFrozen(p.phases.installation.statements));assert.equal(bookend(p).sourceVerified,true);
 });
 
@@ -83,7 +85,7 @@ test('the synthetic coordinator follows E-R(ROLLBACK)-O-I(COMMIT)-D, awaits pre-
  for(const slot of SLOTS){const at=events.findIndex(event=>event.type==='end'&&event.slot===slot);assert.equal(events[at-1].type,'persist');assert.equal(events[at-1].slot,slot);assert.equal(events[at-1].endRequested,false);assert.equal(record.phases[slot].beginCommand,'BEGIN');}
  assert.notEqual(record.phases.rehearsal.proof.rowsBeforeSha256,record.phases.installation.proof.rowsBeforeSha256);assert.notEqual(record.phases.rehearsal.proof.objectSha256,record.phases.installation.proof.objectSha256);assert.equal(record.phases.installation.proof.objectSha256,record.phases.durable.proof.objectSha256);
  for(const phase of Object.values(record.phases))assert.equal(phase.proof.catalogBeforeSha256,record.sourceAdmission.catalogSha256);
- assert.equal(record.sourceAdmission.version,'own-m7-annul208209-atomic-source-admission.v1+test');assert.equal(record.sourceAdmission.productionAdmitted,false);assert.ok(!JSON.stringify(record).includes('novelty217Prior'));assert.ok(!JSON.stringify(record).includes('validatedNativeProofs'));
+ assert.equal(record.version,'own-m7-annul208209-atomic-protocol.v2+test');assert.equal(record.ledgerProfile,'positions128129-adopted.v2');assert.equal(record.sourceAdmission.version,'own-m7-annul208209-atomic-source-admission.v2+test');assert.equal(record.sourceAdmission.ledgerProfile,record.ledgerProfile);assert.equal(record.sourceAdmission.productionAdmitted,false);assert.ok(!JSON.stringify(record).includes('novelty217Prior'));assert.ok(!JSON.stringify(record).includes('validatedNativeProofs'));
  assert.equal(persisted.find(value=>value.currentSlot==='installation'&&!value.phases.installation.endRequested).installationCommitObserved,false);assert.equal(record.installationCommitObserved,true);assert.equal(record.durabilityObserved,true);
  const i=events.find(event=>event.type==='call'&&event.slot==='installation');assert.deepEqual(record.phases.installation.statementSha256,i.statements.map(sha));assert.ok(!i.statements.join('\n').includes('__OWN_ANNUL_ATOMIC_PRIOR_CATALOG_SHA256__'));assert.notDeepEqual(record.phases.installation.statementSha256,plan.phases.installation.templateStatementSha256);
 });
@@ -110,7 +112,7 @@ test('unexpected errors, persistence failures, response loss and COMMIT-to-ROLLB
 
 test('pre-end proof/command/native checks reject causal faults before committing and full returned rows are rechecked after the end',async()=>{
  for(const mutate of[
-  envelope=>{envelope.beginCommand='SELECT';},envelope=>{envelope.statementCommands[0]='SELECT';},envelope=>{envelope.rows[0]=[{passed:true}];},envelope=>{envelope.rows.at(-1)[0].proof.passed=true;},envelope=>{envelope.rows.at(-1)[0].proof.native.pid++;},envelope=>{envelope.rows.at(-1)[0].proof.payloadTemplateSha256='0'.repeat(64);},
+  envelope=>{envelope.beginCommand='SELECT';},envelope=>{envelope.statementCommands[0]='SELECT';},envelope=>{envelope.rows[0]=[{passed:true}];},envelope=>{envelope.rows.at(-1)[0].proof.passed=true;},envelope=>{envelope.rows.at(-1)[0].proof.native.pid++;},envelope=>{envelope.rows.at(-1)[0].proof.payloadTemplateSha256='0'.repeat(64);},envelope=>{envelope.rows.at(-1)[0].proof.version='own-m7-annul208209-atomic-proof.v1+test';},envelope=>{envelope.rows.at(-1)[0].proof.ledgerProfile='positions128129-original.v1';},
  ]){
   const {record,events}=await run(planFor(),{mutate:(slot,envelope)=>{if(slot==='installation')mutate(envelope);}});assert.equal(record.status,'UNCERTAIN');assert.equal(events.some(event=>event.type==='end'&&event.slot==='installation'),false);assert.equal(events.some(event=>event.type==='call'&&event.slot==='durable'),false);
  }
@@ -124,7 +126,7 @@ test('production and TEST require distinct exact kinds, versions, destinations, 
  for(const mutate of[
   h=>{h.bundle.version='own-release-annulment-dedicated-pg.v2';},h=>{h.bundle.target.kind='production';},h=>{h.bundle.target.parentBranchId='br-foreign';},h=>{h.bundle.identities.rehearsal=h.bundle.identities.epoch;},h=>{h.bundle.tlsObservations[0].clientTls.authorized=false;},h=>{h.bundle.tlsObservations[0].clientTls.servername='foreign.invalid';},h=>{h.bundle.transaction=async()=>{};},h=>{h.bundle.passed=true;},
  ]){const h=fakeBundle(p);mutate(h);await assert.rejects(()=>execute({plan:p,bundle:h.bundle,persist:async()=>{}}));assert.equal(h.events.length,0);}
- const production=await run(planFor(prod));assert.equal(production.record.version,'own-m7-annul208209-atomic-protocol.v1');assert.equal(production.record.target.kind,'production');assert.equal(production.record.productionAdmitted,false);assert.equal(production.record.sourceAdmission.observationOnly,true);
+ const production=await run(planFor(prod));assert.equal(production.record.version,'own-m7-annul208209-atomic-protocol.v2');assert.equal(production.record.target.kind,'production');assert.equal(production.record.productionAdmitted,false);assert.equal(production.record.sourceAdmission.observationOnly,true);
  const synthetic=await run();assert.throws(()=>validate({plan:production.plan,record:synthetic.record}),/MINTED_RECORD_REQUIRED/);assert.throws(()=>validate({plan:synthetic.plan,record:production.record}),/MINTED_RECORD_REQUIRED/);
 });
 
@@ -133,7 +135,7 @@ test('minted source/plan/record identity, exact factory options, single attempts
  for(const file of ['scripts/lib/own-payroll-release-annulment-atomic-pg.mjs','scripts/lib/own-payroll-release-annulment-pg.mjs'])assert.throws(()=>compose({components:c,read:path=>path===file?read(path)+'\n':read(path),target:testTarget}),/RAW|ADAPTER_SOURCE/);
  for(const extra of[{passed:true},{sourceAdmission:{}},{prior:{}},{observedMetadata:{}},{ledger:{guard:'SELECT true'}}])assert.throws(()=>compose({components:c,read,target:testTarget,...extra}),/OPTIONS_EXACT/);
  const p=planFor(),h=fakeBundle(p);await assert.rejects(()=>execute({plan:{...p},bundle:h.bundle,persist:async()=>{}}),/MINTED_PLAN_REQUIRED/);assert.throws(()=>bookend({...p}),/MINTED_PLAN_REQUIRED/);
- const {record,plan,bundle}=await run();for(const forged of[{...record},clone(record),{version:'own-m7-public-annulment-tail.v1',passed:true}])assert.throws(()=>validate({plan,record:forged}),/MINTED_RECORD_REQUIRED/);await assert.rejects(()=>execute({plan,bundle,persist:async()=>{}}),/SINGLE_ATTEMPT/);
+ const {record,plan,bundle}=await run();for(const forged of[{...record},clone(record),{...record,version:'own-m7-annul208209-atomic-protocol.v1+test',status:'VALIDATED'},{version:'own-m7-public-annulment-tail.v1',passed:true}])assert.throws(()=>validate({plan,record:forged}),/MINTED_RECORD_REQUIRED/);await assert.rejects(()=>execute({plan,bundle,persist:async()=>{}}),/SINGLE_ATTEMPT/);
  const raw=read(SQL209),changed=raw.replace('\n','\r\n');try{overrides.set(SQL209,changed);assert.throws(()=>bookend(p),/RAW_SOURCE_BOOKEND|RAW_DRIFT/);}finally{overrides.delete(SQL209);}
  const own=read(FILE);try{overrides.set(FILE,own+'\n');assert.throws(()=>bookend(p),/RAW_DRIFT/);}finally{overrides.delete(FILE);}
  assert.equal(bookend(p).sourceVerified,true);assert.deepEqual(external,[]);
@@ -163,12 +165,14 @@ test('the real transport WeakMap retains a frozen exception with no context prop
 });
 
 test('RAW source drift during awaited installation persistence is detected before requesting COMMIT, with no durable call',async()=>{
- const plan=planFor(),h=fakeBundle(plan),original=read(FILE);let changed=false,record;
- try{
-  record=await execute({plan,bundle:h.bundle,persist:async value=>{
-   await h.persist(value);
-   if(!changed&&value.status==='IN_PROGRESS'&&value.currentSlot==='installation'&&!value.phases.installation.endRequested){changed=true;overrides.set(FILE,original+'\n-- synthetic RAW drift during pre-end persistence');}
-  }});
- }finally{overrides.delete(FILE);}
- assert.equal(changed,true);assert.equal(record.status,'UNCERTAIN');assert.equal(record.failure.endRequested,false);assert.equal(record.failure.error.code,'ERR_ASSERTION');assert.equal(record.installationCommitObserved,false);assert.equal(h.events.some(event=>event.type==='end'&&event.slot==='installation'),false);assert.equal(h.events.some(event=>event.type==='call'&&event.slot==='durable'),false);assert.match(failure(record).message,/ATOMIC_PROTOCOL_RAW_DRIFT/);assert.deepEqual(external,[]);
+ for(const file of [FILE,PROFILE_FILE]){
+  const plan=planFor(),h=fakeBundle(plan),original=read(file);let changed=false,record;
+  try{
+   record=await execute({plan,bundle:h.bundle,persist:async value=>{
+    await h.persist(value);
+    if(!changed&&value.status==='IN_PROGRESS'&&value.currentSlot==='installation'&&!value.phases.installation.endRequested){changed=true;overrides.set(file,original+'\n-- synthetic RAW drift during pre-end persistence');}
+   }});
+  }finally{overrides.delete(file);}
+  assert.equal(changed,true);assert.equal(record.status,'UNCERTAIN');assert.equal(record.failure.endRequested,false);assert.equal(record.failure.error.code,'ERR_ASSERTION');assert.equal(record.installationCommitObserved,false);assert.equal(h.events.some(event=>event.type==='end'&&event.slot==='installation'),false);assert.equal(h.events.some(event=>event.type==='call'&&event.slot==='durable'),false);assert.match(failure(record).message,/RAW_SOURCE_BOOKEND_CHANGED|ATOMIC_PROTOCOL_RAW_DRIFT/);assert.deepEqual(external,[]);
+ }
 });

@@ -28,7 +28,9 @@ const {composeOwnAnnulmentReview208PublicSource}=await import('../scripts/lib/ow
 const {composeOwnAnnul209PublicPredecessorRegistry}=await import('../scripts/lib/own-annul209-public-predecessor-registry.mjs');
 const {ownInstallationFunctionPin}=await import('../scripts/lib/own-payroll-installation.mjs');
 const {pinsCheck}=await import('../scripts/lib/native-leave-installation.mjs');
+const {projectOwnAnnulmentLedgerTriggerGuard,assertOwnAnnulmentLedgerTriggerProfile}=await import('../scripts/lib/own-annulment-ledger-trigger-profile.mjs');
 const FILE='scripts/lib/own-m7-annul208209-atomic-source.mjs',TAIL='scripts/lib/own-m7-public-annulment208209.mjs';
+const PROFILE_FILE='scripts/lib/own-annulment-ledger-trigger-profile.mjs';
 const SQL208='scripts/migrations/208-own-annulment-review-index.sql',SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
 const sourceCommit='a'.repeat(40),major=17,operationalPairBaseline='published107';
 const sha=value=>createHash('sha256').update(value).digest('hex'),lf=value=>value.replace(/\r\n?/g,'\n'),q=value=>"'"+value.replaceAll("'","''")+"'";
@@ -46,7 +48,7 @@ test('minted atomic SOURCE components derive all ten functions from whole pinned
  assert.equal(c.raw208,rawRead(SQL208));assert.equal(c.raw209,rawRead(SQL209));
  assert.equal(sha(lf(c.raw208)),'2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402');assert.equal(sha(lf(c.raw209)),'eabc4f72cc0203a87af50287fcb6367a2ca81e6f957e73b5ee1c2b868aeb6dc4');
  assert.equal(c.ownPins208.length,7);assert.equal(c.ownPins209.length,3);assert.equal([...c.ownPins208,...c.ownPins209].filter(pin=>pin.runtime).length,6);
- assert.equal(c.predecessorEntries.length,50);assert.equal(c.predecessorClosure.memberCount,50);assert.equal(c.privateScalarSignatures.length,11);assert.equal(c.triggerSources.length,10);assert.equal(new Set(c.triggerSources.map(item=>item.table)).size,5);
+ assert.equal(c.predecessorEntries.length,50);assert.equal(c.predecessorClosure.memberCount,50);assert.equal(c.privateScalarSignatures.length,11);assert.equal(c.triggerSources.length,12);assert.equal(c.immutableTriggerSources.length,10);assert.equal(new Set(c.triggerSources.map(item=>item.table)).size,5);assert.equal(c.ledgerProfile,'positions128129-adopted.v2');assert.equal(c.ledgerHandlerPins.length,2);
  assert.equal(c.privateDate.pin.defaults,'true');assert.match(c.privateDate.definition,/required boolean DEFAULT true/);
  const table=c.predecessorEntries.find(item=>item.pin.signature==='public.tenant_iam_effective_capabilities(uuid)');assert.equal(table.pin.kind,'table');assert.deepEqual(table.pin.argModes,['i','t']);assert.equal(table.pin.runtime,false);
  assert.equal(c.capacityEpoch.wholeGuardInverse,true);assert.equal(c.capacityEpoch.unchangedOtherRecords,26);assert.equal(c.capacityEpoch.post215.length,27);
@@ -60,12 +62,12 @@ test('minted atomic SOURCE components derive all ten functions from whole pinned
  assert.deepEqual(c.counts,{predecessorFunctions:50,newFunctions:10,privateHelpers:4,runtimeFacades:6,newTables:0,adaptedFunctions:0});
 });
 
-test('source208 preconditions and ALL registry guards retain exact SQL and order; compatibility excludes only required208Functions',()=>{
+test('source208 and all historical registry guards retain exact SQL; only ledgerTriggers receives the declared source-derived strict12 projection',()=>{
  const c=components(),p=review(),r=predecessors();
  assert.deepEqual(c.pre208Guards,[p.statements[0],p.statements[2],p.statements[3]]);
- assert.deepEqual(c.registryGuardOrder,Object.keys(r.guards));assert.deepEqual(c.registryGuards,r.guards);assert.deepEqual(c.pre209Guards,Object.values(r.guards));assert.equal(c.registryGuardsJoined,Object.values(r.guards).join(';\n'));
+ assert.deepEqual(c.registryGuardOrder,Object.keys(r.guards));assert.deepEqual(c.legacyRegistryGuards,r.guards);assert.deepEqual(c.immutableTriggerSources,r.triggerSources);for(const key of Object.keys(r.guards).filter(key=>key!=='ledgerTriggers'))assert.equal(c.registryGuards[key],r.guards[key]);assert.notEqual(c.registryGuards.ledgerTriggers,r.guards.ledgerTriggers);assert.deepEqual(c.pre209Guards,Object.values(c.registryGuards));assert.equal(c.registryGuardsJoined,Object.values(c.registryGuards).join(';\n'));
  assert.equal(c.pre209Guards.at(-1),r.guards.required208Functions);for(const pin of c.ownPins208)assert.ok(c.pre209Guards.at(-1).includes(pin.signature));
- assert.deepEqual(c.compatibilityGuards,[...Object.entries(r.guards).filter(([key])=>key!=='required208Functions').map(([,sql])=>sql),p.statements[2],p.statements[3],c.absence10]);
+ assert.deepEqual(c.compatibilityGuards,[...Object.entries(c.registryGuards).filter(([key])=>key!=='required208Functions').map(([,sql])=>sql),p.statements[2],p.statements[3],c.absence10]);
  assert.equal(c.guardReferences.compatibility.at(-1).source,TAIL);
  const absenceTemplate=/const absence=names=>`([^]*?)`;/u.exec(lf(rawRead(TAIL)))[1];
  assert.equal(c.absence10,absenceTemplate.replace("${names.map(q).join(',')}",()=>[...c.ownPins208,...c.ownPins209].map(pin=>q(pin.name)).join(',')));
@@ -75,6 +77,7 @@ test('source208 preconditions and ALL registry guards retain exact SQL and order
    const ref=c.guardReferences[group][index];assert.equal(ref.sha256,sha(sqls[index]));assert.equal(ref.sourceSha256,c.sourceHashes[ref.source]);assert.ok(ref.selector.length>0);
   }
  }
+ const ledgerRef=c.guardReferences.pre209[c.registryGuardOrder.indexOf('ledgerTriggers')];assert.equal(ledgerRef.source,PROFILE_FILE);assert.equal(ledgerRef.legacyGuardSha256,sha(r.guards.ledgerTriggers));assert.equal(ledgerRef.wholeInverseVerified,true);assert.equal(ledgerRef.profile,c.ledgerProfile);
 });
 
 test('both post guards use the exact pinned209 ACL template with owner/header/body checks and exact one-or-two privileges',()=>{
@@ -99,14 +102,14 @@ test('both post guards use the exact pinned209 ACL template with owner/header/bo
 test('source inputs cover every raw read and retain full RAW and LF provenance without observed metadata',()=>{
  const c=components();assert.equal(c.sourceInputs.length,Object.keys(c.sourceHashes).length);assert.ok(c.sourceInputs.length>30);
  for(const input of c.sourceInputs){const raw=rawRead(input.path);assert.equal(input.rawSha256,sha(raw));assert.equal(input.rawUtf8Bytes,Buffer.byteLength(raw));assert.equal(input.lfSha256,sha(lf(raw)));assert.equal(input.lfUtf8Bytes,Buffer.byteLength(lf(raw)));assert.equal(c.sourceHashes[input.path],input.lfSha256);}
- for(const file of[FILE,TAIL,SQL208,SQL209,'scripts/lib/native-leave-installation.mjs','scripts/lib/own-annul209-public-predecessor-registry.mjs','scripts/lib/own-m7-public-annulment208-source.mjs'])assert.ok(c.sourceHashes[file]);
+ for(const file of[FILE,TAIL,SQL208,SQL209,PROFILE_FILE,'scripts/lib/native-leave-installation.mjs','scripts/lib/own-annul209-public-predecessor-registry.mjs','scripts/lib/own-m7-public-annulment208-source.mjs'])assert.ok(c.sourceHashes[file]);
  for(const[file,digest]of Object.entries(review().sourceHashes))assert.equal(c.sourceHashes[file],digest);for(const[file,digest]of Object.entries(predecessors().sourceHashes))assert.equal(c.sourceHashes[file],digest);
  const bookend=bookendOwnM7Annul208209AtomicSource(c);assert.equal(bookend.sourceVerified,true);assert.equal(bookend.observedMetadataUsed,false);assert.equal(bookend.executionAdmitted,false);assert.equal(bookend.receiptIssued,false);assert.equal(bookend.sourceHashes,c.sourceHashes);
 });
 
 test('closed factory options reject observed metadata, raw SQL, target, actors and passed receipts before reading',()=>{
  let reads=0;const noRead=()=>{reads++;throw Error('READ_FORBIDDEN');};
- for(const extra of[{observedMetadata:{}},{sourceHashes:{}},{raw208:'sql'},{ownPins209:[]},{registry:{}},{target:{kind:'production'}},{client:{}},{actor:{}},{passed:true},{sourceReceiptPassed:true},{connects:false}])assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:noRead,sourceCommit,major,...extra}),/ATOMIC_SOURCE_OPTIONS_EXACT/);
+ for(const extra of[{observedMetadata:{}},{sourceHashes:{}},{raw208:'sql'},{ownPins209:[]},{registry:{}},{target:{kind:'production'}},{client:{}},{actor:{}},{passed:true},{sourceReceiptPassed:true},{connects:false},{ledgerProfile:'positions128129-original.v1'}])assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:noRead,sourceCommit,major,...extra}),/ATOMIC_SOURCE_OPTIONS_EXACT/);
  for(const invalid of[{major:16},{major:'17'},{sourceCommit:'wrong'}])assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:noRead,sourceCommit,major,...invalid}));
  assert.equal(reads,0);
  const c=components();assert.equal(assertOwnM7Annul208209AtomicSource(c,{sourceCommit,major}),c);assert.equal(assertOwnM7Annul208209AtomicSource(c),c);
@@ -114,7 +117,7 @@ test('closed factory options reject observed metadata, raw SQL, target, actors a
 });
 
 test('unminted clones and forged admissions cannot become SOURCE components; the minted value is deeply frozen',()=>{
- const c=components();for(const clone of[{...c},structuredClone(c),{...c,passed:true,executionAdmitted:true}]){
+ const c=components();for(const clone of[{...c},JSON.parse(JSON.stringify(c)),{...c,passed:true,executionAdmitted:true},{...c,version:'own-m7-annul208209-atomic-source-components.v1'},{...c,ledgerProfile:'positions128129-original.v1'}]){
   assert.throws(()=>assertOwnM7Annul208209AtomicSource(clone),/MINTED_SOURCE_COMPONENTS_REQUIRED/);assert.throws(()=>bookendOwnM7Annul208209AtomicSource(clone),/MINTED_SOURCE_COMPONENTS_REQUIRED/);
  }
  for(const item of[c,c.ownPins208,c.ownPins209[0],c.ownPins209[0].config,c.predecessorEntries,c.predecessorEntries[0].pin,c.sourceInputs,c.guardReferences,c.guardReferences.pre209[0]])assert.ok(Object.isFrozen(item));
@@ -126,13 +129,24 @@ test('unminted clones and forged admissions cannot become SOURCE components; the
 });
 
 test('pinned source injection fails before composition, and any RAW-only change poisons bookend despite an identical LF hash',()=>{
- for(const file of[SQL208,SQL209,TAIL,'scripts/lib/own-m7-public-annulment208-source.mjs','scripts/lib/own-annul209-public-predecessor-registry.mjs','scripts/lib/native-leave-installation.mjs'])assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:p=>p===file?rawRead(p)+'\n-- injected foreign source':rawRead(p),sourceCommit,major}),/ATOMIC_PINNED_SOURCE_CHANGED/);
- const c=components();for(const file of[SQL208,SQL209,FILE,'scripts/migrations/006-tenant-action-authority.sql']){
+ for(const file of[SQL208,SQL209,TAIL,PROFILE_FILE,'scripts/lib/own-m7-public-annulment208-source.mjs','scripts/lib/own-annul209-public-predecessor-registry.mjs','scripts/lib/native-leave-installation.mjs','scripts/migrations/128-own-position-assignments.sql','scripts/migrations/129-own-position-comparison.sql','scripts/lib/adopted-positions-installation.mjs'])assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:p=>p===file?rawRead(p)+'\n-- injected foreign source':rawRead(p),sourceCommit,major}),/ATOMIC_PINNED_SOURCE_CHANGED/);
+ const c=components();for(const file of[SQL208,SQL209,FILE,PROFILE_FILE,'scripts/migrations/006-tenant-action-authority.sql']){
   const raw=rawRead(file),changed=raw.includes('\r\n')?raw.replace('\r\n','\n'):raw.replace('\n','\r\n');assert.notEqual(raw,changed);assert.equal(sha(lf(raw)),sha(lf(changed)));
   try{overrides.set(file,changed);assert.throws(()=>bookendOwnM7Annul208209AtomicSource(c),/ATOMIC_RAW_SOURCE_BOOKEND_CHANGED/);assert.throws(()=>assertOwnM7Annul208209AtomicSource(c),/ATOMIC_RAW_SOURCE_BOOKEND_CHANGED/);}finally{overrides.delete(file);}
  }
  assert.equal(bookendOwnM7Annul208209AtomicSource(c).sourceVerified,true);
  let reads=0;assert.throws(()=>composeOwnM7Annul208209AtomicSource({read:file=>{if(file===SQL208&&++reads===2)return rawRead(file)+'\n';return rawRead(file);},sourceCommit,major}),/ATOMIC_RAW_SOURCE_DRIFT/);
+});
+
+test('the adopted strict12 profile is minted, exact-counted and whole-invertible; unknown extras and original129 handler fallback are rejected',()=>{
+ const c=components(),profile=c.ledgerTriggerProfile,original=c.legacyRegistryGuards.ledgerTriggers;
+ assert.equal(assertOwnAnnulmentLedgerTriggerProfile(profile),profile);const projected=projectOwnAnnulmentLedgerTriggerGuard({profile,legacyGuard:original});assert.equal(projected.guard,c.registryGuards.ledgerTriggers);assert.equal(projected.wholeInverseVerified,true);assert.equal(projected.legacySha256,sha(original));assert.equal(projected.projectedSha256,sha(projected.guard));
+ const counts=Object.fromEntries([...new Set(c.triggerSources.map(value=>value.table))].map(table=>[table,c.triggerSources.filter(value=>value.table===table).length]));assert.equal(counts['public.own_payroll_run_capture'],4);for(const[table,count]of Object.entries(counts))if(table!=='public.own_payroll_run_capture')assert.equal(count,2);
+ assert.ok(!projected.guard.includes('>=2'));assert.ok(projected.guard.includes('expectedCount'));assert.equal(c.triggerSources.filter(value=>value.type===5).length,2);
+ for(const pin of c.ledgerHandlerPins){assert.equal(pin.runtime,false);assert.equal(pin.resultType,'trigger');assert.ok(projected.guard.includes(pin.signature));assert.ok(projected.guard.includes(pin.sha256));}
+ const comparisonRaw=lf(rawRead('scripts/migrations/129-own-position-comparison.sql')),comparisonDefinition=/CREATE FUNCTION public\.position_comparison_capture_trigger_v1\([\s\S]*?\bAS\s+(\$\w*\$)[\s\S]*?\1/.exec(comparisonRaw)[0],originalPin=ownInstallationFunctionPin(comparisonDefinition),adopted=c.ledgerHandlerPins.find(pin=>pin.name===originalPin.name);assert.notEqual(adopted.sha256,originalPin.sha256);assert.ok(!projected.guard.includes(originalPin.sha256));
+ for(const legacyGuard of[original+';DO $$ BEGIN NULL;END $$',original.replace('<>2','>=2'),original.replace('own_run_capture_immutable','unknown_extra_trigger')])assert.throws(()=>projectOwnAnnulmentLedgerTriggerGuard({profile,legacyGuard}));
+ assert.throws(()=>projectOwnAnnulmentLedgerTriggerGuard({profile:{...profile},legacyGuard:original}));assert.throws(()=>assertOwnAnnulmentLedgerTriggerProfile({...profile,profile:'positions128129-original.v1'}));
 });
 
 test('major18 changes only source context, keeps a target-independent SOURCE object and performs no external effects',()=>{

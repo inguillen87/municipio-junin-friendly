@@ -6,9 +6,12 @@ import {composeOwnAnnulmentReview208PublicSource,OWN_ANNUL_REVIEW208_SQL,OWN_ANN
 import {composeOwnAnnul209PublicPredecessorRegistry,assertOwnAnnul209PublicPredecessorRegistry,bookendOwnAnnul209PublicPredecessorRegistry} from './own-annul209-public-predecessor-registry.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
+import {buildOwnAnnulmentLedgerTriggerProfile,projectOwnAnnulmentLedgerTriggerGuard,assertOwnAnnulmentLedgerTriggerProfile} from './own-annulment-ledger-trigger-profile.mjs';
 
-export const OWN_M7_ANNUL208209_ATOMIC_SOURCE_VERSION='own-m7-annul208209-atomic-source-components.v1';
+export const OWN_M7_ANNUL208209_ATOMIC_SOURCE_VERSION='own-m7-annul208209-atomic-source-components.v2';
 const FILE='scripts/lib/own-m7-annul208209-atomic-source.mjs';
+const TRIGGER_PROFILE_FILE='scripts/lib/own-annulment-ledger-trigger-profile.mjs';
+const LEDGER_PROFILE='positions128129-adopted.v2';
 const TAIL='scripts/lib/own-m7-public-annulment208209.mjs';
 const SOURCE208='scripts/lib/own-m7-public-annulment208-source.mjs';
 const REGISTRY='scripts/lib/own-annul209-public-predecessor-registry.mjs';
@@ -16,12 +19,16 @@ const PIN_CHECK='scripts/lib/native-leave-installation.mjs';
 const SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
 const SQL209_SHA256='eabc4f72cc0203a87af50287fcb6367a2ca81e6f957e73b5ee1c2b868aeb6dc4';
 const SOURCE_PINS=Object.freeze({
+ [TRIGGER_PROFILE_FILE]:'7b8b1057afabf22db4c3d47caf179d9cd2d02fc76ebc6ad4c4adf0c33f3ca732',
  [SOURCE208]:'10d66c7dfe282bcee4f47b8724e5918c090e190bb7745e96c280897d2646583d',
  [REGISTRY]:'e2a5abb7f69e974993882519c35740aaecb83760af7aac9386a48e0a09458c39',
  [TAIL]:'040bb2dfac141dce27d5a6822b613c0646487e34fb1a9ac5b1e36e47d9142d5b',
  [PIN_CHECK]:'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',
  [OWN_ANNUL_REVIEW208_SQL]:OWN_ANNUL_REVIEW208_SQL_SHA256,
  [SQL209]:SQL209_SHA256,
+ 'scripts/migrations/128-own-position-assignments.sql':'d50a2a14e478868b4086514fc0ddd47bd116ba761a88b0a2ff28e36866ce1e78',
+ 'scripts/migrations/129-own-position-comparison.sql':'023ad52a441df027ea8121a404777fbe4424dbbcfcdbeca6ca30b7475e17bc3c',
+ 'scripts/lib/adopted-positions-installation.mjs':'b5e1f9185e42c3a3372b443e8d6383d8259b155217e9db48b121f5d07cc56ab9',
 });
 const SIGNATURES208=Object.freeze([
  ['own_annul_review_core_v2','jsonb,text,text,integer',false],
@@ -92,13 +99,21 @@ export function composeOwnM7Annul208209AtomicSource(options){
   if(Object.hasOwn(SOURCE_PINS,file))assert.equal(digest,SOURCE_PINS[file],'ATOMIC_PINNED_SOURCE_CHANGED:'+file);
   return raw;
  };
- for(const file of [FILE,...Object.keys(SOURCE_PINS)])load(file);
+ for(const file of [FILE,TRIGGER_PROFILE_FILE,...Object.keys(SOURCE_PINS)])load(file);
  const review208=composeOwnAnnulmentReview208PublicSource({read:load,sourceCommit,major});
  const registry=composeOwnAnnul209PublicPredecessorRegistry({read:load,sourceCommit,operationalPairBaseline:'published107'});
  assertOwnAnnul209PublicPredecessorRegistry(registry,{sourceCommit});
  assert.equal(registry.entries.length,50);assert.equal(registry.privateScalarSignatures.length,11);assert.equal(registry.privateDate.pin.defaults,'true');
  assert.equal(registry.triggerSources.length,10);assert.equal(registry.capacityEpoch.unchangedOtherRecords,26);assert.equal(registry.capacityEpoch.wholeGuardInverse,true);
  assert.deepEqual(Object.keys(registry.guards),REGISTRY_GUARD_ORDER,'ATOMIC_REGISTRY_GUARD_ORDER_CHANGED');
+ const triggerProfile=buildOwnAnnulmentLedgerTriggerProfile({readRaw:file=>Buffer.from(load(file),'utf8'),sourceCommit,profile:LEDGER_PROFILE});
+ assertOwnAnnulmentLedgerTriggerProfile(triggerProfile);assert.equal(triggerProfile.profile,LEDGER_PROFILE);
+ assert.deepEqual(triggerProfile.immutableDefinitions,registry.triggerSources,'ATOMIC_LEGACY_TEN_TRIGGER_SOURCE_CHANGED');assert.equal(triggerProfile.definitions.length,12);assert.equal(triggerProfile.handlerPins.length,2);
+ const triggerProjection=projectOwnAnnulmentLedgerTriggerGuard({profile:triggerProfile,legacyGuard:registry.guards.ledgerTriggers});
+ assert.equal(triggerProjection.wholeInverseVerified,true);assert.equal(triggerProjection.legacySha256,hash(registry.guards.ledgerTriggers));assert.equal(triggerProjection.projectedSha256,hash(triggerProjection.guard));
+ for(const[file,digest]of Object.entries(triggerProfile.sourceHashes))assert.equal(sourceHashes[file],digest,'ATOMIC_LEDGER_PROFILE_SOURCE_CONFLICT:'+file);
+ const registryGuards={...registry.guards,ledgerTriggers:triggerProjection.guard};
+ for(const key of REGISTRY_GUARD_ORDER.filter(key=>key!=='ledgerTriggers'))assert.equal(registryGuards[key],registry.guards[key],'ATOMIC_UNRELATED_REGISTRY_GUARD_CHANGED:'+key);
  const raw208=load(OWN_ANNUL_REVIEW208_SQL),raw209=load(SQL209);
  const own208=ownDefinitions(lf(raw208),208,SIGNATURES208),own209=ownDefinitions(lf(raw209),209,SIGNATURES209);
  assert.deepEqual(own208.pins,review208.ownPins,'ATOMIC_208_PUBLIC_SOURCE_PIN_CONFLICT');assert.deepEqual(own208.pins,registry.required208.pins,'ATOMIC_208_REGISTRY_PIN_CONFLICT');
@@ -109,30 +124,32 @@ export function composeOwnM7Annul208209AtomicSource(options){
  const pre208Guards=[review208.statements[0],review208.statements[2],review208.statements[3]];
  assert.ok(pre208Guards[0].startsWith('DO $annul208_context$'));assert.ok(pre208Guards[1].startsWith('DO $annul208_defaults$'));
  const post208Guards=[pinsCheck(own208.pins,'ANNUL208_NEW_FUNCTION_SOURCE_CHANGED'),exactAcl(template,own208.pins)];
- const pre209Guards=Object.values(registry.guards);
+ const pre209Guards=Object.values(registryGuards);
  const post209Guards=[pinsCheck(own209.pins,'ANNUL209_NEW_FUNCTION_SOURCE_CHANGED'),exactAcl(template,own209.pins)];
  const names=[...own208.pins,...own209.pins].map(pin=>pin.name),absence10=absence(names);
  // This subset is safe to use before208: its last registry guard is deliberately
  // excluded because it requires the seven208 functions to exist already.
- const compatibilityGuards=[...REGISTRY_GUARD_ORDER.filter(name=>name!=='required208Functions').map(name=>registry.guards[name]),pre208Guards[1],pre208Guards[2],absence10];
+ const compatibilityGuards=[...REGISTRY_GUARD_ORDER.filter(name=>name!=='required208Functions').map(name=>registryGuards[name]),pre208Guards[1],pre208Guards[2],absence10];
  const ref=(source,selector,sql,extra={})=>({source,sourceSha256:sourceHashes[source],selector,sha256:hash(sql),...extra});
+ const registryRef=name=>name==='ledgerTriggers'?ref(TRIGGER_PROFILE_FILE,'positions128129-adopted.v2 projected ledgerTriggers',registryGuards[name],{profile:LEDGER_PROFILE,legacySource:REGISTRY,legacySourceSha256:sourceHashes[REGISTRY],legacyGuardSha256:triggerProjection.legacySha256,wholeInverseVerified:true}):ref(REGISTRY,'guards.'+name,registryGuards[name]);
  const references={
   pre208:pre208Guards.map((sql,i)=>ref(SOURCE208,'statements['+[0,2,3][i]+']',sql)),
   post208:[ref(PIN_CHECK,'pinsCheck(ownPins208,ANNUL208_NEW_FUNCTION_SOURCE_CHANGED)',post208Guards[0]),ref(TAIL,'aclAndOverloads SQL template',post208Guards[1],{templateSha256:hash(template),wholeInverse:true})],
-  pre209:pre209Guards.map((sql,i)=>ref(REGISTRY,'guards.'+REGISTRY_GUARD_ORDER[i],sql)),
+  pre209:REGISTRY_GUARD_ORDER.map(registryRef),
   post209:[ref(PIN_CHECK,'pinsCheck(ownPins209,ANNUL209_NEW_FUNCTION_SOURCE_CHANGED)',post209Guards[0]),ref(TAIL,'aclAndOverloads SQL template',post209Guards[1],{templateSha256:hash(template),wholeInverse:true})],
-  compatibility:[...REGISTRY_GUARD_ORDER.filter(name=>name!=='required208Functions').map(name=>ref(REGISTRY,'guards.'+name,registry.guards[name])),ref(SOURCE208,'statements[2]',pre208Guards[1]),ref(SOURCE208,'statements[3]',pre208Guards[2]),ref(TAIL,'absence(all ten source function names)',absence10)],
+  compatibility:[...REGISTRY_GUARD_ORDER.filter(name=>name!=='required208Functions').map(registryRef),ref(SOURCE208,'statements[2]',pre208Guards[1]),ref(SOURCE208,'statements[3]',pre208Guards[2]),ref(TAIL,'absence(all ten source function names)',absence10)],
  };
  const provenance=(stage,file,definitions,pins)=>definitions.map((definition,index)=>({stage,source:file,sourceSha256:sourceHashes[file],sourceDefinitionSha256:hash(definition),sourceBodySha256:pins[index].sha256,signature:pins[index].signature,runtime:pins[index].runtime}));
  const value={version:OWN_M7_ANNUL208209_ATOMIC_SOURCE_VERSION,sourceCommit,major,schema:'public',operationalPairBaseline:'published107',
   raw208,raw209,sourceSqlHashes:{208:OWN_ANNUL_REVIEW208_SQL_SHA256,209:SQL209_SHA256},sourceHashes,sourceInputs,
   ownPins208:own208.pins,ownPins209:own209.pins,ownProvenance:[...provenance(208,OWN_ANNUL_REVIEW208_SQL,own208.definitions,own208.pins),...provenance(209,SQL209,own209.definitions,own209.pins)],
-  predecessorEntries:registry.entries,predecessorClosure:registry.closure,privateScalarSignatures:registry.privateScalarSignatures,privateDate:registry.privateDate,triggerSources:registry.triggerSources,capacityEpoch:registry.capacityEpoch,
-  pre208Guards,post208Guards,pre209Guards,post209Guards,registryGuards:registry.guards,registryGuardOrder:[...REGISTRY_GUARD_ORDER],registryGuardsJoined:pre209Guards.join(';\n'),compatibilityGuards,absence10,guardReferences:references,
+  predecessorEntries:registry.entries,predecessorClosure:registry.closure,privateScalarSignatures:registry.privateScalarSignatures,privateDate:registry.privateDate,triggerSources:triggerProfile.definitions,immutableTriggerSources:registry.triggerSources,capacityEpoch:registry.capacityEpoch,
+  ledgerProfile:LEDGER_PROFILE,ledgerTriggerProfile:triggerProfile,ledgerHandlerPins:triggerProfile.handlerPins,ledgerExpectedTriggerCounts:triggerProfile.expectedCounts,ledgerTriggerProjection:{profile:LEDGER_PROFILE,legacySha256:triggerProjection.legacySha256,projectedSha256:triggerProjection.projectedSha256,wholeInverseVerified:true,handlerChecksSha256:hash(triggerProfile.handlerChecks)},
+  pre208Guards,post208Guards,pre209Guards,post209Guards,legacyRegistryGuards:registry.guards,registryGuards,registryGuardOrder:[...REGISTRY_GUARD_ORDER],registryGuardsJoined:pre209Guards.join(';\n'),compatibilityGuards,absence10,guardReferences:references,
   counts:{predecessorFunctions:50,newFunctions:10,privateHelpers:4,runtimeFacades:6,newTables:0,adaptedFunctions:0},
   sourceComponentsOnly:true,sourceMetadataOnly:true,targetIndependent:true,observedMetadataUsed:false,connects:false,executesSql:false,createsActors:false,roleAssignmentsAdded:0,executionAdmitted:false,receiptIssued:false,
  };
- freeze(value);minted.set(value,{read,raws,review208,registry,sourceCommit,major});bookendOwnM7Annul208209AtomicSource(value);return value;
+ freeze(value);minted.set(value,{read,raws,review208,registry,triggerProfile,sourceCommit,major});bookendOwnM7Annul208209AtomicSource(value);return value;
 }
 
 export function assertOwnM7Annul208209AtomicSource(components,options={}){
@@ -140,6 +157,7 @@ export function assertOwnM7Annul208209AtomicSource(components,options={}){
  const seal=minted.get(components);assert.ok(seal,'ATOMIC_MINTED_SOURCE_COMPONENTS_REQUIRED');
  if(Reflect.ownKeys(options).length){assert.equal(options.sourceCommit,seal.sourceCommit,'ATOMIC_SOURCE_COMMIT_CHANGED');assert.equal(options.major,seal.major,'ATOMIC_SOURCE_MAJOR_CHANGED');}
  assert.equal(components.version,OWN_M7_ANNUL208209_ATOMIC_SOURCE_VERSION);assert.equal(components.schema,'public');
+ assert.equal(components.ledgerProfile,LEDGER_PROFILE);assert.equal(components.ledgerTriggerProjection.wholeInverseVerified,true);assertOwnAnnulmentLedgerTriggerProfile(seal.triggerProfile);
  assert.equal(components.sourceComponentsOnly,true);assert.equal(components.targetIndependent,true);assert.equal(components.observedMetadataUsed,false);assert.equal(components.executionAdmitted,false);assert.equal(components.receiptIssued,false);
  assert.equal(components.connects,false);assert.equal(components.executesSql,false);assert.equal(components.createsActors,false);
  bookendOwnM7Annul208209AtomicSource(components);return components;
@@ -147,6 +165,6 @@ export function assertOwnM7Annul208209AtomicSource(components,options={}){
 export function bookendOwnM7Annul208209AtomicSource(components){
  const seal=minted.get(components);assert.ok(seal,'ATOMIC_MINTED_SOURCE_COMPONENTS_REQUIRED');
  for(const[file,raw]of seal.raws)assert.equal(seal.read(file),raw,'ATOMIC_RAW_SOURCE_BOOKEND_CHANGED:'+file);
- seal.review208.sourceBookend();bookendOwnAnnul209PublicPredecessorRegistry(seal.registry);
- return freeze({version:'own-m7-annul208209-atomic-source-bookend.v1',sourceCommit:seal.sourceCommit,sourceHashes:components.sourceHashes,sourceVerified:true,sourceComponentsOnly:true,observedMetadataUsed:false,executionAdmitted:false,receiptIssued:false});
+ seal.review208.sourceBookend();bookendOwnAnnul209PublicPredecessorRegistry(seal.registry);assertOwnAnnulmentLedgerTriggerProfile(seal.triggerProfile);
+ return freeze({version:'own-m7-annul208209-atomic-source-bookend.v2',sourceCommit:seal.sourceCommit,sourceHashes:components.sourceHashes,ledgerProfile:LEDGER_PROFILE,sourceVerified:true,sourceComponentsOnly:true,observedMetadataUsed:false,executionAdmitted:false,receiptIssued:false});
 }
