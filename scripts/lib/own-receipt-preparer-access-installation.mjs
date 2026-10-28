@@ -20,7 +20,7 @@ export const OWN_RECEIPT_PREPARER_ACCESS_PINS=freeze({
  functions:Object.freeze([
   Object.freeze({name:'own_receipt_context_v1',signature:'public.own_receipt_context_v1(jsonb,text)',argNames:['p','operation'],defaults:"'read'::text",sourceLine:28,
    header:"CREATE FUNCTION public.own_receipt_context_v1(p jsonb,operation text DEFAULT 'read') RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS ",
-   pre:'983d4ec843dae1caea2c561b268fb305ae94612a9a9100a5769b237aee0b345c',post:'c6cf6a91fdabb9811668fdfa78b6305cf2cb7a1ebe0d435f33650797e88d3fdb'}),
+   pre:'983d4ec843dae1caea2c561b268fb305ae94612a9a9100a5769b237aee0b345c',post:'b02546f2c6fb785de3bf3f742735e4b2f5bf1136b18ad0c42b4203d7816ff22f'}),
   Object.freeze({name:'own_receipt_batch_value_v1',signature:'public.own_receipt_batch_value_v1(jsonb,public.own_payroll_receipt_event)',argNames:['ctx','e'],defaults:null,sourceLine:89,
    header:'CREATE FUNCTION public.own_receipt_batch_value_v1(ctx jsonb,e public.own_payroll_receipt_event) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS ',
    pre:'f7fb515a8a6f3622059bf88ca8305a808279af1eddde0a5d96f744ab81d968dc',post:'ce3456323aeb99e5532ab04c7e7ca1aa39d15224b85a739c5c88b0ace7d51fe2'})
@@ -36,7 +36,7 @@ export const OWN_RECEIPT_PREPARER_ACCESS_PINS=freeze({
 export const OWN_RECEIPT_PREPARER_ACCESS_EDITS=freeze({
  own_receipt_context_v1:Object.freeze({
   old:"  ctx:=public.own_close_context_v1(p,true,false);\n  IF operation<>'read' AND NOT public.action_center_context_has_capability(ctx,CASE WHEN operation='prepare' THEN 'payroll.receipt.prepare' ELSE 'payroll.receipt.approve' END) THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';END IF;\n",
-  new:"  ctx:=public.own_run_context_v1(p,true,false);\n  IF CASE operation WHEN 'read' THEN NOT(public.action_center_context_has_capability(ctx,'payroll.receipt.prepare') OR public.action_center_context_has_capability(ctx,'payroll.calculation.approve')) WHEN 'prepare' THEN NOT public.action_center_context_has_capability(ctx,'payroll.receipt.prepare') ELSE NOT(public.action_center_context_has_capability(ctx,'payroll.calculation.approve') AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve')) END THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';END IF;\n"
+  new:"  ctx:=public.own_run_context_v1(p,true,false);\n  IF (CASE operation WHEN 'read' THEN NOT(public.action_center_context_has_capability(ctx,'payroll.receipt.prepare') OR public.action_center_context_has_capability(ctx,'payroll.calculation.approve')) WHEN 'prepare' THEN NOT public.action_center_context_has_capability(ctx,'payroll.receipt.prepare') ELSE NOT(public.action_center_context_has_capability(ctx,'payroll.calculation.approve') AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve')) END) THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';END IF;\n"
  }),
  own_receipt_batch_value_v1:Object.freeze({
   old:"'canApprove',state_value='prepared' AND current_value AND independent AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve'),'canWithdraw',state_value<>'withdrawn' AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve')",

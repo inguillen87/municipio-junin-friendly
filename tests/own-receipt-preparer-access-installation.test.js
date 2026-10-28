@@ -53,6 +53,18 @@ test('body change removes only the preparation dependency, retaining explicit re
  assert.equal((batch.match(/has_capability\(ctx,'payroll.calculation.approve'\)/g)??[]).length,2);
 });
 
+test('source regression groups the complete CASE condition before the PL/pgSQL IF THEN',()=>{
+ const context=body(build({read}).statements[1]);
+ assert.match(context,/  IF \(CASE operation WHEN 'read' THEN [^\n]+ END\) THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';END IF;/);
+ assert.doesNotMatch(context,/\bIF\s+CASE\s+operation\b/);
+ // Removing only the two grouping parentheses reconstructs the failed source;
+ // this source assertion does not compile or execute PL/pgSQL.
+ const ungrouped=context.replace('  IF (CASE operation ','  IF CASE operation ').replace(" END) THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';"," END THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';");
+ assert.equal(context.length,ungrouped.length+2);
+ assert.equal(hash(ungrouped),'c6cf6a91fdabb9811668fdfa78b6305cf2cb7a1ebe0d435f33650797e88d3fdb');
+ assert.equal(hash(context),pins.functions[0].post);
+});
+
 test('guards close every original metadata/ACL property and reject mixed pre/post pairs',()=>{
  const p=build({read});
  for(const guard of [p.preflight,p.statements[0],p.statements[3],p.durable,p.repeat]){
