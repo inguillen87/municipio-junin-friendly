@@ -20,7 +20,7 @@ export const OWN_ANNUL209_PUBLIC_PHASE='post197-post201-post213-post214-post215-
 const ROLE='municontrol_actions_runtime_app',DATE='public.payroll_fixed_registry_date_v1(text,boolean)',TABLE='public.tenant_iam_effective_capabilities(uuid)';
 const HASH=/^[a-f0-9]{64}$/,q=v=>"'"+String(v).replaceAll("'","''")+"'",hash=v=>createHash('sha256').update(v).digest('hex');
 const SOURCE_PINS=Object.freeze({
- "scripts/lib/own-m7-public-schema-batch.mjs": "cc7c57b5ab83f767736d29922f4cd0959ed8d521582b29163ada491cd7a5b6de",
+ "scripts/lib/own-m7-public-schema-batch.mjs": "4dfbe56844d8a52c9068f21e13911702a10f6f09c6abf65e4a806b56befdd47a",
  "scripts/lib/own-novelty-succession-installation.mjs": "627ffea8e252311f31b87abe46346bd76578e583de34b606a74aa53eacb494d0",
  "scripts/lib/own-novelty-succession-metadata.mjs": "cb9b87bfd695a67f978dee540c3fef3bd3eb0256cfdfdac0adc998c97a56b845",
  "scripts/lib/own-full-capacity-190-public-installation.mjs": "f220a79c990dc7f303fe52c49b3436af9c6b5924a5e1167810d8811127ee5378",

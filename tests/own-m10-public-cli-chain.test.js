@@ -64,3 +64,10 @@ test('missing, skipped, changed or incomplete original tail cannot acquire an M1
 test('tail readback never mints an execution admission or makes a current catalogue claim',async()=>{
  const r=await mockedCompleteM7Tail(batch()),v=assertOwnM7PublicAnnulmentTailRecord({batch:batch(),major:17,record:r});assert.equal(v.native208AdmissionMinted,false);assert.equal(v.current209EpochReplayed,false);assert.equal(v.queriesExecuted,0);
 });
+test('Neon HTTPS records keep the observed pg_stat_ssl=false through the M10 chain; a non-boolean observation rejects',async t=>{
+ const f=await fixture(t);f.actualTarget={...f.actualTarget,transport:'neon_https',postgresSsl:false};let priorFile=f.tailFile;
+ for(const id of ['127','128']){const stageId='m10-'+id,prior=readOwnM7PriorReceipts({root:f.root,file:priorFile,batch:f.b,stageId,major:17}),x=transport(f,id),output=path.join(f.root,'verification','ssl-'+id+'.json');
+  await executeOwnM7Stage({batch:f.b,stageId,major:17,prior,...x,record:createOwnM7RecordWriter({root:f.root,file:output})});const record=JSON.parse(fs.readFileSync(output,'utf8'));assert.equal(record.state,'VALIDATED');assert.equal(record.target.postgresSsl,false);priorFile=output;}
+ const r=JSON.parse(fs.readFileSync(path.join(f.root,'verification','ssl-127.json'),'utf8'));r.target={...r.target,postgresSsl:'false'};const bad=f.persist('ssl-127-string',r).file;
+ assert.throws(()=>readOwnM7PriorReceipts({root:f.root,file:bad,batch:f.b,stageId:'m10-128',major:17}),/M10_PRIOR_SSL_OBSERVATION_REQUIRED/);
+});

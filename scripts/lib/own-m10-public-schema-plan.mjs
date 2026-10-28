@@ -93,7 +93,11 @@ export function assertM10PublicStageRecord({plan,id,record,actualTarget}){
  assert.ok(minted.has(plan),'M10_PUBLIC_UNMINTED_PLAN');assert.ok(M10_PUBLIC_STAGE_ORDER.includes(id));const stage=plan.stages.find(stage=>stage.id===id);
  assert.equal(record.stage,'m10-'+id);assert.equal(record.version,stage.version);assert.equal(record.sourceCommit,plan.sourceCommit);assert.equal(record.state,'VALIDATED');assert.equal(record.phase,'complete');
  for(const[k,v]of Object.entries(plan.target))assert.equal(actualTarget[k],v,'M10_PRIOR_DESTINATION_CHANGED:'+k);
- assert.deepEqual(record.target,actualTarget);assert.equal(record.target.transport,'neon_https');assert.equal(record.target.postgresSsl,true);
+ assert.deepEqual(record.target,actualTarget);assert.equal(record.target.transport,'neon_https');
+ // neon_https: TLS is enforced by the HTTPS transport itself (sslmode=verify-full and the NODE_TLS_REJECT_UNAUTHORIZED
+ // guard in own-payroll-release-target.mjs). postgresSsl is the backend's own pg_stat_ssl observation, which Neon
+ // reports as false for that transport; it is recorded, never invented (same rule as own-m7-prior-receipts.mjs).
+ assert.equal(typeof record.target.postgresSsl,'boolean','M10_PRIOR_SSL_OBSERVATION_REQUIRED');
  for(const key of ['preflight','rehearsed','installed','durableObserved','durabilityVerified','repeated'])assert.equal(record[key],true,'M10_REAL_RECORD_REQUIRED:'+key);
  assert.equal(record.validatedReceiptCount,3);assert.equal(record.automaticRetry,false);assert.equal(record.businessOperations,0);assert.equal(record.nominalRowsReturned,0);assert.equal(record.nativeEquivalencePublicIncluded,false);
  const validation=assertM10PublicStageReceiptDurability({stage,installed:record.installedProof,durable:record.durableProof,repeated:record.repeatedProof});

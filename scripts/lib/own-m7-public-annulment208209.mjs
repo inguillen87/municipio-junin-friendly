@@ -17,7 +17,7 @@ export const OWN_M7_STAGES_WITH_ANNULMENT=Object.freeze([...OWN_M7_STAGE_IDS,OWN
 const FILE='scripts/lib/own-m7-public-annulment208209.mjs',SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
 const SQL209_SHA='5b0a9896d762f90a25ff84b5d8417d0e178350dd3864b73e47eb5654b2eafd56';
 const I209='scripts/lib/own-payroll-annulment-preparation-209-installation.mjs',I209_SHA='f334ee7ccd6cd80c8eca647bc15e658a91ae0c512e28e7ec01d1af4c6111ad5a';
-const producerPins=Object.freeze({'scripts/lib/own-m7-public-annulment208-source.mjs':'10d66c7dfe282bcee4f47b8724e5918c090e190bb7745e96c280897d2646583d','scripts/lib/own-annul209-public-predecessor-registry.mjs':'75919bec83c38b838651259f4414db85ee5bd7e9448d2045015ecec193d31687'});
+const producerPins=Object.freeze({'scripts/lib/own-m7-public-annulment208-source.mjs':'55091007fc6a3469df002994648f514af8f8c69f7dd23833bd4580e95c5ca501','scripts/lib/own-annul209-public-predecessor-registry.mjs':'fe61146c883a3fb09f8177adbf252bc56f1a49cfc0b323d2f635d6c14f77293d'});
 const SHA=/^[a-f0-9]{64}$/,hash=v=>createHash('sha256').update(v).digest('hex'),q=v=>"'"+String(v).replaceAll("'","''")+"'";
 const names208=Object.freeze(['own_annul_review_core_v2','own_annul_selected_index_v2','own_annul_command_index_core_v2','own_annul_review_v2','own_annul_review_full_v2','own_annul_command_v2','own_annul_command_full_v2']);
 const signatures209=Object.freeze([['own_annul_preparation_core_v1','jsonb,uuid,integer',false],['own_annul_preparation_v1','jsonb,uuid',true],['own_annul_preparation_full_v1','jsonb,uuid',true]]);
