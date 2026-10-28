@@ -15,7 +15,7 @@ globalThis.fetch=forbidden;net.connect=net.createConnection=net.Socket.prototype
 http.request=http.get=http.createServer=https.request=https.get=https.createServer=forbidden;dns.lookup=dns.resolve=forbidden;
 for(const key of ['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork'])child[key]=forbidden;
 syncBuiltinESMExports();
-const {ownM7NativeTestConnectedOracle:oracle,ownM7NativeTestConnectedRunBody:runBody,ownM7NativeTestConnectedReceiptParams:receiptParams,runOwnM7NativeTestConnectedBusiness:business,OWN_M7_NATIVE_TEST_CONNECTED_RUN_OPTIONS:runOptions}=await import('../scripts/lib/own-m7-native-test-connected-business.mjs');
+const {ownM7NativeTestConnectedOracle:oracle,ownM7NativeTestConnectedRunBody:runBody,ownM7NativeTestConnectedReceiptParams:receiptParams,runOwnM7NativeTestConnectedBusiness:business,OWN_M7_NATIVE_TEST_CONNECTED_BUSINESS_VERSION:version,OWN_M7_NATIVE_TEST_CONNECTED_PROTOCOL:protocol,OWN_M7_NATIVE_TEST_CONNECTED_RUN_OPTIONS:runOptions}=await import('../scripts/lib/own-m7-native-test-connected-business.mjs');
 const {buildOwnM7NativeTestConnectedFixturePlan}=await import('../scripts/lib/own-m7-native-test-connected-fixture.mjs');
 const {programOwnerQaDefinition}=await import('./fixtures/municipal-owner-program-synthetic.js');
 const {ownAnnulPreparationOperation}=await import('../lib/internal-own-payroll-annulment-preparation.js');
@@ -45,7 +45,7 @@ test('new run body uses the supplied server day, fresh versions and only the ben
  assert.deepEqual(body,{version:'own-payroll-run-command.v2',period:'2026-10',liquidationType:'monthly',liquidationDate:'2026-10-28',selection:{kind:'contracts',values:[uuid]},scopeVersion:'a'.repeat(64),programVersion:'b'.repeat(64),populationDomain:'native_registered'});
  assert.deepEqual(input,before);assert.equal(Object.hasOwn(body,'sourceReference'),false);assert.equal(Object.hasOwn(body,'reviewConfirmed'),false);assert.ok(Object.isFrozen(body)&&Object.isFrozen(body.selection.values));
  const next=runInput();next.bootstrap.scopeVersion='c'.repeat(64);next.bootstrap.programVersion='d'.repeat(64);assert.equal(runBody(next).scopeVersion,'c'.repeat(64));assert.equal(runBody(next).programVersion,'d'.repeat(64));
- assert.deepEqual(runOptions,{fullJson:true,fixedV2:true});assert.ok(Object.isFrozen(runOptions));
+ assert.equal(version,'own-m7-native-test-connected-business.v2');assert.equal(protocol,'published-monthly-fixed-v1');assert.deepEqual(runOptions,{fullJson:true});assert.equal(Object.hasOwn(runOptions,'fixedV2'),false);assert.ok(Object.isFrozen(runOptions));
 });
 
 test('run contract refuses all-scope overrides, projected receipt fields, undated bootstrap and invalid date before SQL',()=>{
@@ -56,7 +56,7 @@ test('run contract refuses all-scope overrides, projected receipt fields, undate
 });
 
 test('receipt preview params declare only a synthetic issuer and the beneficiary, without adding permissions',()=>{
- const plan=build(),before=copy(plan.actors),params=receiptParams({plan,beneficiaryId:uuid});
+ const plan=build(),before=copy(plan.actors),params=receiptParams({plan,beneficiaryId:uuid});assert.equal(plan.protocol,protocol);assert.equal(plan.fullfixedV2Pending,true);assert.equal(plan.businessScenario.protocol,protocol);assert.equal(plan.businessScenario.fullfixedV2Pending,true);assert.deepEqual(plan.businessScenario.runDependencies,runOptions);
  assert.equal(params.period,'2026-10');assert.deepEqual(params.types,['monthly']);assert.deepEqual(params.contracts,[uuid]);assert.equal(params.paymentDate,null);
  assert.equal(params.issuer.name,plan.issuer.name);assert.equal(params.issuer.taxId,plan.subjects.find(row=>row.key==='maker').draft.cuil);assert.ok(params.issuer.address.includes('EXCLUSIVAMENTE SINTÉTICO'));assert.ok(params.legend.includes('NO ES DOCUMENTO MUNICIPAL'));
  assert.deepEqual(params.filters,{employeeFrom:'',employeeTo:'',departmentFrom:'',departmentTo:'',agreementFrom:'',agreementTo:''});assert.deepEqual(plan.actors,before);

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {buildOwnM7NativeTestFixturePlan,assertOwnM7NativeTestFixturePlan,materializeOwnM7NativeTestEmployee,assertOwnM7NativeTestSeedObservation} from './own-m7-native-test-fixture.mjs';
 
-export const OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION='own-m7-native-test-connected-fixture.v1';
+export const OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION='own-m7-native-test-connected-fixture.v2';
 export const OWN_M7_NATIVE_TEST_CONNECTED_TEMPLATE_PIN=Object.freeze({path:'scripts/lib/own-m7-native-test-fixture.mjs',sha256:'7e788aac93a205e708ca3f9c304f86a8d5fb4b819b9012fca2827b19ce55d30c'});
 const minted=new WeakMap(),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
@@ -26,7 +26,7 @@ export function buildOwnM7NativeTestConnectedFixturePlan(options){
   {id:'seed-preconditions',role:'owner-login',batch:'bootstrapOwner',isolation:'read committed',readOnly:false,end:'COMMIT',mustBeObserved:true,seedOnly:true,retentionExpected:true},
   {id:'seed-baseline',role:'observer-owner-login',isolation:'repeatable read',readOnly:true,end:'COMMIT',freshTransaction:true,expectedCounts:'baselineExpectedCounts'},
   {id:'begin-business',role:'runtime-login',isolation:'read committed',readOnly:false,sessionUser:'municontrol_actions_runtime_app',currentUser:'municontrol_actions_runtime_app'},
-  ...base.steps.filter(step=>!['seed-preconditions','rollback'].includes(step.id)).map(step=>({...step,...(['calculate','recalculate'].includes(step.id)?{deps:{fixedV2:true,fullJson:true},selection:'beneficiary-contract-only'}:{}),...(step.id==='close'?{expectedEmployees:1,expectedPopulationTotal:3,expectedComplete:false}:{}),...(step.id==='annul-v2'?{deps:{fullJson:true},requiresRealReviewV2:true}:{})})),
+  ...base.steps.filter(step=>!['seed-preconditions','rollback'].includes(step.id)).map(step=>({...step,...(['calculate','recalculate'].includes(step.id)?{deps:{fullJson:true},selection:'beneficiary-contract-only',protocol:'published-monthly-fixed-v1'}:{}),...(step.id==='close'?{expectedEmployees:1,expectedPopulationTotal:3,expectedComplete:false}:{}),...(step.id==='annul-v2'?{deps:{fullJson:true},requiresRealReviewV2:true}:{})})),
   {id:'receipt-preview',actor:'checker',service:'lib/internal-own-payroll-receipts.js',export:'ownReceiptOperation',operation:'preview',requiresRealResult:true,preparesOrApproves:false},
   {id:'business-rollback',role:'runtime-login',end:'ROLLBACK',mustBeObserved:true},
   {id:'post-rollback-baseline',role:'same-observer-owner-login',isolation:'repeatable read',readOnly:true,end:'COMMIT',freshTransaction:true,expectedCounts:'postRollbackExpectedCounts',compareActualSeedBaseline:true,beneficiaryAbsent:true},
@@ -35,10 +35,10 @@ export function buildOwnM7NativeTestConnectedFixturePlan(options){
   version:OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION,kind:'test',schema:'public',sourceCommit:base.sourceCommit,runId:base.runId,target:base.target,branchCreation:base.branchCreation,
   template:{version:base.version,source:pin,usage:'data-and-input-validation-only',executedAsProtocol:false},
   scope:base.scope,actors:base.actors,subjects:base.subjects,canonical:base.canonical,seededCatalog:base.seededCatalog,bootstrapOwner:base.bootstrapOwner,steps,
-  seedEnd:'COMMIT',seedRetentionExpected:true,retentionExpected:true,businessEnd:'ROLLBACK',
+  seedEnd:'COMMIT',seedRetentionExpected:true,retentionExpected:true,businessEnd:'ROLLBACK',protocol:'published-monthly-fixed-v1',fullfixedV2Pending:true,
   transactions:{seed:{isolation:'read committed',readOnly:false,end:'COMMIT',observedEndRequired:true,seedOnly:true,retentionExpected:true},seedObserver:{isolation:'repeatable read',readOnly:true,end:'COMMIT',freshTransaction:true},business:{isolation:'read committed',readOnly:false,end:'ROLLBACK',observedEndRequired:true,runtimeLoginRequired:true},rollbackObserver:{isolation:'repeatable read',readOnly:true,end:'COMMIT',freshTransaction:true,sameObserverClient:true}},
   baselineExpectedCounts:{...baseline},postRollbackExpectedCounts:{...baseline},
-  businessScenario:{selection:'beneficiary-contract-only',selectionContracts:1,rosterTotal:3,closeEmployees:1,closePopulationTotal:3,closeComplete:false,runDependencies:{fixedV2:true,fullJson:true},entryPoint:'library-services',httpDefaultCovered:false,receiptPreview:true,receiptPrepare:false,receiptApprove:false,beneficiarySelfReceipt:false},
+  businessScenario:{selection:'beneficiary-contract-only',selectionContracts:1,rosterTotal:3,closeEmployees:1,closePopulationTotal:3,closeComplete:false,runDependencies:{fullJson:true},protocol:'published-monthly-fixed-v1',fullfixedV2Pending:true,entryPoint:'library-services',httpDefaultCovered:false,receiptPreview:true,receiptPrepare:false,receiptApprove:false,beneficiarySelfReceipt:false},
   beneficiaryExpectedAfterRollback:{person:0,contract:0,registration:0},
   expectedCounts:base.expectedCounts,authentication:base.authentication,issuer:base.issuer,pending:base.pending,
   sourceHashes,sourceInputs,sourceManifestSha256:sha(JSON.stringify(sourceInputs)),
@@ -49,7 +49,7 @@ export function buildOwnM7NativeTestConnectedFixturePlan(options){
 }
 
 export function assertOwnM7NativeTestConnectedFixturePlan(plan){
- const state=minted.get(plan);assert.ok(state,'M7_CONNECTED_FIXTURE_MINTED_REQUIRED');assert.equal(plan.version,OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION);assert.equal(plan.seedEnd,'COMMIT');assert.equal(plan.seedRetentionExpected,true);assert.equal(plan.businessEnd,'ROLLBACK');
+ const state=minted.get(plan);assert.ok(state,'M7_CONNECTED_FIXTURE_MINTED_REQUIRED');assert.equal(plan.version,OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION);assert.equal(plan.seedEnd,'COMMIT');assert.equal(plan.seedRetentionExpected,true);assert.equal(plan.businessEnd,'ROLLBACK');assert.equal(plan.protocol,'published-monthly-fixed-v1');assert.equal(plan.fullfixedV2Pending,true);assert.deepEqual(plan.businessScenario.runDependencies,{fullJson:true});
  assertOwnM7NativeTestFixturePlan(state.base);const after=state.readRaw(OWN_M7_NATIVE_TEST_CONNECTED_TEMPLATE_PIN.path);assert.ok(Buffer.isBuffer(after),'M7_CONNECTED_FIXTURE_BUFFER_REQUIRED');assert.ok(state.templateRaw.equals(after),'M7_CONNECTED_FIXTURE_TEMPLATE_RAW_DRIFT');return plan;
 }
 export function bookendOwnM7NativeTestConnectedFixture(plan){assertOwnM7NativeTestConnectedFixturePlan(plan);return true;}
