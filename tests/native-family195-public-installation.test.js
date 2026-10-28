@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
+import {syntheticReleaseTlsObservations} from './fixtures/own-m10-institutional-receipt-mocks.js';
 import {prepareNativeFamily195PublicInstallation as prepare,assertNativeFamily195BuildBinding as bindingCheck,executeNativeFamily195PublicInstallation as execute} from '../scripts/lib/native-family195-public-installation.mjs';
 const root=new URL('../',import.meta.url),read=file=>fs.readFileSync(new URL(file,root),'utf8'),sourceCommit='a'.repeat(40),hash=v=>createHash('sha256').update(v).digest('hex');
 let cached;const plan=()=>cached??=prepare({read,sourceCommit});
@@ -23,7 +24,7 @@ function proof(initial){const c=plan().proofContract,prior='c'.repeat(64);return
 function harness({alter,errorAt,closeError}={}){
  const slots=['epoch','rehearsal','installation','durable','repetition'],identities=Object.fromEntries(slots.map((s,i)=>[s,{pid:4000+i,backendStart:'2026-10-27T00:00:00+00:00',serverVersionNum:'170011'}]));
  const calls=[],states=[],client=async()=>bundle;
- const bundle={version:'own-release-annulment-dedicated-pg.v1',target:{...plan().target,transport:'postgres_tls_dedicated'},identities,tlsObservations:slots.map(slot=>({slot,ssl:true,native:identities[slot]})),
+ const bundle={version:'own-release-annulment-dedicated-pg.v2',target:{...plan().target,transport:'postgres_tls_dedicated'},identities,tlsObservations:syntheticReleaseTlsObservations(identities,plan().target),
  async transaction(slot,statements,options){calls.push({slot,statements,options});if(errorAt===calls.length)throw Error('SYNTHETIC_TRANSPORT_FAILURE');
   if(slot==='rehearsal'){const e=Object.assign(Error('FAMILY_SELF195_REHEARSAL_LATE_FAILURE'),{code:'P0001'});Object.defineProperty(e,'ownDedicatedSession',{value:{slot,native:identities[slot],sessionTerminated:true}});if(alter)alter({kind:'rehearsal',error:e});throw e;}
   let rows=statements===plan().phases.preflight?preflightRows():[[{proof:proof(slot==='installation')}]];if(alter)alter({kind:'rows',slot,rows,call:calls.length});return rows;
@@ -55,6 +56,22 @@ test('wrong rehearsal code/token/session end never authorizes subsequent SQL',as
  for(const change of [e=>e.code='XX000',e=>e.message='ANOTHER_TOKEN',e=>{e.ownDedicatedSession.sessionTerminated=false;},e=>{e.ownDedicatedSession.native={...e.ownDedicatedSession.native,pid:1};}]){
   const h=harness({alter:o=>{if(o.kind==='rehearsal')change(o.error);}});await assert.rejects(execute({plan:plan(),...binding(),client:h.client,record:h.record}),/INSTALL_UNCERTAIN/);assert.equal(h.calls.filter(x=>!x.close).length,2);assert.equal(h.states.at(-1).noFurtherSql,true);
  }
+});
+test('family195 distinguishes backend SSL from strict client TLS and rejects malformed channel observations before SQL',async()=>{
+ const accepted=harness();assert.ok(accepted.bundle.tlsObservations.every(row=>row.postgresSsl===false));
+ const result=await execute({plan:plan(),...binding(),client:accepted.client,record:accepted.record});assert.equal(result.state,'VALIDATED');
+ for(const mutate of [
+  b=>{b.version='own-release-annulment-dedicated-pg.v1';},
+  b=>{b.tlsObservations[0].clientTls.encrypted=false;},
+  b=>{b.tlsObservations[0].clientTls.authorized=false;},
+  b=>{b.tlsObservations[0].clientTls.hostnameVerified=false;},
+  b=>{b.tlsObservations[0].clientTls.rejectUnauthorized=false;},
+  b=>{b.tlsObservations[0].clientTls.servername='foreign.invalid';},
+  b=>{b.tlsObservations[0].clientTls.protocol='TLSv1.1';},
+  b=>{b.tlsObservations[0].clientTls.peerCertificateSha256='invalid';},
+  b=>{b.tlsObservations[0].postgresSsl='false';},
+  b=>{b.tlsObservations[1]=structuredClone(b.tlsObservations[0]);}
+ ]){const h=harness();mutate(h.bundle);await assert.rejects(execute({plan:plan(),...binding(),client:h.client,record:h.record}));assert.equal(h.calls.filter(x=>!x.close).length,0);}
 });
 test('partial source material and layout drift stop before any rehearsal or installation',async()=>{
  for(const change of [rows=>rows[0][0].observation.newObjects.functions.push({signature:'stray'}),rows=>rows[1][0].layout.mismatches.push({relation:'school_certificate_blob',area:'check',detail:'weakened'}),rows=>rows[0][0].observation.prerequisiteFunctionsSourceGuardPassed=false]){

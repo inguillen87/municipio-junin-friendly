@@ -1,12 +1,12 @@
 // Proposed pure SOURCE/recording-transport tests. No object below is evidence
 // of a real PostgreSQL receipt, TLS connection, installation or rollback.
-import {mockedCompleteM7Tail} from './fixtures/own-m10-institutional-receipt-mocks.js';
+import {mockedCompleteM7Tail,syntheticReleaseTlsObservations} from './fixtures/own-m10-institutional-receipt-mocks.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {OWN_RELEASE_TARGETS} from '../scripts/lib/own-payroll-release-target.mjs';
-import {ownReleasePgDependencySource,createOwnReleaseAnnulmentSessions,ownReleaseErrorObservation,ownReleaseErrorCode,ownReleaseReceiptObservation} from '../scripts/lib/own-payroll-release-annulment-pg.mjs';
+import {ownReleasePgDependencySource,createOwnReleaseAnnulmentSessions,ownReleaseErrorObservation,ownReleaseErrorCode,ownReleaseReceiptObservation,assertOwnReleaseTlsObservations} from '../scripts/lib/own-payroll-release-annulment-pg.mjs';
 import {composeOwnM7PublicSchemaBatch,OWN_M7_STAGE_IDS} from '../scripts/lib/own-m7-public-schema-batch.mjs';
 import {composeOwnM7PublicSchemaBatchWithAnnulment,executeOwnM7PublicAnnulmentTail,assertOwnM7AnnulmentRehearsalDetail,OWN_M7_ANNULMENT_TAIL_STAGE,OWN_M7_STAGES_WITH_ANNULMENT,assertOwnM7PublicAnnulmentTailRecord} from '../scripts/lib/own-m7-public-annulment208209.mjs';
 import {OWN_ANNUL_REVIEW208_SQL_SHA256} from '../scripts/lib/own-m7-public-annulment208-source.mjs';
@@ -18,7 +18,7 @@ const pair=()=>batch().targets.find(t=>t.major===17).stageBatches[OWN_M7_ANNULME
 function native(pid,major=17){return{pid,backendStart:'2026-10-27T00:00:00.'+String(pid).padStart(6,'0')+'+00:00',serverVersionNum:major===17?'170011':'180001'};}
 function bundleDto({duplicate=false,foreign=false}={}){
  const p=pair(),identities=Object.fromEntries(['epoch','rehearsal','installation','durable','repetition'].map((slot,i)=>[slot,native(duplicate?21:21+i)]));
- return{version:'own-release-annulment-dedicated-pg.v1',target:{...p.target,...(foreign?{endpointId:'unit-foreign-endpoint'}:{}),transport:'postgres_tls_dedicated'},identities,tlsObservations:Object.entries(identities).map(([slot,value])=>({slot,ssl:true,native:value})),credentialsExposed:false,automaticRetry:false,close:async()=>{}};
+ return{version:'own-release-annulment-dedicated-pg.v2',target:{...p.target,...(foreign?{endpointId:'unit-foreign-endpoint'}:{}),transport:'postgres_tls_dedicated'},identities,tlsObservations:syntheticReleaseTlsObservations(identities,p.target),credentialsExposed:false,automaticRetry:false,close:async()=>{}};
 }
 function proofDto(stage,value){return{version:'own-annulment-review208-installation-proof.v1',sourceCommit:stage.sourceCommit,sourceSqlSha256:OWN_ANNUL_REVIEW208_SQL_SHA256,sourceHashes:{...stage.sourceHashes},predecessorPinsSha256:stage.predecessorPinsSha256,mode:'install',newFunctions:7,privateHelpers:3,runtimeFacades:4,newTables:0,adaptedFunctions:0,existingAclChanges:0,roleAssignmentsAdded:0,businessWrites:0,nominalRowsReturned:0,priorStateSha256:'1'.repeat(64),beforeStateSha256:'1'.repeat(64),objectSha256:'2'.repeat(64),transactionDataPreserved:true,native:value};}
 function rehearsalError(stage,bundle){const error=Object.assign(Error(stage.rehearsalFault.code),{code:'P0001',detail:JSON.stringify({version:'public-annul-native-rehearsal-detail.v1',stage:208,sourceCommit:stage.sourceCommit,proof:proofDto(stage,bundle.identities.rehearsal)})});Object.defineProperty(error,'ownDedicatedSession',{value:{slot:'rehearsal',native:bundle.identities.rehearsal,sessionTerminated:true}});return error;}
@@ -97,15 +97,20 @@ test('a RAW source change after preparation is refused before client acquisition
  assert.equal(acquired,0);
 });
 
-function recordingPg({tls=true,duplicate=false}={}){
+function recordingPg({postgresSsl=false,duplicate=false,mutateClient}={}){
  const target=OWN_RELEASE_TARGETS.find(t=>t.major===17),clients=[],queries=[];let alive=0,maxAlive=0;
  class Client{
-  constructor(config){this.config=config;this.number=clients.length;clients.push(this);this.ended=false;this.handlers=new Map();}
+  constructor(config){this.config=config;this.number=clients.length;clients.push(this);this.ended=false;this.handlers=new Map();
+   this.connectionParameters={...config};this.ssl=config.ssl;
+   this.socket={encrypted:true,authorized:true,authorizationError:null,destroyed:false,writable:true,servername:config.host,
+    getProtocol:()=> 'TLSv1.3',getPeerCertificate:()=>({raw:Buffer.from('SYNTHETIC CERTIFICATE BYTES ONLY'),subjectaltname:'DNS:'+config.host})};
+   this.connection={ssl:config.ssl,stream:this.socket};if(mutateClient)mutateClient(this);
+  }
   on(event,handler){this.handlers.set(event,handler);return this;}
   async connect(){alive++;maxAlive=Math.max(maxAlive,alive);}
   async end(){if(!this.ended){this.ended=true;alive--;}}
   async query(statement){queries.push({client:this.number,statement});if(statement==='unit native fault')throw Object.assign(Error('unit native error'),{code:'P0001',detail:'unit original detail'});
-   if(statement.includes(' AS native'))return{rows:[{...Object.fromEntries(['major','projectId','branchId','endpointId','database','role'].map(k=>[k,target[k]])),ssl:tls,native:native(duplicate?41:41+this.number)}]};
+   if(statement.includes(' AS native'))return{rows:[{...Object.fromEntries(['major','projectId','branchId','endpointId','database','role'].map(k=>[k,target[k]])),ssl:postgresSsl,native:native(duplicate?41:41+this.number)}]};
    return{rows:[]};
   }
  }
@@ -115,7 +120,8 @@ function recordingPg({tls=true,duplicate=false}={}){
 test('the dedicated pg adapter retains five actual recording sessions and hard-codes strict TLS without URL option override',async()=>{
  const f=recordingPg(),bundle=await createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue});
  assert.equal(f.maxAlive,5);assert.equal(f.alive,5);assert.equal(new Set(Object.values(bundle.identities).map(n=>n.pid+':'+n.backendStart)).size,5);
- for(const client of f.clients){assert.equal(Object.hasOwn(client.config,'connectionString'),false);assert.equal(client.config.ssl.rejectUnauthorized,true);assert.equal(client.config.ssl.servername,OWN_RELEASE_TARGETS[0].host);assert.equal(client.config.port,5432);}
+ for(const client of f.clients){assert.equal(Object.hasOwn(client.config,'connectionString'),false);assert.equal(client.config.ssl.rejectUnauthorized,true);assert.equal(client.config.ssl.servername,OWN_RELEASE_TARGETS[0].host);assert.equal(client.config.ssl.minVersion,'TLSv1.2');assert.equal(client.config.port,5432);}
+ assert.ok(bundle.tlsObservations.every(row=>row.postgresSsl===false&&row.clientTls.encrypted&&row.clientTls.authorized&&row.clientTls.protocol==='TLSv1.3'));
  await bundle.transaction('durable',['SELECT 1'],{readOnly:true});assert.ok(f.queries.some(r=>r.statement==='BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'));
  await bundle.close();assert.equal(f.alive,0);
 });
@@ -131,9 +137,76 @@ test('the dedicated pg adapter preserves a native error, sends no automatic ROLL
  assert.equal(idle.queries.length,before);assert.equal(failure.ownDedicatedTransportFailure.slot,'epoch');assert.deepEqual(failure.ownDedicatedTransportFailure.native,held.identities.epoch);await held.close();assert.equal(idle.alive,0);
 });
 
-test('the pg adapter refuses disabled TLS, same backend IDs or an unapproved destination before emitting stage SQL',async()=>{
- for(const options of[{tls:false},{duplicate:true}]){const f=recordingPg(options);await assert.rejects(()=>createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue}));assert.equal(f.alive,0);assert.equal(f.queries.some(r=>r.statement==='unit native fault'),false);}
+test('the pg adapter refuses invalid backend observations, same backend IDs or an unapproved destination before emitting stage SQL',async()=>{
+ for(const options of[{postgresSsl:null},{postgresSsl:'false'},{duplicate:true}]){const f=recordingPg(options);await assert.rejects(()=>createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue}));assert.equal(f.alive,0);assert.equal(f.queries.some(r=>r.statement==='unit native fault'),false);}
  const f=recordingPg();await assert.rejects(()=>createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue.replace('sslmode=verify-full','sslmode=disable')}));assert.equal(f.clients.length,0);
+});
+
+test('client TLS is verified from the effective configuration and certificate before the first SQL',async()=>{
+ const changes=[
+  c=>{c.socket.encrypted=false;},c=>{c.socket.authorized=false;},c=>{c.socket.authorizationError='UNIT_UNTRUSTED';},
+  c=>{c.socket.destroyed=true;},c=>{c.socket.writable=false;},c=>{c.socket.servername='foreign.invalid';},
+  c=>{c.socket.getProtocol=()=> 'TLSv1.1';},c=>{c.socket.getProtocol=undefined;},
+  c=>{c.socket.getPeerCertificate=undefined;},c=>{c.socket.getPeerCertificate=()=>({});},
+  c=>{c.socket.getPeerCertificate=()=>({raw:Buffer.from('unit certificate'),subjectaltname:'DNS:foreign.invalid'});},
+  c=>{c.connectionParameters={...c.connectionParameters,host:'foreign.invalid'};},
+  c=>{c.connectionParameters={...c.connectionParameters,port:6432};},
+  c=>{c.connectionParameters={...c.connectionParameters,user:'foreign_role'};},
+  c=>{c.connectionParameters={...c.connectionParameters,database:'foreign_database'};},
+  c=>{c.connectionParameters={...c.connectionParameters,ssl:{...c.ssl,rejectUnauthorized:false}};},
+  c=>{c.connectionParameters={...c.connectionParameters,ssl:{...c.ssl,minVersion:'TLSv1'}};},
+  c=>{c.connectionParameters={...c.connectionParameters,ssl:{rejectUnauthorized:true,servername:c.config.host}};},
+  c=>{c.ssl={...c.ssl,servername:'foreign.invalid'};},
+  c=>{c.connection.ssl={...c.ssl,checkServerIdentity:()=>undefined};}
+ ];
+ for(const mutateClient of changes){
+  const f=recordingPg({mutateClient});await assert.rejects(()=>createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue}));
+  assert.equal(f.queries.length,0);assert.equal(f.alive,0);assert.equal(f.clients.length,1);
+ }
+});
+
+test('backend true and false stay observations; both supported client TLS protocols retain certificate fingerprints',async()=>{
+ for(const postgresSsl of [true,false])for(const protocol of ['TLSv1.2','TLSv1.3']){
+  const f=recordingPg({postgresSsl,mutateClient:c=>{c.socket.getProtocol=()=>protocol;}});
+  const bundle=await createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue});
+  assert.equal(bundle.version,'own-release-annulment-dedicated-pg.v2');
+  for(const row of bundle.tlsObservations){assert.equal(row.postgresSsl,postgresSsl);assert.equal(Object.hasOwn(row,'ssl'),false);assert.equal(row.clientTls.protocol,protocol);assert.equal(row.clientTls.hostnameVerified,true);assert.equal(row.clientTls.peerCertificateSha256,createHash('sha256').update('SYNTHETIC CERTIFICATE BYTES ONLY').digest('hex'));}
+  await bundle.close();assert.equal(f.alive,0);
+ }
+});
+
+test('TLS loss or a changed certificate on a retained session prevents another SQL and closes only that owned session',async()=>{
+ for(const change of [c=>{c.socket.authorized=false;},c=>{c.socket.getPeerCertificate=()=>({raw:Buffer.from('changed unit certificate'),subjectaltname:'DNS:'+c.config.host});}]){
+  const f=recordingPg(),bundle=await createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue});
+  change(f.clients[2]);const before=f.queries.length;
+  await assert.rejects(()=>bundle.transaction('installation',['unit forbidden stage'],{readOnly:false}),error=>error.ownDedicatedSession?.slot==='installation'&&error.ownDedicatedSession.sessionTerminated===true);
+  assert.equal(f.queries.length,before);assert.equal(f.alive,4);assert.equal(f.clients[2].ended,true);await bundle.close();assert.equal(f.alive,0);
+ }
+});
+
+test('TLS is checked between awaited statements so loss during a query cannot reach the next statement or COMMIT',async()=>{
+ const f=recordingPg(),bundle=await createOwnReleaseAnnulmentSessions({major:17,Client:f.Client,connectionValue:f.connectionValue}),client=f.clients[2],original=client.query.bind(client);
+ client.query=async statement=>{const result=await original(statement);if(statement==='unit first stage')client.socket.authorized=false;return result;};
+ const before=f.queries.length;
+ await assert.rejects(()=>bundle.transaction('installation',['unit first stage','unit forbidden second stage'],{readOnly:false}));
+ assert.deepEqual(f.queries.slice(before).map(row=>row.statement),['BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE','unit first stage']);
+ assert.equal(f.alive,4);await bundle.close();assert.equal(f.alive,0);
+});
+
+test('closed TLS observations reject duplicate slots and invalid channels before the coordinator baseline',async()=>{
+ const changes=[
+  b=>{b.version='own-release-annulment-dedicated-pg.v1';},
+  b=>{b.tlsObservations[1]=structuredClone(b.tlsObservations[0]);},
+  b=>{b.tlsObservations[0].clientTls.encrypted=false;},b=>{b.tlsObservations[0].clientTls.authorized=false;},
+  b=>{b.tlsObservations[0].clientTls.hostnameVerified=false;},b=>{b.tlsObservations[0].clientTls.rejectUnauthorized=false;},
+  b=>{b.tlsObservations[0].clientTls.protocol='TLSv1.1';},b=>{b.tlsObservations[0].clientTls.servername='foreign.invalid';},
+  b=>{b.tlsObservations[0].clientTls.peerCertificateSha256='invalid';},b=>{b.tlsObservations[0].postgresSsl='false';},
+  b=>{b.tlsObservations[0].clientTls.unreviewed=true;},b=>{b.tlsObservations[0].native={...b.tlsObservations[0].native,pid:999};}
+ ];
+ const valid=bundleDto();assert.equal(assertOwnReleaseTlsObservations({tlsObservations:valid.tlsObservations,identities:valid.identities,target:pair().target}),true);
+ for(const change of changes){let queries=0;const b=bundleDto();change(b);b.transaction=async()=>{queries++;throw Error('must not query');};
+  await assert.rejects(()=>executeOwnM7PublicAnnulmentTail({batch:batch(),major:17,client:async()=>b,record:()=>{}}));assert.equal(queries,0);
+ }
 });
 
 const digest=value=>createHash('sha256').update(value).digest('hex');
@@ -197,7 +270,7 @@ function fullProtocol({invalidDetail=false,invalidRows=false,durableDrift=false}
   const invocation=acquisitions++,[id,purpose]=schedule[invocation]??[];assert.ok(id,'unexpected eighth acquisition');
   const stage=id===208?pair().review208:pair().preparation209,bundle=bundleDto();
   bundle.identities=Object.fromEntries(['epoch','rehearsal','installation','durable','repetition'].map((slot,index)=>[slot,native(100+invocation*10+index)]));
-  bundle.tlsObservations=Object.entries(bundle.identities).map(([slot,value])=>({slot,ssl:true,native:value}));
+  bundle.tlsObservations=syntheticReleaseTlsObservations(bundle.identities,pair().target);
   bundle.close=async()=>closed.push(invocation);
   bundle.transaction=async(slot,statements)=>{
    calls.push({invocation,id,purpose,slot});
@@ -255,7 +328,7 @@ test('a durable208 mismatch cannot mint the WeakMap admission, repeat or acquire
 
 test('a later schema consumer revalidates all eight stored proofs without minting208 or querying209 again',async()=>{
  const record=await mockedCompleteM7Tail(batch()),checked=assertOwnM7PublicAnnulmentTailRecord({batch:batch(),major:17,record});assert.equal(checked.validatedOriginalNativeProofs,8);assert.equal(checked.queriesExecuted,0);assert.equal(checked.native208AdmissionMinted,false);assert.equal(checked.current209EpochReplayed,false);
- for(const mutate of [r=>r.state='UNCERTAIN',r=>delete r.proofs[209].durable,r=>r.proofs[209].installed.epoch208PriorStateSha256='9'.repeat(64),r=>r.proofs[208].installed.businessWrites=1,r=>r.negativeObservations.pop(),r=>r.real208FunctionBookend.objectSha256='9'.repeat(64),r=>r.transportObservations[0].tlsObservations[0].ssl=false,r=>r.rehearsalObservations[208].validatedDetail.proofSha256='9'.repeat(64)]){
+ for(const mutate of [r=>r.state='UNCERTAIN',r=>delete r.proofs[209].durable,r=>r.proofs[209].installed.epoch208PriorStateSha256='9'.repeat(64),r=>r.proofs[208].installed.businessWrites=1,r=>r.negativeObservations.pop(),r=>r.real208FunctionBookend.objectSha256='9'.repeat(64),r=>r.transportObservations[0].tlsObservations[0].clientTls.authorized=false,r=>{r.transportObservations[0].tlsObservations[1]=structuredClone(r.transportObservations[0].tlsObservations[0]);},r=>r.transportObservations[0].tlsObservations[0].postgresSsl='false',r=>r.rehearsalObservations[208].validatedDetail.proofSha256='9'.repeat(64)]){
   const changed=structuredClone(record);mutate(changed);assert.throws(()=>assertOwnM7PublicAnnulmentTailRecord({batch:batch(),major:17,record:changed}));
  }
 });

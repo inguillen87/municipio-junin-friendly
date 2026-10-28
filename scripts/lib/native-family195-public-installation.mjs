@@ -5,7 +5,7 @@ import {prepareNativeFamily195PublicMaterialPreflight,classifyNativeFamily195Pub
 import {assertNativeFamilySelfService195Durability} from './native-family-self-service-195-installation.mjs';
 import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
 import {ownInstallationSettings,ownInstallationDestination} from '../prepare-own-payroll-installation.mjs';
-import {ownReleaseAnnulmentClient,ownReleasePgDependencySource,ownReleaseErrorObservation,ownReleaseReceiptObservation} from './own-payroll-release-annulment-pg.mjs';
+import {ownReleaseAnnulmentClient,ownReleasePgDependencySource,ownReleaseErrorObservation,ownReleaseReceiptObservation,OWN_RELEASE_ANNULMENT_TRANSPORT_VERSION,assertOwnReleaseTlsObservations} from './own-payroll-release-annulment-pg.mjs';
 const VERSION='native-family195-public-installation.v1';
 const LATE_FAILURE='FAMILY_SELF195_REHEARSAL_LATE_FAILURE';
 const slots=Object.freeze(['epoch','rehearsal','installation','durable','repetition']);
@@ -70,11 +70,12 @@ function installedShape(receipt,batch){
  assert.equal(receipt.beforeFingerprint,receipt.priorFingerprint,'FAMILY195_PUBLIC_PRIOR_CHANGED');return receipt;
 }
 function dedicated(bundle,target){
- assert.equal(bundle.version,'own-release-annulment-dedicated-pg.v1');assert.equal(typeof bundle.transaction,'function');assert.equal(typeof bundle.close,'function');
+ assert.equal(bundle.version,OWN_RELEASE_ANNULMENT_TRANSPORT_VERSION);assert.equal(typeof bundle.transaction,'function');assert.equal(typeof bundle.close,'function');
  for(const [key,value]of Object.entries(target))assert.equal(bundle.target[key],value,'FAMILY195_PUBLIC_TARGET_CHANGED:'+key);
  assert.equal(bundle.target.transport,'postgres_tls_dedicated');assert.deepEqual(Object.keys(bundle.identities).sort(),[...slots].sort());assert.equal(bundle.tlsObservations.length,5);
+ assertOwnReleaseTlsObservations({tlsObservations:bundle.tlsObservations,identities:bundle.identities,target});
  const keys=[];for(const slot of slots){const n=bundle.identities[slot];assert.ok(Number.isSafeInteger(n.pid)&&n.pid>0);assert.match(n.backendStart,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/);assert.match(n.serverVersionNum,/^17\d{4}$/);keys.push(n.pid+':'+n.backendStart);
-  const tls=bundle.tlsObservations.filter(x=>x.slot===slot);assert.equal(tls.length,1);assert.equal(tls[0].ssl,true);assert.ok(nativeEqual(tls[0].native,n));}
+  const tls=bundle.tlsObservations.filter(x=>x.slot===slot);assert.equal(tls.length,1);assert.ok(nativeEqual(tls[0].native,n));}
  assert.equal(new Set(keys).size,5,'FAMILY195_PUBLIC_FIVE_BACKENDS_REQUIRED');
 }
 function expectedRehearsal(error,bundle){

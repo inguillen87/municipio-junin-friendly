@@ -11,7 +11,7 @@ import {pinsCheck} from './native-leave-installation.mjs';
 import {performancePreservationSnapshot} from '../verify-documentary-roster-performance.mjs';
 import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
 import {ownInstallationSettings,ownInstallationDestination} from '../prepare-own-payroll-installation.mjs';
-import {ownReleasePgDependencySource,ownReleaseErrorObservation,ownReleaseReceiptObservation} from './own-payroll-release-annulment-pg.mjs';
+import {ownReleasePgDependencySource,ownReleaseErrorObservation,ownReleaseReceiptObservation,OWN_RELEASE_ANNULMENT_TRANSPORT_VERSION,assertOwnReleaseTlsObservations} from './own-payroll-release-annulment-pg.mjs';
 export const OWN_M7_ANNULMENT_TAIL_STAGE='annul208209';
 export const OWN_M7_STAGES_WITH_ANNULMENT=Object.freeze([...OWN_M7_STAGE_IDS,OWN_M7_ANNULMENT_TAIL_STAGE,...M10_PUBLIC_STAGE_ORDER.map(id=>'m10-'+id)]);
 const FILE='scripts/lib/own-m7-public-annulment208209.mjs',SQL209='scripts/migrations/209-own-annulment-preparation-projection.sql';
@@ -199,7 +199,7 @@ export function assertOwnM7AnnulmentRehearsalDetail({error,stage,bundle,expected
  });
 }
 function assertBundle(bundle,target){
- assert.equal(bundle?.version,'own-release-annulment-dedicated-pg.v1','PUBLIC_ANNUL_DEDICATED_TRANSPORT_REQUIRED');
+ assert.equal(bundle?.version,OWN_RELEASE_ANNULMENT_TRANSPORT_VERSION,'PUBLIC_ANNUL_DEDICATED_TRANSPORT_REQUIRED');
  exact(bundle.target,[...targetKeys,'transport'],'PUBLIC_ANNUL_TARGET_FIELDS');
  for(const k of targetKeys)assert.equal(bundle.target?.[k],target[k],'PUBLIC_ANNUL_DESTINATION_CHANGED:'+k);
  assert.equal(bundle.target.transport,'postgres_tls_dedicated');assert.equal(bundle.credentialsExposed,false);assert.equal(bundle.automaticRetry,false);
@@ -207,7 +207,8 @@ function assertBundle(bundle,target){
  assert.ok(Array.isArray(bundle.tlsObservations)&&bundle.tlsObservations.length===5,'PUBLIC_ANNUL_FIVE_TLS_OBSERVATIONS_REQUIRED');
  exact(bundle.identities,['epoch','rehearsal','installation','durable','repetition'],'PUBLIC_ANNUL_FIVE_DEDICATED_SLOTS_REQUIRED');
  for(const [slot,n]of Object.entries(bundle.identities))assertNative(n,bundle,slot,target.major);
- for(const row of bundle.tlsObservations){exact(row,['slot','ssl','native'],'PUBLIC_ANNUL_TLS_FIELDS');assert.ok(Object.hasOwn(bundle.identities,row.slot));assert.equal(row.ssl,true,'PUBLIC_ANNUL_NATIVE_TLS_REQUIRED');assertNative(row.native,bundle,row.slot,target.major);}
+ assertOwnReleaseTlsObservations({tlsObservations:bundle.tlsObservations,identities:bundle.identities,target});
+ for(const row of bundle.tlsObservations)assertNative(row.native,bundle,row.slot,target.major);
  assert.equal(new Set(Object.values(bundle.identities).map(nativeKey)).size,5,'PUBLIC_ANNUL_FIVE_PHYSICAL_BACKENDS_REQUIRED');
 }
 function sourceBookend(pair){const seal=tails.get(pair);assert.ok(seal,'PUBLIC_ANNUL_MINTED_PAIR_REQUIRED');for(const[file,raw]of seal.raws)assert.equal(seal.read(file),raw,'PUBLIC_ANNUL_RAW_SOURCE_BOOKEND_CHANGED:'+file);seal.source208.sourceBookend();bookendOwnAnnul209PublicPredecessorRegistry(seal.registry);return{sourceCommit:pair.sourceCommit,sourceVerified:true};}
@@ -307,7 +308,7 @@ export function assertOwnM7PublicAnnulmentTailRecord({batch,major,record}){
   const rows=record.transportObservations.filter(row=>row.stage===stage.stage&&row.purpose===purpose);assert.equal(rows.length,1,'PUBLIC_ANNUL_REAL_TRANSPORT_OBSERVATION_REQUIRED');const row=rows[0];exact(row,['stage','purpose','target','identities','tlsObservations'],'PUBLIC_ANNUL_TRANSPORT_OBSERVATION_FIELDS');
   exact(row.target,[...targetKeys,'transport'],'PUBLIC_ANNUL_TARGET_FIELDS');for(const key of targetKeys)assert.equal(row.target[key],pair.target[key]);assert.equal(row.target.transport,'postgres_tls_dedicated');exact(row.identities,['epoch','rehearsal','installation','durable','repetition'],'PUBLIC_ANNUL_FIVE_DEDICATED_SLOTS_REQUIRED');
   const observed={identities:row.identities};for(const[slot,native]of Object.entries(row.identities))assertNative(native,observed,slot,major);assert.equal(new Set(Object.values(row.identities).map(nativeKey)).size,5,'PUBLIC_ANNUL_FIVE_PHYSICAL_BACKENDS_REQUIRED');assert.equal(row.tlsObservations.length,5);
-  assert.deepEqual(row.tlsObservations.map(x=>x.slot).sort(),Object.keys(row.identities).sort());for(const tls of row.tlsObservations){exact(tls,['slot','ssl','native'],'PUBLIC_ANNUL_TLS_FIELDS');assert.equal(tls.ssl,true);assertNative(tls.native,observed,tls.slot,major);}return observed;
+  assertOwnReleaseTlsObservations({tlsObservations:row.tlsObservations,identities:row.identities,target:pair.target});for(const tls of row.tlsObservations)assertNative(tls.native,observed,tls.slot,major);return observed;
  };
  const redactedRollback=(error,code,bundle)=>{
   assert.equal(error.version,'own-release-redacted-native-error.v1');assert.equal(error.code,'P0001');assert.equal(error.messageToken,code);assert.equal(error.fields?.message?.type,'string');assert.equal(error.fields.message.bytes,Buffer.byteLength(code));assert.equal(error.fields.message.sha256,hash(code));exact(error.ownedSession,['slot','native','sessionTerminated'],'PUBLIC_ANNUL_SAVED_OWNED_SESSION_FIELDS');assert.equal(error.ownedSession.slot,'rehearsal');assert.equal(error.ownedSession.sessionTerminated,true);assertNative(error.ownedSession.native,bundle,'rehearsal',major);assert.equal(Object.hasOwn(error,'transportFailure'),false,'PUBLIC_ANNUL_SAVED_TRANSPORT_AMBIGUITY');
