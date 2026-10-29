@@ -241,7 +241,7 @@ export function mountSchoolingReport(host) {
   function cancelHiddenRequest() {
     if (available() || destroyed || (!busy && !data)) return;
     generation++; controller?.abort(); busy = false; clear(); controls();
-    status.textContent = 'La consulta se canceló al salir del reporte. Consultá nuevamente para continuar.';
+    status.textContent = document.hidden ? 'La consulta se canceló al ocultar la pestaña. Consultá nuevamente para continuar.' : 'La consulta se canceló al salir del reporte. Consultá nuevamente para continuar.';
   }
   document.addEventListener('taskchange', cancelHiddenRequest);
   document.addEventListener('visibilitychange', cancelHiddenRequest);
