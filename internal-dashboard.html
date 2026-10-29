@@ -2021,6 +2021,13 @@
           familyId: familyId === null ? null : familyRef.id, familyRef: familyRef } : null;
       }
 
+      function resumeFamilyEntryBackground() {
+        if (!state.familyEntryBackgroundDeferred || document.hidden || !state.tenantCapabilities.has('workforce.employee.read')) return false;
+        state.familyEntryBackgroundDeferred = false;
+        loadSummary();
+        return true;
+      }
+
       async function authenticate() {
         els.gateTitle.textContent = 'Verificando sesión';
         els.gateMessage.textContent = 'Estamos confirmando tu acceso al panel interno.';
@@ -2047,9 +2054,12 @@
           els.appShell.hidden = false;
           const detailRequest = detailRequestFromLocation();
           const initialView = detailRequest ? 'legajos' : viewFromLocation();
+          state.familyEntryBackgroundDeferred = Boolean(detailRequest?.contractId && detailRequest.section === 'family');
           showView(initialView, false, false);
-          loadSummary();
-          if (initialView === 'legajos') loadEmployees(1);
+          if (!state.familyEntryBackgroundDeferred) {
+            loadSummary();
+            if (initialView === 'legajos') loadEmployees(1);
+          }
           if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo', detailRequest);
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
@@ -2069,6 +2079,7 @@
       function showView(view, updateHistory, focusHeading) {
         const target = VALID_VIEWS.has(view) ? view : 'inicio';
         state.currentView = target;
+        if (updateHistory !== false || focusHeading !== false) resumeFamilyEntryBackground();
 
         document.querySelectorAll('[data-section]').forEach(function (section) {
           section.hidden = section.dataset.section !== target;
@@ -2087,7 +2098,7 @@
         els.topbarViewTitle.textContent = viewLabel;
         document.title = viewLabel + ' | MuniControl';
 
-        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
+        if (target === 'legajos' && !state.familyEntryBackgroundDeferred && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
           if (heading) heading.focus({ preventScroll: true });
@@ -2767,7 +2778,7 @@
         }
       }
 
-      function closeDialog() {
+      function closeDialog(resumeBackground) {
         document.dispatchEvent(new Event('mc:family-schooling-close'));
         document.dispatchEvent(new Event('mc:native-employment-change-close'));
         if (state.detailController) state.detailController.abort();
@@ -2776,6 +2787,7 @@
         state.payrollSummaryControllers.clear();
         if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
         else els.employeeDialog.removeAttribute('open');
+        if (resumeBackground === true && resumeFamilyEntryBackground() && state.currentView === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
       }
 
       function loadEmployeeFamilyPanel() { return import('./assets/family-schooling.js'); }
@@ -4000,6 +4012,7 @@
       }
 
       function refreshCurrentView() {
+        state.familyEntryBackgroundDeferred = false;
         els.refreshButton.disabled = true;
         const tasks = [loadSummary()];
         if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
@@ -4026,8 +4039,8 @@
       els.retryAuth.addEventListener('click', authenticate);
       els.refreshButton.addEventListener('click', refreshCurrentView);
       els.logoutButton.addEventListener('click', logout);
-      els.closeDialog.addEventListener('click', closeDialog);
-      els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
+      els.closeDialog.addEventListener('click', function () { closeDialog(true); });
+      els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(true); });
       function withdrawEmployeeDetail() {
         closeDialog();els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
       }
