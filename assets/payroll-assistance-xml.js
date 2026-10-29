@@ -1,0 +1,39 @@
+// Bounded XML 1.0 parser for the local XLSX reader. No DOMParser, evaluation,
+// external entities or regex element extraction; the whole document is consumed.
+const XML='http://www.w3.org/XML/1998/namespace',XMLNS='http://www.w3.org/2000/xmlns/';
+const need=(condition,message)=>{if(!condition)throw Error('XML inválido: '+message);};
+const space=char=>char===' '||char==='\t'||char==='\r'||char==='\n';
+const character=code=>code===9||code===10||code===13||code>=32&&code<=0xd7ff||code>=0xe000&&code<=0xfffd||code>=0x10000&&code<=0x10ffff;
+function decoded(raw,attribute=false){
+ need(!raw.includes('<'),'un atributo o texto contiene marcado sin escapar.');let result='';
+ for(let i=0;i<raw.length;){const code=raw.codePointAt(i);need(character(code),'carácter no permitido.');if(raw[i]!=='&'){const char=String.fromCodePoint(code);result+=attribute&&(char==='\t'||char==='\r'||char==='\n')?' ':char;i+=char.length;continue;}
+  const end=raw.indexOf(';',i+1);need(end>i&&end-i<=32,'entidad incompleta o fuera de límite.');const token=raw.slice(i+1,end),named={amp:'&',apos:"'",lt:'<',gt:'>',quot:'"'};let value;
+  if(Object.hasOwn(named,token))value=named[token];else{need(/^#(?:[0-9]{1,10}|x[0-9A-Fa-f]{1,8})$/.test(token),'entidad no admitida.');const point=token[1]==='x'?Number.parseInt(token.slice(2),16):Number.parseInt(token.slice(1),10);need(character(point),'referencia de carácter no permitida.');value=String.fromCodePoint(point);}result+=value;i=end+1;
+ }
+ return result;
+}
+function qname(name){const parts=name.split(':');need(parts.length<=2&&parts.every(p=>/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(p)),'nombre XML no admitido.');return parts.length===1?{prefix:'',local:name}:{prefix:parts[0],local:parts[1]};}
+export function parseAssistanceXml(source,{maxNodes=400000,maxDepth=64,maxText=8*1024*1024}={}){
+ need(typeof source==='string'&&source.length>0&&source.length<=8*1024*1024,'documento vacío o fuera de límite.');if(source.charCodeAt(0)===0xfeff)source=source.slice(1);source=source.replace(/\r\n?/g,'\n');let position=0,root=null,nodeCount=0,tokens=0,totalText=0;const stack=[];
+ const starts=token=>source.startsWith(token,position);
+ function whitespace(){const start=position;while(space(source[position]))position++;return position>start;}
+ function name(){const start=position;while(position<source.length&&/[A-Za-z0-9_.:-]/.test(source[position]))position++;const value=source.slice(start,position);need(value.length>0&&value.length<=256,'nombre ausente o demasiado largo.');qname(value);return value;}
+ function attributes(declaration=false){const values=[],seen=new Set();let empty=false;while(position<source.length){const separated=whitespace();if(declaration&&starts('?>')){position+=2;return{values,empty:false};}if(!declaration&&starts('/>')){position+=2;empty=true;return{values,empty};}if(!declaration&&starts('>')){position++;return{values,empty};}need(separated,'faltó espacio antes de un atributo.');const key=name();need(!seen.has(key)&&values.length<128,'atributo duplicado o fuera de límite.');seen.add(key);whitespace();need(source[position++]==='=','faltó igual en atributo.');whitespace();const quote=source[position++];need(quote==='"'||quote==="'",'valor de atributo sin comillas.');const end=source.indexOf(quote,position);need(end>=position&&end-position<=8192,'atributo sin cierre o demasiado largo.');const value=decoded(source.slice(position,end),true);position=end+1;values.push({key,value});}throw Error('XML inválido: etiqueta o declaración sin cierre.');}
+ if(starts('<?xml')&&space(source[5])){position=5;const declaration=attributes(true).values;need(declaration[0]?.key==='version'&&declaration[0].value==='1.0','versión XML no admitida.');const order=declaration.map(v=>v.key).join(',');need(['version','version,encoding','version,standalone','version,encoding,standalone'].includes(order),'declaración XML no admitida.');for(const a of declaration){if(a.key==='encoding')need(/^utf-8$/i.test(a.value),'la codificación declarada no es UTF-8.');if(a.key==='standalone')need(a.value==='yes'||a.value==='no','standalone no admitido.');}}
+ while(position<source.length){need(++tokens<=1000000,'exceso de elementos de marcado.');
+  if(starts('<!--')){const end=source.indexOf('-->',position+4);need(end>=0,'comentario sin cierre.');const comment=source.slice(position+4,end);need(!comment.includes('--')&&!comment.endsWith('-'),'comentario no bien formado.');for(const c of comment)need(character(c.codePointAt(0)),'carácter de comentario no permitido.');position=end+3;continue;}
+  if(starts('<![CDATA[')){need(stack.length>0,'CDATA fuera de raíz.');const end=source.indexOf(']]>',position+9);need(end>=0,'CDATA sin cierre.');const content=source.slice(position+9,end);for(const c of content)need(character(c.codePointAt(0)),'carácter de CDATA no permitido.');totalText+=content.length;need(totalText<=maxText,'texto fuera de límite.');stack.at(-1).node.text+=content;position=end+3;continue;}
+  need(!starts('<?')&&!starts('<!'),'instrucciones de procesamiento, DTD y entidades no admitidas.');
+  if(starts('</')){position+=2;const close=name();whitespace();need(source[position++]==='>','cierre con contenido extra.');need(stack.length>0&&stack.at(-1).node.qname===close,'cierre o anidamiento incorrecto.');stack.pop();continue;}
+  if(starts('<')){position++;const elementName=name(),parsed=attributes(),element=qname(elementName),bindings=new Map(stack.at(-1)?.bindings??[['xml',XML]]);for(const a of parsed.values){if(a.key==='xmlns')need(a.value!==XML&&a.value!==XMLNS,'namespace por defecto reservado.');if(a.key==='xmlns')bindings.set('',a.value);else if(a.key.startsWith('xmlns:')){const prefix=a.key.slice(6);need(prefix!=='xmlns'&&a.value!==''&&a.value!==XMLNS&&(prefix==='xml'?a.value===XML:a.value!==XML),'declaración de namespace inválida.');bindings.set(prefix,a.value);}}
+   need(element.prefix!=='xmlns'&&(!element.prefix||bindings.has(element.prefix)),'prefijo de elemento sin declarar.');const namespace=bindings.get(element.prefix)??'',attrs=[],expanded=new Set();for(const a of parsed.values){if(a.key==='xmlns'||a.key.startsWith('xmlns:'))continue;const key=qname(a.key);need(!key.prefix||bindings.has(key.prefix),'prefijo de atributo sin declarar.');const uri=key.prefix?bindings.get(key.prefix):'',identity=uri+'|'+key.local;need(!expanded.has(identity),'atributo expandido duplicado.');expanded.add(identity);attrs.push({qname:a.key,local:key.local,namespace:uri,value:a.value});}
+   need(++nodeCount<=maxNodes&&stack.length<maxDepth,'profundidad o nodos fuera de límite.');const node={qname:elementName,local:element.local,namespace,attributes:attrs,children:[],text:''};if(stack.length)stack.at(-1).node.children.push(node);else{need(root===null,'más de una raíz.');root=node;}if(!parsed.empty)stack.push({node,bindings});continue;
+  }
+  const end=source.indexOf('<',position),until=end<0?source.length:end,raw=source.slice(position,until);need(!raw.includes(']]>'),'terminador CDATA fuera de sección.');const value=decoded(raw);totalText+=value.length;need(totalText<=maxText,'texto fuera de límite.');if(stack.length)stack.at(-1).node.text+=value;else need(value.trim()==='','texto fuera de raíz.');position=until;
+ }
+ need(stack.length===0&&root!==null,'documento sin cierre completo.');return root;
+}
+export function assistanceXmlAttribute(node,local,namespace=''){return node.attributes.find(a=>a.local===local&&a.namespace===namespace)?.value;}
+export function assistanceXmlChildren(node,local,namespace){return node.children.filter(n=>n.local===local&&n.namespace===namespace);}
+export function assistanceXmlNoResidual(node){need(node.text.trim()==='','texto residual fuera de una celda escalar.');}
+export function assistanceXmlScalar(node){need(node.children.length===0,'un valor escalar contiene elementos.');return node.text;}

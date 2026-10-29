@@ -18,6 +18,10 @@ export async function mountWorkAreaMenu(){
   const payroll=sidebar.querySelector('[data-liquidaciones-menu]');
   const legacyContainers=[...sidebar.querySelectorAll('nav,.nav-group')].filter(n=>!payroll?.contains(n));
   const entries=[],duplicates=[];
+  // Payroll group: its links plus the task tabs adopted from the page workspace (liquidaciones-menu.js); duplicates of
+  // adopted tasks are hidden links and never become entries.
+  const payrollItems=()=>payroll?[...payroll.querySelectorAll('a[href],[data-task]')].filter(item=>!item.hasAttribute('data-liquidaciones-duplicate')):[];
+  const payrollEntry=item=>{item.dataset.workAreaItem='';return{item,area:'liquidaciones',route:item.hasAttribute('href')?routes.resolve(item.href,location.href):null};};
   const payrollDestinations=new Set(payroll?[...payroll.querySelectorAll('a[href]')].map(n=>n.href):[]);
   for(const item of sidebar.querySelectorAll('a[href],button[data-view]')){
     if(item.closest('.brand,.side-note,.sidebar-source')||payroll?.contains(item)||item.hasAttribute('download')||item.hasAttribute('data-liquidaciones-legacy'))continue;
@@ -56,7 +60,7 @@ export async function mountWorkAreaMenu(){
     let before=legacyContainers[0]||sidebar.querySelector('.side-note,.sidebar-source');while(before&&before.parentNode!==sidebar)before=before.parentElement;sidebar.insertBefore(nav,before);
     for(const entry of entries){entry.item.dataset.workAreaItem='';move(entry.item,entry.area==='inicio'?homeList:groups.get(entry.area).items);}
     for(const [id,g]of groups){if(g.group===payroll)move(payroll,areaList);else areaList.append(g.group);}
-    if(payroll)for(const item of payroll.querySelectorAll('a[href]')){item.dataset.workAreaItem='';entries.push({item,area:'liquidaciones',route:routes.resolve(item.href,location.href)});}
+    for(const item of payrollItems())entries.push(payrollEntry(item));
     for(const item of duplicates)attr(item,'data-work-area-duplicate','true');
     for(const node of legacyContainers)if(!nav.contains(node)&&!node.querySelector('a[href],button'))attr(node,'data-work-area-empty','true');
     for(const node of sidebar.querySelectorAll(':scope > .nav-label,:scope > .suite-label'))attr(node,'data-work-area-empty','true');
@@ -85,7 +89,7 @@ export async function mountWorkAreaMenu(){
   function render(){
     scheduled=false;if(suspended||!nav.isConnected)return;
     const active=activeArea(),query=input.value.trim();let count=0;
-    for(const e of entries){const allowed=permitted(e);attr(e.item,'data-work-permission-denied',!allowed);const match=allowed&&matchesMenuQuery((groups.get(e.area)?.label||'Inicio')+' '+e.item.textContent,query);attr(e.item,'data-work-filtered',!match);if(match&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'))count++;}
+    for(const e of entries){const allowed=permitted(e);attr(e.item,'data-work-permission-denied',!allowed);const match=allowed&&matchesMenuQuery((groups.get(e.area)?.label||'Inicio')+' '+e.item.textContent,query);attr(e.item,'data-work-filtered',!match);if(match&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied')){count++;if(query)for(let d=e.item.closest('details');d&&d!==groups.get(e.area)?.group&&nav.contains(d);d=d.parentElement.closest('details'))d.open=true;}}
     for(const [id,g]of groups){const visible=entries.some(e=>e.area===id&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'));hidden(g.group,!visible);attr(g.group,'data-active',id===active);if(query&&visible)g.group.open=true;else if(active!==lastActive)g.group.open=id===active;}
     hidden(homeList,!entries.some(e=>e.area==='inicio'&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden));
     const currentLabel=groups.get(active)?.label||'Inicio';if(mobileCurrent.textContent!==currentLabel)mobileCurrent.textContent=currentLabel;
@@ -93,7 +97,7 @@ export async function mountWorkAreaMenu(){
     if(status.textContent!==statusText)status.textContent=statusText;hidden(clear,!query);lastActive=active;mobileState();
   }
   const schedule=()=>{if(!scheduled&&!suspended){scheduled=true;queueMicrotask(render);}};
-  function search(){if(input.value&&!searchOpenState)searchOpenState=new Map([...groups].map(([id,g])=>[id,g.group.open]));if(!input.value&&searchOpenState){for(const [id,opened]of searchOpenState)groups.get(id).group.open=opened;searchOpenState=null;}render();}
+  function search(){if(input.value&&!searchOpenState)searchOpenState=new Map([...nav.querySelectorAll('details')].map(d=>[d,d.open]));if(!input.value&&searchOpenState){for(const [d,opened]of searchOpenState)d.open=opened;searchOpenState=null;}render();}
   input.addEventListener('input',search);clear.addEventListener('click',()=>{input.value='';search();input.focus();});
   mobile.addEventListener('click',()=>{mobileOpen=!mobileOpen;mobileState();if(mobileOpen)input.focus();});mobileMedia.addEventListener('change',mobileState);
   for(const [id,g]of groups)g.group.addEventListener('toggle',()=>{if(suspended||!g.group.open||input.value.trim())return;for(const [other,group]of groups)if(other!==id)group.group.open=false;});
@@ -111,6 +115,7 @@ export async function mountWorkAreaMenu(){
   stateObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-mc-capability-state']});
   document.addEventListener('municontrol:capabilities-ready',event=>{if(suspended)return;access=event.detail||{};const a=normalized();gate.apply(nav,{tenantCapabilities:[...a.tenantCapabilities],platformCapabilities:[...a.platformCapabilities],platformRoles:[...a.platformRoles]},location.href);input.value='';searchOpenState=null;lastActive=null;render();});
   for(const type of ['hashchange','popstate'])window.addEventListener(type,schedule);document.addEventListener('taskchange',schedule);
+  document.addEventListener('municontrol:liquidaciones-menu-change',()=>{if(suspended||!payroll)return;for(let i=entries.length;i--;)if(entries[i].area==='liquidaciones'&&(!entries[i].item.isConnected||entries[i].item.hasAttribute('data-liquidaciones-duplicate')))entries.splice(i,1);for(const item of payrollItems())if(!entries.some(e=>e.item===item))entries.push(payrollEntry(item));lastActive=null;render();});
   document.getElementById('logoutButton')?.addEventListener('click',suspend);window.addEventListener('pagehide',suspend);
   window.addEventListener('pageshow',event=>{if(event.persisted&&suspended)location.reload();});
   render();mounting=false;return nav;

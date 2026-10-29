@@ -28,3 +28,11 @@ test('specialized navigation preserves its original gate while standard pages ge
  const present=basic.replace('</head>','<script src="/assets/internal-capability-gate.js"></script></head>');
  assert.deepEqual(sources(transformFriendlyShellSource(present,'nomina-control.html','identity-test',globalThis.MuniControlRoutes)),['/assets/internal-capability-gate.js']);
 });
+test('the work-area menu indexes adopted payroll task tabs and reconciles after a late adoption without stale nodes',()=>{
+ const s=fs.readFileSync('assets/work-area-menu.js','utf8');
+ assert.match(s,/payroll\.querySelectorAll\('a\[href\],\[data-task\]'\)/);assert.match(s,/data-liquidaciones-duplicate/);
+ assert.match(s,/document\.addEventListener\('municontrol:liquidaciones-menu-change'/);assert.match(s,/!entries\[i\]\.item\.isConnected/);
+ assert.match(s,/closest\('details'\)/);assert.match(s,/nav\.querySelectorAll\('details'\)/);
+ assert.equal(s.split("entries.push(payrollEntry(item))").length,3,'initial collection and reconciliation share one entry builder');
+ const workspace=fs.readFileSync('assets/task-workspace.js','utf8');assert.match(workspace,/municontrol:task-workspace/);assert.match(workspace,/aria-orientation','vertical'/);assert.doesNotMatch(workspace,/cloneNode|innerHTML/);
+});

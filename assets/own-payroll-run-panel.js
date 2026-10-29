@@ -14,6 +14,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownZeroDifferenceOfVerified,ownZeroDifferenceLines} from './own-payroll-zero-difference.js';
+import {mountAssistanceXlsx} from './payroll-assistance-xlsx-panel.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -84,6 +85,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <nav class="own-run-actions" aria-label="Páginas del detalle"><button class="button" type="button" data-own-prev>Anterior</button><span data-own-page></span><button class="button" type="button" data-own-next>Siguiente</button></nav>
     <details><summary>Ver versiones y trazabilidad</summary><dl data-own-trace></dl></details><div data-own-position-capture></div>
   </section>
+  <div data-own-assistance></div>
   <section aria-labelledby="ownRunHistoryTitle"><h3 id="ownRunHistoryTitle">Cálculos propios guardados</h3><p>Consultá un resultado o recuperá una captura pendiente. Abrir una corrida no ejecuta otro cálculo.</p><div data-own-history></div></section>`;
   const $=s=>host.querySelector('[data-own-'+s+']');
   const positionCapture=mountPositionCapture($('position-capture'));
@@ -97,12 +99,14 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const canSelect=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsPreparation(readiness);
   const canStart=()=>canPrepare()&&readinessAccessKey===access?.key&&ownPayrollReadinessAllowsNew(readiness);
   const individual=mountOwnPayrollIndividual($('individual'),{id:'ownRunIndividual',canUse:()=>can(OWN_RUN_NOMINAL),returnFocus:()=>$('result').querySelector('h3')});
+  const assistance=mountAssistanceXlsx($('assistance'),{canUse:()=>can(OWN_RUN_NOMINAL)});
   const picker=createEmployeePicker({instanceId:'ownRunPicker',readNativeRoster:readPickerRoster,canUse:()=>canSelect()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este legajo sigue en la fuente histórica. Para seleccionarlo, primero debe incorporarse al padrón propio mediante la revisión de adopción en Personas.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();controls();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
     renderReadiness();renderProjectedReference();renderSendHelp();
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
+    assistance.setAvailable(can(OWN_RUN_NOMINAL));
     $('fields').disabled=busy||!canSelect()||!!attempt;$('confirm').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
     $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
@@ -149,6 +153,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function invalidateReadiness(){readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;readinessRosterScope=null;$('confirm').checked=false;picker.close();}
   function clearViews(){
+    assistance.clear();
     clearSourceReview();clearProjectedView();
     individual.clear();
     positionCapture.clear();
@@ -216,6 +221,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }
   function showCapture(value){
+    assistance.clear();
     clearSourceReview();
     positionCapture.setCapture(value.saved?value:null);
     current=value;notFound=false;
@@ -233,6 +239,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     // Synchronous: the capture was just verified (hashes) and validated (structure); nothing is awaited here.
     const zero=ownZeroDifferenceOfVerified({input,result,inputSha256:value.saved.inputSha256,resultSha256:value.saved.resultSha256});
     $('trace').append(node('dt','Conciliación de la captura'));for(const line of ownZeroDifferenceLines(zero)){const dd=node('dd',line);dd.dataset.zeroDifference=zero.state;$('trace').append(dd);}
+    void assistance.setCapture(value);
     page=1;renderRows();
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
