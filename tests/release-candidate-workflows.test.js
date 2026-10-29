@@ -96,3 +96,27 @@ test('approved source metadata successions retain complete pre-access parents wi
  assert.equal(Object.keys(JSON.parse(literal)).length,54);
  assert.equal(digest(literal),'9757b5b7bcbfc4cf66d9219f2577bbd9727aff8dc2d17468721a9aa796f13cac');
 });
+
+test('comparison pending-auth successor projects RAW7b7 to its exact Git5b98 parent before capacity presentation checks',()=>{
+ const path='assets/own-payroll-comparison-panel.js',pin=RELEASE_CANDIDATE_SOURCE_PINS[path];assert.ok(pin,'COMPARISON_AUTH_SUCCESSION_REQUIRED');
+ assert.equal(pin.before,'e4156da8452491bd7af364f4f099c5c6cc9a1a0d5247a833d5597fc1a92eed03');assert.equal(pin.beforeBytes,16261);
+ assert.equal(pin.after,'d40b12fc4ebd3c9520e281fa5ed6f227d6d620eb41efb32b310b4401343fd0d5');assert.equal(pin.afterBytes,16316);assert.equal(pin.inverse.length,6);
+ const raw=read(path);assert.equal(digest(raw),pin.after);assert.notEqual(digest(raw),pin.before,'RAW_CHILD_CANNOT_STAND_IN_FOR_PRESENTATION_PARENT');
+ const parent=projectReleaseCandidateWorkflowToParent(path,raw);assert.equal(digest(parent),pin.before);assert.equal(parent.length,pin.beforeBytes);
+ assert.deepEqual(projectOwner190QaReconciliationRawSourceToParent(path,raw),parent,'OWNER190_MUST_APPLY_SUCCESSION_BEFORE_HISTORICAL_READING');
+ assert.throws(()=>projectReleaseCandidateWorkflowToParent(path,parent));
+ const changed=Buffer.from(raw);changed[pin.inverse[0].offset]^=1;assert.throws(()=>projectReleaseCandidateWorkflowToParent(path,changed));
+});
+
+test('comparison succession retains the ten prior entries as a complete identical JSON map',()=>{
+ const prior=Object.fromEntries(Object.entries(RELEASE_CANDIDATE_SOURCE_PINS).filter(([path])=>path!=='assets/own-payroll-comparison-panel.js'&&path!=='tests/own-close-snapshot215-installation.test.js'));
+ assert.equal(Object.keys(prior).length,10);assert.equal(Object.keys(RELEASE_CANDIDATE_SOURCE_PINS).length,12);
+ assert.equal(digest(JSON.stringify(prior)),'a466066182ad3eca5b68d6a982e090f6142405db6d0862bb8b710b92f20e61f4');
+});
+
+test('215 package-pin test has an exact RAW successor while package remains current in the global reader',()=>{
+ const path='tests/own-close-snapshot215-installation.test.js',pin=RELEASE_CANDIDATE_SOURCE_PINS[path],raw=read(path);assert.ok(pin);assert.equal(pin.inverse.length,3);
+ assert.equal(pin.before,'25f3842861468fbc8130f7bf44721fd5659b2bf33273c499e36e2ef5864922be');assert.equal(pin.after,'4d834bdb32c9dd2477f5447be401dfa65d4c245aa3f5ba45a8fe2a1ef4bc08b4');assert.equal(digest(raw),pin.after);
+ const parent=projectReleaseCandidateWorkflowToParent(path,raw);assert.equal(digest(parent),pin.before);const historical=projectOwner190QaReconciliationRawSourceToParent(path,raw);assert.equal(digest(historical),OWNER190_QA_RECONCILIATION_SOURCE_PINS[path].before);
+ const packageRaw=read('package.json');assert.equal(Object.hasOwn(RELEASE_CANDIDATE_SOURCE_PINS,'package.json'),false);assert.strictEqual(projectReleaseCandidateWorkflowToParent('package.json',packageRaw),packageRaw);assert.equal(digest(packageRaw),'7bcece8861efe0e2f5b846abcf422495ef4cdd418c953c8f19633c0f3cc0c1e0');
+});

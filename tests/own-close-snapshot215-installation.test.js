@@ -10,6 +10,7 @@ import {deriveOwnCloseSnapshot215,composeOwnCloseSnapshot215Plan,installOwnClose
 import {composeOwnFullCapacity190Installation} from '../scripts/lib/own-payroll-full-capacity-190-installation.mjs';
 import {prepareOwnMonthlyFullCapacity} from '../scripts/verify-own-monthly-payroll-full-capacity.mjs';
 import {composeOwnAnnulPreparation209On190} from '../scripts/lib/own-payroll-annulment-preparation-209-installation.mjs';
+import {packageJsonReleaseHistoricalParentForTest,RELEASE_PACKAGE_SOURCE_CUSTODY} from './fixtures/package-json-release-source-custody.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),commit='a'.repeat(40);
 const read=file=>fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n?/g,'\n');
 const source124='scripts/migrations/125-own-payroll-close.sql',source176='scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql';
@@ -139,7 +140,7 @@ test('all209 inherited install, verification and postflight paths retain the ful
  const x=canonical209Source(),historical=x.capacityPlan.postflight,hashes=structuredClone(x.qa.hashes),plan215=compose(x.qa,x.args.h.read);
  const projected=projectOwnCloseSnapshot215Postflight(x.args.h,plan215,historical);
  const count=(text,needle)=>text.split(needle).length-1;
- for(const[file,digest]of Object.entries({'package.json':'9e9874bad0c978a0568818fd51688efa14731317ece39b8b4d9f1c3312f3e11e','package-lock.json':'38ae1642e218078cf2aa28fc9a811e0b50397b24265dc26ffbae0e9555a94309','api/internal-municipal-owner-salary.js':'07e0a4ee32969f51258e807e29edb6aebec89d004d20ed28f250aedfb8e26d76','src/islands/NativeSalaryCatalog.jsx':'36e7e23ff91a0b47be59f751d609e8186cada516a5406f130f0150dce5cd506e','.vercelignore':'7ec89b8bae0f3431443bc95f5afe8ba74268d70a6e58593fb9c03e0bbf9f3ef1','api/internal-municipal-owner-program.js':'32c8dabe14b958b91760f4960a1c7bee0ff3f9563c432b0f914c5be55bba29d1'}))assert.equal(x.plan.sourceHashes[file],digest,'209 retains exact inherited foundation pin '+file);
+ for(const[file,digest]of Object.entries({'package.json':'7bcece8861efe0e2f5b846abcf422495ef4cdd418c953c8f19633c0f3cc0c1e0','package-lock.json':'38ae1642e218078cf2aa28fc9a811e0b50397b24265dc26ffbae0e9555a94309','api/internal-municipal-owner-salary.js':'07e0a4ee32969f51258e807e29edb6aebec89d004d20ed28f250aedfb8e26d76','src/islands/NativeSalaryCatalog.jsx':'36e7e23ff91a0b47be59f751d609e8186cada516a5406f130f0150dce5cd506e','.vercelignore':'7ec89b8bae0f3431443bc95f5afe8ba74268d70a6e58593fb9c03e0bbf9f3ef1','api/internal-municipal-owner-program.js':'32c8dabe14b958b91760f4960a1c7bee0ff3f9563c432b0f914c5be55bba29d1'}))assert.equal(x.plan.sourceHashes[file],digest,'209 retains exact inherited foundation pin '+file);
  for(const [field,expected]of [['beforeApply',1],['statements',2],['verification',1],['postflight',1]]){
   const statements=x.plan[field];assert.ok(Array.isArray(statements),field);
   const joined=statements.join(';\n');assert.equal(count(joined,projected),expected,'209 '+field+' must embed the complete projected guard');
@@ -204,4 +205,21 @@ test('209 refuses a foreign or already-projected201 guard and detects later215 i
  try{assert.throws(()=>x.plan.sourceBookend(),/ANNUL209_SOURCE_BOOKEND_CHANGED/);}
  finally{x.setDrift(false);}
  assert.equal(x.plan.sourceBookend().passed,true);assert.deepEqual(x.calls,[]);
+});
+
+test('package release custody retains the current foundation pin and recovers its exact Git parent only as test evidence',()=>{
+ const pin=RELEASE_PACKAGE_SOURCE_CUSTODY,raw=fs.readFileSync(path.join(root,'package.json')),digest=value=>createHash('sha256').update(value).digest('hex');
+ assert.equal(pin.currentSha256,'7bcece8861efe0e2f5b846abcf422495ef4cdd418c953c8f19633c0f3cc0c1e0');assert.equal(digest(raw),pin.currentSha256);
+ const current=JSON.parse(raw),parentRaw=packageJsonReleaseHistoricalParentForTest(raw),parent=JSON.parse(parentRaw);
+ assert.equal(digest(parentRaw),'9e9874bad0c978a0568818fd51688efa14731317ece39b8b4d9f1c3312f3e11e');assert.notEqual(digest(raw),digest(parentRaw));
+ const {['build:vercel']:buildVercel,...priorScripts}=current.scripts;assert.deepEqual({...current,scripts:priorScripts},parent,'ALL_OTHER_PACKAGE_FIELDS_AND_DEPENDENCIES_IDENTICAL');
+ assert.equal(buildVercel,'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node scripts/build-friendly.mjs');
+ assert.equal(current.scripts.test,'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js');assert.equal(current.scripts.test,parent.scripts.test);
+ assert.equal(current.scripts.build,'npm run test && node scripts/build-friendly.mjs');assert.equal(current.scripts.build,parent.scripts.build);
+ assert.deepEqual(Buffer.concat([parentRaw.subarray(0,pin.offset),Buffer.from(pin.addedBase64,'base64'),parentRaw.subarray(pin.offset)]),raw,'FULL_RAW_FORWARD_ROUND_TRIP');
+});
+
+test('package custody rejects the historical parent as current and rejects RAW drift without accepting caller pins',()=>{
+ const raw=fs.readFileSync(path.join(root,'package.json')),parent=packageJsonReleaseHistoricalParentForTest(raw);assert.throws(()=>packageJsonReleaseHistoricalParentForTest(parent));
+ assert.throws(()=>packageJsonReleaseHistoricalParentForTest(Buffer.concat([raw,Buffer.from('\n')])));const changed=Buffer.from(raw);changed[0]^=1;assert.throws(()=>packageJsonReleaseHistoricalParentForTest(changed));assert.throws(()=>packageJsonReleaseHistoricalParentForTest({passed:true,sha256:RELEASE_PACKAGE_SOURCE_CUSTODY.currentSha256}));
 });
