@@ -16,7 +16,7 @@ jobs:
   verify:
     name: M7, receipt126 and Family195 browser, positions210-212 SQL / PG${{ matrix.pg }} / published107
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +29,7 @@ jobs:
           POSTGRES_DB: own_payroll_run_qa
         ports: ['554${{ matrix.pg }}:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 4h --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

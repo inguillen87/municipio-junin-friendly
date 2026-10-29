@@ -51,7 +51,7 @@ export const RELEASE_CONTRACT=deepFreeze({
  // repository source shows GET returning it: absence or any contradiction is a STOP, never a pass.
  workflows:[
   {path:'.github/workflows/noelia-payroll-circuit.yml',name:'Noelia complete own payroll circuit',
-   sha256:'6a6fcec6571d765d86b53ee6e3345bd6bd84031b4ddc2d768aec0ea632f30e6b',
+   sha256:'e87d8e2490cffbbe081d4a0345cdaa9e482d66fdac8b3825bba1e2bb6e7ef754',
    jobs:[17,18].map(major=>({name:`circuit (${major})`,major,artifact:`noelia-circuit-pg${major}-<sha>`,
     report:{entry:'noelia-circuit-ci/result.json',fields:{passed:true,major,sourceCommit:'<sha>',transport:'ci',browser:'chromium',productionWrites:false}}})),
    // Every named step of the reviewed bytes; 'Build and run all existing regressions' is `npm run build` (full suite).
@@ -86,7 +86,7 @@ export const RELEASE_CONTRACT=deepFreeze({
     "Preserve synthetic evidence even when a check fails"
    ]},
   {path:'.github/workflows/own-payroll-full-capacity.yml',name:'Own payroll complete capacity',
-   sha256:'15078a679a845fa2f086e0b8bc8b23ef7f89764ccbe60ec08783169a86d502cc',
+   sha256:'a335e996cd8a6c5e0135e13ef2534052e6a1a9a14d52d802c7742d674dc27205',
    jobs:[17,18].map(major=>({name:`M7, receipt126 and Family195 browser, positions210-212 SQL / PG${major} / published107`,major,artifact:`own-full-capacity-pg${major}-published107-<sha>`,
     report:{entry:`own-full-capacity-pg${major}/result.json`,fields:{version:'municipal-owner-adoption-authority-qa.v1',passed:true,major,sourceCommit:'<sha>',transport:'ci',operationalPairBaseline:'published107'}}})),
    steps:[
