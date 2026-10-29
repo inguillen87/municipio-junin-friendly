@@ -16,6 +16,7 @@ import {createInternalDataHandler} from '../api/internal-data.js';
 import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {RUN_CALCULATE,ownRunHash,ownRunOperation} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
+import {qaPostJsonResponseWaiter} from './lib/qa-post-json-response-waiter.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
@@ -230,10 +231,10 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run')
-    .then(async response=>({response,body:await response.json()})).then(value=>({value}),error=>({error}));
-  await rs('send').click();const failedObserved=await failedResponsePromise;if('error' in failedObserved)throw failedObserved.error;
-  const {response:failedResponse,body:failedBody}=failedObserved.value;await idle();
+  const failedWait=qaPostJsonResponseWaiter(reviewPage,r=>{const u=new URL(r.url());return u.origin===origin&&u.pathname==='/api/internal-own-payroll-run';});
+  let failedResponse,failedBody;
+  try{await rs('send').click({timeout:30000});({response:failedResponse,body:failedBody}=await failedWait.result);}finally{failedWait.cancel();}
+  await idle();
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
   check(failedResponse.status()===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
