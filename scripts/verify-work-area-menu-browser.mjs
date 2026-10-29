@@ -79,6 +79,7 @@ try{
  await page.locator('[data-work-area=personas]>summary').click();await nav.locator('button[data-view=legajos]').click();await page.locator('#view-legajos').waitFor();
  assert.equal(await page.locator('#employeeSearch').inputValue(),'QA SIN PERSONAS');assert.equal(await page.locator('button[data-employee-create]').isVisible(),true);
  checks.push('full Personas page keeps original view handlers, search state and Nuevo legajo');
+ full=false; // Return from the full Personas page to the explicit synthetic-panel navigation fixture.
  // Vertical payroll menu on /nomina: the real sidebar modules adopt a workspace built with the real sections and task
  // ids of payroll-navigation.js (synthetic panels, no payroll API). Both mount orders, 29 destinations, keyboard,
  // search, mobile, no horizontal bar in the page, capability refresh and logout.
