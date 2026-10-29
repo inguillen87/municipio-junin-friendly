@@ -105,7 +105,7 @@ try{
  await page.locator('#mcWorkAreaSearch').fill('anular');assert.deepEqual(await tasks.locator('[role=tab]:visible').allInnerTexts(),['Anular período','Confirmar y anular']);await page.locator('.mc-work-clear').click();assert.equal(await tasks.locator('[role=tab]:visible').count(),29);checks.push('work-area search filters the adopted payroll tasks');
  await nav.screenshot({path:out+'/payroll-vertical-desktop.png'});
  for(const width of [390,320]){
-  await page.setViewportSize({width,height:844});await visit(nomina+'#banco');await nav.waitFor();await mountPayrollWorkspace();await tasks.waitFor();
+  await page.setViewportSize({width,height:844});await visit(nomina+'#banco');await nav.waitFor();await mountPayrollWorkspace();await tasks.waitFor({state:'attached'});
   assert.equal(await tasks.locator('details.task-section[open]').count(),1,'mobile opens only the active process');assert.equal(await page.locator('.mc-work-toggle').getAttribute('aria-expanded'),'false');
   await page.locator('.mc-work-toggle').click();assert.equal(await tasks.locator('[data-task="banco"]').isVisible(),true);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'viewport '+width);
   await nav.screenshot({path:out+'/payroll-vertical-mobile-'+width+'.png'});await tasks.locator('[data-task="resumen"]').click();await page.waitForURL('**/nomina#resumen');assert.equal(await page.locator('#mcWorkAreaBody').isHidden(),true,'menu closes after choosing a task');assert.equal(await page.locator('#task-resumen').isVisible(),true);
