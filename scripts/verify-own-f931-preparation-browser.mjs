@@ -5,15 +5,16 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {OWN_CLOSE_NOMINAL} from '../assets/own-payroll-close-model.js';
-import {reportFixture} from '../tests/fixtures/own-payroll-report-synthetic.js';
+import {historicalF931BrowserFixture,historicalF931BrowserReopen,historicalF931BrowserLiquidation,historicalF931BrowserFullResponse} from '../tests/fixtures/own-f931-historical-browser-synthetic.js';
+import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
 import {fiscalFactsHash} from '../assets/own-fiscal-facts-model.js';
 const root=fs.realpathSync(new URL('../public',import.meta.url)),output=path.resolve(process.env.OWN_F931_QA_OUTPUT??'verification/own-f931-browser-20261011');
-assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));fs.mkdirSync(output,{recursive:true});
+assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));assert.ok(!fs.existsSync(output),'Preserve prior QA output; choose a new output');fs.mkdirSync(output,{recursive:true});
 const origin='http://127.0.0.1:4373',checks=[],errors=[],writes=[],downloads=[];
 const check=(condition,message)=>{assert.ok(condition,message);checks.push(message);};
 const browser=await chromium.launch({headless:true});
 async function inspect(viewport,label){
- let fixture=reportFixture(61),allowed=true,corrupt=false;
+ let fixture=historicalF931BrowserFixture(),allowed=true,corrupt=false;
  const context=await browser.newContext({viewport,locale:'es-AR',serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
@@ -25,9 +26,18 @@ async function inspect(viewport,label){
   }
   if(u.pathname==='/api/internal-own-payroll-close'){
    if(!allowed)return route.fulfill({status:403,json:{ok:false,error:'Synthetic access revoked'}});
-   const q=u.searchParams,data=q.get('resource')==='detail'?structuredClone(fixture.details[0]):structuredClone(fixture.receipts[0]);
-   if(corrupt&&q.get('resource')==='group')data.snapshotSha256='e'.repeat(64);
-   return route.fulfill({json:{ok:true,data}});
+   assert.equal(req.headers().accept,OWN_RUN_FULL_JSON,'Historical reads negotiate the complete response');
+   const q=u.searchParams,resource=q.get('resource');
+   assert.ok(['report-census','group'].includes(resource),'Operational close-detail fallback is forbidden');
+   const data=resource==='report-census'?structuredClone(fixture.censuses.find(c=>c.period===q.get('period')&&c.liquidationType===q.get('liquidationType'))):structuredClone(fixture.receipts.find(r=>r.groupId===q.get('id')));
+   assert.ok(data,'Every complete historical source must be explicitly present');
+   if(corrupt&&resource==='group')data.snapshotSha256='e'.repeat(64);
+   return route.fulfill(historicalF931BrowserFullResponse(data));
+  }
+  if(u.pathname==='/api/internal-own-payroll-liquidation'){
+   if(!allowed)return route.fulfill({status:403,json:{ok:false,error:'Synthetic access revoked'}});
+   assert.equal(req.headers().accept,OWN_RUN_FULL_JSON);assert.equal(u.searchParams.get('resource'),'detail');
+   return route.fulfill(historicalF931BrowserFullResponse(historicalF931BrowserLiquidation(fixture.captures.find(c=>c.id===u.searchParams.get('id')))));
   }
   if(u.pathname==='/api/internal-data')return route.fulfill({json:{ok:true,status:'ready',sourcePolicy:{label:'QA SINTÉTICA'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:[]}});
   if(u.pathname.startsWith('/api/'))return route.fulfill({status:403,json:{ok:false,error:'Outside synthetic test scope'}});
@@ -35,7 +45,7 @@ async function inspect(viewport,label){
   if(req.method()!=='GET'||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
   return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.json':'application/json'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
  });
- const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));page.on('download',d=>downloads.push(d));
+ const page=await context.newPage();let navigations=0;page.on('framenavigated',f=>{if(f===page.mainFrame())navigations++;});page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));page.on('download',d=>downloads.push(d));
  const $=k=>page.locator('.own-f931 [data-own-f931-'+k+']');
  const idle=()=>page.waitForFunction(()=>document.querySelector('.own-f931')?.getAttribute('aria-busy')==='false');
  const populate=async()=>{$('period');await $('period').fill(fixture.query.from);await $('date').fill('2026-10-31');await $('consult').click();await idle();};
@@ -49,9 +59,14 @@ async function inspect(viewport,label){
   check(await $('fields').locator('article').count()===20,label+': fields paginated accessibly');await $('next').click();await $('next').click();check((await $('fields').innerText()).includes('Campo 60'),label+': final page includes field60');
   await $('search').fill('remuneración');check((await $('fields').innerText()).includes('Remuneración'),label+': search works');
   const event=page.waitForEvent('download');await $('csv').click();const d=await event;await idle();const csv=fs.readFileSync(await d.path(),'utf8');check((csv.match(/"Campo \d+ ·/g)??[]).length===60,label+': CSV includes all fields despite search/page');check(!csv.includes(fixture.receipts[0].groupId)&&!csv.includes(fixture.receipts[0].body.reason)&&!csv.includes(fixture.receipts[0].snapshotSha256),label+': CSV has no UUID/free text/source hash');check((await $('status').innerText()).includes('No es un TXT fiscal'),label+': download clearly describes preparation only');
-  const before=downloads.length;fixture.details[0].stateVersion='c'.repeat(64);await $('csv').click();await idle();check(downloads.length===before&&(await $('status').innerText()).includes('Cambió la fuente'),label+': changed source replaces review without download');
+  const before=downloads.length;historicalF931BrowserReopen(fixture);await $('csv').click();await idle();check(downloads.length===before&&(await $('status').innerText()).includes('Cambió la fuente'),label+': changed source replaces review without download');
+  fixture=historicalF931BrowserFixture(); // Restore original manufactured closed history for the following independent checks.
   await $('date').fill('2026-11-30');check(!(await $('view').isVisible())&&await $('csv').isDisabled(),label+': changed November presentation invalidates old review');await $('consult').click();await idle();const beforeCutoff=await $('version').innerText();check(!beforeCutoff.includes('versión 48')&&beforeCutoff.includes('versión 47.5'),label+': old period presented November30 stays before the amended V48 cutoff');
   await $('date').fill('2026-12-01');check(!(await $('view').isVisible())&&await $('csv').isDisabled(),label+': changed December presentation invalidates old review');await $('consult').click();await idle();check((await $('version').innerText()).includes('versión 48'),label+': old period presented after cutoff requires48');
+  fixture=historicalF931BrowserFixture({period:'2026-10',count:35});await populate();check((await $('count').innerText()).includes('35 participaciones'),label+': October has its own complete captured population');
+  fixture=historicalF931BrowserFixture();await populate();check((await $('count').innerText()).includes('61 participaciones')&&navigations===1,label+': September to October to September preserves original populations without reload');
+  for(const[choice,count]of [['42',31],['55',30]]){await $('jurisdiction').selectOption(choice);check(!await $('view').isVisible()&&await $('csv').isDisabled(),label+': jurisdiction change invalidates the previous preparation');await $('consult').click();await idle();const text=await $('count').innerText();check(text.includes(count+' participaciones')&&text.includes('Universo verificado: 1 grupos · 61 participaciones'),label+': exact '+choice+' closed scope retains the full universe');}
+  await $('jurisdiction').selectOption('all');await $('consult').click();await idle();check((await $('count').innerText()).includes('61 participaciones'),label+': Todas restores the complete closed scope');
   check(await page.locator('.own-f931 button:visible').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height>=43)),label+': touch controls at least44px');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),label+': no horizontal overflow');
   await page.screenshot({path:path.join(output,label+'.png'),fullPage:false});
@@ -63,6 +78,6 @@ async function inspect(viewport,label){
   check(await page.evaluate(()=>!Object.keys(localStorage).some(k=>/f931/i.test(k))),label+': no F931 localStorage state');
  }finally{await context.close();}
 }
-try{await inspect({width:1440,height:1000},'desktop');await inspect({width:390,height:844},'mobile');assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
+try{await inspect({width:1440,height:1000},'desktop');await inspect({width:390,height:844},'mobile');await inspect({width:320,height:740},'mobile320');assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,scope:'built UI plus synthetic GET fixture transport; not real SQL/session/municipal acceptance',checks:checks.length,proofs:checks,errors,writes},null,2)+'\n');console.log(JSON.stringify({ok:true,checks:checks.length,output}));
 }finally{await browser.close();}
