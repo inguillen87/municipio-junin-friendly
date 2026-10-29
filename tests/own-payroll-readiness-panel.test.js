@@ -266,3 +266,31 @@ for(const failure of['onUse','selectionIssue'])test('legacy '+failure+'retiene s
  const picker=createEmployeePicker({instanceId:'legacyQaPicker',canUse:()=>true,selectionIssue:()=>issue?'Revisión legacy sintética requerida':null});picker.open({onUse:()=>{throw Object.assign(Error('Aplicación legacy sintética fallida'),{name:'AbortError'});}});const d=h.document.body.querySelectorAll('dialog').at(-1);d.querySelector('#legacyQaPickerSearch').value='1339';await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);const row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');const results=d.querySelector('[data-picker-results]').children[0],chips=d.querySelector('[data-picker-chips]').children[0];issue=failure==='selectionIssue';await d.querySelector('[data-picker-apply]').emit('click');
  assert.equal(d.open,true);assert.equal(d.querySelector('[data-picker-results]').children[0],results);assert.equal(d.querySelector('[data-picker-chips]').children[0],chips);assert.match(d.querySelector('[data-picker-count]').textContent,/1 legajo seleccionado/);assert.equal(d.querySelector('[data-picker-apply]').disabled,false);assert.match(d.querySelector('[data-picker-state]').textContent,failure==='onUse'?/Aplicación legacy sintética fallida/:/Revisión legacy sintética requerida/);assert.equal(h.requests.some(r=>r.method==='POST'),false);picker.close();
 });
+
+
+test('ayuda junto al botón identifica aprobación independiente y revisión manual sin habilitar el cálculo',async t=>{
+ const h=harness(t);h.state.program=bootstrap();await h.start();
+ assert.equal(h.q('send').disabled,true);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('confirm').checked,false);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/aprobar el programa mediante revisión independiente/);assert.match(h.q('send-help-message').textContent,/marcá «Revisé el período/);
+ assert.equal(h.q('send-help-link').hidden,false);assert.equal(h.q('send-help-link').href,'/nomina#reglas');assert.equal(h.q('send-help-link').textContent,'Revisar reglas de cálculo');
+ assert.equal(h.q('send').getAttribute('aria-describedby'),h.q('send-help').getAttribute('id'));assert.strictEqual(h.q('send-help').parentElement,h.q('form'));assert.strictEqual(h.q('send').parentElement.parentElement,h.q('form'));
+ await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('recover').hidden,true);
+});
+
+test('ayuda junto al botón explica la única revisión pendiente y se retira al marcarla manualmente',async t=>{
+ const h=harness(t);await h.start();assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/marcá «Revisé el período/);assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('send-help-link').href,undefined);
+ await h.prepare();assert.equal(h.q('confirm').checked,true);assert.equal(h.q('send').disabled,false);assert.equal(h.q('send-help').hidden,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+
+test('ayuda junto al botón conserva intento incierto y se retira al ocultar sin reintento automático',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/mismo intento/);assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('recover').disabled,false);
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('send-help').hidden,true);assert.equal(h.q('send-help-message').textContent,'');assert.equal(h.q('send-help-link').href,undefined);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();assert.equal(h.requests.filter(r=>r.method==='POST').length,1);await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].key,first.key);assert.equal(posts[1].body,first.body);
+});
+
+test('ayuda junto al botón no conserva el enlace de reglas después de retirar capacidades',async t=>{
+ const h=harness(t);h.state.program=bootstrap();await h.start();assert.equal(h.q('send-help-link').hidden,false);
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(h.q('send-help').hidden,true);assert.equal(h.q('send-help-message').textContent,'');assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('send-help-link').href,undefined);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});

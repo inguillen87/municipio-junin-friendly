@@ -67,7 +67,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <label data-own-codes-box hidden for="ownRunCodes">Opciones del encuadre municipal<select id="ownRunCodes" data-own-codes multiple size="5" aria-describedby="ownRunCodesHelp"></select><small id="ownRunCodesHelp">Podés elegir varias opciones. El cálculo vuelve a verificar el conjunto completo.</small></label>
     <p data-own-scope>Elegí expresamente el alcance.</p>
     <label class="own-run-confirm"><input type="checkbox" data-own-confirm>Revisé el período, la fecha, el tipo y todo el alcance. El resultado quedará pendiente de confirmación y cierre.</label>
-  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div></form>
+  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send aria-describedby="ownRunSendHelp" disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div><p class="own-run-notice" id="ownRunSendHelp" data-own-send-help role="status" aria-live="polite" hidden><span data-own-send-help-message></span> <a data-own-send-help-link hidden></a></p></form>
   <div class="own-run-actions"><button class="button" type="button" data-own-source-review-button hidden disabled>Revisar incidencias de la captura</button></div>
   <section data-own-source-report hidden aria-labelledby="ownSourceReportTitle"><h3 id="ownSourceReportTitle" tabindex="-1">Novedades que necesitan revisión</h3><p data-own-source-summary></p><p>Revisión de las novedades y sus fuentes declaradas en las reglas capturadas. No certifica los importes, las unidades ni la homologación salarial. Corregir una fuente no cambia esta captura: el intento conserva su contenido original.</p>
     <div class="own-run-actions"><button class="button" type="button" data-own-source-download disabled>Descargar incidencias sin datos personales CSV</button></div>
@@ -101,7 +101,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     $('prerequisites').hidden=!!attempt&&attempt.key!==knownSavedKey;
-    renderReadiness();renderProjectedReference();
+    renderReadiness();renderProjectedReference();renderSendHelp();
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
     $('fields').disabled=busy||!canSelect()||!!attempt;$('confirm').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
@@ -131,6 +131,21 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('readiness-link').hidden=!readiness.href;
     if(readiness.href){$('readiness-link').href=readiness.href;$('readiness-link').textContent=readiness.action;}else $('readiness-link').removeAttribute('href');
     $('readiness-check').hidden=readiness.state!=='unverified';$('readiness-check').disabled=busy||!can(OWN_RUN_READ);
+  }
+  function renderSendHelp(){
+    const help=$('send-help'),message=$('send-help-message'),link=$('send-help-link');
+    help.hidden=!live()||!access||!!current?.saved;message.textContent='';link.hidden=true;link.textContent='';link.removeAttribute('href');
+    if(help.hidden)return;
+    if(busy){message.textContent='Se está verificando la operación. Esperá antes de continuar.';return;}
+    if(attempt){message.textContent='Se conserva el mismo intento. Usá «Consultar este intento» para verificar su estado antes de continuar; no prepares otro cálculo.';return;}
+    if(!can(OWN_RUN_PREPARE)||boot?.canCalculate!==true){message.textContent='El cálculo requiere autorización nominal y un vínculo municipal vigente. Usá «Actualizar acceso y corridas» para comprobar el acceso antes de continuar.';return;}
+    if(readinessAccessKey!==access.key||readiness.state==='unverified'){message.textContent='Falta verificar la preparación. Usá «Actualizar acceso y corridas» para comprobar el padrón, el maestro y el programa antes de calcular.';return;}
+    if(!ownPayrollReadinessAllowsNew(readiness)){
+      message.textContent=readiness.state==='program_required'?'Para habilitar el cálculo falta aprobar el programa mediante revisión independiente. Después volvé a Calcular, actualizá la preparación y marcá «Revisé el período, la fecha, el tipo y todo el alcance».':readiness.title+'. '+readiness.description;
+      if(readiness.href){link.href=readiness.href;link.textContent=readiness.action;link.hidden=false;}return;
+    }
+    if(!$('confirm').checked){message.textContent='Para habilitar el botón, marcá «Revisé el período, la fecha, el tipo y todo el alcance» después de controlar esos datos.';return;}
+    help.hidden=true;
   }
   function invalidateReadiness(){readiness=ownPayrollReadinessUnavailable();readinessAccessKey=null;readinessRosterScope=null;$('confirm').checked=false;picker.close();}
   function clearViews(){

@@ -4,8 +4,9 @@
 // for coherence: every sha-for-sha replacement names a parent/successor pair of the same layer, in order.
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {createHash} from 'node:crypto';
 import {ZERO_DIFFERENCE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SUCCESSOR_ORDER,ZERO_DIFFERENCE_NEW_SOURCE_PINS,projectZeroDifferenceRawSourceToParent,projectZeroDifferenceEngineRawSourceToParent,projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+import {projectAccountingFull190BrowserRawSourceToParent} from './fixtures/accounting-full-current190-browser-source-projection.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const raw=file=>fs.readFileSync(new URL('../'+file,import.meta.url));
+const raw=file=>projectAccountingFull190BrowserRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const HEX=/^[a-f0-9]{64}$/;
 
 test('cada archivo cubierto es su sucesor exacto y proyecta al padre pinado; bytes añadidos, mutados o el propio padre se rechazan',()=>{
