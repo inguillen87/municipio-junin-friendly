@@ -5,6 +5,7 @@ import net from 'node:net';import tls from 'node:tls';import http from 'node:htt
 const denied=()=>{throw Error('REGISTRY_CUSTODY_TEST_IO_FORBIDDEN');};
 for(const[module,names]of[[net,['connect','createConnection','createServer']],[tls,['connect','createServer']],[http,['get','request','createServer']],[https,['get','request','createServer']],[child,['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork']]])for(const name of names)module[name]=denied;
 globalThis.fetch=denied;syncBuiltinESMExports();
+const {projectFinalReviewTestSourceParent}=await import('./fixtures/final-review-test-target-source-succession.js');
 const {buildFinalGrhSourceReviewAdmissionInstallation,FINAL_REVIEW_ADMISSION_FILE,FINAL_REVIEW_ADMISSION_SQL_SHA256,FINAL_REVIEW_ADMISSION_PROFILES,FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256}=await import('../scripts/lib/final-grh-source-review-admission-installation.mjs');
 const {projectOctober28RegistryParent,OCTOBER28_REGISTRY_PARENT_SHA256,OCTOBER28_REGISTRY_CANDIDATE_SHA256}=await import('../scripts/lib/grh-october28-candidate-registry-source.mjs');
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
@@ -15,7 +16,7 @@ test('finite RAW inverses retain the complete module and both predecessor tests'
  const fixture=JSON.parse(read('tests/fixtures/grh-october28-registry-custody-inverses.json'));
  assert.equal(fixture.version,'grh-october28-registry-custody-finite-inverses.v1');assert.equal(fixture.files.length,3);
  for(const file of fixture.files){
-  let source=read(file.path);assert.equal(hash(source),file.afterSha256,file.path);
+  let source=projectFinalReviewTestSourceParent(file.path,Buffer.from(read(file.path),'utf8')).toString('utf8');assert.equal(hash(source),file.afterSha256,file.path);
   for(const operation of file.operations){assert.ok(operation.after.length>0);assert.equal(source.split(operation.after).length,2,file.path);source=source.replace(operation.after,()=>operation.before);}
   assert.equal(hash(source),file.beforeSha256,file.path+' whole parent');
  }

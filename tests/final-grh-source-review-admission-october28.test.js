@@ -7,6 +7,7 @@ import net from 'node:net';import tls from 'node:tls';import http from 'node:htt
 const denied=()=>{throw Error('OCT28_ADMISSION_TEST_IO_FORBIDDEN');};
 for(const[module,names]of[[net,['connect','createConnection','createServer']],[tls,['connect','createServer']],[http,['get','request','createServer']],[https,['get','request','createServer']],[child,['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork']]])for(const name of names)module[name]=denied;
 globalThis.fetch=denied;syncBuiltinESMExports();
+const {projectFinalReviewTestSourceParent}=await import('./fixtures/final-review-test-target-source-succession.js');
 const {buildFinalGrhSourceReviewAdmissionOctober28,assertOctober28AdmissionProof,OCT28_ADMITTED_PROFILES,OCT28_EXPECTED_TUPLE_STATE,OCT28_EXPECTED_MODE,OCT28_PROOF_VERSION,october28Tuple,OCT28_REVIEW_ADMISSION_FILE,OCT28_REVIEW_ADMISSION_SQL_SHA256,OCT28_REVIEW_ADMISSION_PROFILE,OCT28_SOURCE_PINS,OCT28_PARENT_PINS,SEPTEMBER10_BASELINE}=await import('../scripts/lib/final-grh-source-review-admission-october28-installation.mjs');
 const {FINAL_REVIEW_ADMISSION_PROFILES,FINAL_REVIEW_ADMISSION_SQL_SHA256}=await import('../scripts/lib/final-grh-source-review-admission-installation.mjs');
 const {projectOctober28RegistryParent}=await import('../scripts/lib/grh-october28-candidate-registry-source.mjs');
@@ -24,7 +25,7 @@ test('historial intacto: 144/183 y padres finitos de registry y compositor 183 (
  assert.deepEqual(FINAL_REVIEW_ADMISSION_PROFILES.map(p=>p.profile),['grh-junin-2026-10-01','grh-junin-2026-10-14']);
  assert.equal(tuple183(),'('+OCT01+' OR '+OCT14+')','183 keeps exactly its two tuples');
  const fixture=JSON.parse(read('tests/fixtures/grh-october28-registry-custody-inverses.json'));
- assert.equal(fixture.files[0].beforeSha256,OCT28_PARENT_PINS.module183);assert.equal(fixture.files[0].afterSha256,OCT28_SOURCE_PINS['scripts/lib/final-grh-source-review-admission-installation.mjs']);
+ assert.equal(fixture.files[0].beforeSha256,OCT28_PARENT_PINS.module183);assert.equal(hash(read(fixture.files[0].path)),OCT28_SOURCE_PINS[fixture.files[0].path]);assert.equal(hash(projectFinalReviewTestSourceParent(fixture.files[0].path,Buffer.from(read(fixture.files[0].path),'utf8'))),fixture.files[0].afterSha256);
  const custody=projectOctober28RegistryParent(read(REGISTRY));assert.equal(custody.parentRegistrySha256,OCT28_PARENT_PINS.registry);assert.equal(custody.sqlValidityGranted,false);
 });
 

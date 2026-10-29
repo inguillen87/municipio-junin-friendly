@@ -1,24 +1,26 @@
 // PROPOSED by Claude (source only; never imported or run by Claude).
 // Target: scripts/lib/final-grh-source-review-admission-october28-installation.mjs
 // Review-only construction of the ADDITIVE 218 admission. No connections, environment reads or SQL execution.
-// It composes on top of the unchanged 183 constructor (post-C metadata e45a…, parent 5046…) and never edits,
+// It composes on the shared183 source constructor (with finite TEST-source succession) and never edits,
 // regenerates or re-runs 144/183. A documentary admission is not a revision, activation, adoption or payroll.
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {splitPostgresStatements} from './sql-statements.mjs';
-import {buildFinalGrhSourceReviewAdmissionInstallation,FINAL_REVIEW_ADMISSION_FILE,FINAL_REVIEW_ADMISSION_SQL_SHA256,FINAL_REVIEW_ADMISSION_PROFILES,FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256} from './final-grh-source-review-admission-installation.mjs';
+import {buildFinalGrhSourceReviewAdmissionInstallation,buildFinalGrhSourceReviewAdmissionTestPrerequisite,FINAL_REVIEW_ADMISSION_FILE,FINAL_REVIEW_ADMISSION_SQL_SHA256,FINAL_REVIEW_ADMISSION_PROFILES,FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256} from './final-grh-source-review-admission-installation.mjs';
 import {projectOctober28RegistryParent} from './grh-october28-candidate-registry-source.mjs';
+import {requireFinalReviewTestTargetAdmission} from './final-grh-source-review-test-target-admission.mjs';
 
 export const OCT28_REVIEW_ADMISSION_FILE='scripts/migrations/218-final-grh-source-review-admission-october28.sql';
 export const OCT28_REVIEW_ADMISSION_SQL_SHA256='4b952c79d0d36dc04294f11f4ed9c824a86daf1e8d266f77e204d90b29545fcc';
 // Values come from the reviewed registry profile (B, fe04…), never from a database or an observation.
 export const OCT28_REVIEW_ADMISSION_PROFILE=Object.freeze({profile:'grh-junin-2026-10-28',sha256:'fef5aada3142e475d0519f7647377465d95ee55b4038aff035ff7d41d5748cc1',cutoff:'2026-10-28T15:16:35'});
 // Exactly one finite succession per source. Parents stay authoritative and are not regenerated from metadata:
-// 183 module e45a… -> parent 5046… (C finite inverse fixture f3b9…); registry fe04… -> parent cd121… (B helper 690a…).
+// Shared183 module -> e45a… (finite TEST fixture) -> 5046… (unchanged C fixture); registry fe04… -> cd121….
 export const OCT28_SOURCE_PINS=Object.freeze({
  'scripts/migrations/144-final-grh-source-revision.sql':'818e53c560da8ec3cad55073071d0a56669c6581f51c20d910600ea58b9697d5',
  'scripts/migrations/183-final-grh-source-review-admission.sql':'a85c01c1bf2ae620b1af32a2e1564c52544562f39235557ee5e5549717f47e94',
- 'scripts/lib/final-grh-source-review-admission-installation.mjs':'e45a31bfc85ea3436a627aab2173a2dd21545304075cfb10a38777316946367d',
+ 'scripts/lib/final-grh-source-review-admission-installation.mjs':'b32a0bf3ce629ee9a492adeee067076a0e625b304ddcf63de0dd2230488307d5',
+ 'scripts/lib/final-grh-source-review-test-target-admission.mjs':'cd8e2759dec0cdad537b3ae91f770fcc8858636c049f68ae32cb365246e8a47b',
  'scripts/lib/grh-source-profiles.json':'fe04d0a5fc96d38ca2e6839556f63ea51a73626b3d1685c1f8ec3f6dfaf42a77',
  'scripts/lib/grh-october28-candidate-registry-source.mjs':'690af52ab26bec7ee02ddf5e9e2ccc6987491716ec939a126cac47d49d6ece1e',
 });
@@ -40,6 +42,8 @@ export const OCT28_EXPECTED_TUPLE_STATE=Object.freeze({install:'218',repeat:'218
 // An install transaction found already in 218 runs as oct28_repeat and its proof is NOT an install proof.
 export const OCT28_EXPECTED_MODE=Object.freeze({install:'oct28_install',repeat:'oct28_repeat',durable:'oct28_verify',preflight:'oct28_preflight_before',rollback:'oct28_rollback'});
 export const OCT28_PROOF_VERSION='final-grh-source-review-admission-october28.v3';
+export const OCT28_TEST_PROOF_VERSION='final-grh-source-review-admission-october28.v3+test';
+const TEST_PROOF_KEYS=Object.freeze(['targetKind','projectId','branchId','endpointId','database','databaseOid','guardOid','serverMajor','currentUser','sessionUser','testTargetObservationSha256','testTargetObservationSourceCommit']);
 const PROOF_KEYS=Object.freeze(['version','sourceCommit','sqlSha256','historicalSqlSha256','baselineSqlSha256','targetMajor','mode','allChecksPassed','newTables','newFunctions','existingAclChanges','businessWrites','nominalRowsReturned','revisionWritten','activationOrAdoption','expectedTupleState','tupleState','admittedProfiles','priorTableCount','transactionDataPreserved','priorFingerprint','managedConstraintSha256']);
 
 /** The 218 tuple is the 183 tuple with exactly one disjunct appended inside the same outer OR. */
@@ -52,12 +56,17 @@ export function october28Tuple(tuple183,p=OCT28_REVIEW_ADMISSION_PROFILE){
  return tuple183.slice(0,-1)+' OR '+clause+')';
 }
 
-export function buildFinalGrhSourceReviewAdmissionOctober28({read,sourceCommit,major}){
+export function buildFinalGrhSourceReviewAdmissionOctober28(options){return buildOctober28ForScope(options,null);}
+export function buildFinalGrhSourceReviewAdmissionOctober28Test({read,sourceCommit,testTargetAdmission}){
+ const scope=requireFinalReviewTestTargetAdmission(testTargetAdmission,{sourceCommit});
+ return buildOctober28ForScope({read,sourceCommit,major:scope.target.major,testTargetAdmission},scope);
+}
+function buildOctober28ForScope({read,sourceCommit,major,testTargetAdmission},testScope){
  assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok([17,18].includes(major));
  const sourceHashes={};
  for(const [file,digest] of Object.entries(OCT28_SOURCE_PINS)){assert.equal(hash(lf(read(file))),digest,'FINAL_REVIEW218_PREREQUISITE_SOURCE_CHANGED: '+file);sourceHashes[file]=digest;}
- // The unchanged 183 constructor re-checks 144, its prerequisites, registry custody and the two historical tuples.
- const base=buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major});
+ // The shared183 constructor re-checks144, its prerequisites, registry custody and both historical tuples.
+ const base=testScope?buildFinalGrhSourceReviewAdmissionTestPrerequisite({read,sourceCommit,testTargetAdmission}):buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major});
  assert.equal(FINAL_REVIEW_ADMISSION_SQL_SHA256,OCT28_SOURCE_PINS[FINAL_REVIEW_ADMISSION_FILE],'FINAL_REVIEW218_HISTORICAL_183_CHANGED');
  assert.deepEqual(FINAL_REVIEW_ADMISSION_PROFILES.map(p=>p.profile),['grh-junin-2026-10-01','grh-junin-2026-10-14'],'FINAL_REVIEW218_HISTORICAL_PROFILES_CHANGED');
  assert.equal(FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256,OCT28_PARENT_PINS.registry);
@@ -107,7 +116,10 @@ export function buildFinalGrhSourceReviewAdmissionOctober28({read,sourceCommit,m
  // expectedTupleState is the reviewed expectation of that transaction. assertOctober28AdmissionProof compares both.
  const observed=(when218,when183)=>`(SELECT CASE pg_get_expr(c.conbin,c.conrelid,false) WHEN ${q(tuple218)} THEN ${when218} WHEN ${q(tuple183)} THEN ${when183} END FROM pg_constraint c WHERE c.conrelid='public.grh_final_source_revision'::regclass AND c.conname=${q(managed)} AND c.contype='c')`;
  const observedState=observed("'218'","'183'"),observedProfiles=observed(q(JSON.stringify(OCT28_ADMITTED_PROFILES['218']))+'::jsonb',q(JSON.stringify(OCT28_ADMITTED_PROFILES['183']))+'::jsonb');
- const proof=(transactional,expectedTupleState)=>{assert.ok(['183','218'].includes(expectedTupleState));return `SELECT jsonb_build_object('version',${q(OCT28_PROOF_VERSION)},'sourceCommit',${q(sourceCommit)},'sqlSha256','${OCT28_REVIEW_ADMISSION_SQL_SHA256}','historicalSqlSha256','${FINAL_REVIEW_ADMISSION_SQL_SHA256}','baselineSqlSha256','${OCT28_SOURCE_PINS['scripts/migrations/144-final-grh-source-revision.sql']}','targetMajor',${major},'mode',current_setting('${prefix}mode'),'allChecksPassed',true,'newTables',0,'newFunctions',0,'existingAclChanges',0,'businessWrites',0,'nominalRowsReturned',0,'revisionWritten',false,'activationOrAdoption',false,'expectedTupleState',${q(expectedTupleState)},'tupleState',${observedState},'admittedProfiles',${observedProfiles},'priorTableCount',jsonb_array_length(current_setting('${prefix}after')::jsonb->'tables'),'transactionDataPreserved',${transactional},${transactional?"'beforeFingerprint',"+fingerprint('before')+",":''}'priorFingerprint',${fingerprint('after')},'managedConstraintSha256',${constraintFingerprint}) AS proof`;};
+ // Native identity is observed by SQL. These fields are never fabricated from
+ // target literals; only the independently reviewed source-observation digest is literal.
+ const testProofFields=testScope?`,'targetKind','test','projectId',current_setting('neon.project_id',true),'branchId',current_setting('neon.branch_id',true),'endpointId',current_setting('neon.endpoint_id',true),'database',current_database(),'databaseOid',(SELECT oid::bigint FROM pg_database WHERE datname=current_database()),'guardOid',to_regprocedure('public.native_employee_contract_guard_v1()')::oid::bigint,'serverMajor',current_setting('server_version_num')::int/10000,'currentUser',current_user,'sessionUser',session_user,'testTargetObservationSha256',${q(testScope.observationSha256)},'testTargetObservationSourceCommit',${q(testScope.observationSourceCommit)}`:'';
+ const proof=(transactional,expectedTupleState)=>{assert.ok(['183','218'].includes(expectedTupleState));return `SELECT jsonb_build_object('version',${q(testScope?OCT28_TEST_PROOF_VERSION:OCT28_PROOF_VERSION)},'sourceCommit',${q(sourceCommit)},'sqlSha256','${OCT28_REVIEW_ADMISSION_SQL_SHA256}','historicalSqlSha256','${FINAL_REVIEW_ADMISSION_SQL_SHA256}','baselineSqlSha256','${OCT28_SOURCE_PINS['scripts/migrations/144-final-grh-source-revision.sql']}','targetMajor',${major},'mode',current_setting('${prefix}mode'),'allChecksPassed',true,'newTables',0,'newFunctions',0,'existingAclChanges',0,'businessWrites',0,'nominalRowsReturned',0,'revisionWritten',false,'activationOrAdoption',false,'expectedTupleState',${q(expectedTupleState)},'tupleState',${observedState},'admittedProfiles',${observedProfiles},'priorTableCount',jsonb_array_length(current_setting('${prefix}after')::jsonb->'tables'),'transactionDataPreserved',${transactional},${transactional?"'beforeFingerprint',"+fingerprint('before')+",":''}'priorFingerprint',${fingerprint('after')},'managedConstraintSha256',${constraintFingerprint}${testProofFields}) AS proof`;};
  // Inverse: back to the exact 183 state, refused while any row could depend on the Oct28 tuple.
  const rollbackSql=`DO $final_review218_rollback$ BEGIN
  LOCK TABLE public.grh_final_source_revision IN ACCESS EXCLUSIVE MODE NOWAIT;
@@ -122,7 +134,7 @@ export function buildFinalGrhSourceReviewAdmissionOctober28({read,sourceCommit,m
  const preflight=['SET TRANSACTION READ ONLY',...settings,destination,state('preflight'),sourcePrerequisite.check,shape183,after,proof(false,OCT28_EXPECTED_TUPLE_STATE.preflight)];
  const rollback=[...settings,destination,state('rollback'),sourcePrerequisite.check,shape218,before,rollbackSql,sourcePrerequisite.check,shape183,after,audit,proof(true,OCT28_EXPECTED_TUPLE_STATE.rollback)];
  const transaction=(statements,completion,readOnly=false)=>({begin:'BEGIN',statements,completion,readOnly});
- return{version:'final-grh-source-review-admission-october28.v1',sourceCommit,major,target:base.target,sourceHashes,registryCustody:base.registryCustody,
+ return{version:testScope?'final-grh-source-review-admission-october28.v1+test':'final-grh-source-review-admission-october28.v1',...(testScope?{testConstruction:{version:testScope.version,scope:testScope.scope,observationSha256:testScope.observationSha256,observationSourceCommit:testScope.observationSourceCommit,observedTupleState:testScope.observedTupleState,executionAdmitted:false}}:{}),sourceCommit,major,target:base.target,sourceHashes,registryCustody:base.registryCustody,
   historical:{sql183Sha256:FINAL_REVIEW_ADMISSION_SQL_SHA256,sql144Sha256:OCT28_SOURCE_PINS['scripts/migrations/144-final-grh-source-revision.sql'],tuple183,profiles183:FINAL_REVIEW_ADMISSION_PROFILES.map(p=>p.profile),parentPins:OCT28_PARENT_PINS,
    note:'183 durable/repeat/rollback no longer pass after 218 by design: they compare the exact two-tuple expression and fail closed.'},
   september10Baseline:SEPTEMBER10_BASELINE,tuple218,managedCheckName:managed,migration,shape183,shape218,preflight,installation,repetition,durableVerification,
@@ -135,12 +147,19 @@ export function buildFinalGrhSourceReviewAdmissionOctober28({read,sourceCommit,m
  * and the CHECK state it observed is the reviewed end state of that transaction. Crossed modes (a repeat reported
  * as install, a verify reported as repeat), a foreign baseline or any omitted/extra field are rejected.
  */
-export function assertOctober28AdmissionProof(proof,{label,sourceCommit,major}){
+export function assertOctober28AdmissionProof(proof,options){return assertOctober28ProofCore(proof,options,OCT28_PROOF_VERSION,[]);}
+export function assertOctober28TestAdmissionProof(proof,{label,sourceCommit,testTargetAdmission}){
+ const scope=requireFinalReviewTestTargetAdmission(testTargetAdmission,{sourceCommit}),t=scope.target;
+ assertOctober28ProofCore(proof,{label,sourceCommit,major:t.major},OCT28_TEST_PROOF_VERSION,TEST_PROOF_KEYS);
+ for(const[key,expected]of Object.entries({targetKind:'test',projectId:t.projectId,branchId:t.branchId,endpointId:t.endpointId,database:t.database,databaseOid:t.databaseOid,guardOid:t.guardOid,serverMajor:t.major,currentUser:t.role,sessionUser:t.role,testTargetObservationSha256:scope.observationSha256,testTargetObservationSourceCommit:scope.observationSourceCommit}))assert.equal(proof[key],expected,'FINAL_REVIEW218_TEST_PROOF_IDENTITY');
+ return true;
+}
+function assertOctober28ProofCore(proof,{label,sourceCommit,major},proofVersion,extraKeys){
  assert.ok(Object.hasOwn(OCT28_EXPECTED_TUPLE_STATE,label),'FINAL_REVIEW218_PROOF_LABEL');
  const expected=OCT28_EXPECTED_TUPLE_STATE[label],readOnly=['durable','preflight'].includes(label);
  assert.ok(proof!==null&&typeof proof==='object'&&!Array.isArray(proof),'FINAL_REVIEW218_PROOF_SHAPE');
- assert.deepEqual(Object.keys(proof).sort(),[...PROOF_KEYS,...(readOnly?[]:['beforeFingerprint'])].sort(),'FINAL_REVIEW218_PROOF_FIELDS');
- assert.equal(proof.version,OCT28_PROOF_VERSION,'FINAL_REVIEW218_PROOF_VERSION');assert.equal(proof.sourceCommit,sourceCommit,'FINAL_REVIEW218_PROOF_SOURCE_COMMIT');assert.equal(proof.targetMajor,major,'FINAL_REVIEW218_PROOF_MAJOR');
+ assert.deepEqual(Object.keys(proof).sort(),[...PROOF_KEYS,...extraKeys,...(readOnly?[]:['beforeFingerprint'])].sort(),'FINAL_REVIEW218_PROOF_FIELDS');
+ assert.equal(proof.version,proofVersion,'FINAL_REVIEW218_PROOF_VERSION');assert.equal(proof.sourceCommit,sourceCommit,'FINAL_REVIEW218_PROOF_SOURCE_COMMIT');assert.equal(proof.targetMajor,major,'FINAL_REVIEW218_PROOF_MAJOR');
  assert.equal(proof.sqlSha256,OCT28_REVIEW_ADMISSION_SQL_SHA256,'FINAL_REVIEW218_PROOF_SQL');assert.equal(proof.historicalSqlSha256,FINAL_REVIEW_ADMISSION_SQL_SHA256,'FINAL_REVIEW218_PROOF_HISTORICAL_SQL');
  assert.equal(proof.baselineSqlSha256,OCT28_SOURCE_PINS['scripts/migrations/144-final-grh-source-revision.sql'],'FINAL_REVIEW218_PROOF_BASELINE_SQL');
  assert.equal(proof.mode,OCT28_EXPECTED_MODE[label],'FINAL_REVIEW218_PROOF_MODE');

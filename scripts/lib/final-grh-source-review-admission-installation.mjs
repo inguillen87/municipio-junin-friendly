@@ -6,6 +6,7 @@ import {splitPostgresStatements} from './sql-statements.mjs';
 import {finalSourcePrerequisite} from './final-contract-adoption-installation.mjs';
 import {preservationSnapshot} from './native-leave-installation.mjs';
 import {OWN_RELEASE_TARGETS} from './own-payroll-release-target.mjs';
+import {requireFinalReviewTestTargetAdmission} from './final-grh-source-review-test-target-admission.mjs';
 import {ownInstallationDestination,ownInstallationSettings} from '../prepare-own-payroll-installation.mjs';
 
 export const FINAL_REVIEW_ADMISSION_FILE='scripts/migrations/183-final-grh-source-review-admission.sql';
@@ -16,6 +17,7 @@ export const FINAL_REVIEW_ADMISSION_PROFILES=Object.freeze([
  Object.freeze({profile:'grh-junin-2026-10-14',sha256:'3efa61a77e5b160dff14dbb53a3634054dbc70a284c3f5101acd98ee9b5aecf4',cutoff:'2026-10-14T15:18:17'}),
 ]);
 const sourcePins=Object.freeze({
+ 'scripts/lib/final-grh-source-review-test-target-admission.mjs':'cd8e2759dec0cdad537b3ae91f770fcc8858636c049f68ae32cb365246e8a47b',
  'scripts/migrations/144-final-grh-source-revision.sql':'818e53c560da8ec3cad55073071d0a56669c6581f51c20d910600ea58b9697d5',
  'scripts/lib/final-contract-adoption-installation.mjs':'c1fc4d150ee118cbeb42f0650f7d7e78db6d4689017870180b969051bbf12d6f',
  'scripts/lib/native-leave-installation.mjs':'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',
@@ -105,7 +107,17 @@ function shapeCheck(tuple,phase){
  END $final_review_shape$`;
 }
 
+// Production remains selected solely from the existing release catalogue.
 export function buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major}){
+ return buildFinalReviewAdmissionAtTarget({read,sourceCommit,major},OWN_RELEASE_TARGETS.find(t=>t.major===major),major===17?16395:16396,null);
+}
+// New TEST construction starts with a separately validated TEST target. It never
+// constructs a Production plan, retargets a minted plan or exposes an183 protocol.
+export function buildFinalGrhSourceReviewAdmissionTestPrerequisite({read,sourceCommit,testTargetAdmission}){
+ const scope=requireFinalReviewTestTargetAdmission(testTargetAdmission,{sourceCommit});
+ return buildFinalReviewAdmissionAtTarget({read,sourceCommit,major:scope.target.major},scope.target,scope.target.databaseOid,scope);
+}
+function buildFinalReviewAdmissionAtTarget({read,sourceCommit,major},target,databaseOid,testScope){
  assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok([17,18].includes(major));
  const sourceHashes={};for(const[file,digest]of Object.entries(sourcePins)){const text=lf(read(file));assert.equal(hash(text),digest,'FINAL_REVIEW_PREREQUISITE_SOURCE_CHANGED: '+file);sourceHashes[file]=digest;}
  const registryParent=projectOctober28RegistryParent(read('scripts/lib/grh-source-profiles.json'));
@@ -115,8 +127,8 @@ export function buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommi
  const profiles=JSON.parse(registryParent.parentRegistryRaw);for(const p of FINAL_REVIEW_ADMISSION_PROFILES){const actual=profiles.profiles.find(v=>v.id===p.profile);assert.ok(actual);assert.equal(actual.source.sha256.toLowerCase(),p.sha256);assert.equal(actual.source.cutoff,p.cutoff);assert.equal(actual.publicationMode,'candidate_only');}
  const source=lf(read(FINAL_REVIEW_ADMISSION_FILE));assert.equal(hash(source),FINAL_REVIEW_ADMISSION_SQL_SHA256,'FINAL_REVIEW_REVIEWED_SQL_CHANGED');sourceHashes[FINAL_REVIEW_ADMISSION_FILE]=FINAL_REVIEW_ADMISSION_SQL_SHA256;
  const migration=splitPostgresStatements(source);assert.equal(migration.length,1);assert.match(migration[0],/\bDO \$final_review183\$/);const tuple=/\$tuple183\$([^]*?)\$tuple183\$/.exec(source)?.[1];assert.ok(tuple);
- const sourcePrerequisite=finalSourcePrerequisite(read),target=OWN_RELEASE_TARGETS.find(t=>t.major===major);assert.equal(sourcePrerequisite.pins.length,9);
- const destination=ownInstallationDestination(target).replace(/END IF;END \$destination\$$/,`END IF;IF (SELECT oid FROM pg_database WHERE datname=current_database())<>${major===17?16395:16396}::oid THEN RAISE EXCEPTION 'FINAL_REVIEW_DATABASE_OID';END IF;END $destination$`);
+ const sourcePrerequisite=finalSourcePrerequisite(read);assert.equal(sourcePrerequisite.pins.length,9);assert.ok(target&&target.major===major);assert.ok(Number.isSafeInteger(databaseOid)&&databaseOid>0);
+ const destination=ownInstallationDestination(target).replace(/END IF;END \$destination\$$/,`END IF;IF (SELECT oid FROM pg_database WHERE datname=current_database())<>${databaseOid}::oid THEN RAISE EXCEPTION 'FINAL_REVIEW_DATABASE_OID';END IF;${testScope?`IF session_user<>${q(target.role)} THEN RAISE EXCEPTION 'FINAL_REVIEW_TEST_SESSION_USER';END IF;`:''}END $destination$`);
  assert.match(destination,/FINAL_REVIEW_DATABASE_OID/);const settings=[...ownInstallationSettings];
  const state=purpose=>`DO $final_review_state$ DECLARE old_count integer;new_count integer; BEGIN
  IF current_setting('transaction_isolation')<>'repeatable read' OR current_setting('transaction_read_only')<>${q(['verify','preflight'].includes(purpose)?'on':'off')} THEN RAISE EXCEPTION 'FINAL_REVIEW_TRANSACTION_MODE';END IF;
@@ -132,6 +144,7 @@ export function buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommi
  EXCEPTION WHEN lock_not_available OR deadlock_detected THEN RAISE EXCEPTION 'FINAL_REVIEW_ADMISSION_BUSY';END $final_review_state$`;
  const before=finalReviewAdmissionSnapshot('before'),after=finalReviewAdmissionSnapshot('after'),initial=shapeCheck(tuple,'before'),final=shapeCheck(tuple,'after');
  const audit=`DO $final_review_audit$ BEGIN IF current_setting('${prefix}before')::jsonb IS DISTINCT FROM current_setting('${prefix}after')::jsonb THEN RAISE EXCEPTION 'FINAL_REVIEW_PRIOR_STATE_CHANGED';END IF;END $final_review_audit$`;
+ if(testScope)return{version:'final-grh-source-review-test-prerequisite.v1',sourceCommit,major,target,sourceHashes,registryCustody,sourcePrerequisite,settings,destination,before,after,final,audit,connects:false,executesSql:false};
  const fingerprint=slot=>`encode(public.digest(current_setting('${prefix}${slot}')::jsonb::text,'sha256'),'hex')`;
  const metadata=`encode(public.digest(jsonb_build_object('objects',current_setting('${prefix}after')::jsonb-'tables'-'sequences','tables',(SELECT jsonb_agg(value-'rows'-'rowsSha256' ORDER BY value->>'schema',value->>'name') FROM jsonb_array_elements(current_setting('${prefix}after')::jsonb->'tables')),'sequences',(SELECT jsonb_agg(value-'hash' ORDER BY value->>'oid') FROM jsonb_array_elements(current_setting('${prefix}after')::jsonb->'sequences')))::text,'sha256'),'hex')`;
  const constraintFingerprint=`(SELECT encode(public.digest(coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.oid),'[]')::text,'sha256'),'hex') FROM pg_constraint c WHERE c.conrelid='public.grh_final_source_revision'::regclass AND c.conname IN(${managed.map(q).join(',')}))`;
