@@ -29,7 +29,7 @@ const SOURCE_PINS=Object.freeze([
  ['scripts/migrations/176-own-payroll-administrative-operator.sql',5003,'f75fa2cddf6fe2e837044e73c6465eecdf41fbad7ec740745527e1bd54b94732'],
  ['scripts/lib/municipal-owner-program-qa.mjs',16803,'c9dc1d3540ed42f89f22d5e7ea0370c62d9ab6b055d7197462411492538ad3eb'],
  ['scripts/lib/own-payroll-report-census-190-iam-fixture.mjs',9508,'c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1'],
- ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',47063,'99ce92a626b1e35d58b206162bf279dab757a451307245a29f602f9902a07a01'],
+ ['scripts/lib/own-payroll-full-capacity-190-continuation.mjs',47644,'48943acd1af3c7d9c655478dd22c325118bf2e44697680115c93735dcb5e6ae0'],
  ['scripts/lib/own-annulment-preparation-209-actors-fixture.mjs',23392,'0418f2681166f68327d5017e3b65946938fc2e91e3f077540f667b8c21fdac10']
 ]);
 const q=value=>"'"+String(value).replaceAll("'","''")+"'";

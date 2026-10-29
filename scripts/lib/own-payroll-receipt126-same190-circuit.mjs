@@ -9,7 +9,7 @@ import {employeeContext} from '../../lib/internal-native-employees.js';
 const VERSION='own-receipt126-same190-circuit-source.v1',FULL=32*1024*1024;
 const FULL_JSON='application/vnd.municontrol.payroll-full.v1+json';
 const SOURCE_PINS=Object.freeze([
- ["scripts/lib/own-payroll-full-capacity-190-continuation.mjs",47063,"99ce92a626b1e35d58b206162bf279dab757a451307245a29f602f9902a07a01"],
+ ["scripts/lib/own-payroll-full-capacity-190-continuation.mjs",47644,"48943acd1af3c7d9c655478dd22c325118bf2e44697680115c93735dcb5e6ae0"],
  ["scripts/lib/own-payroll-full-capacity-190-rpc.mjs",3957,"2743c3f4a9069a119500839ceb18e97a931b2a1feee8a27c1c363eb595e21d4f"],
  ["scripts/lib/own-payroll-full-capacity-190-installation.mjs",11610,"f88d5a1979201c17572ae3c6932675dc991641cb736b9480895fd2ff761153eb"],
  ["scripts/lib/own-payroll-report-census-190-iam-fixture.mjs",9508,"c70429d6151bcd3dd94487a1643f196163e7e8be1e08bfc196f81fef9d8041b1"],
@@ -42,8 +42,8 @@ const SOURCE_PINS=Object.freeze([
  ["lib/private-json-body.js",3950,"fab88ee69c88ba5357df6e2184c03db6106f6f533a84f166c01c0c563e7de7f5"],
  ["lib/own-payroll-response.js",1332,"e8b56a78052f21e06fe49420dd1089e2cea728e178f2580fd987bafc363cf768"],
  ["assets/own-payroll-response.js",1613,"8c3f755274e79a7a1bafe849d05ec105ca2974dd3d34c39e56dcbdbb1aa02688"],
- ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",40174,"df7f099635a50344bb2fa699adc4f73f1a20cb6e06584ee59897ab2079d6e1af"],
- ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"7941194d7e932f652fc0e2bf9480958a37eb255cce46a4c1465aa59d6186a537"],
+ ["scripts/lib/own-payroll-receipt126-same190-actors.mjs",40174,"12b3ae84a3ce2111419cbcc14496648bcc8a7e75ad9a592801f5590ccc6275f8"],
+ ["scripts/lib/own-payroll-receipt126-same190-support.mjs",18178,"a0305f897fd97d433fa9b208787a09762ae4dedaf86e13ed3d3cfb8cf3c61c93"],
  ["scripts/lib/own-payroll-receipt126-same190-shape.mjs",25768,"caeca88ce71f7d1f499c87bdd95a37e0611a66a98135d9c45ac695e9c89cc891"],
 ]);
 const RPC=new Map([
