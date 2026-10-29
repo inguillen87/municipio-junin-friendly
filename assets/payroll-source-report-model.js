@@ -83,3 +83,133 @@ export function formatSalaryAmount(value) {
   const [whole, fraction] = value.replace('-', '').split('.');
   return '$ ' + (value.startsWith('-') ? '-' : '') + whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + fraction;
 }
+
+// Source-component statistics over a complete, validated report. These are sums of original
+// classified concepts, not a new payroll calculation or a change to conserved totalizers.
+export const SOURCE_CONCEPT_STATISTICS_GROUPS = Object.freeze(['993', '994', '995', '990', '996']);
+const sourceStatisticsLabels = Object.freeze({
+  '993': 'Haberes remunerativos', '994': 'Haberes no remunerativos',
+  '995': 'Asignaciones familiares', '990': 'Contribuciones patronales', '996': 'Retenciones',
+});
+const sourceStatisticsControlCode = code => {
+  const numericCode = Number(code); // Code identity only; monetary values never pass through Number.
+  return numericCode >= 990 && numericCode <= 999;
+};
+
+export function sourceConceptStatistics(raw) {
+  const d = payrollSourceReport(raw);
+  if (d.mode !== 'report' || !d.found) throw Error('Consultá una liquidación');
+  const byCode = new Map(d.rows.map(row => [row.code, row]));
+  const classified = Object.fromEntries(SOURCE_CONCEPT_STATISTICS_GROUPS.map(code => [code, []]));
+  const unclassifiedCodes = [];
+  const counts = {
+    sourceConceptCount: d.rows.length, sourceOccurrences: d.lineCount, datasetStatementCount: d.statementCount,
+    classifiedConceptCount: 0, classifiedOccurrences: 0,
+    unclassifiedConceptCount: 0, unclassifiedOccurrences: 0,
+    totalizerConceptCount: 0, totalizerOccurrences: 0,
+  };
+  for (const row of d.rows) {
+    if (sourceStatisticsControlCode(row.code)) {
+      counts.totalizerConceptCount++; counts.totalizerOccurrences += row.sourceRows;
+    } else if (typeof row.totalGroup === 'string' && SOURCE_CONCEPT_STATISTICS_GROUPS.includes(row.totalGroup)) {
+      classified[row.totalGroup].push(row);
+      counts.classifiedConceptCount++; counts.classifiedOccurrences += row.sourceRows;
+    } else {
+      unclassifiedCodes.push(row.code);
+      counts.unclassifiedConceptCount++; counts.unclassifiedOccurrences += row.sourceRows;
+    }
+  }
+  const stored = code => {
+    const row = byCode.get(code);
+    return { code, present: Boolean(row), amount: row?.amount ?? null,
+      occurrences: row?.sourceRows ?? null, missingAmounts: row?.missingAmounts ?? null };
+  };
+  const completeStored = item => item.present && item.missingAmounts === 0 ? cents(item.amount) : null;
+  const difference = (left, right) => left === null || right === null ? null : left - right;
+  const amounts = {};
+  const groups = Object.fromEntries(SOURCE_CONCEPT_STATISTICS_GROUPS.map(code => {
+    const rows = classified[code], missingAmounts = rows.reduce((sum, row) => sum + row.missingAmounts, 0);
+    const status = !rows.length ? 'missing' : missingAmounts || rows.some(row => row.amount === null) ? 'incomplete' : 'available';
+    const value = status === 'available' ? rows.reduce((sum, row) => sum + cents(row.amount), 0n) : null;
+    amounts[code] = value;
+    const totalizer = stored(code);
+    return [code, { code, label: sourceStatisticsLabels[code], status, amount: decimal(value),
+      conceptCount: rows.length, occurrences: rows.reduce((sum, row) => sum + row.sourceRows, 0), missingAmounts,
+      codes: rows.map(row => row.code).sort(), storedTotalizer: totalizer,
+      difference: decimal(difference(value, completeStored(totalizer))) }];
+  }));
+  const sum = codes => codes.some(code => amounts[code] === null) ? null : codes.reduce((value, code) => value + amounts[code], 0n);
+  const gross = sum(['993', '994', '995']);
+  const cost = gross === null || amounts['990'] === null ? null : gross + amounts['990'];
+  const net = difference(gross, amounts['996']);
+  const storedNet = stored('999');
+  return {
+    version: 'source-concept-statistics.v1', scope: 'complete-dataset', basis: 'classified-source-components',
+    groupOrder: [...SOURCE_CONCEPT_STATISTICS_GROUPS], groups, counts, unclassifiedCodes: unclassifiedCodes.sort(),
+    totals: { gross: decimal(gross), contributions: decimal(amounts['990']), withholdings: decimal(amounts['996']),
+      cost: decimal(cost), net: decimal(net), storedNet: storedNet.amount,
+      netDifference: decimal(difference(net, completeStored(storedNet))) },
+    official: false, payrollModified: false, individualReconciliationProven: false,
+  };
+}
+
+// Exact presentation with up to 96 integer digits. Input is a decimal string, never a JS
+// number. It can therefore format aggregate values beyond Number.MAX_SAFE_INTEGER cents.
+export function safeCurrencyExact(value, { signed = false } = {}) {
+  if (value === null) return 'No informado';
+  if (typeof signed !== 'boolean' || typeof value !== 'string' || !/^-?\d{1,96}\.\d{2}$/.test(value)) throw Error('Importe exacto inválido');
+  const negative = value.startsWith('-');
+  const [rawWhole, fraction] = (negative ? value.slice(1) : value).split('.');
+  const whole = rawWhole.replace(/^0+(?=\d)/, '');
+  const zero = whole === '0' && fraction === '00';
+  const sign = zero ? '' : negative ? '-' : signed ? '+' : '';
+  return '$ ' + sign + whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + fraction;
+}
+
+export function sourceConceptStatisticsDocument(raw) {
+  const d = payrollSourceReport(raw), statistics = sourceConceptStatistics(d);
+  const notes = [
+    'Fecha de liquidación: '+civilDate(d.date)+' · '+d.statementCount+' participaciones · '+statistics.counts.classifiedOccurrences+' ocurrencias componentes. Corrida completa; los filtros del detalle no cambian este alcance.',
+    'Las sumas usan el grupo original de cada concepto y excluyen los códigos totalizadores 990 a 999 para no sumarlos otra vez.',
+    'Los totalizadores guardados se conservan por separado. Una diferencia no modifica la fuente ni demuestra su causa histórica.',
+    'Un grupo ausente o un importe sin informar se muestra como No informado; ausencia no equivale a cero. Los derivados afectados tampoco se calculan.',
+    'Las ocurrencias son filas de conceptos, no legajos únicos. La igualdad de sumas no certifica conciliación individual.',
+    'Consulta informativa: no crea una liquidación ni acredita firma o pago, y no es una presentación fiscal.',
+    'Haberes desde conceptos: '+safeCurrencyExact(statistics.totals.gross)+' · Contribuciones: '+safeCurrencyExact(statistics.totals.contributions)+' · Retenciones: '+safeCurrencyExact(statistics.totals.withholdings)+'.',
+    'Costo desde conceptos: '+safeCurrencyExact(statistics.totals.cost)+' · Neto: '+safeCurrencyExact(statistics.totals.net)+' · Neto totalizador 999: '+safeCurrencyExact(statistics.totals.storedNet)+' · Diferencia de neto: '+safeCurrencyExact(statistics.totals.netDifference,{signed:true})+'.',
+    'Conjunto: '+d.datasetId+' · Reporte SHA-256: '+d.reportHash+' · Contenido SHA-256: '+d.payloadHash+'.',
+  ];
+  if (statistics.counts.unclassifiedConceptCount) notes.push('Hay ' + statistics.counts.unclassifiedConceptCount + ' conceptos sin clasificación en estos cinco grupos. No se asignaron por descripción o código.');
+  const metadata = [
+    ['Fecha de liquidación', civilDate(d.date)], ['Tipo', sourceReportTypeLabel(d.type) + ' (' + d.type + ')'],
+    ['SHA-256',d.reportHash], ['Estado',({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],
+    ['Estado de la fuente', ({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],
+    ['Fuente', d.sourceLabel], ['Conjunto', d.datasetId], ['SHA-256 del reporte', d.reportHash], ['Huella de conjunto', d.payloadHash],
+    ['Participaciones en la corrida', d.statementCount], ['Conceptos componentes clasificados', statistics.counts.classifiedConceptCount],
+    ['Ocurrencias componentes clasificadas', statistics.counts.classifiedOccurrences],
+    ['Conceptos sin clasificar', statistics.counts.unclassifiedConceptCount], ['Ocurrencias sin clasificar', statistics.counts.unclassifiedOccurrences],
+    ['Conceptos totalizadores excluidos', statistics.counts.totalizerConceptCount], ['Ocurrencias totalizadoras excluidas', statistics.counts.totalizerOccurrences],
+    ['Ocurrencias conservadas en la fuente', statistics.counts.sourceOccurrences],
+    ['Haberes desde conceptos clasificados', safeCurrencyExact(statistics.totals.gross)],
+    ['Contribuciones desde conceptos clasificados', safeCurrencyExact(statistics.totals.contributions)],
+    ['Retenciones desde conceptos clasificados', safeCurrencyExact(statistics.totals.withholdings)],
+    ['Costo desde conceptos clasificados', safeCurrencyExact(statistics.totals.cost)],
+    ['Neto desde conceptos clasificados', safeCurrencyExact(statistics.totals.net)],
+    ['Neto totalizador 999 guardado', safeCurrencyExact(statistics.totals.storedNet)],
+    ['Diferencia neto conceptos - 999', safeCurrencyExact(statistics.totals.netDifference, {signed:true})],
+    ...statistics.groupOrder.map(code => ['Grupo ' + code + ': ocurrencias', statistics.groups[code].conceptCount + ' conceptos; ' + statistics.groups[code].occurrences + ' ocurrencias; ' + statistics.groups[code].missingAmounts + ' importes ausentes']),
+  ];
+  return {
+    title: 'Estadístico de conceptos de liquidación',
+    columns: [
+      {label:'Grupo de origen',type:'text',width:32}, {label:'Suma de conceptos',type:'text',width:30},
+      {label:'Totalizador guardado',type:'text',width:30}, {label:'Diferencia exacta',type:'text',width:28},
+    ],
+    rows: statistics.groupOrder.map(code => {
+      const group = statistics.groups[code];
+      return [code + ' - ' + group.label, safeCurrencyExact(group.amount), safeCurrencyExact(group.storedTotalizer.amount), safeCurrencyExact(group.difference, {signed:true})];
+    }),
+    totals: [], metadata, notes,
+    filename: 'municontrol_source_statistics_' + d.date + '_' + d.type.toLowerCase(),
+  };
+}
