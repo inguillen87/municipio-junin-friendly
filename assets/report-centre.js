@@ -17,11 +17,13 @@ function start(){const root=document.getElementById('reportContent');if(!root||r
  const library=node('div'),catalog=node('div');catalog.id='mc-report-catalog-root';library.append(catalog);const intro=node('div',undefined,'rc-catalog-intro');intro.innerHTML='<h2>¿Qué necesitás resolver?</h2><label>Buscar un reporte<input type="search" data-catalog-search placeholder="Dotación, descuentos, ausencias…" maxlength="80"></label>';catalog.append(intro);
  const grid=node('div',undefined,'rc-catalog');catalog.append(grid);
  const cards=[
+   ['Planillas de sueldos propias','Elegir una emisión aprobada y descargar los agentes, conceptos y totales de sus cierres originales.','Acceso interno · emisión aprobada · PDF · Excel · CSV','nomina-control.html#planillas-sueldos-propias','Nómina'],
+   ['Informe de liquidación propia','Elegir períodos y tipos de cierres propios; conciliar y descargar el informe para expediente.','Acceso interno · cierres propios · PDF · Excel · CSV','nomina-control.html#informe-liquidacion-propia','Nómina'],
   ['Dotación por sector','Comparar la distribución del padrón activo al corte.','PDF · Excel · CSV','#analizar-sectores','RR. HH.'],
   ['Altas y bajas','Elegir años, revisar movimientos y exportar su balance.','PDF · Excel · CSV','#analizar-movimientos','RR. HH.'],
   ['Ausencias registradas','Analizar eventos y personas por año, sin confundirlos con días.','PDF · Excel · CSV','#analizar-ausencias','RR. HH.'],
   ['Hijos y certificados escolares','Consultar legajos activos con hijos y fechas de presentación y vencimiento registradas.','Acceso interno · Excel','#certificados-escolares','RR. HH.'],
-  ['Haberes y descuentos','Consultar conceptos de las liquidaciones incorporadas a Neon.','Requiere sesión · PDF · Excel · CSV','#haberes','Nómina'],
+  ['Haberes y descuentos','Consultar conceptos y descuentos de las liquidaciones incorporadas.','Requiere sesión · PDF · Excel · CSV','#haberes','Nómina'],
   ['Resumen mensual','Reunir liquidaciones seleccionadas del mismo período y revisar conceptos, cantidades e importes.','Acceso interno · PDF · Excel','#resumen-mensual','Nómina'],
   ['Planilla bancaria','Generar desde una liquidación las cuentas, netos y observaciones por banco y jurisdicción.','Acceso interno · Excel de control · PDF','#planilla-bancaria','Nómina'],
   ['Comparar liquidaciones','Revisar variaciones por concepto entre dos liquidaciones del mismo tipo.','Requiere sesión · PDF · Excel · CSV','#comparar','Nómina'],

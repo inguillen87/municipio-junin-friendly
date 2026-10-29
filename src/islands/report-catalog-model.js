@@ -10,6 +10,8 @@ export const CATALOG_AREAS = Object.freeze([
 export const CATALOG_FORMATS = Object.freeze(['PDF', 'Excel', 'CSV']);
 
 const TASKS = Object.freeze({
+  '/nomina#planillas-sueldos-propias': { aliases: 'planillas sueldos propias agentes conceptos totales', origin: 'Emisiones propias aprobadas', action: 'Consultar planillas' },
+  '/nomina#informe-liquidacion-propia': { aliases: 'informe liquidacion propia expediente conciliacion cierres', origin: 'Cierres propios conservados', action: 'Consultar informe' },
   '#analizar-sectores': { aliases: 'dotacion personal agentes planta sectores reparticiones areas', origin: 'Datos agregados del corte', action: 'Consultar dotación' },
   '#analizar-movimientos': { aliases: 'altas bajas ingresos egresos movimientos personal', origin: 'Datos agregados del corte', action: 'Revisar movimientos' },
   '#analizar-ausencias': { aliases: 'ausentismo inasistencias ausencias eventos', origin: 'Datos agregados del corte', action: 'Analizar ausencias' },
@@ -29,6 +31,8 @@ export function normalizeCatalogSearch(value) {
 }
 
 function taskKey(href) {
+  if (href === 'nomina-control.html#planillas-sueldos-propias') return '/nomina#planillas-sueldos-propias';
+  if (href === 'nomina-control.html#informe-liquidacion-propia') return '/nomina#informe-liquidacion-propia';
   if (href === 'relojes-marcaciones.html' || href === '/relojes-marcaciones.html') return '/relojes';
   if (href === 'internal-dashboard.html#legajos' || href === '/internal-dashboard.html#legajos') return '/personal#legajos';
   return href;

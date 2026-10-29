@@ -108,9 +108,14 @@ test('comparison pending-auth successor projects RAW7b7 to its exact Git5b98 par
  const changed=Buffer.from(raw);changed[pin.inverse[0].offset]^=1;assert.throws(()=>projectReleaseCandidateWorkflowToParent(path,changed));
 });
 
-test('comparison succession retains the ten prior entries as a complete identical JSON map',()=>{
- const prior=Object.fromEntries(Object.entries(RELEASE_CANDIDATE_SOURCE_PINS).filter(([path])=>path!=='assets/own-payroll-comparison-panel.js'&&path!=='tests/own-close-snapshot215-installation.test.js'));
- assert.equal(Object.keys(prior).length,10);assert.equal(Object.keys(RELEASE_CANDIDATE_SOURCE_PINS).length,12);
+test('comparison succession retains the ten exact prior entries before the later planilla navigation successor',()=>{
+ const saved=JSON.parse(read('tests/fixtures/own-payroll-reports-planillas-source-parent.json'));
+ const raw=Buffer.from(saved.rows['tests/fixtures/release-candidate-workflow-succession.js'].beforeRawBase64,'base64');
+ assert.equal(digest(raw),'bce30f48e0d0c0791056eb7bc4be50746bf4df153a46dd400ba8eecd497369dc');
+ const match=/RELEASE_CANDIDATE_SOURCE_PINS=Object.freeze\((\{[^\n]*\})\);/.exec(raw.toString('utf8'));assert.ok(match);
+ const parentPins=JSON.parse(match[1]);assert.equal(Object.keys(parentPins).length,12);
+ const prior=Object.fromEntries(Object.entries(parentPins).filter(([path])=>path!=='assets/own-payroll-comparison-panel.js'&&path!=='tests/own-close-snapshot215-installation.test.js'));
+ assert.equal(Object.keys(prior).length,10);assert.equal(Object.keys(RELEASE_CANDIDATE_SOURCE_PINS).length,13);
  assert.equal(digest(JSON.stringify(prior)),'a466066182ad3eca5b68d6a982e090f6142405db6d0862bb8b710b92f20e61f4');
 });
 

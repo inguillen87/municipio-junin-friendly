@@ -92,3 +92,15 @@ test('counting and filtering do not mutate caller filters or entries', () => {
   filterCatalog(frozen, filters);
   assert.equal(JSON.stringify(frozen), before);
 });
+
+
+for(const [anchor,origin,action]of [
+ ['planillas-sueldos-propias','Emisiones propias aprobadas','Consultar planillas'],
+ ['informe-liquidacion-propia','Cierres propios conservados','Consultar informe'],
+])test('own payroll report metadata survives friendly route normalization: '+anchor,()=>{
+ for(const href of ['/nomina#'+anchor,'nomina-control.html#'+anchor]){
+  const [entry]=catalogEntries([['Sueldos propios','Consulta propia','PDF · Excel · CSV',href,'Nómina']]);
+  assert.equal(entry.href,href);assert.equal(entry.origin,origin);assert.equal(entry.action,action);
+  assert.equal(filterCatalog([entry],{area:'Nómina',format:'CSV'}).length,1);
+ }
+});
