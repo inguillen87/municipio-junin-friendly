@@ -149,6 +149,147 @@
         ]
       },
       "publicationMode":"candidate_only"
+    },
+    {
+      "id": "grh-junin-2026-10-28",
+      "profileVersion": "3.0.0",
+      "source": {
+        "name": "grh_junin",
+        "database": "grh_junin",
+        "sha256": "FEF5AADA3142E475D0519F7647377465D95EE55B4038AFF035FF7D41D5748CC1",
+        "logicalBytes": 786820775,
+        "cutoff": "2026-10-28T15:16:35",
+        "currentPayrollDate": "2026-10-31",
+        "currentPayrollClosureStatus": "closed",
+        "latestClosedPayrollDate": "2026-10-31",
+        "gzipSha256": "9DAF87941A3D7C92A2EBD680B390C2455C8E9889A7A9C51696587D7E8884F110",
+        "gzipBytes": 45332016,
+        "latestClosedMonthlyPayrollDate": "2026-10-31"
+      },
+      "curated": {
+        "profileId": "grh-junin-2026-10-28",
+        "expectedCounts": {
+          "ausencia": 31866,
+          "cargo": 5,
+          "catego": 156,
+          "convenio": 14,
+          "familia": 3656,
+          "gremio": 6,
+          "legagremio": 845,
+          "legajo": 2458,
+          "licencia": 3448,
+          "motause": 27,
+          "motibaja": 19,
+          "organiza": 83,
+          "persona": 2357,
+          "revista": 3,
+          "sectores": 36,
+          "vinculo": 9
+        },
+        "expectedOutputCounts": {
+          "absences": 31866,
+          "categories": 156,
+          "agreements": 14,
+          "familyMembers": 3656,
+          "unions": 6,
+          "unionMemberships": 845,
+          "employees": 2458,
+          "leaves": 3448,
+          "absenceReasons": 27,
+          "exitReasons": 19,
+          "organizations": 83,
+          "employmentStatuses": 3,
+          "sectors": 36,
+          "familyRelationships": 9,
+          "jobRoles": 5
+        }
+      },
+      "core": {
+        "profileId": "grh-core-junin-2026-10-28-multirun",
+        "expectedCounts": {
+          "calculo": 4453281,
+          "concepto": 294,
+          "histocal": 635,
+          "histolegajo": 845,
+          "legajo": 2458,
+          "legamov": 500446
+        },
+        "expectedClosureStatusCounts": {
+          "closed": 528,
+          "open": 0,
+          "unknown": 101
+        },
+        "currentRunTypes": [
+          "F",
+          "M",
+          "O",
+          "V"
+        ],
+        "expectedReconciliation": {
+          "administrativeActive": 871,
+          "liquidatedCurrent": 845,
+          "activeAndLiquidated": 844,
+          "activeNotLiquidated": 27,
+          "liquidatedNotActive": 1
+        },
+        "schemaVersion": 2,
+        "historicalInactiveSnapshotEvidence": {
+          "version": "grh-core-closed-inactive-snapshot-evidence.v1",
+          "expectedContracts": 1,
+          "expectedAssignments": 1
+        },
+        "snapshotCohorts": [
+          {
+            "period": 2026,
+            "month": 10,
+            "payrollType": "F",
+            "payrollDate": "2026-10-31",
+            "rows": 1
+          },
+          {
+            "period": 2026,
+            "month": 10,
+            "payrollType": "M",
+            "payrollDate": "2026-10-31",
+            "rows": 844
+          }
+        ],
+        "currentRuns": [
+          {
+            "companyCode": "101",
+            "payrollDate": "2026-10-31",
+            "period": 2026,
+            "month": 10,
+            "payrollType": "F",
+            "closureStatus": "closed"
+          },
+          {
+            "companyCode": "101",
+            "payrollDate": "2026-10-31",
+            "period": 2026,
+            "month": 10,
+            "payrollType": "M",
+            "closureStatus": "closed"
+          },
+          {
+            "companyCode": "101",
+            "payrollDate": "2026-10-31",
+            "period": 2026,
+            "month": 10,
+            "payrollType": "O",
+            "closureStatus": "closed"
+          },
+          {
+            "companyCode": "101",
+            "payrollDate": "2026-10-31",
+            "period": 2026,
+            "month": 10,
+            "payrollType": "V",
+            "closureStatus": "closed"
+          }
+        ]
+      },
+      "publicationMode": "candidate_only"
     }
   ]
 }

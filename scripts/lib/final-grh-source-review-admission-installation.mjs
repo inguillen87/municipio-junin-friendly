@@ -1,6 +1,7 @@
 // Review-only schema construction. No connections, environment reads or SQL execution.
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {projectOctober28RegistryParent} from './grh-october28-candidate-registry-source.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 import {finalSourcePrerequisite} from './final-contract-adoption-installation.mjs';
 import {preservationSnapshot} from './native-leave-installation.mjs';
@@ -9,6 +10,7 @@ import {ownInstallationDestination,ownInstallationSettings} from '../prepare-own
 
 export const FINAL_REVIEW_ADMISSION_FILE='scripts/migrations/183-final-grh-source-review-admission.sql';
 export const FINAL_REVIEW_ADMISSION_SQL_SHA256='a85c01c1bf2ae620b1af32a2e1564c52544562f39235557ee5e5549717f47e94';
+export const FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256='cd121a9a5fff31c9784f250cc410adfeb65cf6284288deddbfec3634b3be3dc6';
 export const FINAL_REVIEW_ADMISSION_PROFILES=Object.freeze([
  Object.freeze({profile:'grh-junin-2026-10-01',sha256:'50a4cc2673be5e275dc5850aa8779f46de82dd81733a87e4b2cfa2aec49e025f',cutoff:'2026-10-01T15:17:29'}),
  Object.freeze({profile:'grh-junin-2026-10-14',sha256:'3efa61a77e5b160dff14dbb53a3634054dbc70a284c3f5101acd98ee9b5aecf4',cutoff:'2026-10-14T15:18:17'}),
@@ -17,7 +19,8 @@ const sourcePins=Object.freeze({
  'scripts/migrations/144-final-grh-source-revision.sql':'818e53c560da8ec3cad55073071d0a56669c6581f51c20d910600ea58b9697d5',
  'scripts/lib/final-contract-adoption-installation.mjs':'c1fc4d150ee118cbeb42f0650f7d7e78db6d4689017870180b969051bbf12d6f',
  'scripts/lib/native-leave-installation.mjs':'57d7f79c358665dc208dfcb9b0d7b2a2ecebaba84dfb6c6057bb3acef6bb25ef',
- 'scripts/lib/grh-source-profiles.json':'cd121a9a5fff31c9784f250cc410adfeb65cf6284288deddbfec3634b3be3dc6',
+ 'scripts/lib/grh-source-profiles.json':'fe04d0a5fc96d38ca2e6839556f63ea51a73626b3d1685c1f8ec3f6dfaf42a77',
+ 'scripts/lib/grh-october28-candidate-registry-source.mjs':'690af52ab26bec7ee02ddf5e9e2ccc6987491716ec939a126cac47d49d6ece1e',
 });
 const prefix='municontrol_final_review.',names=['grh_final_source_revision','grh_final_source_delta','grh_final_source_seal'];
 const managed=['grh_final_source_revision_source_profile_check','grh_final_source_revision_source_sha256_check','grh_final_source_revision_source_cutoff_check','grh_final_source_revision_source_tuple_check'];
@@ -105,7 +108,11 @@ function shapeCheck(tuple,phase){
 export function buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major}){
  assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok([17,18].includes(major));
  const sourceHashes={};for(const[file,digest]of Object.entries(sourcePins)){const text=lf(read(file));assert.equal(hash(text),digest,'FINAL_REVIEW_PREREQUISITE_SOURCE_CHANGED: '+file);sourceHashes[file]=digest;}
- const profiles=JSON.parse(read('scripts/lib/grh-source-profiles.json'));for(const p of FINAL_REVIEW_ADMISSION_PROFILES){const actual=profiles.profiles.find(v=>v.id===p.profile);assert.ok(actual);assert.equal(actual.source.sha256.toLowerCase(),p.sha256);assert.equal(actual.source.cutoff,p.cutoff);assert.equal(actual.publicationMode,'candidate_only');}
+ const registryParent=projectOctober28RegistryParent(read('scripts/lib/grh-source-profiles.json'));
+ assert.equal(registryParent.parentRegistrySha256,FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256,'FINAL_REVIEW_REGISTRY_PARENT_CHANGED');
+ assert.equal(registryParent.currentRegistrySha256,sourceHashes['scripts/lib/grh-source-profiles.json'],'FINAL_REVIEW_REGISTRY_CURRENT_CHANGED');
+ const registryCustody=Object.freeze({version:registryParent.version,currentRegistrySha256:registryParent.currentRegistrySha256,parentRegistrySha256:registryParent.parentRegistrySha256,wholeInverseVerified:registryParent.wholeInverseVerified,sqlValidityGranted:false});
+ const profiles=JSON.parse(registryParent.parentRegistryRaw);for(const p of FINAL_REVIEW_ADMISSION_PROFILES){const actual=profiles.profiles.find(v=>v.id===p.profile);assert.ok(actual);assert.equal(actual.source.sha256.toLowerCase(),p.sha256);assert.equal(actual.source.cutoff,p.cutoff);assert.equal(actual.publicationMode,'candidate_only');}
  const source=lf(read(FINAL_REVIEW_ADMISSION_FILE));assert.equal(hash(source),FINAL_REVIEW_ADMISSION_SQL_SHA256,'FINAL_REVIEW_REVIEWED_SQL_CHANGED');sourceHashes[FINAL_REVIEW_ADMISSION_FILE]=FINAL_REVIEW_ADMISSION_SQL_SHA256;
  const migration=splitPostgresStatements(source);assert.equal(migration.length,1);assert.match(migration[0],/\bDO \$final_review183\$/);const tuple=/\$tuple183\$([^]*?)\$tuple183\$/.exec(source)?.[1];assert.ok(tuple);
  const sourcePrerequisite=finalSourcePrerequisite(read),target=OWN_RELEASE_TARGETS.find(t=>t.major===major);assert.equal(sourcePrerequisite.pins.length,9);
@@ -144,7 +151,7 @@ export function buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommi
  EXCEPTION WHEN lock_not_available OR deadlock_detected THEN RAISE EXCEPTION 'FINAL_REVIEW_ADMISSION_BUSY';END $final_review_rollback$`;
  const rollback=[...settings,destination,state('rollback'),sourcePrerequisite.check,final,before,rollbackSql,sourcePrerequisite.check,shapeCheck(tuple,'old'),after,audit,proof(true)];
  const transaction=(statements,completion,readOnly=false)=>({begin:'BEGIN',statements,completion,readOnly});
- return{version:'final-grh-source-review-admission.v1',sourceCommit,major,target,sourceHashes,sourcePrerequisite,managedCheckNames:[...managed],migration,settings,destination,before,after,initial,final,audit,preflight,installation,repetition,durableVerification,guardedRollback:transaction(rollback,'COMMIT'),transactions:{rehearsal:transaction(installation,'ROLLBACK'),install:transaction(installation,'COMMIT'),durable:transaction(durableVerification,'COMMIT',true),repeat:transaction(repetition,'COMMIT')},connects:false,executesSql:false};
+ return{version:'final-grh-source-review-admission.v1',sourceCommit,major,target,sourceHashes,registryCustody,sourcePrerequisite,managedCheckNames:[...managed],migration,settings,destination,before,after,initial,final,audit,preflight,installation,repetition,durableVerification,guardedRollback:transaction(rollback,'COMMIT'),transactions:{rehearsal:transaction(installation,'ROLLBACK'),install:transaction(installation,'COMMIT'),durable:transaction(durableVerification,'COMMIT',true),repeat:transaction(repetition,'COMMIT')},connects:false,executesSql:false};
 }
 
 export function assertFinalGrhSourceReviewAdmissionDurability({installed,durable,repeated,sourceCommit,major}){

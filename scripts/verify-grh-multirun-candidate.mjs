@@ -35,10 +35,20 @@ export function validateMultirunManifest(m,p){
  equal(m.sourceCounts,p.core.expectedCounts,'V2_SOURCE_COUNTS_MISMATCH');
  equal(m.source.currentPayrollRuns,p.core.currentRuns,'V2_RUN_CLOSURES_MISMATCH');
  for(const [k,v]of Object.entries(p.core.expectedReconciliation))equal(m.reconciliation?.[k],v,'V2_RECONCILIATION_MISMATCH');
- equal(m.quality.payrollRunClosure?.statuses,p.core.expectedClosureStatusCounts,'V2_CLOSURE_COUNTS_MISMATCH');
+ assertMultirunClosureCounts(m.quality.payrollRunClosure?.statuses,p.core.expectedClosureStatusCounts);
  equal(m.quality.payrollRunClosure?.currentRun,p.source.currentPayrollClosureStatus,'V2_RUN_CLOSURES_MISMATCH');
  equal(m.quality.payrollRunClosure?.latestClosedDate,p.source.latestClosedPayrollDate,'V2_RUN_CLOSURES_MISMATCH');
  if(!m.quality.moneySemantics?.includes('never a financial KPI'))fail('V2_FINANCIAL_SCOPE_REQUIRED');
+}
+
+// The scan classifies every observed run into this finite set. An unobserved
+// category has count zero; this is a row count, never a missing monetary value.
+export function assertMultirunClosureCounts(observed,expected){
+ const keys=['closed','open','unknown'];
+ if(!observed||typeof observed!=='object'||Array.isArray(observed)||!expected||typeof expected!=='object'||Array.isArray(expected)
+  ||Object.keys(expected).sort().join()!==[...keys].sort().join()||Object.keys(observed).some(key=>!keys.includes(key)))fail('V2_CLOSURE_COUNTS_MISMATCH');
+ for(const count of [...Object.values(observed),...Object.values(expected)])if(!Number.isSafeInteger(count)||count<0)fail('V2_CLOSURE_COUNTS_MISMATCH');
+ equal(Object.fromEntries(keys.map(key=>[key,Object.hasOwn(observed,key)?observed[key]:0])),expected,'V2_CLOSURE_COUNTS_MISMATCH');
 }
 
 export async function verifyMultirunCandidate({dataDir,profileId='grh-junin-2026-09-22'}={}){
@@ -67,7 +77,7 @@ export async function verifyMultirunCandidate({dataDir,profileId='grh-junin-2026
    if(state==='closed')closedByType[r.sourceKey.payrollType]=[closedByType[r.sourceKey.payrollType]??'',r.sourceKey.payrollDate].sort().at(-1);
    if(r.sourceKey.payrollDate===profile.source.currentPayrollDate)current.push({...runIdentity(r.sourceKey),closureStatus:state});
   }
-  equal(states,profile.core.expectedClosureStatusCounts,'V2_CLOSURE_COUNTS_MISMATCH');
+  assertMultirunClosureCounts(states,profile.core.expectedClosureStatusCounts);
   const sorted=a=>a.sort((a,b)=>stableJson(a).localeCompare(stableJson(b)));
   equal(sorted(current),sorted(structuredClone(profile.core.currentRuns)),'V2_RUN_CLOSURES_MISMATCH');
   equal(closedByType,manifest.source.latestClosedByType,'V2_CLOSED_BY_TYPE_MISMATCH');
@@ -119,7 +129,7 @@ export function parseMultirunCandidateArgs(args){
  try{
   const {values,positionals}=parseArgs({args,allowPositionals:true,options:{profile:{type:'string'}}});
   const profileId=values.profile??'grh-junin-2026-09-22';
-  if(positionals.length!==1||!positionals[0]||!['grh-junin-2026-09-22','grh-junin-2026-10-01'].includes(profileId))fail('V2_USAGE');
+  if(positionals.length!==1||!positionals[0]||!['grh-junin-2026-09-22','grh-junin-2026-10-01','grh-junin-2026-10-28'].includes(profileId))fail('V2_USAGE');
   return {dataDir:positionals[0],profileId};
  }catch{fail('V2_USAGE')}
 }
