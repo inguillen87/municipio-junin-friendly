@@ -7,7 +7,8 @@ import {composeOwnReportFullQaSources} from '../scripts/lib/own-payroll-report-f
 import {composeNoeliaCurrentFullQaSources,noeliaCurrentFullQaPhaseStatements,noeliaCurrentFullQaSeed,noeliaFullDecisionStatement,NOELIA_FULL_DECISION_STATEMENTS} from '../scripts/lib/noelia-current-full-qa.mjs';
 import {buildNoeliaCircuitQa} from '../scripts/lib/noelia-payroll-circuit-qa.mjs';
 import {qaLiteral as q} from '../scripts/lib/own-payroll-durable-qa.mjs';
-const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replace(/\r\n?/g,'\n'),schema='mc_qa_fixed_092_'+'d'.repeat(32),sourceCommit='a'.repeat(40),hash=s=>createHash('sha256').update(s).digest('hex');
+import {projectNoeliaAccountingRunnerSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
+const read=p=>projectNoeliaAccountingRunnerSource(p,fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replace(/\r\n?/g,'\n')),schema='mc_qa_fixed_092_'+'d'.repeat(32),sourceCommit='a'.repeat(40),hash=s=>createHash('sha256').update(s).digest('hex');
 let f,p,j;
 const full=()=>f??=composeOwnReportFullQaSources({read,sourceCommit,schema});
 const plan=()=>p??=composeNoeliaCurrentFullQaSources({read,sourceCommit,schema,jurisdictions:true});

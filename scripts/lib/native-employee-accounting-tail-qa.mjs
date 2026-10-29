@@ -1,4 +1,5 @@
 import {executeMonthlyNativeTailStage} from './monthly-native-tail-execution-qa.mjs';
+import {composeNoeliaAccountingFullSources,installNoeliaAccountingFullQa,assertNoeliaAccountingFullBookend} from './noelia-accounting-full-qa.mjs';
 // Private synthetic QA foundation. Product models remain the source of validation;
 // the finite destinations below are declared test data, never municipal policy.
 import assert from 'node:assert/strict';
@@ -192,11 +193,17 @@ const statements = new Map([
   ['SELECT public.own_imputation_bootstrap_v1($1::jsonb,$2::text,$3::text) AS result', 3],
   ['SELECT public.own_imputation_source_v1($1::jsonb,$2::uuid,$3::text) AS result', 3],
   ['SELECT public.own_imputation_detail_v1($1::jsonb,$2::uuid) AS result', 2],
+  ['SELECT public.own_imputation_source_full_v1($1::jsonb,$2::uuid,$3::text) AS result',3],
+  ['SELECT public.own_imputation_detail_full_v1($1::jsonb,$2::uuid) AS result',2],
+  ['SELECT public.own_imputation_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',3],
   ['SELECT public.own_imputation_attempt_v1($1::jsonb,$2::uuid) AS result', 2],
   ['SELECT public.own_imputation_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result', 3],
   ['SELECT public.own_journal_bootstrap_v1($1::jsonb,$2::text,$3::text) AS result', 3],
   ['SELECT public.own_journal_source_v1($1::jsonb,$2::text,$3::uuid) AS result', 3],
   ['SELECT public.own_journal_detail_v1($1::jsonb,$2::uuid) AS result', 2],
+  ['SELECT public.own_journal_source_full_v1($1::jsonb,$2::text,$3::uuid) AS result',3],
+  ['SELECT public.own_journal_detail_full_v1($1::jsonb,$2::uuid) AS result',2],
+  ['SELECT public.own_journal_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result',3],
   ['SELECT public.own_journal_attempt_v1($1::jsonb,$2::uuid) AS result', 2],
   ['SELECT public.own_journal_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result', 3],
 ]);
@@ -205,7 +212,7 @@ export function createNativeAccountingQaSql(db, qa) {
   return { ...db, query: async (query, values) => {
     if (typeof query !== 'string' || !/\bown_(?:accounting|imputation|journal)_/i.test(query)) return db.query(query, values);
     assert.ok(statements.has(query), 'QA_NATIVE_ACCOUNTING_SQL_FACADE_CHANGED');
-    assert.ok(Array.isArray(values) && values.length === statements.get(query) && Object.keys(values).length === values.length && Array.from(values).every(v => typeof v === 'string'), 'QA_NATIVE_ACCOUNTING_SQL_ARGUMENTS_CHANGED');
+    assert.ok(Array.isArray(values) && values.length === statements.get(query) && Reflect.ownKeys(values).length===values.length+1 && Array.from({length:values.length},(_,i)=>Object.hasOwn(values,i)&&typeof values[i]==='string').every(Boolean), 'QA_NATIVE_ACCOUNTING_SQL_ARGUMENTS_CHANGED');
     const relocated = query.replace('public.', qa.schema + '.');
     const sql = relocated.replace(/\$(\d+)/g, (_, n) => qaLiteral(values[Number(n) - 1]));
     return [{ result: await db.run(sql, true) }];
@@ -225,8 +232,8 @@ import {imputationBootstrap as AT_boot148,imputationPreview as AT_preview148,imp
 import {journalBootstrap as AT_boot152,journalSource as AT_source152,journalDetail as AT_detail152,prepareJournal as AT_prepare152,decideJournal as AT_decide152,journalReceipt as AT_receipt152,journalCsv as AT_csv152} from '../../assets/own-payroll-journal-model.js';
 import {nativeBankFailureNative as AT_failureNative} from './native-employee-bank-tail-qa.mjs';
 const AT_root=AT_path.resolve(import.meta.dirname,'../..'),AT_sha=value=>AT_createHash('sha256').update(value).digest('hex');
-export async function installNativeAccountingTailQa({db,qa,sourceCommit,output}){
- if(qa.monthlyNativeTailInstallation){const proofs=[];for(const migration of[147,148,152])proofs.push(await executeMonthlyNativeTailStage({db,qa,sourceCommit,output,migration,base:'native-accounting-installation-'+migration}));return proofs;}
+export async function installNativeAccountingTailQa({db,qa,sourceCommit,output,fullAccounting=null}){
+ if(qa.monthlyNativeTailInstallation){assert.equal(fullAccounting,null,'QA_NATIVE_ACCOUNTING_DISTINCT_PROFILE_REQUIRED');const proofs=[];for(const migration of[147,148,152])proofs.push(await executeMonthlyNativeTailStage({db,qa,sourceCommit,output,migration,base:'native-accounting-installation-'+migration}));return proofs;}
  const proofs=[];
  for(const [major,build,verify]of [[147,AT_build147,AT_assert147],[148,AT_build148,AT_assert148],[152,AT_build152,AT_assert152]]){
   const batch=build({read:file=>AT_fs.readFileSync(AT_path.join(AT_root,file),'utf8'),sourceCommit}),installation=batch.installation.map(qa.normalized),verification=batch.durableVerification.map(qa.normalized),base='native-accounting-installation-'+major;
@@ -237,9 +244,10 @@ export async function installNativeAccountingTailQa({db,qa,sourceCommit,output})
   const proof={major,sourceCommit,sourceHashes:batch.sourceHashes,installed,durable};
   AT_fs.writeFileSync(AT_path.join(output,base+'-proof.json'),JSON.stringify(proof,null,2)+'\n',{flag:'wx'});proofs.push(proof);
  }
+ if(fullAccounting){const {fullQa,ready,major,executeStage}=fullAccounting;assert.equal(typeof executeStage,'function','QA_NATIVE_ACCOUNTING_RR_EXECUTOR_REQUIRED');const plan=composeNoeliaAccountingFullSources({qa,fullQa,ready,major,sourceCommit,read:file=>AT_fs.readFileSync(AT_path.join(AT_root,file),'utf8')}),writeEvidence=(file,value)=>AT_fs.writeFileSync(AT_path.join(output,file),JSON.stringify(value,null,2)+String.fromCharCode(10),{flag:'wx'});writeEvidence('native-accounting-current-source-pins.json',{sourceCommit,sourceHashes:plan.sourceHashes,support:plan.support,stages:plan.stages.map(s=>({id:s.id,changed:s.changed,added:s.added,sourceSqlSha256:s.sourceSqlSha256})),protectedReady:plan.protectedReady,protectedCapture:plan.protectedCapture});proofs.push(await installNoeliaAccountingFullQa({plan,executeStage,writeEvidence}));}
  return proofs;
 }
-export async function verifyNativeEmployeeAccountingTail({db,qa,sourceCommit,maker,checker,getCurrent,setCurrent,journey,bankTail,transport,output,ok,preserveOriginal}){
+export async function verifyNativeEmployeeAccountingTail({db,qa,sourceCommit,maker,checker,getCurrent,setCurrent,journey,bankTail,transport,output,ok,preserveOriginal,fullAccounting=null}){
  for(const key of ['nativeAccountingHttp','nativeAccountingReadExport','nativeBankSources'])assert.equal(typeof transport?.[key],'function','QA_NATIVE_ACCOUNTING_HTTP_REQUIRED');
  assert.equal(typeof preserveOriginal,'function');const previous=getCurrent(),commands=[];let phase='installation';
  const write=(file,value)=>AT_fs.writeFileSync(AT_path.join(output,file),JSON.stringify(value,null,2)+'\n',{flag:'wx'});
@@ -259,7 +267,7 @@ export async function verifyNativeEmployeeAccountingTail({db,qa,sourceCommit,mak
  };
  try{
   const originalBefore=await preserveOriginal(),sourcesBefore=await asBase(maker,()=>transport.nativeBankSources(journey)),verified=await verifiedNativeAccountingSource({journey,bankTail,sources:sourcesBefore});
-  const installations=await installNativeAccountingTailQa({db,qa,sourceCommit,output});
+  const installations=await installNativeAccountingTailQa({db,qa,sourceCommit,output,fullAccounting}),currentInstallation=installations.find(value=>value.version==='noelia-accounting-full-installation.v1');if(fullAccounting)assert.ok(currentInstallation,'QA_NATIVE_ACCOUNTING_CURRENT_INSTALLATION_REQUIRED');
   phase='accounting-configuration';const firstBoot=await boot('accounting',maker);assert.equal(firstBoot.configuration.revision,0);assert.equal(firstBoot.configuration.definition,null);
   const definition=explicitNativeAccountingDefinition(firstBoot,verified),proposeBody=await AT_prepare147(firstBoot,definition,'Asociaciones exclusivamente sintéticas para el mismo empleado nativo QA'),proposed=await send('accounting',maker,'canPropose',proposeBody);
   const makerDetail=await detail('accounting',maker,proposed.proposalId);assert.equal(makerDetail.proposal.canReview,false);
@@ -283,12 +291,13 @@ export async function verifyNativeEmployeeAccountingTail({db,qa,sourceCommit,mak
   for(const [i,group]of imputation.allocation.groups.entries()){const entries=journal.journal.entries.filter(e=>e.groupOrdinal===i+1);assert.equal(entries.length,2);for(const entry of entries){assert.deepEqual(entry.destination,group.destination);assert.deepEqual(entry.sourceOrdinals,group.ordinals);assert.equal(entry.sourceAmount,group.amount);}}
   phase='read-export-ui';const files={imputation:new TextEncoder().encode('\uFEFF'+await AT_csv148(imputation)),journal:new TextEncoder().encode('\uFEFF'+await AT_csv152(journal))},expectedFiles=Object.fromEntries(Object.entries(files).map(([kind,bytes])=>[kind,{bytes:bytes.length,sha256:AT_sha(bytes)}]));
   setCurrent(maker);const ui=await transport.nativeAccountingReadExport({journey,imputation,journal,expectedFiles});assert.equal(ui.actualHttp,true);assert.equal(ui.readExportUi,true);assert.equal(ui.commandsUi,false);assert.equal(ui.posts,0);assert.equal(ui.contractId,journey.contractId);assert.equal(ui.closeGroupId,journey.closeGroupId);assert.equal(ui.conceptCount,6);assert.equal(ui.entryCount,10);
+  const finalFunctionBookend=currentInstallation?await assertNoeliaAccountingFullBookend({installation:currentInstallation,executeStage:fullAccounting.executeStage}):null;
   phase='conservation';const sourcesAfter=await asBase(maker,()=>transport.nativeBankSources(journey));await verifiedNativeAccountingSource({journey,bankTail,sources:sourcesAfter});assert.deepEqual(sourcesAfter,sourcesBefore);assert.deepEqual(await preserveOriginal(),originalBefore);
   const finalImputation=await detail('imputation',maker,ip.proposalId),finalJournal=await detail('journal',maker,posted.eventId);assert.deepEqual(finalImputation,imputation);assert.deepEqual(finalJournal,journal);
   const ledger=await db.run(`SELECT jsonb_build_object('accounting',(SELECT jsonb_build_object('events',count(*),'proposals',count(*) FILTER(WHERE command='propose'),'approvals',count(*) FILTER(WHERE command='approve'),'rejections',count(*) FILTER(WHERE command='reject')) FROM own_payroll_accounting_event),'imputation',(SELECT jsonb_build_object('events',count(*),'proposals',count(*) FILTER(WHERE command='propose'),'approvals',count(*) FILTER(WHERE command='approve'),'rejections',count(*) FILTER(WHERE command='reject')) FROM own_payroll_imputation_event),'journal',(SELECT jsonb_build_object('events',count(*),'proposals',count(*) FILTER(WHERE command='propose'),'posts',count(*) FILTER(WHERE command='post'),'rejections',count(*) FILTER(WHERE command='reject')) FROM own_payroll_journal_event),'bank',(SELECT jsonb_build_object('events',count(*),'proposals',count(*) FILTER(WHERE command='propose'),'approvals',count(*) FILTER(WHERE command='approve'),'rejections',count(*) FILTER(WHERE command='reject')) FROM own_bank_account_event))`);
   const financial={events:2,proposals:1,approvals:1,rejections:0};assert.deepEqual(ledger,{accounting:financial,imputation:financial,journal:{events:2,proposals:1,posts:1,rejections:0},bank:bankTail.bankLedger});
   write('native-accounting-tail-source-conservation.json',{before:sourcesBefore,after:sourcesAfter,batchSnapshotUnchanged:true,allCloseSnapshotsUnchanged:true,bankConfigurationAndLedgerUnchanged:true,...(journey.monthlyFixed?{originalBaselinePreserved:true,originalBaselineEmployeeCount:journey.monthlyFixed.baseline.eligibleContractIds.length}:{original29Preserved:true}),imputation,journal});
-  const proof={version:'native-employee-accounting-tail-proof.v1',status:'assertions_completed_pending_outer_cleanup',outerResult:'result.json',contractId:journey.contractId,registrationId:journey.registrationId,runId:journey.secondRunId,liquidationVersion:2,closeGroupId:journey.closeGroupId,receiptBatchId:journey.receiptBatchId,receiptSnapshotSha256:journey.receiptSnapshotSha256,receiptSources:sourcesAfter.batch.snapshot.sources,employeeCount:1,populationCount:nativeBankFixtureCounts(journey).targetPopulation,populationComplete:false,conceptCount:6,moneyCount:5,auxiliaryCount:1,sixTotals:bankTail.sixTotals,configurationProposalId:proposed.proposalId,configurationApprovalId:approved.eventId,configurationVersion:configuration.configuration.version,imputationProposalId:ip.proposalId,imputationApprovalId:ia.eventId,allocationSha256:imputation.allocationSha256,journalProposalId:jp.proposalId,journalEventId:posted.eventId,journalSha256:journal.journalSha256,journalNumber:journal.number,journalEntryCount:10,postingDate,commands,ledger,expectedFiles,ui,installations,sourceConservation:'native-accounting-tail-source-conservation.json',authenticationFixture:true,commandsHttp:true,commandsUi:false,readExportUi:true,syntheticDestinationsOnly:true,additionalHire:false,additionalCalculation:false,additionalClose:false,...(journey.monthlyFixed?{originalBaselinePreserved:true,originalBaselineEmployeeCount:journey.monthlyFixed.baseline.eligibleContractIds.length}:{original29Preserved:true}),bankPreserved:true,accountingPosted:true,paymentExecuted:false,productionWrites:false,municipalAcceptance:false};
+  const proof={version:'native-employee-accounting-tail-proof.v1',status:'assertions_completed_pending_outer_cleanup',outerResult:'result.json',contractId:journey.contractId,registrationId:journey.registrationId,runId:journey.secondRunId,liquidationVersion:2,closeGroupId:journey.closeGroupId,receiptBatchId:journey.receiptBatchId,receiptSnapshotSha256:journey.receiptSnapshotSha256,receiptSources:sourcesAfter.batch.snapshot.sources,employeeCount:1,populationCount:nativeBankFixtureCounts(journey).targetPopulation,populationComplete:false,conceptCount:6,moneyCount:5,auxiliaryCount:1,sixTotals:bankTail.sixTotals,configurationProposalId:proposed.proposalId,configurationApprovalId:approved.eventId,configurationVersion:configuration.configuration.version,imputationProposalId:ip.proposalId,imputationApprovalId:ia.eventId,allocationSha256:imputation.allocationSha256,journalProposalId:jp.proposalId,journalEventId:posted.eventId,journalSha256:journal.journalSha256,journalNumber:journal.number,journalEntryCount:10,postingDate,commands,ledger,expectedFiles,ui,installations,finalFunctionBookend,sourceConservation:'native-accounting-tail-source-conservation.json',authenticationFixture:true,commandsHttp:true,commandsUi:false,readExportUi:true,syntheticDestinationsOnly:true,additionalHire:false,additionalCalculation:false,additionalClose:false,...(journey.monthlyFixed?{originalBaselinePreserved:true,originalBaselineEmployeeCount:journey.monthlyFixed.baseline.eligibleContractIds.length}:{original29Preserved:true}),bankPreserved:true,accountingPosted:true,paymentExecuted:false,productionWrites:false,municipalAcceptance:false};
   write('native-accounting-tail-proof.json',proof);ok(true,'same additional native employee preserves both receipt sources and bank while explicit synthetic associations, complete imputation and balanced journal traverse actual HTTP and read/export UI');return proof;
  }catch(error){try{write('native-accounting-tail-failure.json',{phase,message:error.message,status:'failed',native:AT_failureNative(error),contractId:journey.contractId,closeGroupId:journey.closeGroupId,receiptBatchId:journey.receiptBatchId,commands,paymentExecuted:false,municipalAcceptance:false});}finally{throw error;}}finally{setCurrent(previous);}
 }
