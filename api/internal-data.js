@@ -3106,7 +3106,7 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, departmentRead = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
@@ -3151,7 +3151,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
                NULLIF(btrim(contract.source_payload #>> '{employment,sectorName}'), ''),
                employee.sector,
                latest_assignment.area_name
-             ) AS sector,
+             ) AS sector,${departmentRead ? '\n             contract.sector_source_id AS "departmentCode",\n             NULLIF(btrim(contract.source_payload #>> \'{employment,sectorName}\'), \'\') AS "departmentName",' : ''}
              COALESCE(
                NULLIF(btrim(contract.source_payload #>> '{employment,categoryName}'), ''),
                employee.categoria,
@@ -3229,6 +3229,11 @@ export async function employees(sql, req, binding = null, options = {}) {
   const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
   const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
   const search = boundedQueryValue(req, 'search', 100);
+  const departmentRead = Object.hasOwn(req.query || {}, 'department');
+  const department = departmentRead ? req.query.department : '';
+  if (departmentRead && (typeof department !== 'string' || department !== department.trim() || department.length > 160 || /[\u0000-\u001f\u007f]/.test(department))) {
+    return { status:400, payload:{ok:false,code:'DIRECTORY_DEPARTMENT_INVALID',error:'Elegí una repartición válida del listado.'} };
+  }
   const sector = boundedQueryValue(req, 'sector');
   const organization = boundedQueryValue(req, 'organization');
   const agreement = boundedQueryValue(req, 'agreement');
@@ -3266,6 +3271,7 @@ export async function employees(sql, req, binding = null, options = {}) {
       ${tokenNameMatch}
     )`);
   }
+  if (department) conditions.push(`directory."departmentCode" = ${parameter(department)}`);
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
   if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
   if (agreement) conditions.push(`COALESCE(directory.convenio, 'Sin convenio informado') = ${parameter(agreement)}`);
@@ -3279,7 +3285,7 @@ export async function employees(sql, req, binding = null, options = {}) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead)));
+  const baseSql = options.nativeOnly?nativeDirectorySql({departmentRead}):operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),departmentRead));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3310,12 +3316,17 @@ export async function employees(sql, req, binding = null, options = {}) {
     ), directory_facets AS (
       SELECT ${facet('sector', 'Sin sector informado')} AS sectors,
              ${facet('organizacion', 'Sin organización informada')} AS organizations,
-             ${facet('convenio', 'Sin convenio informado')} AS agreements
+             ${facet('convenio', 'Sin convenio informado')} AS agreements${departmentRead ? `,
+             (SELECT coalesce(jsonb_agg(item ORDER BY value COLLATE "C"), '[]'::jsonb)
+               FROM (SELECT "departmentCode" AS value,
+                 CASE WHEN count(DISTINCT "departmentName")=1 THEN min("departmentName") END AS label,
+                 count(*)::integer AS count FROM directory
+                 WHERE "departmentCode" IS NOT NULL AND "departmentCode"<>'' GROUP BY "departmentCode") item) AS departments` : ''}
     )
     SELECT directory_count.total AS "__total", to_jsonb(directory_scope) AS "__scope",
            directory_scope."sourceCutoffFrom" AS "__sourceCutoffFrom",
            directory_scope."sourceCutoffTo" AS "__sourceCutoffTo",
-           directory_facets.sectors AS "__sectors", directory_facets.organizations AS "__organizations",
+           directory_facets.sectors AS "__sectors",${departmentRead ? ' directory_facets.departments AS "__departments",' : ''} directory_facets.organizations AS "__organizations",
            directory_facets.agreements AS "__agreements", directory_page.*
     FROM directory_count CROSS JOIN directory_scope CROSS JOIN directory_facets
     LEFT JOIN directory_page ON true
@@ -3326,12 +3337,16 @@ export async function employees(sql, req, binding = null, options = {}) {
       || !Array.isArray(metadata.__organizations) || !Array.isArray(metadata.__agreements)) {
     throw Object.assign(new Error('DIRECTORY_RESULT_INVALID'), { code: 'DIRECTORY_RESULT_INVALID' });
   }
+  const departments = departmentRead ? metadata.__departments : null;
+  if (departmentRead && (!Array.isArray(departments) || departments.some(item => !item || typeof item.value !== 'string' || !item.value || item.value !== item.value.trim() || item.value.length > 160 || /[\u0000-\u001f\u007f]/.test(item.value) || !(item.label === null || typeof item.label === 'string') || !Number.isSafeInteger(item.count) || item.count < 1) || new Set(departments.map(item => item.value)).size !== departments.length)) {
+    throw Object.assign(new Error('DIRECTORY_DEPARTMENTS_INVALID'), {code:'DIRECTORY_DEPARTMENTS_INVALID'});
+  }
   const scope = { ...metadata.__scope, sourceCutoffFrom: metadata.__sourceCutoffFrom,
     sourceCutoffTo: metadata.__sourceCutoffTo };
   const { __sectors: sectors, __organizations: organizations, __agreements: agreements } = metadata;
   const data = rows.filter((row) => row.contractId !== null).map(({
     __total, __scope, __sourceCutoffFrom, __sourceCutoffTo,
-    __sectors, __organizations, __agreements, __pageOrder, ...row
+    __sectors, __organizations, __agreements, __departments, __pageOrder, ...row
   }) => row);
   const total = Number(metadata.__total || 0);
   if (picker) {
@@ -3364,7 +3379,7 @@ export async function employees(sql, req, binding = null, options = {}) {
         ambiguous: Number(scope?.ambiguous || 0),
         unmatched: Number(scope?.unmatched || 0)
       },
-      facets: { sectors, organizations, agreements }
+      facets: { sectors, organizations, agreements, ...(departmentRead ? {departments} : {}) }
     }
   };
 }

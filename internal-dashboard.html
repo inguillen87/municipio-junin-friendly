@@ -1387,6 +1387,12 @@
                 <input class="input" id="employeeSearch" name="search" type="search" autocomplete="off" placeholder="Ej.: apellido, 1042 o documento">
               </div>
               <div class="field">
+                <label for="departmentFilter">Repartición</label>
+                <select class="select" id="departmentFilter" name="department">
+                  <option value="">Todas las reparticiones</option>
+                </select>
+              </div>
+              <div class="field">
                 <label for="sectorFilter">Sector</label>
                 <select class="select" id="sectorFilter" name="sector">
                   <option value="">Todos los sectores</option>
@@ -1629,9 +1635,10 @@
         payrollController: null,
         payrollSummaryControllers: new Set(),
         payrollActionDescriptionSequence: 0,
-        filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
+        filters: { search: '', department: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
+        departments: new Map(),
         sectors: new Set(),
         organizations: new Set(),
         agreements: new Set()
@@ -1667,6 +1674,7 @@
         reconciliationNotice: document.getElementById('reconciliationNotice'),
         employeeFilters: document.getElementById('employeeFilters'),
         employeeSearch: document.getElementById('employeeSearch'),
+        departmentFilter: document.getElementById('departmentFilter'),
         sectorFilter: document.getElementById('sectorFilter'),
         organizationFilter: document.getElementById('organizationFilter'),
         agreementFilter: document.getElementById('agreementFilter'),
@@ -2474,6 +2482,22 @@
         if (Array.from(select.options).some(function (option) { return option.value === selected; })) select.value = selected;
       }
 
+      function refreshDepartmentOptions() {
+        const selected = state.filters.department;
+        const fragment = document.createDocumentFragment();
+        const all = create('option', '', 'Todas las reparticiones'); all.value = ''; fragment.appendChild(all);
+        Array.from(state.departments).sort(function (a,b) { return a[0].localeCompare(b[0], 'es'); }).forEach(function (entry) {
+          const option = create('option', '', entry[0] + (entry[1] ? ' · ' + entry[1] : ' · Sin denominación informada'));
+          option.value = entry[0]; fragment.appendChild(option);
+        });
+        if (selected && !state.departments.has(selected)) {
+          const missing = create('option', '', selected + ' · Ya no figura en el padrón consultado');
+          missing.value = selected; fragment.appendChild(missing);
+        }
+        els.departmentFilter.replaceChildren(fragment);
+        if (Array.from(els.departmentFilter.options).some(function (option) { return option.value === selected; })) els.departmentFilter.value = selected;
+      }
+
       function collectDirectoryFacets(facets) {
         if (!facets || typeof facets !== 'object') return;
         const add = function (rows, target) {
@@ -2483,6 +2507,11 @@
             if (value) target.add(value);
           });
         };
+        if (Array.isArray(facets.departments)) {
+          state.departments.clear();
+          facets.departments.forEach(function (item) { if (item && typeof item.value === 'string' && item.value) state.departments.set(item.value, item.label); });
+          refreshDepartmentOptions();
+        }
         add(facets.sectors, state.sectors);
         add(facets.organizations, state.organizations);
         add(facets.agreements, state.agreements);
@@ -2521,6 +2550,7 @@
         const params = new URLSearchParams();
         params.set('resource', 'employees');
         params.set('search', state.filters.search);
+        params.set('department', state.filters.department);
         params.set('sector', state.filters.sector);
         params.set('organization', state.filters.organization);
         params.set('agreement', state.filters.agreement);
@@ -2744,6 +2774,7 @@
 
       function applyFilters() {
         state.filters.search = els.employeeSearch.value.trim();
+        state.filters.department = els.departmentFilter.value;
         state.filters.sector = els.sectorFilter.value;
         state.filters.organization = els.organizationFilter.value;
         state.filters.agreement = els.agreementFilter.value;
@@ -4059,6 +4090,7 @@
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(applyFilters, 380);
       });
+      els.departmentFilter.addEventListener('change', applyFilters);
       els.sectorFilter.addEventListener('change', applyFilters);
       els.organizationFilter.addEventListener('change', applyFilters);
       els.agreementFilter.addEventListener('change', applyFilters);
@@ -4067,6 +4099,7 @@
       els.clearFilters.addEventListener('click', function () {
         window.clearTimeout(searchTimer);
         els.employeeSearch.value = '';
+        els.departmentFilter.value = '';
         els.sectorFilter.value = '';
         els.organizationFilter.value = '';
         els.agreementFilter.value = '';
