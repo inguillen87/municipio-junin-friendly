@@ -13,10 +13,34 @@ const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8').replace(/
 let cached;
 const context=()=>cached??=(()=>{const qa=buildNoeliaCircuitQa(18,{jurisdictions:true}),batch=buildPositionPopulationInstallation({read,sourceCommit}),plan=composeNoeliaPosition210Sources({read,sourceCommit,qa});return{qa,batch,plan};})();
 
+// Decode the one ordinary PostgreSQL string literal following EXECUTE.
+// Standard-conforming strings retain backslashes; doubled apostrophes decode
+// once. This is a literal parser, not an evaluator or SQL execution.
+function nestedOwnCheck(mode){
+ const anchor='\n  EXECUTE ';assert.equal(mode.split(anchor).length,2);
+ const start=mode.indexOf(anchor)+anchor.length;assert.equal(mode[start],"'");
+ let sql='',index=start+1;
+ for(;index<mode.length;index++){
+  const c=mode[index];
+  if(c!=="'"){sql+=c;continue;}
+  if(mode[index+1]==="'"){sql+="'";index++;continue;}
+  break;
+ }
+ assert.ok(index<mode.length);assert.ok(mode.slice(index+1).startsWith(';PERFORM set_config('));
+ return{sql,literal:mode.slice(start,index+1)};
+}
+function invertNestedMode(text,batch,qa){
+ if(!text.startsWith('DO $mode$'))return text;
+ const actual=nestedOwnCheck(text),former=qa.normalized(batch.mode),old=nestedOwnCheck(former),expected=qa.normalized(pinsCheck(batch.ownPins,'POSITION_POPULATION_NEW_FUNCTION_CHANGED'));
+ assert.equal(actual.sql,expected,'nested metadata has the same full pins/ACL/body check as the outer statement');
+ assert.equal(text.split(actual.literal).length,2);assert.equal(text.replace(actual.literal,()=>old.literal),former,'only the one nested SQL literal may differ');
+ return former;
+}
+
 test('the whole unchanged source210 producer follows the exact five adapted and27 dependency pins',()=>{
  const {qa,batch,plan}=context(),phase=noeliaPosition210PhaseStatements(plan,'after-position-v1-outputs');
  assert.equal(plan.source210Sha256,SQL210_SHA);assert.equal(batch.prerequisitePins.length,32);assert.equal(batch.previousPins.length,5);assert.equal(batch.ownPins.length,2);assert.equal(batch.migration.length,5);
- assert.deepEqual(phase.installation,batch.installation.map(qa.normalized));assert.deepEqual(phase.verification,batch.durableVerification.map(qa.normalized));
+ assert.deepEqual(phase.installation.map(text=>invertNestedMode(text,batch,qa)),batch.installation.map(qa.normalized));assert.deepEqual(phase.verification.map(text=>invertNestedMode(text,batch,qa)),batch.durableVerification.map(qa.normalized));
  assert.equal(phase.verification[0],'SET TRANSACTION READ ONLY');assert.equal(plan.newFunctions,2);assert.equal(plan.newTables,0);assert.equal(plan.priorFunctionsReplaced,0);assert.equal(plan.productionAuthority,false);
  assert.equal(plan.sourceHashes['scripts/migrations/210-own-position-population-proof.sql'],SQL210_SHA);
  const defs=batch.migration.filter(s=>s.startsWith('CREATE FUNCTION '));assert.equal(defs.length,2);assert.ok(defs.every(s=>!/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|GRANT|REVOKE|EXECUTE)\b/i.test(s)));
@@ -78,10 +102,10 @@ test('inactive mode projects exactly one canonical source successor in both32-pi
  const overlaps=batch.prerequisitePins.flatMap((p,index)=>inactive.beforePins.flatMap((before,n)=>p.signature===before.signature?[{p,index,before,after:inactive.afterPins[n]}]:[]));assert.equal(overlaps.length,1);const [{p,index,before,after}]=overlaps;assert.deepEqual(p,before);assert.deepEqual({...before,sha256:null},{...after,sha256:null});assert.equal(p.signature,plan.predecessorSuccession.signature);assert.equal(after.sha256,plan.predecessorSuccession.afterSha256);
  const changed=batch.prerequisitePins.map((pin,n)=>n===index?after:pin),prior=qa.normalized(pinsCheck(batch.prerequisitePins,'POSITION_POPULATION_PREDECESSOR_CHANGED')),next=qa.normalized(pinsCheck(changed,'POSITION_POPULATION_PREDECESSOR_CHANGED'));
  assert.ok(prior.includes('83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa'));assert.ok(next.includes('47aa5dda0e474a3efa9279d526d86855d670dce0f0c47097cd6d97e7e4e32672'));assert.ok(!next.includes(before.sha256),'active mode refuses the former body instead of accepting old-or-new');
- for(const[field,original]of [['installation',batch.installation],['verification',batch.durableVerification]]){const projected=phase[field];assert.equal(projected.filter(s=>s.includes(next)).length,2);assert.ok(projected.every(s=>!s.includes(prior)));assert.deepEqual(projected.map(s=>s.includes(next)?s.replace(next,()=>prior):s),original.map(qa.normalized));}
+ for(const[field,original]of [['installation',batch.installation],['verification',batch.durableVerification]]){const projected=phase[field];assert.equal(projected.filter(s=>s.includes(next)).length,2);assert.ok(projected.every(s=>!s.includes(prior)));assert.deepEqual(projected.map(s=>s.includes(next)?s.replace(next,()=>prior):s).map(text=>invertNestedMode(text,batch,qa)),original.map(qa.normalized));}
  assert.deepEqual(phase.installation.filter(s=>s.startsWith('DO $apply$')),batch.installation.map(qa.normalized).filter(s=>s.startsWith('DO $apply$')),'whole210 migration and literal ACL are unchanged');
  assert.deepEqual(plan.predecessorSuccession.sourceHashes,inactive.sourceHashes);assert.equal(plan.predecessorSuccession.wholePhaseInverseVerified,true);
- const defaultPlan=composeNoeliaPosition210Sources({read,sourceCommit,qa}),defaultPhase=noeliaPosition210PhaseStatements(defaultPlan,'after-position-v1-outputs');assert.equal(defaultPlan.inactiveJurisdiction,false);assert.equal(defaultPlan.predecessorSuccession,null);assert.deepEqual(defaultPhase.installation,batch.installation.map(qa.normalized));assert.deepEqual(defaultPhase.verification,batch.durableVerification.map(qa.normalized));
+ const defaultPlan=composeNoeliaPosition210Sources({read,sourceCommit,qa}),defaultPhase=noeliaPosition210PhaseStatements(defaultPlan,'after-position-v1-outputs');assert.equal(defaultPlan.inactiveJurisdiction,false);assert.equal(defaultPlan.predecessorSuccession,null);assert.deepEqual(defaultPhase.installation.map(text=>invertNestedMode(text,batch,qa)),batch.installation.map(qa.normalized));assert.deepEqual(defaultPhase.verification.map(text=>invertNestedMode(text,batch,qa)),batch.durableVerification.map(qa.normalized));
 });
 test('inactive successor authority and explicit mode cannot be supplied by foreign source bytes or metadata',()=>{
  const {qa}=context(),authority='scripts/lib/adoption-inactive-jurisdiction-installation.mjs';
@@ -92,4 +116,37 @@ test('inactive successor authority and explicit mode cannot be supplied by forei
 
 test('R2 runner changes only one explicit derived mode argument after the same historical boundary',()=>{
  const s=read('scripts/verify-noelia-payroll-circuit.mjs'),from="sourceCommit,qa,inactiveJurisdiction:jurisdictions}),populationPhase=",to="sourceCommit,qa}),populationPhase=";assert.equal(s.split(from).length,2);assert.equal(hash(s.replace(from,()=>to)),"ced438ae35a90d9b1a91a2e7e68a71761aea94e6b1ec739d0b303196209253dd");assert.ok(s.indexOf(from)>s.indexOf('positionResult=await positionQa.outputs();'));
+});
+
+
+test('the repeat branch hashes the same source body as the outer check at one SQL quote depth',()=>{
+ const {qa,batch,plan}=context(),phase=noeliaPosition210PhaseStatements(plan,'after-position-v1-outputs'),sourceOwn=pinsCheck(batch.ownPins,'POSITION_POPULATION_NEW_FUNCTION_CHANGED'),direct=qa.normalized(sourceOwn),old=nestedOwnCheck(qa.normalized(batch.mode)).sql;
+ assert.notEqual(old,direct,'the prior normalization reproduces the native repeat-branch mismatch');
+ const raw="replace(p.prosrc,E'\\r\\n',E'\\n')",reversed="replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(qa.schema+'.')+",'public'||'.')";
+ assert.equal(old.split(raw).length,2);assert.equal(direct.split(reversed).length,2);assert.equal(old.replace(raw,()=>reversed),direct,'the only causal difference is source-schema reversal before digest');
+ const body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?\s*$/.exec(d);assert.ok(m);return m[2];};
+ for(const definition of batch.migration.filter(s=>s.startsWith('CREATE FUNCTION '))){
+  const originalBody=body(definition),localBody=body(qa.normalized(definition)),pin=batch.ownPins.find(p=>definition.startsWith('CREATE FUNCTION public.'+p.name+'('));
+  assert.equal(hash(originalBody),pin.sha256);assert.notEqual(hash(localBody),pin.sha256,'a raw local hash must reject the source digest');
+  assert.equal(hash(localBody.replaceAll(qa.schema+'.','public.')),pin.sha256,'the exact source body is recovered without changing the expected digest');
+ }
+ const originalHashes=structuredClone(qa.hashes??{}),originalBatch=JSON.stringify(batch);
+ for(const rows of [phase.installation,phase.verification]){
+  const mode=rows.find(s=>s.startsWith('DO $mode$'));assert.equal(nestedOwnCheck(mode).sql,direct);
+  const metadata=rows.find(s=>s.includes('POSITION_POPULATION_NEW_FUNCTION_CHANGED')&&!s.startsWith('DO $mode$'));
+  assert.ok(metadata.includes(direct));
+  assert.equal(invertNestedMode(mode,batch,qa),qa.normalized(batch.mode));
+ }
+ assert.equal(JSON.stringify(batch),originalBatch);assert.deepEqual(qa.hashes??{},originalHashes);
+});
+
+test('quoted own-check normalization rejects missing, duplicated or altered nested anchors',()=>{
+ const {qa,batch}=context(),own=pinsCheck(batch.ownPins,'POSITION_POPULATION_NEW_FUNCTION_CHANGED'),quoted=q(own);
+ // Source producer guards still reject changed source210. Normalizer drift is
+ // rejected before phase statements can be returned, never repaired by a pin.
+ for(const normalized of [s=>qa.normalized(s).replace('__NOELIA_POSITION210_QUOTED_OWN_CHECK__','removed'),s=>qa.normalized(s).replace('__NOELIA_POSITION210_QUOTED_OWN_CHECK__','__NOELIA_POSITION210_QUOTED_OWN_CHECK____NOELIA_POSITION210_QUOTED_OWN_CHECK__')]){
+  assert.throws(()=>composeNoeliaPosition210Sources({read,sourceCommit,qa:{...qa,normalized}}),/MODE_MARKER_CHANGED/);
+ }
+ assert.equal(batch.mode.split(quoted).length,2);assert.equal(nestedOwnCheck(batch.mode).sql,own);
+ for(const text of ["DO $mode$ BEGIN EXECUTE 'unterminated",qa.normalized(batch.mode).replace('\n  EXECUTE ','\n  NOT_EXECUTE ')])assert.throws(()=>nestedOwnCheck(text));
 });

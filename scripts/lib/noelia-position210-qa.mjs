@@ -41,13 +41,38 @@ function inactivePredecessor(batch,{read,sourceCommit}){
  return{batch:projected,evidence};
 }
 
+// The producer quotes ownCheck inside mode. Normalize its SQL at its own
+// quote depth, then quote once; the outer metadata check uses the same text.
+// This changes no expected digest and does not mutate the producer or qa.hashes.
+function normalizePosition210Phases(batch,qa){
+ const ownCheck=pinsCheck(batch.ownPins,'POSITION_POPULATION_NEW_FUNCTION_CHANGED'),quoted=q(ownCheck);
+ assert.equal(batch.mode.split(quoted).length,2,'NOELIA_POSITION210_EXACT_NESTED_OWN_CHECK');
+ const marker='__NOELIA_POSITION210_QUOTED_OWN_CHECK__';
+ assert.ok(!batch.mode.includes(marker)&&!ownCheck.includes(marker),'NOELIA_POSITION210_MODE_MARKER_CONFLICT');
+ const masked=batch.mode.replace(quoted,()=>marker),normalizedMasked=qa.normalized(masked);
+ assert.equal(normalizedMasked.split(marker).length,2,'NOELIA_POSITION210_MODE_MARKER_CHANGED');
+ const formerQuoted=qa.normalized(quoted),formerMode=qa.normalized(batch.mode),normalizedOwnCheck=qa.normalized(ownCheck),normalizedQuoted=q(normalizedOwnCheck);
+ assert.equal(formerMode.split(formerQuoted).length,2,'NOELIA_POSITION210_FORMER_NESTED_OWN_CHECK');
+ assert.equal(formerMode.replace(formerQuoted,()=>marker),normalizedMasked,'NOELIA_POSITION210_OUTER_MODE_CHANGED');
+ const mode=normalizedMasked.replace(marker,()=>normalizedQuoted);
+ assert.equal(mode.split(normalizedQuoted).length,2,'NOELIA_POSITION210_NORMALIZED_NESTED_OWN_CHECK');
+ assert.equal(mode.replace(normalizedQuoted,()=>formerQuoted),formerMode,'NOELIA_POSITION210_MODE_WHOLE_INVERSE');
+ const project=rows=>{
+  assert.equal(rows.filter(text=>text===batch.mode).length,1,'NOELIA_POSITION210_ONE_MODE_PER_PHASE');
+  const next=rows.map(text=>text===batch.mode?mode:qa.normalized(text));
+  assert.deepEqual(next.map(text=>text===mode?formerMode:text),rows.map(qa.normalized),'NOELIA_POSITION210_PHASE_WHOLE_INVERSE');
+  return Object.freeze(next);
+ };
+ return{installation:project(batch.installation),verification:project(batch.durableVerification)};
+}
+
 export function composeNoeliaPosition210Sources({read,sourceCommit,qa,inactiveJurisdiction=false}){
  assert.equal(typeof inactiveJurisdiction,'boolean','NOELIA_POSITION210_INACTIVE_MODE_REQUIRED');
  assert.equal(typeof read,'function');assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.match(qa?.schema??'',/^mc_qa_fixed_092_[a-f0-9]{32}$/,'NOELIA_POSITION210_SCHEMA');assert.equal(typeof qa.normalized,'function','NOELIA_POSITION210_NORMALIZER');
  const files=new Map(),load=file=>{const text=read(file).replace(/\r\n?/g,'\n');if(files.has(file))assert.equal(files.get(file),text,'NOELIA_POSITION210_SOURCE_CHANGED');files.set(file,text);return text;};
  const originalBatch=buildPositionPopulationInstallation({read:load,sourceCommit}),successor=inactiveJurisdiction?inactivePredecessor(originalBatch,{read:load,sourceCommit}):null,batch=successor?successor.batch:originalBatch;
  assert.equal(batch.prerequisitePins.length,32);assert.equal(batch.previousPins.length,5);assert.equal(batch.ownPins.length,2);assert.equal(batch.sourceHashes['210-own-position-population-proof.sql'],SQL210_SHA);
- const installation=Object.freeze(batch.installation.map(qa.normalized)),verification=Object.freeze(batch.durableVerification.map(qa.normalized));
+ const {installation,verification}=normalizePosition210Phases(batch,qa);
  assert.equal(verification[0],'SET TRANSACTION READ ONLY');
  const sourceHashes=Object.freeze(Object.fromEntries([...files].map(([file,text])=>[file,createHash('sha256').update(text).digest('hex')])));
  const plan=Object.freeze({version:'noelia-position210-qa.v1',schema:qa.schema,sourceCommit,sourceHashes,inactiveJurisdiction,predecessorSuccession:successor?.evidence??null,source210Sha256:SQL210_SHA,newFunctions:2,newTables:0,priorFunctionsReplaced:0,businessWrites:0,productionAuthority:false});
