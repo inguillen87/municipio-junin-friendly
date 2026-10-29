@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildNoeliaCircuitQa} from '../scripts/lib/noelia-payroll-circuit-qa.mjs';
 import {buildPositionPopulationInstallation,SQL210_SHA} from '../scripts/lib/position-population-installation.mjs';
+import {buildInactiveJurisdictionInstallation} from '../scripts/lib/adoption-inactive-jurisdiction-installation.mjs';
+import {pinsCheck} from '../scripts/lib/native-leave-installation.mjs';
 import {composeNoeliaPosition210Sources,noeliaPosition210PhaseStatements,assertNoeliaPosition210Durability,noeliaPosition210Statement,NOELIA_POSITION210_SQL} from '../scripts/lib/noelia-position210-qa.mjs';
 import {isPositionComparisonDetailV2Read} from '../scripts/lib/position-comparison-ui-qa.mjs';
 const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8').replace(/\r\n?/g,'\n'),hash=s=>createHash('sha256').update(s).digest('hex'),sourceCommit='a'.repeat(40),q=v=>"'"+String(v).replaceAll("'","''")+"'";
@@ -62,9 +64,32 @@ test('durability still validates exact real producer proofs; proof-shaped inputs
 });
 
 test('whole runner inverse preserves every previous historical check and the58-row original benchmark',()=>{
- let s=read('scripts/verify-noelia-payroll-circuit.mjs');const once=(a,b)=>{assert.equal(s.split(a).length,2);s=s.replace(a,()=>b);};
+ let s=read('scripts/verify-noelia-payroll-circuit.mjs');const once=(a,b)=>{assert.equal(s.split(a).length,2);s=s.replace(a,()=>b);};once("sourceCommit,qa,inactiveJurisdiction:jurisdictions}),populationPhase=","sourceCommit,qa}),populationPhase=");
  const addition="import {composeNoeliaPosition210Sources,noeliaPosition210PhaseStatements,assertNoeliaPosition210Durability} from './lib/noelia-position210-qa.mjs';\n",stage="const population210=composeNoeliaPosition210Sources({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit,qa}),populationPhase=noeliaPosition210PhaseStatements(population210,'after-position-v1-outputs'),beforePopulation=proof();run(tx([...populationPhase.installation,\"DO $$ BEGIN RAISE EXCEPTION 'QA_POSITION210_FAULT';END $$\"]),'QA_POSITION210_FAULT');assert.deepEqual(proof(),beforePopulation);ok(true,'whole source210 rehearsal preserves every prior position, payroll row and security object');const installedPopulation=JSON.parse(run(tx(populationPhase.installation))),durablePopulation=JSON.parse(run(tx(populationPhase.verification))),repeatedPopulation=JSON.parse(run(tx(populationPhase.installation)));positionResult.population210=assertNoeliaPosition210Durability({plan:population210,installed:installedPopulation,durable:durablePopulation,repeated:repeatedPopulation});fs.writeFileSync(path.join(destination,'position210-durable-proof.json'),JSON.stringify({sourceHashes:population210.sourceHashes,installed:installedPopulation,durable:durablePopulation,repeated:repeatedPopulation},null,2),{flag:'wx'});ok(true,'whole source210 adds only two durable readers after the unchanged v1 comparison and58-row benchmark');";
  assert.ok(s.indexOf('positionResult=await positionQa.outputs();')<s.indexOf(stage));assert.ok(s.indexOf(stage)<s.indexOf('const toggleClosed=',s.indexOf(stage)));assert.ok(s.indexOf(stage)<s.indexOf('positionResult.ui=await verifyComparisonUi'));
  for(const old of ['completeRows:58',"employeeNeedle:'A/3501'","expectedIdentifiers:['A/3501','0901','901']"])assert.ok(s.includes(old));
  once(addition,'');once(stage,'');assert.equal(hash(s),"33a1edf7b199b1f508ac20597b6f22ea74ef38188c1affef9fbf1ec9e2c25aad");
+});
+
+
+test('inactive mode projects exactly one canonical source successor in both32-pin checks, with whole-phase inverses',()=>{
+ const {qa,batch}=context(),inactive=buildInactiveJurisdictionInstallation({read,sourceCommit}),plan=composeNoeliaPosition210Sources({read,sourceCommit,qa,inactiveJurisdiction:true}),phase=noeliaPosition210PhaseStatements(plan,'after-position-v1-outputs');
+ assert.equal(plan.inactiveJurisdiction,true);assert.equal(plan.predecessorSuccession.unchangedOtherPins,31);assert.deepEqual(plan.predecessorSuccession.changedFields,['sha256']);assert.equal(plan.predecessorSuccession.runtime,false);
+ const overlaps=batch.prerequisitePins.flatMap((p,index)=>inactive.beforePins.flatMap((before,n)=>p.signature===before.signature?[{p,index,before,after:inactive.afterPins[n]}]:[]));assert.equal(overlaps.length,1);const [{p,index,before,after}]=overlaps;assert.deepEqual(p,before);assert.deepEqual({...before,sha256:null},{...after,sha256:null});assert.equal(p.signature,plan.predecessorSuccession.signature);assert.equal(after.sha256,plan.predecessorSuccession.afterSha256);
+ const changed=batch.prerequisitePins.map((pin,n)=>n===index?after:pin),prior=qa.normalized(pinsCheck(batch.prerequisitePins,'POSITION_POPULATION_PREDECESSOR_CHANGED')),next=qa.normalized(pinsCheck(changed,'POSITION_POPULATION_PREDECESSOR_CHANGED'));
+ assert.ok(prior.includes('83b3f8944c437424ed97ba277094af4a68d4b14af197e9371223eedb40d5f4fa'));assert.ok(next.includes('47aa5dda0e474a3efa9279d526d86855d670dce0f0c47097cd6d97e7e4e32672'));assert.ok(!next.includes(before.sha256),'active mode refuses the former body instead of accepting old-or-new');
+ for(const[field,original]of [['installation',batch.installation],['verification',batch.durableVerification]]){const projected=phase[field];assert.equal(projected.filter(s=>s.includes(next)).length,2);assert.ok(projected.every(s=>!s.includes(prior)));assert.deepEqual(projected.map(s=>s.includes(next)?s.replace(next,()=>prior):s),original.map(qa.normalized));}
+ assert.deepEqual(phase.installation.filter(s=>s.startsWith('DO $apply$')),batch.installation.map(qa.normalized).filter(s=>s.startsWith('DO $apply$')),'whole210 migration and literal ACL are unchanged');
+ assert.deepEqual(plan.predecessorSuccession.sourceHashes,inactive.sourceHashes);assert.equal(plan.predecessorSuccession.wholePhaseInverseVerified,true);
+ const defaultPlan=composeNoeliaPosition210Sources({read,sourceCommit,qa}),defaultPhase=noeliaPosition210PhaseStatements(defaultPlan,'after-position-v1-outputs');assert.equal(defaultPlan.inactiveJurisdiction,false);assert.equal(defaultPlan.predecessorSuccession,null);assert.deepEqual(defaultPhase.installation,batch.installation.map(qa.normalized));assert.deepEqual(defaultPhase.verification,batch.durableVerification.map(qa.normalized));
+});
+test('inactive successor authority and explicit mode cannot be supplied by foreign source bytes or metadata',()=>{
+ const {qa}=context(),authority='scripts/lib/adoption-inactive-jurisdiction-installation.mjs';
+ for(const value of ['true',null,1,{},[]])assert.throws(()=>composeNoeliaPosition210Sources({read,sourceCommit,qa,inactiveJurisdiction:value}),/INACTIVE_MODE_REQUIRED/);
+ for(const changed of [s=>s+'\n',s=>s.replace('PAYROLL_FIXED_JURISDICTION_REQUIRED','OTHER_GUARD'),s=>s.replace('runtime:beforePins[i].runtime','runtime:true')])assert.throws(()=>composeNoeliaPosition210Sources({read:f=>f===authority?changed(read(f)):read(f),sourceCommit,qa,inactiveJurisdiction:true}),/INACTIVE_SOURCE_CHANGED/);
+ const untouched=read(authority);assert.ok(untouched.includes("IF c.jurisdiction_code IS NULL THEN RAISE EXCEPTION 'PAYROLL_FIXED_JURISDICTION_REQUIRED';END IF;"));
+});
+
+test('R2 runner changes only one explicit derived mode argument after the same historical boundary',()=>{
+ const s=read('scripts/verify-noelia-payroll-circuit.mjs'),from="sourceCommit,qa,inactiveJurisdiction:jurisdictions}),populationPhase=",to="sourceCommit,qa}),populationPhase=";assert.equal(s.split(from).length,2);assert.equal(hash(s.replace(from,()=>to)),"ced438ae35a90d9b1a91a2e7e68a71761aea94e6b1ec739d0b303196209253dd");assert.ok(s.indexOf(from)>s.indexOf('positionResult=await positionQa.outputs();'));
 });
