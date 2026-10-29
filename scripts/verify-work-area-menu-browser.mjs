@@ -116,7 +116,7 @@ try{
  assert.equal(await tasks.locator('[role=tab]:visible').count(),29,'read-only keeps all29 original page-gated tasks');
  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(['payroll.calculation.read']),platformCapabilities:new Set(),platformRoles:new Set()}})));assert.equal(await tasks.locator('[role=tab]:visible').count(),29,'calculation-read-only keeps all29 original page-gated tasks');
  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(),platformCapabilities:new Set(),platformRoles:new Set()}})));assert.equal(await tasks.locator('[role=tab]:visible').count(),0,'withdrawal hides every adopted task');
- await page.locator('#logoutButton').click();assert.equal(await page.locator('[data-liquidaciones-menu]').isHidden(),true);checks.push('vertical payroll menu follows capability refresh and logout');
+ await page.locator('#logoutButton').focus();await page.keyboard.press('Enter');assert.equal(await page.locator('[data-liquidaciones-menu]').isHidden(),true);checks.push('vertical payroll menu follows capability refresh and logout');
  caps=all;
  assert.deepEqual(errors,[]);assert.ok(calls.every(x=>x.method==='GET'));
  const result={ok:true,checksPassed:checks.length,checks,mode:published?'published-ui':'compiled-ui',syntheticApi:true,realMunicipalSessionTested:false,realApiWrites:0};
