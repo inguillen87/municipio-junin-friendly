@@ -2778,6 +2778,8 @@
         else els.employeeDialog.removeAttribute('open');
       }
 
+      function loadEmployeeFamilyPanel() { return import('./assets/family-schooling.js'); }
+
       async function openEmployee(contractId, legajo, companyId, fallbackName, destination = {}) {
         if (!text(contractId) && !text(legajo)) return;
         document.dispatchEvent(new Event('mc:family-schooling-close'));
@@ -2804,6 +2806,25 @@
           if (text(companyId)) params.set('companyId', companyId);
         }
         try {
+          if (destination.section === 'family' && text(contractId)) {
+            // Imported contract UUIDs preserve all PostgreSQL UUID bits. The
+            // unchanged family facade verifies contract, tenant and source.
+            if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(text(contractId))) throw new Error('La referencia del legajo no es válida. Volvé a seleccionarlo.');
+            const module = await loadEmployeeFamilyPanel();
+            if (controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
+            if (!state.tenantCapabilities.has('workforce.employee.read')) throw new Error('Tu cuenta ya no permite consultar este legajo.');
+            const section = create('section', 'detail-section');
+            section.setAttribute('data-employee-family-section', '');
+            const title = create('h3', '', 'Hijos y certificados'); title.id = 'employeeFamilyTitle'; title.tabIndex = -1;
+            const host = create('div'); host.setAttribute('data-family-schooling-ficha', '');
+            section.append(title, host); els.dialogBody.replaceChildren(section);
+            els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · hijos y certificados';
+            module.mountFamilyCertificates(host, {
+              contractId: text(contractId).toLowerCase(), canPropose: state.tenantCapabilities.has('employee.record.propose'),
+              focusFamilyRef: destination.familyRef ?? (destination.familyId !== null && destination.familyId !== undefined ? {kind:'grh',id:destination.familyId} : null)
+            });
+            return;
+          }
           const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
           const detail = normalizeEmployeeDetail(payload);
           let sourceSeniority = null;

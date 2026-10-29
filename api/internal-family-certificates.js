@@ -1,3 +1,4 @@
+import {createInternalReadTiming} from '../lib/internal-read-phase-timing.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
@@ -100,10 +101,13 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
   const sqlFn = dependencies.getInternalSql ?? getActionCenterSql;
   return async function internalFamilyCertificates(req, res) {
     headers(res);
+    let timing = null;
+    const timed = (phase, work) => timing ? timing.measure(phase, work) : work();
     try {
       const method = req.method ?? 'GET';
       if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, POST'); schoolCertificateFail('METHOD_NOT_ALLOWED'); }
       const q = query(req, method);
+      if (method === 'GET' && (q.resource === 'family' || q.resource === 'report')) timing = createInternalReadTiming({route:'internal-family-certificates:'+q.resource, emit:dependencies.reportReadTiming, clock:dependencies.readTimingClock});
       const version = q.version === '5' ? 5 : q.version === '4' ? 4 : q.version === '3' ? 3 : q.version === '2' ? 2 : 1;
       if (method === 'POST') {
         assertOrigin(req, env);
@@ -111,7 +115,7 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
         checkLength(req);
       }
       const requiredCapabilities = [SCHOOL_CERTIFICATE_READ_CAPABILITY, ...(method === 'POST' || q.resource === 'attempt' ? [SCHOOL_CERTIFICATE_WRITE_CAPABILITY] : [])];
-      const access = await accessFn(req, res, { env, requiredCapabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
+      const access = await timed('access', () => accessFn(req, res, { env, requiredCapabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false }));
       if (!access) return undefined;
       if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership'
           || !schoolCertificateUuid(access.principal.tenant.id) || !schoolCertificateUuid(access.principal.tenant.membershipId)) schoolCertificateFail('TENANT_MEMBERSHIP_REQUIRED');
@@ -127,7 +131,7 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
         if (data.duplicate) res.setHeader('Idempotency-Replayed', 'true');
         return res.status(data.duplicate ? 200 : 201).json({ ok: true, data });
       }
-      const sql = await sqlFn(env);
+      const sql = await timed('runtime-client', () => sqlFn(env));
       if (q.resource === 'attempt') return res.status(200).json({ ok: true, data: await readSchoolCertificateAttempt(sql, access.principal, session, q.key) });
       if (q.resource === 'history') return res.status(200).json({ ok: true, data: await readSchoolCertificateHistory(sql, access.principal, session,
         { contractId: q.contractId, familyRef: { kind: q.familyKind, id: q.familyId }, identityToken: q.identityToken }) });
@@ -138,14 +142,14 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
         res.setHeader('Content-Length', String(result.bytes.length));
         return res.status(200).end(result.bytes);
       }
-      const data = await readSchoolCertificates(sql, access.principal, session, q.contractId ?? null, { version });
+      const data = await timed('family-read', () => readSchoolCertificates(sql, access.principal, session, q.contractId ?? null, { version }));
       data.canRegister = data.canRegister && capability(access.principal, SCHOOL_CERTIFICATE_WRITE_CAPABILITY);
       return res.status(200).json({ ok: true, data });
     } catch (error) {
       const safe = schoolCertificateSafeError(error);
       if (safe.code === 'SCHOOL_CERTIFICATE_SESSION_BUSY') res.setHeader('Retry-After', '1');
       return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message });
-    }
+    } finally { timing?.finish(); }
   };
 }
 export default createInternalFamilyCertificatesHandler();
