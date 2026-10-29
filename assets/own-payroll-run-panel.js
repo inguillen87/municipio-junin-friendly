@@ -29,6 +29,7 @@ const errors={
   OWN_RUN_SOURCE_IDENTITY_CHANGED:'Cambió la identidad de un registro del alcance. Revisá su vínculo y consultá este intento antes de otra captura.',
   OWN_RUN_SOURCE_UNUSED:'El programa aprobado no contempla todas las novedades capturadas. Revisá sus conceptos; no se omitieron novedades ni se completó el cálculo.',
   OWN_RUN_SOURCE_VALUE_MISSING:'Falta un valor requerido en las novedades capturadas. Revisá importe y unidades; un dato ausente no se tomó como cero.',
+  OWN_RUN_SOURCE_AMBIGUOUS:'Un concepto de fuente única tiene varias novedades en el período. Revisá las novedades repetidas desde Revisar incidencias de la captura y consultá este mismo intento; no se guardó ningún resultado.',
   OWN_RUN_SELECTION_INVALID:'No se pudo verificar todo el alcance. Revisá los legajos y su vigencia.',
   OWN_RUN_LIMIT:'El conjunto completo supera la capacidad. No se omitieron ni dividieron filas.',
   OWN_RUN_BUSY:'Otra operación está en curso. Consultá o reintentá este mismo cálculo.',

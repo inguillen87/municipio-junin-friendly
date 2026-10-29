@@ -246,6 +246,7 @@ try{
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
   const failedPacket=await qaCorrelatedPostJsonResponse({response:failedResponse,requests:failedRequests,observations:reviewObservations,origin,pathname:'/api/internal-own-payroll-run',capture:failed}),failedBody=failedPacket.body;
   check(failedResponse.status()===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  check((await rs('status').innerText()).trim()==='Un concepto de fuente única tiene varias novedades en el período. Revisá las novedades repetidas desde Revisar incidencias de la captura y consultá este mismo intento; no se guardó ningún resultado.'&&(await rs('status').getAttribute('data-state'))==='warning'&&!(await rs('result').isVisible()),'ambiguous unique source shows the institutional panel message without result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   check((await rs('source-summary').innerText()).includes('31 novedades')&&(await rs('source-summary').innerText()).includes('31 registros'),'source review inspects all 31 actual approved SQL novelties');

@@ -15,13 +15,23 @@ const engineRows={"assets/own-payroll-engine.js":{"beforeSha256":"0be7bac4ca657d
 export const ZERO_DIFFERENCE_NEW_SOURCE_PINS=Object.freeze({"assets/own-payroll-zero-difference.js":{"sha256":"b25f7e6016ea965df36df5e22f8984326ccaf89f242dbe4b4f5f61396d9c959c","bytes":22283},"lib/own-payroll-zero-difference.js":{"sha256":"a44eeda33f4e780d38e6c28db96cfb664ad3f6102d1ffc5b890b620042ec227b","bytes":749},"tests/own-payroll-zero-difference.test.js":{"sha256":"ea7b56667c47daafccc21917911a9651749f1091650f06510edd22344bd86161","bytes":21098},"tests/own-payroll-zero-difference-connection.test.js":{"sha256":"8438b998c587a10e8f00a0057a26115dc2faeac13c7811ce64fde101831e86a6","bytes":4878},"tests/own-payroll-zero-difference-panel.test.js":{"sha256":"6c254058d50c384f33fd4b1c69e15e9cef6636a85687e439e5e7c81b7f75d0df","bytes":16688},"tests/own-payroll-zero-difference-build.test.js":{"sha256":"a7db206e206e9c48635d7053c77ad8061f33b62e225dbab51da2e0aa23cfb8a8","bytes":9513},"scripts/lib/own-payroll-package-closure.mjs":{"sha256":"7e64ded26bc7d88541c751f3e26e87b7c7acc3af0f0724c30bb1ab28c71e7e07","bytes":5258}});
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const pinsOf=table=>Object.freeze(Object.fromEntries(Object.entries(table).map(([path,row])=>[path,Object.freeze({before:row.beforeSha256,after:row.afterSha256,beforeBytes:row.beforeBytes,afterBytes:row.afterBytes})])));
-export const ZERO_DIFFERENCE_SOURCE_PINS=pinsOf(rows);
+// Reviewed outer message-only succession; historical rows and their inverses remain intact.
+const ambiguousSourceMessage={"path":"assets/own-payroll-run-panel.js","beforeSha256":"e8f5cb9bcabb8ca6c9508c88305c570c7cf95768aa2b93e7736df5961face46a","afterSha256":"ec1c059277cf407a57e507eadea9fcb146998a161e4f32d764b7e04f39ef45e4","beforeBytes":62639,"afterBytes":62874,"afterOffset":3873,"afterBase64":"ICBPV05fUlVOX1NPVVJDRV9BTUJJR1VPVVM6J1VuIGNvbmNlcHRvIGRlIGZ1ZW50ZSDDum5pY2EgdGllbmUgdmFyaWFzIG5vdmVkYWRlcyBlbiBlbCBwZXLDrW9kby4gUmV2aXPDoSBsYXMgbm92ZWRhZGVzIHJlcGV0aWRhcyBkZXNkZSBSZXZpc2FyIGluY2lkZW5jaWFzIGRlIGxhIGNhcHR1cmEgeSBjb25zdWx0w6EgZXN0ZSBtaXNtbyBpbnRlbnRvOyBubyBzZSBndWFyZMOzIG5pbmfDum4gcmVzdWx0YWRvLicsCg=="};
+const currentRows={...rows,[ambiguousSourceMessage.path]:{...rows[ambiguousSourceMessage.path],afterSha256:ambiguousSourceMessage.afterSha256,afterBytes:ambiguousSourceMessage.afterBytes}};
+export const ZERO_DIFFERENCE_SOURCE_PINS=pinsOf(currentRows);
 export const ZERO_DIFFERENCE_ENGINE_SOURCE_PINS=pinsOf(engineRows);
 export const ZERO_DIFFERENCE_ENGINE_SUCCESSOR_ORDER=Object.freeze(["assets/own-payroll-engine.js", "scripts/lib/own-close-snapshot214-installation.mjs", "scripts/lib/own-close-snapshot215-installation.mjs", "scripts/lib/own-m7-native-test-fixture.mjs", "scripts/lib/own-m7-public-schema-batch.mjs", "scripts/lib/own-m7-public-successors213215.mjs", "scripts/lib/own-m5-m7-novelty-positive-profile.mjs", "scripts/lib/own-m7-native-test-connected-fixture.mjs", "scripts/lib/own-annul209-public-predecessor-registry.mjs", "scripts/lib/own-m7-public-annulment208-source.mjs", "scripts/lib/own-annulment-ledger-trigger-profile.mjs", "scripts/lib/own-m7-public-annulment208209.mjs", "scripts/lib/own-annulment-atomic-preservation.mjs", "scripts/lib/own-m7-annul208209-atomic-source.mjs", "tests/own-annulment-ledger-trigger-profile.test.js"]);
 export function projectZeroDifferenceRawSourceToParent(path,value){
  assert.equal(typeof path,'string');assert.ok(Buffer.isBuffer(value));
  if(!Object.hasOwn(rows,path))return value;
  const row=rows[path];let source=value;
+ if(path===ambiguousSourceMessage.path){
+  const next=ambiguousSourceMessage,span=Buffer.from(next.afterBase64,'base64');
+  assert.equal(source.length,next.afterBytes,'AMBIGUOUS_MESSAGE_CURRENT_BYTES');assert.equal(hash(source),next.afterSha256,'AMBIGUOUS_MESSAGE_CURRENT_SHA');
+  assert.deepEqual(source.subarray(next.afterOffset,next.afterOffset+span.length),span,'AMBIGUOUS_MESSAGE_EXACT_INSERTION');
+  source=Buffer.concat([source.subarray(0,next.afterOffset),source.subarray(next.afterOffset+span.length)]);
+  assert.equal(source.length,next.beforeBytes,'AMBIGUOUS_MESSAGE_PARENT_BYTES');assert.equal(hash(source),next.beforeSha256,'AMBIGUOUS_MESSAGE_PARENT_SHA');
+ }
  assert.equal(source.length,row.afterBytes,'ZERO_DIFFERENCE_CURRENT_RAW_BYTES');assert.equal(hash(source),row.afterSha256,'ZERO_DIFFERENCE_COMPLETE_CURRENT_RAW_SOURCE');
  for(const op of [...row.inverse].reverse()){
   const after=Buffer.from(op.afterBase64,'base64'),before=Buffer.from(op.beforeBase64,'base64');
