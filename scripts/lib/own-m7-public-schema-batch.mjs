@@ -112,8 +112,8 @@ const contractWords=literal=>[...literal.matchAll(/'([A-Za-z][A-Za-z0-9]*)'/g)].
 const OWN_M7_TAIL_ASSERT_SOURCE=Object.freeze({
  capacity201:['scripts/lib/own-full-capacity-190-public-installation.mjs','assertOwnFullCapacity190PublicProof','f220a79c990dc7f303fe52c49b3436af9c6b5924a5e1167810d8811127ee5378','capacity201'],
  bootstrap213:['scripts/lib/own-liquidation-bootstrap213-installation.mjs','assertOwnLiquidationBootstrap213Proof','a4fbd75427be61efa24eaa1b78f10897d8706ad1619850cc7e9b496c4e45c9f5','successor'],
- snapshot214:['scripts/lib/own-close-snapshot214-installation.mjs','assertOwnCloseSnapshot214Proof','720fc298b994cf69ea4d83fa35f4bcd8d772009cb9c186a4dc8511f2f1528fed','successor'],
- snapshot215:['scripts/lib/own-close-snapshot215-installation.mjs','assertOwnCloseSnapshot215Proof','8b89907fd81e1b3554fe05e5e0e43a3c36f151f31721271dcaa0a8e25bc027f1','successor']
+ snapshot214:['scripts/lib/own-close-snapshot214-installation.mjs','assertOwnCloseSnapshot214Proof','7a5a4c91ebb66b2502b22a7364fee0b5b6e161695b3c2c64979fdefd504b6506','successor'],
+ snapshot215:['scripts/lib/own-close-snapshot215-installation.mjs','assertOwnCloseSnapshot215Proof','288ae8f754dc4b470af2b9751f78c5fbf4936d2e61d462e5957d8b1c0bdfbd9c','successor']
 });
 export function ownM7SourcePhaseContract(stageId,read,stageBatch){
  if(stageId.startsWith('m10-')){assert.ok(M10_PUBLIC_STAGE_ORDER.includes(stageId.slice(4)),'OWN_M7_UNKNOWN_M10_STAGE');const file='scripts/lib/own-m10-public-schema-plan.mjs',digest='e111bb69f2ce9ce59b23520276121d0ebf6eb786fa5d640451f5e891f2376091';assert.equal(hash(lf(read(file))),digest,'OWN_M7_M10_PROOF_SOURCE_CHANGED');return Object.freeze({stageId,source:file,sourceSha256:digest,kind:'m10',asserter:'assertM10PublicStageReceiptDurability'});}

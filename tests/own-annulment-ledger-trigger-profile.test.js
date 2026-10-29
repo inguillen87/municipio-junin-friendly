@@ -47,7 +47,7 @@ test('only a minted profile can project the exact old guard, with complete inver
  assert.throws(()=>projectOwnAnnulmentLedgerTriggerGuard({profile:{...p},legacyGuard:p.legacyGuard}),/LEDGER_TRIGGER_MINTED_PROFILE_REQUIRED/);
  assert.throws(()=>assertOwnAnnulmentLedgerTriggerProfile({...p}),/LEDGER_TRIGGER_MINTED_PROFILE_REQUIRED/);
  assert.throws(()=>projectOwnAnnulmentLedgerTriggerGuard({profile:p,legacyGuard:p.legacyGuard,expectedGuard:p.guard}),/LEDGER_TRIGGER_PROJECTION_OPTIONS/);
- assert.equal(hash(readRaw('scripts/lib/own-annul209-public-predecessor-registry.mjs')),'e2a5abb7f69e974993882519c35740aaecb83760af7aac9386a48e0a09458c39');
+ assert.equal(hash(readRaw('scripts/lib/own-annul209-public-predecessor-registry.mjs')),'2d5db8d30cc1ff106696f1ddc5b6c02b13342588ad35704ad2aedc48077e2e6b');
 });
 
 test('guard checks the complete trigger shape, exact counts and handler owner-only ACL without calling handlers',()=>{

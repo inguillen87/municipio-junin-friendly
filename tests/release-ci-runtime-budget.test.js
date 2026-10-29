@@ -9,7 +9,8 @@ import {RELEASE_CANDIDATE_SOURCE_PINS as releasePins,projectReleaseCandidateWork
 import {RELEASE_CONTRACT} from '../scripts/release-qualification-contract.mjs';
 import {CANDIDATE_WORKFLOW_SHA256} from '../scripts/lib/release-candidate-admission.mjs';
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url));
+import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+const read=file=>projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const capacity='.github/workflows/own-payroll-full-capacity.yml';
 for(const [file,pin]of Object.entries(pins))test('finite CI budget custody reconstructs the whole exact parent: '+file,()=>{
  const current=read(file),prior=parent(file,current);assert.equal(current.length,pin.afterBytes);assert.equal(hash(current),pin.afterSha256);assert.equal(prior.length,pin.beforeBytes);assert.equal(hash(prior),pin.beforeSha256);

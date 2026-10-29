@@ -19,8 +19,8 @@ export {assertOwnCloseSnapshot215Proof} from './own-close-snapshot215-installati
 // expectations. The new module itself is pinned by its future caller, not itself.
 export const M7_PUBLIC213215_SUPPORT_SOURCE_PINS=Object.freeze({
  'scripts/lib/own-liquidation-bootstrap213-installation.mjs':'a4fbd75427be61efa24eaa1b78f10897d8706ad1619850cc7e9b496c4e45c9f5',
- 'scripts/lib/own-close-snapshot214-installation.mjs':'720fc298b994cf69ea4d83fa35f4bcd8d772009cb9c186a4dc8511f2f1528fed',
- 'scripts/lib/own-close-snapshot215-installation.mjs':'8b89907fd81e1b3554fe05e5e0e43a3c36f151f31721271dcaa0a8e25bc027f1',
+ 'scripts/lib/own-close-snapshot214-installation.mjs':'7a5a4c91ebb66b2502b22a7364fee0b5b6e161695b3c2c64979fdefd504b6506',
+ 'scripts/lib/own-close-snapshot215-installation.mjs':'288ae8f754dc4b470af2b9751f78c5fbf4936d2e61d462e5957d8b1c0bdfbd9c',
  'scripts/prepare-own-payroll-installation.mjs':'8984ec722bf2928ec2e177e6e3bf4f21b4a95f182452bdaa5e29a6f1ea8854e7',
  'scripts/lib/own-payroll-release-target.mjs':'85c1f346424ee97279434701245bb50bf819850a3114405d0647fe846721d448'
 });

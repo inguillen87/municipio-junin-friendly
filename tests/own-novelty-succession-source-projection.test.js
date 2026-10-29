@@ -12,7 +12,8 @@ import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,projectReceipt126ConsumerRawSourceTo
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
 import {OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
-const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url)));
+import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));

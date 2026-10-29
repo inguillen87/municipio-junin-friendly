@@ -13,8 +13,9 @@ import {OWN_RECEIPT126_CONSUMER_SOURCE_PINS,OWN_RECEIPT126_NEW_SOURCE_PINS,proje
 import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_PINS,projectOwner190NativeOutcomeRawSourceToParent} from './fixtures/owner190-native-outcome-source-projection.js';
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
 import {OWNER190_OWNED_CLEANUP_NEW_SOURCE_PINS,OWNER190_EXPECTED_NATIVE_NEW_SOURCE_PINS,OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent,projectOwner190Receipt126LengthRawSourceToHead,projectOwner190Receipt126ReviewedRawSourceToPredecessor} from './fixtures/owner190-qa-source-reconciliation.js';
+import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 import {buildOwnReceipt126Same190Shape} from '../scripts/lib/own-payroll-receipt126-same190-shape.mjs';
-const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));
@@ -652,7 +653,7 @@ test('owner190 native outcome RAW succession preserves five complete d7 parents 
 
 test('QA source reconciliation preserves complete historical parents and rejects unreviewed bytes',()=>{
  for(const[file,pin]of Object.entries(OWNER190_QA_RECONCILIATION_SOURCE_PINS)){
-  const current=fs.readFileSync(new URL('../'+file,import.meta.url)),parent=projectOwner190QaReconciliationRawSourceToParent(file,current);
+  const current=projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))),parent=projectOwner190QaReconciliationRawSourceToParent(file,current);
   assert.equal(current.length,pin.afterBytes);assert.equal(hash(current),pin.after);
   assert.equal(parent.length,pin.beforeBytes);assert.equal(hash(parent),pin.before);
   assert.throws(()=>projectOwner190QaReconciliationRawSourceToParent(file,Buffer.concat([current,Buffer.from('unreviewed')])));

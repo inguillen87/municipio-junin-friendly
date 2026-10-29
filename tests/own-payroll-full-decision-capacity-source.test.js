@@ -15,7 +15,8 @@ import {projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-
 import {projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const sha=value=>createHash('sha256').update(value).digest('hex');
-const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));

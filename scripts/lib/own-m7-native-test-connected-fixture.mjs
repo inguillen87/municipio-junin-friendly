@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {buildOwnM7NativeTestFixturePlan,assertOwnM7NativeTestFixturePlan,materializeOwnM7NativeTestEmployee,assertOwnM7NativeTestSeedObservation} from './own-m7-native-test-fixture.mjs';
 
 export const OWN_M7_NATIVE_TEST_CONNECTED_FIXTURE_VERSION='own-m7-native-test-connected-fixture.v2';
-export const OWN_M7_NATIVE_TEST_CONNECTED_TEMPLATE_PIN=Object.freeze({path:'scripts/lib/own-m7-native-test-fixture.mjs',sha256:'7e788aac93a205e708ca3f9c304f86a8d5fb4b819b9012fca2827b19ce55d30c'});
+export const OWN_M7_NATIVE_TEST_CONNECTED_TEMPLATE_PIN=Object.freeze({path:'scripts/lib/own-m7-native-test-fixture.mjs',sha256:'223e586024a2ca0bf2f21d505e7efef4e4616c35fccfa2e8f84e9e86276ee2de'});
 const minted=new WeakMap(),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 const exact=(value,keys,code)=>{assert.ok(value&&typeof value==='object'&&!Array.isArray(value),code);assert.deepEqual(Reflect.ownKeys(value).sort(),[...keys].sort(),code);};

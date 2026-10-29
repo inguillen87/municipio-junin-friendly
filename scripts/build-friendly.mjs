@@ -9,6 +9,7 @@ import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildDocumentReader } from './build-document-reader.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
+import { assertOwnPayrollPackageClosure } from './lib/own-payroll-package-closure.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -296,6 +297,7 @@ const shellFiles = [
   'assets/own-payroll-run-workspace-model.js',
   'assets/own-payroll-run-model.js',
   'assets/own-payroll-run-date.js',
+  'assets/own-payroll-zero-difference.js',
   'assets/own-payroll-engine.js',
   'assets/own-payroll-exact.js',
   'assets/native-salary-catalog-model.js',
@@ -569,6 +571,9 @@ for (const file of vendorFiles) {
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(root, file.source), destination);
 }
+// Mandatory after the copy: every static import reachable from the run panel must be listed in shellFiles and be in
+// the package byte for byte. A missing or altered asset fails the build here, before any page is transformed.
+assertOwnPayrollPackageClosure({ shellFiles, readSource: file => fs.readFileSync(path.join(root, file)), readPackaged: file => fs.existsSync(path.join(output, file)) ? fs.readFileSync(path.join(output, file)) : null });
 
 // Restore the verified identity using content-addressed icon URLs; older icon
 // URLs may still have a one-year immutable response in a browser cache.

@@ -14,7 +14,8 @@ const prior = {
   receipts: {count: 13, sha256: '2bb5c3acc5d78f310385c3206a0a828664db7ccb844551d635858fdc40145c8b'},
   reports: {count: 7, sha256: 'f3460206506824f71286f3ebd67201ce2e40d4fa221e9e7bbbc3281641998e27'},
 };
-const read = name => fs.readFileSync(new URL('../' + name, import.meta.url));
+import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+const read = name => projectZeroDifferenceAllRawSourceToParent(name, fs.readFileSync(new URL('../' + name, import.meta.url)));
 const capture = 'set -o pipefail\nmkdir -p verification\nnpm run build 2>&1 | tee verification/release-full-suite.log';
 function runs(source) {
   const lines = source.split('\n'), commands = [];

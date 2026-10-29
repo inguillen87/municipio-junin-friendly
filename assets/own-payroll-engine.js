@@ -1,4 +1,4 @@
-import { decimal, rational, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
+import { OwnPayrollError, decimal, rational, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
 import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
 
 export const OWN_PAYROLL_INPUT_VERSION = 'own-payroll-input.v1';
@@ -189,6 +189,18 @@ export function validateOwnPayrollRulePeriods(raw, { namespaced = false, typedCo
   }
   return rules;
 }
+// An early rounding refusal keeps where it happened (concept or total, agreement, stage) so the person can act on the
+// rule. Same code, same message prefix, same policy: nothing is rounded and no identity (contract, legajo) is added.
+function located(compute, context) {
+  try { return compute(); }
+  catch (error) {
+    if (error?.code !== 'ROUNDING_NEEDED' || error.context) throw error;
+    const where = context.stage === 'concept' ? `concepto ${context.conceptCode} del convenio ${context.agreementCode}, al calcular el concepto` : `total ${context.key} del convenio ${context.agreementCode}, en la precisión de totales`;
+    const detailed = new OwnPayrollError('ROUNDING_NEEDED', `${error.message} Ubicación: ${where}.`);
+    detailed.context = Object.freeze({ ...context });
+    throw detailed;
+  }
+}
 export function calculateOwnPayroll(raw) {
   const snapshot = normalizeOwnPayrollInput(raw), { period, liquidationType, selection } = snapshot;
   const namespaced = snapshot.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION;
@@ -231,7 +243,7 @@ export function calculateOwnPayroll(raw) {
         trace.push({ operation: n.op, reference: n.op === 'input'||n.op==='match' ? n.key : n.op==='quantity_phase'?'quantity:'+n.code:isReference ? referenceIdentity(n, namespaced) : null, stage: isReference||n.op==='quantity_phase' ? n.stage : null, result: typeof value === 'boolean' ? value : exactEvidence(value) }); return value;
       }
       const override=overrides.get(ownFixedForcedRuleKey(rule));
-      const exact = override?exactDivide(decimal(override.amountCents),decimal('100')):evaluate(rule.expression), rounded = quantize(exact, rule.rounding);
+      const { exact, rounded } = located(() => { const exact = override?exactDivide(decimal(override.amountCents),decimal('100')):evaluate(rule.expression); return { exact, rounded: quantize(exact, rule.rounding) }; }, { stage: 'concept', conceptCode: rule.code, agreementCode: employee.agreementCode });
       if(override){require(exactCompare(exact,rounded.value)===0,'FORCED_PRECISION_LOSS','La precisión aprobada cambiaría el importe forzado; no se modificó.');trace.push({operation:'fixed_forced_amount',reference:[override.recordId,override.recordVersion,override.proposalId,override.policySha256,override.sourceRowSha256].join(':'),stage:'exact',result:exactEvidence(exact)});}
 
       const calculated = { value: rounded.value, exact, row: { contractId: employee.contractId, employeeNumber: employee.employeeNumber, agreementCode: employee.agreementCode, departmentCode: employee.departmentCode, conceptCode: rule.code, nature: rule.nature, unit: rule.unit, amount: rounded.amount, exactValue: exactEvidence(exact), rounding: { ...rule.rounding }, ruleReference: rule.ruleReference, dependencies, trace } }; values.set(code, calculated); return calculated;
@@ -244,7 +256,7 @@ export function calculateOwnPayroll(raw) {
       rows.push(calculated.row); if (calculated.row.nature !== 'auxiliary') totals[calculated.row.nature] = exactAdd(totals[calculated.row.nature], calculated.value);
     }
     const gross = exactAdd(totals.remuneration, totals.non_remuneration), net = exactSubtract(gross, totals.deduction);
-    employeeTotals.push({ contractId: employee.contractId, ...Object.fromEntries(Object.entries({ ...totals, gross, net }).map(([k, v]) => [k, quantize(v, { precision: snapshot.totalsPrecision, mode: 'exact' }).amount])) });
+    employeeTotals.push({ contractId: employee.contractId, ...Object.fromEntries(Object.entries({ ...totals, gross, net }).map(([k, v]) => [k, located(() => quantize(v, { precision: snapshot.totalsPrecision, mode: 'exact' }), { stage: 'contract_total', key: k, agreementCode: employee.agreementCode }).amount])) });
   }
   rows.sort((a, b) => order(a.contractId, b.contractId) || order(a.conceptCode, b.conceptCode) || (namespaced ? order(a.nature, b.nature) : 0));
   return { version: namespaced ? OWN_PAYROLL_NAMESPACED_RESULT_VERSION : OWN_PAYROLL_RESULT_VERSION, period, liquidationType, selection: { kind: selection.kind, values: [...selection.values] }, sourceVersions: { ...snapshot.sourceVersions }, employeeCount: selected.length, rowCount: rows.length, rows, employeeTotals, payrollCalculated: true, payrollPosted: false, municipalApprovalVerified: false, paymentExecuted: false };

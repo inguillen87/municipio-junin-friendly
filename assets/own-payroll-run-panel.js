@@ -13,6 +13,7 @@ import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal,formatOwnRunValue} from './own-payroll-run-workspace-model.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
+import {ownZeroDifferenceOfVerified,ownZeroDifferenceLines} from './own-payroll-zero-difference.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -212,7 +213,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+result.employeeCount+' legajos · '+result.rowCount+' conceptos · guardado '+labelDate(value.saved.recordedAt);
     $('totals').replaceChildren(...result.employeeTotals.map(t=>{const tr=node('tr');for(const text of [people.get(t.contractId).employeeNumber,...['gross','deduction','net','employer_contribution'].map(k=>formatOwnRunDecimal(t[k]))])tr.append(node('td',text));const cell=node('td'),button=node('button','Ver resumen');button.type='button';button.className='button';button.dataset.ownIndividualOpen=t.contractId;button.setAttribute('aria-label','Ver resumen del legajo '+people.get(t.contractId).employeeNumber);button.addEventListener('click',()=>openIndividual(t.contractId,button));cell.append(button);tr.append(cell);return tr;}));
     $('trace').replaceChildren();for(const [name,version]of Object.entries(input.sourceVersions))$('trace').append(node('dt',({population:'Padrón y encuadre',rules:'Programa y definiciones',novelties:'Novedades aprobadas'})[name]),node('dd',version));
-    $('trace').append(node('dt','Integridad del resultado'),node('dd',value.saved.resultSha256));page=1;renderRows();
+    $('trace').append(node('dt','Integridad del resultado'),node('dd',value.saved.resultSha256));
+    // Synchronous: the capture was just verified (hashes) and validated (structure); nothing is awaited here.
+    const zero=ownZeroDifferenceOfVerified({input,result,inputSha256:value.saved.inputSha256,resultSha256:value.saved.resultSha256});
+    $('trace').append(node('dt','Conciliación de la captura'));for(const line of ownZeroDifferenceLines(zero)){const dd=node('dd',line);dd.dataset.zeroDifference=zero.state;$('trace').append(dd);}
+    page=1;renderRows();
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh({metadataOnly=false}={}){return perform(async valid=>{

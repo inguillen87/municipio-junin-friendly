@@ -15,7 +15,7 @@ const freeze=x=>{if(x&&typeof x==='object'&&!Object.isFrozen(x)){Object.values(x
 const exact=(x,keys,code)=>{assert.ok(x&&typeof x==='object'&&!Array.isArray(x),code);assert.deepEqual(Reflect.ownKeys(x).sort(),[...keys].sort(),code);};
 const id=(runId,key)=>{const a=sha('m5-m7:'+runId+':'+key).slice(0,32).split('');a[12]='4';a[16]=((parseInt(a[16],16)&3)|8).toString(16);const s=a.join('');return[s.slice(0,8),s.slice(8,12),s.slice(12,16),s.slice(16,20),s.slice(20)].join('-');};
 export const OWN_M5_M7_SOURCE_PINS=freeze({
- 'scripts/lib/own-m7-native-test-fixture.mjs':'7e788aac93a205e708ca3f9c304f86a8d5fb4b819b9012fca2827b19ce55d30c',
+ 'scripts/lib/own-m7-native-test-fixture.mjs':'223e586024a2ca0bf2f21d505e7efef4e4616c35fccfa2e8f84e9e86276ee2de',
  'scripts/lib/own-m7-native-test-connected-pg.mjs':'500e7ca7a27e29054d16c03b8e1b9a597c05eb068f15ca42258266170b9ba249',
  'scripts/lib/own-m7-native-test-business-pg.mjs':'db9117b0bf7d684b45be4355fcff43f99f697e71acafc100d658abd30e42c0aa',
  'tests/fixtures/municipal-owner-program-synthetic.js':'0106a48f1034c1b617333dd4dead4dab6f40912a8a086a3fb97a5f6c67f090b1',
