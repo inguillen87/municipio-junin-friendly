@@ -3,7 +3,10 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {verifyWorkAreaPublication} from './verify-work-area-publication.mjs';
 import {chromium} from 'playwright';import '../assets/app-routes.js';
 const published=process.argv.includes('--published'),origin=published?'https://municipio-junin-friendly.vercel.app':'https://areas.test';
-const root=path.resolve('public'),out='verification/work-areas-'+(published?'published':'local');fs.mkdirSync(out,{recursive:true});
+const outputArgs=process.argv.slice(2).filter(a=>a.startsWith('--output='));assert.ok(outputArgs.length<=1,'one output path required');
+const root=path.resolve('public'),out=outputArgs.length?path.resolve(outputArgs[0].slice(9)):'verification/work-areas-'+(published?'published':'local');
+if(outputArgs.length){assert.ok(out.startsWith(path.resolve('verification')+path.sep),'output must be inside verification');assert.ok(!fs.existsSync(out),'preserve existing evidence; choose a new output');}
+fs.mkdirSync(out,{recursive:true});
 if(published)await verifyWorkAreaPublication(out);
 const all=['workforce.summary.read','workforce.employee.read','workforce.structure.read','actions.read','time.source.read','time.catalog.read','attendance.read','payroll.read','payroll.novelty.read','lineage.read','assistant.use','management.analytics.read','budget.approved.read','absence.analytics.read','absence.nominal.read','leave.policy.read','leave.preview.read','quality.read','employee.record.create'];
 const pages=['internal-dashboard.html','nomina-control.html','novedades-nomina.html','centro-acciones.html','asistente.html','ausentismo-control.html','calidad-operativa.html','centro-ayuda.html','estructura.html','fuentes-tiempo.html','gestion-comparativa.html','integracion-datos.html','licencias-control.html','presupuesto-control.html','relojes-marcaciones.html'];
