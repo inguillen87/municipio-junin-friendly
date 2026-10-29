@@ -20,7 +20,8 @@ const execute=(client,options={})=>executeFinalSourceRevision({connect:async()=>
  expectedPackageSha256:pack.payloadSha256,installSchema:false,...options});
 
 test('both explicitly reviewed source profiles remain immutable and exact',()=>{
- assert.deepEqual(FINAL_SOURCE_REVISION_PROFILES,['grh-junin-2026-10-01','grh-junin-2026-10-14']);assert.ok(Object.isFrozen(FINAL_SOURCE_REVISION_PROFILES));
+ // Portion E appends Oct28 after both reviewed profiles; their order and values are unchanged.
+ assert.deepEqual(FINAL_SOURCE_REVISION_PROFILES,['grh-junin-2026-10-01','grh-junin-2026-10-14','grh-junin-2026-10-28']);assert.ok(Object.isFrozen(FINAL_SOURCE_REVISION_PROFILES));
  const original=structuredClone(pack),checked=validateFinalSourceRevisionInput(pack,target,pack.payloadSha256);
  assert.equal(checked.pack.candidate.profileId,profile.id);assert.equal(checked.pack.candidate.sourceSha256,profile.source.sha256.toLowerCase());
  assert.equal(checked.pack.candidate.cutoff,profile.source.cutoff);assert.deepEqual(pack,original);assert.equal(pack.changes.length,previous.changes.length);
