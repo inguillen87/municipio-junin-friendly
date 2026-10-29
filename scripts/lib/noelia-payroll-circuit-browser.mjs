@@ -69,7 +69,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
    if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.session.id,email:current.session.email},access:{context:'tenant',tenant:{id:current.principal.tenant.id,roleKey:'QA'},tenantCapabilities:[...current.principal.tenant.effectiveCapabilities,'payroll.read'],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
    const kind=noeliaCircuitEndpoint(url.pathname),selector=url.searchParams.get('resource')==='employees'&&url.searchParams.get('view')==='novelty-selector',roster=url.searchParams.get('resource')==='nativeroster'&&url.searchParams.get('schema')==='2';if(kind==='directory'&&!selector&&!roster){json(503,{ok:false,error:'API ajena al selector y padrón propio no disponible en esta prueba sintética.'});return;}if(kind){if(typeof handlers[kind]!=='function'){json(503,{ok:false,error:'Handler del circuito no disponible en esta fase QA.'});return;}req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};
-    if(kind==='run'&&req.method==='POST'){
+    if(req.method==='POST'&&req.headers['idempotency-key']){
      // Observe the complete real response after SQL, for both JSON and
      // streaming. Interrupted acknowledgments retain the original receipt.
      const write=res.write.bind(res),end=res.end.bind(res),chunks=[];let bytes=0;
@@ -80,7 +80,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
       for(const c of chunks)write(c);end();return res;};
     }
     res.json=value=>{
-    if(kind!=='run'&&req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data,status:res.statusCode});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};await handlers[kind](req,res);return;}
    if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'API ajena al circuito no disponible en esta prueba sintética.'});return;}
    const base=path.join(root,'public'),file=path.resolve(base,'.'+decodeURIComponent(url.pathname));if(req.method!=='GET'||!file.startsWith(base+path.sep)||!/\.(html|js|css|png|svg|webp)$/.test(file)||!fs.existsSync(file)){res.writeHead(404).end();return;}
