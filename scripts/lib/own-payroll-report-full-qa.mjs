@@ -89,9 +89,12 @@ export function composeOwnReportFullQaSources({read,sourceCommit,schema}){
  // the unchanged123 fixture capture never contains periodClassifications.
  // Only the source schema, five private helpers and existing detail/snapshot
  // are emitted. No177 facade, writer, IAM grant, adoption or second seed.
- const prerequisites=[raw('143-own-payroll-jurisdiction-snapshot.sql'),...periodRead.statements,detail[0],snapshot[0],raw('146-own-consolidated-annulment.sql'),raw('200-own-payroll-report-census.sql')].map(localize);
+ const jurisdictionPrerequisites=[raw('143-own-payroll-jurisdiction-snapshot.sql')].map(localize);
+ const nativePeriodPrerequisites=periodRead.statements.map(localize);
+ const decisionPrerequisites=[detail[0],snapshot[0],raw('146-own-consolidated-annulment.sql'),raw('200-own-payroll-report-census.sql')].map(localize);
+ const prerequisites=[...jurisdictionPrerequisites,...nativePeriodPrerequisites,...decisionPrerequisites];
  const installation=[keep.before,sql201,keep.after,keep.compare];
- return{version:'own-report-six-person-full-fixture.v1',sourceCommit,schema,sourceHashes,preLocal,postLocal,prerequisites,installation,local201:sql201,
+ return{version:'own-report-six-person-full-fixture.v1',sourceCommit,schema,sourceHashes,preLocal,postLocal,prerequisites,jurisdictionPrerequisites,nativePeriodPrerequisites,decisionPrerequisites,installation,local201:sql201,
   beforeGuard:phase(sql201,'capacity_preflight'),afterGuard:phase(sql201,'capacity_postflight'),
   authorityFixture:'existing-synthetic-capabilities',institutionalAuthority200Proven:false,newSeedCount:0,newDatabaseCount:0,
   nativePeriodReadClosure:periodRead.names,periodClassificationWritersInstalled:0,

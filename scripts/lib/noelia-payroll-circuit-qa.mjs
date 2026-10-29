@@ -7,6 +7,7 @@ import {POSITION_QA_CAPS} from './position-assignment-qa.mjs';
 import {noeliaCircuitRuntime,noeliaQaApplicationName} from './noelia-circuit-runtime.mjs';
 import {NATIVE_ROSTER_V2_SQL} from '../../lib/internal-native-roster.js';
 import {MAX_NATIVE_ROSTER_ROWS} from '../../assets/native-roster-model.js';
+import {noeliaFullDecisionStatement} from './noelia-current-full-qa.mjs';
 // Relocate only the exact canonical read and its eight declared parameters.
 // Execution stays in the disposable schema; no row is synthesized by this adapter.
 export function noeliaCircuitRosterRead(query,values,schema){
@@ -61,6 +62,7 @@ export function noeliaCircuitDirectoryRead(query,values,schema){
  return{sql:query.replace('public.native_employee_',schema+'.native_employee_').replace('$1',q(values[0])),rows:false,runtime:true};
 }
 export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const environment=Object.freeze({...runtime.environment,PGAPPNAME:noeliaQaApplicationName(options.schema)}),db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment});return {...db,executable:runtime.executable,environment,applicationName:environment.PGAPPNAME,query:async(query,values)=>{
+ const fullDecision=noeliaFullDecisionStatement(query,values,options.schema);if(fullDecision!==null)return[{result:await db.run(fullDecision,true)}];
  const nativeEmployee=noeliaNativeEmployeeStatement(query,values,options.schema);if(nativeEmployee)return[{result:await db.run(nativeEmployee,true)}];
  const rosterRead=noeliaCircuitRosterRead(query,values,options.schema);if(rosterRead)return await db.run(rosterRead);
  const directory=noeliaCircuitDirectoryRead(query,values,options.schema);if(directory){const result=await db.run(directory.sql,directory.runtime);return directory.rows?result:[{result}];}
