@@ -33,7 +33,7 @@ test('wrong phase, cloned plan and changed source fail before a recording execut
  const calls=[],record=s=>calls.push(s);for(const phase of [undefined,null,'install','after-history','seed'])assert.throws(()=>record(noeliaCurrentFullQaPhaseStatements(plan(),phase)),/NOELIA_FULL_QA_PHASE_REQUIRED/);assert.throws(()=>record(noeliaCurrentFullQaPhaseStatements({...plan()},'after-historical')),/NOELIA_FULL_QA_ORIGINAL_PLAN_REQUIRED/);assert.deepEqual(calls,[]);
  assert.throws(()=>composeNoeliaCurrentFullQaSources({read,sourceCommit,schema,jurisdictions:'true'}),/NOELIA_FULL_QA_JURISDICTIONS_REQUIRED/);assert.throws(()=>composeNoeliaCurrentFullQaSources({read:p=>p==='scripts/migrations/201-own-full-payroll-decision-capacity.sql'?read(p)+'\n-- changed':read(p),sourceCommit,schema,jurisdictions:true}),/REPORT_FULL_QA_SOURCE_CHANGED/);
 });
-test('six exact real full/census emissions relocate identifiers before opaque values and delegate all other texts',()=>{
+test('seven exact real full/census emissions relocate identifiers before opaque values and delegate all other texts',()=>{
  const opaque=JSON.stringify({reason:"O'Hara public. $1 $2; \\ Área",payload:{literal:'public.own_close_detail_v1'}}),id='88888888-8888-4888-8888-888888888888';
  for(const [text,size]of Object.entries(NOELIA_FULL_DECISION_STATEMENTS)){
   const values=Array.from({length:size},(_,i)=>i===0?opaque:text.includes('$2::jsonb')&&i===1?opaque:i===1&&text.includes('$2::text')?'2026-10':i===2&&text.includes('$3::text')?'monthly':id),before=structuredClone(values),rendered=noeliaFullDecisionStatement(text,values,schema);
@@ -45,7 +45,13 @@ test('six exact real full/census emissions relocate identifiers before opaque va
  const driver=read('scripts/lib/noelia-payroll-circuit-qa.mjs');assert.ok(driver.includes('if(fullDecision!==null)return[{result:await db.run(fullDecision,true)}]'));assert.ok(driver.indexOf('const fullDecision=')<driver.indexOf('const nativeEmployee=',driver.indexOf('const fullDecision=')));
 });
 test('the runner preserves every original assertion byte for byte and installs the full source only after the date boundary',()=>{
- let s=read('scripts/verify-noelia-payroll-circuit.mjs');const stage=s.slice(s.indexOf('  // All original rollback, jurisdiction, positions and date assertions above\n'),s.indexOf("  const list=await api('novelty',{resource:'bootstrap'});ok(list.subjects.length===29"));assert.ok(stage.includes("noeliaCurrentFullQaPhaseStatements(fullQa,'after-historical')"));assert.ok(stage.includes("run(tx(['SET TRANSACTION READ ONLY',...fullPhase.verification]))"));
+ const restoreSuccession=(source)=>{let s=source;const once=(a,b)=>{assert.equal(s.split(a).length,2);s=s.replace(a,()=>b);};
+ once('sourceCommit,schema:qa.schema,jurisdictions,successionRead:true}):null,batch=','sourceCommit,schema:qa.schema,jurisdictions}):null,batch=');
+ once('let current=maker,datedReadyForSuccession=null,successionRead197=null,browserQa,','let current=maker,browserQa,');
+ once('\n   datedReadyForSuccession=Object.freeze({readyDefinition:ready,readyPin});','');
+ once("noeliaCurrentFullQaPhaseStatements(fullQa,'after-historical',datedReadyForSuccession)","noeliaCurrentFullQaPhaseStatements(fullQa,'after-historical')");
+ once(";successionRead197=fullPhase.successionRead197;",';');once('oldResultPreserved:true,successionRead197,fullDecisionQa:','oldResultPreserved:true,fullDecisionQa:');return s;};
+ let s=restoreSuccession(read('scripts/verify-noelia-payroll-circuit.mjs'));const stage=s.slice(s.indexOf('  // All original rollback, jurisdiction, positions and date assertions above\n'),s.indexOf("  const list=await api('novelty',{resource:'bootstrap'});ok(list.subjects.length===29"));assert.ok(stage.includes("noeliaCurrentFullQaPhaseStatements(fullQa,'after-historical')"));assert.ok(stage.includes("run(tx(['SET TRANSACTION READ ONLY',...fullPhase.verification]))"));
  const boundary=s.indexOf('actual date protocol preserves the earlier body/key/result and never invents a historical date');assert.ok(boundary<s.indexOf(stage));assert.ok(s.indexOf(stage)<s.indexOf("const list=await api('novelty',{resource:'bootstrap'});ok(list.subjects.length===29"));
  const once=(from,to)=>{assert.equal(s.split(from).length,2);s=s.replace(from,()=>to);};
  once("import {composeNoeliaCurrentFullQaSources,noeliaCurrentFullQaSeed,noeliaCurrentFullQaPhaseStatements} from './lib/noelia-current-full-qa.mjs';\n",'');
