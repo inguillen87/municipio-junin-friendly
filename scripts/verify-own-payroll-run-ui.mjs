@@ -16,7 +16,7 @@ import {createInternalDataHandler} from '../api/internal-data.js';
 import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {RUN_CALCULATE,ownRunHash,ownRunOperation} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
-import {qaPostJsonResponseWaiter} from './lib/qa-post-json-response-waiter.mjs';
+import {qaPassiveJsonHttpResponse,qaCorrelatedPostJsonResponse} from './lib/qa-passive-json-http-response.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
@@ -25,7 +25,7 @@ const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(roo
 const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
-let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
+let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0,observedRunPosts=null;
 const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
 // Literal UI expectations for the unchanged six-rule synthetic programme.
@@ -89,6 +89,7 @@ try{
         res.end=(...values)=>{held=()=>{if(!res.destroyed){res.write=write;res.end=end;for(const c of chunks)write(...c);end(...values);}};return res;};
       }
       res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
+      if(observedRunPosts&&url.pathname==='/api/internal-own-payroll-run'&&req.method==='POST')observedRunPosts.push(qaPassiveJsonHttpResponse(req,res));
       if(req.method==='POST')posts++;
       handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
@@ -231,11 +232,19 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedWait=qaPostJsonResponseWaiter(reviewPage,r=>{const u=new URL(r.url());return u.origin===origin&&u.pathname==='/api/internal-own-payroll-run';});
-  let failedResponse,failedBody;
-  try{await rs('send').click({timeout:30000});({response:failedResponse,body:failedBody}=await failedWait.result);}finally{failedWait.cancel();}
+  // CDP may discard no-store streamed bodies after the product reader reaches EOF.
+  // Observe native server transmission and correlate the SAME browser request;
+  // client receipt still depends on the unchanged DOM and recovery checks below.
+  const failedRequests=[],reviewObservations=[];
+  const isReviewPost=request=>{const u=new URL(request.url());return request.method()==='POST'&&u.origin===origin&&u.pathname==='/api/internal-own-payroll-run';};
+  const recordReviewPost=request=>{if(isReviewPost(request))failedRequests.push(request);};
+  reviewPage.on('request',recordReviewPost);observedRunPosts=reviewObservations;
+  const failedWait=reviewPage.waitForResponse(response=>isReviewPost(response.request()),{timeout:30000});failedWait.catch(()=>{});
+  let failedResponse;
+  try{await rs('send').click({timeout:30000});failedResponse=await failedWait;}finally{reviewPage.off('request',recordReviewPost);observedRunPosts=null;}
   await idle();
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
+  const failedPacket=await qaCorrelatedPostJsonResponse({response:failedResponse,requests:failedRequests,observations:reviewObservations,origin,pathname:'/api/internal-own-payroll-run',capture:failed}),failedBody=failedPacket.body;
   check(failedResponse.status()===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();

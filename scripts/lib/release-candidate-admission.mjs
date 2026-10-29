@@ -36,7 +36,7 @@ export const M7_RELEASE_FILES = Object.freeze([
 ]);
 // Authority is this reviewed guard, not a hash declared by the candidate proof.
 export const CANDIDATE_WORKFLOW_SHA256 = Object.freeze({
-  ".github/workflows/own-payroll-calculation.yml": "d22e10793c73b93004ce3177b9a5a209e6d538c04ad5f6917037040dcb5c2171",
+  ".github/workflows/own-payroll-calculation.yml": "c040bbdcce0944be9536569a3fa673461be1fa9ba372cada6d7cd35d248bf726",
   ".github/workflows/own-payroll-full-capacity.yml": "a335e996cd8a6c5e0135e13ef2534052e6a1a9a14d52d802c7742d674dc27205",
   ".github/workflows/own-payroll-receipts.yml": "387b90f9efc8e082e9b1fadf5f8c598bdb23301dc7276518d2df3fc6a5f77a30",
   ".github/workflows/own-payroll-reports.yml": "5b591f87973b5cdd82823258bb36d025fc302c4934f6dab90b13965c1783cbc4"
