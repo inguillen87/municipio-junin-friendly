@@ -13,6 +13,7 @@ const pins=Object.freeze({...OWN_PAYROLL_LOGIN_SOURCE_PINS,...OWN_PAYROLL_LOGIN_
 export function projectOwnPayrollLoginRawSourceToParent(file,value){
  assert.equal(typeof file,'string','OWN_LOGIN_SOURCE_PATH_REQUIRED');
  assert.ok(Buffer.isBuffer(value),'OWN_LOGIN_RAW_SOURCE_REQUIRED');
+ if(file===OWN_LIQUIDATION_READONLY_REVIEW_SOURCE_PIN.path)value=projectOwnLiquidationReadonlyReviewRawSourceToParent(file,value);
  if(file===OWN_ANNULMENT_READONLY_REVIEW_SOURCE_PIN.path||file===OWN_ANNULMENT_READONLY_REVIEW_TEST_SOURCE_PIN.path)return projectOwnAnnulmentReadonlyReviewRawSourceToParent(file,value);
  const pin=Object.hasOwn(pins,file)?pins[file]:null;if(!pin)return value;
  assert.equal(value.length,pin.afterBytes,'OWN_LOGIN_CURRENT_BYTES:'+file);
@@ -40,4 +41,18 @@ export function projectOwnAnnulmentReadonlyReviewRawSourceToParent(file,value){
   source=Buffer.concat([source.subarray(0,op.afterOffset),before,source.subarray(op.afterOffset+after.length)]);
  }
  assert.equal(source.length,pin.beforeBytes,'ANNUL_READONLY_PARENT_BYTES');assert.equal(hash(source),pin.beforeSha256,'ANNUL_READONLY_PARENT_SHA');return source;
+}
+
+// Exact outer succession for Confirmar y anular read navigation after a receipt.
+// The complete old login, reader and annulment custody rows remain unchanged.
+export const OWN_LIQUIDATION_READONLY_REVIEW_SOURCE_PIN=freeze({"path":"assets/own-payroll-liquidation-panel.js","beforeBytes":31829,"beforeSha256":"406f0dd8f7f0ed3aeef0f2e5d7a87dbf048ca0b81a98264c3c38883616b88a06","afterBytes":32679,"afterSha256":"e2045cd63331f68b07593109d00fc9905df847e2a360dc0df7de14c801c28504","inverse":[{"afterOffset":5650,"afterBase64":"PHAgZGF0YS1saXEtc2NvcGU+RWxlZ8OtIGRlY2lzacOzbiB5IGFsY2FuY2UuPC9wPjwvZmllbGRzZXQ+PGZpZWxkc2V0IGRhdGEtbGlxLWNvbmZpcm1hdGlvbi1maWVsZHM+PGxlZ2VuZD5Nb3Rpdm8geSBjb25maXJtYWNpw7NuPC9sZWdlbmQ+PGxhYmVsIGZvcj0ib3duTGlxUmVhc29uIj4=","beforeBase64":"PHAgZGF0YS1saXEtc2NvcGU+RWxlZ8OtIGRlY2lzacOzbiB5IGFsY2FuY2UuPC9wPjxsYWJlbCBmb3I9Im93bkxpcVJlYXNvbiI+"},{"afterOffset":7645,"afterBase64":"PGZpZWxkc2V0IGRhdGEtbGlxLXJldmlldy1maWVsZHMgYXJpYS1sYWJlbD0iQ29uc3VsdGFyIGxvcyBsZWdham9zIGRlbCBhbGNhbmNlIHJldmlzYWRvIj48aDQgaWQ9Im93bkxpcVJldmlld1RpdGxlIj4=","beforeBase64":"PGg0IGlkPSJvd25MaXFSZXZpZXdUaXRsZSI+"},{"afterOffset":8763,"afterBase64":"ZGF0YS1saXEtcmV2aWV3LW5leHQ+U2lndWllbnRlPC9idXR0b24+PC9uYXY+PC9maWVsZHNldD4=","beforeBase64":"ZGF0YS1saXEtcmV2aWV3LW5leHQ+U2lndWllbnRlPC9idXR0b24+PC9uYXY+"},{"afterOffset":8823,"afterBase64":"aG9zdC5xdWVyeVNlbGVjdG9yKCdbZGF0YS1saXEtZmllbGRzXScpLmFmdGVyKHJldmlldyk7","beforeBase64":"aG9zdC5xdWVyeVNlbGVjdG9yKCdbZGF0YS1saXEtc2NvcGVdJykuYWZ0ZXIocmV2aWV3KTs="},{"afterOffset":9876,"afterBase64":"IGZ1bmN0aW9uIHJlY2VpcHRSZXZpZXdSZWFkeSgpewogIGlmKCFyZWNlaXB0fHwhY3VycmVudHx8cmVjZWlwdC5ydW5JZCE9PWN1cnJlbnQuaWR8fHJlY2VpcHQucmVzdWx0U2hhMjU2IT09Y3VycmVudC5jYXB0dXJlLnNhdmVkLnJlc3VsdFNoYTI1NilyZXR1cm4gZmFsc2U7CiAgY29uc3QgcGVvcGxlPW5ldyBNYXAoY3VycmVudC5lbXBsb3llZXMubWFwKHJvdz0+W3Jvdy5jb250cmFjdElkLHJvd10pKTsKICByZXR1cm4gcmVjZWlwdC5hZmZlY3RlZC5ldmVyeShhZmZlY3RlZD0+cGVvcGxlLmdldChhZmZlY3RlZC5jb250cmFjdElkKT8uZXZlbnRzLnNvbWUoZXZlbnQ9PmV2ZW50LmlkPT09cmVjZWlwdC5pZCYmZXZlbnQuY29tbWFuZD09PXJlY2VpcHQuYm9keS5jb21tYW5kJiZldmVudC52ZXJzaW9uPT09YWZmZWN0ZWQudmVyc2lvbiYmZXZlbnQubGlxdWlkYXRpb25WZXJzaW9uPT09YWZmZWN0ZWQubGlxdWlkYXRpb25WZXJzaW9uKSk7CiB9CiBmdW5jdGlvbiBjb250cm9scygpe2NvbnN0IHZpZXc9cHJldmlldygpLGRlY2lzaW9uTG9ja2VkPWJ1c3l8fCFjYW4oT1dOX0xJUV9OT01JTkFMKXx8IWN1cnJlbnR8fCEhYXR0ZW1wdDskKCdmaWVsZHMnKS5kaXNhYmxlZD1kZWNpc2lvbkxvY2tlZDskKCdjb25maXJtYXRpb24tZmllbGRzJykuZGlzYWJsZWQ9ZGVjaXNpb25Mb2NrZWQ7JCgncmV2aWV3LWZpZWxkcycpLmRpc2FibGVkPWJ1c3l8fCFjYW4oT1dOX0xJUV9OT01JTkFMKXx8IWN1cnJlbnR8fCEhYXR0ZW1wdCYmIXJlY2VpcHRSZXZpZXdSZWFkeSgpOw==","beforeBase64":"IGZ1bmN0aW9uIGNvbnRyb2xzKCl7Y29uc3Qgdmlldz1wcmV2aWV3KCk7JCgnZmllbGRzJykuZGlzYWJsZWQ9YnVzeXx8IWNhbihPV05fTElRX05PTUlOQUwpfHwhY3VycmVudHx8ISFhdHRlbXB0Ow=="}]});
+export function projectOwnLiquidationReadonlyReviewRawSourceToParent(file,value){
+ assert.equal(typeof file,'string','OWN_LOGIN_SOURCE_PATH_REQUIRED');assert.ok(Buffer.isBuffer(value),'OWN_LOGIN_RAW_SOURCE_REQUIRED');
+ const pin=OWN_LIQUIDATION_READONLY_REVIEW_SOURCE_PIN;if(file!==pin.path)return value;
+ assert.equal(value.length,pin.afterBytes,'OWN_LOGIN_CURRENT_BYTES:'+file);assert.equal(hash(value),pin.afterSha256,'OWN_LOGIN_CURRENT_SHA:'+file);let source=value;
+ for(const op of [...pin.inverse].reverse()){
+  const after=Buffer.from(op.afterBase64,'base64'),before=Buffer.from(op.beforeBase64,'base64');assert.deepEqual(source.subarray(op.afterOffset,op.afterOffset+after.length),after,'LIQ_REVIEW_EXACT_INVERSE_SPAN');
+  source=Buffer.concat([source.subarray(0,op.afterOffset),before,source.subarray(op.afterOffset+after.length)]);
+ }
+ assert.equal(source.length,pin.beforeBytes,'LIQ_REVIEW_PARENT_BYTES');assert.equal(hash(source),pin.beforeSha256,'LIQ_REVIEW_PARENT_SHA');return source;
 }

@@ -108,7 +108,7 @@ export const NOELIA_ACCOUNTING_SOURCE_PINS=Object.freeze({
   "scripts/lib/noelia-accounting-full-qa.mjs": "a3eebe27b3eeee1ae556e4d453da4a71eb246f0b2bd0789f6de4518379160ecf",
   "scripts/lib/noelia-circuit-runtime.mjs": "897ef81fd762e33a197c013fbe70892056e08bf8e5b81eb0c018a1dc7025a858",
   "scripts/lib/noelia-current-full-qa.mjs": "e969c37e5aefec90b4cb2c9b9c32c97eab3b76e8635ed00829ff5c8ed113587b",
-  "scripts/lib/noelia-payroll-circuit-browser.mjs": "1998c01d3a3f8ad506f41bab8dd807efa5d0998b2bdbeb0cd96f308ae772049c",
+  "scripts/lib/noelia-payroll-circuit-browser.mjs": "3dbf86ffdc2a17fbbd2006ba4fe1244b8a73beceaf670c26ccf7dd7890588f08",
   "scripts/lib/noelia-payroll-circuit-qa.mjs": "52090e2ce15ff8a4bc21f7d889242f12d84a2f8596feedeec6cdc816409244a0",
   "scripts/lib/noelia-position210-qa.mjs": "800ddf7a2d05081f544102af855aef93d6aa972ced688386827387cc30415739",
   "scripts/lib/noelia-succession-read197-qa.mjs": "39e86f3edb5687714b6904432469a8abad9ec2255639360724bf361a8ceafd0d",

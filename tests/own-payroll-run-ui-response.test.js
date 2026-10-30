@@ -6,6 +6,7 @@ import {once} from 'node:events';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {qaPassiveJsonHttpResponse,qaCorrelatedPostJsonResponse} from '../scripts/lib/qa-passive-json-http-response.mjs';
+import {OWN_RUN_UI_VERTICAL_NAVIGATION_PIN,projectOwnRunUiVerticalNavigationToParent} from './fixtures/own-run-ui-vertical-navigation-source-projection.js';
 const pathname='/api/internal-own-payroll-run',key='synthetic-http-attempt-19041',capture={key,body:{period:'2026-10',liquidationType:'monthly',selection:{kind:'all',values:[]}}};
 const command=JSON.stringify({operation:'calculate',payload:capture.body}),errorBody={ok:false,code:'OWN_RUN_SOURCE_AMBIGUOUS',error:"Fuente única: niño / apostrophe ' / public.$1"};
 const encode=value=>Buffer.from(JSON.stringify(value),'utf8');
@@ -187,11 +188,33 @@ test('deadline arguments reject invalid or increased values before wrapping real
 });
 
 test('runner keeps every original assertion after the failed POST and retires the CDP body waiter',()=>{
- const source=fs.readFileSync(new URL('../scripts/verify-own-payroll-run-ui.mjs',import.meta.url),'utf8');
+ const source=projectOwnRunUiVerticalNavigationToParent('scripts/verify-own-payroll-run-ui.mjs',fs.readFileSync(new URL('../scripts/verify-own-payroll-run-ui.mjs',import.meta.url),'utf8'));
  assert.equal(source.includes('qaPostJsonResponseWaiter'),false);assert.equal(source.includes('response.json()'),false);
  assert.ok(source.includes("if(observedRunPosts&&url.pathname==='/api/internal-own-payroll-run'&&req.method==='POST')observedRunPosts.push(qaPassiveJsonHttpResponse(req,res));"));
  assert.ok(source.includes('qaCorrelatedPostJsonResponse({response:failedResponse,requests:failedRequests,observations:reviewObservations,origin,'));
  const tail=source.slice(source.indexOf('  check(failedResponse.status()===422'));
  const messageAssertion="  check((await rs('status').innerText()).trim()==='Un concepto de fuente única tiene varias novedades en el período. Revisá las novedades repetidas desde Revisar incidencias de la captura y consultá este mismo intento; no se guardó ningún resultado.'&&(await rs('status').getAttribute('data-state'))==='warning'&&!(await rs('result').isVisible()),'ambiguous unique source shows the institutional panel message without result');\n";assert.equal(tail.split(messageAssertion).length,2,'one new institutional-message assertion');
  assert.equal(createHash('sha256').update(tail.replace(messageAssertion,'')).digest('hex'),'bc7efdf29d82ddf40c5785b2f9786f1f2a95fd38d83264197bbf9a811ec3c83b','all prior source-review, recovery, mobile, revocation and SQL-count checks remain byte-identical after the reviewed insertion is removed');
+});
+
+test('vertical sidebar observer has one finite inverse and rejects the former source or any unreviewed drift',()=>{
+ const file='scripts/verify-own-payroll-run-ui.mjs',raw=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),p=OWN_RUN_UI_VERTICAL_NAVIGATION_PIN,prior=projectOwnRunUiVerticalNavigationToParent(file,raw);
+ assert.equal(Buffer.byteLength(prior),p.beforeBytes);assert.equal(createHash('sha256').update(prior).digest('hex'),p.beforeSha256);assert.equal(p.inverse.length,6);
+ assert.throws(()=>projectOwnRunUiVerticalNavigationToParent(file,prior));assert.throws(()=>projectOwnRunUiVerticalNavigationToParent(file,raw+'\n'));
+ const changed=Buffer.from(raw);changed[0]^=1;assert.throws(()=>projectOwnRunUiVerticalNavigationToParent(file,changed.toString('utf8')));
+ for(const op of p.inverse){assert.equal(raw.split(op.expect).length,2);assert.throws(()=>projectOwnRunUiVerticalNavigationToParent(file,raw.replace(op.expect,()=>op.expect+' ')));}
+ assert.equal(projectOwnRunUiVerticalNavigationToParent('unrelated','literal'),'literal');assert.ok(Object.isFrozen(p)&&Object.isFrozen(p.inverse)&&p.inverse.every(Object.isFrozen));
+ const begin='// QA_OWN_RUN_VERTICAL_NAV_BEGIN\n',end='// QA_OWN_RUN_VERTICAL_NAV_END\n';assert.equal(raw.split(begin).length,2);assert.equal(raw.split(end).length,2);const helper=raw.slice(raw.indexOf(begin)+begin.length,raw.indexOf(end));
+ for(const required of ["owner.locator('[data-liquidaciones-menu]')","owner.locator('.mc-work-toggle')","getAttribute('aria-expanded')","menu.locator(':scope > summary').click()","section.locator(':scope > summary').click()","await target.click();","getAttribute('aria-selected')","getAttribute('aria-controls')","panel.isVisible()","dataset.activeTask===task"])assert.ok(helper.includes(required),required);
+ assert.doesNotMatch(helper,/getByRole|force:|\.goto\(|pushState|replaceState|dispatchEvent|workspace\.activate/);
+ for(const owner of ['page','reviewPage'])for(const id of ['resumen','calculo'])assert.equal(raw.split("await openOwnRunPayrollTask("+owner+",'"+id+"');").length,2);
+ assert.equal((raw.match(/getByRole\('tab'/g)??[]).length,0,'no hidden horizontal-tab observer remains');
+});
+
+test('global picker withdrawal fixtures end before the first calculation in a genuinely new authorized document',()=>{
+ const raw=fs.readFileSync(new URL('../scripts/verify-own-payroll-run-ui.mjs',import.meta.url),'utf8'),begin='  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_BEGIN\n',end='  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_END';
+ assert.equal(raw.split(begin).length,2);assert.equal(raw.split(end).length,2);const a=raw.indexOf(begin),b=raw.indexOf(end),boundary=raw.slice(a,b);
+ const withdrawn=raw.indexOf("permission revocation withdraws own directory and recovery without adopting or calculating"),completed=raw.indexOf('voluntary own-directory close returns accessible focus'),firstCalculation=raw.indexOf("await prepare('all');await calculate();");assert.ok(withdrawn>0&&completed>withdrawn&&a>completed&&b<firstCalculation);
+ assert.ok(boundary.includes("await page.reload({waitUntil:'domcontentloaded'});"));assert.ok(boundary.includes("location.hash==='#calculo'"));assert.ok(boundary.includes("getAttribute('data-mc-capability-state')==='ready'"));assert.ok(boundary.includes('does not prove user recovery without F5'));
+ assert.doesNotMatch(boundary,/dispatchEvent|capabilities-ready|removeAttribute|gate\.ready|force:|\.goto\(/,'do not fake a positive capability event, waive denied flags or navigate around the real task');
 });

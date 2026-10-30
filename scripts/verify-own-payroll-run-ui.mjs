@@ -42,6 +42,24 @@ async function assertCapturedScreenRows(locator,capture,expectedRows,label){
  }
  check(true,label);
 }
+// QA_OWN_RUN_VERTICAL_NAV_BEGIN
+// Use the original sidebar controls; never force a click, set a hash or activate a workspace directly.
+async function openOwnRunPayrollTask(owner,id){
+ assert.ok(['resumen','calculo'].includes(id),'own run task must be an existing sidebar destination');
+ const menu=owner.locator('[data-liquidaciones-menu]'),target=menu.locator('[data-task="'+id+'"]');
+ await menu.waitFor({state:'attached'});await target.waitFor({state:'attached'});
+ const toggle=owner.locator('.mc-work-toggle');
+ if(await toggle.isVisible()&&await toggle.getAttribute('aria-expanded')==='false')await toggle.click();
+ if(!(await menu.evaluate(node=>node.open)))await menu.locator(':scope > summary').click();
+ const section=target.locator('xpath=ancestor::details[contains(@class,"task-section")]');
+ if(await section.count()&&!(await section.evaluate(node=>node.open)))await section.locator(':scope > summary').click();
+ await target.click();
+ await owner.waitForFunction(task=>location.hash==='#'+task&&document.querySelector('#payrollTaskWorkspace')?.dataset.activeTask===task,id);
+ assert.equal(await target.count(),1,'one original sidebar task control');assert.equal(await target.getAttribute('role'),'tab');
+ assert.equal(await target.getAttribute('aria-selected'),'true');assert.equal(await target.getAttribute('aria-controls'),'task-'+id);assert.equal(await target.getAttribute('tabindex'),'0');
+ const panel=owner.locator('#task-'+id);assert.equal(await panel.getAttribute('role'),'tabpanel');assert.equal(await panel.getAttribute('aria-labelledby'),await target.getAttribute('id'));assert.equal(await panel.isVisible(),true,'the selected task panel is actually visible');
+}
+// QA_OWN_RUN_VERTICAL_NAV_END
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
   await db.run(ownPayrollFullQaInstallation(qa.schema));
@@ -140,7 +158,13 @@ try{
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
   await searchOwnContract();completeRosterProof();await picker.locator('[data-picker-close]').click();await picker.waitFor({state:'hidden'});
   check(await select('picker').evaluate(el=>document.activeElement===el)&&posts===0&&legacyDirectoryRequests.length===legacyBeforePicker,'voluntary own-directory close returns accessible focus without a legacy query or municipal decision');
-  await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
+  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_BEGIN
+  // Picker capability-withdrawal events are deliberate global fixtures; that phase is complete.
+  // Start calculation in a genuinely new document so the real gateway authorizes the unchanged
+  // HTTP fixture again. This isolates QA phases; it does not prove user recovery without F5.
+  await page.setViewportSize({width:1440,height:1000});await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>location.hash==='#calculo'&&document.documentElement.getAttribute('data-mc-capability-state')==='ready');await settled();
+  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_END
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
   const labelConsultPosts=posts,screenCapture=await ownRunOperation(db,principal,session,'attempt',{key:writes.at(-1).key});
@@ -180,9 +204,9 @@ try{
   await select('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await select('recover').click();await select('result').waitFor({state:'visible'});
   check(posts===beforeHide,'visibility recovery uses GET without recalculating');
   delay=true;await select('recover').click();const deadline=Date.now()+20000;while(!held&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);
-  await page.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  await openOwnRunPayrollTask(page,'resumen');held();held=null;
   check((await select('rows').locator('tr').count())===0,'late response cannot repopulate a closed task');
-  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+  await openOwnRunPayrollTask(page,'calculo');await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   await select('recover').click();await select('result').waitFor({state:'visible'});await select('search').fill('');
   await scope.screenshot({path:prefix+'-desktop.png'});
   await page.screenshot({path:prefix+'-desktop-viewport.png'});
@@ -261,9 +285,9 @@ try{
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&!(await reviewPage.locator('.own-run').innerText()).includes('19041'),'hide clears all review data');
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});await rs('refresh').click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
-  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await reviewPage.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await openOwnRunPayrollTask(reviewPage,'resumen');held();held=null;
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0,'late review response cannot repopulate a closed task');
-  await reviewPage.getByRole('tab',{name:'Calcular',exact:true}).click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
+  await openOwnRunPayrollTask(reviewPage,'calculo');await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   await db.run("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.calculation.nominal.read'");await rs('source-download').click();await idle();
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&await rs('source-download').isDisabled(),'actual SQL revocation clears review and prevents download');
   await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.maker)+"::uuid,'payroll.calculation.nominal.read')");await rs('refresh').click();await idle();await rs('send').click();await idle();assert.deepEqual(writes.at(-1),failed);checks++;

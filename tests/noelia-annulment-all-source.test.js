@@ -10,10 +10,16 @@ import {createHash} from 'node:crypto';
 import {noeliaCircuitEndpoint} from '../scripts/lib/noelia-payroll-circuit-browser.mjs';
 import {NOELIA_FULL_DECISION_STATEMENTS,noeliaFullDecisionStatement} from '../scripts/lib/noelia-current-full-qa.mjs';
 import {noeliaCircuitOptions} from '../scripts/lib/noelia-circuit-runtime.mjs';
-import {NOELIA_ANNULMENT_SOURCE_PINS,projectNoeliaAnnulmentSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
-import {NOELIA_ACCOUNTING_SOURCE_PINS} from '../scripts/lib/noelia-accounting-full-source-pins.mjs';
+import {NOELIA_ANNULMENT_SOURCE_PINS,projectNoeliaAnnulmentSource,NOELIA_LIQUIDATION_REVIEW_SOURCE_PINS,projectNoeliaLiquidationReviewSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
+import {NOELIA_ACCOUNTING_SOURCE_PINS as CURRENT_NOELIA_ACCOUNTING_SOURCE_PINS} from '../scripts/lib/noelia-accounting-full-source-pins.mjs';
 
 const ROOT=path.resolve(process.cwd()),read=file=>fs.readFileSync(path.join(ROOT,file),'utf8');
+// Prior M7 assertions still concern their exact former source epoch.
+// Current runtime custody is independently checked against its two successors.
+const PIN_MODULE='scripts/lib/noelia-accounting-full-source-pins.mjs';
+const priorPinSource=projectNoeliaLiquidationReviewSource(PIN_MODULE,read(PIN_MODULE));
+const priorPinDeclaration=/export const NOELIA_ACCOUNTING_SOURCE_PINS=Object.freeze\((\{[\s\S]*?\})\);/.exec(priorPinSource);assert.ok(priorPinDeclaration);
+const NOELIA_ACCOUNTING_SOURCE_PINS=JSON.parse(priorPinDeclaration[1]);
 const RUNNER='scripts/verify-noelia-payroll-circuit.mjs',BROWSER='scripts/lib/noelia-payroll-circuit-browser.mjs';
 const SQL208='scripts/migrations/208-own-annulment-review-index.sql',SQL208_SHA256='2f0b030f12570f37ea3357707309422754522af66dc85475fd81e9a473c1b402';
 const sha=file=>createHash('sha256').update(fs.readFileSync(path.join(ROOT,file))).digest('hex');
@@ -105,4 +111,18 @@ test('the runtime source epoch changes only the four fully reviewed M7 sources a
  const former=JSON.parse(match[1]),expected={...former};for(const pin of sourceRows){assert.equal(former[pin.path],pin.beforeSha256);expected[pin.path]=pin.afterSha256;}assert.deepEqual(NOELIA_ACCOUNTING_SOURCE_PINS,expected);
  assert.equal(projectNoeliaAnnulmentSource('unrelated','literal'),'literal');assert.equal(projectNoeliaAnnulmentSource('constructor','literal'),'literal');assert.throws(()=>projectNoeliaAnnulmentSource(null,'literal'),/SOURCE_PATH_REQUIRED/);
  for(const pin of NOELIA_ANNULMENT_SOURCE_PINS)assert.ok(Object.isFrozen(pin)&&Object.isFrozen(pin.inverse)&&pin.inverse.every(Object.isFrozen));
+});
+
+
+test('post-receipt liquidation QA custody admits only the exact browser successor and its one runtime pin',()=>{
+ assert.equal(NOELIA_LIQUIDATION_REVIEW_SOURCE_PINS.length,2);
+ const browserPin=NOELIA_LIQUIDATION_REVIEW_SOURCE_PINS.find(pin=>pin.path===BROWSER);assert.ok(browserPin);
+ assert.deepEqual(CURRENT_NOELIA_ACCOUNTING_SOURCE_PINS,{...NOELIA_ACCOUNTING_SOURCE_PINS,[BROWSER]:browserPin.afterSha256},'no other runtime source pin changes');
+ for(const pin of NOELIA_LIQUIDATION_REVIEW_SOURCE_PINS){
+  const actual=read(pin.path),before=projectNoeliaLiquidationReviewSource(pin.path,actual);
+  assert.equal(Buffer.byteLength(actual),pin.afterBytes);assert.equal(createHash('sha256').update(actual).digest('hex'),pin.afterSha256);
+  assert.equal(Buffer.byteLength(before),pin.beforeBytes);assert.equal(createHash('sha256').update(before).digest('hex'),pin.beforeSha256);
+  for(const changed of [null,actual+'\n',actual.slice(1),before])assert.throws(()=>projectNoeliaLiquidationReviewSource(pin.path,changed));
+  const altered=Buffer.from(actual);altered[0]^=1;assert.throws(()=>projectNoeliaLiquidationReviewSource(pin.path,altered.toString('utf8')),/CURRENT_SOURCE/);
+ }
 });

@@ -411,7 +411,51 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await page.setViewportSize({width:1440,height:1100});drop=true;await l('send').click();await lidle();const original=writes.at(-1);assert.equal(original.kind,'liquidation');assert.deepEqual(original.receipt.body.selection,selection);check(await l('recover').isVisible()&&!await l('next-decision').isVisible(),'uncertain committed decision preserves original body and key');
    await l('kind').evaluate(el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));});await l('command').evaluate(el=>{el.value='cancel';el.dispatchEvent(new Event('change',{bubbles:true}));});
    check((await l('review-summary').innerText()).startsWith(command==='confirm'?'Confirmar':'Anular')&&(await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'DOM changes cannot replace the scope review of a pending decision');
+   const receiptSnapshot={key:original.key,body:structuredClone(original.receipt.body)},allReview=selection.kind==='all';
+   const matchesAttempt=response=>{const request=response.request(),url=new URL(response.url());return request.method()==='GET'&&url.origin===origin&&url.pathname==='/api/internal-own-payroll-liquidation'&&url.searchParams.get('resource')==='attempt'&&url.searchParams.get('key')===receiptSnapshot.key&&response.status()===200;};
+   const checkRecoveredReceipt=async response=>{const packet=await response.json();assert.equal(packet.ok,true);assert.equal(packet.data.id,original.receipt.id);assert.equal(packet.data.key,receiptSnapshot.key);assert.deepEqual(packet.data.body,receiptSnapshot.body);assert.equal(packet.data.bodySha256,original.receipt.bodySha256);assert.deepEqual(packet.data.affected,original.receipt.affected);};
+   if(allReview){
+    assert.equal(selected.count,29,'the existing complete synthetic decision is the29-contract source');
+    check(await l('review-search').isDisabled()&&await l('kind').isDisabled()&&await l('reason').isDisabled()&&await l('confirm').isDisabled(),'lost decision ACK keeps review navigation and both decision regions blocked');
+    let attemptRequested=false,blockedDetails=0;
+    const detailUrl=url=>url.origin===origin&&url.pathname==='/api/internal-own-payroll-liquidation'&&url.searchParams.get('resource')==='detail'&&url.searchParams.get('id')===detail.id;
+    const observeAttempt=request=>{const url=new URL(request.url());if(request.method()==='GET'&&url.origin===origin&&url.pathname==='/api/internal-own-payroll-liquidation'&&url.searchParams.get('resource')==='attempt'&&url.searchParams.get('key')===receiptSnapshot.key)attemptRequested=true;};
+    const unavailableDetail=async route=>{if(!attemptRequested||blockedDetails)return route.continue();blockedDetails++;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'Detalle sintético temporalmente no disponible después del comprobante.'})});};
+    page.on('request',observeAttempt);await page.route(detailUrl,unavailableDetail);
+    const obtained=page.waitForResponse(matchesAttempt);obtained.catch(()=>{});
+    try{
+     await l('recover').click();await lidle();await checkRecoveredReceipt(await obtained);
+     check(blockedDetails===1&&await l('next-decision').isVisible()&&(await l('status').innerText()).includes('Detalle sintético temporalmente no disponible después del comprobante.'),'actual GET obtains the original decision receipt while its following FULL-detail GET fails explicitly');
+     check(await l('review-search').isDisabled()&&await l('review-next').isDisabled()&&await l('kind').isDisabled()&&await l('reason').isDisabled()&&await l('confirm').isDisabled()&&writes.length===before+1,'a verified receipt with a failed detail does not unlock stale review or either decision region');
+    }finally{page.off('request',observeAttempt);await page.unroute(detailUrl,unavailableDetail);}
+   }
+   const recovered=allReview?page.waitForResponse(matchesAttempt):null;recovered?.catch(()=>{});
    await l('recover').click();await lidle();check(writes.length===before+1&&await l('next-decision').isVisible(),'readback recovers the same full decision without another POST');
+   if(allReview){
+    await checkRecoveredReceipt(await recovered);
+    check(await l('review-search').isEnabled(),'authoritative receipt and its complete matching detail restore read-only decision review');
+    const totals=await l('review-totals').innerText();for(const amount of Object.values(selected.totals))assert.ok(totals.includes(formatOwnRunDecimal(amount)));
+    for(const width of [1440,390,320]){
+     await page.setViewportSize({width,height:1100});await l('review-search').fill('');
+     check(await l('kind').isDisabled()&&await l('values').isDisabled()&&await l('reason').isDisabled()&&await l('confirm').isDisabled()&&await l('send').isHidden(),'both decision regions stay locked after the recovered receipt at'+width+'px');
+     check(await l('fields').evaluate(node=>node.disabled===true)&&await l('confirmation-fields').evaluate(node=>node.disabled===true)&&await l('review-fields').evaluate(node=>node.disabled===false),'real FIELDSET inheritance separates immutable decision fields from read navigation at'+width+'px');
+     const seen=[];assert.equal(await l('review-rows').locator('tr').count(),25);seen.push(...await l('review-rows').locator('tr').evaluateAll(rows=>rows.map(row=>row.cells[0].textContent)));
+     await l('review-next').click();assert.equal(await l('review-rows').locator('tr').count(),4);seen.push(...await l('review-rows').locator('tr').evaluateAll(rows=>rows.map(row=>row.cells[0].textContent)));
+     assert.deepEqual(seen.sort(),selected.rows.map(row=>row.employeeNumber).sort());assert.equal(new Set(seen).size,29);
+     check((await l('review-page').innerText())==='2 / 2'&&await l('review-next').isDisabled(),'post-receipt paging reaches every original29-contract identity exactly once at'+width+'px');
+     await l('review-search').fill('A/3501');
+     check(await l('review-rows').locator('tr').count()===1&&(await l('review-range').innerText()).includes('29 afectados')&&(await l('review-totals').innerText())===totals,'post-receipt search preserves complete scope and exact totals at'+width+'px');
+     await l('review-search').fill('sin-coincidencias-sinteticas');
+     check((await l('review-range').innerText()).startsWith('0 legajos')&&(await l('review-totals').innerText())===totals,'post-receipt empty search never erases the complete decision at'+width+'px');
+     await l('review-search').fill('');await l('review-next').click();await l('review-prev').click();
+     check((await l('review-page').innerText())==='1 / 2'&&await l('review-rows').locator('tr').count()===25,'post-receipt backward navigation restores the first25 rows at'+width+'px');
+     check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)&&await l('review-search').evaluate(node=>node.getBoundingClientRect().height>=44),'post-receipt read controls remain accessible without horizontal overflow at'+width+'px');
+     await page.locator('.own-liquidation').filter({has:l('status')}).screenshot({path:path.join(output,'decision-receipt-'+command+'-'+width+'.png'),fullPage:false});
+    }
+    await page.setViewportSize({width:1440,height:1100});
+    assert.equal(original.key,receiptSnapshot.key);assert.deepEqual(original.receipt.body,receiptSnapshot.body);
+    check(writes.length===before+1,'all post-receipt search and page actions preserve the same body and key with zero additional POSTs');
+   }
    return original.receipt;
   }
   async function outputs({period,batchId,emissionId,jurisdictions=false}){
