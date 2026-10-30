@@ -8,12 +8,13 @@ import {CI_RUNTIME_BUDGET_SOURCE_PINS as pins,projectCiRuntimeBudgetSourceToPare
 import {RELEASE_CANDIDATE_SOURCE_PINS as releasePins,projectReleaseCandidateWorkflowToParent} from './fixtures/release-candidate-workflow-succession.js';
 import {RELEASE_CONTRACT} from '../scripts/release-qualification-contract.mjs';
 import {CANDIDATE_WORKFLOW_SHA256} from '../scripts/lib/release-candidate-admission.mjs';
+import {projectNoeliaFiscalWorkflowToBudgetEpoch} from './fixtures/noelia-fiscal-workflow-source-projection.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 const read=file=>projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
 const capacity='.github/workflows/own-payroll-full-capacity.yml';
 for(const [file,pin]of Object.entries(pins))test('finite CI budget custody reconstructs the whole exact parent: '+file,()=>{
- const current=read(file),prior=parent(file,current);assert.equal(current.length,pin.afterBytes);assert.equal(hash(current),pin.afterSha256);assert.equal(prior.length,pin.beforeBytes);assert.equal(hash(prior),pin.beforeSha256);
+ const current=projectNoeliaFiscalWorkflowToBudgetEpoch(file,read(file)),prior=parent(file,current);assert.equal(current.length,pin.afterBytes);assert.equal(hash(current),pin.afterSha256);assert.equal(prior.length,pin.beforeBytes);assert.equal(hash(prior),pin.beforeSha256);
  assert.throws(()=>parent(file,prior));assert.throws(()=>parent(file,Buffer.concat([current,Buffer.from('\n')])));
  const changed=Buffer.from(current);changed[0]^=1;assert.throws(()=>parent(file,changed));
  for(const op of pin.inverse){const changed=Buffer.from(current);changed[op.offset]^=1;assert.throws(()=>parent(file,changed));}
@@ -52,4 +53,13 @@ test('future custody-only edits match every required workflow existing path filt
  const receipts=read('.github/workflows/own-payroll-receipts.yml').toString('utf8');
  assert.throws(()=>assertRuntimeBudgetTriggerCoverage(receipts,['tests/fixtures/ci-runtime-budget-source-succession.js']));
  assert.throws(()=>assertRuntimeBudgetTriggerCoverage(receipts,['tests/ci-runtime-budget-source.test.js']));
+});
+
+test('fiscal successor projects only the historical budget loop and retains the actual current release pin',()=>{
+ const file='.github/workflows/noelia-payroll-circuit.yml',raw=read(file),prior=projectNoeliaFiscalWorkflowToBudgetEpoch(file,raw);
+ assert.equal(hash(raw),RELEASE_CONTRACT.workflows.find(value=>value.path===file).sha256);assert.equal(hash(prior),pins[file].afterSha256);assert.equal(prior.length,pins[file].afterBytes);
+ assert.ok(raw.toString('utf8').includes(' --fiscal=true'));assert.ok(!prior.toString('utf8').includes(' --fiscal=true'));
+ assert.throws(()=>projectNoeliaFiscalWorkflowToBudgetEpoch(file,prior));assert.throws(()=>projectNoeliaFiscalWorkflowToBudgetEpoch(file,Buffer.concat([raw,Buffer.from('\n')])));
+ const changed=Buffer.from(raw);changed[0]^=1;assert.throws(()=>projectNoeliaFiscalWorkflowToBudgetEpoch(file,changed));
+ const unknown=Buffer.from('unrelated');assert.strictEqual(projectNoeliaFiscalWorkflowToBudgetEpoch('tests/unrelated.test.js',unknown),unknown);
 });

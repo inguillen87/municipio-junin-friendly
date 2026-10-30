@@ -27,8 +27,8 @@ export const RELEASE_CONTRACT=deepFreeze({
   test:'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js',
   build:'npm run test && node scripts/build-friendly.mjs',
   'build:vercel':'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node scripts/build-friendly.mjs'},
- // Closed Git path: no fast buildCommand anywhere and no automatic Git deployment of the production branch.
- vercelJson:{buildCommand:null,gitDeploymentEnabled:{'internal-*':false,master:false}},
+ // Reviewed Git previews use the bundle command. Production Git auto-deploy stays disabled; institutional staging still overrides it with the exact-SHA attestation.
+ vercelJson:{buildCommand:'npm run build:vercel',gitDeploymentEnabled:{'internal-*':false,master:false}},
  // Vercel project settings that NO repository source shows. Root must attest exactly these values in the
  // hash-pinned admission (from its own read of the project), or nothing proceeds:
  //  - productionBranch: the branch whose Git pushes Vercel deploys to production (vercelJson blocks only `master`);
@@ -51,7 +51,7 @@ export const RELEASE_CONTRACT=deepFreeze({
  // repository source shows GET returning it: absence or any contradiction is a STOP, never a pass.
  workflows:[
   {path:'.github/workflows/noelia-payroll-circuit.yml',name:'Noelia complete own payroll circuit',
-   sha256:'e87d8e2490cffbbe081d4a0345cdaa9e482d66fdac8b3825bba1e2bb6e7ef754',
+   sha256:'e3a700eb4f9acc9108179d4308a43198ed10282c527bdcb5e09f961bd0cb16b8',
    jobs:[17,18].map(major=>({name:`circuit (${major})`,major,artifact:`noelia-circuit-pg${major}-<sha>`,
     report:{entry:'noelia-circuit-ci/result.json',fields:{passed:true,major,sourceCommit:'<sha>',transport:'ci',browser:'chromium',productionWrites:false}}})),
    // Every named step of the reviewed bytes; 'Build and run all existing regressions' is `npm run build` (full suite).

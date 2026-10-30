@@ -36,14 +36,14 @@ test('contrato = bytes revisados del repo: rutas, nombres, matrices, pasos, ates
  const noelia=Buffer.from(repoBytes(NOELIA.path)).toString('utf8'),capacity=Buffer.from(repoBytes(CAPACITY.path)).toString('utf8');
  assert.ok(noelia.includes('\n  circuit:\n')&&noelia.includes('      matrix:\n        major: [17, 18]\n')&&noelia.includes('name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}\n'));
  assert.ok(noelia.includes('      - name: Build and run all existing regressions\n        run: npm run build\n'),'full suite inside both Noelia jobs');
- assert.ok(noelia.includes('node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci\n'));
+ assert.ok(noelia.includes('node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --output=verification/noelia-circuit-ci\n'));
  assert.ok(capacity.includes('    name: M7, receipt126 and Family195 browser, positions210-212 SQL / PG${{ matrix.pg }} / published107\n')&&capacity.includes('        pg: [17, 18]\n'));
  assertCapacityFullSuite(capacity);
  assert.ok(capacity.includes('--major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}\n'));
  assert.ok(capacity.includes('name: own-full-capacity-pg${{ matrix.pg }}-published107-${{ github.sha }}\n'));
  const pkg=JSON.parse(Buffer.from(repoBytes('package.json')).toString('utf8')),vercel=JSON.parse(Buffer.from(repoBytes('vercel.json')).toString('utf8'));
  for(const [k,v] of Object.entries(C.scripts))assert.equal(pkg.scripts[k],v,k);
- assert.equal(vercel.buildCommand,undefined);assert.deepEqual(vercel.git,{deploymentEnabled:{'internal-*':false,master:false}});
+ assert.equal(vercel.buildCommand,'npm run build:vercel');assert.equal(C.vercelJson.buildCommand,vercel.buildCommand);assert.deepEqual(vercel.git,{deploymentEnabled:{'internal-*':false,master:false}});
  assert.equal(new Set(C.vercel.productionDomains).size,3);assert.match(stageBuildCommand(SHA),/^node scripts\/verify-vercel-build-db-attestation\.mjs --source-sha a{40} && npm run build:vercel$/);
 });
 
@@ -162,7 +162,7 @@ test('fuentes en el SHA: bytes de workflow alterados, contenido inconsistente, s
  has(o=>{o.contents['package.json']=withScripts({'build:vercel':'node scripts/verify-platform-baseline.mjs && node scripts/build-friendly.mjs'});},'SOURCE_SCRIPT_CHANGED:build:vercel');
  has(o=>{o.contents['package.json']=withScripts({test:'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs'});},'SOURCE_SCRIPT_CHANGED:test');
  has(o=>{o.contents['package.json']=withScripts({build:'npm run build:vercel'});},'SOURCE_SCRIPT_CHANGED:build');
- has(o=>{o.contents['vercel.json']=contentAnswer('vercel.json',enc({...vercel,buildCommand:'npm run build:vercel'}));},'SOURCE_VERCEL_BUILD_COMMAND');
+ for(const buildCommand of [undefined,'npm run build','node scripts/build-friendly.mjs'])has(o=>{o.contents['vercel.json']=contentAnswer('vercel.json',enc({...vercel,buildCommand}));},'SOURCE_VERCEL_BUILD_COMMAND');
  has(o=>{o.contents['vercel.json']=contentAnswer('vercel.json',enc({...vercel,git:{deploymentEnabled:{'internal-*':false}}}));},'SOURCE_VERCEL_GIT_DEPLOYMENT_OPEN');
  has(o=>{o.contents['vercel.json']=contentAnswer('vercel.json',enc({...vercel,git:{deploymentEnabled:{'internal-*':false,master:true}}}));},'SOURCE_VERCEL_GIT_DEPLOYMENT_OPEN');
  has(o=>{const {git,...rest}=vercel;o.contents['vercel.json']=contentAnswer('vercel.json',enc(rest));},'SOURCE_VERCEL_GIT_DEPLOYMENT_OPEN');
@@ -249,4 +249,30 @@ test('capacity full-suite evidence preserves pipefail, tee and one complete buil
   value=>value.replace('npm run build 2>&1','npm run build -- --test-name-pattern=one 2>&1'),
   value=>value+'      - run: npm run build\n'
  ])assert.throws(()=>assertCapacityFullSuite(change(source)),assert.AssertionError);
+});
+
+// The source-configured Preview path changes packaging only. A synthetic READY
+// Preview, pending CI or the plain bundle command can never become a production stage.
+test('fast Preview source retains full CI and cannot replace staged attestation, canonical SHA or domain fencing',()=>{
+ assert.equal(C.scripts.test,'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js');
+ assert.equal(C.scripts.build,'npm run test && node scripts/build-friendly.mjs');
+ assert.equal(C.scripts['build:vercel'],'node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node scripts/build-friendly.mjs');
+ assert.deepEqual(C.providerSettingsRequired,{productionBranch:'master',projectBuildCommand:null});
+ const pending=q(o=>{o.runsPages[0].workflow_runs[0].status='in_progress';});assert.equal(pending.qualified,false);
+ const rejected=evaluateStage({...stageInput(),qualification:pending});assert.ok(rejected.reasons.includes('STAGE_NOT_QUALIFIED'));
+ const plain=evaluateStage({...stageInput(),createObservation:createObservation({effectiveBuildCommand:'npm run build:vercel'}),deployment:deployment(STAGED,{projectSettings:{buildCommand:'npm run build:vercel'}})});assert.ok(plain.reasons.includes('STAGE_BUILD_COMMAND_UNOBSERVED_OR_CHANGED'));assert.ok(plain.reasons.includes('STAGE_GET_BUILD_COMMAND_CHANGED'));
+ const preview=evaluateStage({...stageInput(),createObservation:createObservation({target:'preview'}),deployment:deployment(STAGED,{target:'preview'})});assert.ok(preview.reasons.includes('STAGE_CREATE_TARGET'));assert.ok(preview.reasons.includes('STAGE_TARGET'));
+ const domains=evaluateStage({...stageInput(),createObservation:createObservation({autoAssignCustomDomains:true})});assert.ok(domains.reasons.includes('STAGE_DOMAIN_ASSIGNMENT_NOT_DISABLED'));
+});
+
+// Three finite additions, in two unified-diff hunks: fiscal flag + two outputs.
+// The full inverse is the real505e127e parent, not an invented workflow baseline.
+test('Noelia fiscal workflow succession recovers the complete reviewed parent and rejects the old or newly drifted bytes',()=>{
+ const file='.github/workflows/noelia-payroll-circuit.yml',raw=Buffer.from(repoBytes(file)),current=raw.toString('utf8');
+ assert.equal(raw.length,15086);assert.equal(hash(raw),'e3a700eb4f9acc9108179d4308a43198ed10282c527bdcb5e09f961bd0cb16b8');assert.equal(C.workflows.find(w=>w.path===file).sha256,hash(raw));
+ let parent=current;for(const addition of [" --fiscal=true","            verification/noelia-circuit-ci/noelia-f931-native-readback.json\n","            verification/noelia-circuit-ci/noelia-fiscal160-installation.json\n"]){assert.equal(parent.split(addition).length,2);parent=parent.replace(addition,'');}
+ assert.equal(Buffer.byteLength(parent),14918);assert.equal(hash(enc(parent)),'e87d8e2490cffbbe081d4a0345cdaa9e482d66fdac8b3825bba1e2bb6e7ef754');
+ assert.equal(q().qualified,true,'all current source pins must agree before negative probes');
+ has(o=>{o.contents[file]=contentAnswer(file,enc(parent));},'WORKFLOW_BYTES_CHANGED:'+file);
+ has(o=>{o.contents[file]=contentAnswer(file,enc(current+'\n'));},'WORKFLOW_BYTES_CHANGED:'+file);
 });
