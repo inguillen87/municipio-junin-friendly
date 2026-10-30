@@ -1,5 +1,6 @@
 // Real product page + real HTTP handlers + committed isolated PostgreSQL.
 // Auth gateway and unavailable historical dashboard are QA fixtures; the own picker uses the real SQL-backed roster handler.
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -160,9 +161,9 @@ try{
   await select('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await select('recover').click();await select('result').waitFor({state:'visible'});
   check(posts===beforeHide,'visibility recovery uses GET without recalculating');
   delay=true;await select('recover').click();const deadline=Date.now()+20000;while(!held&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);
-  await page.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'resumen'});held();held=null;
   check((await select('rows').locator('tr').count())===0,'late response cannot repopulate a closed task');
-  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   await select('recover').click();await select('result').waitFor({state:'visible'});await select('search').fill('');
   await scope.screenshot({path:prefix+'-desktop.png'});
   await page.screenshot({path:prefix+'-desktop-viewport.png'});
@@ -227,9 +228,9 @@ try{
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&!(await reviewPage.locator('.own-run').innerText()).includes('19041'),'hide clears all review data');
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});await rs('refresh').click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
-  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await reviewPage.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await openQaPayrollSidebarTask(reviewPage,{profile:'payroll-sidebar',task:'resumen'});held();held=null;
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0,'late review response cannot repopulate a closed task');
-  await reviewPage.getByRole('tab',{name:'Calcular',exact:true}).click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
+  await openQaPayrollSidebarTask(reviewPage,{profile:'payroll-sidebar',task:'calculo'});await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   await db.run("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.calculation.nominal.read'");await rs('source-download').click();await idle();
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&await rs('source-download').isDisabled(),'actual SQL revocation clears review and prevents download');
   await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.maker)+"::uuid,'payroll.calculation.nominal.read')");await rs('refresh').click();await idle();await rs('send').click();await idle();assert.deepEqual(writes.at(-1),failed);checks++;

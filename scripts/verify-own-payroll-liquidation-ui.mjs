@@ -1,5 +1,6 @@
 // Actual built product UI, actual HTTP decision handler and committed local
 // PostgreSQL. Authentication principal/IAM/dashboard are synthetic fixtures.
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -123,9 +124,9 @@ try{
  check(await calc('recover').isVisible()&&!(await calc('result').isVisible())&&posts===beforeCalculation+1,'lost committed recalculation acknowledgement stays uncertain with one explicit POST');
  trace.phase='calculation-recovery';
  const pendingCalculation=structuredClone(calculationWrites.at(-1));check(pendingCalculation.body.version==='own-payroll-run-command.v2'&&pendingCalculation.body.liquidationDate===chosenDate,'new explicit calculation persists the chosen date in its immutable body');
- await calc('date').evaluate(el=>{el.value='2026-10-15';el.dispatchEvent(new Event('change',{bubbles:true}));});await page.getByRole('tab',{name:'Confirmar y anular',exact:true}).click();await settled();await select('recover').click();await settled();await select('recalculate').click();await settled();
+ await calc('date').evaluate(el=>{el.value='2026-10-15';el.dispatchEvent(new Event('change',{bubbles:true}));});await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'decisiones'});await settled();await select('recover').click();await settled();await select('recalculate').click();await settled();
  check((await select('status').innerText()).includes('cálculo pendiente')&&calculationWrites.length===1,'another preparation cannot replace a pending calculation body/key');
- await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await calc('recover').click();await calc('result').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await calc('recover').click();await calc('result').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  assert.deepEqual(calculationWrites,[pendingCalculation]);checks++;check((await calc('date').inputValue())===chosenDate&&(await calc('result-summary').innerText()).includes(chosenDate.split('-').reverse().join('/')),'recovery reinstates original signed date despite a DOM change during lost acknowledgement');check(pendingCalculation.body.selection.kind==='contracts'&&pendingCalculation.body.selection.values.length===1&&pendingCalculation.body.selection.values[0]===firstId,'new calculation preserves the exact annulled legajo and cannot widen to six source contracts');
  await calc('search').fill('no-match');await calc('totals').locator('[data-own-individual-open]').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  check(await calc('individual').locator('[data-individual-concepts] li').count()===6&&(await calc('individual').locator('[data-individual-state]').innerText()).includes('Pendiente de confirmación'),'recovered new result has complete concepts and fresh pending state through the actual detail handler');
