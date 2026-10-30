@@ -19,7 +19,7 @@ export async function nativeAccountingPanelAccess(page,prefix){
 }
 import {verifyNativeF931Ui} from './noelia-fiscal160-ui-qa.mjs';
 const root=path.resolve(import.meta.dirname,'../..');
-const endpoints=new Map([['/api/internal-own-fiscal-facts','fiscalFacts'],['/api/internal-employment-changes','employmentChanges'],['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts'],['/api/internal-own-payroll-accounting','accounting'],['/api/internal-own-payroll-imputation','imputation'],['/api/internal-own-payroll-journal','journal'],['/api/internal-own-monthly-day-declaration','monthly'],['/api/internal-own-period-participation','participation']]);
+const endpoints=new Map([['/api/internal-own-fiscal-facts','fiscalFacts'],['/api/internal-employment-changes','employmentChanges'],['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-annulment','annulment'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts'],['/api/internal-own-payroll-accounting','accounting'],['/api/internal-own-payroll-imputation','imputation'],['/api/internal-own-payroll-journal','journal'],['/api/internal-own-monthly-day-declaration','monthly'],['/api/internal-own-period-participation','participation']]);
 export const noeliaCircuitEndpoint=pathname=>endpoints.get(pathname)??null;
 export async function withNoeliaNativeEmployeeHandler(handlers,handler,operation){
  assert.equal(typeof handler,'function');assert.equal(typeof operation,'function');assert.ok(!Object.hasOwn(handlers,'nativeEmployee'),'QA_NATIVE_HANDLER_ALREADY_ACTIVE');
@@ -65,7 +65,7 @@ export function assertNativeReceiptDescriptionPdf(bytes,{record,target,source,ba
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
- const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??(w.kind==='nativeEmployee'?'create':'calculate')}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
+ const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??(w.kind==='nativeEmployee'?'create':w.kind==='annulment'?'annul-v2':'calculate')}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
    if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.session.id,email:current.session.email},access:{context:'tenant',tenant:{id:current.principal.tenant.id,roleKey:'QA'},tenantCapabilities:[...current.principal.tenant.effectiveCapabilities,'payroll.read'],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
@@ -328,6 +328,46 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    check((await c('scope').innerText()).includes('29 de 29'),'applied search never reduces complete closing scope');await c('reason').fill('Cierre exclusivamente sintético del circuito completo');await c('confirm').check();
    return commitAndRecover({kind:'close',send:c('send'),recover:c('recover'),idle:cidle,verify:r=>{assert.equal(r.body.command,'close');assert.equal(r.snapshot.employeeCount,29);assert.deepEqual(r.body.selection,{kind:'all',values:[]});}});
   }
+  // Period annulment with Todos through the real #anulacion product, by the
+  // independent reviewer, at the point where every participation of the period
+  // is confirmed across the saved runs and none is closed. Expectations are
+  // derived by the caller from the authenticated 208 index and the full run
+  // details with the public models, never from DOM rows. One committed command,
+  // one lost acknowledgement and one same-key recovery reuse the existing
+  // transport (drop/writes/commitAndRecover); no new protocol, pool or oracle.
+  async function annulPeriodAll({period,expected}){
+   assert.ok(expected&&Number.isSafeInteger(expected.count)&&expected.count>0&&Number.isSafeInteger(expected.runCount)&&expected.runCount>0&&Number.isSafeInteger(expected.indexLength)&&expected.indexLength>=expected.runCount,'QA_ANNUL_ALL_EXPECTATIONS_REQUIRED');
+   assert.ok(Array.isArray(expected.employeeNumbers)&&expected.employeeNumbers.length===expected.count&&new Set(expected.employeeNumbers).size===expected.count&&expected.employeeNumbers.every(n=>typeof n==='string'&&n.length>0),'QA_ANNUL_ALL_UNIVERSE_REQUIRED');
+   assert.ok(expected.totals&&['gross','deduction','net'].every(k=>typeof expected.totals[k]==='string'),'QA_ANNUL_ALL_TOTALS_REQUIRED');
+   assert.deepEqual([...expected.employeeNumbers].sort(),expectedNumbers,'QA_ANNUL_ALL_UNIVERSE_CHANGED');
+   const pages=Math.ceil(expected.count/25),lastPage=expected.count-25*(pages-1),numbersOf=[...expected.employeeNumbers].sort();
+   await fresh('/nomina-control.html#anulacion');const a=k=>page.locator('[data-annul-'+k+']'),aidle=()=>page.waitForFunction(()=>document.querySelector('[data-annul-status]')?.closest('.own-liquidation')?.getAttribute('aria-busy')==='false',{},{timeout:45000});
+   await a('load').waitFor({state:'visible'});await aidle();const before=writes.length,beforeErrors=errors.length,beforeDiagnostics=diagnostics.length;
+   await a('period').fill(period);await a('type').selectOption('monthly');await a('load').click();await aidle();assert.ok(await a('detail').isVisible(),await a('status').innerText());
+   const coverage=await a('coverage').innerText();check(coverage.includes(expected.indexLength+' corridas registradas')&&coverage.includes(expected.count+' legajos actualmente confirmados'),'actual period annulment review reads every saved run and all currently confirmed participations through actual HTTP');
+   check(writes.length===before,'consulting the complete period for annulment never registers a decision');
+   const numbers=()=>a('rows').locator('tr').evaluateAll(rows=>rows.map(row=>row.cells[0]?.textContent.trim()));
+   await a('kind').selectOption('all');const scope=await a('scope').innerText();
+   check(scope.includes(expected.count+' legajos · '+expected.runCount+' corridas afectadas')&&scope.includes('Todos admiten la anulación.'),'Todos previews every confirmed participation of the same universe across all saved runs');
+   const totals=await a('totals').innerText();for(const amount of Object.values(expected.totals))assert.ok(totals.includes(formatOwnRunDecimal(amount)),'QA_ANNUL_ALL_TOTALS_DOM');
+   check(await a('rows').locator('tr').count()===Math.min(25,expected.count)&&(pages===1||!await a('next').isDisabled()),'period annulment review presents the first page of all confirmed participations');
+   const reviewed=await numbers();for(let n=1;n<pages;n++){await a('next').click();reviewed.push(...await numbers());}
+   check(reviewed.length===expected.count&&new Set(reviewed).size===expected.count&&await a('rows').locator('tr').count()===lastPage&&await a('next').isDisabled(),'every review page exposes each confirmed employee number exactly once');
+   assert.deepEqual([...reviewed].sort(),numbersOf,'QA_ANNUL_ALL_REVIEW_NUMBERS');
+   await a('search').fill('sin-coincidencias-sinteticas');check((await a('range').innerText()).startsWith('0 legajos')&&(await a('range').innerText()).includes(expected.count+' afectados')&&await a('totals').innerText()===totals,'search changes only the view; the complete Todos scope and exact totals persist');await a('search').fill('');
+   await a('reason').fill('Anulación por período exclusivamente sintética del circuito completo');await a('confirm').check();
+   for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'period annulment review fits '+width+'px');await a('send').scrollIntoViewIfNeeded();check(await a('send').evaluate(e=>e.getBoundingClientRect().height>=44),'explicit Todos action accessible at '+width+'px');await page.locator('.own-liquidation').filter({has:a('status')}).screenshot({path:path.join(output,'anulacion-todos-'+width+'.png')});}
+   await page.setViewportSize({width:1440,height:1100});
+   const receipt=await commitAndRecover({kind:'annulment',send:a('send'),recover:a('recover'),idle:aidle,verify:r=>{assert.equal(r.version,'own-annul-receipt.v2');assert.equal(r.body.period,period);assert.equal(r.body.liquidationType,'monthly');assert.deepEqual(r.body.selection,{kind:'all',values:[]});assert.equal(r.body.reviewConfirmed,true);assert.equal(r.replayed,false);assert.equal(r.affected.length,expected.count);assert.equal(new Set(r.affected.map(row=>row.contractId)).size,expected.count);assert.equal(r.receipts.length,expected.runCount);}});
+   check((await a('status').innerText()).includes('Anulación registrada: '+expected.count+' legajos en '+expected.runCount+' corridas'),'actual GET restores the committed Todos receipt in the real panel');
+   check((await a('scope').innerText()).includes(expected.count+' legajos anulados en '+expected.runCount+' corridas')&&await a('totals').innerText()===totals,'posterior read presents every annulled participation with the same exact totals');
+   const annulled=await numbers();for(let n=1;n<pages;n++){await a('next').click();annulled.push(...await numbers());}
+   check(annulled.length===expected.count&&new Set(annulled).size===expected.count,'posterior read loses or duplicates no annulled row');assert.deepEqual([...annulled].sort(),numbersOf,'QA_ANNUL_ALL_OUTCOME_NUMBERS');
+   check(await a('rows').locator('tr').evaluateAll(rows=>rows.length>0&&rows.every(row=>/^Anulada · decisión v\d+ · liquidación v\d+/.test(row.cells[6]?.textContent.trim()??'')))&&await a('send').isHidden()&&await a('new').isVisible(),'annulled versions are labelled per decision and no further send is offered');
+   check(await a('preparation-link').inputValue()===origin+'/nomina?anulacion='+receipt.id+'#calculo'&&!/key|accessKey|actor|scopeVersion|consent/i.test(await a('preparation-link').inputValue()),'the reviewer receives a source-only preparation reference for the registered annulment');
+   check(writes.length===before+1&&errors.length===beforeErrors&&diagnostics.length===beforeDiagnostics,'period annulment with Todos commits exactly one command without page or transport exceptions');
+   return receipt;
+  }
   async function prepareReceipts({params}){
    await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
    await p('period').waitFor({state:'visible'});await p('issuerEditor').waitFor({state:'visible'});await pidle();await p('scope').selectOption('all');await p('period').fill(params.period);await selectNoeliaReceiptTypes(page,params.types);await p('issuer').fill(params.issuer.name);await p('tax').fill(params.issuer.taxId);await p('address').fill(params.issuer.address);await p('legend').fill(params.legend);await p('consult').click();await pidle();assert.ok(await p('result').isVisible(),await p('status').innerText());
@@ -404,6 +444,6 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {nativeF931ReadExport:input=>verifyNativeF931Ui({page,origin,output,check,browserName,...input}),origin,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,nativeBankBnaOutput,nativeAccountingHttp,nativeAccountingReadExport,close};
+  return {nativeF931ReadExport:input=>verifyNativeF931Ui({page,origin,output,check,browserName,...input}),origin,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,annulPeriodAll,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,nativeBankBnaOutput,nativeAccountingHttp,nativeAccountingReadExport,close};
  }catch(e){await close();throw e;}
 }

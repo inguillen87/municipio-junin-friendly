@@ -7,9 +7,9 @@ import {composeOwnReportFullQaSources} from '../scripts/lib/own-payroll-report-f
 import {composeNoeliaCurrentFullQaSources,noeliaCurrentFullQaPhaseStatements,noeliaCurrentFullQaSeed,noeliaFullDecisionStatement,NOELIA_FULL_DECISION_STATEMENTS} from '../scripts/lib/noelia-current-full-qa.mjs';
 import {buildNoeliaCircuitQa} from '../scripts/lib/noelia-payroll-circuit-qa.mjs';
 import {qaLiteral as q} from '../scripts/lib/own-payroll-durable-qa.mjs';
-import {projectNoeliaAccountingRunnerSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
+import {projectNoeliaAccountingRunnerSource,projectNoeliaAnnulmentSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
 import {projectNoeliaFiscalSource} from './fixtures/noelia-fiscal-source-projection.js';
-const read=p=>projectNoeliaAccountingRunnerSource(p,projectNoeliaFiscalSource(p,fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replace(/\r\n?/g,'\n'))),schema='mc_qa_fixed_092_'+'d'.repeat(32),sourceCommit='a'.repeat(40),hash=s=>createHash('sha256').update(s).digest('hex');
+const read=p=>projectNoeliaAccountingRunnerSource(p,projectNoeliaFiscalSource(p,projectNoeliaAnnulmentSource(p,fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replace(/\r\n?/g,'\n')))),schema='mc_qa_fixed_092_'+'d'.repeat(32),sourceCommit='a'.repeat(40),hash=s=>createHash('sha256').update(s).digest('hex');
 let f,p,j;
 const full=()=>f??=composeOwnReportFullQaSources({read,sourceCommit,schema});
 const plan=()=>p??=composeNoeliaCurrentFullQaSources({read,sourceCommit,schema,jurisdictions:true});
@@ -35,12 +35,12 @@ test('wrong phase, cloned plan and changed source fail before a recording execut
  const calls=[],record=s=>calls.push(s);for(const phase of [undefined,null,'install','after-history','seed'])assert.throws(()=>record(noeliaCurrentFullQaPhaseStatements(plan(),phase)),/NOELIA_FULL_QA_PHASE_REQUIRED/);assert.throws(()=>record(noeliaCurrentFullQaPhaseStatements({...plan()},'after-historical')),/NOELIA_FULL_QA_ORIGINAL_PLAN_REQUIRED/);assert.deepEqual(calls,[]);
  assert.throws(()=>composeNoeliaCurrentFullQaSources({read,sourceCommit,schema,jurisdictions:'true'}),/NOELIA_FULL_QA_JURISDICTIONS_REQUIRED/);assert.throws(()=>composeNoeliaCurrentFullQaSources({read:p=>p==='scripts/migrations/201-own-full-payroll-decision-capacity.sql'?read(p)+'\n-- changed':read(p),sourceCommit,schema,jurisdictions:true}),/REPORT_FULL_QA_SOURCE_CHANGED/);
 });
-test('seven exact real full/census emissions relocate identifiers before opaque values and delegate all other texts',()=>{
+test('thirteen exact real full/census/annulment emissions relocate identifiers before opaque values and delegate all other texts',()=>{
  const opaque=JSON.stringify({reason:"O'Hara public. $1 $2; \\ Área",payload:{literal:'public.own_close_detail_v1'}}),id='88888888-8888-4888-8888-888888888888';
  for(const [text,size]of Object.entries(NOELIA_FULL_DECISION_STATEMENTS)){
   const values=Array.from({length:size},(_,i)=>i===0?opaque:text.includes('$2::jsonb')&&i===1?opaque:i===1&&text.includes('$2::text')?'2026-10':i===2&&text.includes('$3::text')?'monthly':id),before=structuredClone(values),rendered=noeliaFullDecisionStatement(text,values,schema);
   assert.equal(rendered,text.replace('public.',schema+'.').replace(/\$(\d+)/g,(_,n)=>q(values[Number(n)-1])));assert.ok(rendered.includes(q(opaque)));assert.deepEqual(values,before);assert.ok(!rendered.includes(schema+'.own_close_detail_v1\"'));
-  for(const changed of [text+';',text.replace('public.','other.'),text.replace('_v1','_v2'),text.replace('::jsonb','::text'),text.toLowerCase()])assert.equal(noeliaFullDecisionStatement(changed,values,schema),null);
+  for(const changed of [text+';',text.replace('public.','other.'),text.replace(/_v(\d+)\b/,(_,n)=>'_v'+(Number(n)+1)),text.replace('::jsonb','::text'),text.toLowerCase()])assert.equal(noeliaFullDecisionStatement(changed,values,schema),null);
   const sparse=values.slice();delete sparse[0];for(const invalid of [values.slice(1),[...values,'x'],sparse,Object.assign(values.slice(),{extra:'x'}),values.map((v,i)=>i===0?{}:v)])assert.throws(()=>noeliaFullDecisionStatement(text,invalid,schema),/NOELIA_FULL_QA_RPC_VALUES/);
  }
  assert.equal(noeliaFullDecisionStatement('SELECT public.own_close_detail_v1($1::jsonb,$2::text,$3::text) AS result',['{}','2026-10','monthly'],schema),null);assert.throws(()=>noeliaFullDecisionStatement(Object.keys(NOELIA_FULL_DECISION_STATEMENTS)[0],['{}',id],'public'),/NOELIA_FULL_QA_SCHEMA/);

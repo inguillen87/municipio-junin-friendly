@@ -9,9 +9,9 @@ import {buildInactiveJurisdictionInstallation} from '../scripts/lib/adoption-ina
 import {pinsCheck} from '../scripts/lib/native-leave-installation.mjs';
 import {composeNoeliaPosition210Sources,noeliaPosition210PhaseStatements,assertNoeliaPosition210Durability,noeliaPosition210Statement,NOELIA_POSITION210_SQL} from '../scripts/lib/noelia-position210-qa.mjs';
 import {isPositionComparisonDetailV2Read} from '../scripts/lib/position-comparison-ui-qa.mjs';
-import {projectNoeliaAccountingRunnerSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
+import {projectNoeliaAccountingRunnerSource,projectNoeliaAnnulmentSource} from './fixtures/noelia-accounting-full-runner-source-projection.js';
 import {projectNoeliaFiscalSource} from './fixtures/noelia-fiscal-source-projection.js';
-const read=f=>projectNoeliaAccountingRunnerSource(f,projectNoeliaFiscalSource(f,fs.readFileSync(new URL('../'+f,import.meta.url),'utf8').replace(/\r\n?/g,'\n'))),hash=s=>createHash('sha256').update(s).digest('hex'),sourceCommit='a'.repeat(40),q=v=>"'"+String(v).replaceAll("'","''")+"'";
+const read=f=>projectNoeliaAccountingRunnerSource(f,projectNoeliaFiscalSource(f,projectNoeliaAnnulmentSource(f,fs.readFileSync(new URL('../'+f,import.meta.url),'utf8').replace(/\r\n?/g,'\n')))),hash=s=>createHash('sha256').update(s).digest('hex'),sourceCommit='a'.repeat(40),q=v=>"'"+String(v).replaceAll("'","''")+"'";
 let cached;
 const context=()=>cached??=(()=>{const qa=buildNoeliaCircuitQa(18,{jurisdictions:true}),batch=buildPositionPopulationInstallation({read,sourceCommit}),plan=composeNoeliaPosition210Sources({read,sourceCommit,qa});return{qa,batch,plan};})();
 

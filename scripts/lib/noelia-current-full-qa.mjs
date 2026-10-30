@@ -62,7 +62,14 @@ export const NOELIA_FULL_DECISION_STATEMENTS=Object.freeze({
  'SELECT public.own_close_group_full_v1($1::jsonb,$2::uuid) AS result':2,
  'SELECT public.own_close_attempt_full_v1($1::jsonb,$2::uuid) AS result':2,
  'SELECT public.own_close_command_full_v1($1::jsonb,$2::jsonb,$3::uuid) AS result':3,
- 'SELECT public.own_close_report_census_v1($1::jsonb,$2::text,$3::text) AS result':3
+ 'SELECT public.own_close_report_census_v1($1::jsonb,$2::text,$3::text) AS result':3,
+ // Period annulment profile (208 over 201): the exact emissions of lib/internal-own-payroll-annulment.js.
+ 'SELECT public.own_annul_review_v2($1::jsonb,$2::text,$3::text) AS result':3,
+ 'SELECT public.own_annul_review_full_v2($1::jsonb,$2::text,$3::text) AS result':3,
+ 'SELECT public.own_annul_attempt_v1($1::jsonb,$2::uuid) AS result':2,
+ 'SELECT public.own_annul_attempt_full_v1($1::jsonb,$2::uuid) AS result':2,
+ 'SELECT public.own_annul_command_v2($1::jsonb,$2::jsonb,$3::uuid) AS result':3,
+ 'SELECT public.own_annul_command_full_v2($1::jsonb,$2::jsonb,$3::uuid) AS result':3
 });
 export function noeliaFullDecisionStatement(text,values,schema){
  if(typeof text!=='string'||!Object.hasOwn(NOELIA_FULL_DECISION_STATEMENTS,text))return null;

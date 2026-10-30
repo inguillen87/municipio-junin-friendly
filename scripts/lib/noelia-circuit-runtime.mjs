@@ -38,7 +38,7 @@ export function noeliaCircuitRuntime({root, major, transport = 'local', browser 
 export function noeliaCircuitOptions(argv) {
   const args = {};
   for(const arg of argv) {
-    const match = /^--(major|output|source-commit|browser|positions|jurisdictions|fiscal|transport)=(.+)$/.exec(arg);
+    const match = /^--(major|output|source-commit|browser|positions|jurisdictions|fiscal|annulment|transport)=(.+)$/.exec(arg);
     assert.ok(match && !Object.hasOwn(args, match[1]), 'QA_OPTION_INVALID');
     args[match[1]] = match[2];
   }
@@ -47,8 +47,9 @@ export function noeliaCircuitOptions(argv) {
   assert.match(args['source-commit'] ?? '', /^[a-f0-9]{40}$/, 'QA_SOURCE_COMMIT_REQUIRED');
   assert.ok(args.browser === undefined || ['chrome', 'chromium'].includes(args.browser), 'QA_BROWSER_UNSUPPORTED');
   assert.ok(args.transport === undefined || ['local', 'ci'].includes(args.transport), 'QA_TRANSPORT_UNSUPPORTED');
-  for(const option of ['positions', 'jurisdictions', 'fiscal']) assert.ok(args[option] === undefined || args[option] === 'true', 'QA_OPTION_INVALID');
+  for(const option of ['positions', 'jurisdictions', 'fiscal', 'annulment']) assert.ok(args[option] === undefined || args[option] === 'true', 'QA_OPTION_INVALID');
   if(args.fiscal==='true')assert.ok(args.browser!==undefined&&args.positions==='true'&&args.jurisdictions==='true','QA_FISCAL_COMPLETE_PREREQUISITES_REQUIRED');
+  if(args.annulment==='true')assert.ok(args.browser!==undefined,'QA_ANNULMENT_BROWSER_REQUIRED');
   return {major:Number(args.major), output:args.output, sourceCommit:args['source-commit'], browser:args.browser ?? 'none',
-    transport:args.transport ?? 'local', positions:args.positions === 'true', jurisdictions:args.jurisdictions === 'true',...(args.fiscal==='true'?{fiscal:true}:{})};
+    transport:args.transport ?? 'local', positions:args.positions === 'true', jurisdictions:args.jurisdictions === 'true',...(args.fiscal==='true'?{fiscal:true}:{}),...(args.annulment==='true'?{annulment:true}:{})};
 }
