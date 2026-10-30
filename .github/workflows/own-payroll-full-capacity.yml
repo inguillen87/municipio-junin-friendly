@@ -1,0 +1,197 @@
+# Private source candidate. No run is admitted or dispatched by this file's creation.
+name: Own payroll complete capacity
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
+  push:
+    branches: ['master', 'codex/candidate-admission-20261028']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-full-capacity.yml', 'nomina-control.html', 'centro-acciones.html', 'vercel.json', '.vercelignore', 'scripts/*release*.mjs', 'scripts/lib/release-candidate-admission.mjs', 'tests/release-*.test.js', 'tests/fixtures/release-candidate-*.js', '.github/workflows/own-payroll-*.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-payroll-full-capacity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: M7, receipt126 and Family195 browser, positions210-212 SQL / PG${{ matrix.pg }} / published107
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa" --health-start-interval 1s --health-start-period 30s --health-interval 4h --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Attest checkout equals the event commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Record release candidate source before verification
+        run: node scripts/write-release-candidate-proof.mjs --workflow=capacity --major=${{ matrix.pg }} --phase=before
+      - name: Source contracts only; no constructor or native SQL in this step
+        run: node --test tests/own-payroll-full-capacity-190-source.test.js tests/own-payroll-capacity-literal-additions.test.js tests/own-monthly-day-saved-input-integrity.test.js tests/owner-program-qa-continuation-preparation.test.js tests/own-monthly-day-qa-foundation.test.js tests/own-monthly-day-technical-epochs.test.js tests/own-monthly-day-shared-prerequisites.test.js
+      - name: Synthetic092 supports before technical192 with recording transports
+        run: node --test tests/own-monthly-full-legacy-support.test.js
+      - name: Administrative liquidation history authority and preservation
+        run: node --test tests/own-liquidation-bootstrap213-installation.test.js
+      - name: Receipt126 real-browser boundary witnesses without native SQL
+        run: node --test tests/own-payroll-receipt126-browser190.test.js
+      - name: Exact native rejection adapters with synthetic services
+        run: node --test tests/own-payroll-expected-native-rpc.test.js
+      - name: Canonical transaction modes with recording transports
+        run: node --test tests/canonical190-read-committed.test.js
+      - name: Owned QA cleanup with synthetic transcripts
+        run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js
+      - name: Full web suite and package
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p verification
+          npm run build 2>&1 | tee verification/release-full-suite.log
+      - name: Prepare only the existing disposable synthetic service
+        env:
+          PGPASSWORD: noelia-circuit-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+      - run: npx --no-install playwright install-deps chromium
+      - name: Install project Chromium for the unchanged190 programme flow
+        run: |
+          mkdir -p verification
+          node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Same190 M7 and receipt126 browser, Family195 native/browser and positions210-212 SQL
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-native-family195-same190.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: own-full-capacity-pg${{ matrix.pg }}-published107-${{ github.sha }}
+          path: |
+            verification/own-full-capacity-pg${{ matrix.pg }}/
+            verification/release-chromium-157.0.8098.0/installation.json
+            scripts/verify-own-payroll-full-capacity.mjs
+            scripts/verify-own-monthly-payroll-full-capacity.mjs
+            scripts/verify-municipal-owner-program.mjs
+            scripts/lib/owner190-canonical-cleanup.mjs
+            scripts/lib/owner190-cleanup-profile.mjs
+            tests/owner190-cleanup-profile.test.js
+            tests/owner190-cleanup-raw255.local.test.js
+            scripts/verify-own-monthly-day-engine-source.mjs
+            scripts/lib/owner-program-qa-continuation-preparation.mjs
+            scripts/lib/own-monthly-day-qa-foundation.mjs
+            scripts/lib/own-monthly-day-technical-epochs.mjs
+            scripts/lib/own-monthly-day-shared-prerequisites.mjs
+            scripts/lib/own-monthly-day-policy-qa.mjs
+            scripts/lib/monthly-full-legacy-support-qa.mjs
+            scripts/lib/monthly-day-policy-legacy-fixture.mjs
+            scripts/verify-payroll-fixed-novelties-sql.mjs
+            tests/own-monthly-full-legacy-support.test.js
+            scripts/migrations/213-own-liquidation-bootstrap-administrative-operator.sql
+            scripts/lib/own-liquidation-bootstrap213-installation.mjs
+            tests/own-liquidation-bootstrap213-installation.test.js
+            scripts/lib/own-payroll-full-capacity-190-*.mjs
+            scripts/lib/own-payroll-expected-native-rpc.mjs
+            tests/own-payroll-expected-native-rpc.test.js
+            scripts/lib/own-payroll-capacity-literal-additions.mjs
+            scripts/migrations/200-own-payroll-report-census.sql
+            scripts/migrations/201-own-full-payroll-decision-capacity.sql
+            tests/own-payroll-full-capacity-190-source.test.js
+            tests/own-payroll-capacity-literal-additions.test.js
+            tests/own-monthly-day-saved-input-integrity.test.js
+            tests/owner-program-qa-continuation-preparation.test.js
+            tests/own-monthly-day-qa-foundation.test.js
+            tests/own-monthly-day-technical-epochs.test.js
+            tests/own-monthly-day-shared-prerequisites.test.js
+            tests/fixtures/own-payroll-full-capacity-190-source-projection.js
+            tests/own-accounting-imputation-190-source.test.js
+            tests/fixtures/own-accounting-imputation-190-source-projection.js
+            scripts/verify-own-payroll-annulment-v2-full-capacity.mjs
+            scripts/lib/own-payroll-annulment-review-v2-installation.mjs
+            scripts/lib/own-payroll-annulment-v2-native-continuation.mjs
+            scripts/lib/own-payroll-annulment-v2-native-browser.mjs
+            scripts/migrations/208-own-annulment-review-index.sql
+            api/internal-own-payroll-annulment.js
+            lib/internal-own-payroll-annulment.js
+            assets/own-payroll-annulment-review-model.js
+            assets/own-payroll-annulment-panel.js
+            assets/own-payroll-run-panel.js
+            tests/fixtures/own-payroll-annulment-review-synthetic.js
+            tests/own-payroll-annulment-review-api.test.js
+            tests/own-payroll-annulment-review-service.test.js
+            tests/own-payroll-annulment-review.test.js
+            tests/own-payroll-annulment-hidden-active.test.js
+            scripts/lib/own-payroll-annulment-preparation-209-installation.mjs
+            scripts/lib/own-payroll-annulment-preparation-209-native-continuation.mjs
+            scripts/lib/own-payroll-annulment-preparation-209-native-browser.mjs
+            scripts/lib/own-payroll-liquidation-decision-124-native-browser.mjs
+            scripts/lib/own-payroll-canonical190-browser-host-qa.mjs
+            scripts/lib/own-payroll-post209-browser.mjs
+            tests/canonical190-read-committed.test.js
+            assets/own-payroll-close-panel.js
+            assets/own-payroll-close-model.js
+            assets/own-payroll-liquidation-panel.js
+            assets/own-payroll-liquidation-model.js
+            assets/own-payroll-run-workspace-model.js
+            assets/payroll-navigation.js
+            assets/own-payroll-readiness-model.js
+            assets/own-payroll-response.js
+            assets/native-salary-catalog-model.js
+            assets/own-payroll-run-model.js
+            assets/own-payroll-run-date.js
+            assets/own-payroll-individual-panel.js
+            scripts/lib/own-payroll-receipt126-browser190.mjs
+            tests/own-payroll-receipt126-browser190.test.js
+            nomina-control.html
+            centro-acciones.html
+            assets/own-payroll-receipt-model.js
+            assets/own-payroll-receipt-panel.js
+            assets/own-payroll-receipt-pdf.js
+            assets/own-payroll-receipt-self.js
+            assets/payroll-detail-export.js
+            assets/native-self.js
+            assets/native-self-model.js
+            assets/native-leave.js
+            assets/native-leave-access.js
+            assets/internal-capability-gate.js
+            scripts/lib/own-payroll-receipt126-inventory-model.mjs
+            scripts/lib/own-payroll-receipt126-same190-inventory.mjs
+            tests/own-payroll-receipt126-inventory-model.test.js
+            scripts/lib/own-annulment-preparation-209-actors-fixture.mjs
+            scripts/migrations/209-own-annulment-preparation-projection.sql
+            api/internal-own-payroll-annulment-preparation.js
+            lib/internal-own-payroll-annulment-preparation.js
+            assets/own-payroll-annulment-preparation-model.js
+            assets/own-payroll-annulment-preparation-link.js
+            tests/fixtures/own-payroll-annulment-preparation-synthetic.js
+            tests/own-payroll-annulment-preparation-model.test.js
+            tests/own-payroll-annulment-preparation-service.test.js
+            tests/own-payroll-annulment-preparation-api.test.js
+            tests/own-payroll-annulment-preparation-link.test.js
+            tests/own-payroll-annulment-preparation-panel.test.js
+            tests/own-payroll-annulment-preparation-ui-source.test.js
+            tests/fixtures/own-payroll-annulment-preparation-source-projection.js
+            tests/own-payroll-full-decision-capacity-source.test.js
+          retention-days: 5
+      - name: Record release candidate evidence
+        run: node scripts/write-release-candidate-proof.mjs --workflow=capacity --major=${{ matrix.pg }} --phase=after
+      - name: Upload release candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-capacity-pg${{ matrix.pg }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verification/release-candidate/capacity-pg${{ matrix.pg }}/
+          if-no-files-found: error
+          retention-days: 5

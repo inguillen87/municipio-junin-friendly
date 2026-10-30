@@ -752,7 +752,17 @@ async function verifyAuthenticatedInternal() {
     const absencePayload = await absenceResponse.json();
     assert.equal(absencePayload.data.summary.events,expectedSource.absence2026);
     assert.equal(absencePayload.data.summary.affectedContracts,expectedSource.affected2026);
-    assert.ok(Number.isFinite(absencePayload.data.summary.sourceDeclaredDays));
+    const declaredDays = absencePayload.data.summary;
+    assert.ok([declaredDays.events,declaredDays.eventsWithDeclaredDays,declaredDays.eventsWithoutDeclaredDays]
+      .every(value=>Number.isSafeInteger(value)&&value>=0),'Cobertura de días declarados: conteos exactos');
+    assert.equal(declaredDays.eventsWithDeclaredDays+declaredDays.eventsWithoutDeclaredDays,declaredDays.events);
+    if(declaredDays.events===0)assert.equal(declaredDays.knownSourceDeclaredDays,0);
+    else if(declaredDays.eventsWithDeclaredDays===0)assert.equal(declaredDays.knownSourceDeclaredDays,null);
+    else assert.ok(typeof declaredDays.knownSourceDeclaredDays==='number'&&Number.isFinite(declaredDays.knownSourceDeclaredDays));
+    if(declaredDays.eventsWithoutDeclaredDays===0){
+      assert.ok(typeof declaredDays.sourceDeclaredDays==='number'&&Number.isFinite(declaredDays.sourceDeclaredDays));
+      assert.equal(declaredDays.sourceDeclaredDays,declaredDays.knownSourceDeclaredDays);
+    }else assert.equal(declaredDays.sourceDeclaredDays,null,'Un total incompleto no es una suma de días completa');
     assert.equal(absencePayload.quality.sourceCutoff,expectedSource.cutoff);
     assert.equal(absencePayload.meta.ratesAvailable, false);
 
@@ -769,7 +779,18 @@ async function verifyAuthenticatedInternal() {
     await page.waitForSelector('#mainContent:not([hidden])');
     await waitForNumber(page,'#eventsValue',expectedSource.absence2026);
     assert.match(await page.locator('#contractsValue').innerText(), renderedNumberPattern(expectedSource.affected2026));
-    assert.match(await page.locator('#daysValue').innerText(), renderedNumberPattern(absencePayload.data.summary.sourceDeclaredDays));
+    if(declaredDays.sourceDeclaredDays===null)assert.equal(await page.locator('#daysValue').innerText(),'No informado');
+    else assert.match(await page.locator('#daysValue').innerText(),renderedNumberPattern(declaredDays.sourceDeclaredDays));
+    const daysCoverageText=await page.locator('#daysCoverage').innerText();
+    if(declaredDays.events===0)assert.match(daysCoverageText,/Sin eventos/);
+    else{
+      assert.match(daysCoverageText,renderedNumberPattern(declaredDays.eventsWithDeclaredDays));
+      assert.match(daysCoverageText,renderedNumberPattern(declaredDays.events));
+      if(declaredDays.eventsWithoutDeclaredDays>0&&declaredDays.eventsWithDeclaredDays>0){
+        assert.match(daysCoverageText,/Suma parcial informada/);
+        assert.match(daysCoverageText,renderedNumberPattern(declaredDays.knownSourceDeclaredDays));
+      }
+    }
     assert.match(await page.locator('#comparisonBadge').innerText(), /Mismo rango calendario/i);
     assert.match(await page.locator('#sourceLabel').innerText(), /GRH/i);
     assert.ok(await page.locator('#eventRows a[href*="contractId="]').count() > 0, 'Cada evento vinculado debe abrir su ficha canónica');

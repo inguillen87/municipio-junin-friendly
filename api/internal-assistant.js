@@ -1878,12 +1878,36 @@ function qualityAnalysisResult(result) {
 }
 
 function aggregateMetric(row = {}) {
-  const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  // Only the absence aggregate contract uses this converter. Do not turn an
+  // unknown day total into zero, including in the external safe projection.
+  const number = value => typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  const events = number(row.events), eventsWithDeclaredDays = number(row.eventsWithDeclaredDays);
+  const eventsWithoutDeclaredDays = number(row.eventsWithoutDeclaredDays);
+  const knownSourceDeclaredDays = row.knownSourceDeclaredDays === null ? null : number(row.knownSourceDeclaredDays);
+  const total = row.sourceDeclaredDays === null ? null : number(row.sourceDeclaredDays);
+  if (![events, eventsWithDeclaredDays, eventsWithoutDeclaredDays].every(value => Number.isSafeInteger(value) && value >= 0)
+      || eventsWithDeclaredDays + eventsWithoutDeclaredDays !== events
+      || (events === 0 ? knownSourceDeclaredDays !== 0
+        : eventsWithDeclaredDays === 0 ? knownSourceDeclaredDays !== null : !Number.isFinite(knownSourceDeclaredDays))
+      || (eventsWithoutDeclaredDays === 0 ? total !== knownSourceDeclaredDays : total !== null)) {
+    throw Error('ABSENCE_DECLARED_DAYS_CONTRACT_INVALID');
+  }
   return {
-    events: number(row.events),
-    affectedContracts: number(row.affectedContracts),
-    sourceDeclaredDays: number(row.sourceDeclaredDays),
+    events,
+    affectedContracts: Number.isFinite(number(row.affectedContracts)) ? number(row.affectedContracts) : 0,
+    sourceDeclaredDays: total,
+    knownSourceDeclaredDays,
+    eventsWithDeclaredDays,
+    eventsWithoutDeclaredDays,
   };
+}
+
+function absenceDeclaredDaysText(metric) {
+  const coverage = `Días informados en ${formatNumber(metric.eventsWithDeclaredDays)} de ${formatNumber(metric.events)} eventos.`;
+  if (metric.sourceDeclaredDays !== null) return `${formatNumber(metric.sourceDeclaredDays)} días declarados en origen. ${coverage}`;
+  return metric.eventsWithDeclaredDays === 0 ? `Días declarados no informados. ${coverage}`
+    : `Total de días no informado. ${coverage} Suma parcial de los valores informados: ${formatNumber(metric.knownSourceDeclaredDays)}.`;
 }
 
 function aggregateRange(range = {}) {
@@ -1911,22 +1935,32 @@ function aggregateComparison(comparison = {}) {
     };
   }
   const change = comparison.changePercent || {};
-  const percent = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+  const percent = value => value === null || value === undefined || typeof value === 'boolean' || value === ''
+    ? null : Number.isFinite(Number(value)) ? Number(value) : null;
+  const current = aggregateMetric(comparison.current), previous = aggregateMetric(comparison.previous);
+  const completeDays = current.eventsWithoutDeclaredDays === 0 && previous.eventsWithoutDeclaredDays === 0;
+  const daysChange = completeDays && previous.sourceDeclaredDays !== 0
+    ? Math.round(((current.sourceDeclaredDays - previous.sourceDeclaredDays) / previous.sourceDeclaredDays) * 1000) / 10 : null;
   return {
     available: true,
     basis: 'previous_year_same_calendar_window',
     current: {
       range: aggregateRange(comparison.current?.range),
-      ...aggregateMetric(comparison.current),
+      ...current,
     },
     previous: {
       range: aggregateRange(comparison.previous?.range),
-      ...aggregateMetric(comparison.previous),
+      ...previous,
     },
     changePercent: {
       events: percent(change.events),
       affectedContracts: percent(change.affectedContracts),
-      sourceDeclaredDays: percent(change.sourceDeclaredDays),
+      sourceDeclaredDays: daysChange,
+    },
+    declaredDaysComparison: {
+      available: daysChange !== null,
+      reason: !completeDays ? 'incomplete_declared_days'
+        : previous.sourceDeclaredDays === 0 ? 'zero_previous_declared_days' : null,
     },
   };
 }
@@ -1969,7 +2003,7 @@ function absenceAnalysisResult(result) {
     : '';
 
   return {
-    answer: `Entre ${range.effective.from || 'el inicio disponible'} y ${range.effective.to || 'el corte disponible'}, GRH registra ${formatNumber(summary.events)} eventos administrativos de ausencia sobre ${formatNumber(summary.affectedContracts)} contratos laborales vinculados y ${formatNumber(summary.sourceDeclaredDays)} días declarados en origen.${leadingReasonText}${comparisonText} Estos datos no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas.`,
+    answer: `Entre ${range.effective.from || 'el inicio disponible'} y ${range.effective.to || 'el corte disponible'}, GRH registra ${formatNumber(summary.events)} eventos administrativos de ausencia sobre ${formatNumber(summary.affectedContracts)} contratos laborales vinculados. ${absenceDeclaredDaysText(summary)}${leadingReasonText}${comparisonText} Estos datos no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas.`,
     data: {
       summary,
       range,

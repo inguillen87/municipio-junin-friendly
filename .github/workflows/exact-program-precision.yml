@@ -36,7 +36,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - name: Prepare disposable PostgreSQL prerequisites with the original runtime restrictions
         env:

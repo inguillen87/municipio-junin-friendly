@@ -27,23 +27,23 @@ function fixtureSql() {
         }];
       }
       if (marker === 'analytics-summary') {
-        return [{ events: 1559, affectedContracts: 590, sourceDeclaredDays: '17400' }];
+        return [{ events: 1559, affectedContracts: 590, sourceDeclaredDays: '17400', knownSourceDeclaredDays: '17400', eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0 }];
       }
       if (marker === 'comparison') {
-        return [{ events: 1331, affectedContracts: 567, sourceDeclaredDays: '16576' }];
+        return [{ events: 1331, affectedContracts: 567, sourceDeclaredDays: '16576', knownSourceDeclaredDays: '16576', eventsWithDeclaredDays: 1331, eventsWithoutDeclaredDays: 0 }];
       }
       if (marker === 'series') {
-        return [{ period: '2026-08-01', events: 20, affectedContracts: 19, sourceDeclaredDays: '170', partial: true }];
+        return [{ period: '2026-08-01', events: 20, affectedContracts: 19, sourceDeclaredDays: '170', knownSourceDeclaredDays: '170', eventsWithDeclaredDays: 20, eventsWithoutDeclaredDays: 0, partial: true }];
       }
       if (marker === 'reasons') {
         return [{
           code: '10', label: 'Licencia anual', events: 100, affectedContracts: 80,
-          sourceDeclaredDays: '950', isLeave: true, affectsAttendanceBonus: false,
+          sourceDeclaredDays: '950', knownSourceDeclaredDays: '950', eventsWithDeclaredDays: 100, eventsWithoutDeclaredDays: 0, isLeave: true, affectsAttendanceBonus: false,
           generatesDiscountedDays: false, calendarDays: true
         }];
       }
       if (marker === 'sectors') {
-        return [{ label: 'OBRERO', events: 90, affectedContracts: 70, sourceDeclaredDays: '880' }];
+        return [{ label: 'OBRERO', events: 90, affectedContracts: 70, sourceDeclaredDays: '880', knownSourceDeclaredDays: '880', eventsWithDeclaredDays: 90, eventsWithoutDeclaredDays: 0 }];
       }
       if (marker === 'facet-reasons') return [{ code: '10', label: 'Licencia anual' }];
       if (marker === 'facet-sectors') return [{ value: 'OBRERO' }];
@@ -55,7 +55,7 @@ function fixtureSql() {
         }];
       }
       if (marker === 'events-summary') {
-        return [{ events: 120, affectedContracts: 90, sourceDeclaredDays: '1500' }];
+        return [{ events: 120, affectedContracts: 90, sourceDeclaredDays: '1500', knownSourceDeclaredDays: '1500', eventsWithDeclaredDays: 120, eventsWithoutDeclaredDays: 0 }];
       }
       if (marker === 'events') {
         return [
@@ -99,7 +99,7 @@ test('absenceAnalytics acota el rango al snapshot y parametriza sector/motivo', 
     clamped: { from: true, to: true }
   });
   assert.deepEqual(result.payload.data.summary, {
-    events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400
+    events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400, knownSourceDeclaredDays: 17400, eventsWithDeclaredDays: 1559, eventsWithoutDeclaredDays: 0
   });
   assert.equal(result.payload.data.series[0].partial, true);
   assert.equal(result.payload.data.reasons[0].flags.isLeave, true);

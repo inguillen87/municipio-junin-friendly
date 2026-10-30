@@ -4,11 +4,12 @@ import '../assets/app-routes.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
+import {friendlyPwaIdentityVersion,transformFriendlyShellSource} from './lib/friendly-shell-page.mjs';
 import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildDocumentReader } from './build-document-reader.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
+import { assertOwnPayrollPackageClosure } from './lib/own-payroll-package-closure.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -22,6 +23,8 @@ const shellFiles = [
   'assets/own-f931-preparation-panel.js',
   'assets/own-f931-preparation-panel.css',
   'assets/own-period-participation-model.js',
+  'assets/own-monthly-day-declaration-model.js',
+  'assets/own-monthly-day-declaration-panel.js',
   'assets/own-art-days-model.js',
   'assets/own-art-days-panel.js',
   'assets/own-art-days-panel.css',
@@ -91,12 +94,17 @@ const shellFiles = [
   'assets/position-assignment.css',
   'assets/release-status-model.js',
   'assets/native-leave.js',
+  'assets/native-leave-access.js',
   'assets/native-leave-export.js',
   'assets/native-leave-model.js',
   'assets/native-leave-contract.js',
   'assets/native-leave.css',
   'assets/native-self.js',
   'assets/native-self-model.js',
+  'assets/native-family-request-model.js',
+  'assets/native-family-request-client.js',
+  'assets/native-family-request-panel.js',
+  'assets/native-family-request.css',
   'assets/release-status-panel.js',
   'assets/release-status.css',
   'assets/app-routes.js',
@@ -172,6 +180,7 @@ const shellFiles = [
   'assets/task-workspace.js',
   'assets/report-analysis.js',
   'assets/report-document.js',
+  'assets/report-pdf-text.js',
   'assets/report-centre.js',
   'assets/budget-structure-model.js',
   'assets/budget-payroll-model.js',
@@ -213,6 +222,9 @@ const shellFiles = [
   'assets/own-payroll-individual-panel.css',
   'assets/own-payroll-liquidation-model.js',
   'assets/own-payroll-annulment-model.js',
+  'assets/own-payroll-annulment-review-model.js',
+  'assets/own-payroll-annulment-preparation-model.js',
+  'assets/own-payroll-annulment-preparation-link.js',
   'assets/own-payroll-annulment-panel.js',
   'assets/own-payroll-liquidation-panel.js',
   'assets/own-payroll-liquidation-panel.css',
@@ -220,6 +232,7 @@ const shellFiles = [
   'assets/own-payroll-close-panel.js',
   'assets/own-payroll-close-panel.css',
   'assets/own-payroll-report-model.js',
+  'assets/own-payroll-report-census-model.js',
   'assets/own-payroll-receipt-planilla-model.js',
   'assets/own-payroll-receipt-planilla-export.js',
   'assets/own-payroll-receipt-planilla-panel.js',
@@ -231,6 +244,7 @@ const shellFiles = [
   'assets/own-payroll-report-panel.js',
   'assets/own-payroll-report-panel.css',
   'assets/own-payroll-receipt-model.js',
+  'assets/own-payroll-receipt-access.js',
   'assets/own-payroll-receipt-pdf.js',
   'assets/own-payroll-receipt-panel.js',
   'assets/own-payroll-receipt-panel.css',
@@ -270,6 +284,12 @@ const shellFiles = [
   'assets/own-payroll-program-workspace-model.js',
   'assets/own-payroll-program-precision.js',
   'assets/own-payroll-program-model.js',
+  'assets/own-payroll-monetary-manifest.js',
+  'assets/own-payroll-program-monetary-review.js',
+  'assets/own-payroll-monetary-policy.js',
+  'assets/own-monthly-day-declaration-program.js',
+  'assets/own-monthly-day-policy-model.js',
+  'assets/own-monthly-day-policy-program.js',
   'assets/own-payroll-program-copy-model.js',
   'assets/own-payroll-program-scale-reference-model.js',
   'assets/own-payroll-program-scale-reference-panel.js',
@@ -277,6 +297,12 @@ const shellFiles = [
   'assets/own-payroll-run-workspace-model.js',
   'assets/own-payroll-run-model.js',
   'assets/own-payroll-run-date.js',
+  'assets/own-payroll-zero-difference.js',
+  'assets/payroll-assistance-xlsx-model.js',
+  'assets/payroll-assistance-xlsx-reader.js',
+  'assets/payroll-assistance-xlsx-worker.js',
+  'assets/payroll-assistance-xlsx-panel.js',
+  'assets/payroll-assistance-xml.js',
   'assets/own-payroll-engine.js',
   'assets/own-payroll-exact.js',
   'assets/native-salary-catalog-model.js',
@@ -431,6 +457,7 @@ const shellFiles = [
   'assets/payroll-native-monthly-review.css',
   'assets/own-payroll-novelties-model.js',
   'assets/own-payroll-novelties-panel.js',
+  'assets/own-payroll-novelty-cancellation.js',
   'assets/own-payroll-novelties-panel.css',
   'assets/payroll-monthly-decisions.js',
   'assets/payroll-monthly-decisions-model.js',
@@ -443,6 +470,7 @@ const shellFiles = [
   'assets/payroll-monthly-correction.css',
   'assets/payroll-fixed-novelties.js',
   'assets/payroll-fixed-novelties-model.js',
+  'assets/payroll-fixed-capacity-model.js',
   'assets/payroll-fixed-groups-model.js',
   'assets/payroll-fixed-novelties-export.js',
   'assets/payroll-junin-638.js',
@@ -548,14 +576,13 @@ for (const file of vendorFiles) {
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(root, file.source), destination);
 }
+// Mandatory after the copy: every static import reachable from the run panel must be listed in shellFiles and be in
+// the package byte for byte. A missing or altered asset fails the build here, before any page is transformed.
+assertOwnPayrollPackageClosure({ shellFiles, readSource: file => fs.readFileSync(path.join(root, file)), readPackaged: file => fs.existsSync(path.join(output, file)) ? fs.readFileSync(path.join(output, file)) : null });
 
 // Restore the verified identity using content-addressed icon URLs; older icon
 // URLs may still have a one-year immutable response in a browser cache.
-const identityHash = crypto.createHash('sha256');
-for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
-  identityHash.update(file).update(fs.readFileSync(path.join(root, file)));
-}
-const identityVersion = `identity-${identityHash.digest('hex').slice(0, 12)}`;
+const identityVersion = friendlyPwaIdentityVersion(file=>fs.readFileSync(path.join(root,file)));
 for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
   const destination = path.join(output, file.replace('assets/pwa/', `assets/pwa/${identityVersion}/`));
   fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -563,15 +590,7 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 }
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
-  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
-  const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
-    ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
-  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
-    ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
-  const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
-    ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
-  fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
+  fs.writeFileSync(destination,transformFriendlyShellSource(original,file,identityVersion,globalThis.MuniControlRoutes));
 }
 
 await buildLegalRegistry(root, output);
@@ -606,20 +625,3 @@ if(process.env.MC_EMAIL_FACTOR_PROVISION_EVENT){
   await approvedEmailFactorBuildStep();
 }
 
-function applyCleanRouteLinks(html, file) {
-  const routes = globalThis.MuniControlRoutes;
-  const base = 'https://municontrol.invalid/' + file;
-  // Only a page's own fixed login return is replaced. Authentication commands,
-  // destinations to other pages and the context allowlist remain source-owned.
-  const returnExpression = 'window.MuniControlRoutes.loginHref(window.location.href, window.location.href)';
-  const withReturns = html.replace(/(<script\b(?![^>]*\bsrc\s*=)[^>]*>)([\s\S]*?)(<\/script>)/gi, (_, open, source, close) => {
-    const ownReturn = 'login.html?next=' + file;
-    let routed = source.replaceAll("'" + ownReturn + "'", returnExpression).replaceAll('"' + ownReturn + '"', returnExpression);
-    routed = routed.replaceAll("'login.html?next='", "'/acceso?next='").replaceAll('"login.html?next="', '"/acceso?next="');
-    routed = routed.replaceAll("'login.html'", "'/acceso'").replaceAll('"login.html"', '"/acceso"');
-    if (file === 'internal-dashboard.html') routed = routed.replace("'internal-dashboard.html' + window.location.hash", 'window.location.pathname + window.location.search + window.location.hash');
-    return open + routed + close;
-  });
-  const linked = withReturns.replace(/(<a\b[^>]*?\bhref\s*=\s*)(["'])([^"']*)\2/gi, (_, prefix, quote, href) => prefix + quote + routes.canonicalHref(href, base) + quote);
-  return linked.includes('src="/assets/app-routes.js"') ? linked : linked.replace(/<head([^>]*)>/i, '<head$1>\n  <script src="/assets/app-routes.js"></script>');
-}

@@ -402,3 +402,53 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Native forced-amount source contract required by deployment build checks.
+!scripts/migrations/196-own-fixed-forced-amount.sql
+
+# Reviewed monthly-day policy, declarations and engine source; no municipal input.
+!scripts/migrations/192-own-monthly-day-full-month-policy.sql
+!scripts/migrations/193-own-monthly-day-declaration.sql
+!scripts/migrations/194-own-monthly-day-engine-source.sql
+
+# Closed-report census code only; no municipal ledger or fixture data.
+!scripts/migrations/200-own-payroll-report-census.sql
+!scripts/migrations/201-own-full-payroll-decision-capacity.sql
+
+# Reviewed accounting source contracts required by build tests; no source data.
+!scripts/migrations/203-own-imputation-full-capacity.sql
+!scripts/migrations/204-own-accounting-administrative-actor.sql
+!scripts/migrations/205-own-imputation-preparation-authorization.sql
+!scripts/migrations/206-own-journal-full-capacity.sql
+!scripts/migrations/207-own-journal-preparation-authorization.sql
+
+# Exact public build prerequisites of the guarded196/197 source tests.
+!scripts/sql/own-monthly-day-fixed-v1-composition.fragment.sql
+!scripts/migrations/197-own-novelty-succession.sql
+
+# Public source for the reviewed additive208 verification; private inputs remain excluded.
+!scripts/migrations/208-own-annulment-review-index.sql
+
+# Exact additive209 source only; municipal inputs and private handoffs remain excluded.
+!scripts/migrations/209-own-annulment-preparation-projection.sql
+!scripts/sql/own-monetary-manifest.sql
+!scripts/sql/own-monetary-program-definition.sql
+!scripts/sql/own-monetary-program-command-core.sql
+
+# Exact public source contracts required by population/ART build tests only.
+!scripts/migrations/210-own-position-population-proof.sql
+!scripts/migrations/211-own-art-full-source.sql
+!scripts/migrations/212-native-employment-lifecycle-history.sql
+
+# Public family request source only; native installation/admission remains pending.
+!scripts/migrations/195-native-family-self-service.sql
+
+# Exact QA source succession fixtures; no private handoff or municipal inputs.
+!tests/fixtures/owner190-pg17-identity-source-projection.js
+!tests/fixtures/owner190-qa-source-reconciliation.js
+
+# Exact public family195 layout guard required by source tests; no private input.
+!scripts/contracts/native-family195-prerequisite-layout-query.sql
+
+# Exact public administrative position216 source; no municipal inputs.
+!scripts/migrations/216-own-position-administrative-identity.sql

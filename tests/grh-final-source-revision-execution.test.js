@@ -62,15 +62,17 @@ test('a SQL failure rolls back and releases the connection without reporting a s
  await assert.rejects(run(async()=>client,{commit:true}),/synthetic interrupted query/);
  assert.equal(client.stored,null);assert.equal(client.calls.at(-1).text,'ROLLBACK');assert.deepEqual(releases,[undefined]);
 });
-test('an unconfirmed COMMIT is reported as uncertain and is never automatically retried',async()=>{
+test('an unconfirmed COMMIT is reported as uncertain, sends no further SQL and is never automatically retried',async()=>{
  const {client,releases}=lease({fail:sql=>sql==='COMMIT'});let connections=0;
- await assert.rejects(run(async()=>{connections++;return client;},{commit:true}),{code:'GRH_FINAL_REVISION_COMMIT_UNCONFIRMED',outcomeUnknown:true});
+ await assert.rejects(run(async()=>{connections++;return client;},{commit:true}),{code:'GRH_FINAL_REVISION_COMMIT_UNCONFIRMED',outcomeUnknown:true,noFurtherSql:true});
  assert.equal(connections,1);assert.equal(releases.length,1);assert.match(releases[0].message,/CONNECTION_DISCARDED/);
+ assert.equal(client.calls.at(-1).text,'COMMIT');assert.equal(client.calls.filter(c=>c.text==='ROLLBACK').length,0);
 });
-test('a failed rollback discards its connection',async()=>{
+test('an unconfirmed rehearsal ROLLBACK is uncertain too: no second ROLLBACK, connection discarded',async()=>{
  const {client,releases}=lease({fail:sql=>sql==='ROLLBACK'});
- await assert.rejects(run(async()=>client),/synthetic interrupted query/);
+ await assert.rejects(run(async()=>client),{code:'GRH_FINAL_REVISION_END_UNCONFIRMED',outcomeUnknown:true,noFurtherSql:true});
  assert.equal(releases.length,1);assert.match(releases[0].message,/CONNECTION_DISCARDED/);
+ assert.equal(client.calls.filter(c=>c.text==='ROLLBACK').length,1);assert.equal(client.calls.at(-1).text,'ROLLBACK');
 });
 test('cancellation after leasing still releases the connection without BEGIN',async()=>{
  const abort=new AbortController(),{client,releases}=lease();

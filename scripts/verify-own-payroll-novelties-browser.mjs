@@ -2,19 +2,43 @@
 // and municipal actors are synthetic; this is not acceptance by Noelia.
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import assert from 'node:assert/strict';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {chromium} from 'playwright';
 import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';import {buildOwnNoveltyQa} from './lib/own-novelties-qa.mjs';
-import {createOwnNoveltyHandler} from '../api/internal-own-payroll-novelties.js';import {OWN_NOVELTY_READ} from '../assets/own-payroll-novelties-model.js';
+import {createOwnNoveltyHandler} from '../api/internal-own-payroll-novelties.js';import {OWN_NOVELTY_READ,ownNoveltyReceipt} from '../assets/own-payroll-novelties-model.js';
+import {ownNoveltyHash} from '../lib/internal-own-payroll-novelties.js';
 const root=path.resolve(import.meta.dirname,'..'),opts={};for(const arg of process.argv.slice(2)){const m=/^--(major|psql|browser|output)=(.+)$/.exec(arg);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}const major=Number(opts.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium'].includes(opts.browser));
 const output=path.resolve(opts.output),base=path.join(root,'public');assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
 const qa=buildOwnNoveltyQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),j=v=>q(JSON.stringify(v))+'::jsonb';
 const relocate=sql=>sql.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+qa.schema+',public,pg_temp');
-let seeded=false,browser,server,report,checks=0,revoked=false,lose=false,hold=false,held=null;const writes=[],errors=[],check=(v,label)=>{assert.ok(v,label);checks++;},env={};
+let seeded=false,browser,server,report,checks=0,revoked=false,lose=false,hold=false,held=null,expectedLegacyBatchId=null,approvalEvidence=null;
+const writes=[],errors=[],expectedSuccessionUnavailable=[],check=(v,label)=>{assert.ok(v,label);checks++;},env={};
+const coverage=Object.freeze({exportStage:'submitted',approvedBatchCsvVerified:false,approvedBatchReopenVerified:false,novelty197Installed:false,currentEffectivenessVerified:false,correctionWorkflowExecuted:false,fullMunicipalCircuitVerified:false});
 const caps=actor=>[...OWN_NOVELTY_READ,'payroll.novelty.export',actor==='checker'?'payroll.novelty.approve':'payroll.novelty.prepare'];
 const actor=req=>req.headers['x-qa-actor']==='checker'?'checker':'maker';
 const principal=a=>({user:{email:qa.actors[a].actorEmail},tenant:{source:'membership',id:qa.actors[a].tenantId,membershipId:qa.actors[a].membershipId,effectiveCapabilities:revoked?[]:caps(a)}});
 const session=a=>({email:qa.actors[a].actorEmail,id:qa.actors[a].actorSessionId,version:qa.actors[a].actorSessionVersion,releaseSha:qa.actors[a].releaseSha});
 const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(actor(req)),actor:actor(req)}),sessionFor:access=>session(access.actor),getSql:async()=>({query:async(query,values)=>{
- assert.match(query,/^SELECT public\.own_novelty_(bootstrap|detail|attempt|command)_v1\(/);if(query.includes('command'))writes.push({key:values[2],body:JSON.parse(values[1])});
- const statement=query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>q(values[Number(n)-1]));try{const result=await db.run(statement,true);if(hold&&query.includes('command')){hold=false;await new Promise(resolve=>{held=resolve;});}if(lose&&query.includes('command')){lose=false;throw Error('QA_ACK_LOST_AFTER_REAL_COMMIT');}return [{result}];}catch(e){if(!/QA_ACK_LOST/.test(e.message))errors.push(e.message);throw e;}
+ try{
+  if(query==='SELECT public.own_novelty_succession_context_v1($1::jsonb,$2::uuid) AS result'){
+   assert.ok(expectedLegacyBatchId,'Expected legacy batch must be known before the optional succession read');
+   assert.ok(Array.isArray(values)&&values.length===2);assert.equal(typeof values[0],'string');
+   const context=JSON.parse(values[0]);
+   assert.equal(context.membershipId,qa.actors.checker.membershipId);
+   assert.equal(context.actorEmail,qa.actors.checker.actorEmail);
+   assert.equal(values[1],expectedLegacyBatchId);
+   assert.equal(expectedSuccessionUnavailable.length,0,'Exactly one expected legacy130 succession read');
+   expectedSuccessionUnavailable.push({resource:'succession',actor:'checker',batchId:values[1],reason:'QA_LEGACY130_SUCCESSION_UNAVAILABLE'});
+   throw Object.assign(Error('QA_LEGACY130_SUCCESSION_UNAVAILABLE'),{code:'QA_LEGACY130_SUCCESSION_UNAVAILABLE'});
+  }
+  assert.match(query,/^SELECT public\.own_novelty_(bootstrap|detail|attempt|command)_v1\(/);
+  if(query.includes('command'))writes.push({key:values[2],body:JSON.parse(values[1])});
+  const statement=query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>q(values[Number(n)-1]));
+  const result=await db.run(statement,true);
+  if(hold&&query.includes('command')){hold=false;await new Promise(resolve=>{held=resolve;});}
+  if(lose&&query.includes('command')){lose=false;throw Error('QA_ACK_LOST_AFTER_REAL_COMMIT');}
+  return [{result}];
+ }catch(e){
+  if(!/QA_ACK_LOST/.test(e.message)&&e.code!=='QA_LEGACY130_SUCCESSION_UNAVAILABLE')errors.push(e.message);
+  throw e;
+ }
 }})};
 const cuil=dni=>{for(const prefix of ['20','23']){const start=prefix+dni,weights=[5,4,3,2,7,6,5,4,3,2],r=11-[...start].reduce((v,n,i)=>v+Number(n)*weights[i],0)%11;if(r!==10)return start+(r===11?0:r);}throw Error('Invalid synthetic CUIL');};
 try{
@@ -35,10 +59,64 @@ try{
  await $('review').click();await idle();await $('confirm').check();check(await $('send').isEnabled(),'complete verified preview enables voluntary send');await $('amount').fill('20,01');check(await $('send').isHidden(),'editing invalidates reviewed body');await $('review').click();await idle();await $('confirm').check();
  lose=true;await $('send').click();await idle();check(await $('recover').isVisible()&&await $('fields').evaluate(e=>e.disabled),'lost ACK freezes body and blocks new work: '+await $('status').textContent());check(writes.length===1&&writes[0].body.rows.length===30,'one exact full write');await $('recover').click();await idle();check((await $('status').textContent()).includes('30 filas conservadas'),'recovery returns committed original receipt');check(writes.length===1,'recovery is read-only');await $('new').click();await idle();
  const batchId=await db.run("SELECT to_jsonb(batch_id) FROM own_payroll_novelty_event WHERE command='prepare' ORDER BY recorded_at DESC LIMIT 1");await $('batch').selectOption(batchId);await $('open').click();await idle();check(await page.locator('[data-n-detail] tbody tr').count()===30,'detail includes all rows');await page.locator('[data-n-decisions] [data-command="submit"]').click();await idle();await $('confirm').check();await $('send').click();await idle();await $('new').click();await idle();
- const checker=await browser.newContext({acceptDownloads:true,extraHTTPHeaders:{'x-qa-actor':'checker'}}),reviewer=await checker.newPage();await reviewer.goto(origin+'/qa.html');const r=key=>reviewer.locator('[data-n-'+key+']');await r('refresh').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');await r('batch').selectOption(batchId);await r('open').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');await reviewer.locator('[data-command="approve"]').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');await r('confirm').check();await r('send').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');check((await r('status').textContent()).includes('Aprobado confirmado'),'independent real API approval in browser');
- await $('batch').selectOption(batchId);await $('open').click();await idle();const downloadEvent=page.waitForEvent('download');await $('download').click();const download=await downloadEvent;const csv=fs.readFileSync(await download.path(),'utf8');check(csv.split('\r\n').length===32&&csv.includes('"30";"20030"'),'voluntary complete CSV includes last row');await idle();
+ // CSV/layout/revocation use the same complete submitted batch. Current
+ // effectiveness and reopening/export of approved batches require canonical197.
+ await $('batch').selectOption(batchId);await $('open').click();await idle();
+ check((await $('detail').textContent()).startsWith('En revisión · 30 filas · 2026-10 · Mensual')&&await page.locator('[data-n-detail] tbody tr').count()===30,'complete submitted batch is explicitly identified before export');
+ const downloadEvent=page.waitForEvent('download');await $('download').click();const download=await downloadEvent;const csv=fs.readFileSync(await download.path(),'utf8');
+ check(csv.split('\r\n').length===32&&csv.includes('"30";"20030"'),'voluntary complete submitted CSV includes last row');await idle();
  for(const width of [1440,390,320]){await page.setViewportSize({width,height:900});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no page overflow '+width);check(await $('refresh').evaluate(e=>e.getBoundingClientRect().height>=44),'accessible controls '+width);await page.screenshot({path:output.replace('.json','-'+width+'.png'),fullPage:true});}
- await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));check(await $('content').isHidden()&&await page.locator('[data-n-detail] tbody tr').count()===0,'revocation removes all nominal views/download');revoked=true;await $('refresh').click();await idle();check(await $('content').isHidden(),'auth requery refuses revoked permissions');revoked=false;await $('refresh').click();await idle();await $('batch').selectOption(batchId);await $('open').click();await idle();await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));check(await $('content').isHidden()&&await $('download').isHidden(),'pagehide invalidates voluntary download');
- check(errors.length===0,'zero browser/SQL errors');report={ok:true,major,checksPassed:checks,independentConnections:db.connections.length,distinctConnections:new Set(db.connections).size,realApi:true,realCommittedPostgres:true,syntheticAuthentication:true,syntheticEmployees:31,wholeBatchRows:30,viewports:[1440,390,320],municipalWrites:false};
-}catch(e){report={ok:false,major,checksPassed:checks,error:e.message,errors,stack:e.stack?.split('\n').slice(0,4)};process.exitCode=1;}
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));check(await $('content').isHidden()&&await page.locator('[data-n-detail] tbody tr').count()===0,'revocation removes all nominal views/download');revoked=true;await $('refresh').click();await idle();check(await $('content').isHidden(),'auth requery refuses revoked permissions');revoked=false;await $('refresh').click();await idle();
+ check(await $('content').isVisible()&&await page.locator('[data-n-detail] tbody tr').count()===0,'restored access requires a new voluntary detail consultation');
+ const submitted=await db.run('SELECT own_novelty_detail_v1('+j(qa.actors.checker)+','+q(batchId)+'::uuid)');
+ check(submitted.id===batchId&&submitted.status==='submitted'&&submitted.rowCount===30,'independent connection reads the complete submitted predecessor');
+ expectedLegacyBatchId=batchId;
+ const checker=await browser.newContext({acceptDownloads:true,extraHTTPHeaders:{'x-qa-actor':'checker'}}),reviewer=await checker.newPage();
+ reviewer.on('pageerror',e=>errors.push(e.message));
+ await reviewer.goto(origin+'/qa.html');const r=key=>reviewer.locator('[data-n-'+key+']');
+ await r('refresh').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');
+ await r('batch').selectOption(batchId);await r('open').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');
+ await reviewer.locator('[data-command="approve"]').click();await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');await r('confirm').check();
+ const approvalResponsePending=reviewer.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/internal-own-payroll-novelties');
+ const successionResponsePending=reviewer.waitForResponse(response=>{
+  const url=new URL(response.url());
+  return response.request().method()==='GET'&&url.pathname==='/api/internal-own-payroll-novelties'&&url.searchParams.get('resource')==='succession'&&url.searchParams.get('id')===batchId;
+ });
+ await r('send').click();
+ const [approvalResponse,successionResponse]=await Promise.all([approvalResponsePending,successionResponsePending]);
+ await reviewer.waitForFunction(()=>document.getElementById('qa').getAttribute('aria-busy')==='false');
+ const approvalRequest=approvalResponse.request(),requestBody=approvalRequest.postDataJSON(),requestKey=approvalRequest.headers()['idempotency-key'];
+ assert.deepEqual(requestBody,{operation:'command',payload:{command:'approve',batchId,expectedRevision:submitted.revision,reasonReference:null,reviewConfirmed:true}});
+ check(approvalResponse.status()===201,'independent approval returns a new real HTTP201 receipt');
+ const approvalEnvelope=await approvalResponse.json();assert.equal(approvalEnvelope.ok,true);
+ const receipt=ownNoveltyReceipt(approvalEnvelope.data,{key:requestKey,body:requestBody.payload});
+ assert.equal(receipt.replayed,false);assert.equal(receipt.requestSha256,ownNoveltyHash(requestBody.payload));
+ assert.equal(receipt.snapshot.rowsSha256,ownNoveltyHash(receipt.snapshot.rows.map(({values,subject})=>({values,subject}))));
+ assert.equal(receipt.snapshot.id,batchId);assert.equal(receipt.snapshot.status,'approved');assert.equal(receipt.snapshot.revision,submitted.revision+1);
+ assert.equal(receipt.snapshot.rowCount,30);assert.equal(receipt.snapshot.rows.length,30);
+ assert.deepEqual(receipt.snapshot.rows.map(row=>row.values),writes[0].body.rows);
+ assert.deepEqual(receipt.snapshot.preparedBy,{membershipId:qa.ids.maker,personId:qa.ids.makerPerson});
+ assert.deepEqual(receipt.snapshot.decidedBy,{membershipId:qa.ids.checker,personId:qa.ids.checkerPerson});
+ assert.deepEqual(receipt.snapshot.approvals,[receipt.snapshot.decidedBy]);
+ assert.notEqual(receipt.snapshot.preparedBy.membershipId,receipt.snapshot.decidedBy.membershipId);
+ assert.notEqual(receipt.snapshot.preparedBy.personId,receipt.snapshot.decidedBy.personId);
+ assert.deepEqual(writes.map(write=>write.body.command),['prepare','submit','approve']);
+ assert.deepEqual(writes[2],{key:requestKey,body:requestBody.payload});
+ check(true,'same exact request/key/body and complete approved receipt retain independent maker/checker identities');
+ const committed=await db.run('SELECT own_novelty_detail_v1('+j(qa.actors.checker)+','+q(batchId)+'::uuid)');
+ assert.deepEqual(committed,receipt.snapshot);check(true,'independent PostgreSQL connection reads back the exact committed approval snapshot');
+ const unavailableEnvelope=await successionResponse.json();
+ check(successionResponse.status()===503&&unavailableEnvelope.ok===false&&unavailableEnvelope.code==='OWN_NOVELTY_UNAVAILABLE','legacy130 explicitly reports unavailable canonical197 current context');
+ assert.deepEqual(expectedSuccessionUnavailable,[{resource:'succession',actor:'checker',batchId,reason:'QA_LEGACY130_SUCCESSION_UNAVAILABLE'}]);
+ check((await r('status').textContent())==='Comprobante original verificado · 30 filas conservadas. No se verificó su vigencia actual; actualizá la consulta antes de otra operación.','verified historical receipt does not claim current effectiveness');
+ check((await r('detail').textContent()).startsWith('Aprobado · 30 filas · 2026-10 · Mensual'),'approved original receipt remains visible after optional current-context failure');
+ const displayed=await reviewer.locator('[data-n-detail] tbody tr').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent)));
+ assert.deepEqual(displayed,Array.from({length:30},(_,i)=>[String(i+1),String(20001+i),'120','No informado','20,00']));
+ check(true,'historical approval UI preserves every original row and exact amount');
+ approvalEvidence={httpStatus:201,status:'approved',rowCount:30,revision:receipt.snapshot.revision,exactRequestVerified:true,independentActorVerified:true,committedReadbackMatched:true,completeUiRowsVerified:true,currentEffectivenessVerified:false};
+ await reviewer.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+ check(await r('content').isHidden()&&await r('download').isHidden()&&await reviewer.locator('[data-n-detail] tbody tr').count()===0,'pagehide removes the same approved receipt and voluntary download without reopening it');
+ check(errors.length===0,'zero unexpected browser/SQL errors');
+ report={ok:true,major,checksPassed:checks,independentConnections:db.connections.length,distinctConnections:new Set(db.connections).size,realApi:true,realCommittedPostgres:true,syntheticAuthentication:true,syntheticEmployees:31,wholeBatchRows:30,viewports:[1440,390,320],municipalWrites:false,coverage,approvalEvidence,expectedSuccessionUnavailable};
+}catch(e){report={ok:false,major,checksPassed:checks,error:e.message,errors,stack:e.stack?.split('\n').slice(0,4),coverage,approvalEvidence,expectedSuccessionUnavailable};process.exitCode=1;}
 finally{held?.();await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));if(seeded){await db.run('DROP SCHEMA '+qa.schema+' CASCADE');report.qaSchemaRemoved=true;}fs.writeFileSync(output,JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify(report));}

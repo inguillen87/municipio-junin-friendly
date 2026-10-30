@@ -68,6 +68,25 @@ test('la administración global exige rol propietario y capacidad efectiva de pl
   assert.equal(gate.allowed(requirement, [], ['tenant.admin'], ['PLATFORM_OWNER']), false);
 });
 
+test('la lectura propia abre nómina sin conceder lectura histórica ni decisiones', () => {
+  const { gate } = loadGate();
+  const attributes = read('nomina-control.html').match(/<main\b[^>]*id="mainContent"[^>]*>/)?.[0];
+  assert.ok(attributes);
+  const main = fakeNode(Object.fromEntries([...attributes.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, key, value]) => [key, value])));
+  const destination = fakeNode({ href: 'nomina-control.html#decisiones' });
+  const historical = fakeNode({ 'data-requires-any-capability': 'payroll.read' });
+  const approval = fakeNode({ 'data-requires-all-capability': 'payroll.calculation.read payroll.calculation.approve' });
+  const scope = { querySelectorAll(selector) { return selector === '.nav-group' ? [] : [main, destination, historical, approval]; } };
+  gate.apply(scope, { tenantCapabilities: ['payroll.calculation.read'] }, 'https://municipio.example/nomina-control.html');
+  assert.equal(main.hidden, false);
+  assert.equal(destination.hidden, false);
+  assert.equal(historical.hidden, true);
+  assert.equal(approval.hidden, true);
+  gate.apply(scope, { tenantCapabilities: [] }, 'https://municipio.example/nomina-control.html');
+  assert.equal(main.hidden, true);
+  assert.equal(destination.hidden, true);
+});
+
 test('apply oculta destinos y mutaciones no autorizados y deja visibles las lecturas permitidas', () => {
   const { gate } = loadGate();
   const people = fakeNode({ href: 'internal-dashboard.html#legajos' });

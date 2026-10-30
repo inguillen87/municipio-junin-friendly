@@ -9,7 +9,7 @@
 .own-run-status[data-state=success] {border-color:#176f64; background:#eaf5f1}
 .own-run fieldset {border:1px solid var(--own-line); border-radius:12px; padding:20px; min-width:0; margin:16px 0}
 .own-run legend {padding:0 8px; font-weight:800}
-.own-run-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px}
+.own-run-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; align-items:start}
 .own-run-date {display:grid; gap:8px; align-content:start; margin-bottom:16px}
 .own-run-date label {margin-bottom:0}
 .own-run-date small {font-size:14px; line-height:1.5; color:#53646e}
@@ -47,3 +47,6 @@
 }
 
 @media(min-width:701px) and (max-width:1100px){.own-run-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Keep complete workbook hashes and exact values readable on narrow screens. */
+.own-run-assistance {overflow-wrap:anywhere}

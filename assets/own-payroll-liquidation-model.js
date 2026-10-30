@@ -1,6 +1,6 @@
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownRunCommand,ownRunCapture} from './own-payroll-run-model.js';
-import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
+import {ownRunWorkspaceResult,verifiedWorkspaceCapture,ownRunConceptLabels,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
 import {decimal,exactAdd,quantize} from './own-payroll-exact.js';
 export const OWN_LIQ_READ=OWN_RUN_READ,OWN_LIQ_NOMINAL=OWN_RUN_NOMINAL;
 export const OWN_LIQ_REVIEW=Object.freeze([...OWN_LIQ_NOMINAL,'payroll.calculation.approve']);
@@ -64,19 +64,50 @@ export function ownLiquidationIndividual(detail,contractId){
  const decision=detail.employees.find(e=>e.contractId===contractId),saved=detail.capture.saved;
  const person=saved.input.employees.find(e=>e.contractId===contractId),totals=saved.result.employeeTotals.find(e=>e.contractId===contractId);
  if(!decision||!person||!totals)fail();
- return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows:saved.result.rows.filter(r=>r.contractId===contractId),complete:true,paymentExecuted:false});
+ const rows=saved.result.rows.filter(r=>r.contractId===contractId),labels=ownRunConceptLabels(detail.capture),namespaced=saved.input.version==='own-payroll-input.v2';
+ return structuredClone({runId:detail.id,resultSha256:saved.resultSha256,stateVersion:detail.stateVersion,period:saved.result.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:saved.result.liquidationType,employeeNumber:person.employeeNumber,contractId,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:decision.state,liquidationVersion:decision.liquidationVersion,events:decision.events,totals,rows,labels:rows.map(r=>labels.get(r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode)??null),complete:true,paymentExecuted:false});
 }
 // This supplies a preparation context only. The target must reread the receipt,
 // detail, session and catalogs before offering a separate voluntary calculation.
 export function ownLiquidationNextPreparation(detail,receipt){
  ownLiquidationDetail(detail);ownLiquidationReceipt(receipt);
  if(receipt.body.command!=='annul'||receipt.runId!==detail.id||receipt.resultSha256!==detail.capture.saved.resultSha256)fail();
- for(const affected of receipt.affected){const current=detail.employees.find(e=>e.contractId===affected.contractId);if(!current||current.state!=='annulled'||current.version!==affected.version||current.liquidationVersion!==affected.liquidationVersion)fail();}
+ // Revalidate the whole affected set against the CURRENT detail: every contract
+ // must still be annulled in this run and must not hold a confirmed liquidation
+ // in another run of the period/type (blockedBy), exactly as the consolidated
+ // preparation (CONFIRMED_AGAIN) and SQL209 (CURRENT_STATE_CHANGED) require.
+ for(const affected of receipt.affected){
+  const current=detail.employees.find(e=>e.contractId===affected.contractId);
+  if(!current||current.state!=='annulled'||current.version!==affected.version||current.liquidationVersion!==affected.liquidationVersion)fail();
+  if(current.blockedBy!==null)throw Error('Un legajo del alcance ya tiene otra liquidación confirmada para ese período y tipo. Actualizá la consulta y revisá esa liquidación antes de preparar un cálculo nuevo.');
+ }
  const selected=ownLiquidationSelection(detail,receipt.body.selection,'annul');
  if(salarySerialized(selected.rows.map(e=>e.contractId).sort())!==salarySerialized(receipt.affected.map(e=>e.contractId).sort()))fail();
  // "All" in the decision means all of that run, possibly a partial run.
  // Carry the exact affected contracts, never widen it to the whole municipality.
  return structuredClone({period:detail.capture.body.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values:receipt.affected.map(e=>e.contractId).sort()},sourceSelection:receipt.body.selection,affected:receipt.affected.map(e=>({contractId:e.contractId,employeeNumber:detail.capture.saved.input.employees.find(p=>p.contractId===e.contractId).employeeNumber})),runId:detail.id,receiptKey:receipt.key});
+}
+// Cross-user continuation of an INDIVIDUAL annul decision. The reviewer's
+// receipt and attempt key stay with the reviewer (SQL124 scopes attempts to
+// their actor); the preparer rereads the run's CURRENT detail under her own
+// authorised session and derives the decision's complete set from the stored
+// events. Every contract that carries the decision must still be annulled by
+// exactly that decision and free of another confirmed liquidation; one later
+// decision rejects the whole set. The later calculation is a separate explicit
+// command with its own key; nothing here records, links or replays anything.
+export function ownLiquidationDecisionPreparation(detail,decisionId){
+ ownLiquidationDetail(detail);if(!salaryUuid(decisionId))fail();
+ const affected=[];
+ for(const e of detail.employees){
+  const index=e.events.findIndex(event=>event.id===decisionId);if(index<0)continue;
+  const event=e.events[index];
+  if(event.command!=='annul'||index!==e.events.length-1||e.state!=='annulled'||e.version!==event.version||e.liquidationVersion!==event.liquidationVersion)fail();
+  if(e.blockedBy!==null)throw Error('Un legajo del alcance ya tiene otra liquidación confirmada para ese período y tipo. Actualizá la consulta y revisá esa liquidación antes de preparar un cálculo nuevo.');
+  affected.push(e.contractId);
+ }
+ if(!affected.length)fail();
+ const people=new Map(detail.capture.saved.input.employees.map(p=>[p.contractId,p])),values=[...affected].sort();
+ return structuredClone({period:detail.capture.body.period,liquidationDate:detail.capture.body.liquidationDate??null,liquidationType:detail.capture.body.liquidationType,selection:{kind:'contracts',values},affected:values.map(contractId=>({contractId,employeeNumber:people.get(contractId).employeeNumber})),runId:detail.id,decisionId,stateVersion:detail.stateVersion});
 }
 export function ownLiquidationReceipt(v,attempt=null){
  exact(v,['version','id','key','body','bodySha256','runId','resultSha256','affected','recordedAt','replayed']);

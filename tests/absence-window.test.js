@@ -51,7 +51,7 @@ function database(q){
   calls.push({text,values});const d=windowFixture(q);
   if(text.includes('absence-person:contract'))return[{contractId:PERSON_CONTRACT,number:'QA1001',name:d.person.name,sector:d.person.sector}];
   if(text.includes('absence:source'))return[{importId:6,sourceCutoff:'2026-09-10',status:'completed'}];
-  if(text.includes('absence:events-summary'))return[{events:d.summary.events,affectedContracts:d.summary.events?1:0,sourceDeclaredDays:d.summary.reportedDaysSum}];
+  if(text.includes('absence:events-summary'))return[{events:d.summary.events,affectedContracts:d.summary.events?1:0,knownSourceDeclaredDays:d.summary.events>0&&d.summary.reportedDaysEvents===0?null:d.summary.reportedDaysSum,eventsWithDeclaredDays:d.summary.reportedDaysEvents,eventsWithoutDeclaredDays:d.summary.events-d.summary.reportedDaysEvents}];
   if(text.includes('absence-person:summary'))return[{...d.summary,beganBeforePeriod:d.summary.beganBeforePeriod??0,endNotReportedEvents:1}];
   if(text.includes('absence:events'))return d.events.map(e=>({contractId:PERSON_CONTRACT,companyId:101,legajo:'QA1001',name:d.person.name,sector:d.person.sector,eventDate:e.date,untilDate:e.untilDate,reasonCode:e.reasonCode,reason:e.reason,sourceDeclaredDays:e.declaredDays,sourceQuantity:e.quantity}));
   throw Error('UNEXPECTED_QUERY');

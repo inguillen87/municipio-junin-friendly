@@ -47,10 +47,10 @@ async function emptyCandidatePackage(){
   return sealSuccessorPackage({baseline:packageSource('grh-junin-2026-09-10'),candidate:packageSource(ID),results});
 }
 
-test('October14 appends one explicit candidate and preserves every earlier profile and default in full',()=>{
+test('October14 remains the exact predecessor of October28 and preserves every earlier profile and default in full',()=>{
   const registry=JSON.parse(readFileSync(new URL('../scripts/lib/grh-source-profiles.json',import.meta.url),'utf8'));
   assert.equal(registry.version,'grh-source-profiles.v1');assert.equal(defaultGrhSourceProfile().id,'grh-junin-2026-08-06');
-  assert.deepEqual(registry.profiles.map(p=>p.id),[...Object.keys(PRIOR_PINS),ID]);
+  assert.deepEqual(registry.profiles.map(p=>p.id),[...Object.keys(PRIOR_PINS),ID,'grh-junin-2026-10-28']);
   for(const [id,pin] of Object.entries(PRIOR_PINS))assert.equal(sha(getGrhSourceProfile(id,{allowCandidateRead:true})),pin,id);
   for(const id of[ID,CORE]){
     assert.throws(()=>getGrhSourceProfile(id),{code:'GRH_CANDIDATE_PROFILE_REQUIRES_EXPLICIT_READ'});

@@ -1,4 +1,4 @@
-import {readGrhTxt} from './payroll-grh-input.js';
+import {readGrhTxt,GrhTxtInputError,GRH_TXT_LIMITS} from './payroll-grh-input.js';
 import {isPayrollRecordIdentity} from './payroll-record-identity.js';
 import {MONTHLY_BATCH_WRITER_LIMITS,verifyMonthlyBatch} from './payroll-native-monthly-model.js';
 export const GRH_IMPORT_CAPABILITIES=Object.freeze(['payroll.novelty.read','payroll.novelty.prepare','payroll.novelty.nominal.read','workforce.employee.read']);
@@ -7,6 +7,21 @@ const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v);
 const hash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
+const safeReadMessages=new Set(['Se esperaba un importe decimal con punto y dos decimales.','El campo debe contener dígitos, sin separadores ni signos.','El importe no puede perder decimales.','Cantidad fuera del rango permitido.','DNI ausente o inválido. No se interpreta como legajo.','DNI fuera del formato admitido.','El registro no informa cantidad ni importe.','La suma agrupada supera la precisión de cantidades.']);
+export function grhReadIssues(error){
+ if(!(error instanceof GrhTxtInputError)||error.code!=='GRH_FILE_INVALID'||!Array.isArray(error.issues)||!error.issues.length||error.issues.length>GRH_TXT_LIMITS.records||Reflect.ownKeys(error.issues).length!==error.issues.length+1)return freeze([]);
+ let previous=0;const result=[];
+ for(const issue of error.issues){
+  if(!exact(issue,['line','code','message'])||!Number.isInteger(issue.line)||issue.line<=previous||issue.line>GRH_TXT_LIMITS.records||issue.code!=='GRH_ROW_INVALID'||typeof issue.message!=='string')return freeze([]);
+  previous=issue.line;let message='Revisá esta fila contra el formato elegido. No se guardó una parte del archivo.';
+  const width=/^El formato exige (\d+) posiciones; esta fila tiene (\d+)\. No se recortó ni se completó\.$/.exec(issue.message),duplicate=/^DNI repetido en las filas (\d+) y (\d+)\. Revisá el archivo o elegí explícitamente agrupar\.$/.exec(issue.message);
+  if(safeReadMessages.has(issue.message))message=issue.message;
+  else if(width&&Number(width[1])>=1&&Number(width[1])<=GRH_TXT_LIMITS.bytes&&Number(width[2])<=GRH_TXT_LIMITS.bytes)message=`El formato exige ${Number(width[1])} posiciones; esta fila tiene ${Number(width[2])}. No se recortó ni se completó.`;
+  else if(duplicate&&Number(duplicate[1])>=1&&Number(duplicate[1])<issue.line&&Number(duplicate[2])===issue.line)message=`DNI repetido en las filas ${Number(duplicate[1])} y ${issue.line}. Revisá ambas filas con la entidad; esta importación no agrupa registros.`;
+  result.push({line:issue.line,message});
+ }
+ return freeze(result);
+}
 const verifiedPreviews=new WeakSet();
 const canonical=v=>Array.isArray(v)?'['+v.map(canonical).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}':JSON.stringify(v);
 const sha=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');

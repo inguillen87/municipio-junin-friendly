@@ -43,7 +43,7 @@ jobs:
         run: node scripts/verify-own-payroll-annulment.mjs --major=${{ matrix.major }} --psql=psql --output=verification/annulment-sql.json
       - name: Exact current installation, late rollback, preservation and independent durability
         run: node scripts/verify-own-payroll-annulment-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --transport=ci --output=verification/annulment-installation
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - name: Actual built UI and private HTTP handlers, all pages, mobile and original pending requests
         run: node scripts/verify-own-payroll-annulment-ui.mjs --major=${{ matrix.major }} --psql=psql --browser=chromium --output=verification/annulment-ui.json

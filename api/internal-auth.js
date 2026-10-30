@@ -1,3 +1,4 @@
+import {createInternalReadTiming} from '../lib/internal-read-phase-timing.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -148,9 +149,12 @@ export function createInternalAuthHandler(dependencies = {}) {
   }
 
   if (method === 'GET') {
-    const access = await requireAccess(req, res, { env, allowLegacy: false });
-    if (!access) return undefined;
-    return sendJson(res, 200, managedSessionResponse(access));
+    const timing = createInternalReadTiming({route:'internal-auth', emit:dependencies.reportReadTiming, clock:dependencies.readTimingClock});
+    try {
+      const access = await timing.measure('access', () => requireAccess(req, res, { env, allowLegacy: false }));
+      if (!access) return undefined;
+      return sendJson(res, 200, managedSessionResponse(access));
+    } finally { timing.finish(); }
   }
 
   if (method !== 'POST') {

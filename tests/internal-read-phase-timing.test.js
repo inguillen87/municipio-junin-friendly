@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createInternalReadTiming} from '../lib/internal-read-phase-timing.js';
+const deferred=()=>{let resolve;return{promise:new Promise(r=>resolve=r),resolve:value=>resolve(value)};};
+test('phase-start is observable while the real awaited operation is still pending',async()=>{const events=[],wait=deferred();let now=10;const timing=createInternalReadTiming({route:'internal-data:employees',emit:e=>events.push(e),clock:()=>now});const pending=timing.measure('directory',()=>wait.promise);assert.deepEqual(events.map(e=>e.event),['request-start','phase-start']);now=24.25;wait.resolve({unchanged:true});assert.deepEqual(await pending,{unchanged:true});timing.finish();assert.deepEqual(events.map(e=>e.event),['request-start','phase-start','phase-end','request-end']);assert.equal(events[2].elapsedMs,14.25);assert.equal(events[3].elapsedMs,14.25);});
+test('error identity is preserved without copying error message, payload or SQL into logs',async()=>{const events=[],error=Error('SELECT secret; /personal?legajo=PRIVATE; cookie=PRIVATE');const timing=createInternalReadTiming({route:'internal-auth',emit:e=>events.push(e),clock:()=>1});await assert.rejects(()=>timing.measure('access',()=>{throw error;}),e=>e===error);timing.finish();assert.equal(events[2].event,'phase-error');assert.ok(!JSON.stringify(events).includes('PRIVATE'));assert.ok(!JSON.stringify(events).includes('SELECT'));for(const e of events)assert.deepEqual(Object.keys(e).sort(),['version','requestId','route','event','phase','sequence','elapsedMs'].sort());});
+test('untrusted routes/phases are rejected before work and cannot become log labels',async()=>{assert.throws(()=>createInternalReadTiming({route:'/personal?legajo=PRIVATE'}),/CLOSED_INPUT/);const events=[],timing=createInternalReadTiming({route:'internal-data:employee',emit:e=>events.push(e)});let called=false;await assert.rejects(()=>timing.measure('SELECT PRIVATE',()=>called=true),/CLOSED_PHASE/);assert.equal(called,false);assert.ok(!JSON.stringify(events).includes('PRIVATE'));});
+test('logger failure cannot alter result, retry a query or change authorization',async()=>{let calls=0;const timing=createInternalReadTiming({route:'internal-family-certificates:family',emit:()=>{throw Error('synthetic logger failure');}});const result=await timing.measure('family-read',()=>{calls++;return'unchanged';});timing.finish();timing.finish();assert.equal(result,'unchanged');assert.equal(calls,1);});
+test('unavailable/backwards clock is represented as unknown instead of invented elapsed zero',async()=>{const events=[],values=[10,11,9,8];const timing=createInternalReadTiming({route:'internal-auth',emit:e=>events.push(e),clock:()=>values.shift()});await timing.measure('access',()=>true);timing.finish();assert.equal(events[2].elapsedMs,null);assert.equal(events[3].elapsedMs,null);});
+
+
+test('asynchronous logger rejection cannot leak an unhandled rejection or retry the operation',async()=>{
+ let calls=0;const original=Error('application operation rejected');
+ const timing=createInternalReadTiming({route:'internal-auth',emit:async()=>{throw Error('synthetic asynchronous logger failure');}});
+ assert.equal(await timing.measure('access',()=>{calls++;return 'kept';}),'kept');
+ await assert.rejects(()=>timing.measure('access',()=>{calls++;throw original;}),error=>error===original);
+ timing.finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,2);
+});

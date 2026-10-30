@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {F931_REFERENCE,F931_FIELDS,ownF931Params,ownF931VersionRequirement} from '../assets/own-f931-contract.js';
+import {F931_REFERENCE,F931_FIELDS,F931_VERSION_RULE,ownF931Params,ownF931VersionRequirement} from '../assets/own-f931-contract.js';
 import {prepareOwnF931,ownF931Proof,ownF931VisibleFields,ownF931PreparationCsv} from '../assets/own-f931-preparation-model.js';
 import {loadOwnF931Preparation} from '../assets/own-f931-preparation-client.js';
 import {reportFixture,historicalReportFixture,rehashReportFixture} from './fixtures/own-payroll-report-synthetic.js';
@@ -16,12 +16,23 @@ test('official V47.5 reference has 60 contiguous fields and 499 positions, not a
  assert.deepEqual(F931_FIELDS.filter(f=>[1,12,13,20,41,57,58,59,60].includes(f.number)).map(f=>[f.number,f.from,f.to]),[[1,1,11],[12,68,69],[13,70,81],[20,139,188],[41,320,328],[57,463,463],[58,464,475],[59,476,487],[60,488,499]]);
  assert.match(F931_REFERENCE.sha256,/^[a-f0-9]{64}$/);
 });
-test('version48 requires period OR presentation cutoff, including old-period rectifications',()=>{
+test('RG5915 defers the V48 cutoff: November period and presentations remain before it',()=>{
  const p=params(fixture());
- assert.equal(ownF931VersionRequirement(p).mandatedVersion,null);
- assert.deepEqual([ownF931VersionRequirement({...p,period:'2026-11'}).byPeriod,ownF931VersionRequirement({...p,presentationDate:'2026-11-01'}).byPresentation],[true,true]);
- for(const v of [{...p,period:'2026-11'},{...p,presentationDate:'2026-11-01'},{...p,period:'2025-01',presentationDate:'2027-02-01'}]){const r=ownF931VersionRequirement(v);assert.equal(r.mandatedVersion,'48');assert.equal(r.layoutConfirmed,false);}
- assert.equal(ownF931VersionRequirement({...p,presentationDate:'2026-10-31'}).layoutConfirmed,false);
+ for(const v of [p,{...p,period:'2026-11',presentationDate:'2026-11-01'},{...p,period:'2026-11',presentationDate:'2026-11-30'},{...p,period:'2025-01',presentationDate:'2026-11-30'}]){
+  const r=ownF931VersionRequirement(v);assert.equal(r.mandatedVersion,null);assert.equal(r.byPeriod,false);assert.equal(r.byPresentation,false);assert.equal(r.layoutConfirmed,false);
+ }
+});
+
+test('V48 uses December period OR December 1 presentation, including earlier rectifications',()=>{
+ const p=params(fixture());
+ for(const [v,byPeriod,byPresentation]of [[{...p,period:'2026-12',presentationDate:'2026-11-30'},true,false],[{...p,period:'2026-11',presentationDate:'2026-12-01'},false,true],[{...p,period:'2025-01',presentationDate:'2026-12-01'},false,true],[{...p,period:'2026-12',presentationDate:'2026-12-01'},true,true],[{...p,period:'2025-01',presentationDate:'2027-02-01'},false,true]]){
+  const r=ownF931VersionRequirement(v);assert.equal(r.mandatedVersion,'48');assert.equal(r.byPeriod,byPeriod);assert.equal(r.byPresentation,byPresentation);assert.equal(r.layoutConfirmed,false);
+ }
+});
+
+test('the amended rule points to RG5915 without certifying a current import layout',()=>{
+ assert.equal(F931_VERSION_RULE.effectiveDate,'2026-12-01');assert.equal(F931_VERSION_RULE.firstPeriod,'2026-12');assert.match(F931_VERSION_RULE.url,/n%3A5915%7C/);assert.equal(F931_VERSION_RULE.articles,'1–2');
+ assert.equal(F931_REFERENCE.version,'47.5');assert.equal(F931_REFERENCE.recordWidth,499);assert.equal(F931_FIELDS.length,60);assert.equal(ownF931VersionRequirement(params(fixture())).layoutConfirmed,false);
 });
 test('explicit dates/types, actual civil dates and strict fields; no automatic today or monthly default',()=>{
  const p=params(fixture());for(const bad of [{...p,presentationDate:null},{...p,presentationDate:'2026-02-29'},{...p,presentationDate:'2026-11-31'},{...p,presentationDate:'2026-10-01T00:00:00Z'},{...p,types:[]},{...p,types:['monthly','monthly']},{...p,period:'2026-13'},{...p,extra:'ignored'}])assert.throws(()=>ownF931Params(bad));

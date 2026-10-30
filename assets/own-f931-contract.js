@@ -7,8 +7,10 @@ import {salaryExact} from './native-salary-catalog-model.js';
 export const F931_REFERENCE=Object.freeze({version:'47.5',recordWidth:499,fieldCount:60,
  url:'https://serviciossegsoc.afip.gob.ar/djproforma/app/ayuda/Manual.pdf',
  sha256:'89beca64fac3648372b0b78495dbe339c87a522b42d0f1346729eeba338b447c',pages:'25–27'});
-export const F931_VERSION_RULE=Object.freeze({effectiveDate:'2026-11-01',firstPeriod:'2026-11',
- url:'https://biblioteca.arca.gob.ar/search/query/norma.aspx?p=t%3ARAG%7Cn%3A5907%7Co%3A9%7Ca%3A2026%7Cf%3A30%2F09%2F2026',articles:'17–19'});
+// RG 5915/2026 amends RG 5907 articles 17/19: the system-version cutoff moves
+// to December. This does not certify an import layout or permit generation.
+export const F931_VERSION_RULE=Object.freeze({effectiveDate:'2026-12-01',firstPeriod:'2026-12',
+ url:'https://biblioteca.arca.gob.ar/search/query/norma.aspx?p=t%3ARAG%7Cn%3A5915%7Co%3A9%7Ca%3A2026%7Cf%3A22%2F10%2F2026',articles:'1–2'});
 const definitions=[
  ['CUIL',11],['Apellido y nombre',30],['Cónyuge',1],['Cantidad de hijos',2],
  ['Código de situación',2],['Código de condición',2],['Código de actividad',3],['Código de zona',2],

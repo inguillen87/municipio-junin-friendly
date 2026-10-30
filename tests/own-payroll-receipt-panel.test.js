@@ -6,9 +6,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {OWN_RUN_TYPES} from '../assets/own-payroll-run-workspace-model.js';
+import {OWN_RECEIPT_NOMINAL,OWN_RECEIPT_PREPARER} from '../assets/own-payroll-receipt-access.js';
 import {mountOwnPayrollReceipts} from '../assets/own-payroll-receipt-panel.js';
-import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
-import {receiptPreview,receiptBatch} from './fixtures/own-payroll-receipt-synthetic.js';
+import {mountOwnReceiptSelf} from '../assets/own-payroll-receipt-self.js';
+import {OWN_RECEIPT_SELF,OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
+import {receiptPreview,receiptBatch,receiptSelf} from './fixtures/own-payroll-receipt-synthetic.js';
 import {uid,hash} from './fixtures/own-payroll-program-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {receiptError} from '../lib/internal-own-payroll-receipts.js';
@@ -36,12 +38,12 @@ class Element{
 const events=()=>{const listeners=new Map();return{addEventListener:(type,fn)=>{if(!listeners.has(type))listeners.set(type,[]);listeners.get(type).push(fn);},removeEventListener:(type,fn)=>listeners.set(type,(listeners.get(type)??[]).filter(f=>f!==fn)),dispatch:(type,detail)=>{for(const fn of listeners.get(type)??[])fn({detail});}};};
 const capabilities=[...new Set([...OWN_RECEIPT_PREPARE,...OWN_RECEIPT_APPROVE])];
 
-function harness(t){
+function harness(t,{self=false}={}){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],timers=new Map(),saved=new Map(),batches=new Map();let timer=0,sequence=0;
  const names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],originalGlobals=new Map(names.map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
  const document={...docEvents,hidden:false,head:new Element('head'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
  Object.assign(globalThis,{document,window:winEvents,setTimeout:fn=>{timers.set(++timer,fn);return timer;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{timers.set(++timer,fn);return timer;},clearInterval:id=>timers.delete(id)});
- const state={caps:[...capabilities],operator:'receipt-synthetic-operator',tenantId:uid(700),role:'synthetic-role',scopeVersion:hash('a'),sourceVersion:hash('b'),count:1,zero:false,postError:null,network:false,commitBeforeNetwork:false,recoveryMalformed:false,hold:null,onAuth:null,authCount:0,lastPreview:null};
+ const state={caps:[...(self?OWN_RECEIPT_SELF:capabilities)],operator:'receipt-synthetic-operator',tenantId:uid(700),role:'synthetic-role',scopeVersion:hash('a'),sourceVersion:hash('b'),count:1,zero:false,postError:null,network:false,commitBeforeNetwork:false,recoveryMalformed:false,hold:null,onAuth:null,authCount:0,lastPreview:null};
  const issuer=()=>municipalDocumentIssuerProfile({tenantId:state.tenantId},new Map([[state.tenantId,{id:'synthetic-recovery-municipality',revision:1,issuer:{name:'Municipio de ensayo sintético',taxId:'30990000001',address:'Domicilio inventado 123'},source:{kind:'municipal_official_backup',label:'Respaldo ficticio para prueba local',cutoff:'2026-10-01T15:00:00',validityDeclared:false}}]]));
  const fail=code=>{const error=receiptError(Error(code));return new Response(JSON.stringify({ok:false,code:error.code,error:error.message}),{status:error.status});};
  const commit=(body,key)=>{
@@ -52,6 +54,7 @@ function harness(t){
   const body=options.body?JSON.parse(options.body):null,key=options.headers?.['Idempotency-Key'];requests.push({url,method:options.method??'GET',body,key});await state.hold?.(url,body);
   if(url==='/api/internal-auth'){state.authCount++;await state.onAuth?.(state.authCount);return new Response(JSON.stringify({ok:true,authenticated:true,sessionVersion:2,user:{id:state.operator,email:'synthetic@example.test'},access:{context:'tenant',tenant:{id:state.tenantId,roleKey:state.role},tenantCapabilities:state.caps},expiresAt:'2099-01-01T00:00:00Z'}));}
   const q=new URL(url,'https://synthetic.example.test').searchParams;
+  if(q.get('resource')==='self'){const value=structuredClone(state.selfResponse??receiptSelf());if(state.mixedSelf){const other=structuredClone(value.items[0]);other.batchId=uid(801);other.record=receiptPreview(2).snapshot.records[1];value.items.push(other);}return new Response(JSON.stringify({ok:true,data:value}));}
   if(q.get('resource')==='issuer')return new Response(JSON.stringify({ok:true,data:issuer()}));
   if(body?.operation==='preview'){const preview=receiptPreview(state.count);preview.scopeVersion=state.scopeVersion;preview.snapshot.sourceVersion=state.sourceVersion;preview.snapshot.params=ownReceiptParams(body.params);if(preview.snapshot.params.contracts){preview.snapshot.version='own-receipt-snapshot.v2';preview.snapshot.identityBasis='owned_registration_verified_at_capture';}if(state.zero)Object.assign(preview.snapshot,{records:[],sources:[],recordCount:0,conceptCount:0});preview.snapshotSha256=ownRunHash(preview.snapshot);state.lastPreview=structuredClone(preview);return new Response(JSON.stringify({ok:true,data:preview}));}
   if(body?.operation==='command'){
@@ -66,14 +69,14 @@ function harness(t){
   assert.fail('Unexpected API operation '+url);
  };
  t.after(()=>{winEvents.dispatch('pagehide');for(const [name,descriptor]of originalGlobals)if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];});
- const q=key=>{const element=host.querySelector('[data-receipt-'+key+']');assert.ok(element,'Actual receipt control '+key);return element;};
+ const q=key=>{const element=host.querySelector('[data-'+(self?'self-receipt-':'receipt-')+key+']');assert.ok(element,'Actual receipt control '+key);return element;};
  const settled=async()=>{const deadline=Date.now()+5000;while(host.getAttribute('aria-busy')==='true'&&Date.now()<deadline)await delay(1);assert.notEqual(host.getAttribute('aria-busy'),'true','Panel operation must finish');};
  const act=async(key,type='click')=>{await q(key).emit(type);await settled();};
  const chooseTypes=types=>{for(const type of Object.keys(OWN_RUN_TYPES))q('type-'+type).checked=types.includes(type);};
  const start=async()=>{docEvents.dispatch('taskchange',{id:'recibos'});await settled();q('period').value=receiptPreview(1).snapshot.params.period;chooseTypes(['monthly']);q('scope').value='all';await act('scope','change');await act('query','submit');assert.equal(q('prepare').disabled,false);q('reason').value='Conservación de recibo exclusivamente sintético QA';};
  const missingAfterRejection=async(code='OWN_RECEIPT_STATE_CHANGED')=>{state.postError=code;await act('prepare');assert.equal(q('correct').hidden,true);await act('recover');assert.equal(q('correct').hidden,false);};
  const posts=()=>requests.filter(r=>r.body?.operation==='command');
- mountOwnPayrollReceipts(host);
+ if(self)mountOwnReceiptSelf(host,{auth:{ok:true,authenticated:true,sessionVersion:2,user:{id:state.operator,email:'synthetic@example.test'},access:{context:'tenant',tenant:{id:state.tenantId,roleKey:state.role},tenantCapabilities:state.caps},expiresAt:'2099-01-01T00:00:00Z'}});else mountOwnPayrollReceipts(host);
  return{host,q,state,requests,saved,batches,start,act,chooseTypes,settled,missingAfterRejection,posts,commit,hide:()=>{document.hidden=true;docEvents.dispatch('visibilitychange');},show:()=>{document.hidden=false;docEvents.dispatch('visibilitychange');},event:docEvents.dispatch};
 }
 
@@ -176,4 +179,88 @@ test('multi-type uncertain command retains its original body/key and is not alte
 });
 test('zero closed receipts retains the exact department filter and points to preparation rather than only closing',async t=>{
  const h=harness(t);await h.start();h.state.zero=true;h.q('scope').value='department';await h.act('scope','change');h.q('departmentFrom').value='35';h.q('departmentTo').value='35';await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/Repartición 35/);assert.match(h.q('emptyScope').textContent,/Mensual/);assert.match(h.q('empty').textContent,/preparación y el cálculo/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#calculo');assert.equal(h.q('scope').value,'department');assert.equal(h.q('departmentFrom').value,'35');assert.equal(h.q('departmentTo').value,'35');assert.equal(h.q('type-monthly').checked,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.posts().length,0);
+});
+
+test('closed secondary types retain their exact visible and atomic selection without changing the query',async t=>{
+ const h=harness(t);await h.start();h.q('date').value='2026-10-30';h.q('legend').value='Leyenda sintética conservada';h.q('type-monthly').checked=false;h.q('type-sac').checked=true;h.q('type-vacation').checked=true;await h.act('type-sac','change');h.q('typeDetails').open=false;
+ assert.equal(h.q('typeCount').textContent,'2 tipos seleccionados');assert.equal(h.q('typeSelection').textContent,' · Aguinaldo, Vacaciones');assert.equal(h.q('typeSelection').parentElement,h.q('typeCount').parentElement);assert.equal(h.q('typeCount').parentElement.getAttribute('role'),'status');assert.equal(h.q('typeCount').parentElement.getAttribute('aria-live'),'polite');assert.equal(h.q('typeCount').parentElement.getAttribute('aria-atomic'),'true');assert.equal(h.q('types').getAttribute('aria-describedby'),'ownReceiptTypeHelp ownReceiptTypeSelection');assert.equal(h.q('typeSelection').parentElement.parentElement,h.q('types'));
+ assert.equal(h.q('date').value,'2026-10-30');assert.equal(h.q('legend').value,'Leyenda sintética conservada');assert.equal(h.q('result').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.posts().length,0);
+ await h.act('query','submit');assert.deepEqual(h.state.lastPreview.snapshot.params.types,['sac','vacation']);assert.equal(h.state.lastPreview.snapshot.params.paymentDate,'2026-10-30');assert.equal(h.state.lastPreview.snapshot.params.legend,'Leyenda sintética conservada');
+});
+
+test('el detalle administrativo conserva todos los conceptos de cada fila visible y se retira con la página',async t=>{
+ const h=harness(t);h.state.count=27;await h.start();const full=structuredClone(h.state.lastPreview.snapshot);assert.equal(h.q('recordDetails').children.length,25);const detail=h.q('recordDetails').children[0];assert.equal(detail.children.length,1,'Concept bodies are rendered only when requested');detail.open=true;await detail.emit('toggle');for(const c of full.records[0].concepts)assert.ok(detail.textContent.includes(c.label));assert.match(detail.textContent,/Unidad: Pesos/);assert.match(detail.textContent,/Total de haberes/);h.q('search').value='Agente sintético 26';await h.act('search','input');assert.equal(h.q('recordDetails').children.length,1);assert.ok(h.q('recordDetails').textContent.includes('Agente sintético 26'));assert.equal(h.state.lastPreview.snapshot.recordCount,27);assert.deepEqual(h.state.lastPreview.snapshot,full);h.hide();assert.equal(h.q('recordDetails').children.length,0);assert.equal(h.q('rows').children.length,0);assert.equal(h.posts().length,0);
+});
+test('la autogestión muestra únicamente su recibo con desglose y limpia conceptos al revocar',async t=>{
+ const h=harness(t,{self:true});await h.act('consult');const list=h.q('list');assert.equal(list.children.length,1);const detail=list.querySelector('details');detail.open=true;await detail.emit('toggle');for(const c of receiptSelf().items[0].record.concepts)assert.ok(detail.textContent.includes(c.label));assert.match(detail.textContent,/Descuentos y retenciones/);assert.match(detail.textContent,/no se descuentan nuevamente/);assert.ok(!list.textContent.includes('Agente sintético 1'));assert.equal(h.requests.filter(r=>r.method==='POST').length,0);h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(list.children.length,0);assert.match(h.q('status').textContent,/cambio de permisos/);
+});
+test('la autogestión muestra el emisor y la leyenda conservados y los retira con sus permisos',async t=>{
+ const h=harness(t,{self:true});await h.act('consult');const list=h.q('list'),item=receiptSelf().items[0];
+ for(const value of [item.params.issuer.name,item.params.issuer.taxId,item.params.issuer.address,item.params.legend])assert.ok(list.textContent.includes(value),'Dato conservado del recibo: '+value);
+ assert.match(list.textContent,/Emisor declarado:/);assert.match(list.textContent,/CUIT/);assert.equal(h.requests.filter(r=>r.url.includes('resource=issuer')||r.method==='POST').length,0,'Consultar el recibo no sustituye su emisor por uno actual ni registra una operación');
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(list.children.length,0);for(const value of [item.params.issuer.name,item.params.issuer.taxId,item.params.issuer.address,item.params.legend])assert.ok(!list.textContent.includes(value));
+});
+test('la autogestión conserva el emisor de cada emisión y no inventa una leyenda vacía',async t=>{
+ const h=harness(t,{self:true}),response=receiptSelf(),other=structuredClone(response.items[0]);other.batchId=uid(802);other.params.issuer={name:'Otro municipio de ensayo',taxId:'30990000002',address:'Otro domicilio sintético 456'};other.params.legend='';response.items.push(other);h.state.selfResponse=response;const before=structuredClone(response);
+ await h.act('consult');const list=h.q('list');assert.equal(list.children.length,2);
+ for(const [index,item]of response.items.entries()){const row=list.children[index];for(const value of Object.values(item.params.issuer))assert.ok(row.textContent.includes(value));const different=response.items[1-index];assert.ok(!row.textContent.includes(different.params.issuer.name));}
+ assert.ok(list.children[0].textContent.includes(response.items[0].params.legend));assert.ok(!list.children[1].textContent.includes(response.items[0].params.legend));assert.deepEqual(h.state.selfResponse,before);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);h.hide();assert.equal(list.children.length,0);
+});
+test('la autogestión rechaza mezcla de agentes antes de mostrar su detalle',async t=>{
+ const h=harness(t,{self:true});h.state.mixedSelf=true;await h.act('consult');assert.equal(h.q('list').children.length,0);assert.match(h.q('status').textContent,/exclusivamente a un agente/);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+test('una respuesta tardía de autogestión no repone detalles al ocultar la pantalla',async t=>{
+ const h=harness(t,{self:true});let entered,release;const waiting=new Promise(resolve=>entered=resolve);h.state.hold=async url=>{if(url.includes('resource=self')){entered();await new Promise(resolve=>release=resolve);}};const request=h.act('consult');await waiting;h.hide();release();await request;assert.equal(h.q('list').children.length,0);assert.match(h.q('status').textContent,/ocultar la pantalla/);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+
+test('el alcance combinado muestra ambos rangos y cada campo invalida la revisión completa',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0],employee=record.employeeNumber,department=record.departmentCode;
+ h.q('scope').value='combined';await h.act('scope','change');for(const kind of ['employee','department']){assert.equal(h.q(kind+'Range').hidden,false);assert.equal(h.q(kind+'Range').disabled,false);assert.notEqual(h.q(kind+'From').getAttribute('required'),null);}
+ h.q('employeeFrom').value=employee;h.q('employeeTo').value=employee;h.q('departmentFrom').value=department;h.q('departmentTo').value=department;
+ for(const field of ['employeeFrom','employeeTo','departmentFrom','departmentTo']){
+  await h.act('query','submit');const p=h.state.lastPreview.snapshot.params;assert.deepEqual(p.filters,{employeeFrom:employee,employeeTo:employee,departmentFrom:department,departmentTo:department,agreementFrom:'',agreementTo:''});assert.match(h.q('summary').textContent,new RegExp('Legajo '+employee));assert.match(h.q('summary').textContent,new RegExp('Repartición '+department));h.q('confirm').checked=true;const previous=h.q(field).value;h.q(field).value=String(BigInt(previous)+1n);
+  // The substrate does not bubble events; invoke the actual fieldset listener with the real target.
+  for(const listener of h.q('fields').listeners.get('input')??[])await listener({target:h.q(field)});await h.settled();assert.equal(h.q('result').hidden,true,field);assert.equal(h.q('pdf').disabled,true,field);assert.equal(h.q('prepare').disabled,true,field);assert.equal(h.q('confirm').checked,false,field);assert.equal(h.q(field).value,String(BigInt(previous)+1n),field);h.q(field).value=previous;
+ }
+ assert.equal(h.posts().length,0);
+});
+
+test('el alcance combinado incompleto no consulta ni se convierte en todos los legajos',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0];h.q('scope').value='combined';await h.act('scope','change');const previews=h.requests.filter(r=>r.body?.operation==='preview').length;
+ h.q('employeeFrom').value=record.employeeNumber;await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,previews);assert.equal(h.q('scope').value,'combined');assert.equal(h.q('departmentFrom').value,'');assert.match(h.q('status').textContent,/inicio de legajos y de reparticiones/);assert.equal(h.q('result').hidden,true);assert.equal(h.posts().length,0);
+ h.q('employeeFrom').value='';h.q('departmentFrom').value=record.departmentCode;await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,previews);assert.equal(h.posts().length,0);
+});
+
+test('corregir un intento combinado restaura ambos rangos y los reintentos conservan cuerpo y clave',async t=>{
+ const h=harness(t);await h.start();const record=h.state.lastPreview.snapshot.records[0];h.q('scope').value='combined';await h.act('scope','change');h.q('employeeFrom').value=record.employeeNumber;h.q('departmentFrom').value=record.departmentCode;await h.act('query','submit');h.q('reason').value='Corrección de alcance combinado exclusivamente sintética';await h.missingAfterRejection();const original=structuredClone(h.posts()[0]);h.state.sourceVersion=hash('c');await h.act('correct');
+ assert.equal(h.q('scope').value,'combined');for(const kind of ['employee','department']){assert.equal(h.q(kind+'Range').hidden,false);assert.equal(h.q(kind+'Range').disabled,false);for(const end of ['From','To'])assert.equal(h.q(kind+end).value,original.body.payload.params.filters[kind+end]);}assert.equal(h.q('confirm').checked,false);assert.deepEqual(h.posts()[0],original);assert.match(h.q('previous').textContent,/Legajos:/);assert.match(h.q('previous').textContent,/Reparticiones:/);
+ h.state.postError=null;h.state.network=true;await h.act('prepare');const pending=structuredClone(h.posts()[1]);assert.notEqual(pending.key,original.key);assert.deepEqual(pending.body.payload.params.filters,original.body.payload.params.filters);assert.equal(pending.body.payload.sourceVersion,hash('c'));assert.equal(h.q('fields').disabled,true);h.state.network=false;await h.act('retry');assert.deepEqual(h.posts()[2],pending);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('recover').hidden,true);
+});
+
+test('receipt preparer reads previews and prepares without any calculation write or receipt approval capability',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ for(const cap of ['payroll.calculation.prepare','payroll.calculation.approve','payroll.calculation.close','payroll.receipt.approve'])assert.equal(h.state.caps.includes(cap),false,cap);
+ assert.equal(h.q('result').hidden,false);assert.ok(!h.q('pdf').disabled);
+ await h.act('prepare');assert.equal(h.posts().length,1);assert.equal(h.posts()[0].body.payload.command,'prepare');
+ assert.equal(h.q('approve').disabled,true);assert.equal(h.q('withdraw').disabled,true);
+});
+test('receipt preparer withdrawal removes nominal content immediately when neither receipt prepare nor calculation approval remains',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:['actions.read',...OWN_RECEIPT_NOMINAL]});
+ assert.equal(h.q('result').hidden,true);assert.equal(h.q('recordDetails').textContent,'');assert.equal(h.q('pdf').disabled,true);
+ assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+});
+test('legacy reviewer retains the preview when preparation is withdrawn but calculation approval remains',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ const reviewer=['actions.read',...OWN_RECEIPT_READ];h.state.caps=reviewer;
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:reviewer});
+ assert.equal(h.q('result').hidden,false);assert.ok(!h.q('pdf').disabled);assert.equal(h.q('prepare').disabled,true);
+ await h.act('prepare');assert.equal(h.posts().length,0);
+});
+test('uncertain preparation by a receipt-only preparer recovers the same committed body and key without another POST',async t=>{
+ const h=harness(t);h.state.caps=['actions.read',...OWN_RECEIPT_PREPARER];await h.start();
+ h.state.network=true;h.state.commitBeforeNetwork=true;await h.act('prepare');const original=structuredClone(h.posts()[0]);
+ assert.equal(h.q('recover').hidden,false);h.state.network=false;await h.act('recover');
+ assert.equal(h.posts().length,1);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('result').hidden,false);
+ assert.equal(h.q('approve').disabled,true);assert.equal(h.q('withdraw').disabled,true);
 });

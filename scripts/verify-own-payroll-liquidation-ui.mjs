@@ -28,6 +28,33 @@ if(existingHeadless)assert.ok(args.browser==='chromium'&&path.isAbsolute(existin
 const qa=buildOwnLiquidationQa(major,{employees:6,declaredDate:true}),executable=args.psql??'psql',db=createOwnLiquidationPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins}),prefix=output.replace(/\.json$/,''),seed=prefix+'-seed.sql';fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 const identity=(actor,caps)=>({actor,principal:{user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:[...caps,'payroll.read']}},session:{email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha}});
 let installed=false,server,browser,testPage,report,checks=0,posts=0,lose=false,loseBefore=false,loseCalculation=false,expire=false;const writes=[],calculationWrites=[],diagnostics=[],check=(v,label)=>{assert.ok(v,label);checks++;};
+// Literal UI expectations for the unchanged six-rule synthetic programme.
+// Captured SQL metadata proves origin; no presentation helper builds the oracle.
+async function assertCapturedScreenRows(locator,capture,expectedRows,label){
+ const cells=await locator.locator('tr').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent)));
+ assert.equal(cells.length,expectedRows.length);
+ for(const [index,row]of expectedRows.entries()){
+  const definitions=capture.payload.programState.salaryCatalog.items.filter(d=>d.kind==='concept'&&d.agreementCode===row.agreementCode&&d.code===row.conceptCode);
+  assert.equal(definitions.length,1);assert.equal(definitions[0].label,'Concepto inventado QA');assert.equal(row.unit,'money');
+  assert.equal(cells[index][0],row.employeeNumber);assert.equal(cells[index][1],row.conceptCode+' · Concepto inventado QA');
+  assert.ok(cells[index][3].startsWith('$ '),'the fixture monetary row keeps its currency');
+  if(row.conceptCode==='100'){assert.equal(row.amount,'100.10');assert.equal(cells[index][3],'$ 100,10');}
+ }
+ check(true,label);
+}
+async function assertCapturedScreenSummary(locator,capture,contractId,label){
+ const expectedRows=capture.saved.result.rows.filter(row=>row.contractId===contractId),items=locator.locator('[data-individual-concepts] li');
+ assert.equal(expectedRows.length,6);assert.equal(await items.count(),6);
+ for(const [index,row]of expectedRows.entries()){
+  const definitions=capture.payload.programState.salaryCatalog.items.filter(d=>d.kind==='concept'&&d.agreementCode===row.agreementCode&&d.code===row.conceptCode);
+  assert.equal(definitions.length,1);assert.equal(definitions[0].label,'Concepto inventado QA');assert.equal(row.unit,'money');
+  assert.equal(await items.nth(index).locator('h5').textContent(),'Concepto '+row.conceptCode+' · Concepto inventado QA');
+  const amount=await items.nth(index).locator('.own-individual-amount').textContent();assert.ok(amount.startsWith('$ '));
+  if(row.conceptCode==='100'){assert.equal(row.amount,'100.10');assert.equal(amount,'$ 100,10');}
+ }
+ assert.equal(await locator.locator('[data-individual-concepts] img,[data-individual-concepts] script').count(),0);
+ check(true,label);
+}
 // Passive harness diagnostics: no SQL, response bodies, keys or command changes.
 // In-flight overlap identifies candidates; it does not prove a database lock owner.
 const requestContext=new AsyncLocalStorage(),activeSql=new Map(),trace={version:1,phase:'setup',events:[],recalculation:null,lockHolderAttribution:'not_measured'},traceStart=performance.now();let traceId=0;
@@ -77,7 +104,8 @@ try{
  capture=await run('calculate',{body,key:randomUUID()});original=structuredClone(capture.saved);
  await select('refresh').click();await page.locator('[data-liq-run-id]').waitFor();await settled();check(await select('empty').isHidden()&&posts===0,'actual calculated run replaces the empty state without an automatic decision');await open(capture.id);
  await page.getByText('Ver estados y totales de todos los legajos',{exact:true}).click();check(await select('totals').locator('tr').count()===6,'full six-legajo saved result appears for independent reviewer');
- await page.getByText('Revisar conceptos y versiones del cálculo',{exact:true}).click();await select('search').fill('120');check(await select('rows').locator('tr').count()===6,'search only filters concepts, never legajos');await select('search').fill('');check(await select('rows').locator('tr').count()===25,'full detail exceeds one page');await select('next').click();check(await select('rows').locator('tr').count()===11,'second page retains remaining eleven concepts');
+ await page.getByText('Revisar conceptos y versiones del cálculo',{exact:true}).click();await select('search').fill('120');check(await select('rows').locator('tr').count()===6,'search only filters concepts, never legajos');await assertCapturedScreenRows(select('rows'),capture,capture.saved.result.rows.filter(row=>row.conceptCode==='120'),'filtered review retains the captured description of concept120 for every matching legajo');await select('search').fill('');check(await select('rows').locator('tr').count()===25,'full detail exceeds one page');await assertCapturedScreenRows(select('rows'),capture,capture.saved.result.rows.slice(0,25),'first review page retains every captured code/name pair without shortening the full result');await select('next').click();check(await select('rows').locator('tr').count()===11,'second page retains remaining eleven concepts');
+ const labelConsultPosts=posts;await assertCapturedScreenRows(select('rows'),capture,capture.saved.result.rows.slice(25),'second page preserves every captured code/name pair and monetary presentation');check(posts===labelConsultPosts,'reviewing captured concept descriptions adds zero decision POSTs');
  await select('search').fill('19041');await decide('confirm','all');check((await select('scope').innerText()).includes('6 legajos'),'all selection includes six legajos despite search and previous page');
  const firstId=capture.saved.input.employees[0].contractId;await decide('confirm','contracts',[firstId]);lose=true;await select('send').click();await settled();check(!(await select('send').isHidden())&&await select('recover').isVisible(),'lost committed ack retains original retry controls');const lost=structuredClone(writes.at(-1));
  await select('reason').evaluate(el=>{el.value='Contenido alterado desde DOM sintético';el.dispatchEvent(new Event('input',{bubbles:true}));});await select('kind').evaluate(el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));});await select('send').click();await settled();assert.deepEqual(writes.at(-1),lost);checks++;
@@ -104,6 +132,7 @@ try{
  const individual=select('individual'),openSummary=()=>select('totals').locator('[data-liq-individual-open]').first().click();
  const beforeSummary=posts;await select('search').fill('no-match');await openSummary();await settled();
  check(await individual.locator('[data-individual-concepts] li').count()===6,'individual summary contains all six saved concepts despite an empty full-run search');
+ await assertCapturedScreenSummary(individual,partial,firstId,'reviewer individual summary shows all six captured code/name pairs and the literal monetary value');
  check((await individual.locator('[data-individual-state]').innerText()).includes('Confirmada')&&posts===beforeSummary,'fresh individual state is confirmed and consultation performs no POST');
  const originalNet=await individual.locator('[data-individual-amount="net"]').innerText();
  await decide('annul','all');await select('send').click();await settled();
@@ -129,7 +158,10 @@ try{
  assert.deepEqual(calculationWrites,[pendingCalculation]);checks++;check((await calc('date').inputValue())===chosenDate&&(await calc('result-summary').innerText()).includes(chosenDate.split('-').reverse().join('/')),'recovery reinstates original signed date despite a DOM change during lost acknowledgement');check(pendingCalculation.body.selection.kind==='contracts'&&pendingCalculation.body.selection.values.length===1&&pendingCalculation.body.selection.values[0]===firstId,'new calculation preserves the exact annulled legajo and cannot widen to six source contracts');
  await calc('search').fill('no-match');await calc('totals').locator('[data-own-individual-open]').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  check(await calc('individual').locator('[data-individual-concepts] li').count()===6&&(await calc('individual').locator('[data-individual-state]').innerText()).includes('Pendiente de confirmación'),'recovered new result has complete concepts and fresh pending state through the actual detail handler');
+ const screenRecoveredCapture=await ownRunOperation(db,current.principal,current.session,'attempt',{key:pendingCalculation.key});
+ await assertCapturedScreenSummary(calc('individual'),screenRecoveredCapture,firstId,'recovered calculation summary renders its own captured descriptions and monetary values');
  const beforeReview=posts;await calc('review').click();await settled();check(await select('values').locator('option:checked').count()===1&&(await individual.locator('[data-individual-state]').innerText()).includes('Pendiente de confirmación')&&posts===beforeReview,'explicit review opens the same saved result and selected legajo without confirming or calculating');
+ await page.setViewportSize({width:1440,height:844});await assertCapturedScreenSummary(individual,screenRecoveredCapture,firstId,'desktop decision summary retains the exact captured names after review navigation');check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'individual captured names have no document overflow at1440');
  for(const width of [390,320]){await page.setViewportSize({width,height:844});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'individual summary has no document overflow at'+width);check(await individual.locator('[data-individual-close]').evaluate(el=>el.getBoundingClientRect().height>=44),'individual close control meets44px at'+width);await page.screenshot({path:prefix+'-individual-'+width+'.png',fullPage:true});}
  await individual.locator('[data-individual-close]').focus();await page.keyboard.press('Escape');check(await individual.isHidden()&&await page.locator(':focus').getAttribute('data-liq-individual-open')===firstId,'Escape clears summary and returns keyboard focus to the same legajo');
  await openSummary();await settled();await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));check(await individual.isHidden()&&(await individual.innerText())===''&&posts===beforeReview,'permission withdrawal clears every individual concept, amount and history without writes');
@@ -138,6 +170,7 @@ try{
  current=maker;const beforeHistorical=posts;await page.goto(origin+'/nomina-control.html#calculo');await page.reload();await page.locator('[data-own-open="'+capture.key+'"]').waitFor();await page.locator('[data-own-open="'+capture.key+'"]').click();await calc('result').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  await calc('totals').locator('[data-own-individual-open="'+firstId+'"]').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  check((await calc('individual').locator('[data-individual-state]').innerText()).includes('Histórico anulado'),'original maker reopens an old calculated capture with fresh annulled individual state');
+ await assertCapturedScreenSummary(calc('individual'),capture,firstId,'historical individual view retains the original captured code/name pairs');
  check(!(await calc('status').innerText()).includes('Pendiente de confirmación')&&!(await calc('history').innerText()).includes('pendiente de confirmación'),'saved-result metadata never fabricates pending decision state for historical confirmed or annulled runs');
  check(posts===beforeHistorical,'original owner historical consultation never repeats calculation or decision');
  check(errors.length===0,'new individual and continuation circuit has no browser exceptions: '+errors.join('|'));

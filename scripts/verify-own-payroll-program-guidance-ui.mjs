@@ -54,6 +54,25 @@ try{
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const panel=page.locator('.own-program'),$=key=>panel.locator('[data-program-'+key+']');
  const preparationDisabled=async()=>await $('fields').getAttribute('disabled')!==null&&await $('add-rule').isDisabled()&&await $('add-binding').isDisabled();
+ // QA_PROGRAM_GUIDANCE_VERTICAL_NAV_BEGIN
+ const payrollTask=id=>{assert.ok(['parametros','resumen','reglas'].includes(id));return page.locator('[data-liquidaciones-menu] [data-task="'+id+'"]');};
+ async function assertActivePayrollTask(id){
+  const target=payrollTask(id);await target.waitFor({state:'attached'});
+  await page.waitForFunction(task=>location.hash==='#'+task&&document.querySelector('#payrollTaskWorkspace')?.dataset.activeTask===task,id);
+  assert.equal(await target.count(),1,'one original payroll task control');assert.equal(await target.getAttribute('role'),'tab');
+  assert.equal(await target.getAttribute('aria-selected'),'true');assert.equal(await target.getAttribute('aria-controls'),'task-'+id);assert.equal(await target.getAttribute('tabindex'),'0');
+  const content=page.locator('#task-'+id);assert.equal(await content.getAttribute('role'),'tabpanel');assert.equal(await content.getAttribute('aria-labelledby'),await target.getAttribute('id'));assert.equal(await content.isVisible(),true);
+  return true;
+ }
+ async function openPayrollTask(id){
+  const target=payrollTask(id);await target.waitFor({state:'attached'});const toggle=page.locator('.mc-work-toggle');
+  if(await toggle.isVisible()&&await toggle.getAttribute('aria-expanded')==='false')await toggle.click();
+  const section=target.locator('xpath=ancestor::details[contains(@class,"task-section")]');
+  if(await section.count()&&!(await section.evaluate(node=>node.open)))await section.locator(':scope > summary').click();
+  await target.click();await assertActivePayrollTask(id);
+ }
+ // QA_PROGRAM_GUIDANCE_VERTICAL_NAV_END
+
  async function load(value){boot=value;denied=false;malformed=false;await page.goto(origin+'/nomina?case='+checks.length+'#reglas');await $('content').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');await page.waitForFunction(()=>document.querySelector('link[data-own-program-style]')?.sheet&&getComputedStyle(document.querySelector('[data-program-catalog-link]')).minHeight==='44px');}
  async function refresh(){await $('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');}
  await load(bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}}));
@@ -78,7 +97,7 @@ try{
   await page.screenshot({path:output.replace(/\.json$/,'')+'-'+width+'.png',fullPage:true});
  }
  await $('catalog-link').focus();await page.keyboard.press('Enter');
- check(await page.getByRole('tab',{name:'Parámetros',exact:true}).getAttribute('aria-selected')==='true','keyboard action opens existing salary task');
+ check(await assertActivePayrollTask('parametros'),'keyboard action opens existing salary task');
  check(posts===0,'guidance navigation never writes');
  await page.setViewportSize({width:1440,height:1000});
  await load(bootstrap({permissions:{canPropose:false,canReview:true}}));
@@ -94,8 +113,8 @@ try{
  await load(bootstrap({proposals:[decided,...proposals],permissions:{canPropose:true,canReview:true}}));
  check((await $('pending-summary').innerText()).includes('71 propuestas pendientes')&&(await $('pending-summary').innerText()).includes('69 compatibles'),'all proposals counted with independence and versions');
  await $('pending-link').click();check(await $('proposals').isVisible()&&await $('proposal-select').locator('option').count()===72&&await $('proposal-select').inputValue()===proposals[0].id,'shortcut opens a pending proposal and keeps complete decision history');
- await page.getByRole('tab',{name:'Resumen',exact:true}).click();check(await $('content').isHidden(),'changing task withdraws the verified guidance');
- await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await $('content').waitFor({state:'visible'});
+ await openPayrollTask('resumen');check(await $('content').isHidden(),'changing task withdraws the verified guidance');
+ await openPayrollTask('reglas');await $('content').waitFor({state:'visible'});
  // A held read cannot restore the view after revocation.
  const heldReceived=new Promise(resolve=>{holdReady=resolve;});hold=true;await $('refresh').click();await heldReceived;
  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));

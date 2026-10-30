@@ -41,6 +41,6 @@ jobs:
       - run: node --test tests/annual-position-budget*.test.js tests/internal-budget-approved.test.js tests/budget-structure*.test.js tests/budget-payroll*.test.js
       - run: node scripts/verify-annual-position-budget.mjs --major=${{ matrix.major }} --output=verification/annual-budget-sql.json
       - run: node scripts/verify-annual-position-budget-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/annual-budget-installation.json
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-annual-position-budget-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/annual-budget-ui.json

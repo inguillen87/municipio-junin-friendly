@@ -1,6 +1,7 @@
 import {ownLiquidationBootstrap} from './own-payroll-liquidation-model.js';
 import {ownRunWorkspaceAccess,OWN_RUN_TYPES} from './own-payroll-run-workspace-model.js';
 import {salarySerialized,salaryUuid,salaryHash} from './native-salary-catalog-model.js';
+import {requestedOwnAnnulPreparation} from './own-payroll-annulment-preparation-link.js';
 
 export function ownSummaryAccess(payload,now=Date.now()){
  const access=ownRunWorkspaceAccess(payload,now),scope=payload.access;
@@ -22,4 +23,27 @@ export function ownSummaryReviewContext(value,{row,accessKey}){
  const current=boot.runs.find(r=>r.id===row.id);
  if(!current||salarySerialized(current)!==salarySerialized(row)||current.canConsult!==true)throw Error('Cambió el resultado o su autorización. Actualizá las corridas antes de revisarlo.');
  return Object.freeze({runId:current.id,resultSha256:current.resultSha256,contractId:null,accessKey});
+}
+
+// Closed task profiles share the native service and verified handoff, not the
+// historical GRH endpoint. Prefixes are closed source strings, never user HTML.
+const taskProfiles=Object.freeze({
+ resumen:Object.freeze({id:'resumen',domPrefix:'ownSummary',title:'Tu trabajo de liquidación, en un lugar',description:'Consultá los cálculos guardados en MuniControl y abrí su resultado para continuar el circuito.',preparation:false}),
+ historial:Object.freeze({id:'historial',domPrefix:'ownNativeHistory',title:'Historial de liquidaciones propias',description:'Consultá cada cálculo guardado en MuniControl y abrí sus fuentes, estados y decisiones. Las versiones anteriores se conservan.',preparation:false}),
+ correcciones:Object.freeze({id:'correcciones',domPrefix:'ownNativeCorrections',title:'Corregir una liquidación propia',description:'Abrí el resultado propio para revisar la anulación necesaria y preparar otro cálculo con doble control. El cálculo anterior permanece como antecedente.',preparation:true})
+});
+export function ownSummaryTaskProfile(taskId='resumen'){
+ if(typeof taskId!=='string'||!Object.hasOwn(taskProfiles,taskId))throw Error('La tarea no admite una consulta propia de liquidaciones.');
+ return taskProfiles[taskId];
+}
+// A copied209 link is only a reference. Calcular must reread209 under its
+// current user before offering any dates/contracts; no consent/key travels.
+export function ownSummaryPreparationReference(value,origin){
+ const fail=()=>{throw Error('Pegá el enlace de preparación copiado desde la anulación de este mismo sitio.');};
+ if(typeof value!=='string'||!value||value!==value.trim()||value.length>2048||/[\u0000-\u001f\u007f]/u.test(value)||typeof origin!=='string')fail();
+ let base,url;try{base=new URL(origin);url=new URL(value,base);}catch{fail();}
+ if(!['http:','https:'].includes(base.protocol)||base.origin!==origin||url.origin!==origin||url.username||url.password||url.pathname!=='/nomina'||url.hash!=='#calculo')fail();
+ const reference=requestedOwnAnnulPreparation(url.search);
+ if(reference?.kind!=='projected_annulment')fail();
+ return reference;
 }

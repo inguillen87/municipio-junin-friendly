@@ -103,7 +103,7 @@ jobs:
         run: |
           node --check scripts/verify-noelia-report-live-browser.mjs
           node --check scripts/verify-report-catalog-views-browser.mjs
-          npm run build
+          npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - name: Existing catalog, new workspace and report regression
         run: |

@@ -1387,6 +1387,12 @@
                 <input class="input" id="employeeSearch" name="search" type="search" autocomplete="off" placeholder="Ej.: apellido, 1042 o documento">
               </div>
               <div class="field">
+                <label for="departmentFilter">Repartición</label>
+                <select class="select" id="departmentFilter" name="department">
+                  <option value="">Todas las reparticiones</option>
+                </select>
+              </div>
+              <div class="field">
                 <label for="sectorFilter">Sector</label>
                 <select class="select" id="sectorFilter" name="sector">
                   <option value="">Todos los sectores</option>
@@ -1629,9 +1635,10 @@
         payrollController: null,
         payrollSummaryControllers: new Set(),
         payrollActionDescriptionSequence: 0,
-        filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
+        filters: { search: '', department: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
+        departments: new Map(),
         sectors: new Set(),
         organizations: new Set(),
         agreements: new Set()
@@ -1667,6 +1674,7 @@
         reconciliationNotice: document.getElementById('reconciliationNotice'),
         employeeFilters: document.getElementById('employeeFilters'),
         employeeSearch: document.getElementById('employeeSearch'),
+        departmentFilter: document.getElementById('departmentFilter'),
         sectorFilter: document.getElementById('sectorFilter'),
         organizationFilter: document.getElementById('organizationFilter'),
         agreementFilter: document.getElementById('agreementFilter'),
@@ -2021,6 +2029,13 @@
           familyId: familyId === null ? null : familyRef.id, familyRef: familyRef } : null;
       }
 
+      function resumeFamilyEntryBackground() {
+        if (!state.familyEntryBackgroundDeferred || document.hidden || !state.tenantCapabilities.has('workforce.employee.read')) return false;
+        state.familyEntryBackgroundDeferred = false;
+        loadSummary();
+        return true;
+      }
+
       async function authenticate() {
         els.gateTitle.textContent = 'Verificando sesión';
         els.gateMessage.textContent = 'Estamos confirmando tu acceso al panel interno.';
@@ -2047,9 +2062,12 @@
           els.appShell.hidden = false;
           const detailRequest = detailRequestFromLocation();
           const initialView = detailRequest ? 'legajos' : viewFromLocation();
+          state.familyEntryBackgroundDeferred = Boolean(detailRequest?.contractId && detailRequest.section === 'family');
           showView(initialView, false, false);
-          loadSummary();
-          if (initialView === 'legajos') loadEmployees(1);
+          if (!state.familyEntryBackgroundDeferred) {
+            loadSummary();
+            if (initialView === 'legajos') loadEmployees(1);
+          }
           if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo', detailRequest);
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
@@ -2069,6 +2087,7 @@
       function showView(view, updateHistory, focusHeading) {
         const target = VALID_VIEWS.has(view) ? view : 'inicio';
         state.currentView = target;
+        if (updateHistory !== false || focusHeading !== false) resumeFamilyEntryBackground();
 
         document.querySelectorAll('[data-section]').forEach(function (section) {
           section.hidden = section.dataset.section !== target;
@@ -2087,7 +2106,7 @@
         els.topbarViewTitle.textContent = viewLabel;
         document.title = viewLabel + ' | MuniControl';
 
-        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
+        if (target === 'legajos' && !state.familyEntryBackgroundDeferred && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
           if (heading) heading.focus({ preventScroll: true });
@@ -2463,6 +2482,22 @@
         if (Array.from(select.options).some(function (option) { return option.value === selected; })) select.value = selected;
       }
 
+      function refreshDepartmentOptions() {
+        const selected = state.filters.department;
+        const fragment = document.createDocumentFragment();
+        const all = create('option', '', 'Todas las reparticiones'); all.value = ''; fragment.appendChild(all);
+        Array.from(state.departments).sort(function (a,b) { return a[0].localeCompare(b[0], 'es'); }).forEach(function (entry) {
+          const option = create('option', '', entry[0] + (entry[1] ? ' · ' + entry[1] : ' · Sin denominación informada'));
+          option.value = entry[0]; fragment.appendChild(option);
+        });
+        if (selected && !state.departments.has(selected)) {
+          const missing = create('option', '', selected + ' · Ya no figura en el padrón consultado');
+          missing.value = selected; fragment.appendChild(missing);
+        }
+        els.departmentFilter.replaceChildren(fragment);
+        if (Array.from(els.departmentFilter.options).some(function (option) { return option.value === selected; })) els.departmentFilter.value = selected;
+      }
+
       function collectDirectoryFacets(facets) {
         if (!facets || typeof facets !== 'object') return;
         const add = function (rows, target) {
@@ -2472,6 +2507,11 @@
             if (value) target.add(value);
           });
         };
+        if (Array.isArray(facets.departments)) {
+          state.departments.clear();
+          facets.departments.forEach(function (item) { if (item && typeof item.value === 'string' && item.value) state.departments.set(item.value, item.label); });
+          refreshDepartmentOptions();
+        }
         add(facets.sectors, state.sectors);
         add(facets.organizations, state.organizations);
         add(facets.agreements, state.agreements);
@@ -2510,6 +2550,7 @@
         const params = new URLSearchParams();
         params.set('resource', 'employees');
         params.set('search', state.filters.search);
+        params.set('department', state.filters.department);
         params.set('sector', state.filters.sector);
         params.set('organization', state.filters.organization);
         params.set('agreement', state.filters.agreement);
@@ -2733,6 +2774,7 @@
 
       function applyFilters() {
         state.filters.search = els.employeeSearch.value.trim();
+        state.filters.department = els.departmentFilter.value;
         state.filters.sector = els.sectorFilter.value;
         state.filters.organization = els.organizationFilter.value;
         state.filters.agreement = els.agreementFilter.value;
@@ -2767,7 +2809,7 @@
         }
       }
 
-      function closeDialog() {
+      function closeDialog(resumeBackground) {
         document.dispatchEvent(new Event('mc:family-schooling-close'));
         document.dispatchEvent(new Event('mc:native-employment-change-close'));
         if (state.detailController) state.detailController.abort();
@@ -2776,7 +2818,10 @@
         state.payrollSummaryControllers.clear();
         if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
         else els.employeeDialog.removeAttribute('open');
+        if (resumeBackground === true && resumeFamilyEntryBackground() && state.currentView === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
       }
+
+      function loadEmployeeFamilyPanel() { return import('./assets/family-schooling.js'); }
 
       async function openEmployee(contractId, legajo, companyId, fallbackName, destination = {}) {
         if (!text(contractId) && !text(legajo)) return;
@@ -2804,6 +2849,25 @@
           if (text(companyId)) params.set('companyId', companyId);
         }
         try {
+          if (destination.section === 'family' && text(contractId)) {
+            // Imported contract UUIDs preserve all PostgreSQL UUID bits. The
+            // unchanged family facade verifies contract, tenant and source.
+            if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(text(contractId))) throw new Error('La referencia del legajo no es válida. Volvé a seleccionarlo.');
+            const module = await loadEmployeeFamilyPanel();
+            if (controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
+            if (!state.tenantCapabilities.has('workforce.employee.read')) throw new Error('Tu cuenta ya no permite consultar este legajo.');
+            const section = create('section', 'detail-section');
+            section.setAttribute('data-employee-family-section', '');
+            const title = create('h3', '', 'Hijos y certificados'); title.id = 'employeeFamilyTitle'; title.tabIndex = -1;
+            const host = create('div'); host.setAttribute('data-family-schooling-ficha', '');
+            section.append(title, host); els.dialogBody.replaceChildren(section);
+            els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · hijos y certificados';
+            module.mountFamilyCertificates(host, {
+              contractId: text(contractId).toLowerCase(), canPropose: state.tenantCapabilities.has('employee.record.propose'),
+              focusFamilyRef: destination.familyRef ?? (destination.familyId !== null && destination.familyId !== undefined ? {kind:'grh',id:destination.familyId} : null)
+            });
+            return;
+          }
           const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
           const detail = normalizeEmployeeDetail(payload);
           let sourceSeniority = null;
@@ -3979,6 +4043,7 @@
       }
 
       function refreshCurrentView() {
+        state.familyEntryBackgroundDeferred = false;
         els.refreshButton.disabled = true;
         const tasks = [loadSummary()];
         if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
@@ -4005,8 +4070,8 @@
       els.retryAuth.addEventListener('click', authenticate);
       els.refreshButton.addEventListener('click', refreshCurrentView);
       els.logoutButton.addEventListener('click', logout);
-      els.closeDialog.addEventListener('click', closeDialog);
-      els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
+      els.closeDialog.addEventListener('click', function () { closeDialog(true); });
+      els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(true); });
       function withdrawEmployeeDetail() {
         closeDialog();els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
       }
@@ -4025,6 +4090,7 @@
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(applyFilters, 380);
       });
+      els.departmentFilter.addEventListener('change', applyFilters);
       els.sectorFilter.addEventListener('change', applyFilters);
       els.organizationFilter.addEventListener('change', applyFilters);
       els.agreementFilter.addEventListener('change', applyFilters);
@@ -4033,6 +4099,7 @@
       els.clearFilters.addEventListener('click', function () {
         window.clearTimeout(searchTimer);
         els.employeeSearch.value = '';
+        els.departmentFilter.value = '';
         els.sectorFilter.value = '';
         els.organizationFilter.value = '';
         els.agreementFilter.value = '';

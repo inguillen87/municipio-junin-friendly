@@ -2,9 +2,9 @@ name: Own position comparison
 on:
   push:
     branches: ['master', 'codex/own-position-comparison-20261006']
-    paths: ['assets/position-*', 'assets/report-document.js', 'estructura.html', 'api/internal-position-comparison.js', 'lib/internal-position-comparison.js', 'scripts/migrations/129-*', 'scripts/*position-comparison*.mjs', 'scripts/lib/position-comparison*.mjs', 'tests/position-comparison*.test.js', 'tests/fixtures/position-comparison-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-comparison.yml']
+    paths: ['assets/position-*', 'assets/report-document.js', 'estructura.html', 'api/internal-position-comparison.js', 'lib/internal-position-comparison.js', 'scripts/migrations/129-*', 'scripts/*position-comparison*.mjs', 'scripts/lib/position-comparison*.mjs', 'tests/position-comparison*.test.js', 'tests/fixtures/position-comparison*-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-comparison.yml']
   pull_request:
-    paths: ['assets/position-*', 'assets/report-document.js', 'estructura.html', 'api/internal-position-comparison.js', 'lib/internal-position-comparison.js', 'scripts/migrations/129-*', 'scripts/*position-comparison*.mjs', 'scripts/lib/position-comparison*.mjs', 'tests/position-comparison*.test.js', 'tests/fixtures/position-comparison-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-comparison.yml']
+    paths: ['assets/position-*', 'assets/report-document.js', 'estructura.html', 'api/internal-position-comparison.js', 'lib/internal-position-comparison.js', 'scripts/migrations/129-*', 'scripts/*position-comparison*.mjs', 'scripts/lib/position-comparison*.mjs', 'tests/position-comparison*.test.js', 'tests/fixtures/position-comparison*-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-comparison.yml']
 permissions:
   contents: read
 jobs:
@@ -41,6 +41,24 @@ jobs:
       - run: node --test tests/position-comparison*.test.js tests/own-payroll-run*.test.js tests/annual-position-budget*.test.js
       - run: node scripts/verify-position-comparison.mjs --major=${{ matrix.major }} --output=verification/position-comparison-sql.json
       - run: node scripts/verify-position-comparison-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/position-comparison-installation.json
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-position-comparison-pdf-browser.mjs --output=verification/position-comparison-pdf-browser.json
       - run: node scripts/verify-position-comparison.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/position-comparison-ui.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: position-comparison-pg${{ matrix.major }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            verification/position-comparison-sql.json
+            verification/position-comparison-installation.json
+            verification/position-comparison-ui.json
+            verification/position-comparison-ui-failure-browser.json
+            verification/position-comparison-pdf-browser.json
+            verification/position-comparison-pdf-browser-detailed.pdf
+            verification/position-comparison-pdf-browser-detailed.csv
+            verification/position-comparison-pdf-browser-detailed.xlsx
+            verification/position-comparison-pdf-browser-1440.png
+            verification/position-comparison-pdf-browser-390.png
+            verification/position-comparison-pdf-browser-320.png
+          retention-days: 5

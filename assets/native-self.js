@@ -1,16 +1,16 @@
 import {nativeSelfView} from './native-self-model.js';
 import {mountNativeLeave} from './native-leave.js';
+import {nativeLeaveWorkspaceAccess} from './native-leave-access.js';
 
 const capsFor=auth=>auth?.authenticated===true&&Array.isArray(auth.access?.tenantCapabilities)?auth.access.tenantCapabilities:[];
 const ownRead=caps=>['actions.read','leave.request.self.read'].every(cap=>caps.includes(cap));
-const actorFor=auth=>JSON.stringify([auth.user?.email?.trim().toLowerCase(),auth.access?.tenant?.id,auth.access?.tenant?.membershipId,auth.access?.tenant?.roleKey]);
 const error=(message,status=503)=>Object.assign(Error(message),{status});
 
 // All data lives only in this page. Each refresh resolves the authenticated
 // account's contract again; no URL, client-selected identity or storage is used.
 export async function mountNativeSelf(host,{auth}={}){
  if(!host||!ownRead(capsFor(auth)))return null;
- let epoch=0,abort=null,child=null,actor=actorFor(auth),contract=null,closed=false;
+ let epoch=0,abort=null,child=null,actor=nativeLeaveWorkspaceAccess(auth).actor,contract=null,closed=false;
  const title=document.createElement('h2'),status=document.createElement('p'),help=document.createElement('details'),content=document.createElement('div');
  const helpTitle=document.createElement('summary'),helpText=document.createElement('p');helpTitle.textContent='Cómo solicitar una licencia';helpText.textContent='Prepará un borrador con motivo y fechas. Revisá sus datos y envialo a Personal. Podés seguir las decisiones en el historial o cancelar una solicitud pendiente con un fundamento. Si falta saldo aprobado, Personal debe revisar el respaldo antes del envío.';help.append(helpTitle,helpText);
  title.textContent='Mis licencias';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
@@ -23,7 +23,7 @@ export async function mountNativeSelf(host,{auth}={}){
   if(closed)return;const seq=++epoch;abort?.abort();abort=new AbortController();clear();status.textContent='Comprobando el contrato de tu cuenta…';
   try{
    const current=await read('/api/internal-auth');if(!valid(seq))return;
-   const caps=capsFor(current);if(typeof current.user?.email!=='string'||!ownRead(caps)||actorFor(current)!==actor)throw error('Cambió la cuenta o sus permisos. Volvé a abrir el Centro de acciones.',403);
+   const {actor:currentActor,caps}=nativeLeaveWorkspaceAccess(current);if(!ownRead(caps)||currentActor!==actor)throw error('Cambió la cuenta, la sesión o sus permisos. Volvé a abrir el Centro de acciones.',403);
    control.ownOnly=!caps.includes('workforce.employee.read');
    const response=await read('/api/internal-native-self?resource=bootstrap');if(!valid(seq))return;
    if(response?.ok!==true)throw error('No se pudo verificar el contrato de tu cuenta.');

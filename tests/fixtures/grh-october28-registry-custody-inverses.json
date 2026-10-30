@@ -1,0 +1,65 @@
+{
+  "version": "grh-october28-registry-custody-finite-inverses.v1",
+  "files": [
+    {
+      "path": "scripts/lib/final-grh-source-review-admission-installation.mjs",
+      "parentSource": "RAW git 74cf9042275008711be843f4bd50fc95d37ab32c",
+      "beforeSha256": "5046da75f482b0a63d1acfdcfc0b63502276351549248a2196f1e63ef4c859f2",
+      "afterSha256": "e45a31bfc85ea3436a627aab2173a2dd21545304075cfb10a38777316946367d",
+      "operations": [
+        {
+          "before": "",
+          "after": "import {projectOctober28RegistryParent} from './grh-october28-candidate-registry-source.mjs';\n"
+        },
+        {
+          "before": "",
+          "after": "export const FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256='cd121a9a5fff31c9784f250cc410adfeb65cf6284288deddbfec3634b3be3dc6';\n"
+        },
+        {
+          "before": " 'scripts/lib/grh-source-profiles.json':'cd121a9a5fff31c9784f250cc410adfeb65cf6284288deddbfec3634b3be3dc6',\n",
+          "after": " 'scripts/lib/grh-source-profiles.json':'fe04d0a5fc96d38ca2e6839556f63ea51a73626b3d1685c1f8ec3f6dfaf42a77',\n 'scripts/lib/grh-october28-candidate-registry-source.mjs':'690af52ab26bec7ee02ddf5e9e2ccc6987491716ec939a126cac47d49d6ece1e',\n"
+        },
+        {
+          "before": " const profiles=JSON.parse(read('scripts/lib/grh-source-profiles.json'));for(const p of FINAL_REVIEW_ADMISSION_PROFILES){const actual=profiles.profiles.find(v=>v.id===p.profile);assert.ok(actual);assert.equal(actual.source.sha256.toLowerCase(),p.sha256);assert.equal(actual.source.cutoff,p.cutoff);assert.equal(actual.publicationMode,'candidate_only');}\n",
+          "after": " const registryParent=projectOctober28RegistryParent(read('scripts/lib/grh-source-profiles.json'));\n assert.equal(registryParent.parentRegistrySha256,FINAL_REVIEW_ADMISSION_REGISTRY_PARENT_SHA256,'FINAL_REVIEW_REGISTRY_PARENT_CHANGED');\n assert.equal(registryParent.currentRegistrySha256,sourceHashes['scripts/lib/grh-source-profiles.json'],'FINAL_REVIEW_REGISTRY_CURRENT_CHANGED');\n const registryCustody=Object.freeze({version:registryParent.version,currentRegistrySha256:registryParent.currentRegistrySha256,parentRegistrySha256:registryParent.parentRegistrySha256,wholeInverseVerified:registryParent.wholeInverseVerified,sqlValidityGranted:false});\n const profiles=JSON.parse(registryParent.parentRegistryRaw);for(const p of FINAL_REVIEW_ADMISSION_PROFILES){const actual=profiles.profiles.find(v=>v.id===p.profile);assert.ok(actual);assert.equal(actual.source.sha256.toLowerCase(),p.sha256);assert.equal(actual.source.cutoff,p.cutoff);assert.equal(actual.publicationMode,'candidate_only');}\n"
+        },
+        {
+          "before": " return{version:'final-grh-source-review-admission.v1',sourceCommit,major,target,sourceHashes,sourcePrerequisite,managedCheckNames:[...managed],migration,settings,destination,before,after,initial,final,audit,preflight,installation,repetition,durableVerification,guardedRollback:transaction(rollback,'COMMIT'),transactions:{rehearsal:transaction(installation,'ROLLBACK'),install:transaction(installation,'COMMIT'),durable:transaction(durableVerification,'COMMIT',true),repeat:transaction(repetition,'COMMIT')},connects:false,executesSql:false};\n",
+          "after": " return{version:'final-grh-source-review-admission.v1',sourceCommit,major,target,sourceHashes,registryCustody,sourcePrerequisite,managedCheckNames:[...managed],migration,settings,destination,before,after,initial,final,audit,preflight,installation,repetition,durableVerification,guardedRollback:transaction(rollback,'COMMIT'),transactions:{rehearsal:transaction(installation,'ROLLBACK'),install:transaction(installation,'COMMIT'),durable:transaction(durableVerification,'COMMIT',true),repeat:transaction(repetition,'COMMIT')},connects:false,executesSql:false};\n"
+        }
+      ]
+    },
+    {
+      "path": "tests/grh-october14-source-profile.test.js",
+      "parentSource": "RAW git 74cf9042275008711be843f4bd50fc95d37ab32c",
+      "beforeSha256": "7c649cf09d06d61258ff36d7e938a744fc34a51c2f4444f6e2db30dfe2059590",
+      "afterSha256": "ee9087e9e247384b6584d5fdc744a9fd6cf07930611307ecc47edf90c317effe",
+      "operations": [
+        {
+          "before": "test('October14 appends one explicit candidate and preserves every earlier profile and default in full',()=>{\n",
+          "after": "test('October14 remains the exact predecessor of October28 and preserves every earlier profile and default in full',()=>{\n"
+        },
+        {
+          "before": "  assert.deepEqual(registry.profiles.map(p=>p.id),[...Object.keys(PRIOR_PINS),ID]);\n",
+          "after": "  assert.deepEqual(registry.profiles.map(p=>p.id),[...Object.keys(PRIOR_PINS),ID,'grh-junin-2026-10-28']);\n"
+        }
+      ]
+    },
+    {
+      "path": "tests/grh-october28-candidate-source.test.js",
+      "parentSource": "private B aa37abb9c4d04840e98984789342e535524d254448e69d9f0d140b0fa3d1b106",
+      "beforeSha256": "aa37abb9c4d04840e98984789342e535524d254448e69d9f0d140b0fa3d1b106",
+      "afterSha256": "dff048631b0302acb8cf5ac9ec8b57d75fe46ae63f441cff60799cc016a0235d",
+      "operations": [
+        {
+          "before": "test('F remains an unclassified canonical source type and registry183 keeps its historical RAW pin',()=>{\n",
+          "after": "test('F remains unclassified while registry183 keeps parent authority and current RAW custody separately',()=>{\n"
+        },
+        {
+          "before": " assert.ok(!legacy.includes('grh-october28-candidate-registry-source'));\n",
+          "after": " assert.ok(legacy.includes(OCTOBER28_REGISTRY_CANDIDATE_SHA256));\n assert.ok(legacy.includes('grh-october28-candidate-registry-source'));\n"
+        }
+      ]
+    }
+  ]
+}

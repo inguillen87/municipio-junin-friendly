@@ -1,14 +1,19 @@
+import {programMonetaryComparison} from './own-payroll-program-monetary-review.js';
 import {ownProgramBootstrap,ownProgramStructure,ownProgramDefinition,ownProgramHistory,ownProgramCommand,ownProgramReceipt,ownProgramRuleKey} from './own-payroll-program-model.js';
 import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {requireExactProgramChanges} from './own-payroll-program-precision.js';
 import {ownPayrollConditions} from './own-payroll-conditions.js';
+import {ownFixedForcedAmounts,ownFixedForcedRuleKey,fixedForcedExpressionSet} from './own-payroll-engine.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',days:'Días',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
 export const PROGRAM_CONDITION_TYPES=Object.freeze({code:'Código o situación declarada',boolean:'Declaración de sí o no'});
 export const PROGRAM_CONDITION_FIELDS=Object.freeze({partialSeniorityYears:'Años de antigüedad parcial',titleStatus:'Situación del título',titleCode:'Código del título',titlePercentage:'Porcentaje del título',unhealthyWork:'Insalubridad declarada'});
 export const PROGRAM_CLASSIFICATION_FIELDS=Object.freeze({categoryCode:'Clase del contrato propio',agreementCode:'Convenio del contrato propio'});
-export const PROGRAM_SOURCES=Object.freeze({period_context_fact:'Mes del período de liquidación declarado',agreement_time_fact:'Horas mensuales del convenio aprobadas',classification_fact:'Encuadre propio capturado',salary_condition_fact:'Condiciones propias aprobadas',working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
+export const PROGRAM_DECLARED_DAY_FIELDS=Object.freeze({recognizedDays:'Días reconocidos y aprobados por legajo',baseDays:'Base de días aprobada por legajo'});
+export const programWorkspaceSourceField=b=>b.sourceKind==='monthly_day_declaration_fact'?(PROGRAM_DECLARED_DAY_FIELDS[b.sourceField]??'Dato de días pendiente'):b.sourceField??b.sourceCode;
+export const PROGRAM_MONTHLY_DAY_FIELDS=Object.freeze({recognizedDays:'Días reconocidos del mes completo',baseDays:'Base de días mensual'});
+export const PROGRAM_SOURCES=Object.freeze({monthly_day_declaration_fact:'Días reconocidos y aprobados por legajo',monthly_day_fact:'Días mensuales del programa aprobado',period_context_fact:'Mes del período de liquidación declarado',agreement_time_fact:'Horas mensuales del convenio aprobadas',classification_fact:'Encuadre propio capturado',salary_condition_fact:'Condiciones propias aprobadas',working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
 export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',auxiliary:'Usar un auxiliar calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
 const conditionOperations=Object.freeze({match:'Comprobar un código o declaración'});
@@ -17,6 +22,24 @@ export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq
 export const PROGRAM_READ=Object.freeze(['workforce.employee.read','payroll.parameter.read']);
 const require=(v,message)=>{if(!v)throw Error(message);};
 export const programWorkspaceAccess=ownRunWorkspaceAccess;
+const preparedSourceMessage='Esta regla o fuente pertenece a una preparación revisada de importes fijos. Actualizá y revisá esa preparación antes de cambiar su alcance o fórmula.';
+const hasQuantityPhase=n=>!!n&&typeof n==='object'&&(n.op==='quantity_phase'||['left','right','value','condition','then','else'].some(k=>hasQuantityPhase(n[k])));
+export function programWorkspaceForcedProtection(definition){
+ if(!ownFixedForcedAmounts(definition))return null;
+ const keys=new Set(fixedForcedExpressionSet(definition.rules,definition.fixedForcedAmountsPolicy.policies).map(r=>r.ruleKey)),bindings=new Set();
+ for(const rule of definition.rules)if(hasQuantityPhase(rule.expression))keys.add(ownFixedForcedRuleKey(rule));
+ const visit=(n,agreement)=>{if(n.op==='input'||n.op==='match')bindings.add(agreement+':'+n.key);for(const child of expressionChildren(n))visit(n[child],agreement);};
+ for(const rule of definition.rules)if(keys.has(ownFixedForcedRuleKey(rule)))visit(rule.expression,rule.agreementCode);
+ return {rules:[...keys].sort(),bindings:[...bindings].sort()};
+}
+export function requireProgramWorkspaceForcedPreserved(before,after){
+ if(!ownFixedForcedAmounts(before))return;
+ require(ownFixedForcedAmounts(after)&&salarySerialized(before.fixedForcedAmountsPolicy)===salarySerialized(after.fixedForcedAmountsPolicy),preparedSourceMessage);
+ const prior=programWorkspaceForcedProtection(before),next=programWorkspaceForcedProtection(after);
+ require(salarySerialized(prior)===salarySerialized(next),preparedSourceMessage);
+ for(const key of prior.rules)require(salarySerialized(before.rules.find(r=>ownFixedForcedRuleKey(r)===key))===salarySerialized(after.rules.find(r=>ownFixedForcedRuleKey(r)===key)),preparedSourceMessage);
+ for(const key of prior.bindings)require(salarySerialized(before.bindings.find(b=>b.agreementCode+':'+b.key===key)??null)===salarySerialized(after.bindings.find(b=>b.agreementCode+':'+b.key===key)??null),preparedSourceMessage);
+}
 // Only the verified bootstrap can describe these prerequisites. This is not
 // payroll eligibility, formula homologation, or permission to calculate.
 export function programWorkspaceGuidance(value){
@@ -47,7 +70,7 @@ export function prepareProgramWorkspace(bootstrap,definition,reason){
  const boot=ownProgramBootstrap(bootstrap);
  require(boot.permissions.canPropose,'Tu cuenta no permite preparar reglas.');
  require(boot.salaryCatalog.revision>0,'Primero debe aprobarse el catálogo de conceptos y valores.');
- const program=ownProgramDefinition(definition,boot.salaryCatalog.items);ownProgramHistory(boot.program.definition,program);requireExactProgramChanges(boot.program.definition,program);
+ const program=ownProgramDefinition(definition,boot.salaryCatalog.items);ownProgramHistory(boot.program.definition,program);requireExactProgramChanges(boot.program.definition,program);requireProgramWorkspaceForcedPreserved(boot.program.definition,program);
  return ownProgramCommand({command:'propose',scopeVersion:boot.scopeVersion,baseVersion:boot.program.version,salaryVersion:boot.salaryCatalog.version,proposalId:null,proposalSha256:null,program,reason,reviewConfirmed:false});
 }
 export function decideProgramWorkspace(bootstrap,proposalId,command,reason,reviewConfirmed){
@@ -59,17 +82,18 @@ export function decideProgramWorkspace(bootstrap,proposalId,command,reason,revie
 }
 export function expressionChildren(node){
  if(['add','subtract','multiply','divide','min','max','compare'].includes(node.op))return ['left','right'];
- if(['round','convert'].includes(node.op))return ['value'];
+ if(['round','convert','quantity_phase'].includes(node.op))return ['value'];
  if(node.op==='choose')return ['condition','then','else'];return [];
 }
 export function expressionSize(node){
  let count=0,depth=0;const walk=(n,level)=>{
-  require(n&&typeof n==='object'&&(Object.hasOwn(PROGRAM_OPERATIONS,n.op)||Object.hasOwn(conditionOperations,n.op)),'Elegí una operación para la fórmula.');
+  require(n&&typeof n==='object'&&(Object.hasOwn(PROGRAM_OPERATIONS,n.op)||Object.hasOwn(conditionOperations,n.op)||n.op==='quantity_phase'),'Elegí una operación para la fórmula.');
   require(++count<=256&&level<=32,'La fórmula supera su capacidad. No se recortaron operaciones.');depth=Math.max(depth,level);
   for(const child of expressionChildren(n))walk(n[child],level+1);
  };walk(node,0);return {nodes:count,depth};
 }
 export function changeExpressionOperation(previous,op){
+ require(!hasQuantityPhase(previous),preparedSourceMessage);
  require(Object.hasOwn(PROGRAM_OPERATIONS,op)||Object.hasOwn(conditionOperations,op),'La operación no está admitida.');
  const leaf=()=>({op:'literal',unit:'',value:''});
  if(op==='input')return {op,unit:previous?.unit??'',key:previous?.key??''};
@@ -88,6 +112,7 @@ export function describeProgramExpression(node){
   if(n.op==='match')return `Entrada ${n.key} (${PROGRAM_CONDITION_TYPES[n.type]??'tipo pendiente'}), ${PROGRAM_COMPARE[n.operator]??'comparación pendiente'} a ${typeof n.value==='boolean'?(n.value?'Sí':'No'):n.value}`;
   if(n.op==='literal')return `${n.value} (${PROGRAM_UNITS[n.unit]??'unidad pendiente'})`;
   if(['concept','auxiliary'].includes(n.op))return `${n.op==='auxiliary'?'Auxiliar':'Concepto'} ${n.code}, ${n.stage==='exact'?'antes':'después'} del redondeo`;
+  if(n.op==='quantity_phase')return `Cantidad del concepto ${n.code} (${PROGRAM_UNITS[n.unit]}), ${n.stage==='exact'?'antes del redondeo':`después del redondeo a ${n.rounding.precision} decimales, ${PROGRAM_ROUNDING[n.rounding.mode]}`}; respaldo: ${n.sourceReference}; valor [${show(n.value)}]`;
   if(n.op==='round')return `Redondear [${show(n.value)}] a ${n.rounding.precision} decimales, ${PROGRAM_ROUNDING[n.rounding.mode]}`;
   if(n.op==='convert')return `Convertir [${show(n.value)}] a ${PROGRAM_UNITS[n.unit]}, factor ${n.factor}; respaldo: ${n.conversionReference}`;
   if(n.op==='choose')return `Si [${show(n.condition)}], usar [${show(n.then)}]; en otro caso [${show(n.else)}]`;
@@ -95,7 +120,7 @@ export function describeProgramExpression(node){
  };return show(node);
 }
 export function programWorkspaceChanges(before,after){
- const next=ownProgramStructure(after),prior=before?ownProgramStructure(before):{rules:[],bindings:[],totalsPrecision:null},rows=[];
+ const next=ownProgramStructure(after),prior=before?ownProgramStructure(before):{rules:[],bindings:[],totalsPrecision:null},rows=[],monetary=programMonetaryComparison(prior,next);
  for(const [kind,key] of [['rules',r=>ownProgramRuleKey(r,next.namespaceVersion)],['bindings',b=>b.agreementCode+':'+b.key]]){
   const old=new Map(prior[kind].map(v=>[key(v),v])),fresh=new Map(next[kind].map(v=>[key(v),v]));
   for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind,key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
@@ -104,5 +129,11 @@ export function programWorkspaceChanges(before,after){
   const old=new Map((prior.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t])),fresh=new Map((next.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t]));
   for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind:'participation',key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
  }
- return {...(next.periodContextVersion||prior.periodContextVersion?{periodContextVersion:{before:prior.periodContextVersion??null,after:next.periodContextVersion??null}}:{}),...(next.agreementWorkingTimeVersion||prior.agreementWorkingTimeVersion?{agreementWorkingTimeVersion:{before:prior.agreementWorkingTimeVersion??null,after:next.agreementWorkingTimeVersion??null}}:{}),...(next.salaryConditionsVersion||prior.salaryConditionsVersion?{salaryConditionsVersion:{before:prior.salaryConditionsVersion??null,after:next.salaryConditionsVersion??null}}:{}),...(next.workingTimeVersion||prior.workingTimeVersion?{workingTimeVersion:{before:prior.workingTimeVersion??null,after:next.workingTimeVersion??null}}:{}),...(next.periodParticipation||prior.periodParticipation?{periodParticipation:{before:prior.periodParticipation??null,after:next.periodParticipation??null}}:{}),rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},...(next.employmentFactsVersion||prior.employmentFactsVersion?{employmentFactsVersion:{before:prior.employmentFactsVersion??null,after:next.employmentFactsVersion??null}}:{}),changed:(prior.periodContextVersion!==next.periodContextVersion?1:0)+(prior.agreementWorkingTimeVersion!==next.agreementWorkingTimeVersion?1:0)+(prior.salaryConditionsVersion!==next.salaryConditionsVersion?1:0)+(prior.workingTimeVersion!==next.workingTimeVersion?1:0)+(salarySerialized(prior.periodParticipation??null)!==salarySerialized(next.periodParticipation??null)?1:0)+(prior.employmentFactsVersion!==next.employmentFactsVersion?1:0)+rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
+ const forced=ownFixedForcedAmounts(next)||ownFixedForcedAmounts(prior);
+ if(forced){
+  const old=new Map((prior.fixedForcedAmountsPolicy?.policies??[]).map(p=>[p.ruleKey,p])),fresh=new Map((next.fixedForcedAmountsPolicy?.policies??[]).map(p=>[p.ruleKey,p]));
+  for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind:'fixedForcedPolicy',key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
+  const a=prior.fixedForcedAmountsPolicy?.quantityLineage??null,b=next.fixedForcedAmountsPolicy?.quantityLineage??null;rows.push({kind:'fixedForcedLineage',key:'quantity-lineage',before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});
+ }
+ return {...(monetary?{monetaryPolicy:monetary}:{}),...(next.monthlyDayDeclarationVersion||prior.monthlyDayDeclarationVersion?{monthlyDayDeclarationVersion:{before:prior.monthlyDayDeclarationVersion??null,after:next.monthlyDayDeclarationVersion??null}}:{}),...(next.monthlyDaysVersion||prior.monthlyDaysVersion?{monthlyDaysVersion:{before:prior.monthlyDaysVersion??null,after:next.monthlyDaysVersion??null},monthlyDaysPolicy:{before:prior.monthlyDaysPolicy??null,after:next.monthlyDaysPolicy??null}}:{}),...(forced?{fixedForcedAmountsVersion:{before:prior.fixedForcedAmountsVersion??null,after:next.fixedForcedAmountsVersion??null}}:{}),...(next.periodContextVersion||prior.periodContextVersion?{periodContextVersion:{before:prior.periodContextVersion??null,after:next.periodContextVersion??null}}:{}),...(next.agreementWorkingTimeVersion||prior.agreementWorkingTimeVersion?{agreementWorkingTimeVersion:{before:prior.agreementWorkingTimeVersion??null,after:next.agreementWorkingTimeVersion??null}}:{}),...(next.salaryConditionsVersion||prior.salaryConditionsVersion?{salaryConditionsVersion:{before:prior.salaryConditionsVersion??null,after:next.salaryConditionsVersion??null}}:{}),...(next.workingTimeVersion||prior.workingTimeVersion?{workingTimeVersion:{before:prior.workingTimeVersion??null,after:next.workingTimeVersion??null}}:{}),...(next.periodParticipation||prior.periodParticipation?{periodParticipation:{before:prior.periodParticipation??null,after:next.periodParticipation??null}}:{}),rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},...(next.employmentFactsVersion||prior.employmentFactsVersion?{employmentFactsVersion:{before:prior.employmentFactsVersion??null,after:next.employmentFactsVersion??null}}:{}),changed:(monetary?.changed?1:0)+(prior.monthlyDayDeclarationVersion!==next.monthlyDayDeclarationVersion?1:0)+(prior.monthlyDaysVersion!==next.monthlyDaysVersion?1:0)+(salarySerialized(prior.monthlyDaysPolicy??null)!==salarySerialized(next.monthlyDaysPolicy??null)?1:0)+(prior.fixedForcedAmountsVersion!==next.fixedForcedAmountsVersion?1:0)+(prior.periodContextVersion!==next.periodContextVersion?1:0)+(prior.agreementWorkingTimeVersion!==next.agreementWorkingTimeVersion?1:0)+(prior.salaryConditionsVersion!==next.salaryConditionsVersion?1:0)+(prior.workingTimeVersion!==next.workingTimeVersion?1:0)+(salarySerialized(prior.periodParticipation??null)!==salarySerialized(next.periodParticipation??null)?1:0)+(prior.employmentFactsVersion!==next.employmentFactsVersion?1:0)+rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
 }

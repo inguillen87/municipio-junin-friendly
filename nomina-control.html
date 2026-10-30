@@ -36,7 +36,7 @@
     html { background: var(--canvas); scroll-behavior: smooth; }
     body {
       margin: 0;
-      min-width: 320px;
+      min-width: 0;
       background: var(--canvas);
       color: var(--ink);
       font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -487,15 +487,16 @@
     .method-note { margin-top: 12px; padding: 12px; color: var(--blue); background: var(--blue-soft); border: 1px solid #c9d8e2; border-radius: 4px; font-size: 12px; }
     footer { margin-top: 30px; padding-top: 16px; color: #718087; border-top: 1px solid var(--line); font-size: 10px; }
 
-    .loading { min-height: 55vh; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+    .loading { min-height: 96px; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
     .loading-inner strong { display: block; color: var(--navy); }
     .loader { width: 24px; height: 24px; margin: 16px auto 0; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .75s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
-    #errorHost { max-width: 1380px; margin: 0 auto; padding: 20px 34px 0; }
+    #errorHost { margin: 12px 0 0; }
     .error-card { margin: 0; padding: 18px 20px; background: var(--surface); border: 1px solid #e0c1bd; border-left: 4px solid var(--red); border-radius: var(--radius); }
-    .error-card h1 { margin: 0; color: var(--navy); font-size: 30px; font-weight: 790; line-height: 1.1; }
+    .error-card h3 { margin: 0; color: var(--navy); font-size: 18px; font-weight: 790; line-height: 1.3; }
     .error-card p { color: var(--muted); }
+    .reference-source { margin: 12px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 
     @media (max-width: 1080px) {
       .formula-panel, .audit-grid, .formula-lab-grid, .source-preview-grid, .post-close-grid, .grh-summary-files, .monthly-close-workspace { grid-template-columns: 1fr; }
@@ -512,7 +513,6 @@
       .nav + .nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
       .nav a { flex: 0 0 auto; white-space: nowrap; }
       .topbar { padding: 12px 16px; }
-      #errorHost { padding: 16px 16px 0; }
       main { padding: 24px 16px 60px; }
       .page-head, .run-grid { grid-template-columns: 1fr; }
     }
@@ -594,22 +594,22 @@
     <div class="workspace">
       <header class="topbar">
         <div><nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Nómina</span></nav><div class="top-title">Control interno de nómina</div></div>
-        <div class="top-actions"><span class="source-chip" id="sourceChip">Consultando política de fuente</span><button class="button" id="logoutButton" type="button">Cerrar sesión</button></div>
+        <div class="top-actions"><span class="source-chip">MuniControl · nómina propia</span><button class="button" id="logoutButton" type="button">Cerrar sesión</button></div>
       </header>
 
-      <div class="loading" id="loading" role="status" aria-live="polite"><div class="loading-inner"><strong>Preparando el control de nómina</strong><span>Validando cierres, conceptos y conciliación.</span><div class="loader" aria-hidden="true"></div></div></div>
-      <div id="errorHost" hidden></div>
-
-      <main id="mainContent" hidden>
+      <main id="mainContent" hidden data-requires-any-capability="payroll.read payroll.calculation.read">
         <section class="page-head" aria-labelledby="pageTitle">
           <div><p class="eyebrow">Nómina · consultas y liquidación propia</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Prepará el cálculo, revisá sus resultados y cerrá las liquidaciones propias. La información incorporada sirve como referencia; los importes abiertos quedan fuera de los indicadores ejecutivos.</p></div>
-          <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Estado del control</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
         </section>
 
         <section class="notice" aria-labelledby="publicationRuleTitle"><span class="notice-mark" aria-hidden="true">Nota</span><div><strong id="publicationRuleTitle">La fecha más reciente no siempre es un cierre</strong><p>Una preliquidación sirve para control operativo, pero no para comunicar gasto, costo ni evolución financiera. La API debe autorizar expresamente la publicación ejecutiva.</p></div></section>
 
-        <section class="section" aria-labelledby="runsTitle">
+        <section class="section" id="historicalReference" aria-labelledby="runsTitle">
           <header class="section-head"><div><span class="section-index">01 · ESTADO DE CORRIDAS</span><h2 id="runsTitle">Cierre de referencia y período abierto</h2><p>Los meses, cantidades y estados provienen del contrato interno. La interfaz no completa ni estima valores faltantes.</p></div><span class="state-badge" id="runsBadge">Consultando</span></header>
+          <p class="reference-source" id="sourceChip">Referencia histórica · sin consulta verificada</p>
+          <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Referencia histórica</strong><p id="overallDetail">Esta consulta corresponde al respaldo incorporado; no determina el estado de las corridas propias.</p></aside>
+          <div class="loading" id="loading" role="status" aria-live="polite"><div class="loading-inner"><strong>Consultando la referencia histórica</strong><span>Las tareas propias conservan sus controles independientes.</span><div class="loader" aria-hidden="true"></div></div></div>
+          <div id="errorHost" hidden></div>
           <div class="run-grid">
             <article class="run-card" id="closedRunCard">
               <header class="run-card-head"><div><span class="run-kicker">Última corrida cerrada</span><h3 class="run-month" id="closedMonth">—</h3></div><span class="state-badge" id="closedBadge">Sin confirmar</span></header>
@@ -1690,7 +1690,7 @@
         <section class="section" aria-labelledby="auditTitle">
           <header class="section-head"><div><span class="section-index">12 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
-            <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
+            <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">Estos conceptos corresponden al respaldo GRH incorporado; no representan las corridas propias calculadas en MuniControl.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
               <article class="panel"><h3>Controles de calidad</h3><p class="panel-note">Se muestran exactamente como llegan desde la API; no se convierten pendientes en aprobaciones.</p><ul class="quality-list" id="qualityList"></ul></article>
               <article class="panel" style="margin-top:12px"><h3>Limitaciones vigentes</h3><p class="panel-note">Condiciones que deben acompañar cualquier lectura o exportación.</p><ul class="limit-list" id="limitations"></ul></article>
@@ -1698,7 +1698,7 @@
           </div>
         </section>
 
-        <footer><span id="footerSource">Fuente interna sin confirmar</span> · Importes nominales en pesos argentinos · Uso interno de gestión.</footer>
+        <footer><span>MuniControl · cada consulta conserva su origen</span> · Importes nominales en pesos argentinos · Uso interno de gestión.</footer>
       </main>
     </div>
   </div>
@@ -1915,60 +1915,75 @@
         renderLimitations(payload.limitations);
 
         var source = policyValue(payload.sourcePolicy, ['label', 'authoritativeSource', 'source', 'authority']) || 'GRH · política de fuente recibida';
-        var policyDetail = policyValue(payload.sourcePolicy, ['detail', 'rule', 'methodology', 'description']) || 'GRH gobierna la nómina y los totales se publican únicamente desde una corrida cerrada y conciliada.';
+        var policyDetail = policyValue(payload.sourcePolicy, ['detail', 'rule', 'methodology', 'description']) || 'Esta referencia proviene del respaldo incorporado. Sus importes sólo se publican desde una corrida cerrada, conciliada y autorizada; no acreditan un cálculo propio.';
         setText('sourceChip', source);
-        setText('footerSource', source);
         setText('sourcePolicyDetail', policyDetail + ' Los importes son nominales y no están ajustados por IPC.');
 
         var openCorrectlyBlocked = payload.currentOpen ? !isPublishable(payload.currentOpen) : true;
         var ready = payload.status === 'ready' && closedPublishable && openCorrectlyBlocked;
-        setBadge('runsBadge', ready ? 'closed' : 'warning', ready ? 'Control vigente' : 'Con pendientes');
+        var unavailable = payload.status === 'not_loaded' || payload.status === 'incompatible';
+        setBadge('runsBadge', ready ? 'closed' : 'warning', payload.status === 'not_loaded' ? 'Respaldo no incorporado' : unavailable ? 'Respaldo requiere revisión' : ready ? 'Referencia verificada' : 'Referencia con pendientes');
         byId('overallPanel').dataset.state = ready ? 'ready' : 'warning';
-        setText('overallTitle', ready ? 'Liquidación incorporada como referencia' : 'Referencia incorporada con pendientes');
-        setText('overallDetail', ready ? 'Este cierre corresponde a la información incorporada. Las corridas propias se consultan, confirman y cierran en las tareas de MuniControl; los importes abiertos permanecen bloqueados para uso financiero.' : 'Revisá los controles de esta referencia. Los importes abiertos permanecen bloqueados hasta verificar su cierre, conciliación y publicación.');
+        setText('overallTitle', payload.status === 'not_loaded' ? 'Sin respaldo incorporado disponible' : payload.status === 'incompatible' ? 'El respaldo incorporado necesita revisión' : ready ? 'Liquidación incorporada como referencia' : 'Referencia incorporada con pendientes');
+        setText('overallDetail', unavailable ? 'No se muestran importes de este respaldo. Consultá los cálculos propios en MuniControl mediante sus tareas y permisos.' : ready ? 'Este cierre corresponde a la información incorporada. Las corridas propias se consultan, confirman y cierran en las tareas de MuniControl; los importes abiertos permanecen bloqueados para uso financiero.' : 'Revisá los controles de esta referencia. Los importes abiertos permanecen bloqueados hasta verificar su cierre, conciliación y publicación.');
 
         byId('loading').hidden = true;
         byId('errorHost').hidden = true;
-        byId('mainContent').hidden = false;
+      }
+
+      function clearReference() {
+        renderClosed(null);
+        renderOpen(null);
+        renderRuns([]);
+        renderReprocessingRuns([]);
+        var selector = document.querySelector('[data-reprocessing-run]');
+        if (selector && selector.options[0]) selector.options[0].textContent = 'Sin consulta verificada de la referencia histórica';
+        byId('qualityList').replaceChildren();
+        byId('limitations').replaceChildren();
+        setText('sourcePolicyDetail', 'Referencia histórica sin consulta verificada.');
+        setBadge('runsBadge', 'warning', 'Sin consulta verificada');
+        setBadge('reconciliationBadge', 'warning', 'Sin datos verificados');
       }
 
       function validatePayload(payload) {
-        return Boolean(
-          payload &&
-          payload.ok === true &&
-          typeof payload.status === 'string' &&
-          payload.sourcePolicy != null &&
-          payload.latestClosed && typeof payload.latestClosed === 'object' &&
-          payload.currentOpen && typeof payload.currentOpen === 'object' &&
-          Array.isArray(payload.runs) &&
-          payload.quality && typeof payload.quality === 'object' &&
-          Array.isArray(payload.limitations)
-        );
+        function object(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+        if (!object(payload) || payload.ok !== true
+          || !['ready', 'needs_review', 'not_loaded', 'incompatible'].includes(payload.status)
+          || !(object(payload.sourcePolicy) || typeof payload.sourcePolicy === 'string' && payload.sourcePolicy.trim())
+          || !(payload.latestClosed === null || object(payload.latestClosed))
+          || !(payload.currentOpen === null || object(payload.currentOpen))
+          || !Array.isArray(payload.runs) || !payload.runs.every(object)
+          || !object(payload.quality) || !Array.isArray(payload.limitations)
+          || !payload.limitations.every(function (value) { return typeof value === 'string'; })) return false;
+        if (payload.status === 'not_loaded' || payload.status === 'incompatible') {
+          return payload.latestClosed === null && payload.currentOpen === null
+            && payload.runs.length === 0 && payload.quality.ready === false;
+        }
+        return payload.status !== 'ready' || Boolean(payload.latestClosed && payload.currentOpen);
       }
 
       function showError(message) {
         byId('loading').hidden = true;
-        byId('mainContent').hidden = false;
-        setBadge('runsBadge', 'warning', 'Fuente no disponible');
-        setBadge('reconciliationBadge', 'warning', 'Sin datos');
+        clearReference();
+        setBadge('runsBadge', 'warning', 'Referencia no disponible');
         byId('overallPanel').dataset.state = 'warning';
-        setText('overallTitle', 'Datos de corrida no disponibles');
-        setText('overallDetail', 'No se publican importes ni indicadores. Las herramientas estructurales independientes permanecen visibles y conservan sus propios controles de acceso.');
-        setText('sourceChip', 'Fuente de nómina no disponible');
+        setText('overallTitle', 'Referencia histórica no disponible');
+        setText('overallDetail', 'No se verificaron los importes del respaldo. Las corridas propias se consultan por separado en MuniControl.');
+        setText('sourceChip', 'Referencia histórica · sin datos verificados');
         var host = byId('errorHost');
         host.hidden = false;
         host.replaceChildren();
         var card = document.createElement('section');
         card.className = 'error-card';
         card.setAttribute('role', 'alert');
-        var title = document.createElement('h1');
-        title.textContent = 'No se pudieron consultar las corridas de nómina';
+        var title = document.createElement('h3');
+        title.textContent = 'No se pudo consultar la referencia histórica';
         var detail = document.createElement('p');
-        detail.textContent = message + ' Podés reintentar o usar abajo el laboratorio de fórmulas, la previsualización sin importar, el control poscierre y el precontrol mensual técnico; ninguna de esas herramientas calcula ni publica una liquidación.';
+        detail.textContent = message + ' Podés reintentar esta consulta. Cada tarea de nómina propia conserva su acceso y sus verificaciones.';
         var retry = document.createElement('button');
         retry.className = 'button';
         retry.type = 'button';
-        retry.textContent = 'Reintentar';
+        retry.textContent = 'Reintentar consulta del respaldo';
         retry.addEventListener('click', load);
         card.append(title, detail, retry);
         host.appendChild(card);
@@ -1983,17 +1998,20 @@
       async function load() {
         if (redirectIssued) return;
         byId('errorHost').hidden = true;
-        byId('mainContent').hidden = true;
+        clearReference();
         byId('loading').hidden = false;
+        setText('sourceChip', 'Consultando la referencia histórica');
+        setText('overallTitle', 'Consulta de referencia histórica');
+        setText('overallDetail', 'La consulta del respaldo no cambia el estado de tus corridas propias.');
         try {
           var response = await fetch(DATA_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
           if (response.status === 401) {
             redirectToLogin();
             return;
           }
-          if (!response.ok) throw new Error('La API interna respondió con estado ' + response.status + '.');
+          if (!response.ok) throw new Error('El servicio de referencia histórica respondió con estado ' + response.status + '.');
           var payload = await response.json();
-          if (!validatePayload(payload)) throw new Error('La respuesta no cumple el contrato de control de nómina.');
+          if (!validatePayload(payload)) throw new Error('No se pudo verificar la respuesta completa de la referencia histórica.');
           render(payload);
         } catch (error) {
           if (!redirectIssued) showError(error instanceof Error ? error.message : 'La fuente interna no está disponible.');

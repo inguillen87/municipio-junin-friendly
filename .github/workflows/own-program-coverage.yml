@@ -20,7 +20,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - name: Built page, existing API handler, full CSV, mobile and retained uncertain command
         run: node scripts/verify-own-payroll-program-guidance-ui.mjs --output=verification/program-coverage-ci.json

@@ -13,7 +13,7 @@ export function requireExactProgramChanges(before, after) {
       && (aEnd === bEnd || aEnd !== null && (bEnd === null || aEnd <= bEnd));
   };
   const exactNode = n => {
-    if (n.op === 'round' && n.rounding.mode !== 'exact') return false;
+    if ((n.op === 'round' || n.op === 'quantity_phase' && n.stage === 'rounded') && n.rounding.mode !== 'exact') return false;
     if (['concept', 'auxiliary'].includes(n.op) && n.stage !== 'exact') return false;
     return ['left', 'right', 'value', 'condition', 'then', 'else']
       .every(k => !n[k] || typeof n[k] !== 'object' || exactNode(n[k]));

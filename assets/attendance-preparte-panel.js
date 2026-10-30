@@ -1,7 +1,11 @@
 import { verifyPreparte, preparteDuration, reviewedSeconds, referencePercentage, reviewPreparteSelections } from './attendance-preparte-model.js';
 import { preparteXlsx } from './attendance-preparte-export.js';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUse, onDenied }={}) {
+export function mountAttendancePreparte(host,{ canUse:parentCanUse, period, payrollType, onUse, onDenied }={}) {
+  let authorityAllowed=null,gateSeen=false,requestController=null;
+  // Parent busy/write locks are temporary. Only an authority result retires
+  // the cut; a cached payroll feature cannot override a later withdrawal.
+  const canUse=()=>authorityAllowed!==false&&parentCanUse();
   host.classList.add('ap-panel');host.dataset.reviewOnly='true';
   host.innerHTML=`<summary>Generar preparte de mayor dedicación desde relojes</summary><div class="ap-body">
   <div class="ap-heading"><div><p class="ap-eyebrow">PERSONAL → PREPARTE → NOVEDADES</p><h3>Horas registradas, revisión por legajo</h3><p>Consultá el mes elegido arriba. Revisá horas, tope individual y porcentaje antes de agregarlos a novedades.</p></div><span class="ap-badge">Sin importe ni pago automático</span></div>
@@ -81,17 +85,22 @@ export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUs
     counts();controls();
   }
   function counts(){const count=[...decisions.values()].filter(d=>d.selected).length,rows=visible();$('[data-ap-count]').textContent=`${rows.length} coincidencias · Página ${page} de ${Math.max(1,Math.ceil(rows.length/25))} · ${count} seleccionados en todo el preparte`;}
-  function clear(){serial++;data=null;decisions=new Map();page=1;clearCorrections();$('[data-ap-rows]').replaceChildren();$('[data-ap-result]').hidden=true;$('[data-ap-reference]').value='';$('[data-ap-reviewed]').checked=false;$('[data-ap-search]').value='';$('[data-ap-filter]').value='all';status('Preparte descartado. Las novedades guardadas no se modificaron.');controls();}
-  async function read(query,evidence){const params=new URLSearchParams({resource:'clock-preparte',...query,...(evidence?{evidence}:{})});
-    const response=await fetch('/api/internal-attendance?'+params,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/json'}});
-    let result;try{result=await response.json();}catch{throw Error('La fuente no devolvió un preparte válido.');}
-    if(!response.ok){const error=Object.assign(Error(result.error||'No se pudo consultar el preparte.'),{status:response.status});if([401,403].includes(response.status)){clear();status(error.message,true);onDenied?.(error);}throw error;}
-    return verifyPreparte(result,query.period,query.site);
+  function retireRead(){serial++;requestController?.abort();requestController=null;busy=false;}
+  function clear(){retireRead();data=null;decisions=new Map();page=1;clearCorrections();for(const name of ['rows','metrics','source','count'])$('[data-ap-'+name+']').replaceChildren();$('[data-ap-result]').hidden=true;$('[data-ap-reference]').value='';$('[data-ap-reviewed]').checked=false;$('[data-ap-search]').value='';$('[data-ap-filter]').value='all';status('Preparte descartado. Las novedades guardadas no se modificaron.');controls();}
+  async function read(query,evidence,token){const params=new URLSearchParams({resource:'clock-preparte',...query,...(evidence?{evidence}:{})}),controller=new AbortController();requestController=controller;
+    const currentRead=()=>{if(token!==serial)throw Object.assign(Error('Consulta descartada.'),{code:'PREPARTE_SUPERSEDED'});};
+    try{
+      const response=await fetch('/api/internal-attendance?'+params,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)]),headers:{Accept:'application/json'}});currentRead();
+      let result;try{result=await response.json();}catch{currentRead();throw Error('La fuente no devolvió un preparte válido.');}currentRead();
+      // An old denial must not clear the parent's newer payroll preparation.
+      if(!response.ok){const error=Object.assign(Error(result.error||'No se pudo consultar el preparte.'),{status:response.status});if([401,403].includes(response.status)){clear();status(error.message,true);onDenied?.(error);}throw error;}
+      return verifyPreparte(result,query.period,query.site);
+    }finally{if(requestController===controller)requestController=null;}
   }
   async function load(){if(busy||externalBusy||!canUse()||document.hidden)return;
     if(data&&!current()&&[...decisions.values()].some(v=>v.selected||v.cap)&&!window.confirm('¿Cambiar de mes o punto y descartar las decisiones anteriores? Las novedades de la planilla se conservan.'))return;
     const query=context(),token=++serial;busy=true;controls();status('Reconstruyendo el mes completo desde Neon…');
-    try{const result=await read(query);if(token!==serial||query.period!==period()||query.site!==context().site)return;
+    try{const result=await read(query,null,token);if(token!==serial||query.period!==period()||query.site!==context().site)return;
       if(!canUse()||document.hidden){clear();status('El acceso o la visibilidad cambió. Consultá nuevamente antes de continuar.',true);return;}
       const previous=current()?new Map(data.rows.map(row=>[row.key,row])):new Map(),kept=new Map();let retained=0,reset=0;
       for(const row of result.rows){const prior=decisions.get(row.key);if(previous.has(row.key)&&prior&&(prior.edited||prior.selected)){
@@ -102,16 +111,16 @@ export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUs
       const metrics=$('[data-ap-metrics]');metrics.replaceChildren();for(const [label,n]of [['Personas observadas',data.summary.people],['Con extra para revisar',data.summary.readyForReview],['Sin extra utilizable / incidencias',data.summary.withIncidents]]){const box=node('div');box.append(node('strong',String(n)),node('span',label));metrics.append(box);}
       $('[data-ap-source]').textContent='Período '+data.period+' · '+data.site.label+' · Corte '+data.snapshotId+' · Última recepción '+(data.lastReceiptAt||'sin recepción');
       status(data.rows.length?'Preparte generado. '+retained+' decisiones conservadas; '+reset+' desmarcadas por cambios de origen. No se presume ausencia por falta de marcas.':'No hay personas observadas en este corte. No se generan empleados ni jornadas de ejemplo.');render();
-    }catch(error){if(token===serial)status(error.message,true);}finally{busy=false;controls();}
+    }catch(error){if(token===serial)status(error.message,true);}finally{if(token===serial){busy=false;controls();}}
   }
   const reviewState=()=>JSON.stringify([[...decisions].map(([key,value])=>[key,value.selected,value.hours,value.cap,value.percent]),$('[data-ap-reference]').value,$('[data-ap-reviewed]').checked]);
   async function withCurrent(action){if(busy||externalBusy||!canUse()||!current()||document.hidden)return;const original=data,token=serial,review=reviewState();busy=true;controls();status('Verificando que el corte no cambió…');
-    try{const latest=await read({period:original.period,site:original.site.key},original.evidenceHash);if(token!==serial)return;
+    try{const latest=await read({period:original.period,site:original.site.key},original.evidenceHash,token);if(token!==serial)return;
       if(!canUse()||document.hidden){clear();status('El acceso o la visibilidad cambió. Consultá nuevamente antes de continuar.',true);return;}
       if(externalBusy||review!==reviewState())throw Error('La selección o su revisión cambió durante la consulta. Revisá nuevamente antes de continuar.');
       if(!current()||latest.evidenceHash!==original.evidenceHash||JSON.stringify(latest.rows)!==JSON.stringify(original.rows))throw Error('El origen cambió. Consultá nuevamente y revisá las decisiones.');
       await action(original);
-    }catch(error){if(token===serial)status(error.message,true);}finally{busy=false;controls();}
+    }catch(error){if(token===serial)status(error.message,true);}finally{if(token===serial){busy=false;controls();}}
   }
   $('[data-ap-check]').addEventListener('click',()=>{
     if(busy||externalBusy||!canUse()||!current())return;
@@ -124,7 +133,7 @@ export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUs
     catch(error){status(error.message,true);return;}
     if(!window.confirm(`¿Agregar ${rows.length} filas revisadas a la planilla del mes ${data.period}? Todavía no se guardará ni liquidará nada.`))return;
     return withCurrent(async original=>{if(payrollType()!=='monthly')throw Error('El tipo de liquidación cambió. Revisá el preparte.');
-      await onUse({rows,period:original.period});for(const value of decisions.values())value.selected=false;$('[data-ap-reviewed]').checked=false;clearCorrections();
+      await onUse({rows,period:original.period});if(data!==original||!canUse()||document.hidden)return;for(const value of decisions.values())value.selected=false;$('[data-ap-reviewed]').checked=false;clearCorrections();
       status(rows.length+' filas agregadas a la planilla. Usá Validar y previsualizar y luego Crear lote; se conserva la revisión independiente.');render();});
   });
   $('[data-ap-export]').addEventListener('click',()=>withCurrent(async original=>{
@@ -137,8 +146,15 @@ export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUs
   $('[data-ap-prev]').addEventListener('click',()=>{page--;render();});$('[data-ap-next]').addEventListener('click',()=>{page++;render();});
   $('[data-ap-reference]').addEventListener('input',()=>{$('[data-ap-reviewed]').checked=false;refreshCorrections();});
   $('[data-ap-reviewed]').addEventListener('change',refreshCorrections);
-  $('[data-ap-site]').addEventListener('change',()=>{serial++;clearCorrections();if(data)status('La fuente cambió: consultá nuevamente antes de continuar.',true);controls();});
+  $('[data-ap-site]').addEventListener('change',()=>{retireRead();clearCorrections();if(data)status('La fuente cambió: consultá nuevamente antes de continuar.',true);controls();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clear();});
+  function acceptAuthority(detail){
+    const caps=detail?.tenantCapabilities;if(!Array.isArray(caps))return;
+    authorityAllowed=['attendance.read','workforce.employee.read','payroll.novelty.prepare'].every(cap=>caps.includes(cap));
+    if(!authorityAllowed){clear();status('Se retiró el preparte por un cambio de permisos. Volvé a consultar el mes cuando tengas acceso.',true);}else controls();
+  }
+  document.addEventListener('municontrol:capabilities-ready',event=>{if(!Array.isArray(event.detail?.tenantCapabilities))return;gateSeen=true;acceptAuthority(event.detail);});
+  Promise.resolve(globalThis.MuniControlCapabilityGate?.ready).then(result=>{if(!gateSeen)acceptAuthority(result);}).catch(()=>{});
   controls();return {clear,setDisabled(value){externalBusy=Boolean(value);controls();},refreshAccess:controls,
-    periodChanged(){serial++;clearCorrections();if(!data&&busy)status('Cambió el período. Consultá nuevamente el mes elegido.',true);if(data)status(current()?'Volviste al mes consultado. Las decisiones se conservan.':'El mes cambió. El preparte anterior se conserva, pero no puede trasladarse ni descargarse para otro período.',!current());controls();}};
+    periodChanged(){const wasBusy=busy;retireRead();clearCorrections();if(!data&&wasBusy)status('Cambió el período. Consultá nuevamente el mes elegido.',true);if(data)status(current()?'Volviste al mes consultado. Las decisiones se conservan.':'El mes cambió. El preparte anterior se conserva, pero no puede trasladarse ni descargarse para otro período.',!current());controls();}};
 }

@@ -1,8 +1,20 @@
+import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
 import {IMPUTATION_READ,IMPUTATION_CAPS,imputationAccess,imputationBootstrap,imputationPreview,imputationDetail,approvedImputationCsv,prepareImputation,decideImputation,imputationAttempt,verifiedImputationReceipt} from './own-payroll-imputation-workspace-model.js';
 import {IMPUTATION_ISSUES,imputationIncidentCsv} from './own-payroll-imputation-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {accountingBankDestination,ACCOUNTING_NET_CREDITORS} from './own-payroll-accounting-model.js';
 const endpoint='/api/internal-own-payroll-imputation',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;},statuses={pending:'Pendiente',approved:'Aprobada',rejected:'Rechazada'};
+// Compare the same approved control copy, not the historical actor scope held
+// inside its source. A current session alone cannot prove source freshness.
+const sameDistribution=(left,right)=>left.scopeVersion===right.scopeVersion
+ &&['id','requestSha256','sourceVersion','allocationSha256','status'].every(k=>left.proposal[k]===right.proposal[k])
+ &&left.source.sourceVersion===right.source.sourceVersion&&left.allocationSha256===right.allocationSha256
+ &&['command','revision','recordedAt','actorLabel','reason'].every(k=>left.proposal.decision?.[k]===right.proposal.decision?.[k]);
+// Incidences also cover incomplete configurations. Keep their own current
+// source binding without requiring a ready or approved distribution.
+const samePreview=(left,right)=>left.source.scopeVersion===right.source.scopeVersion
+ &&left.source.group.groupId===right.source.group.groupId&&left.source.fiscalYear===right.source.fiscalYear
+ &&left.source.sourceVersion===right.source.sourceVersion&&left.allocationSha256===right.allocationSha256&&left.revision===right.revision;
 export function mountOwnPayrollImputation(container){
  if(!container||container.dataset.imputationMounted)return;container.dataset.imputationMounted='true';
  if(!document.querySelector('link[data-imputation-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-payroll-imputation-panel.css',import.meta.url).href;link.dataset.imputationStyle='true';document.head.append(link);}
@@ -36,7 +48,7 @@ export function mountOwnPayrollImputation(container){
  }
  function clearViews(){boot=null;preview=null;detail=null;prepared=null;page=0;filtered=[];$('confirm').checked=false;for(const k of ['content','review','confirmation','receipt','export'])$(k).hidden=true;for(const k of ['group','proposal','rows','totals'])$(k).replaceChildren();for(const k of ['reason','decision-reason','search'])$(k).value='';$('history').textContent='';$('summary').textContent='';$('issues').textContent='';$('export-note').textContent='';}
  function suspend(message){seq++;controller?.abort();controller=null;busy=false;access=null;clearViews();status(message);controls();}
- async function request(url,options={}){const r=await fetch(url,{cache:'no-store',credentials:'same-origin',signal:controller?.signal,...options});const text=await r.text();if(new TextEncoder().encode(text).length>16777216)throw Error('La consulta supera su capacidad; no se muestran filas parciales.');let value;try{value=JSON.parse(text);}catch{throw Error('No se pudo verificar la respuesta completa.');}if(!r.ok||value?.ok!==true)throw Object.assign(Error(value?.error??'No se confirmó la operación.'),{status:r.status,code:value?.code});return value;}
+ async function request(url,options={}){if(!live())throw Object.assign(Error('Pantalla no visible.'),{name:'AbortError'});const full=url===endpoint||url.startsWith(endpoint+'?'),signal=controller?.signal;const r=await fetch(url,{cache:'no-store',credentials:'same-origin',...options,headers:{Accept:full?OWN_RUN_FULL_JSON:'application/json',...options.headers},signal}),value=await readOwnPayrollResponse(r,{maxBytes:full?OWN_RUN_FULL_MAX_BYTES:16777216,signal});if(!r.ok||value?.ok!==true)throw Object.assign(Error(value?.error??'No se confirmó la operación.'),{status:r.status,code:value?.code});return value;}
  async function session(required=IMPUTATION_READ){const next=imputationAccess(await request('/api/internal-auth'));if(!required.every(c=>next.caps.has(c)))throw Object.assign(Error('Tu cuenta no permite esta operación.'),{status:403});if(access&&access.key!==next.key){access=null;clearViews();throw Object.assign(Error('Cambió la cuenta o el ámbito. Volvé a consultar.'),{status:403});}access=next;if(!sameAttempt())throw Object.assign(Error('El intento pertenece a otra cuenta. Consultalo desde su cuenta original.'),{status:403});$('login').hidden=true;return next;}
  async function perform(action){if(busy||!live())return;busy=true;controller=new AbortController();const generation=++seq,current=()=>generation===seq&&live();controls();try{await action(current);}catch(e){if(current()){if([401,403].includes(e.status)){access=null;clearViews();$('login').hidden=e.status!==401;}else if(!attempt){preview=null;prepared=null;detail=null;$('review').hidden=true;$('export').hidden=true;$('export-note').textContent='';$('confirmation').hidden=true;}status(e.message,'error');}}finally{if(generation===seq){busy=false;controller=null;controls();}}}
  const query=()=>({period:$('period').value,liquidationType:$('type').value});
@@ -71,8 +83,30 @@ export function mountOwnPayrollImputation(container){
  $('recover').addEventListener('click',()=>perform(async current=>{await session(caps(attempt.body.command));try{const value=await verifiedImputationReceipt((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(attempt.key))).data,attempt);if(current())showReceipt(value);}catch(e){if(e.status===404&&current()){notFound=true;status('No se encontró el intento. Se conserva su contenido y clave; podés reintentar o revisar de nuevo.');}else throw e;}}));
  $('revise').addEventListener('click',()=>perform(async current=>{if(!attempt||!notFound)return;await session(caps(attempt.body.command));const old=attempt;await request(endpoint+'?resource=attempt&key='+encodeURIComponent(old.key)).then(()=>{throw Error('El intento existe. Consultalo antes de iniciar otro.');},e=>{if(e.status!==404)throw e;});if(!current())return;attempt=null;receipt=null;notFound=false;clearViews();await loadBoot(current);status('Intento inexistente retirado. Elegí la fuente y revisá de nuevo.');}));
  $('new').addEventListener('click',()=>perform(async current=>{if(!receipt)return;await session();if(!current())return;attempt=null;receipt=null;notFound=false;clearViews();await loadBoot(current);}));
- $('csv').addEventListener('click',()=>perform(async current=>{if(!preview||detail)throw Error('Abrí una previa actual completa.');const old=preview;await session();const fresh=await imputationPreview((await request(endpoint+'?resource=source&'+new URLSearchParams({id:old.source.group.groupId,fiscalYear:old.source.fiscalYear}))).data);await session();if(!current())return;if(fresh.source.scopeVersion!==old.source.scopeVersion||fresh.source.sourceVersion!==old.source.sourceVersion||fresh.allocationSha256!==old.allocationSha256||fresh.revision!==old.revision){preview=null;$('review').hidden=true;throw Error('Cambió la fuente; revisala antes de descargar.');}const blob=new Blob(['\uFEFF'+imputationIncidentCsv(fresh.allocation)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='incidencias-imputacion-'+old.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);status(fresh.allocation.issues.length||fresh.allocation.globalIssues.length?'Incidencias completas descargadas.':'Revisión sin observaciones; CSV con encabezados.');}));
- $('export-csv').addEventListener('click',()=>perform(async current=>{if(!detail||attempt)throw Error('Abrí una imputación aprobada vigente, sin un envío pendiente.');const old=detail;await session();const fresh=await imputationDetail((await request(endpoint+'?resource=detail&id='+encodeURIComponent(old.proposal.id))).data);if(!current())return;if(fresh.scopeVersion!==old.scopeVersion||fresh.proposal.requestSha256!==old.proposal.requestSha256||fresh.allocationSha256!==old.allocationSha256||fresh.proposal.decision?.revision!==old.proposal.decision?.revision)throw Error('Cambió la distribución; consultá su revisión antes de descargar.');const csv=await approvedImputationCsv(fresh);await session();if(!current())return;const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='distribucion-aprobada-'+fresh.source.group.snapshot.period+'-'+fresh.source.group.snapshot.liquidationType+'-'+fresh.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);status(`Distribución aprobada completa descargada: ${fresh.allocation.conceptCount} conceptos. Copia de control interno.`);}));
+ $('csv').addEventListener('click',()=>perform(async current=>{
+  if(!preview||detail)throw Error('Abrí una previa actual completa.');
+  const old=preview,urlSource=endpoint+'?resource=source&'+new URLSearchParams({id:old.source.group.groupId,fiscalYear:old.source.fiscalYear});
+  await session();const fresh=await imputationPreview((await request(urlSource)).data);await session();if(!current())return;
+  if(!samePreview(old,fresh))throw Error('Cambió la fuente; revisala antes de descargar.');
+  const bytes='\uFEFF'+imputationIncidentCsv(fresh.allocation);
+  const final=await imputationPreview((await request(urlSource)).data);if(!current())return;await session();if(!current())return;
+  if(!samePreview(fresh,final))throw Error('Cambió la fuente durante la preparación; revisala antes de descargar.');
+  const blob=new Blob([bytes],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='incidencias-imputacion-'+old.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);
+  status(fresh.allocation.issues.length||fresh.allocation.globalIssues.length?'Incidencias completas descargadas.':'Revisión sin observaciones; CSV con encabezados.');
+ }));
+ $('export-csv').addEventListener('click',()=>perform(async current=>{
+  if(!detail||attempt)throw Error('Abrí una imputación aprobada vigente, sin un envío pendiente.');
+  const old=detail;await session();
+  const fresh=await imputationDetail((await request(endpoint+'?resource=detail&id='+encodeURIComponent(old.proposal.id))).data);
+  if(!current())return;if(!sameDistribution(old,fresh))throw Error('Cambió la distribución; consultá su revisión antes de descargar.');
+  const csv=await approvedImputationCsv(fresh);await session();if(!current())return;
+  const final=await imputationDetail((await request(endpoint+'?resource=detail&id='+encodeURIComponent(old.proposal.id))).data);
+  if(!current())return;await session();if(!current())return;
+  if(!sameDistribution(fresh,final)||final.proposal.status!=='approved'||!final.sourceCurrent)throw Error('Cambió la distribución durante la preparación; consultá una aprobación vigente antes de descargar.');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');
+  a.href=url;a.download='distribucion-aprobada-'+fresh.source.group.snapshot.period+'-'+fresh.source.group.snapshot.liquidationType+'-'+fresh.source.fiscalYear+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);
+  status(`Distribución aprobada completa descargada: ${fresh.allocation.conceptCount} conceptos. Copia de control interno.`);
+ }));
  $('search').addEventListener('input',()=>{page=0;showRows();});$('prev').addEventListener('click',()=>{page--;showRows();});$('next').addEventListener('click',()=>{page++;showRows();});$('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23imputacion'));
  const task=e=>{active=e.detail?.id==='imputacion';if(active)perform(async()=>{await session();status(attempt?'Se conserva un intento pendiente. Consultalo antes de otra operación.':'Elegí período y tipo para consultar los cierres.');});else suspend('Se retiró la vista al cambiar de tarea. Abrí Imputación propia para comprobar el acceso.');};
  const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la pantalla. Volvé a abrir Imputación propia.');else controls();};

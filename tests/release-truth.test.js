@@ -5,6 +5,8 @@ import { verifyRelease, compareRelease, releaseLabel } from '../assets/release-s
 import { readPublishedRelease } from '../assets/release-status-panel.js';
 import { resolveReleaseSource, buildReleaseIdentity, ADMIN_RELEASE_FILES, RELEASE_MARKER } from '../scripts/build-release-identity.mjs';
 import { verifyRemoteBaseEvidence, RELEASE_DOMAIN } from '../scripts/verify-remote-release-base.mjs';
+import { verifyCandidateAdmission } from '../scripts/lib/release-candidate-admission.mjs';
+import { candidateEvidence, SHA, DEPLOYMENT_ID } from './fixtures/release-candidate-synthetic.js';
 const identity = () => ({version:'municontrol-release.v1',commitSha:'a'.repeat(40),sourceState:'committed',adminUiSha256:'b'.repeat(64)});
 test('matching source and admin build identify the loaded screen, not the database',()=>{
   const a=identity();assert.equal(compareRelease(a,a),'same');assert.equal(releaseLabel(a),'aaaaaaa');assert.ok(Object.isFrozen(verifyRelease(a)));
@@ -53,7 +55,21 @@ function evidence(){const commit='a'.repeat(40),id='2UhjpQx3bXtiFTdc5ACJPQvM3EpE
   branch:{name:'master',commit:{sha:commit}},status:{sha:commit,statuses:[{context:'Vercel',state:'success',target_url:'https://vercel.com/marcelos-projects-c26aa499/municipio-junin-friendly/'+id}]},
   deployment:{id:'dpl_'+id,target:'production',readyState:'READY',aliases:[RELEASE_DOMAIN]}};}
 test('remote base requires GitHub commit, production alias and worktree agreement',()=>{
-  assert.equal(verifyRemoteBaseEvidence(evidence()).aligned,true);const e=evidence();e.phase='publish';e.head='b'.repeat(40);assert.equal(verifyRemoteBaseEvidence(e).head,e.head);
+  assert.equal(verifyRemoteBaseEvidence(evidence()).aligned,true);
+  const e=evidence();e.phase='publish';e.head='b'.repeat(40);
+  assert.throws(()=>verifyRemoteBaseEvidence(e),{code:'REMOTE_BASE_CANDIDATE_ADMISSION_REQUIRED'});
+});
+test('publish requires the exact candidate admission in addition to the unchanged remote-base checks',()=>{
+  const e=evidence();e.phase='publish';e.head=SHA;
+  e.candidateAdmission=verifyCandidateAdmission(candidateEvidence(),{expectedSha:SHA,expectedDeploymentId:DEPLOYMENT_ID});
+  const result=verifyRemoteBaseEvidence(e);
+  assert.equal(result.aligned,true);assert.equal(result.candidateAdmission.deploymentId,DEPLOYMENT_ID);
+  assert.equal(result.candidateAdmission.noeliaReady,false);assert.equal(result.candidateAdmission.promotionPerformed,false);
+  for(const admission of [undefined,{admitted:true,candidateSha:SHA},JSON.parse(JSON.stringify(e.candidateAdmission))]){
+    assert.throws(()=>verifyRemoteBaseEvidence({...e,candidateAdmission:admission}),{code:'REMOTE_BASE_CANDIDATE_ADMISSION_REQUIRED'});
+  }
+  assert.throws(()=>verifyRemoteBaseEvidence({...e,head:'c'.repeat(40)}),{code:'REMOTE_BASE_CANDIDATE_ADMISSION_REQUIRED'});
+  assert.throws(()=>verifyRemoteBaseEvidence({...e,clean:false}),{code:'REMOTE_BASE_UNCOMMITTED_WORK'});
 });
 const drifts={remote:e=>e.branch.commit.sha='c'.repeat(40),local:e=>e.head='d'.repeat(40),dirty:e=>e.clean=false,preview:e=>e.deployment.target='preview',failed:e=>e.deployment.readyState='ERROR',alias:e=>e.deployment.aliases=['other.vercel.app'],deployment:e=>e.deployment.id='dpl_other',status:e=>e.status.statuses[0].state='pending',spoof:e=>e.status.statuses[0].target_url='https://evil.invalid/x',diverged:e=>{e.phase='publish';e.ancestor=false;}};
 for(const [name,change]of Object.entries(drifts))test('remote source gate stops '+name+' disagreement',()=>{

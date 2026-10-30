@@ -13,3 +13,21 @@ SQL127 agrega una tabla vacía y once funciones; el runtime sólo ejecuta tres f
 No extrae ni reconstruye la integración histórica bloqueada de PR50/SQL111 presupuestario, ni SQL114/115 o el resolvedor/evaluador rechazados. El contexto del tenant conserva su vinculación certificada; ninguna consulta del registro usa GRH como motor o como fuente de posiciones anuales.
 
 Pendientes del módulo10: incorporar y revisar los anexos autorizados, vincular posiciones propias por vigencia y conservar esa asignación en la liquidación original, cotejarla contra la versión anual aplicable y emitir el PDF comparativo simple/detallado. La liquidación propia actual conserva convenio, categoría y repartición; esos datos no bastan para inferir el cargo presupuestario histórico. La habilitación de nuevos permisos y la aceptación de Noelia/Hugo son estados separados de instalación y publicación.
+
+## Cliente de cargos y descarga de comparación · 24/10/2026
+
+El estado anterior corresponde al incremento del06/10. La ruta posterior de comparación propia está montada en `/estructura` mediante `position-comparison-panel.js` y consulta `detail-v2`; no debe confundirse con el cotejo documental de presencia `budget-payroll*`.
+
+Cada consulta o comando del cliente de cargos tiene una operación propia con ticket, señal y métodos de sesión/lectura. Los tres paneles —asignación, cargos capturados y comparación— usan esa operación. Antes y después de recibir cuerpos asíncronos se comprueba que siga vigente; una respuesta retirada no interpreta la autoridad ni entra al trabajo de otra consulta. Una operación vencida o finalizada tampoco puede iniciar otra petición. El error de timeout vigente se informa incluso si el trabajo local retorna sin descargar.
+
+La exportación conserva sus guardas entre lecturas y huellas. Ocultar, cerrar sesión, revocar acceso o cambiar la consulta impide que una descarga vieja continúe o retire un resultado nuevo. La actualización periódica verifica sesión con su propia operación.
+
+Un intento pendiente de asignación conserva objeto, clave y cuerpo originales. Recuperar o reintentar captura ese intento antes de esperar la sesión; la respuesta sólo puede limpiar ese mismo objeto. Otro montaje no puede sobrescribirlo mientras espera su comprobación previa. Esto conserva la recuperación explícita, sin POST automático desde una continuación vieja ni duplicación por cambio de clave.
+
+Validación local:28casos únicos,18nuevos y10regresiones de M10. Montan paneles y cliente reales con DOM, autenticación, verificadores, modelos, hashes y renderizadores sintéticos; no importan el motor. Se comprobaron respuestas tardías, cambio de cuenta, timeout, claves/cuerpos pendientes y controles PDF/Excel/CSV. No acredita archivos reales, cálculo, contratos de dominio, PostgreSQL, navegador, publicación o disponibilidad municipal del módulo completo. Un transporte que nunca retorna no está cubierto por una garantía nueva de resolución anticipada; se comprueba su inercia si retorna después del aborto.
+
+## Asignación consultada desde varias vistas · 25/10/2026
+
+Si otra vista resuelve el envío o crea un pendiente mientras la primera esperaba una respuesta, la vista vigente explica lo ocurrido y ofrece consultar nuevamente o recuperar ese envío. Conserva el intento, su clave y su cuerpo; no realiza otro envío ni cambia el resultado mostrado en la otra vista. Una operación retirada mantiene el mensaje de retirada.
+
+Verificación local:30 casos únicos con el mismo arnés sintético, incluidos dos nuevos de resolución y sustitución del pendiente desde otra vista y una comprobación ampliada del envío concurrente. Son mejoras de información al operador; se mantienen los límites de validación y publicación anteriores.

@@ -3,6 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+export function salarySeniorityBrowserRoute(url){
+ const u=url instanceof URL?url:new URL(url,'http://fixture.invalid');
+ if(u.pathname==='/api/internal-own-salary-seniority')return 'seniority';
+ if(u.pathname==='/api/internal-own-payroll-program')return 'program';
+ if(u.pathname==='/api/internal-data'&&(u.searchParams.get('resource')==='employees'||u.searchParams.get('resource')==='nativeroster'&&u.searchParams.get('schema')==='2'))return 'directory';
+ return null;
+}
 export async function verifyOwnSalarySeniorityBrowser({handlers,env,actors,setActor,people,period,output,check,revoke,restore,browserName='chrome'}) {
  assert.ok(['chrome','chromium'].includes(browserName));
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4367',errors=[],writes=[],reads=[];
@@ -15,7 +22,7 @@ export async function verifyOwnSalarySeniorityBrowser({handlers,env,actors,setAc
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
-   const kind=u.pathname==='/api/internal-own-salary-seniority'?'seniority':u.pathname==='/api/internal-own-payroll-program'?'program':u.pathname==='/api/internal-data'&&u.searchParams.get('resource')==='employees'?'directory':null;
+   const kind=salarySeniorityBrowserRoute(u);
    if(kind){let status=200,payload;const headers={};await handlers[kind]({method:req.method(),url:u.pathname+u.search,query:Object.fromEntries(u.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});
     if(req.method()==='POST'){writes.push({kind,status,key:req.headers()['idempotency-key'],body:JSON.parse(req.postData()).payload,receipt:payload?.data});if(drop&&payload?.ok){drop=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética interrumpida después de conservar la propuesta.'}});}}
     else reads.push({kind,resource:u.searchParams.get('resource')});

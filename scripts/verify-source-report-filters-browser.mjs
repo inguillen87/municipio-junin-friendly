@@ -90,7 +90,7 @@ try{
  assert.equal(await $('[data-catalog-type] option[value=O]').textContent(),'Otros conceptos (O)');checks.push('GRH S is SAC, O is other concepts and an unknown code stays explicit');
  await choose('2026-09','M');assert.deepEqual(await values('[data-dataset]'),reports.slice(0,2).map(d=>d.datasetId));
  const bothDates=await $('[data-dataset]').textContent();assert.match(bothDates,/30\/09\/2026/);assert.match(bothDates,/15\/09\/2026/);checks.push('two monthly runs in the same month remain individually selectable by date and UUID');
- await query(reports[1].datasetId);assert.match(await $('[data-source]').textContent(),/15\/09\/2026.*Mes \(M\)/);assert.match(await $('[data-result] tbody').first().textContent(),/QA-DATASET-2-ONLY/);
+ await query(reports[1].datasetId);assert.match(await $('[data-source]').textContent(),/15\/09\/2026.*Mes \(M\)/);assert.match(await $('[data-concepts-table] tbody').textContent(),/QA-DATASET-2-ONLY/);
  await refresh();assert.equal(await $('[data-catalog-month]').inputValue(),'2026-09');assert.equal(await $('[data-catalog-type]').inputValue(),'M');assert.equal(await $('[data-dataset]').inputValue(),reports[1].datasetId);checks.push('catalog refresh preserves the chosen month, type and exact run');
  await choose('all','V');assert.deepEqual(await values('[data-dataset]'),[reports[2].datasetId]);
  await choose('2026-08','all');assert.deepEqual(await values('[data-dataset]'),[reports[6].datasetId]);await query();assert.match(await $('[data-source]').textContent(),/SAC \(S\)/);

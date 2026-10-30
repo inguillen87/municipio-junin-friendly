@@ -123,53 +123,82 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
     if (encoded === undefined) throw Object.assign(Error('El PDF no admite algunos caracteres de esta fuente sin alterarlos. Descargá el Excel para conservar el texto exacto.'), { exportOnly: true });
     return encoded.toString(16).padStart(2, '0');
   }).join('') + '>';
-  const draw = (x, top, value, size = 8, bold = false, color = '0.08 0.22 0.29') => ops.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${595 - top} Tm ${hex(value)} Tj ET`);
-  const rect = (x, top, w, h, color) => ops.push(`${color} rg ${x} ${595 - top - h} ${w} ${h} re f`);
+  const portrait = !retentions, W = portrait ? 595 : 842, H = portrait ? 842 : 595;
+  const left = 32, contentWidth = W - 64, bottom = H - 54;
+  const draw = (x, top, value, size = 8, bold = false, color = '0.08 0.22 0.29') => ops.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H - top} Tm ${hex(value)} Tj ET`);
+  const rect = (x, top, w, h, color) => ops.push(`${color} rg ${x} ${H - top - h} ${w} ${h} re f`);
   function page() {
-    ops = []; pages.push(ops); rect(0, 0, 842, 82, '0.045 0.15 0.20');
-    draw(32, 26, retentions ? 'MuniControl | Retenciones a mutuales' : 'MuniControl | Resumen mensual', 17, true, '1 1 1');
-    draw(32, 48, 'Imputación ' + data.period + ' · ' + data.counts.datasetCount + ' corridas seleccionadas · ' + activeTitle, 10, false, '1 1 1');
-    draw(32, 68, 'General disponible · No certifica mes completo, cierre ni pago.', 9, false, '1 1 1');
-    draw(32, 566, 'Control interno · Consulta ' + queriedAt + ' · Página ' + pages.length, 7);
-    draw(32, 581, 'SHA-256 del resumen: ' + data.reportHash, 6.5); y = 98;
+    ops = []; pages.push(ops); rect(0, 0, W, 74, '0.045 0.15 0.20');
+    draw(left, 25, retentions ? 'MuniControl | Retenciones a mutuales' : 'MuniControl | Resumen mensual', 16, true, '1 1 1');
+    draw(left, 44, 'Imputación ' + data.period + ' · ' + data.counts.datasetCount + ' corridas seleccionadas', 9, false, '1 1 1');
+    draw(left, 62, activeTitle, 10, true, '1 1 1');
+    draw(left, H - 29, 'Control interno · Consulta ' + queriedAt + ' · Página ' + pages.length, 7);
+    draw(left, H - 14, 'SHA-256 del resumen: ' + data.reportHash, 6.5); y = 88;
   }
-  function table(title, labels, values, widths, continuePage = false) {
-    activeTitle = title; const total = widths.reduce((a, b) => a + b, 0), sizes = widths.map(w => w / total * 778);
+  function table(title, labels, values, widths, { right = [], note = '' } = {}) {
+    activeTitle = title;
+    const total = widths.reduce((a, b) => a + b, 0), sizes = widths.map(w => w / total * contentWidth);
+    const headerParts = labels.map((v, i) => monthlyPdfLines(v, sizes[i] - 10, 8, true));
+    const headerHeight = Math.max(...headerParts.map(p => p.length)) * 10 + 10;
+    const partsFor = row => row.map((v, i) => monthlyPdfLines(v, sizes[i] - 10));
     function header() {
-      const parts = labels.map((v, i) => monthlyPdfLines(v, sizes[i] - 12, 8, true));
-      const h = Math.max(...parts.map(p => p.length)) * 10 + 14; rect(32, y, 778, h, '0.09 0.24 0.30'); let x = 32;
-      parts.forEach((p, i) => { p.forEach((line, j) => draw(x + 5, y + 12 + j * 10, line, 8, true, '1 1 1')); x += sizes[i]; }); y += h;
+      rect(left, y, contentWidth, headerHeight, '0.09 0.24 0.30'); let x = left;
+      headerParts.forEach((p, i) => { p.forEach((line, j) => draw(x + 5, y + 12 + j * 10, line, 8, true, '1 1 1')); x += sizes[i]; }); y += headerHeight;
     }
-    const required = 36 + Math.max(...labels.map((value, index) => monthlyPdfLines(value, sizes[index] - 12, 8, true).length)) * 10 + 14
-      + values.reduce((height, row) => height + Math.max(...row.map((value, index) => monthlyPdfLines(value, sizes[index] - 12).length)) * 11 + 14, 0);
-    if (!continuePage || !ops || y + required > 546) page();
-    else { y += 18; draw(32, y + 9, title, 10, true); y += 18; }
+    const firstRowHeight = values.length ? Math.min(60, Math.max(...partsFor(values[0]).map(p => p.length)) * 10.5 + 8) : 22;
+    const noteLines = note ? monthlyPdfLines(note, contentWidth, 8) : [];
+    const sectionHeight = 27 + noteLines.length * 11 + headerHeight + firstRowHeight;
+    if (!ops || y + sectionHeight > bottom) page();
+    else { y += 14; draw(left, y + 9, title, 10, true); y += 17; }
+    noteLines.forEach(line => { draw(left, y + 8, line); y += 11; });
+    if (noteLines.length) y += 6;
     header();
     values.forEach((row, index) => {
-      const parts = row.map((v, i) => monthlyPdfLines(v, sizes[i] - 12));
-      const h = Math.max(...parts.map(p => p.length)) * 11 + 14;
-      if (y + h > 546) { page(); header(); }
-      if (index % 2 === 0) rect(32, y, 778, h, '0.94 0.97 0.97'); let x = 32;
-      parts.forEach((p, i) => { p.forEach((line, j) => draw(x + 5, y + 13 + j * 11, line, 8)); x += sizes[i]; }); y += h;
+      const parts = partsFor(row), lines = Math.max(...parts.map(p => p.length));
+      let offset = 0;
+      // A long source label, hash, observation or concept can cross a page.
+      // Split by measured text lines rather than clipping a complete row.
+      while (offset < lines) {
+        let capacity = Math.floor((bottom - y - 8) / 10.5);
+        if (capacity < 1) { page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5); }
+        const remaining = lines - offset;
+        if (offset === 0 && remaining > capacity && remaining * 10.5 + 8 <= bottom - 88 - headerHeight) {
+          page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5);
+        }
+        const count = Math.min(remaining, capacity), h = count * 10.5 + 8;
+        if (index % 2 === 0) rect(left, y, contentWidth, h, '0.94 0.97 0.97');
+        let x = left;
+        parts.forEach((p, i) => {
+          p.slice(offset, offset + count).forEach((line, j) => draw(right.includes(i) ? x + sizes[i] - 5 - monthlyPdfTextWidth(line) : x + 5, y + 12 + j * 10.5, line));
+          x += sizes[i];
+        });
+        y += h; offset += count;
+        if (offset < lines) { page(); header(); }
+      }
     });
-    if (!values.length) draw(38, y + 24, 'Sin conceptos para este filtro.', 10);
+    if (!values.length) { draw(left + 5, y + 16, 'Sin conceptos para este filtro.', 9); y += 24; }
   }
   if (retentions) {
     table('Detalle de la selección', ['Código', 'Concepto en la fuente', 'Importe retenido', 'Estado / observaciones'],
-      retentions.rows.map(r => [r.code, r.description, mutualDecimal(r.amount), r.observation]), [12, 40, 30, 65]);
+      retentions.rows.map(r => [r.code, r.description, mutualDecimal(r.amount), r.observation]), [12, 40, 30, 65], { right: [2] });
     table('Totales de la selección', ['Control', 'Importe', 'Alcance'], [
       ['Subtotal informado', mutualDecimal(retentions.subtotal), 'Sólo conceptos sumables con importe informado; no sustituye el total pendiente.'],
-      ['Total de la selección', mutualDecimal(retentions.total), retentions.total === null ? 'Hay conceptos ausentes, con importe faltante o no sumables.' : 'Todos los conceptos seleccionados tienen importe informado y son sumables.']], [35, 30, 65], true);
-  } else table('Conceptos del filtro', headings, view.rows.map(r => [r.code, r.description, r.unit ?? 'No informada', String(r.sourceRows), String(r.distinctLegajos), monthlyDecimal(r.quantity), monthlyDecimal(r.amount), monthlyObservations(r)]), [10, 29, 13, 13, 14, 23, 27, 27]);
-  table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, tipo y cierre', 'Volumen e incorporación', 'Huellas SHA-256'], data.sources.map(s => [
+      ['Total de la selección', mutualDecimal(retentions.total), retentions.total === null ? 'Hay conceptos ausentes, con importe faltante o no sumables.' : 'Todos los conceptos seleccionados tienen importe informado y son sumables.']], [35, 30, 65], { right: [1] });
+  } else {
+    table('Conceptos del filtro', ['Código / concepto', 'Unidad', 'Líneas / legajos', 'Cantidad', 'Importe'], view.rows.map(r => [
+      r.code + ' · ' + r.description + (r.missingAmounts || r.missingQuantities ? ' · ' + monthlyObservations(r) : ''),
+      r.unit ?? 'No informada', String(r.sourceRows) + ' / ' + String(r.distinctLegajos), monthlyDecimal(r.quantity), monthlyDecimal(r.amount),
+    ]), [185, 48, 65, 103, 130], { right: [2, 3, 4], note: 'Sin nota: sin faltantes en las líneas incluidas. Líneas / legajos: ocurrencias y legajos únicos; no son sumables entre conceptos.' });
+  }
+  table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, volumen y huellas'], data.sources.map(s => [
     s.datasetId + ' · ' + s.sourceLabel + ' · Fecha: ' + s.date,
-    s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus),
-    s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt,
-    'Respaldo: ' + s.sourceSha256 + ' Contenido: ' + s.payloadHash,
-  ]), [28, 22, 22, 34]);
+    s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus)
+      + ' · ' + s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt
+      + ' · Respaldo: ' + s.sourceSha256 + ' · Contenido: ' + s.payloadHash,
+  ]), [35, 65]);
   const controls = controlRows(data, view, queriedAt, retentions); table('Control y alcance', controls[0], controls.slice(1), [30, 100]);
   const objects = [null, '<< /Type /Catalog /Pages 2 0 R >>', null, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'], kids = [];
-  for (const p of pages) { const id = objects.length, content = p.join('\n'); kids.push(id + ' 0 R'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id + 1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); }
+  for (const p of pages) { const id = objects.length, content = p.join('\n'); kids.push(id + ' 0 R'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id + 1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); }
   objects[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`; let result = '%PDF-1.4\n'; const offsets = [0];
   objects.slice(1).forEach((v, i) => { offsets.push(result.length); result += (i + 1) + ' 0 obj\n' + v + '\nendobj\n'; }); const start = result.length;
   result += `xref\n0 ${objects.length}\n0000000000 65535 f \n` + offsets.slice(1).map(n => String(n).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;

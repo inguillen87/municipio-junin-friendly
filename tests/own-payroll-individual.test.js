@@ -5,7 +5,7 @@ import {saved} from './fixtures/own-payroll-run-synthetic.js';
 import {uid,hash} from './fixtures/own-payroll-program-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {ownRunWorkspaceRows,formatOwnRunDecimal} from '../assets/own-payroll-run-workspace-model.js';
-import {ownLiquidationIndividual,ownLiquidationNextPreparation,verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../assets/own-payroll-liquidation-model.js';
+import {ownLiquidationIndividual,ownLiquidationNextPreparation,ownLiquidationDecisionPreparation,verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt} from '../assets/own-payroll-liquidation-model.js';
 function annul(d,selection={kind:'all',values:[]}){
  const people=d.employees.filter(e=>selection.kind==='all'||selection.values.includes(e.contractId));
  for(const [index,e]of people.entries()){e.state='annulled';e.version=2;e.liquidationVersion=1;e.allowedCommands=[];e.events=[{id:uid(400+index*2),command:'confirm',version:1,liquidationVersion:1,recordedAt:'2026-10-08T12:00:00Z',actorLabel:'Revisor sintético',reason:'Confirmación exclusivamente sintética'},{id:uid(401+index*2),command:'annul',version:2,liquidationVersion:1,recordedAt:'2026-10-08T12:01:00Z',actorLabel:'Revisor sintético',reason:'Anulación exclusivamente sintética'}];}
@@ -53,4 +53,64 @@ test('un comprobante de otra corrida, otro resultado o alcance cambiado no habil
 test('la continuación verifica el cuerpo original del comprobante y la integridad del cálculo antes de mostrar',async()=>{
  const d=detail(),r=annul(d);assert.equal(await verifiedOwnLiquidationReceipt(r),r);assert.equal(await verifiedOwnLiquidationDetail(d),d);
  await assert.rejects(verifiedOwnLiquidationReceipt({...r,bodySha256:hash('f')}));const changed=structuredClone(d);changed.capture.saved.result.rows[0].amount='0.00';await assert.rejects(verifiedOwnLiquidationDetail(changed));
+});
+test('un legajo anulado que ya tiene otra liquidación confirmada vigente no se prepara de nuevo; el resto del conjunto tampoco se recorta',()=>{
+ const d=detail(6),r=annul(d),other=uid(991);
+ assert.equal(ownLiquidationNextPreparation(d,r).affected.length,6);
+ // blockedBy is the current detail's own signal: the contract is confirmed in another run of the period/type.
+ d.employees[5].blockedBy=other;
+ assert.throws(()=>ownLiquidationNextPreparation(d,r),/ya tiene otra liquidación confirmada/);
+ assert.throws(()=>ownLiquidationNextPreparation(d,{...r,affected:r.affected.slice(0,5)}));
+ // A blocked contract outside the annulled scope does not affect a partial continuation.
+ const partial=detail(),id=partial.employees[0].contractId,receiptPartial=annul(partial,{kind:'contracts',values:[id]});
+ partial.employees[1].blockedBy=other;partial.employees[1].allowedCommands=[];
+ assert.deepEqual(ownLiquidationNextPreparation(partial,receiptPartial).selection,{kind:'contracts',values:[id]});
+});
+
+// Proposed causal tests: cross-user continuation of an INDIVIDUAL annul decision.
+// One stored decision event covers every affected contract (SQL124 events carry
+// e.id); the preparer only holds the run's current authenticated detail.
+// Synthetic id spaces never meet: confirms uid(100000+index), the decision
+// uid(700), run uid(90), key uid(9), receipt uid(80); 869 contracts stay unique.
+function annulDecision(d,selection={kind:'all',values:[]},decisionId=uid(700)){
+ const people=d.employees.filter(e=>selection.kind==='all'||selection.values.includes(e.contractId));
+ for(const [index,e]of people.entries()){e.state='annulled';e.version=2;e.liquidationVersion=1;e.allowedCommands=[];e.events=[{id:uid(100000+index),command:'confirm',version:1,liquidationVersion:1,recordedAt:'2026-10-08T12:00:00Z',actorLabel:'Revisor sintético',reason:'Confirmación exclusivamente sintética'},{id:decisionId,command:'annul',version:2,liquidationVersion:1,recordedAt:'2026-10-08T12:01:00Z',actorLabel:'Revisor sintético',reason:'Anulación exclusivamente sintética'}];}
+ return decisionId;
+}
+test('la decisión individual se reconstruye completa desde la lectura autenticada de la corrida, sin comprobante, clave ni identidad del revisor',()=>{
+ const d=detail(6),chosen=d.employees.slice(0,3).map(e=>e.contractId),decisionId=annulDecision(d,{kind:'contracts',values:chosen}),before=structuredClone(d);
+ const next=ownLiquidationDecisionPreparation(d,decisionId);
+ assert.deepEqual(next.selection,{kind:'contracts',values:[...chosen].sort()});assert.equal(next.affected.length,3);
+ for(const row of next.affected)assert.equal(row.employeeNumber,d.capture.saved.input.employees.find(p=>p.contractId===row.contractId).employeeNumber);
+ assert.equal(next.runId,d.id);assert.equal(next.decisionId,decisionId);assert.equal(next.stateVersion,d.stateVersion);assert.equal(next.period,d.capture.body.period);assert.equal(next.liquidationType,d.capture.body.liquidationType);assert.equal(next.liquidationDate,d.capture.body.liquidationDate??null);
+ for(const secret of ['receiptKey','key','reason','totals','reviewConfirmed','actorLabel','sourceReference'])assert.equal(Object.hasOwn(next,secret),false);
+ assert.ok(d.employees.slice(3).every(e=>e.state==='calculated'));assert.deepEqual(d,before);
+});
+test('todos de la corrida y una corrida parcial conservan exactamente los legajos de la decisión, sin ampliar ni recortar',()=>{
+ const whole=detail(869),wholeId=annulDecision(whole);ownRunWorkspaceRows(whole.capture,'1001',1,25);
+ const all=ownLiquidationDecisionPreparation(whole,wholeId);assert.equal(all.selection.values.length,869);assert.equal(all.affected.length,869);assert.deepEqual(all.selection.values,whole.employees.map(e=>e.contractId).sort());
+ const partial=detail(6),id=partial.employees[0].contractId;partial.capture.body.selection={kind:'contracts',values:[id]};partial.capture.bodySha256=ownRunHash(partial.capture.body);partial.capture.payload.selection=structuredClone(partial.capture.body.selection);partial.capture.payloadSha256=ownRunHash(partial.capture.payload);partial.capture.saved=saved(partial.capture);partial.employees=partial.employees.filter(e=>e.contractId===id);
+ const partialId=annulDecision(partial),next=ownLiquidationDecisionPreparation(partial,partialId);assert.equal(partial.capture.saved.input.employees.length,6);assert.deepEqual(next.selection,{kind:'contracts',values:[id]});assert.equal(next.affected.length,1);
+});
+test('una confirmación, un identificador ajeno o una corrida sin esa decisión nunca preparan un alcance',()=>{
+ const d=detail(),decisionId=annulDecision(d,{kind:'contracts',values:[d.employees[0].contractId]});
+ assert.throws(()=>ownLiquidationDecisionPreparation(d,d.employees[0].events[0].id));
+ assert.throws(()=>ownLiquidationDecisionPreparation(d,uid(999)));assert.throws(()=>ownLiquidationDecisionPreparation(d,d.id));assert.throws(()=>ownLiquidationDecisionPreparation(d,'not-a-uuid'));
+ assert.throws(()=>ownLiquidationDecisionPreparation(detail(),decisionId));
+});
+test('otra liquidación confirmada vigente en otra corrida bloquea la decisión completa, no sólo ese legajo',()=>{
+ const d=detail(6),decisionId=annulDecision(d);d.employees[4].blockedBy=uid(880);
+ assert.throws(()=>ownLiquidationDecisionPreparation(d,decisionId),/otra liquidación confirmada/);
+ d.employees[4].blockedBy=null;assert.equal(ownLiquidationDecisionPreparation(d,decisionId).affected.length,6);
+});
+test('un legajo cuyo último evento no es la decisión referida no se traslada y rechaza el conjunto',()=>{
+ const d=detail(6),decisionId=annulDecision(d,{kind:'contracts',values:d.employees.slice(0,2).map(e=>e.contractId)});
+ // A third contract carries the same decision id as a CONFIRM (consistent DTO):
+ // the id alone never prepares; the command and final state must match.
+ const tampered=structuredClone(d);tampered.employees[2].events=[{...tampered.employees[0].events[1],command:'confirm',version:1}];tampered.employees[2].state='confirmed';tampered.employees[2].version=1;tampered.employees[2].liquidationVersion=1;tampered.employees[2].allowedCommands=['annul'];
+ assert.throws(()=>ownLiquidationDecisionPreparation(tampered,decisionId));
+ // A changed liquidation version is rejected by the DTO or the model; never a partial set.
+ const versioned=structuredClone(d);versioned.employees[1].events[1].liquidationVersion=2;versioned.employees[1].liquidationVersion=2;
+ assert.throws(()=>ownLiquidationDecisionPreparation(versioned,decisionId));
+ assert.equal(ownLiquidationDecisionPreparation(d,decisionId).affected.length,2);
 });

@@ -13,6 +13,7 @@ import {catalog as classification} from './fixtures/native-employee-synthetic.js
 import {capture} from './fixtures/own-payroll-run-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {annulDetail,annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
+import {annulReviewIndexFor} from './fixtures/own-payroll-annulment-review-synthetic.js';
 
 class Element{
  constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;this.dataset=new Proxy({}, {set:(target,key,value)=>{target[key]=String(value);this.attributes['data-'+String(key).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});}
@@ -60,6 +61,8 @@ function harness(t){
   else if(url==='/api/internal-own-payroll-program?resource=bootstrap')payload={ok:true,data:state.program};
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=attempt')){assert.ok(state.annul);payload={ok:true,data:state.annul.receipt};}
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=detail')){assert.ok(state.annul);payload={ok:true,data:state.annul.detail};}
+  else if(url.startsWith('/api/internal-own-payroll-annulment?resource=review')){assert.ok(state.annul);assert.equal(url,'/api/internal-own-payroll-annulment?resource=review&period='+state.annul.detail.period+'&liquidationType='+state.annul.detail.liquidationType);payload={ok:true,data:state.annul.index};}
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')){assert.ok(state.annul);const run=state.annul.detail.runs.find(run=>url==='/api/internal-own-payroll-liquidation?resource=detail&id='+run.id);assert.ok(run,'Requested individual detail belongs to the complete synthetic annulment census');payload={ok:true,data:run};}
   else if(url.startsWith('/api/internal-data?resource=employees')){assert.ok(state.lookup,'Explicit synthetic directory fixture');payload=state.lookup;}
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
@@ -122,6 +125,32 @@ test('volver visible revalida sólo GET y restaura fecha y reparticiones del bor
  assert.equal(h.q('fields').disabled,false);assert.equal(h.q('readiness-check').disabled,false);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),selected);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
  const reads=h.requests.slice(before);assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.ok(reads.some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));assert.ok(reads.every(r=>r.method==='GET'));assert.ok(reads.every(r=>!r.url.includes('resource=attempt')&&!r.url.includes('resource=detail')));
 });
+for(const kind of ['departments','contracts'])for(const holdTarget of ['/api/internal-own-payroll-run?resource=bootstrap&contractVersion=2','/api/internal-own-payroll-program?resource=bootstrap','roster'])test('doble ocultamiento conserva el borrador durante la revalidación '+kind+' '+holdTarget,async t=>{
+ const h=harness(t);await h.start();await h.prepare();
+ let selected;
+ if(kind==='departments'){h.q('kind').value=kind;await h.q('kind').emit('change');h.q('codes').options[0].selected=true;selected=h.q('codes').selectedOptions.map(option=>option.value);}
+ else{const d=await searchOwnPicker(h,h.state.roster.rows[0].legajo),row=d.querySelectorAll('[data-picker-results] input')[0];assert.ok(row);row.checked=true;await row.emit('change');await d.querySelector('[data-picker-apply]').emit('click');selected=h.state.roster.rows[0].legajo;assert.match(h.q('chips').textContent,new RegExp(selected));}
+ const heldUrl=holdTarget==='roster'?h.requests.find(request=>request.url.startsWith('/api/internal-data?resource=nativeroster')).url:holdTarget;
+ const before=h.requests.length;h.document.hidden=true;h.event('visibilitychange');
+ let release;h.state.hold={url:heldUrl,wait:new Promise(resolve=>{release=resolve;})};
+ h.document.hidden=false;h.event('visibilitychange');
+ const deadline=performance.now()+5000;while(!h.requests.slice(before).some(request=>request.url===heldUrl)){if(performance.now()>deadline)assert.fail('Revalidation did not reach the held synthetic GET');await settle();}
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('date').value,'');assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);
+ h.state.hold=null;release();await settle();const resumedAt=h.requests.length;h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,kind);
+ if(kind==='departments')assert.deepEqual(h.q('codes').selectedOptions.map(option=>option.value),selected);else{assert.equal(h.q('chips').children.length,1);assert.equal(h.q('chips').children[0].querySelector('button').getAttribute('aria-label'),'Quitar legajo '+selected);}
+ assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
+ const reads=h.requests.slice(before),fresh=h.requests.slice(resumedAt);assert.ok(reads.every(request=>request.method==='GET'));assert.equal(fresh.filter(request=>request.url==='/api/internal-auth').length,2);assert.ok(fresh.some(request=>request.url.startsWith('/api/internal-data?resource=nativeroster')));assert.equal(h.requests.filter(request=>request.method==='POST').length,0);
+});
+
+for(const change of ['account','nominal-permission'])test('doble ocultamiento descarta el borrador al cambiar '+change,async t=>{
+ const h=harness(t);await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');h.q('codes').options[0].selected=true;
+ h.document.hidden=true;h.event('visibilitychange');let release;const url='/api/internal-own-payroll-program?resource=bootstrap';h.state.hold={url,wait:new Promise(resolve=>{release=resolve;})};const before=h.requests.length;h.document.hidden=false;h.event('visibilitychange');
+ const deadline=performance.now()+5000;while(!h.requests.slice(before).some(request=>request.url===url)){if(performance.now()>deadline)assert.fail('Revalidation did not reach the held synthetic programme');await settle();}
+ h.document.hidden=true;h.event('visibilitychange');h.state.hold=null;release();await settle();if(change==='account')h.state.sessionId=uid(31);else h.state.caps=h.state.caps.filter(cap=>cap!=='payroll.calculation.nominal.read');h.document.hidden=false;h.event('visibilitychange');await h.idle();
+ assert.equal(h.q('date').value,'');assert.equal(h.q('codes').selectedOptions.length,0);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(request=>request.method==='POST').length,0);
+});
+
 test('un envío incierto conserva cuerpo y clave al volver visible y nunca se reintenta automáticamente',async t=>{
  const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);const count=h.requests.length;
  h.document.hidden=true;h.event('visibilitychange');h.state.roster=ownRoster(0);h.state.program=bootstrap();h.document.hidden=false;h.event('visibilitychange');await h.idle();
@@ -196,9 +225,9 @@ test('programa pendiente no consume contexto externo ni consulta intentos o deta
 
 
 test('contexto externo espera reglas y, tras aceptación real, reemplaza el borrador sin reaparecer después',async t=>{
- const h=harness(t),d=annulDetail(1),r=annulReceipt(d);h.state.annul={receipt:r,detail:afterAnnul(d,r)};h.state.program=bootstrap();const selected=r.affected[0],employee=d.runs.find(run=>run.id===selected.runId).capture.saved.input.employees.find(e=>e.contractId===selected.contractId);h.state.roster.rows[0].contractId=selected.contractId;h.state.roster.rows[0].legajo=employee.employeeNumber;
+ const h=harness(t),d=annulDetail(1),r=annulReceipt(d),detail=afterAnnul(d,r);h.state.annul={receipt:r,detail,index:annulReviewIndexFor(detail.runs)};h.state.program=bootstrap();const selected=r.affected[0],employee=d.runs.find(run=>run.id===selected.runId).capture.saved.input.employees.find(e=>e.contractId===selected.contractId);h.state.roster.rows[0].contractId=selected.contractId;h.state.roster.rows[0].legajo=employee.employeeNumber;
  await h.start();await h.prepare();h.q('period').value='2026-11';h.q('date').value='2026-11-30';const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:'2026-10-31',key:r.key,accessKey}),true);await h.refresh();assert.equal(h.q('period').value,'2026-11');assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,0);
- h.state.program=bootstrap({program:approved()});await h.refresh();assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,2);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
+ h.state.program=bootstrap({program:approved()});await h.refresh();assert.deepEqual(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).map(req=>req.url),['/api/internal-own-payroll-annulment?resource=attempt&key='+r.key,'/api/internal-own-payroll-annulment?resource=review&period=2026-10&liquidationType=monthly']);assert.deepEqual(h.requests.filter(req=>req.url.includes('internal-own-payroll-liquidation')).map(req=>req.url),['/api/internal-own-payroll-liquidation?resource=detail&id='+selected.runId]);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
  await h.refresh();assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(req=>req.method==='POST').length,0);
 });
 
@@ -236,4 +265,32 @@ for(const failure of['onUse','selectionIssue'])test('legacy '+failure+'retiene s
  h.state.lookup={ok:true,version:'employee-picker.v1',data:[employee],pagination:{page:1,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-10-01',sourceCutoffTo:'2026-10-01'}};
  const picker=createEmployeePicker({instanceId:'legacyQaPicker',canUse:()=>true,selectionIssue:()=>issue?'Revisión legacy sintética requerida':null});picker.open({onUse:()=>{throw Object.assign(Error('Aplicación legacy sintética fallida'),{name:'AbortError'});}});const d=h.document.body.querySelectorAll('dialog').at(-1);d.querySelector('#legacyQaPickerSearch').value='1339';await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);const row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');const results=d.querySelector('[data-picker-results]').children[0],chips=d.querySelector('[data-picker-chips]').children[0];issue=failure==='selectionIssue';await d.querySelector('[data-picker-apply]').emit('click');
  assert.equal(d.open,true);assert.equal(d.querySelector('[data-picker-results]').children[0],results);assert.equal(d.querySelector('[data-picker-chips]').children[0],chips);assert.match(d.querySelector('[data-picker-count]').textContent,/1 legajo seleccionado/);assert.equal(d.querySelector('[data-picker-apply]').disabled,false);assert.match(d.querySelector('[data-picker-state]').textContent,failure==='onUse'?/Aplicación legacy sintética fallida/:/Revisión legacy sintética requerida/);assert.equal(h.requests.some(r=>r.method==='POST'),false);picker.close();
+});
+
+
+test('ayuda junto al botón identifica aprobación independiente y revisión manual sin habilitar el cálculo',async t=>{
+ const h=harness(t);h.state.program=bootstrap();await h.start();
+ assert.equal(h.q('send').disabled,true);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('confirm').checked,false);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/aprobar el programa mediante revisión independiente/);assert.match(h.q('send-help-message').textContent,/marcá «Revisé el período/);
+ assert.equal(h.q('send-help-link').hidden,false);assert.equal(h.q('send-help-link').href,'/nomina#reglas');assert.equal(h.q('send-help-link').textContent,'Revisar reglas de cálculo');
+ assert.equal(h.q('send').getAttribute('aria-describedby'),h.q('send-help').getAttribute('id'));assert.strictEqual(h.q('send-help').parentElement,h.q('form'));assert.strictEqual(h.q('send').parentElement.parentElement,h.q('form'));
+ await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('recover').hidden,true);
+});
+
+test('ayuda junto al botón explica la única revisión pendiente y se retira al marcarla manualmente',async t=>{
+ const h=harness(t);await h.start();assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/marcá «Revisé el período/);assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('send-help-link').href,undefined);
+ await h.prepare();assert.equal(h.q('confirm').checked,true);assert.equal(h.q('send').disabled,false);assert.equal(h.q('send-help').hidden,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+
+test('ayuda junto al botón conserva intento incierto y se retira al ocultar sin reintento automático',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);
+ assert.equal(h.q('send-help').hidden,false);assert.match(h.q('send-help-message').textContent,/mismo intento/);assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('recover').disabled,false);
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('send-help').hidden,true);assert.equal(h.q('send-help-message').textContent,'');assert.equal(h.q('send-help-link').href,undefined);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();assert.equal(h.requests.filter(r=>r.method==='POST').length,1);await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].key,first.key);assert.equal(posts[1].body,first.body);
+});
+
+test('ayuda junto al botón no conserva el enlace de reglas después de retirar capacidades',async t=>{
+ const h=harness(t);h.state.program=bootstrap();await h.start();assert.equal(h.q('send-help-link').hidden,false);
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(h.q('send-help').hidden,true);assert.equal(h.q('send-help-message').textContent,'');assert.equal(h.q('send-help-link').hidden,true);assert.equal(h.q('send-help-link').href,undefined);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });

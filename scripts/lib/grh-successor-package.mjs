@@ -14,7 +14,7 @@ export const successorHash = value=>createHash('sha256').update(value).digest('h
 export function successorFault(code){throw Object.assign(new Error(code),{code});}
 // Explicit evidence profiles only; this selector never authorizes a writer.
 export function successorCandidateProfile(profileId='grh-junin-2026-09-22'){
-  if(!['grh-junin-2026-09-22','grh-junin-2026-10-01','grh-junin-2026-10-14'].includes(profileId))successorFault('SUCCESSOR_CANDIDATE_PROFILE_INVALID');
+  if(!['grh-junin-2026-09-22','grh-junin-2026-10-01','grh-junin-2026-10-14','grh-junin-2026-10-28'].includes(profileId))successorFault('SUCCESSOR_CANDIDATE_PROFILE_INVALID');
   const profile=getGrhSourceProfile(profileId,{allowCandidateRead:true});
   if(profile.publicationMode!=='candidate_only'||profile.core.schemaVersion!==2)successorFault('SUCCESSOR_CANDIDATE_PROFILE_INVALID');
   return profile;

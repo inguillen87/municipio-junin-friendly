@@ -7,12 +7,41 @@ export function createPositionClient(host,{required,clear,status,controls,closeE
  let access=null,busy=false,seq=0,controller,stopped=false;
  const live=()=>!stopped&&!document.hidden&&host.isConnected,has=caps=>hasOwnRunAccess(access?.caps,caps);
  function invalidate(message,stop=false){seq++;controller?.abort();controller=null;busy=false;access=null;clear();status(message);if(stop)stopped=true;controls();}
- async function session(){const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:controller?.signal});if(!response.ok)throw Object.assign(Error('La sesión no está disponible. Volvé a ingresar.'),{status:response.status});const next=ownRunWorkspaceAccess(await response.json());if(!hasOwnRunAccess(next.caps,required)||access&&access.key!==next.key||pendingKey()&&pendingKey()!==next.key)throw Object.assign(Error('Cambió la cuenta, el vínculo o el acceso. Consultá con la cuenta original.'),{status:403});access=next;return next;}
- async function request(query,body,key){const response=await fetch(endpoint+(query?'?'+new URLSearchParams(query):''),{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:controller?.signal,headers:{Accept:'application/json',...(body?{'Content-Type':'application/json','Idempotency-Key':key}:{})},...(body?{body:JSON.stringify({operation:'command',payload:body})}:{})});const text=await response.text();if(new TextEncoder().encode(text).length>POSITION_MAX_RESPONSE)throw Error('La respuesta completa supera la capacidad. No se muestra una parte.');let value;try{value=JSON.parse(text);}catch{throw Error('No se verificó la respuesta completa.');}if(!response.ok||value?.ok!==true)throw Object.assign(Error(value?.error??'No se confirmó la operación. Consultá el mismo intento.'),{status:response.status,code:value?.code});return value.data;}
- async function perform(work){if(!live()||busy)return;const ticket=++seq;busy=true;const activeController=new AbortController();controller=activeController;const timer=setTimeout(()=>activeController.abort(),45000);controls();try{await session();await work(()=>ticket===seq&&live());}catch(e){if(ticket===seq&&live()){if([401,403,404].includes(e.status)){access=null;clear();}status(e.name==='AbortError'?'No se confirmó la respuesta. Consultá el mismo intento antes de iniciar otro.':e.message);}}finally{clearTimeout(timer);if(ticket===seq){busy=false;controller=null;controls();}}}
- const hidden=()=>{if(document.hidden)invalidate('Se retiraron los datos al ocultar la página. Consultá nuevamente.');else controls();},changed=()=>{if(access)invalidate('Cambió el acceso. Se retiraron los datos; consultá nuevamente.');},logout=()=>invalidate('Se retiraron los datos al cerrar sesión.'),close=()=>{invalidate('Ficha cerrada.',true);dispose();},pagehide=()=>{invalidate('Página cerrada.',true);dispose();};
- const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async()=>{await session();});else if(!host.isConnected){invalidate('Vista cerrada.',true);dispose();}},60000);
+ const requireOperation=op=>{if(!op.valid())throw Object.assign(Error('Operación retirada.'),{name:op.signal.aborted?'AbortError':'OperationRetired'});};
+ async function sessionFor(op){
+  requireOperation(op);
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal:op.signal});
+  requireOperation(op);
+  if(!response.ok)throw Object.assign(Error('La sesión no está disponible. Volvé a ingresar.'),{status:response.status});
+  const body=await response.json();requireOperation(op);
+  const next=ownRunWorkspaceAccess(body);
+  if(!hasOwnRunAccess(next.caps,required)||access&&access.key!==next.key||pendingKey()&&pendingKey()!==next.key)throw Object.assign(Error('Cambió la cuenta, el vínculo o el acceso. Consultá con la cuenta original.'),{status:403});
+  access=next;return next;
+ }
+ async function requestFor(op,query,body,key){
+  requireOperation(op);
+  const response=await fetch(endpoint+(query?'?'+new URLSearchParams(query):''),{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:op.signal,headers:{Accept:'application/json',...(body?{'Content-Type':'application/json','Idempotency-Key':key}:{})},...(body?{body:JSON.stringify({operation:'command',payload:body})}:{})});
+  requireOperation(op);
+  const text=await response.text();requireOperation(op);
+  if(new TextEncoder().encode(text).length>POSITION_MAX_RESPONSE)throw Error('La respuesta completa supera la capacidad. No se muestra una parte.');
+  let value;try{value=JSON.parse(text);}catch{throw Error('No se verificó la respuesta completa.');}
+  if(!response.ok||value?.ok!==true)throw Object.assign(Error(value?.error??'No se confirmó la operación. Consultá el mismo intento.'),{status:response.status,code:value?.code});
+  return value.data;
+ }
+ async function perform(work){
+  if(!live()||busy)return;
+  const ticket=++seq,activeController=new AbortController();let open=true;
+  busy=true;controller=activeController;
+  const owns=()=>ticket===seq&&live();
+  const op=Object.freeze({ticket,signal:activeController.signal,valid:()=>open&&owns()&&!activeController.signal.aborted,session:()=>sessionFor(op),request:(query,body,key)=>requestFor(op,query,body,key)});
+  const timer=setTimeout(()=>activeController.abort(),45000);controls();
+  try{await op.session();requireOperation(op);await work(op.valid,op);requireOperation(op);}
+  catch(e){if(owns()){if([401,403,404].includes(e.status)){access=null;clear();}status(e.name==='AbortError'?'No se confirmó la respuesta. Consultá el mismo intento antes de iniciar otro.':e.message);}}
+  finally{open=false;clearTimeout(timer);if(ticket===seq){busy=false;controller=null;controls();}}
+ }
+ const hidden=()=>{if(document.hidden)invalidate('Se retiraron los datos al ocultar la página. Consultá nuevamente.');else controls();},changed=()=>{if(access||busy)invalidate('Cambió el acceso. Se retiraron los datos; consultá nuevamente.');},logout=()=>invalidate('Se retiraron los datos al cerrar sesión.'),close=()=>{invalidate('Ficha cerrada.',true);dispose();},pagehide=()=>{invalidate('Página cerrada.',true);dispose();};
+ const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async()=>{});else if(!host.isConnected){invalidate('Vista cerrada.',true);dispose();}},60000);
  function dispose(){clearInterval(poll);document.removeEventListener('visibilitychange',hidden);document.removeEventListener('municontrol:capabilities-ready',changed);document.getElementById('logoutButton')?.removeEventListener('click',logout);window.removeEventListener('pagehide',pagehide);if(closeEvent)document.removeEventListener('mc:native-employment-change-close',close);}
  document.addEventListener('visibilitychange',hidden);document.addEventListener('municontrol:capabilities-ready',changed);document.getElementById('logoutButton')?.addEventListener('click',logout);window.addEventListener('pagehide',pagehide);if(closeEvent)document.addEventListener('mc:native-employment-change-close',close);
- return {live,has,session,request,perform,invalidate,dispose,get busy(){return busy;},get accessKey(){return access?.key;}};
+ return {live,has,perform,invalidate,dispose,get busy(){return busy;},get accessKey(){return access?.key;}};
 }

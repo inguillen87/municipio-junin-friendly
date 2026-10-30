@@ -1,4 +1,4 @@
-import {OWN_RUN_TYPES,OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_TYPES,OWN_RUN_NATURES,formatOwnRunDecimal,formatOwnRunValue} from './own-payroll-run-workspace-model.js';
 import {ownRunDateLabel} from './own-payroll-run-date.js';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const states={calculated:'Pendiente de confirmación',confirmed:'Confirmada',annulled:'Histórico anulado',cancelled:'Preparación cancelada'};
@@ -19,7 +19,7 @@ export function mountOwnPayrollIndividual(host,{id,canUse,returnFocus}){
   const netLabel=value.state==='annulled'||value.state==='cancelled'?'Neto histórico':value.state==='confirmed'?'Neto de esta versión':'Neto calculado';
   for(const [key,label]of [['remuneration','Remunerativos'],['non_remuneration','No remunerativos'],['gross','Bruto'],['deduction','Retenciones'],['net',netLabel],['employer_contribution','Aportes patronales']]){const dd=node('dd',formatOwnRunDecimal(value.totals[key]));dd.dataset.individualAmount=key;totals.append(node('dt',label),dd);}
   const list=node('ol');list.dataset.individualConcepts='';
-  for(const row of value.rows){const item=node('li'),heading=node('h5','Concepto '+row.conceptCode),amount=node('p',formatOwnRunDecimal(row.amount,row.unit==='money')+(row.unit==='money'?'':' · '+row.unit));amount.className='own-individual-amount';item.append(heading,node('p',OWN_RUN_NATURES[row.nature]),amount);const source=node('details');source.append(node('summary','Respaldo del concepto'),node('p',row.ruleReference));item.append(source);list.append(item);}
+  for(const [index,row]of value.rows.entries()){const item=node('li'),heading=node('h5','Concepto '+row.conceptCode+' · '+(value.labels?.[index]??'Descripción no conservada en la captura')),amount=node('p',formatOwnRunValue(row.amount,row.unit));amount.className='own-individual-amount';item.append(heading,node('p',OWN_RUN_NATURES[row.nature]),amount);const source=node('details');source.append(node('summary','Respaldo del concepto'),node('p',row.ruleReference));item.append(source);list.append(item);}
   const trace=node('details');trace.append(node('summary','Ver decisiones y trazabilidad'));
   for(const event of value.events)trace.append(node('p',({confirm:'Confirmar',annul:'Anular',cancel:'Cancelar'}[event.command])+' · '+event.actorLabel+' · '+new Date(event.recordedAt).toLocaleString('es-AR')+' · '+event.reason));
   trace.append(node('p','Integridad del resultado: '+value.resultSha256));

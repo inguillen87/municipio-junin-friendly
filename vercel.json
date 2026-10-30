@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "npm run build:vercel",
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
@@ -42,6 +43,10 @@
     },
     "api/internal-family-members.js": {
       "maxDuration": 20
+    },
+    "api/internal-native-family-requests.js": {
+      "maxDuration": 30,
+      "includeFiles": "{lib/internal-family-certificates.js,node_modules/pdfjs-dist/legacy/build/pdf*.mjs,node_modules/@napi-rs/canvas*/**}"
     },
     "api/attendance-ingest.js": {
       "maxDuration": 20
@@ -1646,7 +1651,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "internal-*": false
+      "internal-*": false,
+      "master": false
     }
   }
 }

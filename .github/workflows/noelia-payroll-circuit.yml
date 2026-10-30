@@ -12,7 +12,7 @@ permissions:
 jobs:
   circuit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Attest checkout equals the event commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -55,7 +57,7 @@ jobs:
       - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
         run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
       - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
-        run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci
+        run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --annulment=true --output=verification/noelia-circuit-ci
       - name: Preserve inactive history with unknown jurisdiction and refuse active unknowns
         run: node scripts/verify-adoption-inactive-jurisdiction.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/inactive-jurisdiction-ci
       - name: Complete final-cut source, proposal and exact immutable application
@@ -127,8 +129,23 @@ jobs:
             verification/noelia-payroll-readiness-ci/failure.json
             verification/noelia-payroll-readiness-ci/*.png
             verification/noelia-circuit-ci/*-proof.json
+            verification/noelia-circuit-ci/noelia-f931-native-readback.json
+            verification/noelia-circuit-ci/noelia-fiscal160-installation.json
+            verification/noelia-circuit-ci/native-employee-receipt.pdf
             verification/noelia-circuit-ci/*-browser.json
             verification/noelia-circuit-ci/browser-transport.json
+            verification/noelia-circuit-ci/native-employee-bank-control.csv
+            verification/noelia-circuit-ci/native-employee-bank-control.xlsx
+            verification/noelia-circuit-ci/native-bank-tail-source-conservation.json
+            verification/noelia-circuit-ci/native-bank-installation-source-pins.json
+            verification/noelia-circuit-ci/native-bank-tail-failure.json
+            verification/noelia-circuit-ci/native-employee-imputation.csv
+            verification/noelia-circuit-ci/native-employee-journal.csv
+            verification/noelia-circuit-ci/native-accounting-tail-source-conservation.json
+            verification/noelia-circuit-ci/native-accounting-installation-147-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-installation-148-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-installation-152-source-pins.json
+            verification/noelia-circuit-ci/native-accounting-tail-failure.json
             verification/noelia-circuit-ci/*.png
             verification/published-adoption-ci/result.json
             verification/published-adoption-ci/installation-proof.json

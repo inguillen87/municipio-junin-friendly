@@ -6,6 +6,24 @@ import assert from 'node:assert/strict';
 import { launchOwnSyntheticBrowser } from './own-synthetic-browser.mjs';
 import { periodClassificationDefinition,periodClassificationProvenance, preparePeriodClassification } from '../../assets/own-period-classification-model.js';
 
+export function periodClassificationBrowserRoute(url){
+ const u=url instanceof URL?url:new URL(url,'http://fixture.invalid');
+ if(u.pathname==='/api/internal-own-period-classification')return 'classification';
+ if(u.pathname==='/api/internal-data'&&(u.searchParams.get('resource')==='employees'||u.searchParams.get('resource')==='nativeroster'&&u.searchParams.get('schema')==='2'))return 'directory';
+ return null;
+}
+
+// A click dispatches the async picker listener; it does not await its fresh
+// authorised roster reread or onUse. Editing the period earlier cancels that
+// reread through the product's intentional clearVisible -> picker.close path.
+export async function awaitOwnPeriodClassificationPickerCommit({picker,subject,employeeNumber}){
+ assert.equal(typeof employeeNumber,'string');assert.ok(employeeNumber.length>=2);
+ const prefix='Legajo '+employeeNumber+' · ';
+ await picker.waitFor({state:'hidden'});
+ await subject.filter({hasText:prefix}).waitFor({state:'visible'});
+ assert.ok((await subject.innerText()).startsWith(prefix),'CLASSIFICATION_PICKER_COMMIT_REQUIRED');
+}
+
 export async function assertOwnPeriodClassificationBrowserProvenance(s,raw){
  const proof=periodClassificationProvenance(raw),container=s('provenance'),details=container.locator('details'),summary=details.locator('summary'),references=details.locator('dl');
  const expected=[['Alta propia',proof.registrationId],['Contenido original',proof.requestSha256],...(proof.kind==='employment_adoption_final'?[['Propuesta de adopción',proof.adoptionProposalId],['Decisión de adopción',proof.adoptionReviewId],['Sello',proof.sealSha256],['Revisión final',proof.finalRevision.revisionId],['Corte del respaldo (no es vigencia)',proof.finalRevision.cutoff],['Paquete final',proof.finalRevision.packageSha256],['Fuente final',proof.finalRevision.sourceSha256],['Manifiesto principal',proof.finalRevision.coreManifestSha256],['Manifiesto preparado',proof.finalRevision.curatedManifestSha256],['Hechos conservados',proof.finalRevision.factsSha256]]:[])];
@@ -36,7 +54,7 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url());if(url.origin!==origin)return route.abort();
-   const kind=url.pathname==='/api/internal-own-period-classification'?'classification':url.pathname==='/api/internal-data'&&url.searchParams.get('resource')==='employees'?'directory':null;
+   const kind=periodClassificationBrowserRoute(url);
    if(kind){
     let status=200,payload;const headers={};
     await handlers[kind]({method:req.method(),url:url.pathname+url.search,query:Object.fromEntries(url.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});
@@ -64,13 +82,14 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
    await s('picker').click();const picker=page.locator('#periodClassificationPicker');
    await picker.getByLabel('Nombre, apellido o legajo').fill(employeeNumber);await picker.getByRole('button',{name:'Buscar',exact:true}).click();
    await picker.locator('input[value="'+contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();
+   await awaitOwnPeriodClassificationPickerCommit({picker,subject:s('subject'),employeeNumber});
    await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});
   };
   const hidden=async value=>page.evaluate(v=>{Object.defineProperty(document,'hidden',{configurable:true,value:v});document.dispatchEvent(new Event('visibilitychange'));},value);
   const hold=resource=>{let start,release;const started=new Promise(resolve=>start=resolve),promise=new Promise(resolve=>release=resolve);holding={resource,started:start,promise,release};return {started,release:()=>{release();holding=null;}};};
   const fill=async()=>{for(const [key,value]of Object.entries(declaration))if(['agreementCode','categoryCode','organizationId','sectorCode','jurisdictionCode'].includes(key))await s(key).selectOption(value??'');else await s(key).fill(value??'');await s('reason').fill('Encuadre del mes exclusivamente sintético de navegador QA');};
   const before=await bootstrap();assert.equal(before.preparation.contractId,contractId);assert.equal(before.preparation.period,period);
-  await fresh();await select();assert.equal(writes.length,0);
+  await fresh();await select();assert.equal(writes.length,0);assert.ok(reads.some(read=>read.kind==='directory'&&read.resource==='nativeroster'),'classification picker must verify the complete own roster through its actual directory handler');
   for(const key of Object.keys(declaration))assert.equal(await s(key).inputValue(),'');
   check(true,'built classification query keeps every code and date blank and issues zero writes');
   const provenanceProof=await assertOwnPeriodClassificationBrowserProvenance(s,before.preparation.source.provenance);

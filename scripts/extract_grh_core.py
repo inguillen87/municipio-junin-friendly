@@ -302,6 +302,63 @@ def _classify_reconciliation(
     return "active_not_liquidated_historical"
 
 
+def _closed_inactive_snapshot_evidence(
+    profile: Mapping[str, Any], *, allow_source_drift: bool, fixture_mode: bool,
+    reconciliation: Mapping[str, int], inactive_keys: set[tuple[str, str]],
+    snapshot_run_refs: Mapping[tuple[str, str], Sequence[tuple[Any, ...]]],
+    run_status_by_key: Mapping[tuple[Any, ...], str],
+) -> dict[str, Any] | None:
+    """Retain reviewed historical membership, never change employment eligibility.
+
+    Earlier profiles have no declaration and retain the unconditional rejection.
+    The declaration is a strict source-profile count, not a caller receipt or a
+    meaning inferred from a payroll-type letter. Every inactive reference must
+    be a known closed run; no rows or administrative classifications change.
+    """
+    if not inactive_keys:
+        return None
+
+    def reject() -> None:
+        raise ExtractionError(
+            f"Current payroll contains {len(inactive_keys)} administratively inactive legajos"
+        )
+
+    domain = profile.get("core", {})
+    declaration = domain.get("historicalInactiveSnapshotEvidence")
+    expected = domain.get("expectedReconciliation")
+    if (allow_source_drift is not False or fixture_mode is not False or profile.get("publicationMode") != "candidate_only"
+            or domain.get("schemaVersion") != 2 or not isinstance(declaration, dict)
+            or set(declaration) != {"version", "expectedContracts", "expectedAssignments"}
+            or declaration.get("version") != "grh-core-closed-inactive-snapshot-evidence.v1"
+            or not isinstance(expected, dict) or dict(reconciliation) != expected
+            or any(type(value) is not int or value < 0 for value in expected.values())):
+        reject()
+    for name in ("expectedContracts", "expectedAssignments"):
+        if type(declaration[name]) is not int or declaration[name] < 1:
+            reject()
+    if (declaration["expectedContracts"] != len(inactive_keys)
+            or expected.get("liquidatedNotActive") != len(inactive_keys)):
+        reject()
+    assignments = 0
+    for key in inactive_keys:
+        references = snapshot_run_refs.get(key)
+        if not references or len(set(references)) != len(references):
+            reject()
+        for reference in references:
+            if run_status_by_key.get(reference) != "closed":
+                reject()
+            assignments += 1
+    if assignments != declaration["expectedAssignments"]:
+        reject()
+    return {
+        "version": declaration["version"], "contracts": len(inactive_keys),
+        "assignments": assignments, "referenceClosureStatus": "closed",
+        "administrativeClassification": "administrative_inactive",
+        "administrativeEligibilityChanged": False,
+        "sourceTypeCanonicalMappingPerformed": False,
+    }
+
+
 def extract(
     source: Path, output_dir: Path, *, allow_source_drift: bool = False,
     profile_id: str | None = None, fixture_mode: bool = False,
@@ -725,10 +782,6 @@ def extract(
         active_liquidated = active_keys & current_keys
         active_not_liquidated = active_keys - current_keys
         liquidated_not_active = current_keys - active_keys
-        if liquidated_not_active:
-            raise ExtractionError(
-                f"Current payroll contains {len(liquidated_not_active)} administratively inactive legajos"
-            )
         reconciliation = {
             "administrativeActive": len(active_keys),
             "liquidatedCurrent": len(current_keys),
@@ -736,6 +789,11 @@ def extract(
             "activeNotLiquidated": len(active_not_liquidated),
             "liquidatedNotActive": len(liquidated_not_active),
         }
+        historical_inactive_evidence = _closed_inactive_snapshot_evidence(
+            profile, allow_source_drift=allow_source_drift, fixture_mode=fixture_mode,
+            reconciliation=reconciliation, inactive_keys=liquidated_not_active,
+            snapshot_run_refs=snapshot_run_refs, run_status_by_key=run_status_by_key,
+        )
         if not allow_source_drift and reconciliation != profile["core"]["expectedReconciliation"]:
             raise ExtractionError("Employment reconciliation does not match selected profile")
         latest_closed_headcount = len({(key[0], key[1]) for key in monthly if key[2] == latest_closed_payroll_date
@@ -798,6 +856,8 @@ def extract(
             },
             "quality": {
                 "strictSnapshot": not allow_source_drift,
+                **({"historicalInactiveSnapshotEvidence": historical_inactive_evidence}
+                   if historical_inactive_evidence is not None else {}),
                 **({"snapshotMembership": {"records": len(snapshot_assignments), "distinctContracts": len(snapshot_keys),
                     "repeatedContractRows": len(snapshot_assignments) - len(snapshot_keys),
                     "cohorts": [{"period": k[0], "month": k[1], "payrollType": k[2], "payrollDate": k[3], "records": n}

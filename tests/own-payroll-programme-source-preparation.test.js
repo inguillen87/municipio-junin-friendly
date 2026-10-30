@@ -1,3 +1,4 @@
+import {monthlyDayPreparationFixture,syntheticPreparedSources,absenceBatch,resealAbsenceBatch} from './fixtures/own-programme-monthly-day-preparation-synthetic.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {prepareOwnPayrollProgrammeSource,OWN_PROGRAMME_SOURCE_VERSION} from '../lib/own-payroll-programme-source-preparation.js';
@@ -8,11 +9,13 @@ import {prepareOwnPayrollInput} from '../lib/own-payroll-approved-input.js';
 import {createOwnPayrollSnapshot} from '../lib/own-payroll-snapshot.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {approvedSources} from './fixtures/own-payroll-approved-synthetic.js';
+import {fixedApprovedRecord} from './fixtures/payroll-fixed-novelties-synthetic.js';
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {OWN_PAYROLL_PERIOD_CONTEXT_VERSION} from '../assets/own-payroll-period-context.js';
 // All concepts, rules, quantities and references below are fictional. No municipal formula fixture.
 const h=c=>c.repeat(64), literal=(unit,value)=>({op:'literal',unit,value});
-const definition=(code='301',overrides={})=>({kind:'concept',agreementCode:'71',code,label:`Concepto ficticio ${code}`,active:true,nature:'remuneration',quantityUnit:'days',outputUnit:'money',precision:2,validFrom:'2026-09',validUntil:null,value:null,dependencies:[],ruleReference:'Fuente ficticia revisada',sourceSha256:h('e'),liquidationTypes:['monthly'],rounding:{precision:2,mode:'half_even'},expression:literal('money','9007199254740993.00000001'),quantity:null,...overrides});
+// Eight exact places preserve the default large eight-place literal without evaluating or rounding it.
+const definition=(code='301',overrides={})=>({kind:'concept',agreementCode:'71',code,label:`Concepto ficticio ${code}`,active:true,nature:'remuneration',quantityUnit:'days',outputUnit:'money',precision:2,validFrom:'2026-09',validUntil:null,value:null,dependencies:[],ruleReference:'Fuente ficticia revisada',sourceSha256:h('e'),liquidationTypes:['monthly'],rounding:{precision:8,mode:'exact'},expression:literal('money','9007199254740993.00000001'),quantity:null,...overrides});
 const row=d=>({kind:d.kind,agreementCode:d.agreementCode,categoryCode:null,code:d.code,label:d.label,active:d.active,nature:d.nature,unit:d.kind==='concept'?d.quantityUnit:d.outputUnit,precision:d.precision,validFrom:d.validFrom,validUntil:d.validUntil,value:d.value,dependencies:d.dependencies,ruleReference:d.ruleReference});
 function fixture(definitions=[definition()],{approved=true,prior=null}={}){
  const items=approved?salaryItems(definitions.map(row)):[];
@@ -22,6 +25,18 @@ function fixture(definitions=[definition()],{approved=true,prior=null}={}){
 const codes=r=>r.incidents.map(i=>i.code);
 const quantity=(expression=literal('days','2.00000000'),overrides={})=>({unit:'days',stage:'exact',rounding:null,expression,sourceReference:'Cantidad ficticia revisada',sourceSha256:h('1'),...overrides});
 const amountWithQuantity=()=>({op:'multiply',left:literal('money','1.00000001'),right:{op:'divide',left:{op:'quantity',code:'301',unit:'days'},right:literal('days','1')}});
+const nativeRule=(d,expression=d.expression)=>({code:d.code,agreementCode:d.agreementCode,nature:d.nature,unit:d.outputUnit,validFrom:d.validFrom,validUntil:d.validUntil,liquidationTypes:d.liquidationTypes,ruleReference:d.ruleReference,rounding:d.rounding,expression});
+const precisionPending=r=>{
+ assert.equal(r.status,'not_presentable');assert.equal(r.presentable.programme,false);assert.equal(r.draft.programme,null);
+ assert.deepEqual(r.incidents,[{code:'PROGRAMME_PRECISION_REVIEW_REQUIRED',definition:null,path:'PROGRAM_PRECISION_REQUIRED',sourceReference:null}]);
+ assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);assert.equal(r.payrollPosted,false);
+};
+function syntheticHistoricalInput(input,rules,bindings){
+ // Explicit authored history for replay controls only; no approval command or inference from source evidence.
+ const prior=structuredClone(input);
+ prior.programme.program={...prior.programme.program,revision:1,definition:ownProgramDefinition({...prior.programmeOptions,rules,bindings,totalsPrecision:prior.totalsPrecision},prior.salary.catalog.items),salaryVersion:prior.salary.catalog.version,proposalId:uid(9801),approvalId:uid(9802)};
+ return prior;
+}
 
 test('resolved evidence produces only a pinned proposal draft against current approved contracts, without evaluating money',()=>{
  const input=fixture(),before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);
@@ -42,14 +57,15 @@ test('new complete definitions prepare a complete master draft while programme w
  assert.equal(r.executable,false);assert.equal(r.approved,false);
 });
 
-test('typed U is inlined with explicit rounding, separate from an auxiliary carrying the same numeric code',()=>{
+test('new rounded typed U remains pending with its inline AST, distinct auxiliary, dependencies and evidence intact',()=>{
  const d=definition('301',{quantity:quantity(undefined,{stage:'rounded',rounding:{precision:8,mode:'half_up'}}),expression:amountWithQuantity()});
  const a=definition('301',{kind:'auxiliary',nature:'auxiliary',quantityUnit:null,outputUnit:'coefficient',expression:literal('coefficient','0.01000000')});
- const r=prepareOwnPayrollProgrammeSource(fixture([d,a]));assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);
- const paid=r.draft.programme.rules.find(x=>x.nature==='remuneration');assert.equal(paid.expression.right.left.op,'round');
+ const input=fixture([d,a]),before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);precisionPending(r);
+ const paid=r.draft.typedRules.find(x=>x.nature==='remuneration');assert.equal(paid.expression.right.left.op,'round');
  assert.equal(paid.expression.right.left.value.value,'2.00000000');assert.equal(paid.expression.right.left.rounding.precision,8);
  assert.ok(r.trace.some(t=>t.phase==='quantity'&&t.quantity==='quantity:71:301'&&t.unit==='days'&&t.sourceSha256===h('1')));
- assert.ok(r.dependencies.some(e=>e.to==='quantity:71:301'));assert.equal(r.draft.programme.rules.filter(x=>x.code==='301').length,2);
+ assert.ok(r.dependencies.some(e=>e.to==='quantity:71:301'));assert.equal(r.draft.typedRules.filter(x=>x.code==='301').length,2);assert.deepEqual(input,before);
+ assert.deepEqual(r.draft.definitions[0].quantity,d.quantity);assert.equal(r.draft.definitions[0].sourceSha256,d.sourceSha256);
  assert.equal(JSON.stringify(paid.expression).includes('auxiliary'),false);
 });
 
@@ -94,6 +110,81 @@ test('current explicit source bindings are checked against native catalogue unit
  input.bindings=[{agreementCode:'71',reference:'N[9]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'Count',unit:'units',sourceKind:'monthly_quantity',sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Fuente ficticia'}}];
  const r=prepareOwnPayrollProgrammeSource(input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));
  input.definitions[0].expression.unit='hours';const bad=prepareOwnPayrollProgrammeSource(input);assert.ok(codes(bad).includes('SOURCE_BINDING_UNIT_MISMATCH'));
+});
+
+test('novelty references reject amount and quantity origin swaps even when units coincide',()=>{
+ for(const [reference,sourceKind]of[
+  ['I[301]','monthly_quantity'],['I[301]','fixed_quantity'],
+  ['N[301]','monthly_amount'],['N[301]','fixed_amount'],
+  ['I[301]','parameter'],['N[301]','parameter']
+ ]){
+  // Money is deliberately valid in the generic native catalogue here: matching
+  // units alone must not turn a quantity column into an imported amount.
+  const input=fixture([definition('301',{quantityUnit:'money',value:'1.00',expression:{op:'source',reference,unit:'money'}})]);
+  input.bindings=[{agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit:'money',sourceKind,sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Origen ficticio explícito'}}];
+  const before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);
+  assert.ok(codes(r).includes('SOURCE_BINDING_ORIGIN_MISMATCH'),`${reference} must reject ${sourceKind}`);
+  assert.equal(r.presentable.programme,false);assert.equal(r.draft.programme,null);assert.equal(r.draft.typedRules.length,0);
+  assert.ok(r.incidents.some(i=>i.code==='SOURCE_BINDING_ORIGIN_MISMATCH'&&i.sourceReference===reference&&i.path==='amount'));
+  assert.equal(r.approved,false);assert.equal(r.executable,false);assert.deepEqual(input,before);
+ }
+});
+
+test('monthly and fixed novelty origins remain explicit without selecting, summing or inventing absence policy',()=>{
+ for(const [reference,sourceKind,unit,onMissing,combine]of[
+  ['N[301]','monthly_quantity','days','error','single'],
+  ['N[301]','fixed_quantity','days','zero','sum'],
+  ['I[301]','monthly_amount','money','zero','single'],
+  ['I[301]','fixed_amount','money','error','sum']
+ ]){
+  const source={op:'source',reference,unit};
+  const expression=unit==='money'?source:{op:'multiply',left:literal('money','10.125'),right:{op:'divide',left:source,right:literal('days','1')}};
+  const input=fixture([definition('301',{expression})]);
+  input.bindings=[{agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit,sourceKind,sourceCode:'301',onMissing,combine,ruleReference:'Origen ficticio explícito'}}];
+  const before=structuredClone(input),r=prepareOwnPayrollProgrammeSource(input);
+  assert.deepEqual(r.incidents,[],`${reference} from ${sourceKind}`);assert.equal(r.presentable.programme,true);
+  assert.deepEqual(r.draft.programme.bindings,[input.bindings[0].binding]);assert.deepEqual(input,before);
+  assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);
+ }
+});
+
+test('novelty origin conflicts in a conditional branch cannot hide behind a constant condition',()=>{
+ const bad={op:'source',reference:'I[301]',unit:'money'};
+ const expression={op:'choose',condition:{op:'compare',operator:'eq',left:literal('units','1'),right:literal('units','1')},then:literal('money','12.50'),else:bad};
+ const input=fixture([definition('301',{quantityUnit:'money',expression})]);
+ input.bindings=[{agreementCode:'71',reference:'I[301]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'Novelty',unit:'money',sourceKind:'fixed_quantity',sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Origen ficticio explícito'}}];
+ const r=prepareOwnPayrollProgrammeSource(input);
+ assert.ok(r.incidents.some(i=>i.code==='SOURCE_BINDING_ORIGIN_MISMATCH'&&i.path==='amount/else'));
+ assert.equal(r.presentable.programme,false);assert.equal(r.draft.programme,null);
+});
+
+test('prepared N and I consume distinct approved columns through the real adapter and exact engine',()=>{
+ for(const [family,count,cents,expectedCount,expected]of[['monthly','3.25','2001','3.25000000','52.51'],['fixed','1.125','475','1.12500000','16.00']]){
+  const expression={op:'add',left:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'source',reference:'N[301]',unit:'days'},right:literal('days','1')}},right:{op:'source',reference:'I[301]',unit:'money'}};
+  const input=fixture([definition('301',{expression,rounding:{precision:2,mode:'exact'}})]);input.period='2026-10';
+  input.bindings=[['N[301]','Count','days','quantity'],['I[301]','Amount','money','amount']].map(([reference,key,unit,field])=>({agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key,unit,sourceKind:family+'_'+field,sourceCode:'301',onMissing:'error',combine:'single',ruleReference:'Dos columnas ficticias revisadas'}}));
+  const prepared=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(prepared.incidents,[]);
+  const sources=approvedSources(1);sources.population.employees[0].agreementCode='71';
+  // Only this isolated fixture supplies an approved revision; preparation does not.
+  sources.programState={...input.programme,program:{version:h('5'),revision:1,definition:prepared.draft.programme,salaryVersion:prepared.pins.salaryVersion,proposalId:uid(8101),approvalId:uid(8102)}};
+  let values;
+  if(family==='monthly'){
+   values=sources.monthly.batches[0].rows[0];Object.assign(values,{conceptSourceId:'301',quantityDecimal:count,amountCents:cents});
+  }else{
+   const record=fixedApprovedRecord(1,{conceptSourceId:'301',quantityDecimal:count,amountCents:cents,validFrom:'2026-10-01',validTo:null});
+   record.subject=structuredClone(sources.monthly.batches[0].rows[0].subject);values=record.approved.values;
+   sources.monthly.batches=[];sources.fixed.list.data.rows=[record];sources.fixed.list.data.total=1;
+   sources.fixed.export.data.rows=[{recordId:record.id,version:record.version,proposalId:record.approved.id,subject:record.subject,values}];sources.fixed.export.data.total=1;
+  }
+  const native=prepareOwnPayrollInput(sources),snapshot=createOwnPayrollSnapshot(native);
+  assert.equal(native.employees[0].inputs.find(v=>v.key==='Count').value,expectedCount);
+  assert.equal(native.employees[0].inputs.find(v=>v.key==='Amount').value,family==='monthly'?'20.01000000':'4.75000000');
+  assert.equal(snapshot.result.rows[0].amount,expected);assert.equal(snapshot.result.employeeTotals[0].net,expected);
+  assert.equal(snapshot.result.paymentExecuted,false);assert.equal(snapshot.result.municipalApprovalVerified,false);
+  // An amount does not replace an absent quantity, or vice versa.
+  values.quantityDecimal=null;assert.throws(()=>prepareOwnPayrollInput(sources),e=>e.code==='SOURCE_VALUE_MISSING');
+  values.quantityDecimal=count;values.amountCents=null;assert.throws(()=>prepareOwnPayrollInput(sources),e=>e.code==='SOURCE_VALUE_MISSING');
+ }
 });
 
 test('explicit class, scale, agreement hours and contract hours preserve distinct current native bindings',()=>{
@@ -141,7 +232,7 @@ test('dependency absence and cycles are reported even when other source semantic
 });
 
 test('prior approved rules are preserved and conflicting replacements cannot silently rewrite history',()=>{
- const old=definition('300'),prior={namespaceVersion:OWN_PAYROLL_NAMESPACE_VERSION,rules:[{code:old.code,agreementCode:old.agreementCode,nature:old.nature,unit:old.outputUnit,validFrom:old.validFrom,validUntil:old.validUntil,liquidationTypes:old.liquidationTypes,ruleReference:old.ruleReference,rounding:old.rounding,expression:old.expression}],bindings:[],totalsPrecision:2};
+ const old=definition('300',{rounding:{precision:2,mode:'half_even'}}),prior={namespaceVersion:OWN_PAYROLL_NAMESPACE_VERSION,rules:[{code:old.code,agreementCode:old.agreementCode,nature:old.nature,unit:old.outputUnit,validFrom:old.validFrom,validUntil:old.validUntil,liquidationTypes:old.liquidationTypes,ruleReference:old.ruleReference,rounding:old.rounding,expression:old.expression}],bindings:[],totalsPrecision:2};
  const input=fixture([definition()],{prior});input.salary.catalog.items.push(row(old));input.programme.salaryCatalog.items.push(row(old));
  const r=prepareOwnPayrollProgrammeSource(input);assert.equal(r.draft.programme.rules.length,2);assert.deepEqual(r.draft.programme.rules.find(x=>x.code==='300'),prior.rules[0]);
  const conflict=fixture([definition('300',{expression:literal('money','2')})],{prior});
@@ -175,20 +266,26 @@ test('existing permission decisions are preserved and no draft is labelled appro
  assert.ok(codes(r).includes('PROGRAMME_PROPOSAL_NOT_PERMITTED'));assert.ok(codes(r).includes('MASTER_PROPOSAL_NOT_PERMITTED'));assert.equal(r.executable,false);assert.equal(r.approved,false);
 });
 
-test('prepared typed U, class, scale and distinct approved hour facts reach the real input adapter and exact engine',()=>{
+test('new rounded U/hour evidence is pending; its identical authored history keeps all adapter facts and exact50.055 to50.06 arithmetic',()=>{
  // Fictional expected arithmetic: 100.11 * (80.125 / 160.250) * ((3 - 1) / 2)
  // is exactly10011/200 =50.055; explicit half-even at2 decimals gives50.06.
  // Auxiliary301 separately equals7 days and must never replace quantity U301.
  const expected={exactValue:{numerator:'10011',denominator:'200'},amount:'50.06',net:'50.06',quantity:{numerator:'2',denominator:'1'},hourRatio:{numerator:'1',denominator:'2'}};
  const source=(reference,unit)=>({op:'source',reference,unit});
- const d=definition('301',{quantity:quantity({op:'subtract',left:literal('days','3'),right:literal('days','1')}),expression:{op:'choose',condition:{op:'source_match',reference:'L[8]',type:'code',operator:'eq',value:'13'},then:{op:'multiply',left:{op:'multiply',left:source('L[10]','money'),right:{op:'divide',left:source('L[17]','hours'),right:source('L[15]','hours')}},right:{op:'divide',left:{op:'quantity',code:'301',unit:'days'},right:literal('days','2')}},else:literal('money','0.00')}});
+ const d=definition('301',{rounding:{precision:2,mode:'half_even'},quantity:quantity({op:'subtract',left:literal('days','3'),right:literal('days','1')}),expression:{op:'choose',condition:{op:'source_match',reference:'L[8]',type:'code',operator:'eq',value:'13'},then:{op:'multiply',left:{op:'multiply',left:source('L[10]','money'),right:{op:'divide',left:source('L[17]','hours'),right:source('L[15]','hours')}},right:{op:'divide',left:{op:'quantity',code:'301',unit:'days'},right:literal('days','2')}},else:literal('money','0.00')}});
  const a=definition('301',{kind:'auxiliary',nature:'auxiliary',quantityUnit:null,outputUnit:'days',expression:literal('days','7'),rounding:{precision:2,mode:'exact'}});
  const preparedInput=fixture([d,a]);preparedInput.period='2026-10';
  const scale={...row(d),kind:'scale',nature:null,categoryCode:'13',code:'801',unit:'money',value:'100.11'};
  preparedInput.salary.catalog.items.push(scale);preparedInput.programme.salaryCatalog.items.push(structuredClone(scale));
  preparedInput.programmeOptions={...preparedInput.programmeOptions,workingTimeVersion:OWN_PROGRAM_WORKING_TIME_VERSION,agreementWorkingTimeVersion:OWN_AGREEMENT_WORKING_TIME_VERSION,salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION};
  preparedInput.bindings=[['L[8]','Class','code','classification_fact','categoryCode'],['L[10]','Scale','money','scale','801'],['L[15]','AgreementHours','hours','agreement_time_fact','monthlyHours'],['L[17]','ContractHours','hours','working_time_fact','monthlyHours']].map(([reference,key,unit,sourceKind,field])=>({agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key,unit,sourceKind,[sourceKind==='scale'?'sourceCode':'sourceField']:field,onMissing:'error',combine:'single',ruleReference:'Fuente ficticia tipada de integración'}}));
- const prepared=prepareOwnPayrollProgrammeSource(preparedInput);assert.deepEqual(prepared.incidents,[]);assert.equal(prepared.approved,false);assert.equal(prepared.executable,false);
+ const original=structuredClone(preparedInput),blocked=prepareOwnPayrollProgrammeSource(preparedInput);precisionPending(blocked);assert.deepEqual(preparedInput,original);
+ const fact=(key,unit)=>({op:'input',key,unit});
+ const historicalRules=[nativeRule(d,{op:'choose',condition:{op:'match',key:'Class',type:'code',operator:'eq',value:'13'},then:{op:'multiply',left:{op:'multiply',left:fact('Scale','money'),right:{op:'divide',left:fact('ContractHours','hours'),right:fact('AgreementHours','hours')}},right:{op:'divide',left:structuredClone(d.quantity.expression),right:literal('days','2')}},else:literal('money','0.00')}),nativeRule(a)];
+ assert.deepEqual(blocked.draft.typedRules,historicalRules);assert.deepEqual(blocked.draft.definitions[0].quantity,d.quantity);
+ const historicalInput=syntheticHistoricalInput(preparedInput,historicalRules,preparedInput.bindings.map(b=>b.binding));
+ const prepared=prepareOwnPayrollProgrammeSource(historicalInput);assert.deepEqual(prepared.incidents,[]);assert.equal(prepared.approved,false);assert.equal(prepared.executable,false);assert.equal(prepared.pins.programRevision,1);
+ assert.deepEqual(prepared.draft.programme,historicalInput.programme.program.definition);
  const sources=approvedSources(1),employee=sources.population.employees[0];
  Object.assign(employee,{agreementCode:'71',categoryCode:'13'});sources.monthly.batches=[];
  // This fixture supplies an explicit synthetic approved revision. Preparation itself cannot approve it.
@@ -214,10 +311,15 @@ test('prepared typed U, class, scale and distinct approved hour facts reach the 
  assert.deepEqual(prepared.draft.programme,sources.programState.program.definition);assert.equal(snapshot.result.payrollPosted,false);assert.equal(snapshot.result.paymentExecuted,false);assert.equal(snapshot.result.municipalApprovalVerified,false);
 });
 
-test('explicit L101 preparation lowers to a versioned runtime input and one programme works in September, December and leap February',()=>{
+test('new rounded L101 evidence is pending while identical historical runtime input preserves September, December and leap February amounts',()=>{
  const expression={op:'choose',condition:{op:'compare',operator:'eq',left:{op:'period_month'},right:literal('units','9')},then:literal('money','0.015'),else:literal('money','0.035')};
- const input=fixture([definition('301',{validFrom:'1900-01',expression})]);input.programmeOptions.periodContextVersion=OWN_PAYROLL_PERIOD_CONTEXT_VERSION;
- const prepared=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(prepared.incidents,[]);assert.equal(prepared.presentable.programme,true);
+ const d=definition('301',{validFrom:'1900-01',rounding:{precision:2,mode:'half_even'},expression}),input=fixture([d]);input.programmeOptions.periodContextVersion=OWN_PAYROLL_PERIOD_CONTEXT_VERSION;
+ const original=structuredClone(input),blocked=prepareOwnPayrollProgrammeSource(input);precisionPending(blocked);assert.deepEqual(input,original);
+ const binding={agreementCode:'71',key:'periodMonthNumber',unit:'units',sourceKind:'period_context_fact',sourceField:'monthNumber',combine:'single',onMissing:'error',ruleReference:'Mes del período de liquidación declarado; contexto nativo versionado.'};
+ const nativeExpression={...structuredClone(expression),condition:{...structuredClone(expression.condition),left:{op:'input',key:binding.key,unit:'units'}}};
+ assert.deepEqual(blocked.draft.typedRules,[nativeRule(d,nativeExpression)]);
+ const historicalInput=syntheticHistoricalInput(input,[nativeRule(d,nativeExpression)],[binding]);
+ const prepared=prepareOwnPayrollProgrammeSource(historicalInput);assert.deepEqual(prepared.incidents,[]);assert.equal(prepared.presentable.programme,true);assert.equal(prepared.pins.programRevision,1);assert.deepEqual(prepared.draft.programme,historicalInput.programme.program.definition);
  const p=prepared.draft.programme,b=p.bindings[0];assert.equal(b.sourceKind,'period_context_fact');assert.equal(b.sourceField,'monthNumber');assert.equal(b.unit,'units');assert.equal(b.combine,'single');assert.equal(b.onMissing,'error');
  assert.deepEqual(p.rules[0].expression.condition.left,{op:'input',key:b.key,unit:'units'});assert.equal(p.periodContextVersion,OWN_PAYROLL_PERIOD_CONTEXT_VERSION);assert.equal(prepared.context.month.nativeBindingSupported,true);
  assert.ok(prepared.trace.some(t=>t.sourceReference==='L[101]'&&t.contextVersion===OWN_PAYROLL_PERIOD_CONTEXT_VERSION));
@@ -248,4 +350,82 @@ test('two rules reuse one custom supplied L101 source without generating a dupli
  const expression={op:'choose',condition:{op:'compare',operator:'eq',left:{op:'period_month'},right:literal('units','9')},then:literal('money','1'),else:literal('money','0')},input=fixture([definition('301',{expression}),definition('302',{expression})]);input.programmeOptions.periodContextVersion=OWN_PAYROLL_PERIOD_CONTEXT_VERSION;
  input.bindings=[{agreementCode:'71',reference:'L[101]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'customMonth',unit:'units',sourceKind:'period_context_fact',sourceField:'monthNumber',combine:'single',onMissing:'error',ruleReference:'Origen de período exclusivamente ficticio QA'}}];
  const r=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(r.incidents,[]);assert.equal(r.draft.programme.bindings.length,1);assert.ok(r.draft.programme.rules.every(rule=>rule.expression.condition.left.key==='customMonth'));assert.equal(r.approved,false);assert.equal(r.executable,false);
+});
+
+
+// Regression: native monthly-day programme preparation. Every fact and rule below is synthetic.
+test('monthly-day policy survives typed source preparation without becoming an approval or a literal day input',()=>{
+ const f=monthlyDayPreparationFixture({rounding:{precision:8,mode:'exact'}}),original=structuredClone(f.input);
+ // The canonical target accepts this definition before preparation; this exposed the old options whitelist defect.
+ assert.deepEqual(ownProgramDefinition(f.expectedDefinition,f.input.salary.catalog.items),f.expectedDefinition);
+ const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);assert.deepEqual(f.input,original);
+ assert.deepEqual(r.draft.programme,f.expectedDefinition);assert.equal(r.draft.programme.monthlyDaysVersion,f.input.programmeOptions.monthlyDaysVersion);
+ assert.deepEqual(r.draft.programme.monthlyDaysPolicy,f.input.programmeOptions.monthlyDaysPolicy);
+ assert.deepEqual(r.draft.programme.bindings.map(b=>[b.sourceKind,b.unit,b.onMissing,b.combine]),[['monthly_quantity','days','error','single'],['monthly_day_fact','days','error','single'],['monthly_day_fact','days','error','single']]);
+ assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);assert.equal(r.payrollPosted,false);
+ assert.equal(Object.hasOwn(r,'command'),false);assert.equal(Object.hasOwn(r,'requestKey'),false);
+ assert.ok(Object.isFrozen(r.draft.programme.monthlyDaysPolicy));assert.ok(r.trace.some(t=>t.sourceReference==='N[101]'&&t.unit==='days'));
+});
+test('new rounded monthly source is pending with complete typed evidence and cannot be promoted by the runtime fixture',()=>{
+ const f=monthlyDayPreparationFixture(),before=structuredClone(f.input),r=prepareOwnPayrollProgrammeSource(f.input);precisionPending(r);
+ assert.deepEqual(r.draft.typedRules,f.expectedDefinition.rules);assert.deepEqual(r.draft.typedRules[0].rounding,{precision:2,mode:'half_even'});
+ assert.equal(r.draft.definitions[0].sourceSha256,f.input.definitions[0].sourceSha256);assert.deepEqual(r.draft.masterItems,f.input.salary.catalog.items);assert.ok(r.trace.some(t=>t.sourceReference==='N[101]'&&t.unit==='days'));
+ assert.deepEqual(f.input,before);assert.throws(()=>syntheticPreparedSources(r,f),/SYNTHETIC_PREPARATION_REQUIRED/);
+});
+test('identical historical monthly policy retains its rounded amounts and approved absence inputs without approving new evidence',()=>{
+ const fresh=monthlyDayPreparationFixture(),blocked=prepareOwnPayrollProgrammeSource(fresh.input);precisionPending(blocked);
+ assert.throws(()=>prepareOwnPayrollInput({...fresh.runtime,programState:fresh.input.programme}),e=>e.code==='PROGRAM_APPROVAL_REQUIRED');
+ const f=monthlyDayPreparationFixture({historical:true}),before=structuredClone(f.input),r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);assert.equal(r.pins.programRevision,1);assert.deepEqual(r.draft.programme,f.input.programme.program.definition);assert.deepEqual(f.input,before);
+ assert.deepEqual(r.draft.programme.rules,blocked.draft.typedRules);
+ for(const[quantity,amount]of[['0','120.15'],['2','112.14'],['1.25','115.14']]){
+  const s=syntheticPreparedSources(r,f,quantity),input=prepareOwnPayrollInput(s),result=createOwnPayrollSnapshot(input).result;
+  assert.equal(input.employees.length,1);assert.equal(result.rows.length,1);assert.equal(result.rows[0].amount,amount);
+  const facts=Object.fromEntries(input.employees[0].inputs.map(x=>[x.key,x.value]));assert.equal(facts.recognizedDays,'30');assert.equal(facts.baseDays,'30');assert.equal(facts.approvedAbsenceDays,{'0':'0.00000000','2':'2.00000000','1.25':'1.25000000'}[quantity]);
+  assert.equal(result.payrollPosted,false);assert.equal(result.paymentExecuted,false);assert.equal(result.municipalApprovalVerified,false);
+  assert.equal(s.monthly.nativeBatches[0].rows[0].values.conceptSourceId,'101');assert.equal(s.periodParticipation.records[0].configuration.revision,0);
+ }
+});
+test('missing, null and multiple approved absence quantities remain distinct rejections, not fabricated zero',()=>{
+ const f=monthlyDayPreparationFixture({historical:true}),r=prepareOwnPayrollProgrammeSource(f.input),missing=syntheticPreparedSources(r,f);
+ missing.monthly.nativeBatches=[];assert.throws(()=>prepareOwnPayrollInput(missing),e=>e.code==='SOURCE_VALUE_MISSING');
+ const nullQuantity=syntheticPreparedSources(r,f);nullQuantity.monthly.nativeBatches=[absenceBatch(null,'0')];
+ assert.throws(()=>prepareOwnPayrollInput(nullQuantity),e=>e.code==='SOURCE_VALUE_MISSING');
+ const duplicated=syntheticPreparedSources(r,f),second=structuredClone(duplicated.monthly.nativeBatches[0]);second.id='dddddddd-0000-4000-8000-000000099001';duplicated.monthly.nativeBatches.push(second);
+ assert.throws(()=>prepareOwnPayrollInput(duplicated),e=>e.code==='SOURCE_AMBIGUOUS');
+ const sameBatch=syntheticPreparedSources(r,f),b=sameBatch.monthly.nativeBatches[0],copy=structuredClone(b.rows[0]);copy.values.rowOrdinal=2;b.rows.push(copy);resealAbsenceBatch(b);
+ assert.throws(()=>prepareOwnPayrollInput(sameBatch),e=>e.code==='OWN_NOVELTY_DUPLICATE_ROW');
+});
+test('monthly preparation never supplies missing evidence bindings or changes native day and absence units',()=>{
+ const f=monthlyDayPreparationFixture();f.input.bindings=f.input.bindings.filter(b=>b.reference!=='N[101]');const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('SOURCE_BINDING_UNRESOLVED'));
+ for(const reference of['L[900001]','L[900002]','N[101]']){
+  const g=monthlyDayPreparationFixture();g.input.bindings.find(b=>b.reference===reference).binding.unit='hours';const bad=prepareOwnPayrollProgrammeSource(g.input);
+  assert.equal(bad.draft.programme,null);assert.ok(codes(bad).includes('SOURCE_BINDING_UNIT_MISMATCH'));
+ }
+});
+test('monthly preparation still requires exact approved catalogue validity and explicit result rounding',()=>{
+ for(const mutate of[
+  f=>{for(const rows of[f.input.salary.catalog.items,f.input.programme.salaryCatalog.items])rows.find(r=>r.code==='101').unit='hours';},
+  f=>{for(const rows of[f.input.salary.catalog.items,f.input.programme.salaryCatalog.items])Object.assign(rows.find(r=>r.code==='101'),{validFrom:'2026-09',validUntil:'2026-09'});}
+ ]){const f=monthlyDayPreparationFixture();mutate(f);const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));}
+ const f=monthlyDayPreparationFixture();f.input.definitions[0].rounding=null;const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('ROUNDING_UNRESOLVED'));
+});
+test('monthly policy cannot be half-declared, silently weakened or reused for a nonmonthly day consumer',()=>{
+ for(const mutate of[
+  i=>delete i.programmeOptions.monthlyDaysPolicy,
+  i=>delete i.programmeOptions.monthlyDaysVersion,
+  i=>{i.programmeOptions.monthlyDaysPolicy.recognizedDays='28';},
+  i=>{i.programmeOptions.monthlyDaysPolicy.partial='calendar';}
+ ]){const f=monthlyDayPreparationFixture();mutate(f.input);const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));}
+ const f=monthlyDayPreparationFixture();f.input.definitions[0].liquidationTypes=['monthly','sac'];f.input.programmeOptions.periodParticipation.treatments[0].ruleKey='1:concept:9100:2026-10:monthly,sac';
+ const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(r.incidents.some(i=>i.path==='MONTHLY_DAY_TYPE_UNSUPPORTED'));
+ const unknown=monthlyDayPreparationFixture();unknown.input.programmeOptions.arbitraryPolicy=true;assert.throws(()=>prepareOwnPayrollProgrammeSource(unknown.input),e=>e.code==='PREPARATION_CONTRACT_INVALID');
+});
+test('monthly policy evidence remains in the preparation hash without changing approved base versions',()=>{
+ const f=monthlyDayPreparationFixture({rounding:{precision:8,mode:'exact'}}),a=prepareOwnPayrollProgrammeSource(f.input);f.input.programmeOptions.monthlyDaysPolicy.reference='Otra referencia exclusivamente sintética QA';const b=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(b.presentable.programme,true);assert.notEqual(a.pins.preparationSha256,b.pins.preparationSha256);assert.notEqual(a.pins.evidenceSha256,b.pins.evidenceSha256);
+ assert.equal(a.pins.programVersion,b.pins.programVersion);assert.equal(a.pins.salaryVersion,b.pins.salaryVersion);
 });

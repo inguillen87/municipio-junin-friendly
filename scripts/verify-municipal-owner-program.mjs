@@ -3,6 +3,10 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';import {spawnSync,execFileSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 import {buildOwnerProgramQa,ownerProgramQaQuery,ownerProgramQaOrdinaryQuery,ownerProgramQaRpcTrace,ownerProgramQaIndependentReview,assertOwnerProgramQaPublication,ownerProgramQaUnrelatedSnapshot,ownerProgramQaAccessSql,ownerProgramQaAccess} from './lib/municipal-owner-program-qa.mjs';
 import {ownerProgramQaBrowser} from './lib/municipal-owner-program-browser.mjs';
+import {prepareOwnerProgramQaContinuation} from './lib/owner-program-qa-continuation-preparation.mjs';
+import {createRecordingSourceReader,assertConsumedWithinClosure,createClosureSourceReader} from './lib/owner-qa-source-closure-reader.mjs';
+import {createOwner190NativeOutcomeLatch} from './lib/owner190-native-outcome.mjs';
+import {owner190OwnedSchemaSql,assertOwner190OwnedSchema,composeOwner190CanonicalCleanup,bindOwner190CanonicalCleanup,assertOwner190CanonicalCleanupProof} from './lib/owner190-canonical-cleanup.mjs';
 import {ownerDecisionQaHash as hash,ownerDecisionQaLiteral as q} from './lib/municipal-owner-adoption-decision-qa.mjs';
 import {ownerAuthorityQaOptions,ownerAuthorityQaSourceClosure,assertOwnerAuthorityQaSourceBookend,ownerAuthorityQaCases} from './verify-municipal-owner-adoption-authority.mjs';
 import {ownerDecisionQaTransaction,ownerDecisionQaHttp} from './verify-municipal-owner-adoption-decision.mjs';
@@ -16,7 +20,33 @@ import {salaryCommand,salaryBootstrap} from '../assets/native-salary-catalog-mod
 import {ownerProgramPreview,ownerProgramCommand,ownerProgramAttempt} from '../assets/municipal-owner-program-model.js';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 const root=path.resolve(import.meta.dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8').replace(/\r\n?/g,'\n'),j=v=>q(JSON.stringify(v))+'::jsonb';
-export const OWNER_PROGRAM_QA_ENTRIES=['scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js'];
+// One explicit HTTP negative, never a global allowance for RPC failures.
+export function createOwnerProgramQaMissingAttemptProbe(){
+ let active=null;
+ const text='SELECT public.municipal_owner_program_attempt_v1($1::jsonb,$2::uuid) AS result';
+ return Object.freeze({
+  async withMissingAttempt(key,work){
+   assert.equal(active,null,'OWNER_PROGRAM_QA_NEGATIVE_REENTRANT');
+   assert.match(key,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+   assert.equal(typeof work,'function');
+   const context={descriptor:Object.freeze({phase:'http-negatives',kind:'owner',text,key,code:'OWN_PROGRAM_NOT_FOUND',end:'ROLLBACK'}),consumed:0};active=context;
+   try{const value=await work();assert.strictEqual(active,context);assert.equal(context.consumed,1,'OWNER_PROGRAM_QA_NEGATIVE_NOT_OBSERVED');return value;}
+   finally{assert.strictEqual(active,context);active=null;}
+  },
+  query(request,invoke){
+   const descriptor=active?.descriptor;
+   const matches=descriptor&&request.phase===descriptor.phase&&request.kind===descriptor.kind&&request.text===descriptor.text&&Array.isArray(request.values)&&request.values.length===2&&request.values[1]===descriptor.key;
+   let expected=null;
+   if(matches){assert.equal(active.consumed,0,'OWNER_PROGRAM_QA_NEGATIVE_ALREADY_CONSUMED');active.consumed=1;expected=descriptor;}
+   // Invocation/persistence/latch errors propagate unchanged. Only a validated
+   // EXPECTED_SQL_ERROR value is translated into the driver's error surface.
+   const result=invoke(expected);
+   if(expected){assert.equal(result?.status,3);assert.equal(typeof result.stderr,'string');assert.match(result.stderr,/\bERROR:[^\r\n]*\bOWN_PROGRAM_NOT_FOUND\b/);throw new Error(result.stderr);}
+   return[{result}];
+  }
+ });
+}
+export const OWNER_PROGRAM_QA_ENTRIES=['scripts/lib/owner190-canonical-cleanup.mjs','scripts/lib/owner190-cleanup-profile.mjs','tests/owner190-cleanup-profile.test.js','tests/owner190-cleanup-raw255.local.test.js','scripts/lib/final-grh-source-review-admission-qa.mjs','scripts/verify-documentary-roster-performance.mjs','scripts/verify-municipal-owner-adoption-decision.mjs','scripts/verify-municipal-owner-program.mjs','tests/municipal-owner-program-runner.test.js','tests/municipal-owner-program-qa.test.js','tests/municipal-owner-program-api.test.js','tests/municipal-owner-program-http.test.js','tests/municipal-owner-program-model.test.js','tests/municipal-owner-program-installation.test.js','tests/municipal-owner-program-workspace.test.js','tests/municipal-owner-program-review.test.js','tests/municipal-owner-program-package.test.js','tests/municipal-owner-program-workflow.test.js','.github/workflows/municipal-owner-program.yml','assets/own-payroll-program-panel.js','tests/owner-qa-source-closure-reader.test.js','tests/owner190-native-outcome.test.js','tests/owner-program-qa-rpc-error.test.js'];
 export function ownerProgramQaOptions(options){
  assert.ok(options&&typeof options==='object'&&!Array.isArray(options),'OWNER_PROGRAM_QA_OPTIONS_REQUIRED');
  assert.ok(Reflect.ownKeys(options).every(k=>['major','output','sourceCommit','transport','operationalPairBaseline'].includes(k)),'OWNER_PROGRAM_QA_OPTION_UNKNOWN');
@@ -47,21 +77,82 @@ export function assertOwnerProgramQaRecovery(saved,recovered,currentSessionId){
 }
 async function processGuard(major){const identity=await verifyDocumentaryQaProcess(root,major),result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Get-CimInstance Win32_Process -Filter 'ProcessId="+identity.processId+"'|Select-Object ProcessId,ExecutablePath,@{n='CreationDate';e={$_.CreationDate.ToUniversalTime().ToString('o')}}|ConvertTo-Json -Compress"],{encoding:'utf8',windowsHide:true,timeout:15000});assert.equal(result.status,0,result.stderr);return{...identity,...assertIndependentProcessStart({identity,pidFile:fs.readFileSync(path.join(identity.directory,'postmaster.pid'),'utf8'),cim:JSON.parse(result.stdout)})};}
 
-export async function verifyMunicipalOwnerProgram(options){
+export async function verifyMunicipalOwnerProgram(options,{continuation=null,continuationEntries=[],prepareContinuation=null}={}){
+ assert.ok(prepareContinuation===null||typeof prepareContinuation==='function','OWNER_PROGRAM_QA_PREPARATION_INVALID');assert.ok(prepareContinuation===null||continuation!==null,'OWNER_PROGRAM_QA_PREPARATION_REQUIRES_CONTINUATION');
+ assert.ok(continuation===null||typeof continuation==='function','OWNER_PROGRAM_QA_CONTINUATION_INVALID');assert.ok(Array.isArray(continuationEntries)&&continuationEntries.every(value=>typeof value==='string'&&!value.startsWith('.')&&!value.includes('..')),'OWNER_PROGRAM_QA_CONTINUATION_SOURCE_INVALID');
  const {major,output,sourceCommit,transport,operationalPairBaseline='pre107'}=ownerProgramQaOptions(options);
- const destination=path.join(root,output);assert.ok(!fs.existsSync(destination),'OWNER_PROGRAM_QA_OUTPUT_EXISTS');const connection=ownerAdoptionQaTransport({root,major,sourceCommit,transport,browser:'chromium'}),qa=buildOwnerProgramQa({major,sourceCommit,read,operationalPairBaseline});
- const sourceClosure=ownerAuthorityQaSourceClosure({entries:OWNER_PROGRAM_QA_ENTRIES,additional:[...Object.keys(qa.sourceHashes),'assets/own-payroll-program-panel.css','.vercelignore','scripts/build-friendly.mjs','package.json','package-lock.json']}),sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes:p=>execFileSync('git',['-C',root,'show',sourceCommit+':'+p],{maxBuffer:24*1024*1024})});
- const identity=connection.processGuardRequired?await processGuard(major):null,{runtime,args}=connection;fs.mkdirSync(destination);let sequence=0,seeded=false,phase='preflight',report,failure,cleanupFailure,outerFailure,sourceFailure,outerBefore,destinationIdentity=null;const checks=[],rpc=[];
- let pins=transport==='ci'?ownerAdoptionQaCiInitialGuard({major}):`IF current_database()<>'own_payroll_run_qa' OR current_user<>'postgres' OR current_setting('server_version_num')::int/10000<>${major} OR inet_server_port()<>${55400+major} OR host(inet_server_addr())<>'127.0.0.1' OR ${finalReviewAdmissionQaDirectoryPredicate(identity.directory)} OR floor(extract(epoch FROM pg_postmaster_start_time()))::bigint<>${major===17?1792025447:1792025448} OR nullif(current_setting('neon.project_id',true),'') IS NOT NULL OR nullif(current_setting('neon.branch_id',true),'') IS NOT NULL THEN RAISE EXCEPTION 'OWNER_PROGRAM_QA_DESTINATION_CHANGED';END IF;`;
- const tx=(statements,options={})=>ownerDecisionQaTransaction({schema:qa.schema,pins,statements,...options});
- const run=(sql,expected)=>{const file=path.join(destination,String(++sequence).padStart(3,'0')+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});const result=spawnSync(runtime.executable,[...args,'-f',file],{encoding:'utf8',windowsHide:true,timeout:180000,env:runtime.environment,maxBuffer:20*1024*1024});fs.writeFileSync(file+'.log',(result.stdout??'')+(result.stderr??''));if(expected){assert.equal(result.status,3,result.stdout);assert.match(result.stderr,new RegExp('\\b'+expected+'\\b'));return{status:result.status,stderr:result.stderr};}assert.equal(result.status,0,result.stderr?.slice(-6000));const line=result.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);return line?.startsWith('{')||line?.startsWith('[')?JSON.parse(line):line;};
+ const destination=path.join(root,output);assert.ok(!fs.existsSync(destination),'OWNER_PROGRAM_QA_OUTPUT_EXISTS');const connection=ownerAdoptionQaTransport({root,major,sourceCommit,transport,browser:'chromium'});
+ // Witness the raw bytes actually consumed by constructors before closure construction.
+ const recorder=createRecordingSourceReader({root}),qa=buildOwnerProgramQa({major,sourceCommit,read:recorder.read,operationalPairBaseline});
+ const preparedContinuation=prepareOwnerProgramQaContinuation(prepareContinuation,{qa,major,sourceCommit,read:recorder.read});
+ const sourceClosure=ownerAuthorityQaSourceClosure({entries:[...OWNER_PROGRAM_QA_ENTRIES,...continuationEntries,...preparedContinuation.sourceEntries],additional:[...Object.keys(qa.sourceHashes),'assets/own-payroll-program-panel.css','.vercelignore','scripts/build-friendly.mjs','package.json','package-lock.json']});
+ // Cache only immutable bytes of this already fixed commit, once per closure
+ // path before any SQL. Workspace and external parser bytes are NEVER cached.
+ const committedCache=new Map();
+ for(const file of Object.keys(sourceClosure.files)){
+  const bytes=execFileSync('git',['-C',root,'show',sourceCommit+':'+file],{maxBuffer:24*1024*1024});
+  assert.ok(Buffer.isBuffer(bytes),'OWNER_PROGRAM_QA_COMMITTED_BUFFER_REQUIRED');
+  committedCache.set(sourceCommit+':'+file,Buffer.from(bytes));
+ }
+ const committedBytes=file=>{
+  assert.equal(typeof file,'string','OWNER_PROGRAM_QA_COMMITTED_PATH_REQUIRED');
+  const key=sourceCommit+':'+file;assert.ok(committedCache.has(key),'OWNER_PROGRAM_QA_COMMITTED_PATH_NOT_IN_CLOSURE:'+file);
+  return Buffer.from(committedCache.get(key));
+ };
+ const sourceBefore=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});
+ const sourceReadsBefore=assertConsumedWithinClosure(recorder.consumed(),sourceClosure),closureReader=createClosureSourceReader({root,closure:sourceClosure});
+ const sourceCustody=Object.freeze({closure:sourceClosure,committedBytes,sourceCommit});
+ const identity=connection.processGuardRequired?await processGuard(major):null,{runtime,args}=connection;fs.mkdirSync(destination);let sequence=0,seeded=false,ownedSchema=null,phase='preflight',report,failure,cleanupFailure,outerFailure,sourceFailure,outerBefore,destinationIdentity=null;const checks=[],rpc=[],nativeOutcome=createOwner190NativeOutcomeLatch();
+ let pins=transport==='ci'?ownerAdoptionQaCiInitialGuard({major}):`IF current_database()<>'own_payroll_run_qa' OR current_user<>'postgres' OR current_setting('server_version_num')::int/10000<>${major} OR inet_server_port()<>${55400+major} OR host(inet_server_addr())<>'127.0.0.1' OR ${finalReviewAdmissionQaDirectoryPredicate(identity.directory)} OR floor(extract(epoch FROM pg_postmaster_start_time()))::bigint<>${major===17?1793125608:1792025448} OR nullif(current_setting('neon.project_id',true),'') IS NOT NULL OR nullif(current_setting('neon.branch_id',true),'') IS NOT NULL THEN RAISE EXCEPTION 'OWNER_PROGRAM_QA_DESTINATION_CHANGED';END IF;`;
+ // Internal descriptor: the canonical composer still supplies the original SQL unchanged.
+ const tx=(statements,options={})=>Object.freeze({sql:ownerDecisionQaTransaction({schema:qa.schema,pins,statements,...options}),end:options.end??'COMMIT'});
+ const saveFailure=(name,value)=>{try{fs.writeFileSync(path.join(destination,name),value);}catch(error){sourceFailure??=error;}};
+ const run=(transaction,expected,{fullJson=false,seedNotices=false,cleanupPlan=null}={})=>{
+  assert.equal(typeof seedNotices,'boolean','OWNER190_NATIVE_SEED_NOTICES_INVALID');
+  assert.ok(cleanupPlan===null||!seedNotices,'OWNER190_NATIVE_NOTICE_PROFILE_CONFLICT');
+  // Computing this owned path is not an I/O operation. No file is written
+  // until begin has validated and latched the exact framed invocation.
+  const file=path.join(destination,String(sequence+1).padStart(3,'0')+'.sql');
+  const noticeProfile=cleanupPlan!==null?bindOwner190CanonicalCleanup(cleanupPlan,transaction,file):seedNotices?{version:'canonical-seed-drop-if-exists.v1',schema:qa.schema,sqlFile:file}:null;
+  const attempt=nativeOutcome.begin({...transaction,expectedCode:expected??null,fullJson,token:randomUUID(),noticeProfile});
+  sequence++;
+  let result,stage='input-persistence';
+  try{
+   fs.writeFileSync(file+'.intent.json',JSON.stringify(nativeOutcome.snapshot(),null,2),{flag:'wx'});
+   fs.writeFileSync(file,attempt.framedSql,{flag:'wx'});
+   stage='native-invocation';nativeOutcome.markInvoked(attempt);
+   result=spawnSync(runtime.executable,[...args,'-f',file],{encoding:null,windowsHide:true,timeout:180000,env:runtime.environment,maxBuffer:fullJson===true?40*1024*1024:20*1024*1024});
+   const capture=nativeOutcome.recordReturn(attempt,result),persisted={stdout:false,stderr:false,capture:false},errors=[];
+   stage='raw-persistence';
+   // Each returned Buffer is preserved separately before any output interpretation.
+   for(const channel of ['stdout','stderr'])if(Buffer.isBuffer(result[channel])){try{fs.writeFileSync(file+'.'+channel+'.log',result[channel],{flag:'wx'});persisted[channel]=true;}catch(error){errors.push(error);}}
+   try{fs.writeFileSync(file+'.capture.json',JSON.stringify(capture,null,2),{flag:'wx'});persisted.capture=true;}catch(error){errors.push(error);}
+   if(errors.length)throw new AggregateError([...(result.error?[result.error]:[]),...errors],'OWNER190_NATIVE_CAPTURE_PERSISTENCE_FAILED');
+   stage='interpretation';const outcome=nativeOutcome.evaluate(attempt,result,persisted);
+   stage='outcome-persistence';fs.writeFileSync(file+'.outcome.json',JSON.stringify(outcome.receipt,null,2),{flag:'wx'});
+   nativeOutcome.complete(attempt,outcome);return outcome.value;
+  }catch(error){
+   const receipt=nativeOutcome.fail(attempt,error,stage);
+   try{fs.writeFileSync(file+'.uncertain.json',JSON.stringify(receipt,null,2),{flag:'wx'});}catch(recordError){throw new AggregateError([error,recordError],'OWNER190_NATIVE_UNCERTAIN_RECEIPT_FAILED',{cause:error});}
+   throw error;
+  }
+ };
  const guard=()=>{const proof=run(tx([OWNER_ADOPTION_QA_IDENTITY_SQL],{readOnly:true}));if(destinationIdentity)return assertOwnerAdoptionQaDestination(proof,destinationIdentity);destinationIdentity=captureOwnerAdoptionQaDestination(proof,{major,transport,localIdentity:identity});pins=ownerAdoptionQaDestinationGuard(destinationIdentity);return proof;};
  const snapshot=()=>run(tx([performancePreservationSnapshot(),"SELECT jsonb_build_object('fingerprint',encode(public.digest(current_setting('municontrol_documentary_install.after')::jsonb::text,'sha256'),'hex'),'tables',jsonb_array_length(current_setting('municontrol_documentary_install.after')::jsonb->'tables'))"],{readOnly:true}));
  const query=(sql,actor=qa.actor)=>run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(sql.replace('$ACTOR',j(actor)))],{command:true})),ok=label=>checks.push(label),currentAccess=()=>ownerProgramQaAccess(run(tx([ownerProgramQaAccessSql(qa.schema,qa.actor)],{readOnly:true})),qa.actor);
- const env={},sessionFor=a=>({id:a.principal.session.id,email:a.principal.user.email,version:a.principal.session.version,releaseSha:qa.actor.releaseSha}),sqlFor=kind=>({query:async(text,values)=>{const mapped=kind==='owner'?ownerProgramQaQuery(text,values,qa.schema):ownerProgramQaOrdinaryQuery(text,values,qa.schema),result=run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(mapped)],{command:true}));rpc.push({phase,kind,text,values});return[{result}];}}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
+ const rpcNegative=createOwnerProgramQaMissingAttemptProbe();
+ const env={},sessionFor=a=>({id:a.principal.session.id,email:a.principal.user.email,version:a.principal.session.version,releaseSha:qa.actor.releaseSha}),sqlFor=kind=>({query:async(text,values)=>{
+  const mapped=kind==='owner'?ownerProgramQaQuery(text,values,qa.schema):ownerProgramQaOrdinaryQuery(text,values,qa.schema);
+  return rpcNegative.query({phase,kind,text,values},expected=>{
+   const result=run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(mapped)],{command:true,end:expected?.end??'COMMIT'}),expected?.code);
+   rpc.push({phase,kind,text,values});return result;
+  });
+ }}),deps=kind=>({env,requireAccess:async()=>currentAccess(),sessionFor,getSql:()=>sqlFor(kind)}),ownerHandler=createMunicipalOwnerProgramHandler(deps('owner')),programHandler=createOwnProgramHandler(deps('program'));
  try{
-  const beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,operationalPairBaseline,destinationIdentity,beforeGuard,outerBefore,sourceClosure,sourceBefore,sourceHashes:qa.sourceHashes},null,2));
-  phase='seed';run(tx([qa.seed]));seeded=true;run(tx(qa.predecessorInstallation));
+  const beforeGuard=guard();outerBefore=snapshot();fs.writeFileSync(path.join(destination,'preflight.json'),JSON.stringify({identity,transport,operationalPairBaseline,destinationIdentity,beforeGuard,outerBefore,sourceClosure,sourceBefore,sourceReadsBefore,consumedBeforeClosure:recorder.consumed(),sourceHashes:qa.sourceHashes},null,2));
+  phase='seed';run(tx([qa.seed]),undefined,{seedNotices:true});seeded=true;
+  ownedSchema=assertOwner190OwnedSchema(run(tx([owner190OwnedSchemaSql(qa.schema,sourceCommit)],{readOnly:true}),undefined,{fullJson:true}),{schema:qa.schema,sourceCommit});
+  run(tx(qa.predecessorInstallation));
   const salary=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')),salaryProposal=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryCommand({command:'propose',scopeVersion:salary.scopeVersion,baseVersion:salary.catalog.version,classificationVersion:salary.classification.version,proposalId:null,proposalSha256:null,items:qa.items,reason:'Maestro completo exclusivamente ficticio QA190',reviewConfirmed:false}))},${q(randomUUID())})`),salaryPending=salaryBootstrap(query('SELECT public.native_salary_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===salaryProposal.proposalId),salaryReview=ownerSalaryQaIndependentReview(query,qa.checker,salaryPending),salaryReceipt=query(`SELECT public.native_salary_command_v1($ACTOR,${j(salaryReview)},${q(randomUUID())})`,qa.checker);assert.equal(salaryReceipt.status,'approved');
   const firstBoot=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')),priorBody=prepareProgramWorkspace(firstBoot,qa.priorDefinition,'Programa anterior exclusivamente ficticio QA190'),priorProposed=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorBody)},${q(randomUUID())})`),priorPending=ownProgramBootstrap(query('SELECT public.own_program_bootstrap_v1($ACTOR)')).proposals.find(p=>p.id===priorProposed.proposalId),priorReview=ownerProgramQaIndependentReview(query,qa.checker,priorPending),priorApproved=query(`SELECT public.own_program_command_v1($ACTOR,${j(priorReview)},${q(randomUUID())})`,qa.checker);assert.equal(priorApproved.status,'approved');
   const priorEventIds=[priorProposed.eventId,priorApproved.eventId],priorEvents=()=>run(tx([`SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM ${qa.schema}.own_payroll_program_event e WHERE id=ANY(ARRAY[${priorEventIds.map(q).join(',')}]::uuid[])`],{readOnly:true})),priorEventsBefore=priorEvents();
@@ -81,7 +172,15 @@ export async function verifyMunicipalOwnerProgram(options){
   run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',normal(qa.actor)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_FORBIDDEN');const swap=`DELETE FROM ${qa.schema}.iam_role_capability WHERE capability_key='payroll.parameter.prepare' AND role_key=(SELECT role_key FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.ids.membership)});INSERT INTO ${qa.schema}.iam_role_capability(role_key,capability_key) SELECT role_key,'payroll.parameter.approve' FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.ids.membership)}`;
   run(tx([swap,'SET LOCAL ROLE municontrol_actions_runtime_app',normal(qa.actor)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_INDEPENDENT_REQUIRED');const checkerReview=ownerProgramQaIndependentReview(query,qa.checker,preview.proposal);assert.notEqual(checkerReview.scopeVersion,review.scopeVersion);const ordinaryObservation=run(tx(ownerProgramQaIndependentObservation(qa.schema,normal(qa.checker,checkerReview)),{command:true,end:'ROLLBACK'}));assert.equal(ordinaryObservation.receipt.status,'approved');assert.equal(ordinaryObservation.ownerProvenance,0);assert.deepEqual(snapshot(),beforeReview);ok('ordinary approval still rejects its preparer and accepts a distinct real checker with that checker’s own canonical scope, without owner provenance');
   for(const change of[{previewSha256:'f'.repeat(64)},{proposalSha256:'e'.repeat(64)},{definitionSha256:'d'.repeat(64)},{salaryItemsSha256:'c'.repeat(64)},{baseVersion:'b'.repeat(64)},{salaryVersion:'a'.repeat(64)}]){run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(`SELECT public.municipal_owner_program_command_v1(${j(qa.actor)},${j({...command,...change})},${q(randomUUID())})`)],{command:true,end:'ROLLBACK'}),'OWNER_PROGRAM_PREVIEW_CHANGED');assert.deepEqual(snapshot(),beforeReview);}ok('changed complete definition, salary items, proposal, preview, base or salary version cannot authorize a decision');
-  phase='http-negatives';await ownerDecisionQaHttp(ownerHandler,async origin=>{env.INTERNAL_APP_ORIGIN=origin;for(const[resource,key,expected]of[['attempt',randomUUID(),404],['attempt','ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF',400]]){const response=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource,key}));assert.equal(response.status,expected);}const response=await fetch(origin+'/api/internal-municipal-owner-program',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:JSON.stringify({operation:'approve_owner',payload:{...command,reviewConfirmed:false}})});assert.equal(response.status,422);});assert.deepEqual(snapshot(),beforeReview);ok('the actual Node HTTP boundary rejects uppercase keys and missing explicit confirmation without a business decision');
+  phase='http-negatives';await ownerDecisionQaHttp(ownerHandler,async origin=>{
+   env.INTERNAL_APP_ORIGIN=origin;const missingKey=randomUUID();
+   await rpcNegative.withMissingAttempt(missingKey,async()=>{
+    const response=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource:'attempt',key:missingKey})),wire=await response.json();
+    assert.equal(response.status,404);assert.equal(wire.ok,false);assert.equal(wire.code,'OWN_PROGRAM_NOT_FOUND');assert.equal(nativeOutcome.stopped,false);
+   });
+   const invalid=await fetch(origin+'/api/internal-municipal-owner-program?'+new URLSearchParams({resource:'attempt',key:'ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF'}));assert.equal(invalid.status,400);
+   const response=await fetch(origin+'/api/internal-municipal-owner-program',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:JSON.stringify({operation:'approve_owner',payload:{...command,reviewConfirmed:false}})});assert.equal(response.status,422);
+  });assert.deepEqual(snapshot(),beforeReview);ok('the actual Node HTTP boundary observes missing-key SQL404 and rejects uppercase keys and missing explicit confirmation without a business decision');
   phase='browser';const browser=await ownerProgramQaBrowser({root,output:destination,proposalId,definition:qa.definition,env,handlers:{'/api/internal-own-payroll-program':programHandler,'/api/internal-municipal-owner-program':ownerHandler},auth:async()=>{const a=currentAccess(),membership=run(tx([`SELECT jsonb_build_object('roleKey',role_key) FROM ${qa.schema}.tenant_membership WHERE id=${q(qa.actor.membershipId)} AND tenant_id=${q(qa.actor.tenantId)}`],{readOnly:true}));return ownerProgramQaAuthPayload(a,membership.roleKey);},afterSave:async raw=>{const saved=await ownerProgramAttempt(raw);assert.equal(saved.receipt.independence,false);}});ok('the existing programme panel makes one explicit owner decision; a withheld acknowledgement recovers by actual GET with the same key/body, reciprocal locks and desktop390/320 intact');
   phase='recovery';const saved=browser.saved,publication=assertOwnerProgramQaPublication(query('SELECT public.own_program_bootstrap_v1($ACTOR)'),saved.receipt,qa.definition,preview.proposal.salaryVersion),key=saved.receipt.requestKey,recovered=await ownerProgramAttempt(query(`SELECT public.municipal_owner_program_attempt_v1($ACTOR,${q(key)})`)),replay=await ownerProgramAttempt(query(`SELECT public.municipal_owner_program_command_v1($ACTOR,${j(saved.command)},${q(key)})`));assert.equal(recovered.receipt.replayed,true);assert.deepEqual(recovered.command,saved.command);assert.equal(replay.receipt.replayed,true);assert.equal(replay.receipt.eventId,saved.receipt.eventId);
   run(tx(['SET LOCAL ROLE municontrol_actions_runtime_app',qa.normalized(`SELECT public.municipal_owner_program_command_v1(${j(qa.actor)},${j({...saved.command,reason:'Otro contenido exclusivamente ficticio QA190'})},${q(key)})`)],{command:true,end:'ROLLBACK'}),'OWN_PROGRAM_IDEMPOTENCY_REUSE');ok('the canonical published consumer and stored/replayed receipt retain the complete programme, salary version and identical event; a changed same-key body is refused');
@@ -100,12 +199,21 @@ export async function verifyMunicipalOwnerProgram(options){
   for(const result of[httpRecovery,afterEvolutionReplay])assertOwnerProgramQaRecovery(saved,result,newSession);
   assert.deepEqual(originalOwnerEvent(),originalOwnerEventBefore);assert.deepEqual(priorEvents(),priorEventsBefore);const finalProvenance=run(tx([`SELECT jsonb_build_object('total',count(*)) FROM ${qa.schema}.municipal_owner_program_provenance`],{readOnly:true}));assert.equal(finalProvenance.total,1);
   const sourceEvolution={programmeChanged:true,programmeVersion:nextReceipt.programVersion,salaryChanged:true,salaryVersion:evolvedSalary.catalog.version,originalEventUnchanged:true,originalPreviewUnchanged:true,originalAuthorityUnchanged:true,currentMfaSession:newSession,actualHttpGetRecovery:true,implicitRecoveryCommands:0,sameKeyCommandReplayed:true,ownerProvenanceRows:finalProvenance.total};ok('after independently approved programme and salary changes, actual HTTP GET and explicit same-key command recover the original event/preview under new MFA without a new owner decision');
-  report={version:'municipal-owner-program-qa.v1',passed:true,major,sourceCommit,transport,operationalPairBaseline,destinationIdentity,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,initialProtocol:{installed:initialInstalled,durable:initialDurable,repeated:initialRepeated,rollbackVerified:true},fixture:qa.fixture,actualSql:true,actualHttpHandlers:true,authenticationFixture:true,completeAuthenticationHandler:false,sourceMode:'workspace_source_assets',publicBuild:false,browser,publication,ordinaryObservation,unrelatedBefore,unrelatedAfter,effects,sourceEvolution,rpc:rpc.map(ownerProgramQaRpcTrace),productionWrites:0,municipalAcceptance:false};
- }catch(error){failure=error;fs.writeFileSync(path.join(destination,'failure.txt'),error.stack??String(error));fs.writeFileSync(path.join(destination,'failure.json'),JSON.stringify({passed:false,major,sourceCommit,operationalPairBaseline,phase,checksPassed:checks.length,checks,message:error.message},null,2));}
+   let continuationResult=null;if(continuation){phase='report-census-continuation';continuationResult=await continuation({qa,major,sourceCommit,read:closureReader.read,readRaw:closureReader.readRaw,env,destination,prepared:preparedContinuation.context,sourceCustody,json:(statements,{fullJson=false,...options}={})=>{assert.equal(typeof fullJson,'boolean','OWNER_PROGRAM_QA_FULL_PROFILE_INVALID');return run(tx(statements,options),undefined,{fullJson});},expectRollback:(statements,code,options={})=>{assert.match(code,/^[A-Z][A-Z0-9_]{2,80}$/,'OWNER_PROGRAM_QA_EXPECTED_CODE_INVALID');return run(tx(statements,{...options,end:'ROLLBACK'}),code);},readFullSnapshot:snapshot,setPhase:value=>{assert.equal(typeof value,'string');phase=value;},check:ok});assert.equal(continuationResult?.passed,true,'OWNER_PROGRAM_QA_CONTINUATION_INCOMPLETE');}
+  report={...(continuationResult?{continuation:continuationResult}:{}),version:'municipal-owner-program-qa.v1',passed:true,major,sourceCommit,transport,operationalPairBaseline,destinationIdentity,sourceHashes:qa.sourceHashes,sourceClosure,sourceBefore,sourceReads:{beforeClosure:recorder.consumed(),duringRun:closureReader.consumed(),consumedRawBytesMatched:true},checksPassed:checks.length,checks,rehearsal,installed,durable,repeated,durability,initialProtocol:{installed:initialInstalled,durable:initialDurable,repeated:initialRepeated,rollbackVerified:true},fixture:qa.fixture,actualSql:true,actualHttpHandlers:true,authenticationFixture:true,completeAuthenticationHandler:false,sourceMode:'workspace_source_assets',publicBuild:false,browser,publication,ordinaryObservation,unrelatedBefore,unrelatedAfter,effects,sourceEvolution,rpc:rpc.map(ownerProgramQaRpcTrace),productionWrites:0,municipalAcceptance:false};
+ }catch(error){failure=error;saveFailure('failure.txt',error.stack??String(error));saveFailure('failure.json',JSON.stringify({passed:false,major,sourceCommit,operationalPairBaseline,phase,checksPassed:checks.length,checks,message:error.message,nativeOutcome:nativeOutcome.snapshot()},null,2));}
  finally{
-  try{if(seeded)run(tx(finalReviewAdmissionQaCleanup(qa.schema)));}catch(error){cleanupFailure=error;fs.writeFileSync(path.join(destination,'cleanup-failure.txt'),error.stack??String(error));}
-  try{const outerAfter=outerBefore?snapshot():null,postflight=guard(),processAfter=connection.processGuardRequired?await processGuard(major):null;fs.writeFileSync(path.join(destination,'postflight.json'),JSON.stringify({outerBefore,outerAfter,postflight,processAfter},null,2));if(outerBefore)assert.deepEqual(outerAfter,outerBefore);if(report){report.priorDatabasePreserved=true;report.syntheticSchemaRemoved=!cleanupFailure;report.postflightOtherClients=0;}}catch(error){outerFailure=error;fs.writeFileSync(path.join(destination,'conservation-failure.txt'),error.stack??String(error));}
-  try{const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure);fs.writeFileSync(path.join(destination,'source-bookend.json'),JSON.stringify({sourceCommit,sourceClosure,sourceBefore,sourceAfter},null,2));if(report)report.sourceAfter=sourceAfter;}catch(error){sourceFailure=error;fs.writeFileSync(path.join(destination,'source-bookend-failure.txt'),error.stack??String(error));}
+  let cleanupAttempted=false,cleanupCompleted=false;
+  try{if(!nativeOutcome.stopped&&seeded){
+   assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});
+   assertConsumedWithinClosure(recorder.consumed(),sourceClosure);assertConsumedWithinClosure(closureReader.consumed(),sourceClosure);
+   const cleanupPlan=composeOwner190CanonicalCleanup({schema:qa.schema,pins,ownedSchema,outerBefore,sourceCommit});
+   cleanupAttempted=true;
+   const cleanupProof=run(cleanupPlan.transaction,undefined,{fullJson:true,cleanupPlan});
+   assertOwner190CanonicalCleanupProof(cleanupProof,cleanupPlan);cleanupCompleted=true;
+  }}catch(error){cleanupFailure=error;saveFailure('cleanup-failure.txt',error.stack??String(error));}
+  try{if(!nativeOutcome.stopped){const outerAfter=outerBefore?snapshot():null,postflight=guard(),processAfter=connection.processGuardRequired?await processGuard(major):null;fs.writeFileSync(path.join(destination,'postflight.json'),JSON.stringify({outerBefore,outerAfter,postflight,processAfter},null,2));if(outerBefore)assert.deepEqual(outerAfter,outerBefore);if(report){report.priorDatabasePreserved=true;report.syntheticSchemaRemoved=!cleanupFailure;report.postflightOtherClients=0;}}else{saveFailure('native-uncertainty-stop.json',JSON.stringify({nativeOutcome:nativeOutcome.snapshot(),cleanup:{attempted:cleanupAttempted,completed:cleanupCompleted},skipped:[...(!cleanupAttempted?['cleanup']:[]),'snapshot','guard','processGuard'],noFurtherSqlOrOsInvoked:true},null,2));}}catch(error){outerFailure=error;saveFailure('conservation-failure.txt',error.stack??String(error));}
+  try{const sourceAfter=assertOwnerAuthorityQaSourceBookend(sourceClosure,{committedBytes});const sourceReadsAfter={beforeClosure:assertConsumedWithinClosure(recorder.consumed(),sourceClosure),duringRun:assertConsumedWithinClosure(closureReader.consumed(),sourceClosure)};fs.writeFileSync(path.join(destination,'source-bookend.json'),JSON.stringify({sourceCommit,sourceClosure,sourceBefore,sourceAfter,sourceReadsAfter},null,2));if(report)report.sourceAfter=sourceAfter;if(report)report.sourceReadsAfter=sourceReadsAfter;}catch(error){sourceFailure??=error;saveFailure('source-bookend-failure.txt',error.stack??String(error));}
  }
  ownerProgramQaFinish({report,failure,cleanupFailure,outerFailure,sourceFailure});fs.writeFileSync(path.join(destination,'result.json'),JSON.stringify(report,null,2),{flag:'wx'});return report;
 }

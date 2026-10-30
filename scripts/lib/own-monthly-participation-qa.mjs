@@ -8,6 +8,7 @@ import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {employeeDraft} from '../../assets/native-employee-contract.js';
+import {memoizeInstallationPhaseText} from './installation-phase-text-map.mjs';
 export const monthlyQaHash=v=>createHash('sha256').update(v).digest('hex');
 export const monthlyQaLiteral=v=>"'"+String(v).replaceAll("'","''")+"'";
 const q=monthlyQaLiteral,j=v=>q(JSON.stringify(v))+'::jsonb';
@@ -70,7 +71,8 @@ export function buildMonthlyParticipationQa({major,sourceCommit,read,schema='mc_
  for(const p of batch.prerequisitePins){const d=bySignature.get(p.signature);assert.ok(d,'MONTHLY_QA_CANONICAL_PREREQUISITE_MISSING:'+p.signature);const actual=ownInstallationFunctionPin(d);assert.deepEqual({...actual,runtime:p.runtime},p,'MONTHLY_QA_CANONICAL_PREREQUISITE_CHANGED:'+p.signature);}
  const sourceHashes={...base.sourceHashes,...batch.sourceHashes,[privateDate.file]:privateDate.sourceSha256},newHash=monthlyQaHash(body(base.normalized(batch.newDefinition))),hashes={...base.hashes,[batch.newPin.sha256]:newHash,[privateDate.pin.sha256]:monthlyQaHash(body(base.normalized(privateDate.definition)))};
  const normalized=s=>{let v=base.normalized(s);for(const[a,b]of Object.entries(hashes))v=v.replaceAll(a,b);return v;};
- const local=Object.fromEntries(['rehearsal','installation','verification','repetition','rollback','rollbackVerification'].map(k=>[k,batch[k].map(normalized)]));
+ const phaseText=memoizeInstallationPhaseText(normalized);
+ const local=Object.fromEntries(['rehearsal','installation','verification','repetition','rollback','rollbackVerification'].map(k=>[k,batch[k].map(phaseText)]));
  // Reuse the authentic185 foundation, but not its184 resolver installation or
  // any owner decision. All authentication/effective-capability SQL stays real.
  const authorityTail=base.base.local.installation.join(';\n');assert.ok(base.seed.endsWith(authorityTail),'MONTHLY_QA_AUTHORITY_TAIL_CHANGED');

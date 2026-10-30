@@ -2,14 +2,14 @@ name: Own payroll liquidation close
 on:
   push:
     branches: ['master', 'codex/own-period-close-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/125-*', 'scripts/*own-payroll*close*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-close*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-close.yml']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-close.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/125-*', 'scripts/*own-payroll*close*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-close*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-close.yml']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/own-payroll-close.yml']
 permissions:
   contents: read
 jobs:
   close:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -21,14 +21,14 @@ jobs:
         env:
           POSTGRES_DB: own_payroll_run_qa
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: own-close-synthetic-qa
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
         ports:
           - 554${{ matrix.major }}:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
-          --health-interval 5s --health-timeout 5s --health-retries 12
+          --health-start-interval 1s --health-start-period 30s --health-interval 1h --health-timeout 5s --health-retries 12
     env:
-      PGPASSWORD: own-close-synthetic-qa
+      PGPASSWORD: noelia-circuit-synthetic-qa
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -43,7 +43,97 @@ jobs:
         run: node scripts/verify-own-payroll-close.mjs --major=${{ matrix.major }} --output=verification/own-close-sql.json
       - name: Exact installation COMMIT and independent preservation
         run: node scripts/verify-own-payroll-close-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-close-installation.json
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - name: Actual built product UI and HTTP handler, mobile, all pages and immutable retries
-        run: node scripts/verify-own-payroll-close-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-close-ui.json
+      - run: npm run build:vercel
+      - run: npx --no-install playwright install-deps chromium
+      - name: Install the project Chromium for the canonical190 close browser
+        run: node scripts/install-project-chromium.mjs --purpose=release-verification
+      - name: Canonical190, guarded200/201 and actual close browser, with legacy125 checks retained above
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-payroll-full-capacity.mjs --major=${{ matrix.major }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-close-native-ui-pg${{ matrix.major }}
+      - name: Require the selected R2 close result and exact conserved source
+        run: |
+          node --input-type=module - "${{ matrix.major }}" "verification/own-close-native-ui-pg${{ matrix.major }}/result.json" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const report=JSON.parse(readFileSync(process.argv[3],'utf8'));
+          assert.equal(report.passed,true);
+          assert.equal(report.major,Number(process.argv[2]));
+          assert.equal(report.sourceCommit,process.env.GITHUB_SHA);
+          assert.equal(report.priorDatabasePreserved,true);
+          assert.equal(report.syntheticSchemaRemoved,true);
+          assert.equal(report.sourceBefore?.committedBytesVerified,true);
+          assert.equal(report.sourceAfter?.passed,true);
+          assert.equal(report.sourceAfter?.rawBytesVerified,true);
+          assert.equal(report.sourceClosure?.files?.['scripts/lib/own-payroll-close-native-browser.mjs'],'1c32672ef8f973b82be6cdd7c2a4935bbf8a320aab6a996d3d4d57a442ef77fc');
+          const capacity=report.continuation,browser=capacity?.closeBrowser;
+          assert.equal(capacity?.passed,true);
+          assert.equal(capacity.population,855);
+          assert.equal(capacity.conceptRows,17100);
+          assert.equal(capacity.censusEpoch,'original201-native-before-close-browser');
+          assert.equal(capacity.annulmentV2Browser,undefined);
+          assert.equal(browser?.version,'own-close-browser-canonical190.v1');
+          assert.equal(browser.passed,true);
+          assert.equal(browser.sourceCommit,process.env.GITHUB_SHA);
+          assert.equal(browser.major,Number(process.argv[2]));
+          assert.equal(browser.builtCloseBrowserProven,true);
+          assert.equal(browser.actualSql,true);
+          assert.equal(browser.actualHttp,true);
+          assert.deepEqual([browser.population,browser.conceptsPerRun,browser.httpPosts,browser.observedCommandAttempts,browser.delegatedCommandRpcs,browser.appendedEvents,browser.appendedGroups],[855,17100,6,6,5,4,2]);
+          assert.deepEqual([browser.beforeLedger.events,browser.beforeLedger.groups,browser.beforeLedger.active],[2,1,0]);
+          assert.deepEqual([browser.afterLedger.events,browser.afterLedger.groups,browser.afterLedger.active],[6,3,0]);
+          assert.equal(browser.allNewGroupsReopened,true);
+          assert.equal(browser.originalCapturedResultsUnchanged,true);
+          assert.equal(browser.originalCloseRowPrefixPreserved,true);
+          assert.equal(browser.nonCloseRowsAndListedMetadataPreserved,true);
+          assert.equal(browser.newCalculations,0);
+          assert.equal(browser.newCaptures,0);
+          assert.equal(browser.canonicalMfaActorsChecked,true);
+          assert.equal(browser.authenticationFixture,true);
+          assert.equal(browser.completeAuthenticationHandler,false);
+          assert.equal(browser.fullCapacityBrowserProven,false);
+          assert.equal(browser.monthlyBusinessCovered,false);
+          assert.equal(browser.productionWrites,0);
+          assert.equal(browser.paymentExecuted,false);
+          assert.equal(browser.municipalAcceptance,false);
+          assert.equal(report.productionWrites,0);
+          assert.equal(report.municipalAcceptance,false);
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: own-close-canonical190-pg${{ matrix.major }}-published107-${{ github.sha }}
+          path: |
+            verification/own-close-sql.json
+            verification/own-close-installation.json
+            verification/own-close-native-ui-pg${{ matrix.major }}/
+            verification/release-chromium-157.0.8098.0/installation.json
+            .github/workflows/own-payroll-close.yml
+            scripts/verify-own-payroll-close.mjs
+            scripts/verify-own-payroll-close-installation.mjs
+            scripts/lib/own-payroll-close-qa.mjs
+            scripts/lib/own-payroll-close-sql.mjs
+            scripts/lib/own-payroll-close-installation.mjs
+            scripts/verify-own-payroll-full-capacity.mjs
+            scripts/verify-municipal-owner-program.mjs
+            scripts/verify-municipal-owner-adoption-authority.mjs
+            scripts/lib/municipal-owner-adoption-qa-transport.mjs
+            scripts/lib/noelia-circuit-runtime.mjs
+            scripts/lib/project-chromium.mjs
+            scripts/lib/own-payroll-close-native-browser.mjs
+            scripts/lib/own-payroll-full-capacity-190-*.mjs
+            scripts/lib/own-payroll-report-census-*.mjs
+            scripts/migrations/125-own-payroll-close.sql
+            scripts/migrations/200-own-payroll-report-census.sql
+            scripts/migrations/201-own-full-payroll-decision-capacity.sql
+            api/internal-own-payroll-close.js
+            lib/internal-own-payroll-close.js
+            assets/own-payroll-close-panel.js
+            assets/own-payroll-close-panel.css
+            assets/own-payroll-close-model.js
+            assets/own-payroll-response.js
+            tests/own-payroll-close*.test.js
+            tests/own-payroll-run*.test.js
+            tests/own-payroll-full-capacity-190-source.test.js
+            tests/fixtures/own-payroll-full-capacity-190-source-projection.js
+          retention-days: 5

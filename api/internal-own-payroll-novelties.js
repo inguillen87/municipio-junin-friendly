@@ -21,6 +21,7 @@ export function createOwnNoveltyHandler(deps={}){
    if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')noveltyFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,OWN_NOVELTY_MAX_BYTES+64);
   }else if(q.resource==='bootstrap'&&Object.keys(q).join('|')==='resource'){operation='bootstrap';input={};}
   else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='id|resource'){operation='detail';input={id:q.id};}
+  else if(q.resource==='succession'&&Object.keys(q).sort().join('|')==='id|resource'){operation='succession';input={id:q.id};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
   else noveltyFail('QUERY_INVALID',400,'Consulta inválida.');
   const access=await authorize(req,res,{env,requiredCapabilities:OWN_NOVELTY_READ,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;

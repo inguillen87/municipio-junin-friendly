@@ -1,0 +1,1478 @@
+[
+  {
+    "name": "sql192-full30",
+    "fixture": {
+      "program": {
+        "monthlyDaysVersion": "own-monthly-day-facts.v2",
+        "monthlyDaysPolicy": {
+          "version": "own-monthly-day-policy.v1",
+          "basis": "verified_full_month",
+          "unit": "days",
+          "recognizedDays": "30",
+          "baseDays": "30",
+          "partial": "reject",
+          "reference": "Política sintética de mes completo verificado SQL192 QA"
+        },
+        "periodParticipation": {
+          "version": "own-period-participation.v1",
+          "fullPeriod": "neutral_fraction",
+          "fixedValidity": "declared_values",
+          "treatments": [
+            {
+              "ruleKey": "12:auxiliary:88:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar proporcional sintética 88 QA"
+            },
+            {
+              "ruleKey": "12:auxiliary:90:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar acumulativa sintética 90 QA"
+            },
+            {
+              "ruleKey": "12:concept:107:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Concepto de novedad 107 sintético QA (sin regla 101)"
+            },
+            {
+              "ruleKey": "12:concept:1:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Básico sintético con rama horaria opcional QA"
+            },
+            {
+              "ruleKey": "12:concept:44:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 88 QA"
+            },
+            {
+              "ruleKey": "12:concept:95:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 90 QA"
+            }
+          ]
+        },
+        "namespaceVersion": "own-payroll-namespaces.v2",
+        "workingTimeVersion": "own-contract-working-time.v1",
+        "agreementWorkingTimeVersion": "own-agreement-working-time.v1",
+        "rules": [
+          {
+            "agreementCode": "12",
+            "code": "1",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Básico sintético con rama horaria opcional QA",
+            "expression": {
+              "op": "choose",
+              "condition": {
+                "op": "compare",
+                "operator": "eq",
+                "left": {
+                  "op": "input",
+                  "unit": "hours",
+                  "key": "agreement_monthly_hours"
+                },
+                "right": {
+                  "op": "literal",
+                  "unit": "hours",
+                  "value": "140"
+                }
+              },
+              "then": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "else": {
+                "op": "multiply",
+                "left": {
+                  "op": "auxiliary",
+                  "code": "88",
+                  "stage": "rounded"
+                },
+                "right": {
+                  "op": "divide",
+                  "left": {
+                    "op": "input",
+                    "unit": "hours",
+                    "key": "contract_daily_hours"
+                  },
+                  "right": {
+                    "op": "literal",
+                    "unit": "hours",
+                    "value": "6"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "107",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "convert",
+                "value": {
+                  "op": "input",
+                  "unit": "units",
+                  "key": "nov_107_qty"
+                },
+                "unit": "coefficient",
+                "factor": "1",
+                "conversionReference": "Cantidad de novedad 107 como factor sintético QA"
+              },
+              "right": {
+                "op": "input",
+                "unit": "money",
+                "key": "rate_107"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "44",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "10"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "88",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "input",
+                "unit": "money",
+                "key": "basic_scale"
+              },
+              "right": {
+                "op": "divide",
+                "left": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "liq_days"
+                },
+                "right": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "base_days"
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "90",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+            "expression": {
+              "op": "auxiliary",
+              "code": "88",
+              "stage": "rounded"
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "95",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "90",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "5"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          }
+        ],
+        "bindings": [
+          {
+            "agreementCode": "12",
+            "key": "agreement_monthly_hours",
+            "unit": "hours",
+            "sourceKind": "agreement_time_fact",
+            "sourceField": "monthlyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas mensuales convenio QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "base_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_fact",
+            "sourceField": "baseDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días base SQL192 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "basic_scale",
+            "unit": "money",
+            "sourceKind": "scale",
+            "sourceCode": "1",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Escala sintética QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "contract_daily_hours",
+            "unit": "hours",
+            "sourceKind": "working_time_fact",
+            "sourceField": "dailyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas diarias contrato QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "liq_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_fact",
+            "sourceField": "recognizedDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días reconocidos SQL192 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "nov_107_qty",
+            "unit": "units",
+            "sourceKind": "monthly_quantity",
+            "sourceCode": "107",
+            "onMissing": "zero",
+            "combine": "sum",
+            "ruleReference": "Novedad mensual 107 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "rate_107",
+            "unit": "money",
+            "sourceKind": "auxiliary_parameter",
+            "sourceCode": "9107",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Parámetro auxiliar 9107 QA"
+          }
+        ],
+        "totalsPrecision": 2
+      },
+      "catalog": [
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "88",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 88",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "90",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 90",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "9107",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Valor unitario novedad 107 QA",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Parámetro auxiliar 9107 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "5000.00"
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "107",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 107",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+          "unit": "units",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "1",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 1",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Básico sintético con rama horaria opcional QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "44",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 44",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "95",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 95",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": "1",
+          "code": "1",
+          "dependencies": [],
+          "kind": "scale",
+          "label": "Escala categoría 1 sintética QA",
+          "nature": null,
+          "precision": 2,
+          "ruleReference": "Escala sintética QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "300000.00"
+        }
+      ],
+      "input": {
+        "selection": {
+          "kind": "contracts",
+          "values": [
+            "10000000-0000-4000-8000-000000000901"
+          ]
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000901",
+            "employeeNumber": "QA-ARGON-901"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "sql193-full30",
+    "fixture": {
+      "program": {
+        "monthlyDayDeclarationVersion": "own-monthly-approved-days.v1",
+        "periodParticipation": {
+          "version": "own-period-participation.v1",
+          "fullPeriod": "neutral_fraction",
+          "fixedValidity": "declared_values",
+          "treatments": [
+            {
+              "ruleKey": "12:auxiliary:88:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar proporcional sintética 88 QA"
+            },
+            {
+              "ruleKey": "12:auxiliary:90:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar acumulativa sintética 90 QA"
+            },
+            {
+              "ruleKey": "12:concept:107:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Concepto de novedad 107 sintético QA (sin regla 101)"
+            },
+            {
+              "ruleKey": "12:concept:1:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Básico sintético con rama horaria opcional QA"
+            },
+            {
+              "ruleKey": "12:concept:44:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 88 QA"
+            },
+            {
+              "ruleKey": "12:concept:95:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 90 QA"
+            }
+          ]
+        },
+        "namespaceVersion": "own-payroll-namespaces.v2",
+        "workingTimeVersion": "own-contract-working-time.v1",
+        "agreementWorkingTimeVersion": "own-agreement-working-time.v1",
+        "rules": [
+          {
+            "agreementCode": "12",
+            "code": "1",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Básico sintético con rama horaria opcional QA",
+            "expression": {
+              "op": "choose",
+              "condition": {
+                "op": "compare",
+                "operator": "eq",
+                "left": {
+                  "op": "input",
+                  "unit": "hours",
+                  "key": "agreement_monthly_hours"
+                },
+                "right": {
+                  "op": "literal",
+                  "unit": "hours",
+                  "value": "140"
+                }
+              },
+              "then": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "else": {
+                "op": "multiply",
+                "left": {
+                  "op": "auxiliary",
+                  "code": "88",
+                  "stage": "rounded"
+                },
+                "right": {
+                  "op": "divide",
+                  "left": {
+                    "op": "input",
+                    "unit": "hours",
+                    "key": "contract_daily_hours"
+                  },
+                  "right": {
+                    "op": "literal",
+                    "unit": "hours",
+                    "value": "6"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "107",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "convert",
+                "value": {
+                  "op": "input",
+                  "unit": "units",
+                  "key": "nov_107_qty"
+                },
+                "unit": "coefficient",
+                "factor": "1",
+                "conversionReference": "Cantidad de novedad 107 como factor sintético QA"
+              },
+              "right": {
+                "op": "input",
+                "unit": "money",
+                "key": "rate_107"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "44",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "10"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "88",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "input",
+                "unit": "money",
+                "key": "basic_scale"
+              },
+              "right": {
+                "op": "divide",
+                "left": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "decl_rec_days"
+                },
+                "right": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "decl_base_days"
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "90",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+            "expression": {
+              "op": "auxiliary",
+              "code": "88",
+              "stage": "rounded"
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "95",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "90",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "5"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          }
+        ],
+        "bindings": [
+          {
+            "agreementCode": "12",
+            "key": "agreement_monthly_hours",
+            "unit": "hours",
+            "sourceKind": "agreement_time_fact",
+            "sourceField": "monthlyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas mensuales convenio QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "basic_scale",
+            "unit": "money",
+            "sourceKind": "scale",
+            "sourceCode": "1",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Escala sintética QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "contract_daily_hours",
+            "unit": "hours",
+            "sourceKind": "working_time_fact",
+            "sourceField": "dailyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas diarias contrato QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "decl_base_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_declaration_fact",
+            "sourceField": "baseDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días base declarados SQL193 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "decl_rec_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_declaration_fact",
+            "sourceField": "recognizedDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días reconocidos declarados SQL193 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "nov_107_qty",
+            "unit": "units",
+            "sourceKind": "monthly_quantity",
+            "sourceCode": "107",
+            "onMissing": "zero",
+            "combine": "sum",
+            "ruleReference": "Novedad mensual 107 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "rate_107",
+            "unit": "money",
+            "sourceKind": "auxiliary_parameter",
+            "sourceCode": "9107",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Parámetro auxiliar 9107 QA"
+          }
+        ],
+        "totalsPrecision": 2
+      },
+      "catalog": [
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "88",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 88",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "90",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 90",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "9107",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Valor unitario novedad 107 QA",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Parámetro auxiliar 9107 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "5000.00"
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "107",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 107",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+          "unit": "units",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "1",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 1",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Básico sintético con rama horaria opcional QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "44",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 44",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "95",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 95",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": "1",
+          "code": "1",
+          "dependencies": [],
+          "kind": "scale",
+          "label": "Escala categoría 1 sintética QA",
+          "nature": null,
+          "precision": 2,
+          "ruleReference": "Escala sintética QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "300000.00"
+        }
+      ],
+      "input": {
+        "selection": {
+          "kind": "contracts",
+          "values": [
+            "10000000-0000-4000-8000-000000000901"
+          ]
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000901",
+            "employeeNumber": "QA-ARGON-901"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "sql193-declared16",
+    "fixture": {
+      "program": {
+        "monthlyDayDeclarationVersion": "own-monthly-approved-days.v1",
+        "periodParticipation": {
+          "version": "own-period-participation.v1",
+          "fullPeriod": "neutral_fraction",
+          "fixedValidity": "declared_values",
+          "treatments": [
+            {
+              "ruleKey": "12:auxiliary:88:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar proporcional sintética 88 QA"
+            },
+            {
+              "ruleKey": "12:auxiliary:90:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Base auxiliar acumulativa sintética 90 QA"
+            },
+            {
+              "ruleKey": "12:concept:107:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Concepto de novedad 107 sintético QA (sin regla 101)"
+            },
+            {
+              "ruleKey": "12:concept:1:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Básico sintético con rama horaria opcional QA"
+            },
+            {
+              "ruleKey": "12:concept:44:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 88 QA"
+            },
+            {
+              "ruleKey": "12:concept:95:2026-01:monthly",
+              "treatment": "declared_formula",
+              "reference": "Adicional sintético sobre auxiliar 90 QA"
+            }
+          ]
+        },
+        "namespaceVersion": "own-payroll-namespaces.v2",
+        "workingTimeVersion": "own-contract-working-time.v1",
+        "agreementWorkingTimeVersion": "own-agreement-working-time.v1",
+        "rules": [
+          {
+            "agreementCode": "12",
+            "code": "1",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Básico sintético con rama horaria opcional QA",
+            "expression": {
+              "op": "choose",
+              "condition": {
+                "op": "compare",
+                "operator": "eq",
+                "left": {
+                  "op": "input",
+                  "unit": "hours",
+                  "key": "agreement_monthly_hours"
+                },
+                "right": {
+                  "op": "literal",
+                  "unit": "hours",
+                  "value": "140"
+                }
+              },
+              "then": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "else": {
+                "op": "multiply",
+                "left": {
+                  "op": "auxiliary",
+                  "code": "88",
+                  "stage": "rounded"
+                },
+                "right": {
+                  "op": "divide",
+                  "left": {
+                    "op": "input",
+                    "unit": "hours",
+                    "key": "contract_daily_hours"
+                  },
+                  "right": {
+                    "op": "literal",
+                    "unit": "hours",
+                    "value": "6"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "107",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "convert",
+                "value": {
+                  "op": "input",
+                  "unit": "units",
+                  "key": "nov_107_qty"
+                },
+                "unit": "coefficient",
+                "factor": "1",
+                "conversionReference": "Cantidad de novedad 107 como factor sintético QA"
+              },
+              "right": {
+                "op": "input",
+                "unit": "money",
+                "key": "rate_107"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "44",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "88",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "10"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "88",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "input",
+                "unit": "money",
+                "key": "basic_scale"
+              },
+              "right": {
+                "op": "divide",
+                "left": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "decl_rec_days"
+                },
+                "right": {
+                  "op": "input",
+                  "unit": "days",
+                  "key": "decl_base_days"
+                }
+              }
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "90",
+            "nature": "auxiliary",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+            "expression": {
+              "op": "auxiliary",
+              "code": "88",
+              "stage": "rounded"
+            }
+          },
+          {
+            "agreementCode": "12",
+            "code": "95",
+            "nature": "remuneration",
+            "unit": "money",
+            "liquidationTypes": [
+              "monthly"
+            ],
+            "validFrom": "2026-01",
+            "validUntil": null,
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+            "expression": {
+              "op": "multiply",
+              "left": {
+                "op": "auxiliary",
+                "code": "90",
+                "stage": "rounded"
+              },
+              "right": {
+                "op": "convert",
+                "value": {
+                  "op": "literal",
+                  "unit": "percent",
+                  "value": "5"
+                },
+                "unit": "coefficient",
+                "factor": "0.01",
+                "conversionReference": "Conversión porcentual sintética QA"
+              }
+            }
+          }
+        ],
+        "bindings": [
+          {
+            "agreementCode": "12",
+            "key": "agreement_monthly_hours",
+            "unit": "hours",
+            "sourceKind": "agreement_time_fact",
+            "sourceField": "monthlyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas mensuales convenio QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "basic_scale",
+            "unit": "money",
+            "sourceKind": "scale",
+            "sourceCode": "1",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Escala sintética QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "contract_daily_hours",
+            "unit": "hours",
+            "sourceKind": "working_time_fact",
+            "sourceField": "dailyHours",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Horas diarias contrato QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "decl_base_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_declaration_fact",
+            "sourceField": "baseDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días base declarados SQL193 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "decl_rec_days",
+            "unit": "days",
+            "sourceKind": "monthly_day_declaration_fact",
+            "sourceField": "recognizedDays",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Días reconocidos declarados SQL193 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "nov_107_qty",
+            "unit": "units",
+            "sourceKind": "monthly_quantity",
+            "sourceCode": "107",
+            "onMissing": "zero",
+            "combine": "sum",
+            "ruleReference": "Novedad mensual 107 QA"
+          },
+          {
+            "agreementCode": "12",
+            "key": "rate_107",
+            "unit": "money",
+            "sourceKind": "auxiliary_parameter",
+            "sourceCode": "9107",
+            "onMissing": "error",
+            "combine": "single",
+            "ruleReference": "Parámetro auxiliar 9107 QA"
+          }
+        ],
+        "totalsPrecision": 2
+      },
+      "catalog": [
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "88",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 88",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar proporcional sintética 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "90",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Definición sintética 90",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Base auxiliar acumulativa sintética 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "9107",
+          "dependencies": [],
+          "kind": "auxiliary",
+          "label": "Valor unitario novedad 107 QA",
+          "nature": "auxiliary",
+          "precision": 2,
+          "ruleReference": "Parámetro auxiliar 9107 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "5000.00"
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "107",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 107",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Concepto de novedad 107 sintético QA (sin regla 101)",
+          "unit": "units",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "1",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 1",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Básico sintético con rama horaria opcional QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "44",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 44",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 88 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": null,
+          "code": "95",
+          "dependencies": [],
+          "kind": "concept",
+          "label": "Definición sintética 95",
+          "nature": "remuneration",
+          "precision": 2,
+          "ruleReference": "Adicional sintético sobre auxiliar 90 QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": null
+        },
+        {
+          "active": true,
+          "agreementCode": "12",
+          "categoryCode": "1",
+          "code": "1",
+          "dependencies": [],
+          "kind": "scale",
+          "label": "Escala categoría 1 sintética QA",
+          "nature": null,
+          "precision": 2,
+          "ruleReference": "Escala sintética QA",
+          "unit": "money",
+          "validFrom": "2026-01",
+          "validUntil": null,
+          "value": "300000.00"
+        }
+      ],
+      "input": {
+        "selection": {
+          "kind": "contracts",
+          "values": [
+            "10000000-0000-4000-8000-000000000901"
+          ]
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000901",
+            "employeeNumber": "QA-ARGON-901"
+          }
+        ]
+      }
+    }
+  }
+]

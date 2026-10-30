@@ -1,3 +1,4 @@
+import {createInternalReadTiming} from '../lib/internal-read-phase-timing.js';
 import { randomUUID } from 'node:crypto';
 import { absenceWindowSql } from '../lib/absence-window-sql.js';
 import { absenceWindowMode } from '../assets/absence-window-model.js';
@@ -1148,10 +1149,27 @@ function absenceBoolean(value) {
 }
 
 function absenceSummaryRow(row = {}) {
+  // Coverage belongs to this exact aggregate, never to a global quality count.
+  // DIAS_24 can contain negative historical values; this is a read, not a rule.
+  const numeric = value => typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  const events = numeric(row.events);
+  const eventsWithDeclaredDays = numeric(row.eventsWithDeclaredDays);
+  const eventsWithoutDeclaredDays = numeric(row.eventsWithoutDeclaredDays);
+  const knownSourceDeclaredDays = row.knownSourceDeclaredDays === null ? null : numeric(row.knownSourceDeclaredDays);
+  if (![events, eventsWithDeclaredDays, eventsWithoutDeclaredDays].every(value => Number.isSafeInteger(value) && value >= 0)
+      || eventsWithDeclaredDays + eventsWithoutDeclaredDays !== events
+      || (events === 0 ? knownSourceDeclaredDays !== 0
+        : eventsWithDeclaredDays === 0 ? knownSourceDeclaredDays !== null : !Number.isFinite(knownSourceDeclaredDays))) {
+    throw Error('ABSENCE_DECLARED_DAYS_CONTRACT_INVALID');
+  }
   return {
-    events: absenceNumber(row.events),
+    events,
     affectedContracts: absenceNumber(row.affectedContracts),
-    sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays)
+    sourceDeclaredDays: eventsWithoutDeclaredDays === 0 ? knownSourceDeclaredDays : null,
+    knownSourceDeclaredDays,
+    eventsWithDeclaredDays,
+    eventsWithoutDeclaredDays,
   };
 }
 
@@ -1269,7 +1287,9 @@ async function queryAbsenceSummary(sql, filters, marker = 'summary') {
     /* absence:${marker} */
     SELECT count(*)::int AS events,
            count(DISTINCT contract.id)::int AS "affectedContracts",
-           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+           (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+           count(absence.dias)::int AS "eventsWithDeclaredDays",
+           count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
     ${absenceFromSql(Boolean(filters.search), { employee: Boolean(filters.sector || filters.search), reason: false })}
     WHERE ${scope.where}
   `, scope.values);
@@ -1325,9 +1345,11 @@ export async function absenceAnalytics(sql, req) {
       SELECT to_char(date_trunc('${request.bucket}', absence.fecha), 'YYYY-MM-DD') AS period,
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+              (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
              (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
-               OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
+                OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial,
+              count(absence.dias)::int AS "eventsWithDeclaredDays",
+              count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { employee: Boolean(filters.sector), reason: false })}
       WHERE ${scope.where}
       GROUP BY 1, 5 ORDER BY 1
@@ -1342,7 +1364,9 @@ export async function absenceAnalytics(sql, req) {
              (reason.source_payload ->> 'calendarDays')::boolean AS "calendarDays",
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+              (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+              count(absence.dias)::int AS "eventsWithDeclaredDays",
+              count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { employee: Boolean(filters.sector) })}
       WHERE ${scope.where}
       GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY events DESC, label
@@ -1352,7 +1376,9 @@ export async function absenceAnalytics(sql, req) {
       SELECT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS label,
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
-             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+             (CASE WHEN count(*)=0 THEN 0 ELSE sum(absence.dias) END)::numeric AS "knownSourceDeclaredDays",
+             count(absence.dias)::int AS "eventsWithDeclaredDays",
+             count(*) FILTER (WHERE absence.dias IS NULL)::int AS "eventsWithoutDeclaredDays"
       ${absenceFromSql(false, { reason: false })}
       WHERE ${scope.where}
       GROUP BY 1 ORDER BY events DESC, label
@@ -1395,6 +1421,10 @@ export async function absenceAnalytics(sql, req) {
     comparisonPromise
   ]);
 
+  const completeDeclaredDays = previous !== null
+    && summary.eventsWithoutDeclaredDays === 0 && previous.eventsWithoutDeclaredDays === 0;
+  const declaredDaysChange = completeDeclaredDays
+    ? percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays) : null;
   const comparison = previous ? {
     available: true,
     basis: 'previous_year_same_calendar_window',
@@ -1403,8 +1433,13 @@ export async function absenceAnalytics(sql, req) {
     changePercent: {
       events: percentChange(summary.events, previous.events),
       affectedContracts: percentChange(summary.affectedContracts, previous.affectedContracts),
-      sourceDeclaredDays: percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays)
-    }
+      sourceDeclaredDays: declaredDaysChange
+    },
+    declaredDaysComparison: {
+      available: declaredDaysChange !== null,
+      reason: !completeDeclaredDays ? 'incomplete_declared_days'
+        : previous.sourceDeclaredDays === 0 ? 'zero_previous_declared_days' : null,
+    },
   } : {
     available: false,
     basis: 'previous_year_same_calendar_window',
@@ -3071,7 +3106,7 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, departmentRead = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
@@ -3116,7 +3151,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
                NULLIF(btrim(contract.source_payload #>> '{employment,sectorName}'), ''),
                employee.sector,
                latest_assignment.area_name
-             ) AS sector,
+             ) AS sector,${departmentRead ? '\n             contract.sector_source_id AS "departmentCode",\n             NULLIF(btrim(contract.source_payload #>> \'{employment,sectorName}\'), \'\') AS "departmentName",' : ''}
              COALESCE(
                NULLIF(btrim(contract.source_payload #>> '{employment,categoryName}'), ''),
                employee.categoria,
@@ -3194,6 +3229,11 @@ export async function employees(sql, req, binding = null, options = {}) {
   const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
   const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
   const search = boundedQueryValue(req, 'search', 100);
+  const departmentRead = Object.hasOwn(req.query || {}, 'department');
+  const department = departmentRead ? req.query.department : '';
+  if (departmentRead && (typeof department !== 'string' || department !== department.trim() || department.length > 160 || /[\u0000-\u001f\u007f]/.test(department))) {
+    return { status:400, payload:{ok:false,code:'DIRECTORY_DEPARTMENT_INVALID',error:'Elegí una repartición válida del listado.'} };
+  }
   const sector = boundedQueryValue(req, 'sector');
   const organization = boundedQueryValue(req, 'organization');
   const agreement = boundedQueryValue(req, 'agreement');
@@ -3231,6 +3271,7 @@ export async function employees(sql, req, binding = null, options = {}) {
       ${tokenNameMatch}
     )`);
   }
+  if (department) conditions.push(`directory."departmentCode" = ${parameter(department)}`);
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
   if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
   if (agreement) conditions.push(`COALESCE(directory.convenio, 'Sin convenio informado') = ${parameter(agreement)}`);
@@ -3244,7 +3285,7 @@ export async function employees(sql, req, binding = null, options = {}) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead)));
+  const baseSql = options.nativeOnly?nativeDirectorySql({departmentRead}):operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),departmentRead));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3275,12 +3316,17 @@ export async function employees(sql, req, binding = null, options = {}) {
     ), directory_facets AS (
       SELECT ${facet('sector', 'Sin sector informado')} AS sectors,
              ${facet('organizacion', 'Sin organización informada')} AS organizations,
-             ${facet('convenio', 'Sin convenio informado')} AS agreements
+             ${facet('convenio', 'Sin convenio informado')} AS agreements${departmentRead ? `,
+             (SELECT coalesce(jsonb_agg(item ORDER BY value COLLATE "C"), '[]'::jsonb)
+               FROM (SELECT "departmentCode" AS value,
+                 CASE WHEN count(DISTINCT "departmentName")=1 THEN min("departmentName") END AS label,
+                 count(*)::integer AS count FROM directory
+                 WHERE "departmentCode" IS NOT NULL AND "departmentCode"<>'' GROUP BY "departmentCode") item) AS departments` : ''}
     )
     SELECT directory_count.total AS "__total", to_jsonb(directory_scope) AS "__scope",
            directory_scope."sourceCutoffFrom" AS "__sourceCutoffFrom",
            directory_scope."sourceCutoffTo" AS "__sourceCutoffTo",
-           directory_facets.sectors AS "__sectors", directory_facets.organizations AS "__organizations",
+           directory_facets.sectors AS "__sectors",${departmentRead ? ' directory_facets.departments AS "__departments",' : ''} directory_facets.organizations AS "__organizations",
            directory_facets.agreements AS "__agreements", directory_page.*
     FROM directory_count CROSS JOIN directory_scope CROSS JOIN directory_facets
     LEFT JOIN directory_page ON true
@@ -3291,12 +3337,16 @@ export async function employees(sql, req, binding = null, options = {}) {
       || !Array.isArray(metadata.__organizations) || !Array.isArray(metadata.__agreements)) {
     throw Object.assign(new Error('DIRECTORY_RESULT_INVALID'), { code: 'DIRECTORY_RESULT_INVALID' });
   }
+  const departments = departmentRead ? metadata.__departments : null;
+  if (departmentRead && (!Array.isArray(departments) || departments.some(item => !item || typeof item.value !== 'string' || !item.value || item.value !== item.value.trim() || item.value.length > 160 || /[\u0000-\u001f\u007f]/.test(item.value) || !(item.label === null || typeof item.label === 'string') || !Number.isSafeInteger(item.count) || item.count < 1) || new Set(departments.map(item => item.value)).size !== departments.length)) {
+    throw Object.assign(new Error('DIRECTORY_DEPARTMENTS_INVALID'), {code:'DIRECTORY_DEPARTMENTS_INVALID'});
+  }
   const scope = { ...metadata.__scope, sourceCutoffFrom: metadata.__sourceCutoffFrom,
     sourceCutoffTo: metadata.__sourceCutoffTo };
   const { __sectors: sectors, __organizations: organizations, __agreements: agreements } = metadata;
   const data = rows.filter((row) => row.contractId !== null).map(({
     __total, __scope, __sourceCutoffFrom, __sourceCutoffTo,
-    __sectors, __organizations, __agreements, __pageOrder, ...row
+    __sectors, __organizations, __agreements, __departments, __pageOrder, ...row
   }) => row);
   const total = Number(metadata.__total || 0);
   if (picker) {
@@ -3329,7 +3379,7 @@ export async function employees(sql, req, binding = null, options = {}) {
         ambiguous: Number(scope?.ambiguous || 0),
         unmatched: Number(scope?.unmatched || 0)
       },
-      facets: { sectors, organizations, agreements }
+      facets: { sectors, organizations, agreements, ...(departmentRead ? {departments} : {}) }
     }
   };
 }
@@ -3906,17 +3956,22 @@ export function createInternalDataHandler(dependencies = {}) {
       res.setHeader('Allow', 'GET');
       return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
-    let resource = 'unknown';
+    let resource = 'unknown', timing = null;
+    const timed = (phase, work) => timing ? timing.measure(phase, work) : work();
+    const runtimeSql = () => timed('runtime-client', () => getPayrollSql(env));
+    const readDirectory = (...args) => timed('directory', () => employees(...args));
+    const readEmployee = (...args) => timed('employee-detail', () => employee(...args));
     try {
       resource = queryValue(req, 'resource', 'summary').toLowerCase();
+      if (resource === 'employees' || resource === 'employee') timing = createInternalReadTiming({route:'internal-data:'+resource, emit:dependencies.reportReadTiming, clock:dependencies.readTimingClock});
       const requiredCapabilities = capabilitiesForInternalDataResource(resource);
-      const access = await requireAccess(req, res, {
+      const access = await timed('access', () => requireAccess(req, res, {
         env,
         requiredCapabilities: requiredCapabilities ?? [],
         requireDataPlaneReady: true,
         requireCertifiedDataBinding: true,
         allowLegacy: false,
-      });
+      }));
       if (!access) return undefined;
       if (!requiredCapabilities) {
         return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
@@ -3934,46 +3989,46 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, result.status, result.payload);
       }
       if (resource === 'budgetpayrollcatalog' || resource === 'budgetpayrollroster') {
-        const result = await internalBudgetPayroll(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        const result = await internalBudgetPayroll(await runtimeSql(), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'payrollexportroster') {
-        const result = await internalPayrollRoster(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        const result = await internalPayrollRoster(await runtimeSql(), req, access.principal, getTenantSession(access, env));
         return send(res,result.status,result.payload);
       }
       if (resource === 'payrollsourcereport') {
-        const result = await internalPayrollSourceReport(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        const result = await internalPayrollSourceReport(await runtimeSql(), req, access.principal, getTenantSession(access, env));
         return send(res,result.status,result.payload);
       }
       if (resource === 'employeepayrolldocuments') {
-        const result = await employeePayrollDocuments(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        const result = await employeePayrollDocuments(await runtimeSql(), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'employeepayrolldetail') {
-        const result = await employeePayrollDetail(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        const result = await employeePayrollDetail(await runtimeSql(), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'employeepayroll') {
         const tenantSession = getTenantSession(access, env);
-        const sql = await getPayrollSql(env);
+        const sql = await runtimeSql();
         const result = await employeePayroll(sql, req, access.principal, tenantSession);
         return send(res, result.status, result.payload);
       }
-      const sql = await getSql();
+      const sql = await timed('source-client', () => getSql());
       const sourceBinding = { ...directorySourceBinding(env), tenantId: access.principal?.tenant?.id };
       let sourceSnapshot;
-      try{sourceSnapshot=await effectiveSourceSnapshot(sql,sourceBinding);}
+      try{sourceSnapshot=await timed('source-before',()=>effectiveSourceSnapshot(sql,sourceBinding));}
       catch(error){
         // Empty imported cohorts use current authenticated municipal proofs.
         // A partial imported cohort never becomes a silently truncated census.
         const target=queryValue(req,'contractId').toLowerCase();
         if(!['employees','employee'].includes(resource)||access.mode!=='managed'||error?.code!=='GRH_SOURCE_SCOPE_INVALID'||!sourceBinding.database||!sourceBinding.companyId)throw error;
-        const currentSql=await getPayrollSql(env),currentSession=getTenantSession(access,env);
+        const currentSql=await runtimeSql(),currentSession=getTenantSession(access,env);
         if(resource==='employees'){
-          const first=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          const first=await timed('native-before',()=>readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding));
           if(first.imported!==0)throw error;
-          const result=await employees(sql,req,{...sourceBinding,lifecycleContext:employeeContext(access.principal,currentSession)},{nativeOnly:true});
-          const fresh=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          const result=await readDirectory(sql,req,{...sourceBinding,lifecycleContext:employeeContext(access.principal,currentSession)},{nativeOnly:true});
+          const fresh=await timed('native-after',()=>readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding));
           if(first.token!==fresh.token||JSON.stringify(first.scope)!==JSON.stringify(fresh.scope)||fresh.imported!==0||result.status===200&&(result.currentCensusTotal??result.payload.scope?.totalContracts)!==first.total)throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');
           return send(res,result.status,result.payload);
         }
@@ -3983,21 +4038,21 @@ export function createInternalDataHandler(dependencies = {}) {
         catch(historyError){
           if(historyError?.code!=='EMPLOYMENT_ADOPTION_HISTORY_NOT_FOUND')throw historyError;
           const initial=await readNativeEmployee(currentSql,access.principal,currentSession,target,sourceBinding);let consumed=false;
-          const result=await employee(sql,req,access.principal.tenant.id,{resolveCurrentEmployee:async id=>{if(!consumed&&id.toLowerCase()===target){consumed=true;return initial;}return readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding);}});
+          const result=await readEmployee(sql,req,access.principal.tenant.id,{resolveCurrentEmployee:async id=>{if(!consumed&&id.toLowerCase()===target){consumed=true;return initial;}return readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding);}});
           if(!result.payload.meta?.currentEmploymentVerified)throw error;
           return send(res,result.status,result.payload);
         }
         let used=false;
-        const result=await employee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding);},resolveCurrentEmployee:async id=>readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding)});
+        const result=await readEmployee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await runtimeSql(),access.principal,getTenantSession(access,env),id,sourceBinding);},resolveCurrentEmployee:async id=>readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding)});
         if(!result.payload.meta?.currentEmploymentVerified)throw error;
         return send(res,result.status,result.payload);
       }
       const respond = async (status, payload) => {
-        await assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot);
+        await timed('source-after', () => assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot));
         return send(res, status, payload);
       };
       if(resource==='payrolldocumentbatch'){
-        const result=await internalPayrollDocumentBatch(sql,req,sourceBinding,sourceSnapshot,{readRoster:async datasetId=>internalPayrollRoster(await getPayrollSql(env),{query:{resource:'payrollexportroster',datasetId}},access.principal,getTenantSession(access,env))});
+        const result=await internalPayrollDocumentBatch(sql,req,sourceBinding,sourceSnapshot,{readRoster:async datasetId=>internalPayrollRoster(await runtimeSql(),{query:{resource:'payrollexportroster',datasetId}},access.principal,getTenantSession(access,env))});
         return await respond(result.status,result.payload);
       }
       if (resource === 'summary') return await respond( 200, await summary(sql));
@@ -4043,15 +4098,15 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'employees') {
         const nativeRead=access.mode==='managed';
-        const before=nativeRead?await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding):null;
-        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'});
-        if(nativeRead){const after=await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding);if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
+        const before=nativeRead?await timed('native-before',async()=>readNativeDirectorySnapshot(await runtimeSql(),access.principal,getTenantSession(access,env),sourceBinding)):null;
+        const result = await readDirectory(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'});
+        if(nativeRead){const after=await timed('native-after',async()=>readNativeDirectorySnapshot(await runtimeSql(),access.principal,getTenantSession(access,env),sourceBinding));if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
         return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
-        const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null,{
-          resolveAdoptionHistory:async contractId=>readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),contractId,sourceBinding),
-          ...(access.mode==='managed'?{resolveCurrentEmployee:async id=>readNativeEmployee(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding)}:{})
+        const result = await readEmployee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null,{
+          resolveAdoptionHistory:async contractId=>readAdoptionHistory(await runtimeSql(),access.principal,getTenantSession(access,env),contractId,sourceBinding),
+          ...(access.mode==='managed'?{resolveCurrentEmployee:async id=>readNativeEmployee(await runtimeSql(),access.principal,getTenantSession(access,env),id,sourceBinding)}:{})
         });
         if(result.status===200&&result.payload.data?.recordOrigin==='MUNICONTROL'&&!result.payload.meta?.currentEmploymentVerified){
           const lifecycle=await employmentLifecycleOperation(sql,access.principal,getTenantSession(access,env),'bootstrap',{contractId:result.payload.data.contractId});
@@ -4068,7 +4123,7 @@ export function createInternalDataHandler(dependencies = {}) {
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
       reportReadFailure(payrollReadDiagnostic(error, safeResource, requestId));
       return send(res, failure.status, { ok: false, code: failure.code, error: failure.error, retryable: failure.retryable, requestId });
-    }
+    } finally { timing?.finish(); }
   };
 }
 

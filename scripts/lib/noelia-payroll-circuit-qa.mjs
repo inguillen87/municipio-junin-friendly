@@ -7,6 +7,8 @@ import {POSITION_QA_CAPS} from './position-assignment-qa.mjs';
 import {noeliaCircuitRuntime,noeliaQaApplicationName} from './noelia-circuit-runtime.mjs';
 import {NATIVE_ROSTER_V2_SQL} from '../../lib/internal-native-roster.js';
 import {MAX_NATIVE_ROSTER_ROWS} from '../../assets/native-roster-model.js';
+import {noeliaFullDecisionStatement} from './noelia-current-full-qa.mjs';
+import {noeliaPosition210Statement} from './noelia-position210-qa.mjs';
 // Relocate only the exact canonical read and its eight declared parameters.
 // Execution stays in the disposable schema; no row is synthesized by this adapter.
 export function noeliaCircuitRosterRead(query,values,schema){
@@ -17,6 +19,14 @@ export function noeliaCircuitRosterRead(query,values,schema){
  assert.doesNotMatch(query,/;|\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i);
  const statement=query.replaceAll('public.native_employee_',schema+'.native_employee_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
  return "SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+statement+') qa_read';
+}
+// Only the three exact statements emitted by employeeOperation. Values stay
+// quoted, and execution retains the existing runtime-role/COMMIT transport.
+export function noeliaNativeEmployeeStatement(query,values,schema){
+ const statements=[['SELECT public.native_employee_bootstrap_v1($1::jsonb) AS result',1],['SELECT public.native_employee_attempt_v1($1::jsonb,$2::uuid) AS result',2],['SELECT public.native_employee_create_v1($1::jsonb,$2::jsonb,$3::text,$4::uuid) AS result',4]],entry=statements.find(([statement])=>statement===query);
+ if(!entry)return null;
+ assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.ok(Array.isArray(values)&&values.length===entry[1]&&Object.keys(values).length===values.length&&values.every(value=>typeof value==='string'),'QA_NATIVE_EMPLOYEE_PARAMETERS');
+ return query.replace('public.native_employee_',schema+'.native_employee_').replace(/\$(\d+)/g,(_,index)=>q(values[Number(index)-1]));
 }
 export function buildNoeliaCircuitQa(major,{jurisdictions=false}={}){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
  assert.equal(typeof jurisdictions,'boolean');
@@ -37,17 +47,27 @@ export function relocateNoeliaJurisdictionInstallation(batch,qa,previous){
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_jurisdiction.mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
  return {...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
 }
-export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const environment=Object.freeze({...runtime.environment,PGAPPNAME:noeliaQaApplicationName(options.schema)}),db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment});return {...db,executable:runtime.executable,environment,applicationName:environment.PGAPPNAME,query:async(query,values)=>{
- const rosterRead=noeliaCircuitRosterRead(query,values,options.schema);if(rosterRead)return await db.run(rosterRead);
+// Same strict Directory branches shared by both QA contexts. No executor.
+export function noeliaCircuitDirectoryRead(query,values,schema){
+ assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);
  if(query.includes('/* effective-source:snapshot */')||/^WITH authority AS MATERIALIZED\s*\(/.test(query.trimStart())){
-  // Execute the application's complete read, never substitute directory rows.
   assert.ok(query.includes('/* effective-source:snapshot */')&&query.includes('grh_effective_source_batch_v1')||query.includes('native_employee_directory_snapshot_v1($4::jsonb)')&&query.includes('AS "__total"'));
   assert.doesNotMatch(query,/;|\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i);
-  const sql=query.replaceAll('public.native_employee_',options.schema+'.native_employee_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
-  // Authenticated read RPCs take FOR SHARE locks. Keep their normal transaction
-  // mode; the bounded SELECT and the verifier's before/after proof forbid data effects.
-  return await db.run("SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+sql+") qa_read");
+  const sql=query.replaceAll('public.native_employee_',schema+'.native_employee_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
+  // Canonical authenticated reads take FOR SHARE; retain the original RR/RW
+  // snapshot mode and return every row from the application's complete read.
+  return{sql:"SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+sql+") qa_read",rows:true,runtime:false};
  }
+ if(query!=='SELECT public.native_employee_directory_snapshot_v1($1::jsonb) AS result')return null;
+ assert.ok(Array.isArray(values)&&values.length===1&&Object.keys(values).length===1&&typeof values[0]==='string','QA_DIRECTORY_SNAPSHOT_PARAMETERS');
+ return{sql:query.replace('public.native_employee_',schema+'.native_employee_').replace('$1',q(values[0])),rows:false,runtime:true};
+}
+export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const environment=Object.freeze({...runtime.environment,PGAPPNAME:noeliaQaApplicationName(options.schema)}),db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment});return {...db,executable:runtime.executable,environment,applicationName:environment.PGAPPNAME,query:async(query,values)=>{
+ const position210=noeliaPosition210Statement(query,values,options.schema);if(position210!==null)return[{result:await db.run(position210,true)}];
+ const fullDecision=noeliaFullDecisionStatement(query,values,options.schema);if(fullDecision!==null)return[{result:await db.run(fullDecision,true)}];
+ const nativeEmployee=noeliaNativeEmployeeStatement(query,values,options.schema);if(nativeEmployee)return[{result:await db.run(nativeEmployee,true)}];
+ const rosterRead=noeliaCircuitRosterRead(query,values,options.schema);if(rosterRead)return await db.run(rosterRead);
+ const directory=noeliaCircuitDirectoryRead(query,values,options.schema);if(directory){const result=await db.run(directory.sql,directory.runtime);return directory.rows?result:[{result}];}
  if(!/^SELECT public\.(?:municipal_adoption_|employment_adoption_|own_novelty_|own_program_|native_employee_|native_employment_catalog_|position_assignment_|position_comparison_|annual_budget_)/.test(query))return db.query(query,values);
  assert.match(query,/^SELECT public\.(?:municipal_adoption_(?:queue|review|attempt|command)_v1|employment_adoption_(?:bootstrap|attempt|propose|history_read|final_bootstrap|final_available|active_bootstrap|declared_bootstrap|registry_bootstrap|operational_bootstrap)_v1|own_novelty_(?:bootstrap|detail|attempt|command)_v1|own_program_bootstrap_v1|native_employee_directory_snapshot_v1|native_employment_catalog_bootstrap_v1|position_assignment_(?:bootstrap|attempt|command|capture)_v1|position_comparison_detail_v1|annual_budget_(?:bootstrap|attempt|command)_v1)\([\s\S]+\) AS result$/);
  const sql=query.replaceAll('public.',options.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});return[{result:await db.run(sql,true)}];

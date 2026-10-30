@@ -7,6 +7,8 @@ import{buildOwnerAuthorityQa}from'../verify-municipal-owner-adoption-authority.m
 import{SALARY_ADMINISTRATIVE_CONTEXT}from'./salary-administrative-identity-installation.mjs';
 import{ADOPTION_ADMINISTRATIVE_CONTEXT}from'./adoption-administrative-identity-installation.mjs';
 import{CONSUMER_BEFORE_PINS}from'./adopted-consumers-installation-pins.mjs';
+import{buildOwnCloseSql}from'./own-payroll-close-sql.mjs';
+import{buildSalaryAuxiliaryNamespaceSql}from'./salary-auxiliary-namespace-installation.mjs';
 import{splitPostgresStatements}from'./sql-statements.mjs';import{ownInstallationFunctionPin}from'./own-payroll-installation.mjs';
 export const ownerDecisionQaHash=value=>createHash('sha256').update(value).digest('hex');
 export const ownerDecisionQaLiteral=value=>"'"+String(value).replaceAll("'","''")+"'";
@@ -14,7 +16,7 @@ const lf=s=>s.replace(/\r\n?/g,'\n'),clean=s=>s.replace(/^(?:\s*--[^\n]*(?:\n|$)
 const body=d=>{const m=/\bAS\s+(\$[\w]*\$)([\s\S]*)\1\s*;?$/.exec(d);assert.ok(m,'OWNER_DECISION_QA_BODY_REQUIRED');return m[2];};
 const replaceBody=(d,next)=>d.replace(body(d),()=>next),identity=d=>{try{return ownInstallationFunctionPin(d);}catch{const m=/^CREATE(?: OR REPLACE)? FUNCTION public\.(\w+)\s*\(([^)]*)\)\s+RETURNS\s+(TABLE\b|text\[\])/i.exec(d);assert.ok(m,'OWNER_DECISION_QA_HEADER_UNSUPPORTED');const types=(m[2]?m[2].split(','):[]).map(s=>{const p=/^\s*\w+\s+([\w.]+)(?:\s+DEFAULT\s+(?:NULL|false))?\s*$/.exec(s);assert.ok(p);return p[1];});return{name:m[1],signature:'public.'+m[1]+'('+types.join(',')+')',sha256:ownerDecisionQaHash(body(d)),tableResult:m[3]==='TABLE'};}},name=d=>identity(d).name;
 const fixed=d=>{const at=/\bAS\s+\$\w*\$/.exec(d);if(!at)return d;const header=d.slice(0,at.index).replaceAll("SET search_path TO 'pg_catalog', 'public', 'pg_temp'",'SET search_path=pg_catalog,public,pg_temp').replaceAll("SET search_path TO 'public', 'pg_temp'",'SET search_path=public,pg_temp').replace(/SET (?:"TimeZone"|timezone) TO 'UTC'/gi,"SET timezone='UTC'");return(header+d.slice(at.index)).replace(/^CREATE(?: OR REPLACE)? FUNCTION (?!public\.)(\w+)\(/,'CREATE FUNCTION public.$1(').replace(/^CREATE OR REPLACE FUNCTION /,'CREATE FUNCTION ');};
-const extraSources=['scripts/internal-schema.sql','scripts/migrations/002-canonical-integration.sql','scripts/migrations/025-governed-payroll-control-import.sql','scripts/migrations/026-governed-payroll-novelties.sql','scripts/migrations/092-payroll-fixed-novelties.sql','scripts/migrations/093-native-fixed-novelties.sql','scripts/migrations/098-grh-curated-source-version.sql','scripts/migrations/099-grh-curated-consumers.sql','scripts/migrations/108-payroll-fixed-junin638.sql','scripts/lib/salary-administrative-identity-installation.mjs','scripts/lib/adoption-administrative-identity-installation.mjs','tests/fixtures/native-employee-installed-067.json'];
+const extraSources=['scripts/internal-schema.sql','scripts/migrations/002-canonical-integration.sql','scripts/migrations/025-governed-payroll-control-import.sql','scripts/migrations/026-governed-payroll-novelties.sql','scripts/migrations/092-payroll-fixed-novelties.sql','scripts/migrations/093-native-fixed-novelties.sql','scripts/migrations/098-grh-curated-source-version.sql','scripts/migrations/099-grh-curated-consumers.sql','scripts/migrations/108-payroll-fixed-junin638.sql','scripts/migrations/146-own-consolidated-annulment.sql','scripts/lib/salary-administrative-identity-installation.mjs','scripts/lib/adoption-administrative-identity-installation.mjs','tests/fixtures/native-employee-installed-067.json'];
 export function ownerDecisionQaEmbeddedPins(source){const result=[];for(const start of source.matchAll(/\[\{"(?:name|signature)":/g)){const at=start.index;let depth=0,quoted=false,escaped=false,end=at;for(;end<source.length;end++){const c=source[end];if(quoted){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c==='"')quoted=false;}else if(c==='"')quoted=true;else if(c==='['||c==='{')depth++;else if(c===']'||c==='}')if(--depth===0){end++;break;}}let values;try{values=JSON.parse(source.slice(at,end));}catch{continue;}if(Array.isArray(values)&&values.every(p=>typeof p?.signature==='string'&&typeof p.sha256==='string'))result.push(...values);}return result;}
 
 // Evaluate only the constant string substitutions in the already pinned
@@ -68,6 +70,157 @@ export function buildOwnerDecisionQaDefinitions({read,sourceCommit,operationalPa
  const patch110=splitPostgresStatements(load('scripts/migrations/110-native-employment-lifecycle.sql')).find(s=>s.startsWith('DO $fixed_export$'));assert.ok(patch110);const anchor110=/anchor text:=('(?:[^']|'')*');/.exec(patch110),call110=/d:=replace\(d,anchor,([\s\S]*?)\);\n EXECUTE d;/.exec(patch110);assert.ok(anchor110&&call110);const anchor=constantExpression(anchor110[1],{}),next=constantExpression(call110[1],{anchor});for(const d of [...pool.values()].filter(d=>name(d)==='payroll_fixed_registry_export_v1'&&d.includes(anchor)))add(d.replace(anchor,()=>next));
  deriveConsumerPatches(pool,add,load);
  const desired=new Map([...ownerDecisionQaEmbeddedPins(batch.originalReady),...batch.period.prerequisites,...batch.period.afterPins,...batch.authority.prerequisitePins,...batch.authority.supportPins,...batch.beforePins,identity(batch.legacyWriter)].map(p=>[p.signature,p]));
+ // The current167 creation writer preserves the jurisdiction declared in095.
+ // Replaying compact067 bodies above must not leave that writer paired with
+ // the old receipt, which omits the declared field and the real API rejects.
+ // Pin the existing095 helper only; keep it private and retain both bodies in
+ // the pool as source history. No API check, IAM fact or runtime grant changes.
+ const receiptSignature='public.native_employee_receipt_v1(native_employee_registration)',receiptSha256='1a57c2445f344f37d59c8c798237efefa0bb4671d101d9a177744c8fbac2c18e';
+ const receiptDefinition=pool.get(receiptSignature+'|'+receiptSha256);assert.ok(receiptDefinition,'OWNER_DECISION_QA095_RECEIPT_REQUIRED');
+ const receiptPin=identity(receiptDefinition);assert.equal(receiptPin.runtime,false,'OWNER_DECISION_QA095_RECEIPT_MUST_STAY_PRIVATE');
+ assert.ok(!desired.has(receiptSignature)||desired.get(receiptSignature).sha256===receiptSha256,'OWNER_DECISION_QA095_RECEIPT_CONFLICT');desired.set(receiptSignature,receiptPin);
+ // The same canonical seed must actually own SQL146 before201 can replace it.
+ // Loading its reviewed source above feeds the existing table/function/metadata
+ // plan, while these exact source pins retain its three declared facades only.
+ const annulSource=load('scripts/migrations/146-own-consolidated-annulment.sql');assert.equal(ownerDecisionQaHash(annulSource),'8337df26dc3c22fe8c156e19d7511db6c537f08b219633f6add981c774a48fe6','OWNER_DECISION_QA146_SOURCE_CHANGED');
+ const annulDefinitions=splitPostgresStatements(annulSource).map(clean).filter(d=>d.startsWith('CREATE FUNCTION public.own_annul_'));
+ const annulRuntime=new Set(['own_annul_detail_v1','own_annul_attempt_v1','own_annul_command_v1']);assert.equal(annulDefinitions.length,5,'OWNER_DECISION_QA146_FUNCTION_SET');
+ const annulPins=annulDefinitions.map(d=>{const p=identity(d);return{...p,runtime:annulRuntime.has(p.name)};});assert.equal(annulPins.filter(p=>p.runtime).length,3,'OWNER_DECISION_QA146_RUNTIME_SET');
+ for(const pin of annulPins){assert.ok(pool.has(pin.signature+'|'+pin.sha256),'OWNER_DECISION_QA146_DEFINITION_MISSING:'+pin.signature);assert.ok(!desired.has(pin.signature)||desired.get(pin.signature).sha256===pin.sha256,'OWNER_DECISION_QA146_PIN_CONFLICT:'+pin.signature);desired.set(pin.signature,pin);}
+ // SQL197 requires the close125 protections on these two liquidation bodies.
+ // Preserve their complete124 preimages, and select only the two reviewed125
+ // successors. Capture/readiness have their own later composition and stay put.
+ assert.equal(ownerDecisionQaHash(load('scripts/lib/own-payroll-close-sql.mjs')),'b30aa8751521a4df39f43b76ecc521308a9a0f8f158757a7c4c7e84e30f833f7','OWNER_DECISION_QA125_HELPER_CHANGED');
+ const close125=buildOwnCloseSql(load),close125Selections=[
+  ['own_liquidation_command_v1','d9cb410d0ba21a298d50c23672e0afb9e3b661cc4fd23ba63175ab47c1eb3753','575d80c105d2ebf149e914bbfd975f21dbafa8c8bdd64d0eaf3e55ff357b96bc',true],
+  ['own_liquidation_rows_v1','c3698d0ea703d4d87028c5b414a1f244dfe0158bd2a8ff7caaeda115b89acb17','7220b153509fc944c787104ce52c12af15678b8db29dbebf1dbecb32f993ea25',false]
+ ];
+ for(const[functionName,beforeSha,afterSha,runtime]of close125Selections){
+  const before=close125.before.filter(d=>name(d)===functionName),after=close125.adapted.filter(d=>name(d)===functionName);assert.equal(before.length,1);assert.equal(after.length,1);
+  const beforePin=identity(before[0]),afterPin=identity(after[0]);assert.equal(beforePin.sha256,beforeSha,'OWNER_DECISION_QA125_BEFORE_CHANGED');assert.equal(afterPin.sha256,afterSha,'OWNER_DECISION_QA125_AFTER_CHANGED');
+  assert.deepEqual({...beforePin,sha256:null},{...afterPin,sha256:null},'OWNER_DECISION_QA125_METADATA_CHANGED');
+  assert.ok(pool.has(beforePin.signature+'|'+beforeSha),'OWNER_DECISION_QA125_PREIMAGE_MISSING');
+  assert.equal(desired.has(beforePin.signature),false,'OWNER_DECISION_QA125_EARLY_EPOCH_DEPENDENCY');
+  add(after[0]);desired.set(afterPin.signature,{...afterPin,runtime});
+ }
+ // SQL201 protects the jurisdiction/namespace snapshot already in its source
+ // predecessor. Only this private helper enters the seed; the namespace batch
+ // also contains six older consumers which must keep their later selections.
+ assert.equal(ownerDecisionQaHash(load('scripts/lib/salary-auxiliary-namespace-installation.mjs')),'6d492a4c56adba6a78242604f27b86ba18067359c1b28dc39879e50d43eed9b9','OWNER_DECISION_QA_SNAPSHOT_NAMESPACE_SOURCE_CHANGED');
+ const namespaceSnapshot=buildSalaryAuxiliaryNamespaceSql({read:load,sourceCommit}),snapshotSignature='public.own_close_snapshot_v1(jsonb,jsonb)';
+ const originalSnapshot=[...pool.values()].filter(d=>identity(d).signature===snapshotSignature&&identity(d).sha256==='02ef5825c524bb7b7168b2ec8f567c323482fee8ac7ac7fbfeba8071c37ee14f');assert.equal(originalSnapshot.length,1,'OWNER_DECISION_QA_SNAPSHOT125_REQUIRED');
+ const jurisdictionSnapshot=namespaceSnapshot.originals.filter(d=>identity(d).signature===snapshotSignature),selectedSnapshot=namespaceSnapshot.changed.filter(d=>identity(d).signature===snapshotSignature);assert.equal(jurisdictionSnapshot.length,1);assert.equal(selectedSnapshot.length,1);
+ const snapshotPin=identity(selectedSnapshot[0]);assert.equal(snapshotPin.sha256,'11d46e478ab606b0a9d4602e83a072a16924e47d7b8d2da064ed1d7abd2885b0','OWNER_DECISION_QA_SNAPSHOT201_PREDECESSOR');assert.equal(snapshotPin.runtime,false,'OWNER_DECISION_QA_SNAPSHOT_MUST_STAY_PRIVATE');
+ for(const historical of [originalSnapshot[0],jurisdictionSnapshot[0]]){assert.deepEqual({...identity(historical),sha256:null},{...snapshotPin,sha256:null},'OWNER_DECISION_QA_SNAPSHOT_SECURITY_CHANGED');add(historical);}
+ assert.ok(!desired.has(snapshotSignature),'OWNER_DECISION_QA_SNAPSHOT_EARLY_EPOCH_DEPENDENCY');add(selectedSnapshot[0]);desired.set(snapshotSignature,snapshotPin);
+ // Runtime exposure comes from the two complete published GRANT statements,
+ // not from the generic own_program/own_run header parser or a name prefix.
+ // Keep each final source body already chosen by the graph:125 command and177
+ // close detail must never be replaced by their older124/125 definitions here.
+ const publishedFacadeGroups=[
+  ['scripts/migrations/124-own-payroll-liquidation-decisions.sql','03035e3f7e126b1561222f1a894bcf1000dd586b6d05fb579cb4722d9aa41f4a','own_liquidation_',[
+   'public.own_liquidation_bootstrap_v1(jsonb)',
+   'public.own_liquidation_detail_v1(jsonb,uuid)',
+   'public.own_liquidation_attempt_v1(jsonb,uuid)',
+   'public.own_liquidation_command_v1(jsonb,jsonb,uuid)',
+  ]],
+  ['scripts/migrations/125-own-payroll-close.sql','443127dd55b9be5f37da47af303fcdd599b4d5dc0aad0a319a18253f8f139af5','own_close_',[
+   'public.own_close_detail_v1(jsonb,text,text)',
+   'public.own_close_attempt_v1(jsonb,uuid)',
+   'public.own_close_group_v1(jsonb,uuid)',
+   'public.own_close_command_v1(jsonb,jsonb,uuid)',
+  ]],
+ ];
+ const classifiedFacadeSignatures=new Set();
+ for(const[file,sourceSha,family,signatures]of publishedFacadeGroups){
+  const source=load(file);assert.equal(ownerDecisionQaHash(source),sourceSha,'OWNER_DECISION_QA124125_FACADE_SOURCE_CHANGED:'+file);
+  const statements=splitPostgresStatements(source).map(clean);
+  const grants=statements.filter(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes('public.'+family));
+  assert.deepEqual(grants,['GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'],'OWNER_DECISION_QA124125_FACADE_GRANT_CHANGED:'+file);
+  for(const signature of signatures){
+   assert.equal(classifiedFacadeSignatures.has(signature),false,'OWNER_DECISION_QA124125_FACADE_DUPLICATE');classifiedFacadeSignatures.add(signature);
+   const functionName=signature.slice(7,signature.indexOf('('));
+   const published=statements.filter(s=>s.startsWith('CREATE FUNCTION public.'+functionName+'('));
+   assert.equal(published.length,1,'OWNER_DECISION_QA124125_FACADE_DEFINITION_REQUIRED:'+signature);
+   const canonical=identity(fixed(published[0]));assert.equal(canonical.signature,signature);
+   const priorSelection=desired.get(signature);
+   if(priorSelection)assert.equal(priorSelection.runtime,true,'OWNER_DECISION_QA124125_EARLY_EPOCH_ACL_CONFLICT:'+signature);
+   const current=priorSelection?pool.get(signature+'|'+priorSelection.sha256):latest.get(signature);
+   assert.ok(current,'OWNER_DECISION_QA124125_FINAL_SOURCE_MISSING:'+signature);
+   const pin=identity(current);assert.equal(pin.signature,signature);
+   assert.equal(pool.get(signature+'|'+pin.sha256),current,'OWNER_DECISION_QA124125_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+   if(priorSelection)assert.equal(pin.sha256,priorSelection.sha256,'OWNER_DECISION_QA124125_FINAL_SOURCE_CHANGED:'+signature);
+   assert.deepEqual({...pin,sha256:null,runtime:null},{...canonical,sha256:null,runtime:null},'OWNER_DECISION_QA124125_FACADE_SECURITY_CHANGED:'+signature);
+   desired.set(signature,{...pin,runtime:true});
+  }
+ }
+ assert.equal(classifiedFacadeSignatures.size,8);
+ // Restore the exact three runtime facades already published by067.
+ // Select their current source bodies; never restore the older067 create body.
+ const native067File='scripts/migrations/067-native-employee-registration.sql';
+ const native067Source=load(native067File);
+ assert.equal(ownerDecisionQaHash(native067Source),'aa33538cea459a275de8056b8316f3eb4465ebb88ad1de54578bb24380c4d749','OWNER_DECISION_QA067_SOURCE_CHANGED');
+ const native067Signatures=[
+  'public.native_employee_bootstrap_v1(jsonb)',
+  'public.native_employee_attempt_v1(jsonb,uuid)',
+  'public.native_employee_create_v1(jsonb,jsonb,text,uuid)',
+ ];
+ const native067Statements=splitPostgresStatements(native067Source).map(clean);
+ const native067Grant='GRANT EXECUTE ON FUNCTION '+native067Signatures.map(s=>s.slice(7)).join(',')+' TO municontrol_actions_runtime_app';
+ assert.equal(native067Statements.filter(s=>s===native067Grant).length,1,'OWNER_DECISION_QA067_PUBLISHED_GRANT_REQUIRED');
+ const native067Definitions=native067Statements.filter(s=>/^CREATE(?: OR REPLACE)? FUNCTION /.test(s)).map(fixed);
+ for(const signature of native067Signatures){
+  const functionName=signature.slice(7,signature.indexOf('('));
+  const declarations=native067Definitions.filter(d=>d.startsWith('CREATE FUNCTION public.'+functionName+'('));
+  assert.equal(declarations.length,1,'OWNER_DECISION_QA067_DECLARATION_REQUIRED:'+signature);
+  const canonical=identity(declarations[0]);assert.equal(canonical.signature,signature);
+  const previous=desired.get(signature);
+  if(previous)assert.equal(previous.runtime,true,'OWNER_DECISION_QA067_EARLY_EPOCH_ACL_CONFLICT:'+signature);
+  const current=previous?pool.get(signature+'|'+previous.sha256):latest.get(signature);
+  assert.ok(current,'OWNER_DECISION_QA067_FINAL_SOURCE_REQUIRED:'+signature);
+  const pin=identity(current);assert.equal(pin.signature,signature);
+  assert.equal(pool.get(signature+'|'+pin.sha256),current,'OWNER_DECISION_QA067_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+  if(previous)assert.equal(pin.sha256,previous.sha256,'OWNER_DECISION_QA067_FINAL_BODY_CHANGED:'+signature);
+  assert.deepEqual({...pin,sha256:null,runtime:null},{...canonical,sha256:null,runtime:null},'OWNER_DECISION_QA067_METADATA_CHANGED:'+signature);
+  desired.set(signature,{...pin,runtime:true});
+ }
+ // ART158/159 already publish exactly these five runtime facades. Their
+ // intermediate afterPins graph omits them; a generic header parser is not
+ // ACL authority. Recover only the two pinned GRANT contracts, retaining all
+ // twelve bodies and the seven private helpers unchanged.
+ const artFacadeGroups=[
+  ['scripts/migrations/158-own-art-days.sql','c718f2480a28e4fdf566675146002dabb75b8fbb6b44a0bc56851520e74ce509',[
+   'public.own_art_days_bootstrap_v1(jsonb,uuid,text)',
+   'public.own_art_days_detail_v1(jsonb,uuid)',
+   'public.own_art_days_attempt_v1(jsonb,uuid)',
+   'public.own_art_days_command_v1(jsonb,jsonb,uuid)',
+  ]],
+  ['scripts/migrations/159-own-art-report.sql','789d1cead7ef09d16a6bc61ec714c8d77e669fb8cc51d37f095c429672561b7a',[
+   'public.own_art_report_source_v1(jsonb,jsonb)',
+  ]],
+ ];
+ const classifiedArtSignatures=new Set();
+ for(const[file,sourceSha,signatures]of artFacadeGroups){
+  const source=load(file);assert.equal(ownerDecisionQaHash(source),sourceSha,'OWNER_DECISION_QA_ART158159_SOURCE_CHANGED:'+file);
+  const statements=splitPostgresStatements(source).map(clean);
+  const grants=statements.filter(s=>s.startsWith('GRANT EXECUTE ON FUNCTION ')&&s.includes('public.own_art_'));
+  assert.deepEqual(grants,['GRANT EXECUTE ON FUNCTION '+signatures.join(',')+' TO municontrol_actions_runtime_app'],'OWNER_DECISION_QA_ART158159_GRANT_CHANGED:'+file);
+  for(const signature of signatures){
+   assert.equal(classifiedArtSignatures.has(signature),false,'OWNER_DECISION_QA_ART158159_DUPLICATE');classifiedArtSignatures.add(signature);
+   const functionName=signature.slice(7,signature.indexOf('('));
+   const declarations=statements.filter(d=>d.startsWith('CREATE FUNCTION public.'+functionName+'('));
+   assert.equal(declarations.length,1,'OWNER_DECISION_QA_ART158159_DEFINITION_REQUIRED:'+signature);
+   const definition=fixed(declarations[0]),canonical=identity(definition);assert.equal(canonical.signature,signature);
+   const expected={...canonical,runtime:true},previous=desired.get(signature),hint=pinHints.get(signature+'|'+canonical.sha256);
+   if(previous)assert.deepEqual(previous,expected,'OWNER_DECISION_QA_ART158159_EARLY_EPOCH_CONFLICT:'+signature);
+   if(hint)assert.deepEqual(hint,expected,'OWNER_DECISION_QA_ART158159_HINT_CONFLICT:'+signature);
+   const current=latest.get(signature);assert.ok(current,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_REQUIRED:'+signature);
+   assert.equal(current,definition,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_CHANGED:'+signature);
+   assert.equal(pool.get(signature+'|'+canonical.sha256),current,'OWNER_DECISION_QA_ART158159_FINAL_SOURCE_NOT_IN_POOL:'+signature);
+   desired.set(signature,expected);
+  }
+ }
+ assert.equal(classifiedArtSignatures.size,5);
  const missing=[...desired.values()].filter(p=>!pool.has(p.signature+'|'+p.sha256));assert.deepEqual(missing.map(p=>p.signature+':'+p.sha256),[],'OWNER_DECISION_QA_CANONICAL_DEFINITION_MISSING');
  for(const p of desired.values())latest.set(p.signature,pool.get(p.signature+'|'+p.sha256));
  assert.equal(latest.get('public.employment_adoption_decision_guard_v1()'),fixed(batch.originalGuard));assert.equal(latest.get('public.municipal_adoption_ready_v1()'),fixed(batch.originalReady));
@@ -90,21 +243,32 @@ export function ownerDecisionQaTablePlan(sources,existing){
 function commaParts(source){const result=[];let start=0,depth=0,quoted=false;for(let at=0;at<source.length;at++){const c=source[at];if(quoted){if(c==="'"&&source[at+1]==="'")at++;else if(c==="'")quoted=false;continue;}if(c==="'")quoted=true;else if(c==='(')depth++;else if(c===')')depth--;else if(c===','&&depth===0){result.push(source.slice(start,at));start=at+1;}}result.push(source.slice(start));return result;}
 const maskStrings=source=>source.replace(/--[^\n]*|\/(?:\*[^]*?\*\/)\s*|(?:E|U&)?'(?:[^']|'')*'/g,s=>' '.repeat(s.length));
 export function ownerDecisionQaColumnAudit(seed,definitions=[]){
- const tables=new Map(),unknown=[],bindingsChecked=[],statements=splitPostgresStatements(seed).map(clean),reserved=new Set(['where','join','on','set','values','returning','cross','left','right','inner','outer','full','order','group','limit','for','union']);
+ const tables=new Map(),unknown=[],bindingsChecked=[],statements=splitPostgresStatements(seed).map(clean),reserved=new Set(['where','join','on','set','values','returning','cross','left','right','inner','outer','full','order','group','limit','for','union','lateral','with','ordinality']);
  for(const s of statements){let m=/^CREATE TABLE(?: IF NOT EXISTS)? (?:(?:\w+)\.)?(\w+)\s*\(([\s\S]*)\)\s*$/.exec(s);if(m){const columns=new Set();for(const part of commaParts(m[2])){const column=/^\s*(\w+)\s+/.exec(maskStrings(part))?.[1];if(column&&!['constraint','primary','foreign','check','unique','exclude'].includes(column.toLowerCase()))columns.add(column);}tables.set(m[1],columns);continue;}
   m=/^ALTER TABLE\s+(?:(?:\w+)\.)?(\w+)\s+ADD COLUMN(?: IF NOT EXISTS)?\s+(\w+)\b/.exec(s);if(m&&tables.has(m[1]))tables.get(m[1]).add(m[2]);
  }
- const inspect=(source,label)=>{const sql=maskStrings(source),aliases=new Map(),add=(alias,table)=>{if(!aliases.has(alias))aliases.set(alias,new Set());aliases.get(alias).add(table);};
-  for(const m of sql.matchAll(/\b(?:FROM|JOIN|UPDATE)\s+(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)){add(m[1],m[1]);if(m[2]&&!reserved.has(m[2].toLowerCase()))add(m[2],m[1]);}
-  for(const m of sql.matchAll(/\b(?:FROM|JOIN)\s+(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(\w+)\s*\(/gi)){let at=m.index+m[0].length,depth=1;for(;at<sql.length&&depth;at++){if(sql[at]==='(')depth++;else if(sql[at]===')')depth--;}const alias=/^\s+(?:AS\s+)?(\w+)/i.exec(sql.slice(at))?.[1];if(alias&&!reserved.has(alias.toLowerCase())){const cast=m[1]==='jsonb_populate_record'?/NULL::(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.(\w+)/.exec(sql.slice(m.index,at))?.[1]:null;add(alias,cast??'@function:'+m[1]);}}
-  for(const m of sql.matchAll(/\b(?:FROM|JOIN)\s*\(/gi)){let at=m.index+m[0].length,depth=1;for(;at<sql.length&&depth;at++){if(sql[at]==='(')depth++;else if(sql[at]===')')depth--;}const alias=/^\s+(?:AS\s+)?(\w+)/i.exec(sql.slice(at))?.[1];if(alias&&!reserved.has(alias.toLowerCase()))add(alias,'@subquery');}
-  for(const m of sql.matchAll(/,\s*(\w+)\s+(\w+)(?=\s+(?:WHERE|JOIN|ON|FOR)\b)/gi))add(m[2],m[1]);
-  for(const m of sql.matchAll(/\b(\w+)\s+(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.(\w+)(?:%ROWTYPE)?(?=\s*[,;)])/gi))if(tables.has(m[2]))add(m[1],m[2]);
+ const typedBindings=sql=>{const aliases=new Map();for(const m of sql.matchAll(/\b(\w+)\s+(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.(\w+)(?:%ROWTYPE)?(?=\s*[,;)])/gi))if(tables.has(m[2]))aliases.set(m[1],new Set([m[2]]));return aliases;};
+ const inspect=(source,label,variables=new Map())=>{const sql=maskStrings(source),root={start:0,end:sql.length,parent:null,aliases:new Map()},regions=[root],stack=[];
+  // A nested SELECT has its own aliases. A missing local alias may correlate
+  // to its parent; a local JSON alias shadows only inside that SELECT.
+  for(let at=0;at<sql.length;at++){if(sql[at]==='(')stack.push(at);else if(sql[at]===')'&&stack.length){const begin=stack.pop();if(/^\s*(?:SELECT|WITH)\b/i.test(sql.slice(begin+1,at)))regions.push({start:begin+1,end:at,parent:null,aliases:new Map()});}}
+  // Set-operation arms are sibling queries, even without parentheses.
+  for(const region of [...regions]){let depth=0,begin=region.start;const arms=[];for(let at=region.start;at<region.end;at++){if(sql[at]==='(')depth++;else if(sql[at]===')')depth--;else if(depth===0&&(at===region.start||!/[\w]/.test(sql[at-1]))){const operator=/^(?:UNION|INTERSECT|EXCEPT)\b/i.exec(sql.slice(at,region.end));if(operator){arms.push({start:begin,end:at,parent:null,aliases:new Map()});at+=operator[0].length-1;begin=at+1;}}}if(arms.length)regions.push(...arms,{start:begin,end:region.end,parent:null,aliases:new Map()});}
+  regions.sort((a,b)=>a.start-b.start||b.end-a.end);
+  for(const region of regions.slice(1)){let parent=root;for(const possible of regions){if(possible===region)break;if(possible.start<=region.start&&possible.end>=region.end&&possible.end-possible.start<parent.end-parent.start)parent=possible;}region.parent=parent;}
+  const scope=at=>{let selected=root;for(const region of regions)if(at>=region.start&&at<region.end&&region.end-region.start<=selected.end-selected.start)selected=region;return selected;};
+  const add=(at,alias,table)=>{const aliases=scope(at).aliases;if(!aliases.has(alias))aliases.set(alias,new Set());aliases.get(alias).add(table);};
+  const lookup=(at,alias)=>{for(let region=scope(at);region;region=region.parent)if(region.aliases.has(alias))return region.aliases.get(alias);return variables.get(alias);};
+  for(const m of sql.matchAll(/\b(?:FROM|JOIN|UPDATE)\s+(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)){add(m.index,m[1],m[1]);if(m[2]&&!reserved.has(m[2].toLowerCase()))add(m.index,m[2],m[1]);}
+  for(const m of sql.matchAll(/\b(?:FROM|JOIN)\s+(?:LATERAL\s+)?(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(\w+)\s*\(/gi)){let at=m.index+m[0].length,depth=1;for(;at<sql.length&&depth;at++){if(sql[at]==='(')depth++;else if(sql[at]===')')depth--;}const alias=/^\s+(?:WITH\s+ORDINALITY\s+)?(?:AS\s+)?(\w+)/i.exec(sql.slice(at))?.[1];if(alias&&!reserved.has(alias.toLowerCase())){const cast=m[1]==='jsonb_populate_record'?/NULL::(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.(\w+)/.exec(sql.slice(m.index,at))?.[1]:null;add(m.index,alias,cast??'@function:'+m[1]);}}
+  for(const m of sql.matchAll(/\b(?:FROM|JOIN)\s*\(/gi)){let at=m.index+m[0].length,depth=1;for(;at<sql.length&&depth;at++){if(sql[at]==='(')depth++;else if(sql[at]===')')depth--;}const alias=/^\s+(?:AS\s+)?(\w+)/i.exec(sql.slice(at))?.[1];if(alias&&!reserved.has(alias.toLowerCase()))add(m.index,alias,'@subquery');}
+  for(const m of sql.matchAll(/,\s*(\w+)\s+(\w+)(?=\s+(?:WHERE|JOIN|ON|FOR)\b)/gi))add(m.index,m[2],m[1]);
   for(const m of sql.matchAll(/\bINSERT\s+INTO\s+(?:(?:public|mc_qa_fixed_092_[a-f0-9]{32})\.)?(\w+)\s*\(([^)]*)\)/gi))if(tables.has(m[1]))for(const part of m[2].split(',')){const column=part.trim();bindingsChecked.push(label+':'+m[1]+'.'+column);if(!tables.get(m[1]).has(column))unknown.push({label,table:m[1],column,kind:'insert'});}
-  for(const m of sql.matchAll(/\b(\w+)\.(\w+)\b/g)){const bound=aliases.get(m[1]);if(!bound||[...bound].some(t=>!tables.has(t)))continue;bindingsChecked.push(label+':'+m[0]);if(![...bound].some(t=>tables.get(t).has(m[2])))unknown.push({label,alias:m[1],tables:[...bound],column:m[2],kind:'reference'});}
+  for(const m of sql.matchAll(/\b(\w+)\.(\w+)\b/g)){const bound=lookup(m.index,m[1]);if(!bound||[...bound].some(t=>!tables.has(t)))continue;bindingsChecked.push(label+':'+m[0]);if(![...bound].some(t=>tables.get(t).has(m[2])))unknown.push({label,alias:m[1],tables:[...bound],column:m[2],kind:'reference'});}
  };
- for(const s of statements)if(!/^CREATE(?: OR REPLACE)? FUNCTION/.test(s))inspect(s,'seed');for(const d of definitions)inspect(d,identity(d).name);
- return{tables:Object.fromEntries([...tables].map(([table,columns])=>[table,[...columns].sort()])),checkedReferences:bindingsChecked.length,unknown,scope:'physical inserts and unambiguous aliases; not dynamic SQL or PostgreSQL catalogue aliases'};
+ for(const s of statements)if(!/^CREATE(?: OR REPLACE)? FUNCTION/.test(s))inspect(s,'seed',typedBindings(maskStrings(s)));
+ for(const d of definitions){const source=body(d),variables=typedBindings(maskStrings(d));for(const s of splitPostgresStatements(source))inspect(s,identity(d).name,variables);}
+ return{tables:Object.fromEntries([...tables].map(([table,columns])=>[table,[...columns].sort()])),checkedReferences:bindingsChecked.length,unknown,scope:'physical inserts and unambiguous aliases by statement/subquery; not dynamic SQL or PostgreSQL catalogue aliases'};
 }
 
 export function buildOwnerDecisionQa({major,sourceCommit,read,schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-',''),operationalPairBaseline='pre107'}){

@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createOwnReceiptHandler} from '../api/internal-own-payroll-receipts.js';
 import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_SELF} from '../assets/own-payroll-receipt-model.js';
+import {OWN_RECEIPT_NOMINAL,OWN_RECEIPT_PREPARER} from '../assets/own-payroll-receipt-access.js';
 import {receiptCommand,receiptEvent,receiptPreview,receiptSelf} from './fixtures/own-payroll-receipt-synthetic.js';import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {receiptError} from '../lib/internal-own-payroll-receipts.js';
 const p={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid(50),membershipId:uid(51),effectiveCapabilities:OWN_RECEIPT_PREPARE}},session={email:p.user.email,id:uid(52),version:1,releaseSha:'d'.repeat(40)};
@@ -8,7 +9,7 @@ const req=()=>({method:'POST',url:'/api/internal-own-payroll-receipts',query:{},
 const res=()=>({headers:{},statusCode:0,setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(v){this.body=v;return this;}});
 function setup(caps=OWN_RECEIPT_PREPARE,value=receiptEvent()){const calls=[],stats={connect:0},handler=createOwnReceiptHandler({env:{INTERNAL_APP_ORIGIN:'http://localhost:8080'},requireAccess:async()=>({mode:'managed',principal:{...p,tenant:{...p.tenant,effectiveCapabilities:caps}}}),sessionFor:()=>session,getSql:async()=>{stats.connect++;return{query:async(q,v)=>{calls.push({q,v});return[{result:value}];}};}});return{handler,calls,stats};}
 test('preparación toma identidad de sesión y ningún importe del cliente',async()=>{const a=setup(),r=res();await a.handler(req(),r);assert.equal(r.statusCode,201);assert.match(a.calls[0].q,/own_receipt_command/);assert.equal(JSON.parse(a.calls[0].v[0]).membershipId,p.tenant.membershipId);assert.deepEqual(JSON.parse(a.calls[0].v[1]),receiptCommand());assert.match(r.headers['Cache-Control'],/no-store/);});
-test('cada capacidad nominal revocada impide leer el formulario y conectar',async()=>{for(const cap of OWN_RECEIPT_READ){const a=setup(OWN_RECEIPT_PREPARE.filter(c=>c!==cap)),request=req(),r=res();Object.defineProperty(request,'body',{get(){throw Error('Body must remain unread');}});await a.handler(request,r);assert.equal(r.statusCode,403,cap);assert.equal(a.stats.connect,0);}});
+test('cada capacidad nominal revocada impide leer el formulario y conectar',async()=>{for(const cap of OWN_RECEIPT_NOMINAL){const a=setup(OWN_RECEIPT_PREPARE.filter(c=>c!==cap)),request=req(),r=res();Object.defineProperty(request,'body',{get(){throw Error('Body must remain unread');}});await a.handler(request,r);assert.equal(r.statusCode,403,cap);assert.equal(a.stats.connect,0);}});
 test('permiso específico revocado no escribe ni cambia el intento',async()=>{const a=setup(OWN_RECEIPT_READ),r=res();await a.handler(req(),r);assert.equal(r.statusCode,403);assert.equal(a.stats.connect,0);});
 for(const [label,change]of [['origen ajeno',r=>r.headers.origin='https://evil.invalid'],['importe cliente',r=>r.body=JSON.stringify({operation:'command',payload:{...receiptCommand(),amount:'1'}})],['JSON ambiguo',r=>r.body='{"operation":"command","operati\\u006fn":"command"}'],['medio inválido',r=>r.headers['content-type']='text/plain'],['UTF8 inválido',r=>r.body=Buffer.from([255])],['sin clave',r=>delete r.headers['idempotency-key']],['método',r=>r.method='DELETE'],['URL duplicada',r=>{r.method='GET';r.query={resource:'self'};r.url+='?resource=self&resource=self';}]])test('rechaza '+label+' sin escritura',async()=>{const a=setup(),request=req(),r=res();change(request);await a.handler(request,r);assert.ok(r.statusCode>=400);assert.equal(a.calls.length,0);});
 test('previa es lectura del negocio aunque usa POST y conserva todos los registros',async()=>{const a=setup(OWN_RECEIPT_READ,receiptPreview()),r=res(),request=req();request.body=JSON.stringify({operation:'preview',params:receiptPreview().snapshot.params});await a.handler(request,r);assert.equal(r.statusCode,200);assert.match(a.calls[0].q,/own_receipt_preview/);assert.equal(r.body.data.snapshot.recordCount,35);});
@@ -27,7 +28,7 @@ function issuerSetup(options={}){
 test('emisor institucional es lectura del perfil sintético después del mismo gate certificado',async()=>{
  const a=issuerSetup(),r=res(),request=issuerRequest();Object.defineProperty(request,'body',{get(){throw Error('GET body must remain unread');}});await a.handler(request,r);
  assert.equal(r.statusCode,200);assert.deepEqual(r.body.data.scope,{tenantId:p.tenant.id});assert.equal(r.body.data.version,'own-receipt-issuer.v1');assert.equal(r.body.data.state,'configured');assert.deepEqual(r.body.data.profile.issuer,inventedIssuer().issuer);assert.deepEqual(r.body.data.profile.source,inventedIssuer().source);assert.match(r.body.data.profile.version,/^[a-f0-9]{64}$/);
- assert.deepEqual(a.gateOptions,[{env:{INTERNAL_APP_ORIGIN:'http://localhost:8080'},requiredCapabilities:OWN_RECEIPT_READ,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false}]);
+ assert.deepEqual(a.gateOptions,[{env:{INTERNAL_APP_ORIGIN:'http://localhost:8080'},requiredCapabilities:OWN_RECEIPT_NOMINAL,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false}]);
  assert.deepEqual(a.stats,{authorize:1,profile:1,connect:0});assert.match(r.headers['Cache-Control'],/no-store/);assert.match(r.headers.Vary,/Cookie/);
  assert.equal(JSON.stringify(r.body).includes(p.tenant.membershipId),false);assert.equal(JSON.stringify(r.body).includes(session.id),false);assert.equal(JSON.stringify(r.body).includes(p.user.email),false);
 });
@@ -64,4 +65,28 @@ test('recurso issuer exige GET exacto sin período, selección ajena ni consulta
 
 test('perfil configurado corrupto falla cerrado sin identificación parcial ni SQL',async()=>{
  const bad=inventedIssuer();bad.source.validityDeclared=true;const a=issuerSetup({profiles:{[p.tenant.id]:bad}}),r=res();await a.handler(issuerRequest(),r);assert.equal(r.statusCode,503);assert.equal(r.body.code,'OWN_RECEIPT_CONTRACT_INVALID');assert.equal(r.body.data,undefined);assert.equal(a.stats.connect,0);
+});
+
+test('preparer-only authority may read the configured issuer and complete preview without calculation approval',async()=>{
+ const caps=['actions.read',...OWN_RECEIPT_PREPARER],principal={...p,tenant:{...p.tenant,effectiveCapabilities:caps}};
+ const issuer=issuerSetup({access:{mode:'managed',principal}}),i=res();await issuer.handler(issuerRequest(),i);
+ assert.equal(i.statusCode,200);assert.equal(issuer.stats.profile,1);assert.equal(issuer.stats.connect,0);
+ const a=setup(caps,receiptPreview()),r=res(),request=req();request.body=JSON.stringify({operation:'preview',params:receiptPreview().snapshot.params});
+ await a.handler(request,r);assert.equal(r.statusCode,200);assert.equal(r.body.data.snapshot.recordCount,35);
+ assert.equal(caps.includes('payroll.calculation.approve'),false);
+});
+
+test('receipt.approve alone never elevates a preparer to approval or withdrawal of receipts',async()=>{
+ const caps=['actions.read',...OWN_RECEIPT_PREPARER,'payroll.receipt.approve'];
+ for(const command of ['approve','withdraw']){
+  const a=setup(caps),r=res(),request=req();request.body=JSON.stringify({operation:'command',payload:{...receiptCommand(),command,params:null,batchId:uid(60),batchSha256:'a'.repeat(64),reviewConfirmed:true}});
+  await a.handler(request,r);assert.equal(r.statusCode,403,command);assert.equal(a.stats.connect,0);
+ }
+});
+test('removing every nominal read or both module doors rejects a preparer before reading the POST body',async()=>{
+ const preparer=['actions.read',...OWN_RECEIPT_PREPARER];
+ for(const caps of [...OWN_RECEIPT_NOMINAL.map(cap=>preparer.filter(v=>v!==cap)),['actions.read',...OWN_RECEIPT_NOMINAL]]){
+  const a=setup(caps),r=res(),request=req();Object.defineProperty(request,'body',{get(){throw Error('Forbidden receipt body must remain unread');}});
+  await a.handler(request,r);assert.equal(r.statusCode,403);assert.equal(a.stats.connect,0);assert.equal(a.calls.length,0);
+ }
 });

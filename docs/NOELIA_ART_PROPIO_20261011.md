@@ -35,4 +35,14 @@ Se usan las facultades ya existentes: lectura de personal y parámetros; prepara
 
 SQL158 agrega una tabla vacía e inmutable para declaraciones y decisiones; SQL159 agrega la consulta completa de ART. El lote añade doce funciones, cinco fachadas de ejecución, sin adaptar funciones previas. Verifica hashes de las fuentes, prerrequisitos, metadatos, permisos, conservación antes/después, durabilidad y repetición sólo de verificación. No ejecuta decisiones o cálculos municipales.
 
-La verificación automática usa PostgreSQL 17 y 18 desechables y empleados sintéticos creados por el escritor propio publicado. Recorre preparación, revisión independiente, reapertura, anulación, recálculo, confirmación y cierre, y prueba las pantallas compiladas de escritorio y móvil. La aceptación municipal de Noelia y la recepción del archivo por el organismo son comprobaciones posteriores, distintas de esta QA.
+El verificador nativo está diseñado para usar PostgreSQL 17 y 18 desechables y empleados sintéticos creados por el escritor propio. Ese recorrido previsto incluye preparación, revisión independiente, reapertura, anulación, recálculo, confirmación y cierre, y pantallas compiladas de escritorio y móvil. Su existencia en el repositorio no acredita que la versión actual haya completado ese recorrido. La aceptación municipal de Noelia y la recepción del archivo por el organismo son comprobaciones posteriores.
+
+### Cierres completos después de SQL201
+
+SQL201 conserva `own_close_group_v1` con un máximo de 4 MiB por comprobante y agrega `own_close_group_full_v1` con un máximo de 32 MiB. La consulta ART original de SQL159 todavía llama al primero: puede rechazar un cierre válido que el reporte completo sí podría transportar. El límite afecta a cada comprobante, aunque el conjunto ART incluya varios cierres.
+
+La sucesión usa `own_art_report_source_full_v1`, conservando el formato de respuesta, todas las identidades y declaraciones de días, las verificaciones de cierre y el máximo global de 32 MiB. No cambia el lector anterior ni recorta agentes. El servicio HTTP exige exclusivamente el nuevo lector: no vuelve al protocolo anterior si falta la instalación.
+
+El upgrade requiere ART158/159 ya instalado y los grupos de SQL201 en su versión exacta. SQL211 agrega un único lector mediante el protocolo completo de instalación: 27 funciones previas exactas, estructura y seguridad de la tabla ART, conservación global y comprobación duradera separada. Ejecutar el archivo SQL211 aisladamente no sustituye ese protocolo. No instala ART por primera vez en el circuito190.
+
+Su instalación y comprobación con PostgreSQL quedan pendientes; el servicio HTTP no debe publicarse aisladamente. Las pruebas del motor puro, el handler con SQL simulado y el navegador de componente no acreditan aprobaciones municipales, una liquidación nativa ni disponibilidad integral para Noelia.

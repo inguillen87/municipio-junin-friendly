@@ -10,11 +10,17 @@ import {FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE} fro
 import {verifyCoreManifestProvenance,coreManifestProvenanceMatches} from './grh-core-manifest-provenance.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
-// Both are immutable, registered source tuples. Package verification below
-// still checks the exact logical hash and declared cutoff for the chosen one.
-// Admission to SQL is separately constrained by migration 183; this list never
-// selects the effective source or grants employee adoption authority.
-export const FINAL_SOURCE_REVISION_PROFILES=Object.freeze(['grh-junin-2026-10-01','grh-junin-2026-10-14']);
+// Immutable, registered source tuples. Package verification below still checks
+// the exact logical hash and declared cutoff for the chosen one. Admission to SQL
+// is separately constrained by migrations 183 (Oct01/Oct14) and 218 (adds Oct28);
+// this list never selects the effective source or grants employee adoption authority.
+export const FINAL_SOURCE_REVISION_PROFILES=Object.freeze(['grh-junin-2026-10-01','grh-junin-2026-10-14','grh-junin-2026-10-28']);
+// Oct28 is writable only as the exact audited tuple over the September 10 baseline package.
+// Contract review (consumers/adoption/v1 canonical/F eligibility) is not extended to it.
+export const FINAL_SOURCE_REVISION_OCTOBER28=Object.freeze({profileId:'grh-junin-2026-10-28',
+ sourceSha256:'fef5aada3142e475d0519f7647377465d95ee55b4038aff035ff7d41d5748cc1',cutoff:'2026-10-28T15:16:35',
+ baseline:Object.freeze({profileId:'grh-junin-2026-09-10',sourceSha256:'5a604acfe5ea32832b630d8aab29e494038d4c8940b231e283a53d14112665c7',cutoff:'2026-09-10T15:17:30'}),
+ reviewContracts:false});
 export const FINAL_SOURCE_CONSERVATION_PROFILES=Object.freeze([FINAL_MUNICIPAL_CONTINUITY_PROFILE,OWN_MUNICIPAL_CONTINUITY_PROFILE]);
 export function validateFinalSourceConservationProfile(profileId=FINAL_MUNICIPAL_CONTINUITY_PROFILE){
  if(!FINAL_SOURCE_CONSERVATION_PROFILES.includes(profileId))fail('GRH_FINAL_REVISION_ARGUMENT');
@@ -49,6 +55,10 @@ const preserved=report=>({target:report.target,packageSha256:report.packageSha25
 export function validateFinalSourceRevisionInput(prepared,targetInput,expectedPackageSha256){
  const pack=verifySuccessorPackage(structuredClone(prepared));
  if(!FINAL_SOURCE_REVISION_PROFILES.includes(pack.candidate.profileId))fail('GRH_FINAL_REVISION_PROFILE');
+ const oct28=FINAL_SOURCE_REVISION_OCTOBER28;
+ if(pack.candidate.profileId===oct28.profileId&&(pack.candidate.sourceSha256!==oct28.sourceSha256||pack.candidate.cutoff!==oct28.cutoff
+  ||pack.baseline.profileId!==oct28.baseline.profileId||pack.baseline.sourceSha256!==oct28.baseline.sourceSha256||pack.baseline.cutoff!==oct28.baseline.cutoff))
+  fail('GRH_FINAL_REVISION_PROFILE');
  if(typeof expectedPackageSha256!=='string'||pack.payloadSha256!==expectedPackageSha256)fail('GRH_FINAL_REVISION_PACKAGE_CHANGED');
  const target=validateSuccessorTarget(targetInput);
  return freeze({pack,target});

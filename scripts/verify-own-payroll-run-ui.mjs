@@ -14,8 +14,9 @@ import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
 import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
-import {RUN_CALCULATE,ownRunHash} from '../lib/internal-own-payroll-run.js';
+import {RUN_CALCULATE,ownRunHash,ownRunOperation} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
+import {qaPassiveJsonHttpResponse,qaCorrelatedPostJsonResponse} from './lib/qa-passive-json-http-response.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
 for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[arg.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
@@ -24,9 +25,41 @@ const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(roo
 const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
-let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
+let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0,observedRunPosts=null;
 const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
+// Literal UI expectations for the unchanged six-rule synthetic programme.
+// Captured SQL metadata proves origin; no presentation helper builds the oracle.
+async function assertCapturedScreenRows(locator,capture,expectedRows,label){
+ const cells=await locator.locator('tr').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent)));
+ assert.equal(cells.length,expectedRows.length);
+ for(const [index,row]of expectedRows.entries()){
+  const definitions=capture.payload.programState.salaryCatalog.items.filter(d=>d.kind==='concept'&&d.agreementCode===row.agreementCode&&d.code===row.conceptCode);
+  assert.equal(definitions.length,1);assert.equal(definitions[0].label,'Concepto inventado QA');assert.equal(row.unit,'money');
+  assert.equal(cells[index][0],row.employeeNumber);assert.equal(cells[index][1],row.conceptCode+' · Concepto inventado QA');
+  assert.ok(cells[index][3].startsWith('$ '),'the fixture monetary row keeps its currency');
+  if(row.conceptCode==='100'){assert.equal(row.amount,'100.10');assert.equal(cells[index][3],'$ 100,10');}
+ }
+ check(true,label);
+}
+// QA_OWN_RUN_VERTICAL_NAV_BEGIN
+// Use the original sidebar controls; never force a click, set a hash or activate a workspace directly.
+async function openOwnRunPayrollTask(owner,id){
+ assert.ok(['resumen','calculo'].includes(id),'own run task must be an existing sidebar destination');
+ const menu=owner.locator('[data-liquidaciones-menu]'),target=menu.locator('[data-task="'+id+'"]');
+ await menu.waitFor({state:'attached'});await target.waitFor({state:'attached'});
+ const toggle=owner.locator('.mc-work-toggle');
+ if(await toggle.isVisible()&&await toggle.getAttribute('aria-expanded')==='false')await toggle.click();
+ if(!(await menu.evaluate(node=>node.open)))await menu.locator(':scope > summary').click();
+ const section=target.locator('xpath=ancestor::details[contains(@class,"task-section")]');
+ if(await section.count()&&!(await section.evaluate(node=>node.open)))await section.locator(':scope > summary').click();
+ await target.click();
+ await owner.waitForFunction(task=>location.hash==='#'+task&&document.querySelector('#payrollTaskWorkspace')?.dataset.activeTask===task,id);
+ assert.equal(await target.count(),1,'one original sidebar task control');assert.equal(await target.getAttribute('role'),'tab');
+ assert.equal(await target.getAttribute('aria-selected'),'true');assert.equal(await target.getAttribute('aria-controls'),'task-'+id);assert.equal(await target.getAttribute('tabindex'),'0');
+ const panel=owner.locator('#task-'+id);assert.equal(await panel.getAttribute('role'),'tabpanel');assert.equal(await panel.getAttribute('aria-labelledby'),await target.getAttribute('id'));assert.equal(await panel.isVisible(),true,'the selected task panel is actually visible');
+}
+// QA_OWN_RUN_VERTICAL_NAV_END
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
   await db.run(ownPayrollFullQaInstallation(qa.schema));
@@ -74,6 +107,7 @@ try{
         res.end=(...values)=>{held=()=>{if(!res.destroyed){res.write=write;res.end=end;for(const c of chunks)write(...c);end(...values);}};return res;};
       }
       res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
+      if(observedRunPosts&&url.pathname==='/api/internal-own-payroll-run'&&req.method==='POST')observedRunPosts.push(qaPassiveJsonHttpResponse(req,res));
       if(req.method==='POST')posts++;
       handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
@@ -124,9 +158,19 @@ try{
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
   await searchOwnContract();completeRosterProof();await picker.locator('[data-picker-close]').click();await picker.waitFor({state:'hidden'});
   check(await select('picker').evaluate(el=>document.activeElement===el)&&posts===0&&legacyDirectoryRequests.length===legacyBeforePicker,'voluntary own-directory close returns accessible focus without a legacy query or municipal decision');
-  await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/nomina-control.html#calculo');await settled();
+  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_BEGIN
+  // Picker capability-withdrawal events are deliberate global fixtures; that phase is complete.
+  // Start calculation in a genuinely new document so the real gateway authorizes the unchanged
+  // HTTP fixture again. This isolates QA phases; it does not prove user recovery without F5.
+  await page.setViewportSize({width:1440,height:1000});await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>location.hash==='#calculo'&&document.documentElement.getAttribute('data-mc-capability-state')==='ready');await settled();
+  // QA_OWN_RUN_FRESH_DOCUMENT_BOUNDARY_END
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
+  const labelConsultPosts=posts,screenCapture=await ownRunOperation(db,principal,session,'attempt',{key:writes.at(-1).key});
+  assert.deepEqual([...new Set(screenCapture.saved.result.rows.map(row=>row.unit))],['money']);
+  await assertCapturedScreenRows(select('rows'),screenCapture,screenCapture.saved.result.rows,'actual calculation cells show every captured code/name and the original monetary value');
+  check(posts===labelConsultPosts,'captured-name consultation adds no calculation POST');
   check((await select('totals').innerText()).includes('19041'),'totals use actual own employee reference');
   const zeroReviewPosts=posts;await select('source-review-button').click();await select('source-report').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   check((await select('source-summary').innerText()).includes('2 novedades')&&(await select('source-summary').innerText()).includes('0 registros')&&await select('source-rows').locator('tr').count()===0,'complete successful capture reports no source observations without inventing errors');
@@ -160,9 +204,9 @@ try{
   await select('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await select('recover').click();await select('result').waitFor({state:'visible'});
   check(posts===beforeHide,'visibility recovery uses GET without recalculating');
   delay=true;await select('recover').click();const deadline=Date.now()+20000;while(!held&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);
-  await page.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  await openOwnRunPayrollTask(page,'resumen');held();held=null;
   check((await select('rows').locator('tr').count())===0,'late response cannot repopulate a closed task');
-  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+  await openOwnRunPayrollTask(page,'calculo');await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   await select('recover').click();await select('result').waitFor({state:'visible'});await select('search').fill('');
   await scope.screenshot({path:prefix+'-desktop.png'});
   await page.screenshot({path:prefix+'-desktop-viewport.png'});
@@ -171,6 +215,8 @@ try{
   check(await mobile.locator('.own-run').evaluate(el=>el.getBoundingClientRect().width<=window.innerWidth),'mobile panel fits viewport');
   await mobile.locator('[data-own-history] button').first().click();await mobile.locator('[data-own-result]').waitFor({state:'visible'});
   check(await mobile.locator('[data-own-rows] tr').count()===6,'mobile recovers complete saved concepts without POST');
+  const mobileKey=await mobile.locator('[data-own-history] button').first().getAttribute('data-own-open'),mobileCapture=await ownRunOperation(db,principal,session,'attempt',{key:mobileKey});
+  await assertCapturedScreenRows(mobile.locator('[data-own-rows]'),mobileCapture,mobileCapture.saved.result.rows,'mobile recovery retains the captured code/name pairs and literal currency value');
   await mobile.locator('.own-run').screenshot({path:prefix+'-mobile.png'});
   await mobile.screenshot({path:prefix+'-mobile-viewport.png'});
   check(posts===beforeHide,'desktop and mobile consultation never add a run');
@@ -210,9 +256,21 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run');await rs('send').click();const failedResponse=await failedResponsePromise;await idle();
+  // CDP may discard no-store streamed bodies after the product reader reaches EOF.
+  // Observe native server transmission and correlate the SAME browser request;
+  // client receipt still depends on the unchanged DOM and recovery checks below.
+  const failedRequests=[],reviewObservations=[];
+  const isReviewPost=request=>{const u=new URL(request.url());return request.method()==='POST'&&u.origin===origin&&u.pathname==='/api/internal-own-payroll-run';};
+  const recordReviewPost=request=>{if(isReviewPost(request))failedRequests.push(request);};
+  reviewPage.on('request',recordReviewPost);observedRunPosts=reviewObservations;
+  const failedWait=reviewPage.waitForResponse(response=>isReviewPost(response.request()),{timeout:30000});failedWait.catch(()=>{});
+  let failedResponse;
+  try{await rs('send').click({timeout:30000});failedResponse=await failedWait;}finally{reviewPage.off('request',recordReviewPost);observedRunPosts=null;}
+  await idle();
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
-  check(failedResponse.status()===422&&(await failedResponse.json()).code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  const failedPacket=await qaCorrelatedPostJsonResponse({response:failedResponse,requests:failedRequests,observations:reviewObservations,origin,pathname:'/api/internal-own-payroll-run',capture:failed}),failedBody=failedPacket.body;
+  check(failedResponse.status()===422&&failedBody.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  check((await rs('status').innerText()).trim()==='Un concepto de fuente única tiene varias novedades en el período. Revisá las novedades repetidas desde Revisar incidencias de la captura y consultá este mismo intento; no se guardó ningún resultado.'&&(await rs('status').getAttribute('data-state'))==='warning'&&!(await rs('result').isVisible()),'ambiguous unique source shows the institutional panel message without result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   check((await rs('source-summary').innerText()).includes('31 novedades')&&(await rs('source-summary').innerText()).includes('31 registros'),'source review inspects all 31 actual approved SQL novelties');
@@ -227,9 +285,9 @@ try{
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&!(await reviewPage.locator('.own-run').innerText()).includes('19041'),'hide clears all review data');
   await reviewPage.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});await rs('refresh').click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
-  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await reviewPage.getByRole('tab',{name:'Resumen',exact:true}).click();held();held=null;
+  delay=true;await rs('source-review-button').click();const reviewDeadline=Date.now()+20000;while(!held&&Date.now()<reviewDeadline)await new Promise(r=>setTimeout(r,20));assert.ok(held);await openOwnRunPayrollTask(reviewPage,'resumen');held();held=null;
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0,'late review response cannot repopulate a closed task');
-  await reviewPage.getByRole('tab',{name:'Calcular',exact:true}).click();await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
+  await openOwnRunPayrollTask(reviewPage,'calculo');await idle();await rs('recover').click();await idle();await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   await db.run("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.calculation.nominal.read'");await rs('source-download').click();await idle();
   check(!(await rs('source-report').isVisible())&&await rs('source-rows').locator('tr').count()===0&&await rs('source-download').isDisabled(),'actual SQL revocation clears review and prevents download');
   await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.maker)+"::uuid,'payroll.calculation.nominal.read')");await rs('refresh').click();await idle();await rs('send').click();await idle();assert.deepEqual(writes.at(-1),failed);checks++;

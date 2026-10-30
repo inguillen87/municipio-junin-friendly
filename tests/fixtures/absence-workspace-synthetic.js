@@ -1,11 +1,13 @@
 // Synthetic municipal-shaped DTOs; no real personnel records or clinical comments.
 export const absenceCaseId='11111111-1111-4111-8111-111111111111';
+// These existing synthetic aggregates explicitly report every event's DIAS_24.
+const fullDays=(events,affectedContracts,days)=>({events,affectedContracts,sourceDeclaredDays:days,knownSourceDeclaredDays:days,eventsWithDeclaredDays:events,eventsWithoutDeclaredDays:0});
 export function absenceWorkspaceAnalytics(q=new URLSearchParams()){
  const empty=q.get('reasonCode')==='20',events=empty?0:52,contracts=empty?0:31,days=empty?0:92;
  const range={from:q.get('from')||'2026-08-01',to:q.get('to')||'2026-09-10'};
- return{ok:true,data:{summary:{events,affectedContracts:contracts,sourceDeclaredDays:days},series:empty?[]:[{period:'2026-08-01',events:42,affectedContracts:24,sourceDeclaredDays:72,partial:false},{period:'2026-09-01',events:10,affectedContracts:7,sourceDeclaredDays:20,partial:true}],
- reasons:empty?[]:[{code:'10',label:'Licencia de prueba',events,affectedContracts:contracts,sourceDeclaredDays:days}],sectors:empty?[]:[{label:'Sector de prueba',events,affectedContracts:contracts,sourceDeclaredDays:days}],
- comparison:{available:true,basis:'previous_year_same_calendar_window',current:{range,...{events,affectedContracts:contracts,sourceDeclaredDays:days}},previous:{range:{from:'2025-08-01',to:'2025-09-10'},events:0,affectedContracts:0,sourceDeclaredDays:0},changePercent:{events:null,affectedContracts:null,sourceDeclaredDays:null}}},
+ return{ok:true,data:{summary:fullDays(events,contracts,days),series:empty?[]:[{period:'2026-08-01',...fullDays(42,24,72),partial:false},{period:'2026-09-01',...fullDays(10,7,20),partial:true}],
+ reasons:empty?[]:[{code:'10',label:'Licencia de prueba',...fullDays(events,contracts,days)}],sectors:empty?[]:[{label:'Sector de prueba',...fullDays(events,contracts,days)}],
+ comparison:{available:true,basis:'previous_year_same_calendar_window',current:{range,...fullDays(events,contracts,days)},previous:{range:{from:'2025-08-01',to:'2025-09-10'},...fullDays(0,0,0)},changePercent:{events:null,affectedContracts:null,sourceDeclaredDays:null},declaredDaysComparison:{available:false,reason:'zero_previous_declared_days'}}},
  facets:{minDate:'1990-01-01',maxDate:'2026-09-10',reasons:[{code:'10',label:'Licencia de prueba'},{code:'20',label:'Inasistencias'}],sectors:[{value:'Sector de prueba',label:'Sector de prueba'}]},
  range:{requested:range,effective:range,clamped:{from:false,to:false}},quality:{sourceCutoff:'2026-09-10',sourceRows:52,invertedDateRanges:0,unitSemantics:'GRH_declared_days_not_lost_workdays'},meta:{grain:'absence_event',authority:'GRH',source:{importId:6,name:'GRH',sha256:'a'.repeat(64),cutoff:'2026-09-10'}}};
 }

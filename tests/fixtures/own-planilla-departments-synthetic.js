@@ -1,0 +1,4 @@
+import {bankOutputFixture} from './own-bank-output-synthetic.js';
+import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
+// Synthetic repartition codes only. Sector/Organization labels are not sources.
+export function departmentFixture(count=75){const f=bankOutputFixture(count),codes=['0','01','1','2'];for(const[i,r]of f.batch.snapshot.records.entries()){r.departmentCode=codes[i%4];const e=f.closes[0].snapshot.employees.find(e=>e.contractId===r.contractId);e.departmentCode=r.departmentCode;e.jurisdiction.code=i%2?'55':'42';for(const c of f.closes[0].snapshot.concepts.filter(c=>c.contractId===r.contractId))c.departmentCode=r.departmentCode;}f.closes[0].snapshotSha256=ownRunHash(f.closes[0].snapshot);f.batch.snapshot.sources[0].snapshotSha256=f.closes[0].snapshotSha256;f.batch.snapshotSha256=ownRunHash(f.batch.snapshot);return f;}
