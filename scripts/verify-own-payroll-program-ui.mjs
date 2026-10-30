@@ -34,7 +34,8 @@ const qa=buildOwnPayrollDurableQa(major,{seedProgram:false,declaredDate:true}),e
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 let installed=false,server,browser,diagnosticPage,held=null,hold=false,lose=false,unregisteredSend=false,expired=false,changedSession=false,checks=0,posts=0,bootRequests=0;
 const writes=[],errors=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;},env={};let report;
-const permissions=key=>[...new Set([...PROGRAM_READ,...PROGRAM_CAPS[key==='maker'?'propose':'approve'],...(key==='maker'?[...PROGRAM_CAPS.approve,...RUN_CALCULATE,'payroll.read']:[])])];
+let checkerUiAdmitted=false;
+ const permissions=key=>[...new Set([...PROGRAM_READ,...PROGRAM_CAPS[key==='maker'?'propose':'approve'],...(key==='maker'?[...PROGRAM_CAPS.approve,...RUN_CALCULATE,'payroll.read']:[]),...(key==='checker'&&checkerUiAdmitted?['payroll.read']:[])])];
 const actorKey=req=>req.headers['x-qa-actor']==='checker'?'checker':'maker';
 const session=key=>{const a=qa.actors[key];return {email:a.actorEmail,id:a.actorSessionId,version:a.actorSessionVersion,releaseSha:a.releaseSha};};
 const principal=key=>{const a=qa.actors[key];return {user:{email:a.actorEmail},tenant:{source:'membership',id:a.tenantId,membershipId:a.membershipId,effectiveCapabilities:permissions(key)}};};
@@ -155,7 +156,23 @@ try{
  check(await select('rule-select').locator('option').count()===6&&await select('binding-select').locator('option').count()===2&&await select('reason').inputValue()==='Primer programa sintético completo, sin norma municipal'&&posts===1&&await select('send').isHidden(),'review after exact GET404 preserves all draft rules and reason without automatic sending');
  await select('prepare').click();check(await select('send').isDisabled()&&await select('impact-table').locator('tbody tr').count()===8,'restored preparation requires another full review and explicit confirmation');await select('confirm').check();await select('send').click();await select('receipt').waitFor({state:'visible'});
  const firstProposal=await db.run("SELECT jsonb_build_object('id',id,'definition',body->'program') FROM own_payroll_program_event WHERE command='propose'");assert.deepEqual(firstProposal.definition,fixture,'all program fields survive actual form authoring without omission');checks++;
- const initialReviewerContext=await browser.newContext({extraHTTPHeaders:{'x-qa-actor':'checker'}}),initialReviewer=await initialReviewerContext.newPage();initialReviewer.on('pageerror',e=>errors.push(e.message));const initialReview=key=>initialReviewer.locator('[data-program-'+key+']');
+ // Preserve the narrow reviewer negative before admitting the positive full-page
+  // fixture. The page has always required payroll.read; the program API remains narrower.
+  const narrowPosts=posts,narrowWrites=writes.length,narrowLedger=await db.run("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))");
+  const narrowContext=await browser.newContext({extraHTTPHeaders:{'x-qa-actor':'checker'}}),narrowPage=await narrowContext.newPage();
+  try{
+    await narrowPage.goto(origin+'/nomina-control.html#reglas');await narrowPage.evaluate(async()=>{await window.MuniControlCapabilityGate.ready;});
+    check(!permissions('checker').includes('payroll.read')&&await narrowPage.locator('#mainContent').isHidden()&&await narrowPage.locator('.own-program').isHidden()&&!await narrowPage.locator('[data-program-send]').isVisible(),'the original narrow checker is denied the full payroll page without payroll.read');
+  }finally{await narrowContext.close();}
+  assert.deepEqual(await db.run("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))"),narrowLedger);check(posts===narrowPosts&&writes.length===narrowWrites,'denied narrow reviewer adds no POST, program event or payroll capture');
+  const capabilitySnapshot="SELECT coalesce(jsonb_agg(jsonb_build_object('memberId',membership_id,'capabilityKey',capability_key) ORDER BY membership_id,capability_key COLLATE \"C\"),'[]'::jsonb) FROM capabilities";
+  const beforeUiCapabilities=await db.run(capabilitySnapshot),beforeCheckerPermissions=permissions('checker'),beforeMakerPermissions=permissions('maker');
+  assert.ok(!beforeUiCapabilities.some(r=>r.memberId===qa.ids.checker&&r.capabilityKey==='payroll.read'),'fixture checker must start narrow');
+  await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.checker)+"::uuid,'payroll.read')");
+  const expectedUiCapabilities=[...beforeUiCapabilities,{memberId:qa.ids.checker,capabilityKey:'payroll.read'}].sort((a,b)=>a.memberId<b.memberId?-1:a.memberId>b.memberId?1:a.capabilityKey<b.capabilityKey?-1:a.capabilityKey>b.capabilityKey?1:0);
+  assert.deepEqual(await db.run(capabilitySnapshot),expectedUiCapabilities,'only one capability row of the isolated checker fixture may change');checkerUiAdmitted=true;
+  assert.deepEqual(permissions('checker'),[...beforeCheckerPermissions,'payroll.read']);assert.deepEqual(permissions('maker'),beforeMakerPermissions);check(posts===narrowPosts&&writes.length===narrowWrites,'positive full-page reviewer fixture declares only payroll.read; maker, identities and program commands stay unchanged');
+  const initialReviewerContext=await browser.newContext({extraHTTPHeaders:{'x-qa-actor':'checker'}}),initialReviewer=await initialReviewerContext.newPage();initialReviewer.on('pageerror',e=>errors.push(e.message));const initialReview=key=>initialReviewer.locator('[data-program-'+key+']');
  await initialReviewer.goto(origin+'/nomina-control.html#reglas');await initialReviewer.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden);await initialReview('review-tab').click();await initialReview('proposal-select').selectOption(firstProposal.id);await initialReview('decision').selectOption('approve');await initialReview('decision-reason').fill('Primera aprobación independiente sintética completa');await initialReview('review-decision').click();await initialReview('confirm').check();await initialReview('send').click();await initialReview('receipt').waitFor({state:'visible'});check((await initialReview('receipt').innerText()).includes('revisión 1'),'first approved program starts at revision one');await initialReviewerContext.close();
  await select('new').click();await settled();check(await select('rule-select').locator('option').count()===6&&await select('binding-select').locator('option').count()===2,'all newly approved rules and sources can be edited');
  check(await select('rule-editor').getByRole('button',{name:'Retirar esta regla de la preparación'}).isDisabled(),'approved rule history cannot be removed in the editor');

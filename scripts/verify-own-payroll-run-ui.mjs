@@ -92,6 +92,17 @@ try{
   page.on('pageerror',e=>errors.push(e.message));
   const scope=page.locator('.own-run'),select=key=>page.locator('[data-own-'+key+']');
   const settled=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled,{},{timeout:20000});
+  async function restoreFixtureGlobalAccess(reason){
+    const traffic=[],watch=request=>{const u=new URL(request.url());if(u.pathname.startsWith('/api/'))traffic.push({origin:u.origin,path:u.pathname,method:request.method()});},beforePosts=posts,beforeWrites=writes.length;
+    page.on('request',watch);
+    try{
+      const fresh=await page.evaluate(async()=>{const r=await fetch('/api/internal-auth',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error('QA_GLOBAL_SESSION_HTTP_REQUIRED');return r.json();});
+      assert.equal(fresh.ok,true);assert.equal(fresh.authenticated,true);assert.equal(fresh.sessionVersion,2);assert.equal(fresh.user.id,actor.actorSessionId);assert.equal(fresh.user.email,actor.actorEmail);assert.equal(fresh.access.context,'tenant');assert.equal(fresh.access.tenant.id,actor.tenantId);assert.ok(Date.parse(fresh.expiresAt)>Date.now());assert.ok(Array.isArray(fresh.access.tenantCapabilities));assert.deepEqual([...fresh.access.tenantCapabilities].sort(),[...principal.tenant.effectiveCapabilities].sort());assert.deepEqual(fresh.access.platformCapabilities,[]);assert.deepEqual(fresh.access.platformRoles,[]);
+      await page.evaluate(access=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:access})),fresh.access);
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      check(traffic.length>0&&traffic.every(r=>r.origin===origin&&r.path==='/api/internal-auth'&&r.method==='GET')&&posts===beforePosts&&writes.length===beforeWrites,reason+': explicit verified same-session fixture restoration makes no SQL-producing HTTP call or POST');
+    }finally{page.off('request',watch);}
+  }
   await page.goto(origin+'/nomina-control.html#calculo');await settled();
   check(posts===0,'opening actual product page never executes payroll');
   check(await scope.locator('h2').innerText()==='Calcular nómina','product tab opens own calculation');
@@ -118,10 +129,12 @@ try{
   await searchOwnContract();
   await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:caps}})),principal.tenant.effectiveCapabilities.filter(c=>c!=='payroll.calculation.prepare'));
   check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&await select('picker').isDisabled()&&posts===0,'loss of calculation preparation alone closes own selection while preserving consultation');
+  await restoreFixtureGlobalAccess('partial capability withdrawal');
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
   await searchOwnContract();completeRosterProof();
   await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));
   check(!(await picker.isVisible())&&!(await adoptionHelp.isVisible())&&posts===0,'permission revocation withdraws own directory and recovery without adopting or calculating');
+  await restoreFixtureGlobalAccess('global capability withdrawal');
   await select('refresh').click();await settled();await prepare('contracts');await select('picker').click();
   await searchOwnContract();completeRosterProof();await picker.locator('[data-picker-close]').click();await picker.waitFor({state:'hidden'});
   check(await select('picker').evaluate(el=>document.activeElement===el)&&posts===0&&legacyDirectoryRequests.length===legacyBeforePicker,'voluntary own-directory close returns accessible focus without a legacy query or municipal decision');

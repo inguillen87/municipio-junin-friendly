@@ -9,7 +9,7 @@ import {ownArtXlsx} from '../../assets/own-art-report-export.js';
 export async function verifyOwnArtBrowser({handlers,env,actors,setActor,people,period,output,check,browserName='chromium',source,prepare,approve}) {
  assert.ok(['chrome','chromium'].includes(browserName));
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4367';
- const caps=[...new Set([...OWN_ART_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
+ const caps=[...new Set(['payroll.read',...OWN_ART_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
  let current=actors.maker,allowed=true,drop=false,page;
  const actor=a=>{current=a;setActor(a);};actor(current);env.INTERNAL_APP_ORIGIN=origin;
  const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});

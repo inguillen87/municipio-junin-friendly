@@ -3,7 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {OWN_CLOSE_NOMINAL} from '../../assets/own-payroll-close-model.js';
 import {FISCAL_FACTS_READ} from '../../assets/own-fiscal-facts-model.js';
 export async function verifyOwnFiscalFactsBrowser({handlers,env,actors,setActor,people,period,output,check,browserName='chromium',prepare,approve,closedContracts}){
- assert.ok(['chrome','chromium'].includes(browserName));const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4369',caps=[...new Set([...OWN_CLOSE_NOMINAL,...FISCAL_FACTS_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
+ assert.ok(['chrome','chromium'].includes(browserName));const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4369',caps=[...new Set(['payroll.read',...OWN_CLOSE_NOMINAL,...FISCAL_FACTS_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
  let current=actors.maker,allowed=true,drop=false,page;const actor=a=>{current=a;setActor(a);};actor(current);env.INTERNAL_APP_ORIGIN=origin;
  const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});
  try{

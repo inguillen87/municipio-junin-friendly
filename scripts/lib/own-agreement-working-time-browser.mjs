@@ -47,7 +47,7 @@ export function agreementQaHttpTasks({timeoutMs=30000}={}) {
 export async function verifyAgreementWorkingTimeBrowser({handlers,env,actors,setActor,period,output,check,bootstrap,revoke,restore,browserName='chromium'}) {
   assert.equal(browserName,'chromium');
   const root=fs.realpathSync(new URL('../../public',import.meta.url)),errors=[],writes=[],reads=[],observedPosts=[],inFlight=agreementQaHttpTasks();
-  const caps=['workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.calculation.read','payroll.calculation.nominal.read'];
+  const caps=['payroll.read','workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.calculation.read','payroll.calculation.nominal.read'];
   let current=actors.maker,allowed=true,drop=false,page,origin;
   setActor(current);
   const oldOrigin=env.INTERNAL_APP_ORIGIN;
