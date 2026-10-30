@@ -9,6 +9,7 @@ import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 import {ownReceiptParams} from '../../assets/own-payroll-receipt-model.js';
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {selectNoeliaReceiptTypes} from './noelia-payroll-circuit-browser.mjs';
+import {captureOwnReceiptRecoveryResponse} from './own-receipt-recovery-response-qa.mjs';
 
 const receiptRecoveryControls=Object.freeze(['period',...Object.keys(OWN_RUN_TYPES).map(type=>'type-'+type),'scope','departmentFrom','departmentTo','date','legend','all','consult','reason','confirm','contracts','prepare']);
 export async function assertOwnReceiptRecoveryControls(p,locked){
@@ -42,12 +43,11 @@ export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActo
      const packet=req.method()==='POST'?JSON.parse(req.postData()):null,original=packet?.operation==='command'?structuredClone(packet.payload):null,key=req.headers()['idempotency-key'];
      let submitted=packet;
      if(original&&rejectFirst){rejectFirst=false;submitted={operation:'command',payload:{...original,sourceVersion:'0'.repeat(64)}};}
-     let status=200,payload;const headers={};
-     await handler({method:req.method(),url:url.pathname+url.search,query:Object.fromEntries(url.searchParams),headers:req.headers(),body:submitted?JSON.stringify(submitted):undefined},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});
+     const {status,headers,body,payload}=await captureOwnReceiptRecoveryResponse(handler,{method:req.method(),url:url.pathname+url.search,query:Object.fromEntries(url.searchParams),headers:req.headers(),body:submitted?JSON.stringify(submitted):undefined});
      requests.push({method:req.method(),resource:url.searchParams.get('resource'),attemptKey:url.searchParams.get('key'),operation:packet?.operation,key,status});
      if(packet?.operation==='preview'&&payload?.ok)previews.push(structuredClone(payload.data));
      if(original)commands.push({key,original,submitted:structuredClone(submitted.payload),status,response:structuredClone(payload)});
-     return route.fulfill({status,headers,json:payload});
+     return route.fulfill({status,headers,body});
     }
     // These ancillary panels are outside this test. They receive no nominal
     // records, and none of their responses stand in for the receipt handler.

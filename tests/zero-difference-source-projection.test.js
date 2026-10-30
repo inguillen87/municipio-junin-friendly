@@ -3,11 +3,12 @@ import {projectPlanillaDepartmentsRawSourceToParent} from './fixtures/own-planil
 // The outermost zero-differences succession layer: every current public file it covers is exactly its reviewed
 // successor, projects back to the exact pinned parent, and rejects any other bytes. The live engine route is checked
 // for coherence: every sha-for-sha replacement names a parent/successor pair of the same layer, in order.
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {createHash} from 'node:crypto';
+import test from 'node:test';import assert from 'node:assert/strict';
+import {projectOwnPayrollLoginRawSourceToParent} from './fixtures/own-payroll-login-source-projection.js';import fs from 'node:fs';import {createHash} from 'node:crypto';
 import {ZERO_DIFFERENCE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SUCCESSOR_ORDER,ZERO_DIFFERENCE_NEW_SOURCE_PINS,projectZeroDifferenceRawSourceToParent,projectZeroDifferenceEngineRawSourceToParent,projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 import {projectAccountingFull190BrowserRawSourceToParent} from './fixtures/accounting-full-current190-browser-source-projection.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const rawCurrent=file=>projectAccountingFull190BrowserRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const rawCurrent=file=>projectAccountingFull190BrowserRawSourceToParent(file,projectOwnPayrollLoginRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));
 const raw=file=>projectPlanillaDepartmentsRawSourceToParent(file,rawCurrent(file));
 const HEX=/^[a-f0-9]{64}$/;
 

@@ -1,6 +1,7 @@
 // Workflow contracts only: no SQL, browser, constructor or subprocess.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {projectOwnPayrollLoginRawSourceToParent} from './fixtures/own-payroll-login-source-projection.js';
 import fs from 'node:fs';
 import {CANDIDATE_WORKFLOWS, CANDIDATE_WORKFLOW_SHA256, digest} from '../scripts/lib/release-candidate-admission.mjs';
 import {RELEASE_CANDIDATE_SOURCE_PINS, RELEASE_CANDIDATE_WORKFLOW_PIN, projectReleaseCandidateWorkflowToParent} from './fixtures/release-candidate-workflow-succession.js';
@@ -16,7 +17,7 @@ const prior = {
 };
 import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 import {projectAccountingFull190BrowserRawSourceToParent} from './fixtures/accounting-full-current190-browser-source-projection.js';
-const read = name => projectZeroDifferenceAllRawSourceToParent(name, projectAccountingFull190BrowserRawSourceToParent(name, fs.readFileSync(new URL('../' + name, import.meta.url))));
+const read = name => projectZeroDifferenceAllRawSourceToParent(name, projectAccountingFull190BrowserRawSourceToParent(name, projectOwnPayrollLoginRawSourceToParent(name, fs.readFileSync(new URL('../' + name, import.meta.url)))));
 const capture = 'set -o pipefail\nmkdir -p verification\nnpm run build 2>&1 | tee verification/release-full-suite.log';
 function runs(source) {
   const lines = source.split('\n'), commands = [];

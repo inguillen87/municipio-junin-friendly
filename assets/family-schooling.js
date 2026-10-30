@@ -401,17 +401,40 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   }
   async function load(announcement) {
     if (busy || editor || declarationEditor || !available()) return;
-    declarationAccessReason = 'Verificando permiso para agregar hijos…';
-    controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
+    familyContext = null; declarationAccessReason = 'Verificando permiso para agregar hijos…';
+    controller?.abort(); controller = new AbortController(); const owned = controller, seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
+    const current = () => seq === generation && controller === owned && !owned.signal.aborted && available();
+    const withdraw = (error, primary = false) => {
+      if (!current()) return;
+      generation++; owned.abort(); busy = false;
+      invalidateConsultedData();
+      declarationAccessReason = [401,403].includes(error.status) || profileConflict(error) || error.code === 'FAMILY_ACTOR_CHANGED' ? message(error) : 'No se pudo habilitar el alta de hijos. Usá Actualizar registro para reintentar.';
+      status.textContent = primary && announcement
+        ? announcement + ' No pudimos actualizar la vista. Usá Actualizar registro; no repitas el alta.' : message(error);
+      controls();
+    };
     try {
-      await checkAuthority(controller);
-      const [schooling, context] = await Promise.allSettled([readSchooling('family', controller, contractId), canPropose ? readFamilyContext(controller, contractId) : Promise.resolve(null)]);
-      if (seq !== generation || !available()) return;
-      if (schooling.status === 'rejected') throw schooling.reason;
-      if (context.status === 'rejected' && ([401,403].includes(context.reason?.status) || profileConflict(context.reason))) throw context.reason;
-      familyContext = context.status === 'fulfilled' ? context.value : null;
-      declarationAccessReason = canPropose ? context.status === 'rejected' ? 'Los certificados están disponibles, pero no se pudo verificar el permiso de alta. Actualizá el registro para reintentar.' : familyContext?.canDeclare ? '' : 'Tu permiso actual permite consultar. No permite agregar hijos.' : 'Tu perfil permite consultar; agregar hijos requiere permiso para proponer datos del legajo.';
-      data = schooling.value; render(); status.textContent = announcement || 'Registro consultado. Elegí un hijo para registrar escolaridad o agregá el que falte.';
+      await checkAuthority(owned);
+      if (!current()) return;
+      // The certified read is independently authoritative. An optional context
+      // for a future child declaration must not delay its visible result.
+      if (canPropose) {
+        void readFamilyContext(owned, contractId).then(context => {
+          if (!current()) return;
+          familyContext = context;
+          declarationAccessReason = context.canDeclare ? '' : 'Tu permiso actual permite consultar. No permite agregar hijos.';
+          controls();
+        }, error => {
+          if (!current()) return;
+          if ([401,403].includes(error.status) || profileConflict(error) || error.code === 'FAMILY_ACTOR_CHANGED') { withdraw(error); return; }
+          familyContext = null;
+          declarationAccessReason = 'No se pudo verificar el permiso para agregar hijos. La consulta de certificados sigue disponible; usá Actualizar registro para reintentar.';
+          controls();
+        });
+      } else declarationAccessReason = 'Tu perfil permite consultar; agregar hijos requiere permiso para proponer datos del legajo.';
+      const schooling = await readSchooling('family', owned, contractId);
+      if (!current()) return;
+      data = schooling; render(); status.textContent = announcement || 'Registro consultado. Elegí un hijo para registrar escolaridad o agregá el que falte.';
       const pending = pendingSchoolingAttempts.get(pendingKey);
       if (pending) {
         const current = data.rows.find(row => row.familyRef.kind === pending.body.familyRef.kind && row.familyRef.id === pending.body.familyRef.id
@@ -423,11 +446,8 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       }
       else if (pendingFamilyAttempts.has(pendingKey)) openDeclaration(pendingFamilyAttempts.get(pendingKey));
       focusRequestedChild();
-    } catch (e) { if (seq === generation && available()) { data = null; familyContext = null; list.replaceChildren(); $('[data-fs-storage]').hidden = true;
-      declarationAccessReason = [401,403].includes(e.status) || profileConflict(e) || e.code === 'FAMILY_ACTOR_CHANGED' ? message(e) : 'No se pudo habilitar el alta de hijos. Usá Actualizar registro para reintentar.';
-      status.textContent = announcement
-      ? announcement + ' No pudimos actualizar la vista. Usá Actualizar registro; no repitas el alta.' : message(e); } }
-    finally { if (seq === generation && available()) { busy = false; controls(); } }
+    } catch (error) { withdraw(error, true); }
+    finally { if (current()) { busy = false; controls(); } }
   }
   async function getDocument(certificate) {
     if (busy || !available() || !data) return;

@@ -1,6 +1,7 @@
 // Pure/source and loopback HTTP contracts only. No SQL, browser, provider or fixture installation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {projectOwnPayrollLoginRawSourceToParent} from './fixtures/own-payroll-login-source-projection.js';
 import fs from 'node:fs';
 import http from 'node:http';
 import {fileURLToPath} from 'node:url';
@@ -57,7 +58,7 @@ test('card and38-row journal assertions preserve exact decimal text, null eviden
 });
 test('finite source succession restores all eight entire parents, including old tests with unchanged assertions',()=>{
  assert.equal(Object.keys(ACCOUNTING_FULL190_BROWSER_SOURCE_INVERSES).length,8);
- for(const[file,pin]of Object.entries(ACCOUNTING_FULL190_BROWSER_SOURCE_INVERSES)){const raw=fs.readFileSync(new URL('../'+file,import.meta.url)),before=projectAccountingFull190BrowserRawSourceToParent(file,raw);assert.equal(raw.length,pin.afterBytes);assert.equal(hash(raw),pin.afterSha256);assert.equal(before.length,pin.beforeBytes);assert.equal(hash(before),pin.beforeSha256);assert.strictEqual(projectAccountingFull190BrowserRawSourceToParent(file,before),before);assert.throws(()=>projectAccountingFull190BrowserRawSourceToParent(file,Buffer.concat([raw,Buffer.from('unreviewed')])),/SOURCE_AFTER_LENGTH/);const altered=Buffer.from(raw);altered[0]^=1;assert.throws(()=>projectAccountingFull190BrowserRawSourceToParent(file,altered),/SOURCE_AFTER_SHA/);}
+ for(const[file,pin]of Object.entries(ACCOUNTING_FULL190_BROWSER_SOURCE_INVERSES)){const raw=projectOwnPayrollLoginRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))),before=projectAccountingFull190BrowserRawSourceToParent(file,raw);assert.equal(raw.length,pin.afterBytes);assert.equal(hash(raw),pin.afterSha256);assert.equal(before.length,pin.beforeBytes);assert.equal(hash(before),pin.beforeSha256);assert.strictEqual(projectAccountingFull190BrowserRawSourceToParent(file,before),before);assert.throws(()=>projectAccountingFull190BrowserRawSourceToParent(file,Buffer.concat([raw,Buffer.from('unreviewed')])),/SOURCE_AFTER_LENGTH/);const altered=Buffer.from(raw);altered[0]^=1;assert.throws(()=>projectAccountingFull190BrowserRawSourceToParent(file,altered),/SOURCE_AFTER_SHA/);}
  const other=Buffer.from('unrelated bytes');assert.strictEqual(projectAccountingFull190BrowserRawSourceToParent('unrelated',other),other);assert.throws(()=>projectAccountingFull190BrowserRawSourceToParent('unrelated','not raw'),/SOURCE_RAW_REQUIRED/);
 });
 test('append occurs after real203/206 SQL tails and before original214 without removing old flow or broadening capability claim',()=>{

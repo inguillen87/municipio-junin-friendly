@@ -2,6 +2,7 @@
 // PostgreSQL proves the projected hashes separately in the native workflow.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {projectOwnPayrollLoginRawSourceToParent} from './fixtures/own-payroll-login-source-projection.js';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {OWN_NATIVE645_CAUSAL_SOURCE_PINS,projectOwnNative645RawSourceToParent} from './fixtures/native645-causal-source-projection.js';
@@ -13,7 +14,7 @@ import {OWNER190_NATIVE_OUTCOME_SOURCE_PINS,OWNER190_NATIVE_OUTCOME_NEW_SOURCE_P
 import {OWNER190_PG17_IDENTITY_SOURCE_PINS,projectOwner190Pg17IdentityRawSourceToParent} from './fixtures/owner190-pg17-identity-source-projection.js';
 import {OWNER190_QA_RECONCILIATION_SOURCE_PINS,projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner190-qa-source-reconciliation.js';
 import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
-const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url))));
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,projectOwnPayrollLoginRawSourceToParent(file,readFileSync(new URL('../'+file,import.meta.url)))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));

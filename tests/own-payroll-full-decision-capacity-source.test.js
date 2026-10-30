@@ -1,6 +1,7 @@
 // Proposed filesystem contracts only. No application, SQL, API or UI imports.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {projectOwnPayrollLoginRawSourceToParent} from './fixtures/own-payroll-login-source-projection.js';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {FULL_CAPACITY_SOURCE_PINS,projectFullCapacitySourceToParent} from './fixtures/own-payroll-full-capacity-source-projection.js';
@@ -17,7 +18,7 @@ const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const sha=value=>createHash('sha256').update(value).digest('hex');
 import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 import {OWN_PLANILLA_DEPARTMENTS_SOURCE_PINS,projectPlanillaDepartmentsRawSourceToParent} from './fixtures/own-planilla-departments-source-projection.js';
-const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));
+const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,projectOwnPayrollLoginRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
 const receipt126ParentRaw=file=>projectReceipt126ConsumerRawSourceToParent(file,owner190OutcomeParentRaw(file));
@@ -103,7 +104,7 @@ test('217 and public208209 preserve complete dependency rows using the real PG17
 // Source succession only: the current UI keeps its scoped four-argument call.
 test('planilla departments source succession recovers whole prior files and rejects unknown drift',()=>{
  for(const file of ['assets/own-payroll-receipt-planilla-panel.js','tests/own-payroll-full-decision-capacity-source.test.js']){
-  const raw=fs.readFileSync(new URL('../'+file,import.meta.url)),copy=Buffer.from(raw),pin=OWN_PLANILLA_DEPARTMENTS_SOURCE_PINS[file];
+  const raw=projectOwnPayrollLoginRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))),copy=Buffer.from(raw),pin=OWN_PLANILLA_DEPARTMENTS_SOURCE_PINS[file];
   assert.equal(sha(raw),pin.after);const parent=projectPlanillaDepartmentsRawSourceToParent(file,raw);
   assert.equal(parent.length,pin.beforeBytes);assert.equal(sha(parent),pin.before);assert.deepEqual(raw,copy);
   const changed=Buffer.from(raw);changed[Math.floor(changed.length/2)]^=1;assert.throws(()=>projectPlanillaDepartmentsRawSourceToParent(file,changed),/PLANILLA_DEPARTMENTS_CURRENT_SOURCE/);
