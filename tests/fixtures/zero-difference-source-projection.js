@@ -1,3 +1,4 @@
+import {projectPlanillaDepartmentsRawSourceToParent} from './own-planilla-departments-source-projection.js';
 // PROPOSED by Claude (R5, v3; source only; not run by Claude). Target: tests/fixtures/zero-difference-source-projection.js
 // RAW custody for the zero-differences source succession: ONE new outermost layer that projects the current bytes of
 // every public file touched by the R3/R4/R5 operations back to its already pinned parent. No historical RAW, row,
@@ -68,5 +69,5 @@ export function projectZeroDifferenceEngineRawSourceToParent(path,value){
 }
 /** Outermost layer for every consumer: both row sets are disjoint, so the order of the two projections is immaterial. */
 export function projectZeroDifferenceAllRawSourceToParent(path,value){
- return projectZeroDifferenceEngineRawSourceToParent(path,projectZeroDifferenceRawSourceToParent(path,value));
+ return projectZeroDifferenceEngineRawSourceToParent(path,projectZeroDifferenceRawSourceToParent(path,projectPlanillaDepartmentsRawSourceToParent(path,value)));
 }

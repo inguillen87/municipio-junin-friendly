@@ -1,3 +1,4 @@
+import {projectPlanillaDepartmentsRawSourceToParent} from './fixtures/own-planilla-departments-source-projection.js';
 // PROPOSED by Claude (R5; source only; not run by Claude). Target: tests/zero-difference-source-projection.test.js
 // The outermost zero-differences succession layer: every current public file it covers is exactly its reviewed
 // successor, projects back to the exact pinned parent, and rejects any other bytes. The live engine route is checked
@@ -6,7 +7,8 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {ZERO_DIFFERENCE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SOURCE_PINS,ZERO_DIFFERENCE_ENGINE_SUCCESSOR_ORDER,ZERO_DIFFERENCE_NEW_SOURCE_PINS,projectZeroDifferenceRawSourceToParent,projectZeroDifferenceEngineRawSourceToParent,projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
 import {projectAccountingFull190BrowserRawSourceToParent} from './fixtures/accounting-full-current190-browser-source-projection.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const raw=file=>projectAccountingFull190BrowserRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const rawCurrent=file=>projectAccountingFull190BrowserRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url)));
+const raw=file=>projectPlanillaDepartmentsRawSourceToParent(file,rawCurrent(file));
 const HEX=/^[a-f0-9]{64}$/;
 
 test('cada archivo cubierto es su sucesor exacto y proyecta al padre pinado; bytes añadidos, mutados o el propio padre se rechazan',()=>{
@@ -15,7 +17,7 @@ test('cada archivo cubierto es su sucesor exacto y proyecta al padre pinado; byt
  for(const [pins,project] of sets)for(const [file,pin] of Object.entries(pins)){
   const current=raw(file);assert.equal(current.length,pin.afterBytes,file);assert.equal(hash(current),pin.after,file);
   const parent=project(file,current);assert.equal(parent.length,pin.beforeBytes,file);assert.equal(hash(parent),pin.before,file);
-  assert.deepEqual(projectZeroDifferenceAllRawSourceToParent(file,current),parent,file+' composed layer');
+  assert.deepEqual(projectZeroDifferenceAllRawSourceToParent(file,rawCurrent(file)),parent,file+' composed layer');
   assert.throws(()=>project(file,Buffer.concat([current,Buffer.from('unreviewed')])),file+' appended');
   const mutation=Buffer.from(current);mutation[0]^=1;assert.throws(()=>project(file,mutation),file+' mutated');
   assert.throws(()=>project(file,parent),file+' parent is not the current source');

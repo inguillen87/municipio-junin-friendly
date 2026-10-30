@@ -16,6 +16,7 @@ import {projectOwner190QaReconciliationRawSourceToParent} from './fixtures/owner
 const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const sha=value=>createHash('sha256').update(value).digest('hex');
 import {projectZeroDifferenceAllRawSourceToParent} from './fixtures/zero-difference-source-projection.js';
+import {OWN_PLANILLA_DEPARTMENTS_SOURCE_PINS,projectPlanillaDepartmentsRawSourceToParent} from './fixtures/own-planilla-departments-source-projection.js';
 const reconciledRaw=file=>projectOwner190QaReconciliationRawSourceToParent(file,projectZeroDifferenceAllRawSourceToParent(file,fs.readFileSync(new URL('../'+file,import.meta.url))));
 const owner190IdentityParentRaw=file=>projectOwner190Pg17IdentityRawSourceToParent(file,reconciledRaw(file));
 const owner190OutcomeParentRaw=file=>projectOwner190NativeOutcomeRawSourceToParent(file,owner190IdentityParentRaw(file));
@@ -67,7 +68,7 @@ test('every affected API negotiates before authorization and destroys a failed a
 test('all seven relevant UIs use the actual bounded shared reader with abort signals and preserve complete comparisons',()=>{
  for(const file of ['own-payroll-liquidation-panel.js','own-payroll-annulment-panel.js','own-payroll-close-panel.js','own-payroll-comparison-panel.js','own-payroll-receipt-panel.js','own-payroll-receipt-self.js','own-payroll-receipt-planilla-panel.js']){const s=read('assets/'+file);assert.match(s,/readOwnPayrollResponse/);assert.match(s,/Accept:.*OWN_RUN_FULL_JSON/);assert.match(s,/signal/);assert.doesNotMatch(s,/await (?:response|r)\.text\(\)/);}
  const comparison=read('assets/own-payroll-comparison-panel.js');assert.match(comparison,/firstProof!==verified.proof/);assert.match(comparison,/remaining-=fullResponseBytes.get\(response\)/);assert.match(comparison,/for\(const d of sources\)binding\(d,after\)/);
- const planilla=read('assets/own-payroll-receipt-planilla-panel.js');assert.match(planilla,/remaining-=fullResponseBytes.get\(sourceResponse\)/);assert.match(planilla,/prepareOwnPlanilla\(batch,closes,\$\('jurisdiction'\)\.value\)/);assert.match(planilla,/maxBytes=65536/);
+ const planilla=read('assets/own-payroll-receipt-planilla-panel.js');assert.match(planilla,/remaining-=fullResponseBytes.get\(sourceResponse\)/);assert.match(planilla,/jurisdiction=catalogue\?'all':\$\('jurisdiction'\)\.value,departments=catalogue\?\{kind:'all',values:\[\]\}:selection\(\)/);assert.match(planilla,/return prepareOwnPlanilla\(batch,closes,jurisdiction,departments\)/);assert.match(planilla,/maxBytes=65536/);
 });
 
 
@@ -97,4 +98,18 @@ test('217 and public208209 preserve complete dependency rows using the real PG17
   // Reintroducing only the statement318 column must fail the same oracle.
   assert.throws(()=>check(source.replace(sharedOrder,sharedOrder.replace(',d.deptype',',d.refobjsubid,d.deptype')),file+' old318'),/shared catalog column order/);
  }
+});
+
+// Source succession only: the current UI keeps its scoped four-argument call.
+test('planilla departments source succession recovers whole prior files and rejects unknown drift',()=>{
+ for(const file of ['assets/own-payroll-receipt-planilla-panel.js','tests/own-payroll-full-decision-capacity-source.test.js']){
+  const raw=fs.readFileSync(new URL('../'+file,import.meta.url)),copy=Buffer.from(raw),pin=OWN_PLANILLA_DEPARTMENTS_SOURCE_PINS[file];
+  assert.equal(sha(raw),pin.after);const parent=projectPlanillaDepartmentsRawSourceToParent(file,raw);
+  assert.equal(parent.length,pin.beforeBytes);assert.equal(sha(parent),pin.before);assert.deepEqual(raw,copy);
+  const changed=Buffer.from(raw);changed[Math.floor(changed.length/2)]^=1;assert.throws(()=>projectPlanillaDepartmentsRawSourceToParent(file,changed),/PLANILLA_DEPARTMENTS_CURRENT_SOURCE/);
+  assert.throws(()=>projectPlanillaDepartmentsRawSourceToParent(file,Buffer.concat([raw,Buffer.from('\n')])));
+  assert.throws(()=>projectPlanillaDepartmentsRawSourceToParent(file,parent));
+ }
+ const other=Buffer.from('unrelated unchanged source');assert.strictEqual(projectPlanillaDepartmentsRawSourceToParent('assets/unrelated.js',other),other);
+ assert.throws(()=>projectPlanillaDepartmentsRawSourceToParent('assets/own-payroll-receipt-planilla-panel.js','text'));
 });

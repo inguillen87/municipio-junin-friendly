@@ -17,8 +17,9 @@ export async function nativeAccountingPanelAccess(page,prefix){
  await page.locator('[data-'+prefix+'-access]').click();
  await page.waitForFunction(p=>document.querySelector('[data-'+p+'-query]')?.disabled===false,prefix);
 }
+import {verifyNativeF931Ui} from './noelia-fiscal160-ui-qa.mjs';
 const root=path.resolve(import.meta.dirname,'../..');
-const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts'],['/api/internal-own-payroll-accounting','accounting'],['/api/internal-own-payroll-imputation','imputation'],['/api/internal-own-payroll-journal','journal'],['/api/internal-own-monthly-day-declaration','monthly'],['/api/internal-own-period-participation','participation']]);
+const endpoints=new Map([['/api/internal-own-fiscal-facts','fiscalFacts'],['/api/internal-employment-changes','employmentChanges'],['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory'],['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-bank-accounts','bankAccounts'],['/api/internal-own-payroll-accounting','accounting'],['/api/internal-own-payroll-imputation','imputation'],['/api/internal-own-payroll-journal','journal'],['/api/internal-own-monthly-day-declaration','monthly'],['/api/internal-own-period-participation','participation']]);
 export const noeliaCircuitEndpoint=pathname=>endpoints.get(pathname)??null;
 export async function withNoeliaNativeEmployeeHandler(handlers,handler,operation){
  assert.equal(typeof handler,'function');assert.equal(typeof operation,'function');assert.ok(!Object.hasOwn(handlers,'nativeEmployee'),'QA_NATIVE_HANDLER_ALREADY_ACTIVE');
@@ -403,6 +404,6 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {origin,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,nativeBankBnaOutput,nativeAccountingHttp,nativeAccountingReadExport,close};
+  return {nativeF931ReadExport:input=>verifyNativeF931Ui({page,origin,output,check,browserName,...input}),origin,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,createNativeEmployee,nativePayrollCommand,nativeReceiptPreview,nativeReceiptDownload,nativeBankHttp,nativeBankSources,nativeBankControl,nativeBankBnaOutput,nativeAccountingHttp,nativeAccountingReadExport,close};
  }catch(e){await close();throw e;}
 }

@@ -296,7 +296,7 @@ test('un error al paginar conserva una acción explícita de reintento', async (
 test('la consulta salarial usa AbortController y se cancela al cerrar o reemplazar ficha', async () => {
   const html = await read('internal-dashboard.html');
   const history = containingFunction(html, 'function renderEmployeePayrollHistory(employee)');
-  const close = containingFunction(html, 'function closeDialog()');
+  const close = containingFunction(html, 'function closeDialog(');
   const open = containingFunction(html, 'async function openEmployee(');
   assert.match(history, /new AbortController\(\)/);
   assert.match(history, /requestJSON\([^;]+\{ signal: controller\.signal \}\)/);
@@ -417,4 +417,15 @@ test('el consumidor aplica TTL y one-shot en runtime sin ejecutar ninguna operac
   assert.equal(unclassified.consume(), true);
   assert.equal(unclassified.elements.get('payrollType').value, '');
   assert.match(unclassified.calls.showMessage[0][2], /Elegí el tipo de liquidación/);
+});
+
+for (const resumeBackground of [false, true]) test('cerrar la ficha aborta todas las consultas antes de reanudar el padrón '+resumeBackground, async () => {
+ const html = await read('internal-dashboard.html');
+ const source = containingFunction(html, 'function closeDialog(');
+ const controllers = Array.from({length:4}, () => new AbortController());
+ const events=[], loads=[]; let closed=0, resumes=0;
+ const state={detailController:controllers[0],payrollController:controllers[1],payrollSummaryControllers:new Set(controllers.slice(2)),currentView:'legajos',employeesLoaded:false,employeesLoading:false};
+ const context={state,els:{employeeDialog:{close(){closed++;}}},document:{dispatchEvent(event){events.push(event.type);}},Event,resumeFamilyEntryBackground(){resumes++;return true;},loadEmployees(page){loads.push(page);}};
+ vm.createContext(context);vm.runInContext(source+';globalThis.observedCloseDialog=closeDialog;',context);context.observedCloseDialog(resumeBackground);
+ assert.ok(controllers.every(controller=>controller.signal.aborted));assert.equal(state.payrollSummaryControllers.size,0);assert.equal(closed,1);assert.deepEqual(events,['mc:family-schooling-close','mc:native-employment-change-close']);assert.deepEqual(loads,resumeBackground?[1]:[]);assert.equal(resumes,resumeBackground?1:0);
 });
