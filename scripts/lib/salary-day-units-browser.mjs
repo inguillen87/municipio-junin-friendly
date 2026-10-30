@@ -1,4 +1,5 @@
 // Built product and real handlers backed by the same disposable SQL fixture.
+import {openQaPayrollSidebarTask} from './qa-payroll-sidebar-navigation.mjs';
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 export async function verifySalaryDayUnitsBrowser({handlers,env,actor,output,browserName,check}){
  assert.ok(['chrome','chromium'].includes(browserName));
@@ -22,7 +23,7 @@ export async function verifySalaryDayUnitsBrowser({handlers,env,actor,output,bro
   });
   page=await context.newPage();page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));
   const master=page.locator('[data-native-salary]'),file=master.locator('[data-salary-file]'),program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});
-  await page.goto(origin+'/nomina#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();
+  await page.goto(origin+'/nomina#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});
   await master.getByRole('button',{name:'Consultar maestro propio',exact:true}).click();await master.getByRole('button',{name:'Preparar nueva versión',exact:true}).waitFor();await master.getByRole('button',{name:'Preparar nueva versión',exact:true}).click();
   await master.getByLabel('Unidad',{exact:true}).selectOption('days');
   check(await master.getByLabel('Unidad',{exact:true}).locator('option:checked').textContent()==='Días','built individual definition editor exposes a distinct accessible Días option');
@@ -37,7 +38,7 @@ export async function verifySalaryDayUnitsBrowser({handlers,env,actor,output,bro
    await master.getByLabel('Unidad',{exact:true}).focus();check(await master.getByLabel('Unidad',{exact:true}).evaluate(el=>el===document.activeElement),'Días selector accepts keyboard focus at'+width+'px');
    await page.screenshot({path:path.join(output,'day-units-master-'+width+'.png'),fullPage:false});
   }
-  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await program.locator('[data-program-content]').waitFor({state:'visible'});await program.getByRole('button',{name:'Preparar reglas',exact:true}).click();
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});await program.locator('[data-program-content]').waitFor({state:'visible'});await program.getByRole('button',{name:'Preparar reglas',exact:true}).click();
   const selector=program.locator('[data-program-binding-select]'),value=await selector.locator('option').evaluateAll(options=>options.find(o=>o.textContent.includes('declaredDays'))?.value);assert.ok(value!==undefined);await selector.selectOption(value);
   const unit=program.getByLabel('Unidad de la entrada',{exact:true});check(await unit.inputValue()==='days','approved days binding loads the same unit in the built program editor');
   check(await unit.locator('option:checked').textContent()==='Días','program editor names the preserved unit Días');

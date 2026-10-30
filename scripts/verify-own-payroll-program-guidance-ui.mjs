@@ -1,4 +1,5 @@
 // Built product page + real read handler + synthetic SQL responses. No live API.
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -78,7 +79,7 @@ try{
   await page.screenshot({path:output.replace(/\.json$/,'')+'-'+width+'.png',fullPage:true});
  }
  await $('catalog-link').focus();await page.keyboard.press('Enter');
- check(await page.getByRole('tab',{name:'Parámetros',exact:true}).getAttribute('aria-selected')==='true','keyboard action opens existing salary task');
+ const parametersTab=page.locator('#task-tab-parametros');check(await parametersTab.getAttribute('aria-selected')==='true'&&await parametersTab.getAttribute('aria-controls')==='task-parametros'&&new URL(page.url()).hash==='#parametros'&&await page.locator('#task-parametros').isVisible(),'keyboard action opens existing salary task');
  check(posts===0,'guidance navigation never writes');
  await page.setViewportSize({width:1440,height:1000});
  await load(bootstrap({permissions:{canPropose:false,canReview:true}}));
@@ -94,8 +95,8 @@ try{
  await load(bootstrap({proposals:[decided,...proposals],permissions:{canPropose:true,canReview:true}}));
  check((await $('pending-summary').innerText()).includes('71 propuestas pendientes')&&(await $('pending-summary').innerText()).includes('69 compatibles'),'all proposals counted with independence and versions');
  await $('pending-link').click();check(await $('proposals').isVisible()&&await $('proposal-select').locator('option').count()===72&&await $('proposal-select').inputValue()===proposals[0].id,'shortcut opens a pending proposal and keeps complete decision history');
- await page.getByRole('tab',{name:'Resumen',exact:true}).click();check(await $('content').isHidden(),'changing task withdraws the verified guidance');
- await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await $('content').waitFor({state:'visible'});
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'resumen'});check(await $('content').isHidden(),'changing task withdraws the verified guidance');
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});await $('content').waitFor({state:'visible'});
  // A held read cannot restore the view after revocation.
  const heldReceived=new Promise(resolve=>{holdReady=resolve;});hold=true;await $('refresh').click();await heldReceived;
  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));

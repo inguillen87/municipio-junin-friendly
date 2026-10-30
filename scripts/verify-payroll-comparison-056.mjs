@@ -184,10 +184,10 @@ try {
   await page.goto(origin+(live?build.url('nomina-control.html').pathname:'/nomina-control.html')+'#comparar'); await openHistoricalComparison(); await compareFresh();
   assert.equal(await rows().count(),10); await page.screenshot({ path: out + '/comparison-payroll-task-qa.png', fullPage:true });
   checks.push('Same fully functional comparison task is available in Nómina');
-  await page.getByRole('tab',{name:'Comparar liquidaciones',exact:true}).focus(); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
+  await page.getByRole('tab',{name:'Comparar liquidaciones',exact:true}).focus(); await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
   assert.equal(await page.getByRole('tab',{name:'Recibos propios',exact:true}).getAttribute('aria-selected'),'true');
   await page.locator('#task-recibos').waitFor({state:'visible'}); assert.equal(await rows().count(),0);
-  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
   assert.equal(await page.getByRole('tab',{name:'Reportes',exact:true}).getAttribute('aria-selected'),'true');
   await page.goBack(); await page.locator('#task-recibos').waitFor({state:'visible'});
   assert.equal(await page.getByRole('tab',{name:'Recibos propios',exact:true}).getAttribute('aria-selected'),'true');
