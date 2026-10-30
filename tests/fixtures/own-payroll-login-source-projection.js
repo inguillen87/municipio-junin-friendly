@@ -35,6 +35,12 @@ export const OWN_ANNULMENT_READONLY_REVIEW_SOURCE_PIN=freeze({"path":"assets/own
 export function projectOwnAnnulmentReadonlyReviewRawSourceToParent(file,value){
  assert.equal(typeof file,'string','ANNUL_READONLY_SOURCE_PATH_REQUIRED');assert.ok(Buffer.isBuffer(value),'ANNUL_READONLY_RAW_SOURCE_REQUIRED');
  const pin=file===OWN_ANNULMENT_READONLY_REVIEW_SOURCE_PIN.path?OWN_ANNULMENT_READONLY_REVIEW_SOURCE_PIN:file===OWN_ANNULMENT_READONLY_REVIEW_TEST_SOURCE_PIN.path?OWN_ANNULMENT_READONLY_REVIEW_TEST_SOURCE_PIN:null;if(!pin)return value;
+ // One exact Git-LF representation of the reviewed test RAW image only.
+ // Validate BEFORE conversion; every original RAW guard and inverse still runs.
+ if(file===OWN_ANNULMENT_READONLY_REVIEW_TEST_SOURCE_PIN.path&&value.length===14755){
+  assert.equal(hash(value),'b36177d940612b2472093cb64093d290ef8f50434fd5f05a9ebd56375e95a549','ANNUL_READONLY_CURRENT_SHA');
+  value=Buffer.from(value.toString('utf8').replace(/\n/g,'\r\n'),'utf8');
+ }
  assert.equal(value.length,pin.afterBytes,'ANNUL_READONLY_CURRENT_BYTES');assert.equal(hash(value),pin.afterSha256,'ANNUL_READONLY_CURRENT_SHA');let source=value;
  for(const op of [...pin.inverse].reverse()){
   const after=Buffer.from(op.afterBase64,'base64'),before=Buffer.from(op.beforeBase64,'base64');assert.deepEqual(source.subarray(op.afterOffset,op.afterOffset+after.length),after,'ANNUL_READONLY_EXACT_SPAN');
