@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 // Actual built/published interface; all authenticated responses and writes are
 // synthetic and intercepted locally. No municipal session, records or payments.
 import assert from 'node:assert/strict';
@@ -65,9 +66,9 @@ try {
   });
   const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/nomina#resumen');
-  await page.getByRole('tab', { name: 'Parámetros', exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Parámetros', exact: true, includeHidden: true }).waitFor({state:'attached'});
   assert.equal(calls.length, 0, 'parameters do not warm private API on other tabs');
-  await page.getByRole('tab', { name: 'Parámetros', exact: true }).click();
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});
   const w = page.locator('[data-parameter-workspace]'); await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();
   assert.equal(await page.locator('[data-liquidaciones-menu] a[aria-current=page]').getAttribute('href'), '/nomina#parametros');
   assert.equal(await page.getByRole('heading', { name: 'Revisar una fórmula antes de parametrizarla' }).isVisible(), false);
@@ -98,7 +99,7 @@ try {
   const detailHost = w.locator('[data-parameter-detail]');
   assert.equal(await detailHost.locator('.pp-preview-row').count(), 3);
   checks.push('administrative input preserves every cent without rounding, explicit confirmation and stored exact-cent proposal');
-  await page.getByRole('tab', { name: 'Reportes', exact: true }).click(); await page.getByRole('tab', { name: 'Parámetros', exact: true }).click();
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reportes'}); await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});
   assert.equal(await w.getByLabel('Importe básico de la clase 13-I', { exact: false }).inputValue(), '100,02');
   assert.equal(await detailHost.isVisible(), true);
   checks.push('tab navigation preserves draft and record without extra mutation');

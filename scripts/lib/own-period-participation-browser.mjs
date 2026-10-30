@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './qa-payroll-sidebar-navigation.mjs';
 // Built UI, actual HTTP handlers and loopback SQL; all identities are synthetic.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -82,7 +83,7 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   assert.equal(writes.length,2);assert.equal(writes[1].receipt.body.command,'approve');
   check(await s('receipt').isVisible(),'built UI stores an independent decision with the exact reviewed body');
   actor(actors.maker);await fresh();await select(people[0]);check(await s('recognizedUnits').inputValue()==='9','new verified consultation shows the independently approved correction');
-  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});
   const program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});await program.locator('[data-program-content]').waitFor({state:'visible'});
   check(await program.locator('[data-program-participation]').isChecked()&&await program.locator('[data-program-participation]').isDisabled(),'approved programme explicitly opts into recognized facts and cannot silently downgrade');
   check(await program.locator('[data-program-fixed-validity]').inputValue()==='reject','programme keeps partial fixed novelties blocked until a documented explicit decision');

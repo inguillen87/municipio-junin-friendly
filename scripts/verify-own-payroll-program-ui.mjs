@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 // Actual built UI + actual handlers + independent committed PostgreSQL connections.
 // Municipal authentication and directory projection are declared synthetic fixtures.
 import fs from 'node:fs';
@@ -198,13 +199,13 @@ try{
  check(await reviewer.locator('.own-program button:visible').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height>=44)),'visible mobile controls have accessible target size');await reviewer.locator('.own-program').screenshot({path:prefix+'-mobile.png'});
  await reviewer.setViewportSize({width:320,height:760});check(await reviewer.locator('.own-program').evaluate(el=>el.getBoundingClientRect().width<=innerWidth),'complete review fits 320px');await reviewer.screenshot({path:prefix+'-mobile-320.png',fullPage:true});
  // The next actual product task must use the program just approved in this UI.
- await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
  await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-period-end]').click();await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
  const result=await db.run("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
  const expected110=args['reference-scales']?'26.17550000':'13.01300000';
  check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount===expected110,'actual own run uses the approved UI coefficient and exact reference scale when declared');
  check(result.programVersion===beforeCalculation.program.version&&result.requestProgramVersion===beforeCalculation.program.version,'saved own run is linked to the exact newly approved program');
- await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await settled();hold=true;await select('refresh').click();
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});await settled();hold=true;await select('refresh').click();
  for(let i=0;i<100&&!held;i++)await new Promise(r=>setTimeout(r,50));assert.ok(held,'synthetic delayed read is held');
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});held();held=null;
  check(await select('content').isHidden(),'hidden page withdraws programs and proposals');await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
