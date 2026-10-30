@@ -68,7 +68,7 @@ jobs:
         run: node --test tests/own-payroll-report-census-qa-rpc.test.js tests/own-payroll-report-census-190-iam-fixture.test.js tests/own-payroll-report-census-190-legacy.test.js tests/own-payroll-report-census-workflow.test.js tests/own-payroll-report-census-program-synthetic.test.js
       - name: Owned QA cleanup with synthetic transcripts
         run: node --test tests/owner190-cleanup-profile.test.js tests/owner190-cleanup-raw255.local.test.js
-      - run: npm run build
+      - run: npm run build:vercel
       - name: Prepare only the disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa

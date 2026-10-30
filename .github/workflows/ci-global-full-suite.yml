@@ -1,0 +1,68 @@
+name: Global complete test suite
+on:
+  pull_request:
+  push:
+    branches:
+      - 'master'
+      - 'codex/annual-position-budget-20261006'
+      - 'codex/consolidated-annulment-20261009'
+      - 'codex/native-employee-self-20261002'
+      - 'codex/native-leave-downloads-20261002'
+      - 'codex/native-leave-workflow-20261001'
+      - 'codex/native-salary-bulk-20261002'
+      - 'codex/native-salary-copy-20261002'
+      - 'codex/native-salary-definitions-20261002'
+      - 'codex/native-salary-effective-20261002'
+      - 'codex/native-time-assignment-bulk-20261002'
+      - 'codex/native-time-assignment-decisions-20261002'
+      - 'codex/native-time-catalog-20261002'
+      - 'codex/noelia-schooling-reading-20261003'
+      - 'codex/noelia-schooling-review-20261003'
+      - 'codex/own-liquidation-decisions-20261005'
+      - 'codex/own-period-close-20261005'
+      - 'codex/own-position-assignment-20261006'
+      - 'codex/own-position-comparison-20261006'
+      - 'codex/school-certificate-photo-20261002'
+      - 'internal-native-family-schooling-20260922'
+      - 'work/codex-autonomy-20260930'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-suite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Attest exact event source before installing dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          mkdir -p verification
+          printf 'sourceSha=%s\n' "$EXPECTED_SOURCE_SHA" | tee verification/global-full-suite-source.txt
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run every existing test and build the same product bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee verification/global-full-suite.log
+      - name: Preserve full suite source and output even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: global-full-suite-${{ env.EXPECTED_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            verification/global-full-suite-source.txt
+            verification/global-full-suite.log
+          if-no-files-found: error
+          retention-days: 5

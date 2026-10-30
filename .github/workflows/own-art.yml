@@ -36,7 +36,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Complete and rejected native delivery regression
@@ -89,7 +89,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Finite synthetic observation, retaining every original failure
@@ -116,7 +116,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Reduced synthetic reader, object lifetime and HTTP framing matrix
@@ -143,7 +143,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - name: Verify the exact official patched binary in the disposable checkout
         run: node scripts/install-patched-chromium-diagnostic.mjs

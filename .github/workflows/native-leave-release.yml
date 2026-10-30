@@ -86,7 +86,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-leave-browser.mjs
       - run: node scripts/verify-native-self-browser.mjs

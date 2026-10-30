@@ -41,7 +41,7 @@ jobs:
       - run: node --test tests/position-comparison*.test.js tests/own-payroll-run*.test.js tests/annual-position-budget*.test.js
       - run: node scripts/verify-position-comparison.mjs --major=${{ matrix.major }} --output=verification/position-comparison-sql.json
       - run: node scripts/verify-position-comparison-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/position-comparison-installation.json
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-position-comparison-pdf-browser.mjs --output=verification/position-comparison-pdf-browser.json
       - run: node scripts/verify-position-comparison.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/position-comparison-ui.json

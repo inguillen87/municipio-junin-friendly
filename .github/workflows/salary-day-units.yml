@@ -36,7 +36,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - name: Prepare the existing disposable QA database
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa

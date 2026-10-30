@@ -150,7 +150,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:vercel
       - name: Prepare only the disposable synthetic service
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa

@@ -43,7 +43,7 @@ jobs:
         run: node scripts/verify-own-payroll-liquidation.mjs --major=${{ matrix.major }} --output=verification/own-liquidation-sql.json
       - name: Exact installation COMMIT and independent preservation
         run: node scripts/verify-own-payroll-liquidation-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-liquidation-installation.json
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/install-project-chromium.mjs --purpose=release-verification
       - name: Actual built product UI and HTTP handler, mobile, all pages and immutable retries

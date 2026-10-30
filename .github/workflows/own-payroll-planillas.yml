@@ -40,6 +40,6 @@ jobs:
       - run: mkdir -p verification
       - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: node --test tests/own-payroll-receipt*.test.js tests/own-payroll-close*.test.js
-      - run: npm run build
+      - run: npm run build:vercel
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-own-payroll-receipt-planilla-ui.mjs --major=${{ matrix.major }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-planillas-ui.json
