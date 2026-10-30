@@ -74,3 +74,12 @@ MuniControl_Fuentes_Privadas*/
 MuniControl_Codex_Handoff*/
 *.dump
 .vercel
+
+# Private local handoff and coordination files are never release inputs
+/.handoff/
+/3500
+/AGENTS.md
+/CLAUDE.md
+/CODEX_TASK.md
+/MUNICONTROL_HANDOFF.md
+/docs/COLABORACION_CLAUDE_ACTUAL.md

@@ -76,6 +76,22 @@ export function monthlySummaryData(payload, { resource, period = null, datasetId
   verifiedSummaries.add(result); return result;
 }
 export function monthlySummaryRevision(d) { return JSON.stringify(d); }
+// A click may admit all available sources of ONE imputation period, never a
+// latest revision, a partial24-source prefix, or a certification of the month.
+const periodSelectionError=(suffix,message)=>Object.assign(Error(message+' La selección previa no se modificó.'),{code:'MONTHLY_SELECTION_'+suffix});
+export function monthlySummaryPeriodSelection(catalog,period) {
+  if (!validMonthlyPeriod(period)) throw periodSelectionError('PERIOD_REQUIRED','Elegí un período de imputación antes de seleccionar todas.');
+  let checked;
+  try { checked=monthlySummaryData({ok:true,data:catalog},{resource:'catalog',period:catalog?.period??null}); }
+  catch { throw periodSelectionError('CATALOG_INVALID','Consultá nuevamente las liquidaciones disponibles; no se pudo verificar el catálogo completo.'); }
+  const items=checked.items.filter(source=>sourceMonthlyPeriod(source)===period);
+  if (!items.length) throw periodSelectionError('EMPTY_PERIOD','No hay liquidaciones disponibles para ese período. Consultá las fuentes o elegí otro período.');
+  if (items.length>MONTHLY_SUMMARY_LIMITS.sources) throw periodSelectionError('TOO_MANY','El período tiene '+items.length+' liquidaciones y el límite es '+MONTHLY_SUMMARY_LIMITS.sources+'. Elegí manualmente hasta 24; no se seleccionó una parte.');
+  const revisions=new Set();
+  for (const source of items) { const key=source.date+':'+source.type;if(revisions.has(key))throw periodSelectionError('AMBIGUOUS_REVISION','Hay revisiones de una misma fecha y tipo. Elegí manualmente una sola revisión de cada liquidación.');revisions.add(key); }
+  if (new Set(items.map(source=>source.sourceSha256)).size!==1) throw periodSelectionError('SOURCE_MISMATCH','Las liquidaciones del período provienen de respaldos distintos. Elegí manualmente fuentes del mismo respaldo o consultá las disponibles.');
+  return Object.freeze(items.map(source=>source.datasetId).sort());
+}
 export function monthlyDecimal(value) {
   if (value === null) return 'No informado';
   if (typeof value !== 'string' || !decimal.test(value)) fail();

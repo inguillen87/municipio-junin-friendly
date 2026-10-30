@@ -1,4 +1,4 @@
-import { monthlySummaryData, monthlySummaryRevision, monthlySummaryFilter, monthlyDecimal, monthlyClosure, monthlyType, monthlyObservations, sourceMonthlyPeriod, validMonthlyPeriod, MUTUAL_RETENTIONS_PRESET, mutualRetentionCandidates, mutualRetentionsView, mutualDecimal } from './payroll-monthly-summary-model.js';
+import { monthlySummaryData, monthlySummaryRevision, monthlySummaryFilter, monthlyDecimal, monthlyClosure, monthlyType, monthlyObservations, sourceMonthlyPeriod, validMonthlyPeriod, monthlySummaryPeriodSelection, MUTUAL_RETENTIONS_PRESET, mutualRetentionCandidates, mutualRetentionsView, mutualDecimal } from './payroll-monthly-summary-model.js';
 import { monthlySummaryXlsx, monthlySummaryPdf, mutualRetentionsXlsx, mutualRetentionsPdf } from './payroll-monthly-summary-export.js';
 
 const ENDPOINT = '/api/internal-payroll-monthly-source-summary';
@@ -37,7 +37,7 @@ export function mountMonthlySummary(host) {
     <div data-ms-selection hidden><div class="rc-filter"><label>Período de imputación<select data-ms-period aria-describedby="ms-period-note"><option value="">Elegí un período</option></select></label></div>
     <p id="ms-period-note" class="ms-note">Se usa el año y mes informado en origen. La fecha de la liquidación puede pertenecer a otro mes.</p>
     <fieldset class="ms-fieldset"><legend>Liquidaciones disponibles · elegí entre 1 y 24</legend><div class="ms-sources" data-ms-sources></div></fieldset>
-    <div class="ms-selection-actions"><p data-ms-selected>0 liquidaciones seleccionadas</p><button type="button" class="rc-button" data-ms-consult disabled>Consultar resumen</button><button type="button" class="rc-button secondary" data-ms-clear>Quitar selección</button></div></div>
+    <div class="ms-selection-actions"><p data-ms-selected>0 liquidaciones seleccionadas</p><button type="button" class="rc-button secondary" data-ms-select-all disabled>Seleccionar todas las liquidaciones del período</button><button type="button" class="rc-button" data-ms-consult disabled>Consultar resumen</button><button type="button" class="rc-button secondary" data-ms-clear>Quitar selección</button></div></div>
     <section data-ms-result hidden aria-label="Resumen de las liquidaciones seleccionadas"><div class="rc-source" data-ms-scope></div>
     <div class="rc-kpis"><div><span>Liquidaciones seleccionadas</span><strong data-ms-datasets></strong></div><div><span>Participaciones en liquidaciones</span><strong data-ms-participations></strong></div><div><span>Legajos únicos de la selección</span><strong data-ms-legajos></strong></div></div>
     <p class="ms-note">Un legajo puede participar en varias liquidaciones. Las ocurrencias son líneas de un concepto; las cantidades conservan su unidad de origen. No se suman componentes y totalizadores entre sí.</p>
@@ -70,6 +70,7 @@ export function mountMonthlySummary(host) {
     host.setAttribute('aria-busy', String(busy)); $('[data-ms-catalog]').disabled = busy;
     const selected = selectedIds().length; $('[data-ms-selected]').textContent = selected + ' liquidaciones seleccionadas';
     $('[data-ms-consult]').disabled = busy || !selected || selected > 24;
+    $('[data-ms-select-all]').disabled = busy || !catalog || !validMonthlyPeriod($('[data-ms-period]').value);
     host.querySelectorAll('[data-ms-export]').forEach(b => b.disabled = busy || !data || !view().rows.length);
     host.querySelectorAll('[data-mr-export]').forEach(b => b.disabled = busy || !data || mutualError || !mutualCodes.length);
     $('[data-ms-previous]').disabled = busy || !data || page <= 1;
@@ -184,8 +185,17 @@ export function mountMonthlySummary(host) {
       data = next; queriedAt = new Date().toISOString(); page = 1; render(); status.textContent = 'Resumen consultado. Filtrá conceptos y descargá el mismo resultado.';
     } catch (e) { if (valid(job)) failure(e); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }
+  function selectAllForPeriod() {
+    if (busy || !available()) return;
+    try {
+      const ids=monthlySummaryPeriodSelection(catalog,$('[data-ms-period]').value),wanted=new Set(ids),inputs=[...host.querySelectorAll('[data-ms-id]')];
+      if (inputs.length!==ids.length || new Set(inputs.map(input=>input.value)).size!==inputs.length || inputs.some(input=>input.tagName!=='INPUT'||input.type!=='checkbox'||!wanted.has(input.value))) throw Error('La lista visible cambió. Consultá nuevamente las liquidaciones disponibles. La selección previa no se modificó.');
+      for (const input of inputs) input.checked=true;
+      selectionChanged();status.textContent=ids.length+' liquidaciones del período seleccionadas. Consultá el resumen para reunirlas.';
+    } catch (error) { status.textContent=message(error); }
+  }
   function selectionChanged() { cancel(); clearResult(); controls(); status.textContent = 'Selección modificada. Consultá el resumen antes de descargar.'; }
-  $('[data-ms-catalog]').addEventListener('click', consultCatalog); $('[data-ms-consult]').addEventListener('click', consultSummary);
+  $('[data-ms-catalog]').addEventListener('click', consultCatalog); $('[data-ms-consult]').addEventListener('click', consultSummary); $('[data-ms-select-all]').addEventListener('click', selectAllForPeriod);
   $('[data-ms-catalog-period]').addEventListener('input', () => { selectionChanged(); catalog = null; $('[data-ms-selection]').hidden = true; $('[data-ms-sources]').replaceChildren(); controls(); status.textContent = 'Período de búsqueda modificado. Consultá las liquidaciones disponibles.'; });
   $('[data-ms-period]').addEventListener('change', () => { selectionChanged(); sources(); });
   $('[data-ms-sources]').addEventListener('change', e => {
@@ -224,11 +234,11 @@ export function mountMonthlySummary(host) {
     } catch (error) { if (valid(job)) { if (error.exportOnly) status.textContent = message(error); else failure(error); } }
     finally { if (job.seq === generation) { busy = false; controls(); } }
   }));
-  function hidden() { if (available()) return; cancel(); clearResult(); controls(); status.textContent = 'Consultá nuevamente el resumen para continuar.'; }
+  function hidden() { if (available() || (!busy && !data)) return; cancel(); clearResult(); controls(); status.textContent = document.visibilityState === 'hidden' ? 'La consulta se canceló al ocultar la pestaña. Consultá nuevamente el resumen para continuar.' : 'Consultá nuevamente el resumen para continuar.'; }
   document.addEventListener('taskchange', hidden); document.addEventListener('visibilitychange', hidden);
   // Scope changes must discard a snapshot even when no request is in flight.
   document.addEventListener('municontrol:capabilities-ready', () => { if (!catalog && !data && !busy) return; cancel(); clearResult(); catalog = null; $('[data-ms-selection]').hidden = true; $('[data-ms-sources]').replaceChildren(); controls(); status.textContent = 'El acceso se actualizó. Consultá nuevamente las liquidaciones disponibles.'; });
   window.addEventListener('pagehide', () => { suspended = true; hidden(); });
-  window.addEventListener('pageshow', e => { if (e.persisted) { suspended = false; cancel(); clearResult(); catalog = null; $('[data-ms-selection]').hidden = true; $('[data-ms-sources]').replaceChildren(); controls(); } });
+  window.addEventListener('pageshow', e => { if (e.persisted) { suspended = false; cancel(); clearResult(); catalog = null; $('[data-ms-selection]').hidden = true; $('[data-ms-sources]').replaceChildren(); controls(); status.textContent = 'Consultá las fuentes disponibles para empezar.'; } });
   controls(); return { consultCatalog, consultSummary };
 }
