@@ -2,6 +2,7 @@
 // Pure regressions for false greens. Synthetic provider answers only: no network, CI, Vercel or credentials.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {RELEASE_CONTRACT as C,CHECKOUT_ATTESTATION_STEP} from '../scripts/release-qualification-contract.mjs';
+import {projectNoeliaAnnulmentWorkflowToFiscalEpoch} from './fixtures/noelia-fiscal-workflow-source-projection.js';
 import {evaluateQualification,evaluateProductionHolder,evaluateStage,evaluateBuildBinding,evaluateReadback,validateAdmission,paginated,contentBytes,stageBuildCommand} from '../scripts/release-qualification-gate.mjs';
 import {zipEntries,zipEntryBytes} from '../scripts/lib/release-zip-entries.mjs';
 import {SHA,OTHER,ADMIN,PREVIOUS,STAGED,hash,enc,repoBytes,contentAnswer,zipOf,reportFor,reportZip,observation,setPages,replaceZip,
@@ -36,7 +37,7 @@ test('contrato = bytes revisados del repo: rutas, nombres, matrices, pasos, ates
  const noelia=Buffer.from(repoBytes(NOELIA.path)).toString('utf8'),capacity=Buffer.from(repoBytes(CAPACITY.path)).toString('utf8');
  assert.ok(noelia.includes('\n  circuit:\n')&&noelia.includes('      matrix:\n        major: [17, 18]\n')&&noelia.includes('name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}\n'));
  assert.ok(noelia.includes('      - name: Build and run all existing regressions\n        run: npm run build\n'),'full suite inside both Noelia jobs');
- assert.ok(noelia.includes('node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --output=verification/noelia-circuit-ci\n'));
+ assert.ok(noelia.includes('node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --annulment=true --output=verification/noelia-circuit-ci\n'));
  assert.ok(capacity.includes('    name: M7, receipt126 and Family195 browser, positions210-212 SQL / PG${{ matrix.pg }} / published107\n')&&capacity.includes('        pg: [17, 18]\n'));
  assertCapacityFullSuite(capacity);
  assert.ok(capacity.includes('--major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=published107 --output=verification/own-full-capacity-pg${{ matrix.pg }}\n'));
@@ -268,11 +269,20 @@ test('fast Preview source retains full CI and cannot replace staged attestation,
 // Three finite additions, in two unified-diff hunks: fiscal flag + two outputs.
 // The full inverse is the real505e127e parent, not an invented workflow baseline.
 test('Noelia fiscal workflow succession recovers the complete reviewed parent and rejects the old or newly drifted bytes',()=>{
- const file='.github/workflows/noelia-payroll-circuit.yml',raw=Buffer.from(repoBytes(file)),current=raw.toString('utf8');
- assert.equal(raw.length,15086);assert.equal(hash(raw),'e3a700eb4f9acc9108179d4308a43198ed10282c527bdcb5e09f961bd0cb16b8');assert.equal(C.workflows.find(w=>w.path===file).sha256,hash(raw));
+ const file='.github/workflows/noelia-payroll-circuit.yml',currentRaw=Buffer.from(repoBytes(file)),raw=projectNoeliaAnnulmentWorkflowToFiscalEpoch(file,currentRaw),current=raw.toString('utf8');
+ assert.equal(currentRaw.length,15103);assert.equal(hash(currentRaw),'e58ee59c3ade7a66b4577f1434dd238affd39fc90f2f08789deb44ae22a37090');
+ assert.equal(currentRaw.toString('utf8').split(' --annulment=true').length,2);assert.ok(!current.includes(' --annulment=true'));
+ assert.throws(()=>projectNoeliaAnnulmentWorkflowToFiscalEpoch(file,raw),'the previous fiscal-only workflow is not admitted as current');
+ assert.throws(()=>projectNoeliaAnnulmentWorkflowToFiscalEpoch(file,Buffer.concat([currentRaw,Buffer.from('\n')])));
+ const changed=Buffer.from(currentRaw);changed[0]^=1;assert.throws(()=>projectNoeliaAnnulmentWorkflowToFiscalEpoch(file,changed));
+ assert.throws(()=>projectNoeliaAnnulmentWorkflowToFiscalEpoch(file,Buffer.from(currentRaw.toString('utf8').replace(' --annulment=true',' --annulment=false'))));
+ const unknown=Buffer.from('unrelated');assert.strictEqual(projectNoeliaAnnulmentWorkflowToFiscalEpoch('tests/unrelated.test.js',unknown),unknown);
+ assert.equal(raw.length,15086);assert.equal(hash(raw),'e3a700eb4f9acc9108179d4308a43198ed10282c527bdcb5e09f961bd0cb16b8');assert.equal(C.workflows.find(w=>w.path===file).sha256,hash(currentRaw));
  let parent=current;for(const addition of [" --fiscal=true","            verification/noelia-circuit-ci/noelia-f931-native-readback.json\n","            verification/noelia-circuit-ci/noelia-fiscal160-installation.json\n"]){assert.equal(parent.split(addition).length,2);parent=parent.replace(addition,'');}
  assert.equal(Buffer.byteLength(parent),14918);assert.equal(hash(enc(parent)),'e87d8e2490cffbbe081d4a0345cdaa9e482d66fdac8b3825bba1e2bb6e7ef754');
  assert.equal(q().qualified,true,'all current source pins must agree before negative probes');
+ has(o=>{o.contents[file]=contentAnswer(file,raw);},'WORKFLOW_BYTES_CHANGED:'+file);
  has(o=>{o.contents[file]=contentAnswer(file,enc(parent));},'WORKFLOW_BYTES_CHANGED:'+file);
  has(o=>{o.contents[file]=contentAnswer(file,enc(current+'\n'));},'WORKFLOW_BYTES_CHANGED:'+file);
+ has(o=>{o.contents[file]=contentAnswer(file,Buffer.concat([currentRaw,Buffer.from('\n')]));},'WORKFLOW_BYTES_CHANGED:'+file);
 });

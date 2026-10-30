@@ -57,7 +57,7 @@ jobs:
       - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
         run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
       - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
-        run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --output=verification/noelia-circuit-ci
+        run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --fiscal=true --annulment=true --output=verification/noelia-circuit-ci
       - name: Preserve inactive history with unknown jurisdiction and refuse active unknowns
         run: node scripts/verify-adoption-inactive-jurisdiction.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/inactive-jurisdiction-ci
       - name: Complete final-cut source, proposal and exact immutable application

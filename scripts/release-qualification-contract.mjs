@@ -51,7 +51,7 @@ export const RELEASE_CONTRACT=deepFreeze({
  // repository source shows GET returning it: absence or any contradiction is a STOP, never a pass.
  workflows:[
   {path:'.github/workflows/noelia-payroll-circuit.yml',name:'Noelia complete own payroll circuit',
-   sha256:'e3a700eb4f9acc9108179d4308a43198ed10282c527bdcb5e09f961bd0cb16b8',
+   sha256:'e58ee59c3ade7a66b4577f1434dd238affd39fc90f2f08789deb44ae22a37090',
    jobs:[17,18].map(major=>({name:`circuit (${major})`,major,artifact:`noelia-circuit-pg${major}-<sha>`,
     report:{entry:'noelia-circuit-ci/result.json',fields:{passed:true,major,sourceCommit:'<sha>',transport:'ci',browser:'chromium',productionWrites:false}}})),
    // Every named step of the reviewed bytes; 'Build and run all existing regressions' is `npm run build` (full suite).
