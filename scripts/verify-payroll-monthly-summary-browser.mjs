@@ -8,14 +8,14 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { monthlyCatalog, monthlyFixture, monthlyUuid } from '../tests/fixtures/payroll-monthly-summary-synthetic.js';
 
 const publishedOrigin = process.env.MONTHLY_SUMMARY_PUBLISHED_ORIGIN;
-if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'PUBLISHED_ORIGIN_NOT_ALLOWED');
+if (publishedOrigin !== undefined) assert.ok(['https://municontrol.com','https://municipio-junin-friendly.vercel.app'].includes(publishedOrigin), 'PUBLISHED_ORIGIN_NOT_ALLOWED');
 const origin = publishedOrigin ?? 'https://municontrol.test', base = path.resolve('public'), out = path.resolve('verification');
 const mode = publishedOrigin ? 'published_assets_with_synthetic_api' : 'local_build_with_synthetic_api';
 fs.mkdirSync(out, { recursive: true });
 const checks = [], errors = [], downloads = [], calls = [], publishedAssets = new Set(), publishedFailures = new Set();
 let catalog = monthlyCatalog(), responseError = null, mutate = null, delay = null, authCalls = 0;
 async function publicAsset(url, expected) {
-  assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app'); assert.ok(!url.pathname.startsWith('/api/'));
+  assert.equal(url.origin, publishedOrigin); assert.ok(!url.pathname.startsWith('/api/'));
   const r = await fetch(url.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
   assert.equal(r.status, 200, 'PUBLISHED_ASSET_UNAVAILABLE');
   const reader = r.body.getReader(), chunks = []; let length = 0;
@@ -23,6 +23,18 @@ async function publicAsset(url, expected) {
   finally { await reader.cancel().catch(() => {}); }
   const bytes = Buffer.concat(chunks, length); assert.ok(bytes.equals(expected), 'PUBLISHED_ASSET_CONTENT_MISMATCH'); publishedAssets.add(url.pathname); return bytes;
 }
+let buildCommit = null;
+async function verifyPublishedRelease() {
+  const expected = fs.readFileSync(path.join(base,'release-info.json')), release = JSON.parse(expected);
+  assert.equal(release.version,'municontrol-release.v1');
+  assert.equal(release.sourceState,'committed','PUBLISHED_COMMITTED_BUILD_REQUIRED');
+  assert.match(release.commitSha,/^[a-f0-9]{40}$/,'PUBLISHED_BUILD_COMMIT_REQUIRED');
+  if (process.env.GITHUB_SHA) assert.equal(release.commitSha,process.env.GITHUB_SHA,'PUBLISHED_BUILD_COMMIT_MISMATCH');
+  if (buildCommit) assert.equal(release.commitSha,buildCommit,'PUBLISHED_LOCAL_BUILD_CHANGED');
+  await publicAsset(new URL('/release-info.json',publishedOrigin),expected);
+  buildCommit = release.commitSha;
+}
+if (publishedOrigin) await verifyPublishedRelease();
 const browser = await chromium.launch({ headless: true, ...(process.env.MONTHLY_SUMMARY_BROWSER_CHANNEL || process.env.CLOCK_BROWSER_CHANNEL ? { channel: process.env.MONTHLY_SUMMARY_BROWSER_CHANNEL || process.env.CLOCK_BROWSER_CHANNEL } : {}) });
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'es-AR', acceptDownloads: true, serviceWorkers: 'block' });
@@ -31,7 +43,8 @@ try {
     if (url.origin !== origin) return route.abort();
     if (!url.pathname.startsWith('/api/')) {
       if (request.method() !== 'GET') return route.abort();
-      const file = path.resolve(base, '.' + decodeURIComponent(url.pathname));
+      const pathname = url.pathname === '/reportes' ? '/reportes-rrhh.html' : url.pathname;
+      const file = path.resolve(base, '.' + decodeURIComponent(pathname));
       if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status: 404, body: '' });
       let body = fs.readFileSync(file);
       if (publishedOrigin) { try { body = await publicAsset(url, body); } catch { publishedFailures.add(url.pathname); return route.abort(); } }
@@ -59,7 +72,7 @@ try {
   async function available() { await panel.locator('[data-ms-catalog]').click(); await idle(); await panel.locator('[data-ms-period]').selectOption('2026-08'); }
   async function choose() { await panel.locator('[data-ms-id]').nth(0).check(); await panel.locator('[data-ms-id]').nth(1).check(); }
   async function consult() { await panel.locator('[data-ms-consult]').click(); await idle(); }
-  async function reset() { responseError = null; mutate = null; catalog = monthlyCatalog(); await page.goto(origin + '/reportes-rrhh.html#resumen-mensual'); await available(); await choose(); await consult(); }
+  async function reset() { responseError = null; mutate = null; catalog = monthlyCatalog(); await page.goto(origin + '/reportes#resumen-mensual'); await available(); await choose(); await consult(); }
   async function exportFile(format) { const event = page.waitForEvent('download'); await panel.locator('[data-ms-export="' + format + '"]').click(); const d = await event; await idle(); const file = path.join(out, 'monthly-summary-synthetic.' + format); await d.saveAs(file); return file; }
   async function evidence(name, width = 1440, result = false) {
     await page.setViewportSize({ width, height: width < 700 ? 844 : 1050 });
@@ -67,7 +80,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'MOBILE_PAGE_OVERFLOW');
     await page.screenshot({ path: path.join(out, name + '.png') });
   }
-  await page.goto(origin + '/reportes-rrhh.html#resumen-mensual');
+  await page.goto(origin + '/reportes#resumen-mensual');
   assert.equal(await page.getByRole('tab', { name: 'Resumen mensual', exact: true }).getAttribute('aria-selected'), 'true');
   assert.equal(await panel.locator('[data-ms-result]').isVisible(), false);
   assert.equal(calls.filter(c => c.path.includes('monthly-source-summary')).length, 0);
@@ -144,8 +157,8 @@ try {
   responseError = { status: 401, code: 'SESSION_INVALID' }; await panel.locator('[data-ms-catalog]').click(); await idle(); assert.equal(await panel.locator('[data-ms-login]').isVisible(), true);
   responseError = null; await available(); assert.ok(calls.filter(c => c.path.includes('monthly-source-summary')).length > beforeBack);
   assert.equal(await panel.locator('[data-ms-id]:checked').count(), 0); checks.push('bfcache restore clears the snapshot and selection; new reads still enforce the normal API session guard');
-  assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);
-  const result = { mode, origin, checksPassed: checks.length, checks, errors, publishedAssetsMatch: publishedOrigin ? true : null, publishedAssetsChecked: [...publishedAssets].sort(),
+  assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) { assert.ok(publishedAssets.size > 0); await verifyPublishedRelease(); }
+  const result = { mode, origin, buildCommit, checksPassed: checks.length, checks, errors, publishedAssetsMatch: publishedOrigin ? true : null, publishedAssetsChecked: [...publishedAssets].sort(),
     syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false, serviceWorkersBlocked: true, browser: browser.version() };
   fs.writeFileSync(path.join(out, 'payroll-monthly-summary-browser.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
 } catch (error) {
