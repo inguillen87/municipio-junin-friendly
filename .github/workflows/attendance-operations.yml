@@ -17,7 +17,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -45,7 +45,7 @@ jobs:
         run: git diff --exit-code -- api/internal-attendance.js relojes-marcaciones.html scripts/build-friendly.mjs
       - name: Prepare tracked source snapshot (no runtime data or credentials)
         run: git archive --format=tar.gz -o attendance-source-snapshot.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: attendance-source-snapshot
           path: attendance-source-snapshot.tar.gz
@@ -59,14 +59,14 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
       - name: Verify compatible clock route
         run: node scripts/verify-clock-production.mjs
       - name: Verify dashboard and optional amount deployment
         run: node scripts/verify-clock-dashboard-production.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: clock-production-smoke
           path: |
