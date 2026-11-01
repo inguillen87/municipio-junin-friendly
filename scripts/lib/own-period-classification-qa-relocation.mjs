@@ -14,7 +14,7 @@ const files=Object.freeze({
  'scripts/lib/noelia-payroll-circuit-qa.mjs':'4a750d1759f7091304fa03984e19b6b52f6cd52cc73fc055dc961711761ae765',
  'scripts/verify-salary-auxiliary-namespace.mjs':'04807f61392adc55e0b3c7ab0ba2a2f3cc5409a0b7d6402dd0fa1f81eee64680',
  'scripts/verify-own-salary-seniority.mjs':'2435a7fde224545dab0f4ce26f16a94a6ffd5f60bd79ad9eb97882915c6cc1e7',
- 'scripts/verify-own-period-participation.mjs':'9cdb8083d1f46a03187c7ad6ed8bff171fc20205ed071c3fbfed79bf6d4b2a16',
+ 'scripts/verify-own-period-participation.mjs':'0ce4389c99028ecbcd79f987d2a7f062616f4c179d590b7f90d1ea6a54d1b48f',
  'scripts/migrations/138-adopted-fixed-novelties.sql':'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469',
 });
 const hash=s=>createHash('sha256').update(s).digest('hex'),lf=s=>s.replace(/\r\n?/g,'\n');
