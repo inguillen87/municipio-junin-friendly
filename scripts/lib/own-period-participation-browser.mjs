@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,setActor,people,period,output,check,revoke,restore,browserName='chrome'}) {
+export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,setActor,people,pickerReplacement,period,output,check,revoke,restore,browserName='chrome'}) {
  assert.ok(['chrome','chromium'].includes(browserName));
+ assert.ok(pickerReplacement?.contractId&&pickerReplacement.employeeNumber&&pickerReplacement.contractId!==people[0].contractId,'PARTICIPATION_BROWSER_ACTIVE_REPLACEMENT_REQUIRED');
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4367',errors=[],writes=[],reads=[];
  const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
  let current=actors.maker,allowed=true,drop=false;
@@ -57,7 +58,7 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   await s('period').fill(period.slice(0,4)+'-12');
   check(await s('content').isHidden()&&await s('recognizedUnits').inputValue()==='','changing month withdraws the old nominal declaration and reviewed draft');
   await s('period').fill(period);await s('refresh').click();await idle();
-  await select(people[1]);check(await s('recognizedUnits').inputValue()==='1','selecting another contract replaces the entire verified declaration');
+  await select(pickerReplacement);check(await s('recognizedUnits').inputValue()==='1','selecting another contract replaces the entire verified declaration');
   await select(people[0]);await s('recognizedUnits').fill('9');await s('reason').fill('Nueva constancia exclusivamente sintética QA');await s('prepare').click();await s('confirm').check();
   drop=true;await s('send').click();await idle();
   assert.equal(writes.length,1);const pending=structuredClone(writes[0]);assert.equal(pending.status,201);

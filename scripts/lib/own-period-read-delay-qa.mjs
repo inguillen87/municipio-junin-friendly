@@ -69,6 +69,7 @@ export async function verifyOwnPeriodReadDelay(h,{major,sourceCommit}) {
  }
  assert.deepEqual(await state(),before);
  ok(true,'brief read recovery conserves every synthetic employee and period fact without a command');
+ const pickerReplacement=await h.participation.preparePickerReplacement();
  const original=h.handlers.participation;
  let used=false,browserRecovery;
  const handlers={...h.handlers,participation:async(req,res)=>{
@@ -78,7 +79,7 @@ export async function verifyOwnPeriodReadDelay(h,{major,sourceCommit}) {
   browserRecovery={holderMs:650,elapsedMs:Date.now()-started,actualHandler:true,actualSql:true};
   assert.ok(browserRecovery.elapsedMs>=OWN_PERIOD_READ_RECOVERY_WAIT_MS);
  }};
- await verifyOwnPeriodParticipationBrowser({handlers,env:h.env,actors:qa.actors,setActor,people:h.participation.people,period,output:h.destination,check:ok,browserName:'chromium',
+ await verifyOwnPeriodParticipationBrowser({handlers,env:h.env,actors:qa.actors,setActor,people:h.participation.people,pickerReplacement,period,output:h.destination,check:ok,browserName:'chromium',
   revoke:()=>h.sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid'),
   restore:()=>h.sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid')});
  assert.equal(used,true);assert.ok(browserRecovery);
