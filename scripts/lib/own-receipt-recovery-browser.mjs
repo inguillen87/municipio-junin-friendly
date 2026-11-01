@@ -22,7 +22,7 @@ export async function assertOwnReceiptRecoveryControls(p,locked){
  for(const key of receiptRecoveryControls){
   if(key==='types'){
    assert.equal(await p('types').evaluate(el=>el.tagName),'FIELDSET','receipt types use the actual grouped control');
-   assert.deepEqual((await p('types').locator('input[type="checkbox"]').evaluateAll(nodes=>nodes.map(n=>n.value))).sort(),Object.keys(OWN_RUN_TYPES).sort(),'all seven receipt types must be represented');
+   assert.deepEqual((await p('types').locator('input[type="checkbox"]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-receipt-type')))).sort(),Object.keys(OWN_RUN_TYPES).sort(),'all seven receipt types must be represented');
    for(const type of Object.keys(OWN_RUN_TYPES))assert.equal(await p('type-'+type).isDisabled(),locked,'receipt effective type lock: '+type);
   }else assert.equal(await p(key).isDisabled(),locked,'receipt effective control lock: '+key);
  }
