@@ -35,8 +35,8 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   const idle=()=>page.waitForFunction(()=>document.querySelector('.own-participation')?.getAttribute('aria-busy')==='false');
   const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#participacion');await s('picker').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('[data-participation-picker]')?.disabled===false);await idle();};
   const select=async employee=>{
-   await s('picker').click();const d=page.locator('#salaryParticipationPicker');await d.getByLabel('Nombre, apellido o legajo').fill(employee.employeeNumber);await d.getByRole('button',{name:'Buscar',exact:true}).click();
-   await d.locator('input[value="'+employee.contractId+'"]').check();await d.getByRole('button',{name:'Usar este legajo',exact:true}).click();
+   const pickerReadAt=reads.length,pickerWriteAt=writes.length;await s('picker').click();const d=page.locator('#salaryParticipationPicker');await d.getByLabel('Nombre, apellido o legajo').fill(employee.employeeNumber);await d.getByRole('button',{name:'Buscar',exact:true}).click();
+   await d.locator('input[value="'+employee.contractId+'"]').check();await d.getByRole('button',{name:'Usar este legajo',exact:true}).click();await d.waitFor({state:'hidden'});assert.equal(reads.slice(pickerReadAt).filter(r=>r.kind==='directory'&&r.resource==='nativeroster').length,2,'native selection reads the whole own roster at search and again before use');assert.equal(writes.length,pickerWriteAt,'choosing an own legajo issues no command');
    await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});
   };
   await fresh();await select(people[0]);

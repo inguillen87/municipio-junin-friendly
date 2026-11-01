@@ -61,9 +61,9 @@ export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,
   const idle=()=>page.waitForFunction(()=>document.querySelector('.own-period-classification')?.getAttribute('aria-busy')==='false');
   const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#encuadre');await s('picker').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('[data-classification-target]')?.disabled===false);await idle();};
   const select=async()=>{
-   await s('picker').click();const picker=page.locator('#periodClassificationPicker');
+   const pickerReadAt=reads.length,pickerWriteAt=writes.length;await s('picker').click();const picker=page.locator('#periodClassificationPicker');
    await picker.getByLabel('Nombre, apellido o legajo').fill(employeeNumber);await picker.getByRole('button',{name:'Buscar',exact:true}).click();
-   await picker.locator('input[value="'+contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();
+   await picker.locator('input[value="'+contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();await picker.waitFor({state:'hidden'});assert.equal(reads.slice(pickerReadAt).filter(r=>r.kind==='directory'&&r.resource==='nativeroster').length,2,'native selection reads the whole own roster at search and again before use');assert.equal(writes.length,pickerWriteAt,'choosing an own legajo issues no command');
    await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});
   };
   const hidden=async value=>page.evaluate(v=>{Object.defineProperty(document,'hidden',{configurable:true,value:v});document.dispatchEvent(new Event('visibilitychange'));},value);
