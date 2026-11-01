@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildOwnPeriodClassificationInstallation} from '../scripts/lib/own-period-classification-installation.mjs';
-import {buildOwnPeriodClassificationFinalQa,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities,buildFinalClassificationInactiveSalaryGuardProbe,runFinalClassificationReceiptPreviewQa} from '../scripts/lib/own-period-classification-final-qa.mjs';
+import {buildOwnPeriodClassificationFinalQa,finalClassificationHistoricalCalendar,normalizeFinalClassificationQaHeader,relocateFinalClassificationQaStatement,makeFinalClassificationQaHandlers,assertFinalClassificationRangeEvidence,declareFinalClassificationQaReceiptIdentities,buildFinalClassificationInactiveSalaryGuardProbe,runFinalClassificationReceiptPreviewQa} from '../scripts/lib/own-period-classification-final-qa.mjs';
 import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {CLASSIFICATION_USE_ADMINISTRATIVE_PIN} from '../scripts/lib/classification-registration-use-pins.mjs';
 import {CATALOG_STORAGE_BEFORE_SHA256,CATALOG_STORAGE_AFTER_SHA256} from '../scripts/lib/catalog-storage-capacity-installation.mjs';
@@ -181,4 +181,15 @@ test('readiness composition retains final144 guards and derives every changed pi
 test('source-only167 and168 preparation preserves their guards and explicit disposable budget',()=>{
  const source=blueprint.baseline.join('\n');assert.ok(source.includes('CLASSIFICATION_USE_ADMINISTRATIVE_PREREQUISITE'));assert.ok(source.includes('CLASSIFICATION_USE_FUNCTION_CHANGED'));assert.ok(source.includes('CLASSIFICATION_USE_AFTER_METADATA'));assert.ok(source.includes('CATALOG_STORAGE_PROVIDER_BUDGET_REQUIRED'));assert.ok(source.includes("provider_budget_bytes','1073741824'"));assert.ok(source.includes('CATALOG_STORAGE_AFTER_METADATA'));assert.ok(source.includes('REVOKE ALL ON FUNCTION '+blueprint.qa.schema+'.employment_adoption_administrative_context_v1(jsonb,text) FROM PUBLIC,municontrol_actions_runtime_app'));
  const helper=read('scripts/lib/own-period-classification-final-qa.mjs');assert.doesNotMatch(helper,/(?:db|h\.db)\.run\([^;\n]*(?:pg_get_functiondef|prosrc)|observed.*sha256/);assert.match(helper,/finalAdoptedHistory\(\{h,installation,major,transport='local'\}\)/);assert.match(helper,/normalFinalApplication:true/);assert.match(helper,/technicalInstallationProtocol:false/);assert.match(helper,/assert\.deepEqual\(p\.finalRevision,applied\.finalRevision\)/);assert.match(helper,/assert\.deepEqual\(await schemaInventory\(\),schemasBefore\)/);assert.match(helper,/priorSchemaInventoryPreserved=true/);
+});
+
+
+test('final historical period is bound to the sealed source cutoff across execution month changes',()=>{
+ const qa=blueprint.qa;assert.equal(qa.sourceCutoff,'2026-10-01 15:17:29');assert.ok(qa.sourceFixture.includes("timestamp '"+qa.sourceCutoff+"'"));
+ for(const today of ['2026-10-30','2026-11-01','2026-12-31']){const input={revisionId:qa.revision,packageSha256:qa.packageSha,sourceCutoff:qa.sourceCutoff,createdDate:today,today},actual=finalClassificationHistoricalCalendar(input,qa);assert.deepEqual(actual,{createdDate:today,today,sourceCutoff:qa.sourceCutoff,period:'2026-09',lastDate:'2026-09-30'});assert.ok(Object.isFrozen(actual));}
+});
+test('final historical calendar rejects another revision, package, cutoff or invented adoption date',()=>{
+ const qa=blueprint.qa,input={revisionId:qa.revision,packageSha256:qa.packageSha,sourceCutoff:qa.sourceCutoff,createdDate:'2026-11-01',today:'2026-11-01'};
+ for(const change of [{revisionId:'00000000-0000-4000-8000-000000000000'},{packageSha256:'0'.repeat(64)},{sourceCutoff:'2026-11-01 15:17:29'},{createdDate:'2026-10-30'},{createdDate:'2026-02-30',today:'2026-02-30'},{createdDate:'2026-09-30',today:'2026-09-30'}])assert.throws(()=>finalClassificationHistoricalCalendar({...input,...change},qa));
+ const leap={...qa,sourceCutoff:'2028-03-01 12:00:00'},value=finalClassificationHistoricalCalendar({...input,sourceCutoff:leap.sourceCutoff,createdDate:'2028-04-01',today:'2028-04-01'},leap);assert.equal(value.period,'2028-02');assert.equal(value.lastDate,'2028-02-29');
 });
