@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -63,13 +63,13 @@ jobs:
           MC_QA_LOCK_OBSERVATION: '1'
           PGPASSWORD: noelia-circuit-synthetic-qa
         run: node scripts/verify-own-art.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium --output=verification/own-art-pg${{ matrix.pg }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: own-art-pg${{ matrix.pg }}-${{ github.run_id }}
           path: verification/own-art-pg${{ matrix.pg }}
           retention-days: 5
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: formula-transport-pg${{ matrix.pg }}-${{ github.run_id }}
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -96,7 +96,7 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-payroll-transport-observation.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: formula-transport-finite-${{ github.run_id }}
@@ -111,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -123,7 +123,7 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-source-preview-transport-matrix.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: formula-transport-reduced-${{ github.run_id }}
@@ -138,7 +138,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -154,7 +154,7 @@ jobs:
           node scripts/verify-source-preview-fragmented-transport.mjs
           node scripts/verify-source-preview-transport-matrix.mjs
           node scripts/verify-payroll-transport-observation.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: formula-transport-patched-${{ github.run_id }}
