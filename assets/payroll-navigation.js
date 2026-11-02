@@ -27,6 +27,7 @@ import {mountOwnBankOutput} from './own-bank-output-panel.js';
 import {mountOwnPayrollImputation} from './own-payroll-imputation-panel.js';
 import {mountOwnPayrollJournal} from './own-payroll-journal-panel.js';
 import {mountOwnPayrollReconciliation} from './own-payroll-reconciliation-panel.js';
+import {mountOwnCajasControl} from './own-cajas-panel.js';
 import {mountOwnPayrollSummary} from './own-payroll-summary-panel.js';
 // Sidebar menu (liquidaciones-menu.js adopts the workspace navigation): one accordion per process, a null label is a
 // standalone task, and the order inside each section is the visual order. Anular período precedes Confirmar y anular;
@@ -59,7 +60,8 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const bankOutput=document.createElement('div');mountOwnBankOutput(bankOutput);
  const imputation=document.createElement('div');mountOwnPayrollImputation(imputation);
  const journal=document.createElement('div');mountOwnPayrollJournal(journal);
- const reconciliation=document.createElement('div');mountOwnPayrollReconciliation(reconciliation);
+ const reconciliation=document.createElement('div'),reconciliationDocuments=document.createElement('div'),cajas=document.createElement('div');
+ mountOwnPayrollReconciliation(reconciliationDocuments);mountOwnCajasControl(cajas);reconciliation.append(reconciliationDocuments,cajas);
  const parameters=document.createElement('div');mountParameterTask(parameters);const formula=pick('formulaLabTitle');const advancedFormula=formula?toolDetails(formula,'Herramienta avanzada · análisis técnico de fórmulas'):null;
  const heading=host.querySelector('.page-head');const actions=document.createElement('div');actions.className='rc-downloads';actions.innerHTML='<a class="rc-button" href="novedades-nomina.html">Cargar novedades</a><a class="rc-button secondary" href="reportes-rrhh.html#certificados-escolares" data-requires-all-capability="workforce.employee.read">Hijos y certificados</a><a class="rc-button secondary" href="reportes-rrhh.html">Centro de reportes</a><a class="rc-button secondary" href="internal-dashboard.html#legajos">Buscar un legajo</a>';heading?.append(actions);
  const migration=document.createElement('div');migration.innerHTML='<header class="rc-panel-head"><h2>Migración y controles externos</h2><p>Herramientas del circuito anterior. Para generar reportes con los datos ya incorporados, usá la pestaña Reportes.</p></header>';
