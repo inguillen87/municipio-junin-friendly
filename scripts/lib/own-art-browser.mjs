@@ -9,7 +9,7 @@ import {ownArtXlsx} from '../../assets/own-art-report-export.js';
 export async function verifyOwnArtBrowser({handlers,env,actors,setActor,people,period,output,check,browserName='chromium',source,prepare,approve}) {
  assert.ok(['chrome','chromium'].includes(browserName));
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4367';
- const caps=[...new Set([...OWN_ART_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
+ const caps=[...new Set(['payroll.read',...OWN_ART_READ,'payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'])],writes=[],reads=[],errors=[],downloads=[];
  let current=actors.maker,allowed=true,drop=false,page;
  const actor=a=>{current=a;setActor(a);};actor(current);env.INTERNAL_APP_ORIGIN=origin;
  const browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});
@@ -17,7 +17,7 @@ export async function verifyOwnArtBrowser({handlers,env,actors,setActor,people,p
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
-   const kind=u.pathname==='/api/internal-own-art-days'?'artDays':u.pathname==='/api/internal-own-art-report'?'art':u.pathname==='/api/internal-data'&&u.searchParams.get('resource')==='employees'?'directory':null;
+   const kind=u.pathname==='/api/internal-own-art-days'?'artDays':u.pathname==='/api/internal-own-art-report'?'art':u.pathname==='/api/internal-data'&&['employees','nativeroster'].includes(u.searchParams.get('resource'))?'directory':null;
    if(kind){let status=200,payload;const headers={};await handlers[kind]({method:req.method(),url:u.pathname+u.search,query:Object.fromEntries(u.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});
     if(req.method()==='POST'){writes.push({kind,status,key:req.headers()['idempotency-key'],body:JSON.parse(req.postData()).payload,receipt:payload?.data});if(drop&&payload?.ok){drop=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética interrumpida después de conservar la propuesta.'}});}}
     else reads.push({kind,resource:u.searchParams.get('resource')});return route.fulfill({status,headers,json:payload});
@@ -35,7 +35,7 @@ export async function verifyOwnArtBrowser({handlers,env,actors,setActor,people,p
   const idle=selector=>page.waitForFunction(s=>document.querySelector(s)?.getAttribute('aria-busy')==='false',selector);
   const fresh=async task=>{await page.goto('about:blank');await page.goto(origin+'/nomina#'+task);const control=task==='art'?'[data-own-art-consult]':'[data-art-days-picker]';await page.locator(control).waitFor({state:'visible'});await page.waitForFunction(s=>document.querySelector(s)?.disabled===false,control);await idle(task==='art'?'.own-art':'.own-art-days');};
   const consult=async()=>{await r('period').fill(period);await r('consult').click();await idle('.own-art');await r('view').waitFor({state:'visible'});};
-  const select=async p=>{await d('picker').click();const picker=page.locator('#salaryArtDaysPicker');await picker.getByLabel('Nombre, apellido o legajo').fill(p.employeeNumber);await picker.getByRole('button',{name:'Buscar',exact:true}).click();await picker.locator('input[value="'+p.contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();await d('period').fill(period);await d('refresh').click();await idle('.own-art-days');await d('content').waitFor({state:'visible'});};
+  const select=async p=>{const pickerReadAt=reads.length,pickerWriteAt=writes.length;await d('picker').click();const picker=page.locator('#salaryArtDaysPicker');await picker.getByLabel('Nombre, apellido o legajo').fill(p.employeeNumber);await picker.getByRole('button',{name:'Buscar',exact:true}).click();await picker.locator('input[value="'+p.contractId+'"]').check();await picker.getByRole('button',{name:'Usar este legajo',exact:true}).click();await picker.waitFor({state:'hidden'});assert.equal(reads.slice(pickerReadAt).filter(r=>r.kind==='directory'&&r.resource==='nativeroster').length,2,'native selection reads the whole own roster at search and again before use');assert.equal(writes.length,pickerWriteAt,'choosing an own legajo issues no command');await d('period').fill(period);await d('refresh').click();await idle('.own-art-days');await d('content').waitFor({state:'visible'});};
   await fresh('art');await consult();
   check((await r('count').innerText()).startsWith(people.length+' agentes')&&await r('rows').locator('article').count()===25,'ART built UI reads every own closed agent and shows the first page without issuing writes');assert.equal(writes.length,0);
   await r('next').click();check(await r('rows').locator('article').count()===people.length-25,'ART last page retains the rest of the complete closed population');

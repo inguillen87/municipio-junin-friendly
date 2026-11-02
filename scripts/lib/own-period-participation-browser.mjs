@@ -1,10 +1,12 @@
+import {openQaPayrollSidebarTask} from './qa-payroll-sidebar-navigation.mjs';
 // Built UI, actual HTTP handlers and loopback SQL; all identities are synthetic.
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,setActor,people,period,output,check,revoke,restore,browserName='chrome'}) {
+export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,setActor,people,pickerReplacement,period,output,check,revoke,restore,browserName='chrome'}) {
  assert.ok(['chrome','chromium'].includes(browserName));
+ assert.ok(pickerReplacement?.contractId&&pickerReplacement.employeeNumber&&pickerReplacement.contractId!==people[0].contractId,'PARTICIPATION_BROWSER_ACTIVE_REPLACEMENT_REQUIRED');
  const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4367',errors=[],writes=[],reads=[];
  const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
  let current=actors.maker,allowed=true,drop=false;
@@ -15,7 +17,7 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
-   const kind=u.pathname==='/api/internal-own-period-participation'?'participation':u.pathname==='/api/internal-own-payroll-program'?'program':u.pathname==='/api/internal-data'&&u.searchParams.get('resource')==='employees'?'directory':null;
+   const kind=u.pathname==='/api/internal-own-period-participation'?'participation':u.pathname==='/api/internal-own-payroll-program'?'program':u.pathname==='/api/internal-data'&&['employees','nativeroster'].includes(u.searchParams.get('resource'))?'directory':null;
    if(kind){let status=200,payload;const headers={};await handlers[kind]({method:req.method(),url:u.pathname+u.search,query:Object.fromEntries(u.searchParams),headers:req.headers(),body:req.postData()},{setHeader(k,v){headers[k]=String(v);},status(n){status=n;return this;},json(v){payload=v;return this;}});
     if(req.method()==='POST'){writes.push({kind,status,key:req.headers()['idempotency-key'],body:JSON.parse(req.postData()).payload,receipt:payload?.data});if(drop&&payload?.ok){drop=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética interrumpida después de conservar la propuesta.'}});}}
     else reads.push({kind,resource:u.searchParams.get('resource')});
@@ -34,8 +36,8 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   const idle=()=>page.waitForFunction(()=>document.querySelector('.own-participation')?.getAttribute('aria-busy')==='false');
   const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#participacion');await s('picker').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('[data-participation-picker]')?.disabled===false);await idle();};
   const select=async employee=>{
-   await s('picker').click();const d=page.locator('#salaryParticipationPicker');await d.getByLabel('Nombre, apellido o legajo').fill(employee.employeeNumber);await d.getByRole('button',{name:'Buscar',exact:true}).click();
-   await d.locator('input[value="'+employee.contractId+'"]').check();await d.getByRole('button',{name:'Usar este legajo',exact:true}).click();
+   const pickerReadAt=reads.length,pickerWriteAt=writes.length;await s('picker').click();const d=page.locator('#salaryParticipationPicker');await d.getByLabel('Nombre, apellido o legajo').fill(employee.employeeNumber);await d.getByRole('button',{name:'Buscar',exact:true}).click();
+   await d.locator('input[value="'+employee.contractId+'"]').check();await d.getByRole('button',{name:'Usar este legajo',exact:true}).click();await d.waitFor({state:'hidden'});assert.equal(reads.slice(pickerReadAt).filter(r=>r.kind==='directory'&&r.resource==='nativeroster').length,2,'native selection reads the whole own roster at search and again before use');assert.equal(writes.length,pickerWriteAt,'choosing an own legajo issues no command');
    await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});
   };
   await fresh();await select(people[0]);
@@ -56,7 +58,7 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   await s('period').fill(period.slice(0,4)+'-12');
   check(await s('content').isHidden()&&await s('recognizedUnits').inputValue()==='','changing month withdraws the old nominal declaration and reviewed draft');
   await s('period').fill(period);await s('refresh').click();await idle();
-  await select(people[1]);check(await s('recognizedUnits').inputValue()==='1','selecting another contract replaces the entire verified declaration');
+  await select(pickerReplacement);check(await s('recognizedUnits').inputValue()==='1','selecting another contract replaces the entire verified declaration');
   await select(people[0]);await s('recognizedUnits').fill('9');await s('reason').fill('Nueva constancia exclusivamente sintética QA');await s('prepare').click();await s('confirm').check();
   drop=true;await s('send').click();await idle();
   assert.equal(writes.length,1);const pending=structuredClone(writes[0]);assert.equal(pending.status,201);
@@ -82,7 +84,7 @@ export async function verifyOwnPeriodParticipationBrowser({handlers,env,actors,s
   assert.equal(writes.length,2);assert.equal(writes[1].receipt.body.command,'approve');
   check(await s('receipt').isVisible(),'built UI stores an independent decision with the exact reviewed body');
   actor(actors.maker);await fresh();await select(people[0]);check(await s('recognizedUnits').inputValue()==='9','new verified consultation shows the independently approved correction');
-  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});
   const program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});await program.locator('[data-program-content]').waitFor({state:'visible'});
   check(await program.locator('[data-program-participation]').isChecked()&&await program.locator('[data-program-participation]').isDisabled(),'approved programme explicitly opts into recognized facts and cannot silently downgrade');
   check(await program.locator('[data-program-fixed-validity]').inputValue()==='reject','programme keeps partial fixed novelties blocked until a documented explicit decision');

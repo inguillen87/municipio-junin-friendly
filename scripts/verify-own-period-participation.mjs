@@ -16,6 +16,7 @@ import { createOwnReceiptPdf } from '../assets/own-payroll-receipt-pdf.js';
 import { prepareOwnPlanilla } from '../assets/own-payroll-receipt-planilla-model.js';
 import { employeeDraft } from '../assets/native-employee-contract.js';
 import { independentParticipationReference } from './lib/period-participation-qa-reference.mjs';
+import {createInternalDataHandler} from '../api/internal-data.js';
 const j=v=>q(JSON.stringify(v))+'::jsonb';
 const cuil=dni=>{const b='20'+dni,rem=11-[5,4,3,2,7,6,5,4,3,2].reduce((a,w,i)=>a+w*Number(b[i]),0)%11;return b+(rem===11?'0':rem===10?'9':String(rem));};
 export async function verifyOwnPeriodParticipation(options) {
@@ -64,6 +65,33 @@ export async function verifyOwnPeriodParticipation(options) {
    return {body,key,receipt:await api('participation',{body,key,expected:201})};
   };
   const approve=async p=>{setActor(qa.actors.checker);const b=await api('participation',{query:query(p.body.contractId)});await api('participation',{expected:201,body:{...p.body,command:'approve',scopeVersion:b.scopeVersion,proposalId:p.receipt.proposalId,proposalSha256:p.receipt.requestSha256,definition:null,reason:'Revisión independiente exclusivamente sintética QA',reviewConfirmed:true}});setActor(qa.actors.maker);};
+  // The active-only UI must switch between current contracts even on days1-4,
+  // when the separate partial-hire cohort legitimately has not started yet.
+  // Keep that cohort, its dates and its complete calculation unchanged.
+  let pickerReplacement=null;
+  const preparePickerReplacement=async()=>{
+   if(pickerReplacement)return pickerReplacement;
+   setActor(qa.actors.maker);
+   const candidate=h.seniority.people[0];
+   assert.ok(candidate&&!people.some(p=>p.contractId===candidate.contractId),'PARTICIPATION_QA_DISTINCT_PARENT_REQUIRED');
+   if(!handlers.directory){
+    Object.assign(h.env,{FRIENDLY_GRH_SOURCE_DATABASE:'qa_fixed_source',FRIENDLY_GRH_COMPANY_ID:'101'});
+    handlers.directory=createInternalDataHandler({env:h.env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:()=>adapter,getActionCenterSql:()=>adapter});
+   }
+   assert.equal(typeof handlers.directory,'function');
+   const roster=await api('directory',{query:{resource:'nativeroster',schema:'2'}});
+   assert.equal(roster.version,'native-roster.v2');assert.equal(roster.rows.length,roster.total);
+   assert.equal(roster.rows.find(r=>r.contractId===candidate.contractId)?.status,'active','PARTICIPATION_QA_ACTIVE_REPLACEMENT_REQUIRED');
+   const originalSaved=structuredClone(h.seniority.finalRun.saved),source=await api('participation',{query:query(candidate.contractId)});
+   assert.equal(source.source.fullPeriod,true,'PARTICIPATION_QA_WHOLE_PERIOD_PARENT_REQUIRED');
+   await approve(await prepare(candidate,'1'));
+   const current=await api('participation',{query:query(candidate.contractId)});
+   assert.ok(current.configuration.revision>0);assert.equal(current.configuration.definition.recognizedUnits,'1');assert.equal(current.configuration.definition.baseUnits,'3');
+   const original=await api('run',{query:{resource:'attempt',key:h.seniority.finalRun.key}});assert.deepEqual(original.saved,originalSaved,'PARTICIPATION_QA_PARENT_RESULT_CHANGED');
+   pickerReplacement=Object.freeze({contractId:candidate.contractId,employeeNumber:candidate.employeeNumber});
+   ok(true,'active UI replacement uses an independently approved declaration on an existing parent; its original closed result remains unchanged');
+   return pickerReplacement;
+  };
   const first=await prepare(people[0],'7','12');
   setActor(qa.actors.samePerson);const same=await api('participation',{query:query(people[0].contractId)});assert.equal(same.proposals[0].canReview,false);
   await api('participation',{expected:403,body:{...first.body,command:'approve',scopeVersion:same.scopeVersion,proposalId:first.receipt.proposalId,proposalSha256:first.receipt.requestSha256,definition:null,reason:'Intento inválido exclusivamente sintético QA',reviewConfirmed:true}});
@@ -137,12 +165,13 @@ export async function verifyOwnPeriodParticipation(options) {
   ok(true,'native partial hires complete independent confirmation, close, all own PDF receipts and the exact planilla without GRH');
   if(options.browser!=='none'&&options.browser!==undefined){
    const {verifyOwnPeriodParticipationBrowser}=await import('./lib/own-period-participation-browser.mjs');
-   await verifyOwnPeriodParticipationBrowser({handlers,env:h.env,actors:qa.actors,setActor,people,period,output:h.destination,check:ok,browserName:options.browser,revoke:()=>sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid'),restore:()=>sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid')});
+   const pickerReplacement=await preparePickerReplacement();
+   await verifyOwnPeriodParticipationBrowser({handlers,env:h.env,actors:qa.actors,setActor,people,pickerReplacement,period,output:h.destination,check:ok,browserName:options.browser,revoke:()=>sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid'),restore:()=>sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid')});
   }
   await sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');
   assert.equal((await api('participation',{query:query(people[0].contractId)})).permissions.canPropose,false);await api('participation',{query:{resource:'attempt',key:first.key},expected:403});
   await sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid');ok(true,'revocation removes preparation and attempt access immediately without modifying facts');
-  if(options.continuation)return options.continuation({...h,participation:{people,run,closed,prepare,approve,installed,durable,repeated}});
+  if(options.continuation)return options.continuation({...h,participation:{people,run,closed,prepare,approve,preparePickerReplacement,installed,durable,repeated}});
   return {version:'own-period-participation-qa.v1',employeeCount:count,newTables:1,newFunctions:16,adaptedFunctions:6,installed,durable,repeated,syntheticOnly:true,productiveBusinessWrites:0};
  }});
 }

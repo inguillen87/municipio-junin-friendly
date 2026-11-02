@@ -13,3 +13,31 @@
 .sidebar .mc-liquidaciones-menu>nav>a[aria-current=page]{border-left-color:#4bd3bd;background:#ffffff15;color:#fff}
 .sidebar .mc-liquidaciones-menu :is(summary,a):focus-visible{outline:2px solid #72dfce;outline-offset:-3px}
 @media(prefers-reduced-motion:reduce){.sidebar .mc-liquidaciones-menu *,.sidebar .mc-liquidaciones-menu>summary::after{transition:none!important}}
+/* Adopted payroll workspace navigation (task-workspace.js, option menu:'liquidaciones'): vertical, one accordion per process. */
+.sidebar .mc-liquidaciones-menu [data-liquidaciones-duplicate],.sidebar .mc-liquidaciones-menu [hidden]{display:none!important}
+.sidebar .mc-liquidaciones-menu>nav:not(.mc-liquidaciones-tasks):not(:has(a:not([hidden]))){display:none}
+.sidebar .mc-liquidaciones-menu>.mc-liquidaciones-tasks{position:static;z-index:auto;display:grid;gap:4px;padding:4px 8px 10px;margin:0;border:0;background:transparent;color:inherit}
+.sidebar .mc-liquidaciones-tasks .task-section{min-width:0;margin:0;border:1px solid #ffffff1f;border-radius:9px;background:#ffffff05;overflow:hidden}
+.sidebar .mc-liquidaciones-tasks .task-section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 10px;box-sizing:border-box;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;line-height:1.4;color:#cfe3ea}
+.sidebar .mc-liquidaciones-tasks .task-section>summary::-webkit-details-marker{display:none}
+.sidebar .mc-liquidaciones-tasks .task-section>summary::after{content:'›';margin-left:auto;font-size:19px;line-height:1;transform:rotate(90deg);transition:transform .16s}
+.sidebar .mc-liquidaciones-tasks .task-section[open]>summary::after{transform:rotate(-90deg)}
+.sidebar .mc-liquidaciones-tasks .task-section>summary:hover{background:#ffffff0c}
+.sidebar .mc-liquidaciones-tasks [role=tablist]{display:grid;gap:2px;padding:2px 6px 8px;margin:0;overflow:visible}
+.sidebar .mc-liquidaciones-tasks [role=tab]{display:block;box-sizing:border-box;width:100%;min-height:42px;padding:10px 9px 10px 14px;margin:0;border:0;border-left:2px solid transparent;border-radius:7px;background:transparent;color:#d8e8ee;font:600 12px/1.5 system-ui,sans-serif;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer;box-shadow:none;transition:background-color .16s}
+.sidebar .mc-liquidaciones-tasks [role=tab]:hover{background:#ffffff12;color:#fff}
+.sidebar .mc-liquidaciones-tasks [role=tab][aria-selected=true]{border-left-color:#4bd3bd;background:#ffffff15;color:#fff}
+.sidebar .mc-liquidaciones-tasks :is(summary,[role=tab]):focus-visible{outline:2px solid #72dfce;outline-offset:-3px}
+/* Fallback when no sidebar adopts the workspace: the sections stay usable inside the page. */
+.task-tabs>.task-section{display:inline-block;vertical-align:top;margin:0 8px 8px 0;border:1px solid #d4e1e5;border-radius:10px;padding:0 6px 4px}
+.task-tabs>.task-section>summary{cursor:pointer;padding:8px 6px;font:700 12px/1.4 inherit;color:#214959}
+.task-tabs>.task-section [role=tablist],.task-tabs>[role=tablist][aria-orientation=vertical]{display:flex;flex-wrap:wrap;gap:7px;padding:3px}
+@media(prefers-reduced-motion:reduce){.sidebar .mc-liquidaciones-tasks .task-section>summary::after{transition:none!important}}
+
+/* Native disclosure animation is progressive; every task stays usable without these newer CSS features. */
+@supports (interpolate-size:allow-keywords) and selector(details::details-content){
+ .sidebar .mc-liquidaciones-tasks .task-section{interpolate-size:allow-keywords}
+ .sidebar .mc-liquidaciones-tasks .task-section::details-content{block-size:0;overflow:clip;transition:block-size .18s ease,content-visibility .18s;transition-behavior:allow-discrete}
+ .sidebar .mc-liquidaciones-tasks .task-section[open]::details-content{block-size:auto}
+}
+@media(prefers-reduced-motion:reduce){.sidebar .mc-liquidaciones-tasks .task-section::details-content{transition:none!important}}

@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './qa-payroll-sidebar-navigation.mjs';
 // Compiled product, actual handler and disposable PostgreSQL. Synthetic identity;
 // no production request, real employee or real salary is admitted by this fixture.
 import fs from 'node:fs';
@@ -41,7 +42,7 @@ export async function verifyNativeSalaryCapacityBrowser({handler,env,actor,outpu
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
   const master=page.locator('[data-native-salary]'),search=master.getByLabel('Buscar código, convenio, clase o descripción'),pendingProposals=()=>master.getByRole('button',{name:new RegExp('^Pendiente · .* · '+all.length+' definiciones$')});
   const complete=()=>master.getByRole('status').filter({hasText:all.length+' definiciones propias'}).waitFor({timeout:180000});
-  let navigation=0;const open=async()=>{await page.goto(origin+'/nomina?qa-capacity='+(++navigation)+'#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();};
+  let navigation=0;const open=async()=>{await page.goto(origin+'/nomina?qa-capacity='+(++navigation)+'#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});};
   const refresh=async()=>{const start=performance.now();await master.getByRole('button',{name:'Consultar maestro propio',exact:true}).click();await complete();durations.push({resource:'complete-browser-read',ms:performance.now()-start});};
   const initialEvents=await eventCount();await open();const firstRead=reads.length;await refresh();
   const frames=reads.slice(firstRead).filter(r=>r.resource==='stream');

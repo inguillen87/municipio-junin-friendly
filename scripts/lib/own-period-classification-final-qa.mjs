@@ -277,6 +277,23 @@ export function buildFinalClassificationInactiveSalaryGuardProbe({read,schema,co
  SELECT jsonb_build_object('inactiveSalarySubjectBlockedCount',current_setting('municontrol_qa177.inactive_salary_blocked_count')::integer,'inactiveSalaryGuardHeldLock',true)`;
 }
 
+// This final-source scenario belongs to its sealed source cutoff. The separate
+// isolated scenario covers the month before execution. Neither clock changes
+// nor this helper alter employment facts, programme rules or roster scope.
+export function finalClassificationHistoricalCalendar(value,qa){
+ assert.equal(value.revisionId,qa.revision,'FINAL_CLASSIFICATION_CALENDAR_REVISION');
+ assert.equal(value.packageSha256,qa.packageSha,'FINAL_CLASSIFICATION_CALENDAR_PACKAGE');
+ assert.equal(value.sourceCutoff,qa.sourceCutoff,'FINAL_CLASSIFICATION_CALENDAR_CUTOFF');
+ const validDay=v=>typeof v==='string'&&/^(19|20)[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+ assert.ok(validDay(value.createdDate)&&validDay(value.today),'FINAL_CLASSIFICATION_CALENDAR_DAY');
+ assert.equal(value.createdDate,value.today,'FINAL_CLASSIFICATION_ADOPTION_MUST_BE_CURRENT');
+ assert.ok(typeof value.sourceCutoff==='string'&&/^(19|20)[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/.test(value.sourceCutoff),'FINAL_CLASSIFICATION_CALENDAR_CUTOFF');
+ const cutoff=new Date(value.sourceCutoff.replace(' ','T')+'Z');assert.ok(Number.isFinite(cutoff.getTime())&&cutoff.toISOString().slice(0,19).replace('T',' ')===value.sourceCutoff,'FINAL_CLASSIFICATION_CALENDAR_CUTOFF');
+ const monthStart=Date.UTC(cutoff.getUTCFullYear(),cutoff.getUTCMonth(),1),lastDate=new Date(monthStart-86400000).toISOString().slice(0,10),period=lastDate.slice(0,7);
+ assert.ok(period<value.createdDate.slice(0,7),'FINAL_CLASSIFICATION_PERIOD_MUST_PRECEDE_ADOPTION');
+ return Object.freeze({createdDate:value.createdDate,today:value.today,sourceCutoff:value.sourceCutoff,period,lastDate});
+}
+
 export async function finalAdoptedHistory({h,installation,major,transport='local'}){
  assert.ok([17,18].includes(major));assert.ok(['local','ci'].includes(transport));
  const {prepareOwnPeriodClassificationFixtureFacts,publishOwnPeriodClassificationFixtureProgram}=await import('./own-period-classification-qa.mjs');
@@ -319,7 +336,8 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   let cb=await db.run('SELECT native_employment_catalog_bootstrap_v1('+j(actors.maker)+')',true);
   const added=[{kind:'categories',key:'categories:1:7',code:'7',label:'Clase histórica exclusivamente sintética QA177',agreementCode:'1'},{kind:'sectors',key:'sectors::21',code:'21',label:'Repartición histórica exclusivamente sintética QA177',agreementCode:null}],items=[...cb.catalog.items,...added];
   const cp=await db.run('SELECT native_employment_catalog_propose_v1('+j(actors.maker)+','+j({scopeVersion:cb.scopeVersion,baseVersion:cb.catalog.version,items,reason:subjectReason})+','+q(randomUUID())+'::uuid)',true);cb=await db.run('SELECT native_employment_catalog_bootstrap_v1('+j(actors.checker)+')',true);await db.run('SELECT native_employment_catalog_review_v1('+j(actors.checker)+','+j({scopeVersion:cb.scopeVersion,proposalId:cp.proposalId,decision:'approve',reason:reviewReason})+','+q(randomUUID())+'::uuid)',true);
-  const dates=await db.run("SELECT jsonb_build_object('createdDate',to_char(min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD'),'period',to_char((min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza')::date-interval '1 month','YYYY-MM'),'lastDate',to_char(date_trunc('month',min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza')-interval '1 day','YYYY-MM-DD'),'today',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD')) FROM native_employee_registration n JOIN employment_adoption_application a ON a.registration_id=n.id");
+ const calendar=await db.run("SELECT jsonb_build_object('createdDate',(SELECT to_char(min(n.created_at) AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD') FROM native_employee_registration n JOIN employment_adoption_application a ON a.registration_id=n.id),'revisionId',r.id,'packageSha256',r.package_sha256,'sourceCutoff',to_char(r.source_cutoff,'YYYY-MM-DD HH24:MI:SS'),'today',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD')) FROM grh_final_source_revision r WHERE r.id="+q(qa.revision)+'::uuid');
+ const dates=finalClassificationHistoricalCalendar(calendar,qa);
   assert.equal(dates.createdDate,dates.today);const period=dates.period,targets=[qa.ids.makerContract,qa.ids.checkerContract].sort();
   const eligible=await db.run('SELECT coalesce(jsonb_agg(c.id ORDER BY c.id),\'[]\') FROM employment_adoption_application a JOIN employment_contract c ON c.id=a.contract_id WHERE c.status=\'active\'');assert.deepEqual(eligible,targets);
   // Inactive adopted records remain in the original57-row source. The range
@@ -353,7 +371,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const issued=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),group=await child.api('close',{query:{resource:'group',id:closed.groupId}}),planilla=await prepareOwnPlanilla(issued,[group],'55');assert.equal(planilla.total,2);assert.equal(planilla.selected,2);assert.ok(planilla.records.every(r=>r.departmentCode==='21'&&r.jurisdiction==='55'&&r.totals.net==='500.22'));
   assert.deepEqual(await sourceState(),originals);assert.deepEqual(await parentState(),parentBefore);
   const receiptPreviewReads=child.receiptPreviewReadProof();assert.equal(receiptPreviewStateChecks,2);assert.equal(receiptPreviewReads.requests,2);assert.equal(receiptPreviewReads.attempts,receiptPreviewReads.requests+receiptPreviewReads.retries);assert.ok(receiptPreviewReads.maxObservedAttempts>=1&&receiptPreviewReads.maxObservedAttempts<=3);
-  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,...inactiveSalaryGuardProof,inactiveSalarySubjectStillDenied:true,receiptPreviewReads,receiptPreviewStateChecks,receiptPreviewBusinessStatePreserved:true,receiptPreviewEventWrites:0,period,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
+  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,...inactiveSalaryGuardProof,inactiveSalarySubjectStillDenied:true,receiptPreviewReads,receiptPreviewStateChecks,receiptPreviewBusinessStatePreserved:true,receiptPreviewEventWrites:0,period,historicalPeriodBasis:'sealed_final_source_cutoff',historicalSourceCutoff:dates.sourceCutoff,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
  }finally{
   if(seeded){assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name='+q(db.applicationName)),0);await sql(tx(['DROP SCHEMA '+qa.schema+' CASCADE']));assert.deepEqual(await parentState(),parentBefore);assert.deepEqual(await schemaInventory(),schemasBefore);if(proof){proof.syntheticSchemaRemoved=true;proof.priorSchemaInventoryPreserved=true;}}
  }

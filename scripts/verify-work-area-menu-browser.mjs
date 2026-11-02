@@ -2,12 +2,16 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
 import {verifyWorkAreaPublication} from './verify-work-area-publication.mjs';
 import {chromium} from 'playwright';import '../assets/app-routes.js';
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 const published=process.argv.includes('--published'),origin=published?'https://municipio-junin-friendly.vercel.app':'https://areas.test';
-const root=path.resolve('public'),out='verification/work-areas-'+(published?'published':'local');fs.mkdirSync(out,{recursive:true});
+const outputArgs=process.argv.slice(2).filter(a=>a.startsWith('--output='));assert.ok(outputArgs.length<=1,'one output path required');
+const root=path.resolve('public'),out=outputArgs.length?path.resolve(outputArgs[0].slice(9)):'verification/work-areas-'+(published?'published':'local');
+if(outputArgs.length){assert.ok(out.startsWith(path.resolve('verification')+path.sep),'output must be inside verification');assert.ok(!fs.existsSync(out),'preserve existing evidence; choose a new output');}
+fs.mkdirSync(out,{recursive:true});
 if(published)await verifyWorkAreaPublication(out);
 const all=['workforce.summary.read','workforce.employee.read','workforce.structure.read','actions.read','time.source.read','time.catalog.read','attendance.read','payroll.read','payroll.novelty.read','lineage.read','assistant.use','management.analytics.read','budget.approved.read','absence.analytics.read','absence.nominal.read','leave.policy.read','leave.preview.read','quality.read','employee.record.create'];
 const pages=['internal-dashboard.html','nomina-control.html','novedades-nomina.html','centro-acciones.html','asistente.html','ausentismo-control.html','calidad-operativa.html','centro-ayuda.html','estructura.html','fuentes-tiempo.html','gestion-comparativa.html','integracion-datos.html','licencias-control.html','presupuesto-control.html','relojes-marcaciones.html'];
-const checks=[],errors=[],calls=[];let caps=all,full=false;const raw=new Map();
+const checks=[],errors=[],calls=[];let caps=all,full=false,holdAuth=null;const raw=new Map();
 async function htmlFor(file){if(!raw.has(file)){if(published){const r=await fetch(origin+'/'+file,{signal:AbortSignal.timeout(15000)});assert.equal(r.status,200);raw.set(file,await r.text());}else raw.set(file,fs.readFileSync(path.join(root,file),'utf8'));}return raw.get(file);}
 const browser=await chromium.launch({headless:true,...(process.env.QA_CHROMIUM?{executablePath:process.env.QA_CHROMIUM}:{})});let page;
 try{
@@ -15,6 +19,7 @@ try{
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(u.pathname.startsWith('/api/')){calls.push({method:req.method(),path:u.pathname,resource:u.searchParams.get('resource')});assert.equal(req.method(),'GET','Navigation must never mutate');
+   if(u.pathname==='/api/internal-auth'&&holdAuth)await holdAuth;
    if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{email:'navigation@example.invalid',name:'Operador QA',role:'ADMIN_INTERNO'},access:{tenantCapabilities:caps,platformCapabilities:[],platformRoles:[]}}});
    if(u.searchParams.get('resource')==='employees')return route.fulfill({json:{ok:true,data:[],pagination:{page:1,limit:25,total:0,pages:1},scope:{totalContracts:0,totalPeople:0},operational:{version:'workforce-operational.v1',selectedStatus:'active',activeContracts:0,activePeople:0,currentCensusCertified:false},facets:{sectors:[],organizations:[],agreements:[]}}});
    return route.fulfill({json:{ok:true,data:[]}});
@@ -75,6 +80,78 @@ try{
  await page.locator('[data-work-area=personas]>summary').click();await nav.locator('button[data-view=legajos]').click();await page.locator('#view-legajos').waitFor();
  assert.equal(await page.locator('#employeeSearch').inputValue(),'QA SIN PERSONAS');assert.equal(await page.locator('button[data-employee-create]').isVisible(),true);
  checks.push('full Personas page keeps original view handlers, search state and Nuevo legajo');
+ full=false; // Return from the full Personas page to the explicit synthetic-panel navigation fixture.
+ // Vertical payroll menu on /nomina: the real sidebar modules adopt a workspace built with the real sections and task
+ // ids of payroll-navigation.js (synthetic panels, no payroll API). Both mount orders, 29 destinations, keyboard,
+ // search, mobile, no horizontal bar in the page, capability refresh and logout.
+ const navSource=published?await (await fetch(origin+'/assets/payroll-navigation.js',{signal:AbortSignal.timeout(15000)})).text():fs.readFileSync(path.join(root,'assets/payroll-navigation.js'),'utf8');
+ const sectionsLiteral=/PAYROLL_TASK_SECTIONS=Object\.freeze\((\[[^\n]*\])\);/.exec(navSource)?.[1];assert.ok(sectionsLiteral,'payroll-navigation declares its sidebar sections');
+ const sections=JSON.parse(sectionsLiteral.replace(/'/g,'"').replace(/([{,])(label|tasks):/g,'$1"$2":')),taskList=[...navSource.matchAll(/\{id:'([a-z0-9-]+)',label:'([^']+)'/g)].map(m=>[m[1],m[2]]);assert.equal(taskList.length,29);
+ const mountPayrollWorkspace=()=>page.evaluate(async({sections,taskList})=>{if(window.qaWorkspace)return;const main=document.createElement('div');main.id='mainContent';main.setAttribute('data-requires-any-capability','payroll.read');document.querySelector('main.workspace').append(main);const host=document.createElement('div');host.id='payrollTaskWorkspace';main.append(host);const {taskWorkspace}=await import('/assets/task-workspace.js');window.qaWorkspace=taskWorkspace({host,initial:'resumen',menu:'liquidaciones',sections,groups:taskList.map(([id,label])=>{const node=document.createElement('p');node.className='qa-panel';node.textContent='Panel '+label;return{id,label,nodes:[node]};})});},{sections,taskList});
+ const tasks=page.locator('[data-liquidaciones-menu] .mc-liquidaciones-tasks'),nomina=origin+'/nomina';
+ const verifyVerticalMenu=async label=>{
+  await tasks.waitFor();assert.equal(await tasks.locator('[role=tab]').count(),29,label);assert.equal(await page.locator('#payrollTaskWorkspace .task-tabs').count(),0,label+': no horizontal bar in the page');
+  assert.equal(await page.locator('[data-liquidaciones-menu] .task-tabs').count(),1,label);const labels=await tasks.locator('[role=tab]').allTextContents();assert.ok(labels.indexOf('Anular período')<labels.indexOf('Confirmar y anular'),label+': Anular período precedes Confirmar y anular');
+  assert.equal(await page.locator('[data-liquidaciones-menu] a[href="/nomina#resumen"]').isVisible(),false,label+': default link is a hidden duplicate');assert.equal(await page.locator('[data-liquidaciones-menu] a[href="/novedades"]').isVisible(),true,label);
+  assert.equal(await page.locator('[data-liquidaciones-menu][open]').count(),1,label);assert.equal(await page.locator('#task-resumen').isVisible(),true,label);assert.equal(await page.locator('#payrollTaskWorkspace .task-panel:visible').count(),1,label);
+ };
+ caps=[...all,'payroll.calculation.read'];await page.setViewportSize({width:1440,height:1100});
+ await visit(nomina+'#resumen');await nav.waitFor();await mountPayrollWorkspace();await verifyVerticalMenu('sidebar-first');checks.push('vertical payroll menu adopts a workspace registered after the sidebar mount');
+ let releaseAuth;holdAuth=new Promise(resolve=>{releaseAuth=resolve;});await visit(nomina+'#resumen');await mountPayrollWorkspace();
+ assert.equal(await page.locator('#payrollTaskWorkspace .task-tabs').count(),1,'navigation stays in the page until a sidebar adopts it');releaseAuth();holdAuth=null;await nav.waitFor();await verifyVerticalMenu('workspace-first');checks.push('vertical payroll menu adopts a workspace registered before the sidebar mount');
+ for(const [id] of taskList){await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:id});await page.waitForURL('**/nomina#'+id);assert.equal(await page.locator('#task-'+id).isVisible(),true,id);assert.equal(await tasks.locator('[data-task="'+id+'"]').getAttribute('aria-selected'),'true',id);}
+ assert.equal(await page.locator('#payrollTaskWorkspace .task-panel:visible').count(),1);assert.equal(await page.evaluate(()=>window.qaWorkspace.panels.size),29,'same workspace, no reload');checks.push('all 29 payroll destinations activate the existing workspace from the sidebar without reload');
+ await page.goBack();await page.waitForURL('**/nomina#'+taskList.at(-2)[0]);assert.equal(await tasks.locator('[data-task="'+taskList.at(-2)[0]+'"]').getAttribute('aria-selected'),'true');checks.push('browser back restores the previous payroll task from the sidebar');
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await tasks.locator('[data-task="calculo"]').focus();await page.keyboard.press('ArrowDown');assert.equal(await page.evaluate(()=>document.activeElement?.dataset.task),'anulacion');await page.keyboard.press('ArrowUp');assert.equal(await page.evaluate(()=>document.activeElement?.dataset.task),'calculo');await page.keyboard.press('End');assert.equal(await page.evaluate(()=>document.activeElement?.dataset.task),'cierre');checks.push('vertical keyboard navigation stays inside the process section');
+ await page.locator('#mcWorkAreaSearch').fill('anular');assert.deepEqual(await tasks.locator('[role=tab]:visible').allInnerTexts(),['Anular período','Confirmar y anular']);await page.locator('.mc-work-clear').click();assert.equal(await tasks.locator('[role=tab]').count(),29);await page.waitForFunction(()=>document.querySelectorAll('[data-liquidaciones-menu] details.task-section[open]').length===1);assert.equal(await tasks.locator('[role=tab]:visible').count(),6);checks.push('work-area search filters every adopted task and restores the compact process after clearing');
+ await nav.screenshot({path:out+'/payroll-vertical-desktop.png'});
+ for(const width of [390,320]){
+  await page.setViewportSize({width,height:844});await visit(nomina+'#banco');await nav.waitFor();await mountPayrollWorkspace();await tasks.waitFor({state:'attached'});
+  assert.equal(await tasks.locator('details.task-section[open]').count(),1,'mobile opens only the active process');assert.equal(await page.locator('.mc-work-toggle').getAttribute('aria-expanded'),'false');
+  await page.locator('.mc-work-toggle').click();assert.equal(await tasks.locator('[data-task="banco"]').isVisible(),true);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'viewport '+width);
+  await nav.screenshot({path:out+'/payroll-vertical-mobile-'+width+'.png'});await tasks.locator('[data-task="resumen"]').click();await page.waitForURL('**/nomina#resumen');assert.equal(await page.locator('#mcWorkAreaBody').isHidden(),true,'menu closes after choosing a task');assert.equal(await page.locator('#task-resumen').isVisible(),true);
+  checks.push('vertical payroll menu on touch viewport '+width+'px');
+ }
+ await page.setViewportSize({width:1440,height:1100});await visit(nomina+'#resumen');await nav.waitFor();await mountPayrollWorkspace();await tasks.waitFor();
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(['payroll.read']),platformCapabilities:new Set(),platformRoles:new Set()}})));
+ assert.equal(await tasks.locator('[role=tab]').count(),29,'read-only keeps all29 original page-gated tasks');assert.equal(await tasks.locator('[role=tab]').evaluateAll(tabs=>tabs.every(t=>!t.hidden&&t.getAttribute('data-requires-any-capability')==='payroll.read')),true,'closed accordions retain every authorized original task');
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(['payroll.calculation.read']),platformCapabilities:new Set(),platformRoles:new Set()}})));assert.equal(await tasks.locator('[role=tab]:visible').count(),0,'calculation-read-only cannot expand the original payroll.read page gate');assert.equal(await page.locator('[data-liquidaciones-menu]').isHidden(),true,'original group authority is preserved');
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(),platformCapabilities:new Set(),platformRoles:new Set()}})));assert.equal(await tasks.locator('[role=tab]:visible').count(),0,'withdrawal hides every adopted task');
+ await page.locator('#logoutButton').focus();await page.keyboard.press('Enter');assert.equal(await page.locator('[data-liquidaciones-menu]').isHidden(),true);checks.push('vertical payroll menu follows capability refresh and logout');
+ // The isolated panel fixture above proves menu semantics. Check the actual compiled payroll page and layout too.
+ await page.emulateMedia({reducedMotion:'no-preference'});full=true;caps=[...all,'payroll.calculation.read'];
+ await page.setViewportSize({width:1440,height:1100});await visit(nomina+'#resumen');await tasks.waitFor();
+ assert.equal(await tasks.locator('[role=tab]').count(),29,'the actual payroll page mounts all29 original tasks');
+ assert.equal(await page.locator('#payrollTaskWorkspace .task-tabs').count(),0,'actual payroll page has no horizontal task bar');
+ const sidebarBox=await page.locator('aside.sidebar').boundingBox(),mainBox=await page.locator('#mainContent').boundingBox();
+ assert.ok(sidebarBox&&sidebarBox.width>=180&&sidebarBox.width<=380,'desktop sidebar remains a bounded left column');
+ assert.ok(mainBox&&mainBox.x>=sidebarBox.x+sidebarBox.width-1&&mainBox.width>600,'actual payroll content stays beside the menu');
+ const processes=tasks.locator('details.task-section'),firstProcess=processes.nth(0),secondProcess=processes.nth(1);
+ assert.equal(await tasks.locator('details.task-section[open]').count(),0,'standalone summary starts with compact closed processes');
+ await firstProcess.locator(':scope > summary').click();await secondProcess.locator(':scope > summary').click();
+ await page.waitForFunction(()=>document.querySelectorAll('[data-liquidaciones-menu] details.task-section[open]').length===1);
+ assert.equal(await firstProcess.getAttribute('open'),null);assert.notEqual(await secondProcess.getAttribute('open'),null);
+ const arrowDurations=await secondProcess.locator(':scope > summary').evaluate(n=>getComputedStyle(n,'::after').transitionDuration);
+ assert.ok(arrowDurations.split(',').some(d=>parseFloat(d)>0),'normal motion keeps a short disclosure transition');
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const reduced=await secondProcess.evaluate(n=>({arrow:getComputedStyle(n.querySelector('summary'),'::after').transitionDuration,body:getComputedStyle(n,'::details-content').transitionDuration}));
+ assert.ok([...reduced.arrow.split(','),...reduced.body.split(',')].every(d=>parseFloat(d)===0),'reduced motion disables disclosure transitions');
+ await firstProcess.locator(':scope > summary').click();await page.waitForFunction(()=>document.querySelectorAll('[data-liquidaciones-menu] details.task-section[open]').length===1);assert.deepEqual(await firstProcess.locator('[role=tab]:visible').allInnerTexts(),['Calcular','Anular período','Confirmar y anular','Cerrar liquidación'],'the actual expanded menu renders annulment before confirmation');
+ checks.push('actual payroll accordions keep one process expanded and honour reduced-motion for all disclosure transitions');
+ const syntheticBadge=()=>page.evaluate(()=>{const b=document.createElement('div');b.textContent='QA SINTÉTICA · APIs interceptadas · Sin sesión municipal';Object.assign(b.style,{position:'fixed',left:'0',right:'0',bottom:'0',zIndex:'2147483647',background:'#ffefbd',color:'#332500',padding:'5px',textAlign:'center',font:'600 12px system-ui',pointerEvents:'none'});document.body.append(b);});
+ await syntheticBadge();await page.screenshot({path:out+'/payroll-full-desktop-synthetic.png'});
+ checks.push('actual compiled payroll page keeps a bounded left sidebar, all29 original tasks and the original content column');
+ for(const width of [390,320]){
+  await page.setViewportSize({width,height:844});await visit(nomina+'#resumen');await tasks.waitFor({state:'attached'});
+  const toggle=page.locator('.mc-work-toggle');assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.click();
+  await tasks.locator('[data-task="resumen"]').click();await page.waitForURL('**/nomina#resumen');
+  assert.equal(await page.locator('#task-resumen').isVisible(),true);assert.equal(await page.locator('#mcWorkAreaBody').isHidden(),true);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'actual payroll viewport '+width);
+  await syntheticBadge();await page.screenshot({path:out+'/payroll-full-mobile-'+width+'-synthetic.png'});
+  await toggle.click();await page.screenshot({path:out+'/payroll-full-menu-'+width+'-synthetic.png'});
+  checks.push('actual compiled payroll page and drawer work without document overflow at'+width+'px');
+ }
+ caps=all;
  assert.deepEqual(errors,[]);assert.ok(calls.every(x=>x.method==='GET'));
  const result={ok:true,checksPassed:checks.length,checks,mode:published?'published-ui':'compiled-ui',syntheticApi:true,realMunicipalSessionTested:false,realApiWrites:0};
  fs.writeFileSync(out+'/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));

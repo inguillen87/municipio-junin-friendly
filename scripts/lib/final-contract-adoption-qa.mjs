@@ -74,8 +74,9 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  INSERT INTO grh_curated_source_version_seal(version_id,entity_fingerprints) SELECT id,(SELECT jsonb_object_agg(split_part(e,'/',2),f) FROM(SELECT entity e,jsonb_build_object('rows',count(*),'md5',md5(string_agg(md5(row_key||record::text),'' ORDER BY row_key))) f FROM qa_base_rows WHERE entity LIKE 'curated/%' GROUP BY entity) x) FROM grh_curated_source_version;
  DROP FUNCTION grh_final_source_entities_v1();
  `;
+ const sourceCutoff='2026-10-01 15:17:29';
  const revisionSeed=`INSERT INTO grh_final_source_revision(id,tenant_id,source_binding_id,parent_core_version_id,parent_curated_version_id,parent_publication_sha256,source_profile,source_sha256,source_cutoff,core_manifest_sha256,curated_manifest_sha256,package_sha256,evidence)
- SELECT ${q(revision)}::uuid,s.tenant_id,s.source_binding_id,s.source_version_id,v.id,s.publication_sha256,'grh-junin-2026-10-01','50a4cc2673be5e275dc5850aa8779f46de82dd81733a87e4b2cfa2aec49e025f',timestamp '2026-10-01 15:17:29',repeat('f',64),repeat('5',64),${q(packageSha)},'{}'::jsonb FROM grh_effective_source_binding s JOIN grh_curated_source_version v ON v.core_version_id=s.source_version_id AND v.source_batch_id=s.source_batch_id WHERE s.tenant_id=${q(qa.ids.tenant)}::uuid;
+ SELECT ${q(revision)}::uuid,s.tenant_id,s.source_binding_id,s.source_version_id,v.id,s.publication_sha256,'grh-junin-2026-10-01','50a4cc2673be5e275dc5850aa8779f46de82dd81733a87e4b2cfa2aec49e025f',timestamp ${q(sourceCutoff)},repeat('f',64),repeat('5',64),${q(packageSha)},'{}'::jsonb FROM grh_effective_source_binding s JOIN grh_curated_source_version v ON v.core_version_id=s.source_version_id AND v.source_batch_id=s.source_batch_id WHERE s.tenant_id=${q(qa.ids.tenant)}::uuid;
  INSERT INTO grh_final_source_delta(revision_id,entity,row_key,operation,previous_record,record,source_payload)
  SELECT f.revision_id,f.entity,f.row_key,'replace',b.record,f.record,CASE WHEN f.entity LIKE 'core/%' THEN jsonb_build_object('synthetic',true) END FROM qa_final_rows f JOIN qa_base_rows b USING(revision_id,entity,row_key) WHERE f.record<>b.record;
  INSERT INTO grh_final_source_seal SELECT ${q(revision)}::uuid,jsonb_object_agg(e,grh_final_source_fingerprint_v1(${q(revision)}::uuid,e,false)) FROM unnest(grh_final_source_entities_v1()) e;
@@ -83,7 +84,7 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  // Evidence must be in the immutable initial INSERT, not patched afterwards.
  const evidence=`(SELECT jsonb_object_agg(e,jsonb_build_object('baseline',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM qa_base_rows WHERE entity=e),'candidate',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM qa_final_rows WHERE entity=e),'changes',jsonb_build_object('add',0,'remove',0,'replace',(SELECT count(*) FROM qa_base_rows b JOIN qa_final_rows f USING(revision_id,entity,row_key) WHERE f.entity=e AND b.record<>f.record)))) FROM unnest(grh_final_source_entities_v1()) e)`;
  assert.equal(revisionSeed.split(`${q(packageSha)},'{}'::jsonb`).length,2);
- return {...qa,revision,packageSha,contractCount,activeCount,paddingBytes,sourceFixture:qa.normalized(seed+predecessor+source+';\n'+revisionSeed.replace(`${q(packageSha)},'{}'::jsonb`,`${q(packageSha)},${evidence}`))};
+ return {...qa,revision,packageSha,sourceCutoff,contractCount,activeCount,paddingBytes,sourceFixture:qa.normalized(seed+predecessor+source+';\n'+revisionSeed.replace(`${q(packageSha)},'{}'::jsonb`,`${q(packageSha)},${evidence}`))};
 }
 
 export function relocateFinalAdoption(batch,qa,previous){

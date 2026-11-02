@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 // Compiled local UI, real handler, synthetic SQL; no request reaches an API.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,7 +36,7 @@ try{const context=await browser.newContext({viewport:{width:1440,height:1000},lo
  if(u.pathname.startsWith('/api/'))return route.fulfill({status:403,json:{ok:false,error:'Sólo fixtures sintéticos'}});
  if(request.method()!=='GET')return route.abort();const file=path.resolve(root,u.pathname==='/nomina'?'nomina-control.html':'.'+u.pathname);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream',body:fs.readFileSync(file)});
  });const page=await context.newPage();currentQaPage=page;page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));const w=page.locator('[data-native-salary]');
- async function load(){reset();await page.goto(origin+'/nomina?qa-salary='+(++caseNumber)+'#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();await w.getByRole('button',{name:'Consultar maestro propio'}).click();await w.getByText('75 definiciones propias',{exact:false}).waitFor();}
+ async function load(){reset();await page.goto(origin+'/nomina?qa-salary='+(++caseNumber)+'#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});await w.getByRole('button',{name:'Consultar maestro propio'}).click();await w.getByText('75 definiciones propias',{exact:false}).waitFor();}
  async function prepareChange(){await w.getByRole('button',{name:'Preparar nueva versión'}).click();await w.getByLabel('Buscar código').fill('75');await w.getByRole('button',{name:'Editar definición'}).click();await w.getByLabel('Descripción',{exact:true}).fill('Definición 75 revisada sintética');await w.getByRole('button',{name:'Incorporar fila al borrador'}).click();await w.getByLabel('Motivo de la versión').fill('Revisión documentada sintética de la definición');await w.getByRole('button',{name:'Revisar versión completa'}).click();await w.locator('dialog').getByRole('heading',{name:'Enviar versión a revisión'}).waitFor();}
  async function commit(){await w.locator('dialog').getByRole('button',{name:'Confirmar envío',exact:true}).click();}
  const bulk=w.locator('[data-salary-bulk]');

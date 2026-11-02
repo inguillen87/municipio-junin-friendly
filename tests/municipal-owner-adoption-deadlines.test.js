@@ -39,7 +39,7 @@ async function harness(count=63){
    const wrapper=JSON.parse(call.bytes);assert.equal(wrapper.operation,'approve_owner');const command=wrapper.payload;
    const prior=saved.get(call.key);if(prior)assert.deepEqual(prior.command,command);
    data=prior??{version:'municipal-adoption-owner-stored.v1',preview:{...fixture.stage.preview,review},command,attempt:{...clone(fixture.stored.attempt),requestKey:call.key,bodySha256:await adoptionReviewHash(command),receipt:{...clone(fixture.stored.attempt.receipt),reason:command.reason}}};
-   saved.set(call.key,data);status=201;
+   saved.set(call.key,data);status=201;step.onCommitted?.();
   }
   if(step.wait)await step.wait;
   if(step.afterCommit)step.afterCommit();
@@ -96,9 +96,14 @@ test('municipality change prevents lookup or resend and keeps immutable pending 
 });
 
 test('toggle invalidation cancels the same epoch, preserves committed pending bytes and enforces single flight',async()=>{
- const h=await harness();await h.ready();let release;const hold=new Promise(r=>release=r);h.setPlan(r=>r.kind==='post'?{wait:hold}:{});const sending=h.machine.send({reason,reviewConfirmed:true});
- for(let i=0;!h.saved.size;i++){assert.ok(i<1000);await new Promise(setImmediate);}const pending=h.machine.getState().pending;
- await assert.rejects(h.machine.send({reason,reviewConfirmed:true}));assert.equal(h.keys(),1);h.setLive(false);h.machine.invalidate('Datos retirados al cerrar el apartado.');assert.ok(h.calls.find(r=>r.kind==='post').signal.aborted);release();await assert.rejects(sending);
- assert.equal(h.machine.getState().busy,false);assert.equal(h.machine.getState().pending,pending);assert.equal(h.machine.getState().receipt,null);for(const k of ['context','history','review','preview','proposal','sources'])assert.equal(h.machine.getState()[k],null);
- h.setLive(true);h.setPlan(()=>({elapsed:20000}));await h.machine.recover();assert.equal(h.machine.getState().receipt.total,63);assert.equal(h.calls.filter(r=>r.kind==='post').length,1);assert.equal(h.keys(),1);
+ const h=await harness();await h.ready();let release,markCommitted;const hold=new Promise(r=>release=r),committed=new Promise(r=>markCommitted=r);h.setPlan(r=>r.kind==='post'?{wait:hold,onCommitted:markCommitted}:{});const sending=h.machine.send({reason,reviewConfirmed:true});
+ // Observe failure immediately, and wait for the actual stored phase instead of
+ // counting event-loop turns while WebCrypto may still be working on the hash.
+ const settled=sending.then(value=>({value}),error=>({error}));
+ try{
+  await Promise.race([committed,settled.then(result=>{if(result.error)throw result.error;throw Error('Synthetic send finished before the held commit phase');})]);assert.equal(h.saved.size,1);const pending=h.machine.getState().pending;
+  await assert.rejects(h.machine.send({reason,reviewConfirmed:true}));assert.equal(h.keys(),1);h.setLive(false);h.machine.invalidate('Datos retirados al cerrar el apartado.');assert.ok(h.calls.find(r=>r.kind==='post').signal.aborted);release();await assert.rejects(sending);
+  assert.equal(h.machine.getState().busy,false);assert.equal(h.machine.getState().pending,pending);assert.equal(h.machine.getState().receipt,null);for(const k of ['context','history','review','preview','proposal','sources'])assert.equal(h.machine.getState()[k],null);
+  h.setLive(true);h.setPlan(()=>({elapsed:20000}));await h.machine.recover();assert.equal(h.machine.getState().receipt.total,63);assert.equal(h.calls.filter(r=>r.kind==='post').length,1);assert.equal(h.keys(),1);
+ }finally{release();await settled;}
 });

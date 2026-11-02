@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 // Compiled local/public UI; every private read and write is intercepted with
 // synthetic records. No municipal session or mutation reaches a real API.
 import assert from 'node:assert/strict';
@@ -79,7 +80,7 @@ try{
  });
  const page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const w=page.locator('[data-parameter-workspace]'),c=page.locator('[data-payroll-catalog]'),d=c.locator('dialog');
- async function load(){reset();await page.goto(origin+'/nomina?qa-catalog-case='+(++scenario)+'#resumen');await page.getByRole('tab',{name:'Parámetros',exact:true}).click();await w.getByText('Parámetros disponibles.',{exact:false}).waitFor();await w.locator('.pp-record').first().click();await c.getByRole('button',{name:'Revisar impacto de activación'}).waitFor();}
+ async function load(){reset();await page.goto(origin+'/nomina?qa-catalog-case='+(++scenario)+'#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});await w.getByText('Parámetros disponibles.',{exact:false}).waitFor();await w.locator('.pp-record').first().click();await c.getByRole('button',{name:'Revisar impacto de activación'}).waitFor();}
  async function review(){await c.getByRole('button',{name:'Revisar impacto de activación'}).click();await c.getByRole('button',{name:'Activar valores desde 2026-10'}).click();await d.getByRole('heading',{name:'Confirmar activación de auxiliares'}).waitFor();}
  async function confirm(){await d.getByLabel('Revisé todos los convenios, valores y la vigencia').check();await d.getByRole('button',{name:'Confirmar activación',exact:true}).click();}
  async function pending(){await c.getByRole('heading',{name:'Activación sin confirmación'}).waitFor();await page.waitForFunction(()=>Array.from(document.querySelectorAll('[data-payroll-catalog] button')).some(el=>el.textContent==='Consultar activación pendiente'&&!el.disabled));}

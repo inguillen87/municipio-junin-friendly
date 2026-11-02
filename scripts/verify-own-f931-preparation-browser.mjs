@@ -1,3 +1,4 @@
+import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
 // Isolated browser, synthetic read fixtures, local built assets only.
 // This is UI/transport regression QA, not municipal fiscal acceptance.
 import fs from 'node:fs';
@@ -11,14 +12,15 @@ const root=fs.realpathSync(new URL('../public',import.meta.url)),output=path.res
 assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));fs.mkdirSync(output,{recursive:true});
 const origin='http://127.0.0.1:4373',checks=[],errors=[],writes=[],downloads=[];
 const check=(condition,message)=>{assert.ok(condition,message);checks.push(message);};
-const browser=await chromium.launch({headless:true});
-async function inspect(viewport,label){
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
+async function inspect(viewport,label,{shellAdmitted=true}={}){
+ const pageCaps=Object.freeze([...OWN_CLOSE_NOMINAL,...(shellAdmitted?['payroll.read']:[])]);
  let fixture=reportFixture(61),allowed=true,corrupt=false;
  const context=await browser.newContext({viewport,locale:'es-AR',serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(req.method()!=='GET')writes.push({method:req.method(),path:u.pathname});
-  if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic-user',email:'f931-qa@example.invalid'},access:{context:'tenant',tenant:{id:'10000000-0000-4000-8000-000000009991',roleKey:'QA'},tenantCapabilities:allowed?OWN_CLOSE_NOMINAL:[],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
+  if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic-user',email:'f931-qa@example.invalid'},access:{context:'tenant',tenant:{id:'10000000-0000-4000-8000-000000009991',roleKey:'QA'},tenantCapabilities:allowed?pageCaps:[],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
   if(u.pathname==='/api/internal-own-fiscal-facts'){
    if(!allowed)return route.fulfill({status:403,json:{ok:false,error:'Synthetic access revoked'}});
    assert.equal(u.searchParams.get('resource'),'census');return route.fulfill({json:{ok:true,data:{version:'own-fiscal-census.v1',period:u.searchParams.get('period'),scopeVersion:'b'.repeat(64),stateVersion:await fiscalFactsHash([]),rows:[],complete:true,payrollCalculated:false,payrollPosted:false}}});
@@ -40,7 +42,9 @@ async function inspect(viewport,label){
  const idle=()=>page.waitForFunction(()=>document.querySelector('.own-f931')?.getAttribute('aria-busy')==='false');
  const populate=async()=>{$('period');await $('period').fill(fixture.query.from);await $('date').fill('2026-10-31');await $('consult').click();await idle();};
  try{
-  await page.goto(origin+'/nomina#f931',{waitUntil:'domcontentloaded'});await $('consult').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('[data-own-f931-target]')?.disabled);
+  await page.goto(origin+'/nomina#f931',{waitUntil:'domcontentloaded'});
+  if(!shellAdmitted){await page.evaluate(async()=>{await window.MuniControlCapabilityGate.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});check(!pageCaps.includes('payroll.read')&&await page.locator('#mainContent').isHidden()&&await page.locator('.own-f931').isHidden()&&!await $('consult').isVisible(),label+': nominal fiscal capabilities alone do not bypass payroll page admission');return;}
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'f931'});await $('consult').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('[data-own-f931-target]')?.disabled);
   check(await $('period').inputValue()===''&&await $('date').inputValue()==='',label+': period/presentation are explicit, without date defaults');
   await populate();check(await $('view').isVisible(),label+': complete own closed preparation visible');check((await $('count').innerText()).includes('61 participaciones'),label+': all 61 closed participations included');await page.locator('.own-f931 summary',{hasText:'Ver totales exactos de nómina'}).click();check((await $('totals').innerText()).includes('Bruto'),label+': exact payroll totals identified separately from fiscal bases');
   const referenceDetails=page.locator('.own-f931 details').filter({hasText:'Consultar los 60 campos'});await referenceDetails.locator('summary').click();
@@ -53,13 +57,22 @@ async function inspect(viewport,label){
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),label+': no horizontal overflow');
   await page.screenshot({path:path.join(output,label+'.png'),fullPage:false});
   allowed=false;await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready')));await idle();check(!(await $('view').isVisible())&&await $('csv').isDisabled(),label+': permission revocation clears sensitive review and download');
-  allowed=true;await $('access').click();await idle();await populate();
+  allowed=true;
+  const restorationTraffic=[],watch=request=>{const u=new URL(request.url());if(u.pathname.startsWith('/api/'))restorationTraffic.push({origin:u.origin,path:u.pathname,method:request.method()});},beforeRestoreWrites=writes.length;
+  page.on('request',watch);
+  try{
+   const fresh=await page.evaluate(async()=>{const r=await fetch('/api/internal-auth',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error('QA_F931_GLOBAL_SESSION_HTTP_REQUIRED');return r.json();});
+   assert.equal(fresh.ok,true);assert.equal(fresh.authenticated,true);assert.equal(fresh.sessionVersion,2);assert.equal(fresh.user.id,'f931-synthetic-user');assert.equal(fresh.user.email,'f931-qa@example.invalid');assert.equal(fresh.access.context,'tenant');assert.equal(fresh.access.tenant.id,'10000000-0000-4000-8000-000000009991');assert.ok(Date.parse(fresh.expiresAt)>Date.now());assert.ok(Array.isArray(fresh.access.tenantCapabilities));assert.deepEqual([...fresh.access.tenantCapabilities].sort(),[...pageCaps].sort());assert.deepEqual(fresh.access.platformCapabilities,[]);assert.deepEqual(fresh.access.platformRoles,[]);
+   await page.evaluate(access=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:access})),fresh.access);await idle();
+   check(restorationTraffic.length>0&&restorationTraffic.every(r=>r.origin===origin&&r.path==='/api/internal-auth'&&r.method==='GET')&&writes.length===beforeRestoreWrites,label+': verified global fixture recovery makes only auth GETs and no fiscal query or write');
+  }finally{page.off('request',watch);}
+  await populate();
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
   check(!(await $('view').isVisible())&&await $('csv').isDisabled()&&await $('period').inputValue()==='',label+': hidden page clears values and download');
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});await $('access').click();await idle();corrupt=true;await populate();check(!(await $('view').isVisible())&&await $('csv').isDisabled(),label+': invalid source hash blocks entire preparation');
   check(await page.evaluate(()=>!Object.keys(localStorage).some(k=>/f931/i.test(k))),label+': no F931 localStorage state');
  }finally{await context.close();}
 }
-try{await inspect({width:1440,height:1000},'desktop');await inspect({width:390,height:844},'mobile');assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
+try{await inspect({width:1440,height:1000},'narrow-route',{shellAdmitted:false});await inspect({width:1440,height:1000},'desktop');await inspect({width:390,height:844},'mobile');assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,scope:'built UI plus synthetic GET fixture transport; not real SQL/session/municipal acceptance',checks:checks.length,proofs:checks,errors,writes},null,2)+'\n');console.log(JSON.stringify({ok:true,checks:checks.length,output}));
 }finally{await browser.close();}

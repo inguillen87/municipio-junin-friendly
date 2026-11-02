@@ -5,7 +5,7 @@ import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 import {conditionsDraft,conditionsCsv,conditionsFile} from '../../assets/own-contract-salary-conditions-workspace.js';
 export async function verifySalaryConditionsBrowser({handlers,env,actors,setActor,period,output,check,bootstrap,revoke,restore,browserName='chromium'}){
  assert.equal(browserName,'chromium');const root=fs.realpathSync(new URL('../../public',import.meta.url)),origin='http://127.0.0.1:4371',errors=[],writes=[],reads=[];
- const caps=['workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.calculation.nominal.read'];
+ const caps=['payroll.read','workforce.employee.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.calculation.nominal.read'];
  let current=actors.maker,allowed=true,drop=false,page;const actor=a=>{current=a;setActor(a);};actor(current);env.INTERNAL_APP_ORIGIN=origin;
  const{browser}=await launchOwnSyntheticBrowser();
  try{
