@@ -75,6 +75,11 @@ test('workflow retains five native consumers and scopes every one to successful 
  assert.equal((source.match(/^\s+merge-multiple: true$/gm)||[]).length,4);
  for(const block of source.split('      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093').slice(1).map(s=>s.split('\n      - ')[0]))assert.match(block,/^\s+merge-multiple: true$/m);
  for(const command of ['verify-own-art.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --browser=chromium','verify-payroll-transport-observation.mjs','verify-source-preview-transport-matrix.mjs','verify-source-preview-fragmented-transport.mjs'])assert.ok(source.includes(command),command);
+ for(const consumer of source.split(/^  (?:verify|transport-observation|transport-reduction|patched-transport-comparison):$/m).slice(1)){
+  const verify=consumer.indexOf('run: node scripts/own-art-tested-build.mjs verify'),directory=consumer.indexOf('run: mkdir -p verification');
+  const browser=consumer.indexOf('run: npx playwright install --with-deps chromium');
+  assert.ok(verify>=0&&directory>verify&&browser>directory,'each clean artifact consumer creates its output parent before installing the browser');
+ }
  assert.ok(source.includes('pg: [17, 18]'));assert.equal((source.match(/NODE_OPTIONS: --import \.\/scripts\/lib\/project-chromium\.mjs/g)||[]).length,5);
  assert.ok(source.includes('NODE_OPTIONS: --import ./scripts/lib/diagnostic-patched-chromium.mjs'));assert.doesNotMatch(source,/continue-on-error|workflow_run|pull_request_target|GITHUB_ENV|secrets\./);
 });
