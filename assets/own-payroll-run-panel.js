@@ -52,8 +52,8 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <div data-own-contracts hidden><button class="button" type="button" data-own-picker>Buscar y agregar legajos</button><div class="own-run-chips" data-own-chips></div></div>
     <label data-own-codes-box hidden for="ownRunCodes">Opciones del encuadre municipal<select id="ownRunCodes" data-own-codes multiple size="5" aria-describedby="ownRunCodesHelp"></select><small id="ownRunCodesHelp">Podés elegir varias opciones. El cálculo vuelve a verificar el conjunto completo.</small></label>
     <p data-own-scope>Elegí expresamente el alcance.</p>
-    <label class="own-run-confirm"><input type="checkbox" data-own-confirm>Revisé el período, la fecha, el tipo y todo el alcance. El resultado quedará pendiente de confirmación y cierre.</label>
-  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div></form>
+    <label class="own-run-confirm"><input type="checkbox" data-own-confirm aria-describedby="ownRunActionHelp">Revisé el período, la fecha, el tipo y todo el alcance. El resultado quedará pendiente de confirmación y cierre.</label>
+  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send aria-describedby="ownRunActionHelp" disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div><p id="ownRunActionHelp" class="own-run-status" data-own-action-help role="status" aria-live="polite" hidden><span data-own-action-help-text></span> <a data-own-action-help-link hidden></a></p></form>
   <div class="own-run-actions"><button class="button" type="button" data-own-source-review-button hidden disabled>Revisar incidencias de la captura</button></div>
   <section data-own-source-report hidden aria-labelledby="ownSourceReportTitle"><h3 id="ownSourceReportTitle" tabindex="-1">Novedades que necesitan revisión</h3><p data-own-source-summary></p><p>Revisión de las novedades y sus fuentes declaradas en las reglas capturadas. No certifica los importes, las unidades ni la homologación salarial. Corregir una fuente no cambia esta captura: el intento conserva su contenido original.</p>
     <div class="own-run-actions"><button class="button" type="button" data-own-source-download disabled>Descargar incidencias sin datos personales CSV</button></div>
@@ -93,6 +93,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
     $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
     $('send').hidden=!!current?.saved||!attempt&&!canSelect();
+    renderActionGuidance();
     $('recover').hidden=!attempt;$('recover').disabled=busy||!can(OWN_RUN_NOMINAL);
     $('recover').textContent=current?.saved?'Actualizar este resultado':'Consultar este intento';
     $('new').hidden=!current?.saved;$('new').disabled=busy||!canPrepare();
@@ -108,6 +109,19 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     for(const button of $('totals').querySelectorAll('[data-own-individual-open]'))button.disabled=busy||!can(OWN_RUN_NOMINAL);
     for(const button of $('history').querySelectorAll('button'))button.disabled=busy||!can(OWN_RUN_NOMINAL)||!!attempt&&!current?.saved;
     host.setAttribute('aria-busy',String(busy));
+  }
+  function renderActionGuidance(){
+    const help=$('action-help'),text=$('action-help-text'),link=$('action-help-link');let message='',href=null,label='';
+    help.hidden=$('send').hidden||!live()||!can(OWN_RUN_PREPARE);
+    if(!help.hidden){
+      if(busy)message='Hay una consulta o un envío en curso. Esperá a que termine antes de volver a enviarlo.';
+      else if(attempt)message='Consultá este intento si no conocés su estado. Reintentar conserva la misma referencia y el mismo contenido.';
+      else if(!canStart()){message=readiness.state==='program_required'?'Para calcular falta aprobar las reglas mediante revisión independiente. El borrador se conserva.':readiness.title+'. '+readiness.description;href=readiness.href;label=readiness.action??'';}
+      else if(!$('confirm').checked)message='Marcá «Revisé el período, la fecha, el tipo y todo el alcance» cuando hayas terminado la revisión.';
+      else message='Revisión marcada. Al calcular se volverán a verificar el padrón y las reglas aprobadas.';
+    }
+    if(text.textContent!==message)text.textContent=message;
+    link.hidden=!href;if(href){link.href=href;if(link.textContent!==label)link.textContent=label;}else{link.removeAttribute('href');link.textContent='';}
   }
   function renderReadiness(){
     $('readiness').hidden=!!attempt&&attempt.key!==knownSavedKey;

@@ -1435,6 +1435,7 @@
 
             <div class="table-meta">
               <div id="employeeResultCount" role="status" aria-live="polite">Preparando consulta…</div>
+              <button class="button" id="cancelEmployeeQuery" type="button" hidden>Cancelar consulta</button>
               <span class="evidence source">Fuente</span>
             </div>
 
@@ -1603,6 +1604,9 @@
       const AUTH_URL = '/api/internal-auth';
       const DATA_URL = '/api/internal-data';
       const PAGE_LIMIT = 25;
+      // Plazo de la UI para la consulta de legajos: cubre los 20 s de maxDuration de /api/internal-data más margen de
+      // transporte. Es una decisión operativa de recuperación del cliente; no acelera ni corrige el servidor.
+      const EMPLOYEE_QUERY_DEADLINE_MS = 25000;
       const VALID_VIEWS = new Set(['inicio', 'legajos', 'ausentismo', 'calidad']);
       const LEAVE_PREVIEW_HANDOFF_KEY = 'municontrol.leave-preview-handoff.v1';
       const ACTION_SUBJECT_HANDOFF_KEY = 'municontrol.action-subject-handoff.v1';
@@ -1625,6 +1629,9 @@
         employeeLastQuery: null,
         employeeRequest: 0,
         employeeController: null,
+        employeeOperation: null,
+        employeeDirectoryWithdrawn: false,
+        employeeReadRevoked: false,
         detailController: null,
         payrollController: null,
         payrollSummaryControllers: new Set(),
@@ -1680,6 +1687,7 @@
         scopeUnmatched: document.getElementById('scopeUnmatched'),
         employeeResultCount: document.getElementById('employeeResultCount'),
         employeeTableWrap: document.getElementById('employeeTableWrap'),
+        cancelEmployeeQuery: document.getElementById('cancelEmployeeQuery'),
         employeeRows: document.getElementById('employeeRows'),
         previousPage: document.getElementById('previousPage'),
         nextPage: document.getElementById('nextPage'),
@@ -1697,6 +1705,8 @@
       };
 
       class UnauthorizedError extends Error {}
+      class EmployeeQueryInterruption extends Error { constructor(reason) { super('Consulta de legajos interrumpida'); this.reason = reason; } }
+      class EmployeeDirectoryResponseError extends Error { constructor() { super('La respuesta de la consulta de legajos no se pudo interpretar. Volvé a consultar; si persiste, avisá a soporte.'); } }
 
       function text(value) {
         return value === null || value === undefined ? '' : String(value).trim();
@@ -2087,7 +2097,8 @@
         els.topbarViewTitle.textContent = viewLabel;
         document.title = viewLabel + ' | MuniControl';
 
-        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
+        if (target !== 'legajos' && (state.employeesLoaded || state.employeesLoading)) withdrawEmployeeDirectory('area');
+        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading && !state.employeeDirectoryWithdrawn && !state.employeeReadRevoked) loadEmployees(1);
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
           if (heading) heading.focus({ preventScroll: true });
@@ -2490,7 +2501,12 @@
       }
 
       function normalizeEmployees(payload) {
-        const rows = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload.employees) ? payload.employees : []);
+        // Sólo los dos envelopes vigentes (data[] o employees[]); sin colección no hay lista válida, ni siquiera vacía.
+        const source = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+        const rows = source && Array.isArray(source.data) ? source.data : (source && Array.isArray(source.employees) ? source.employees : null);
+        if (!rows) throw new EmployeeDirectoryResponseError();
+        // Cada fila del DTO debe ser un objeto; primitivas, null o arreglos son error de contrato, nunca una fila con guiones.
+        if (!rows.every(function (row) { return row !== null && typeof row === 'object' && !Array.isArray(row); })) throw new EmployeeDirectoryResponseError();
         const pagination = payload.pagination && typeof payload.pagination === 'object' ? payload.pagination : {};
         const page = nonNegativeNumber(pagination.page) || 1;
         const limit = nonNegativeNumber(pagination.limit) || PAGE_LIMIT;
@@ -2525,6 +2541,7 @@
         state.employeesLoading = true;
         els.employeeTableWrap.setAttribute('aria-busy', 'true');
         els.employeeResultCount.textContent = hasRows ? 'Actualizando resultados…' : 'Consultando legajos…';
+        els.cancelEmployeeQuery.hidden = false;
         els.previousPage.disabled = true;
         els.nextPage.disabled = true;
         if (!hasRows) {
@@ -2537,22 +2554,234 @@
         }
       }
 
-      async function loadEmployees(page) {
+      // Una operación por consulta de legajos: controlador, plazo y señal de interrupción propios. Interrumpirla resuelve su
+      // espera aunque el transporte ignore abort; sólo limpia SU temporizador y nunca toca una operación posterior.
+      function startEmployeeOperation() {
+        const previous = state.employeeOperation;
+        if (previous) finishEmployeeOperation(previous, 'superseded');
+        const controller = new AbortController();
+        const operation = { id: ++state.employeeRequest, controller: controller, reason: null, done: false, timer: null, interrupt: null };
+        operation.interrupted = new Promise(function (_, reject) { operation.interrupt = reject; });
+        operation.interrupted.catch(function () {});
+        operation.timer = window.setTimeout(function () { finishEmployeeOperation(operation, 'timeout'); }, EMPLOYEE_QUERY_DEADLINE_MS);
+        state.employeeOperation = operation;
+        state.employeeController = controller;
+        return operation;
+      }
+
+      function finishEmployeeOperation(operation, reason) {
+        if (operation.done) return;
+        operation.done = true;
+        window.clearTimeout(operation.timer);
+        if (reason) {
+          operation.reason = reason;
+          operation.interrupt(new EmployeeQueryInterruption(reason));
+          operation.controller.abort();
+        }
+        if (state.employeeOperation === operation) {
+          state.employeeOperation = null;
+          state.employeeController = null;
+        }
+      }
+
+      function invalidateEmployeeOperation(reason) {
+        const operation = state.employeeOperation;
+        state.employeeRequest += 1;
+        if (operation) finishEmployeeOperation(operation, reason);
+      }
+
+      function cancelEmployeeQuery() {
+        const operation = state.employeeOperation;
+        if (operation && !operation.done) finishEmployeeOperation(operation, 'cancelled');
+      }
+
+      // Disponibilidad real del contexto de la lista: permiso vigente recibido por el cliente, documento visible y vista
+      // Personas. Se consulta el estado actual (no sólo flags actualizados por eventos que todavía no llegaron).
+      function employeeUnavailableReason() {
+        if (state.employeeReadRevoked || !state.tenantCapabilities.has('workforce.employee.read')) return 'permission';
+        if (document.hidden) return 'hidden';
+        if (state.currentView !== 'legajos') return 'area';
+        return null;
+      }
+
+      // Vigencia: la operación sigue siendo la dueña y el contexto sigue disponible. Si el contexto dejó de estarlo,
+      // retira la lista (lo que invalida la operación) y lanza: nunca clasifica, redirige ni publica en ese caso.
+      // `tolerated` admite, sólo para un estado HTTP de error ya recibido, una operación vencida o cancelada.
+      function ensureEmployeeOperationCurrent(operation, tolerated) {
+        if (operation.id !== state.employeeRequest || (operation.reason && !(tolerated && tolerated.includes(operation.reason)))) {
+          throw new EmployeeQueryInterruption(operation.reason || 'superseded');
+        }
+        const unavailable = employeeUnavailableReason();
+        if (unavailable) {
+          withdrawEmployeeDirectory(unavailable);
+          throw new EmployeeQueryInterruption('withdrawn');
+        }
+      }
+
+      function employeeHttpFailure(status, payload) {
+        const fallback = status === 403 ? 'Tu usuario no tiene permiso para consultar legajos.' : 'La API respondió con un error (' + status + ').';
+        const failure = new Error(errorMessage(payload, fallback));
+        failure.status = status;
+        failure.employeeHttp = true;
+        failure.retryable = typeof payload?.retryable === 'boolean' ? payload.retryable : status !== 403;
+        if (typeof payload?.requestId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(payload.requestId)) failure.message += ' Referencia: ' + payload.requestId;
+        return failure;
+      }
+
+      // Exclusiva de la consulta de legajos; no cambia requestJSON ni a sus otros consumidores. El plazo cubre fetch Y
+      // lectura del cuerpo. Con los encabezados ya recibidos se verifica vigencia y un 401 vigente redirige sin esperar el
+      // cuerpo; un estado HTTP de error conocido no se convierte en plazo, cancelación ni lista vacía aunque el cuerpo
+      // quede retenido, sea ilegible o falle. Un 401 o error de una operación ya retirada no redirige ni reemplaza nada.
+      async function requestEmployeeDirectory(url, operation) {
+        const delivery = fetch(url, {
+          signal: operation.controller.signal,
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' }
+        });
+        delivery.catch(function () {});
+        const response = await Promise.race([delivery, operation.interrupted]);
+        ensureEmployeeOperationCurrent(operation);
+        if (response.status === 401) {
+          redirectToLogin();
+          throw new UnauthorizedError('Sesión no disponible');
+        }
+        let payload = null;
+        let unreadable = false;
+        let bodyError = null;
+        if (response.status !== 204) {
+          try {
+            const reading = response.text();
+            reading.catch(function () {});
+            const body = await Promise.race([reading, operation.interrupted]);
+            if (text(body)) {
+              try { payload = JSON.parse(body); } catch (_) { unreadable = true; }
+            } else unreadable = true;
+          } catch (error) {
+            bodyError = error;
+          }
+        }
+        if (!response.ok) {
+          ensureEmployeeOperationCurrent(operation, ['timeout', 'cancelled']);
+          throw employeeHttpFailure(response.status, unreadable || bodyError ? null : payload);
+        }
+        ensureEmployeeOperationCurrent(operation);
+        if (bodyError) throw bodyError;
+        if (payload && payload.ok === false) throw employeeHttpFailure(response.status, payload);
+        if (unreadable || response.status === 204) throw new EmployeeDirectoryResponseError();
+        return payload;
+      }
+
+      const EMPLOYEE_NOTICES = {
+        cancelled: { title: 'Consulta cancelada', message: 'Tus filtros se conservaron. Podés volver a consultar cuando quieras.', count: 'Consulta cancelada', action: true },
+        timeout: { title: 'La consulta tardó demasiado', message: 'No se recibieron resultados a tiempo. Tus filtros se conservaron; podés volver a consultar.', count: 'Sin respuesta a tiempo', action: true },
+        withdrawn: { title: 'Consulta retirada', message: 'Por seguridad se retiraron los resultados. Tus filtros se conservaron; consultá de nuevo para verlos.', count: 'Resultados retirados', action: true },
+        permission: { title: 'Consulta de legajos no disponible', message: 'Tu acceso a legajos cambió. Si se restablece, vas a poder consultar de nuevo desde acá.', count: 'Consulta no disponible', action: false }
+      };
+
+      // Ningún aviso conserva filas como si fueran resultado: retira la lista y la evidencia operativa asociada.
+      function renderEmployeesNotice(kind, focusAction) {
+        const notice = EMPLOYEE_NOTICES[kind];
+        window.dispatchEvent(new Event('municontrol:workforce-reset'));
+        els.employeeRows.replaceChildren();
+        const row = create('tr');
+        const cell = create('td', 'table-message');
+        cell.colSpan = 7;
+        cell.append(create('strong', '', notice.title), document.createTextNode(notice.message));
+        let action = null;
+        if (notice.action) {
+          action = create('button', 'button', 'Volver a consultar');
+          action.type = 'button';
+          action.style.margin = '14px auto 0';
+          action.addEventListener('click', function () { loadEmployees(state.pagination.page || 1, { explicit: true }); });
+          cell.appendChild(action);
+        }
+        row.appendChild(cell);
+        els.employeeRows.appendChild(row);
+        els.employeeResultCount.textContent = notice.count;
+        els.paginationStatus.textContent = 'Página —';
+        els.previousPage.disabled = true;
+        els.nextPage.disabled = true;
+        if (action && focusAction) action.focus();
+      }
+
+      // Retira el catálogo de facetas pero conserva los filtros elegidos (su valor queda como única opción conocida).
+      function retireDirectoryFacets() {
+        state.directoryFacetsLoaded = false;
+        [[state.sectors, state.filters.sector], [state.organizations, state.filters.organization], [state.agreements, state.filters.agreement]].forEach(function (pair) {
+          pair[0].clear();
+          if (pair[1]) pair[0].add(pair[1]);
+        });
+        refreshSectorOptions();
+        refreshFacetOptions(els.organizationFilter, state.organizations, 'Todas las organizaciones');
+        refreshFacetOptions(els.agreementFilter, state.agreements, 'Todos los convenios');
+      }
+
+      // Invalida primero la operación (ninguna continuación vieja publica ni redirige) y después retira la lista.
+      function withdrawEmployeeDirectory(kind) {
+        const hadDirectory = state.employeesLoaded || state.employeesLoading || state.employeeOperation !== null || state.employeeDirectoryWithdrawn;
+        invalidateEmployeeOperation('withdrawn');
+        state.employeesLoading = false;
+        els.employeeTableWrap.setAttribute('aria-busy', 'false');
+        els.cancelEmployeeQuery.hidden = true;
+        if (kind === 'permission') state.employeeReadRevoked = true;
+        if (!hadDirectory && kind !== 'permission') return;
+        state.employeeDirectoryWithdrawn = true;
+        state.employeesLoaded = false;
+        state.employeeLastQuery = null;
+        state.pagination = { page: 1, limit: PAGE_LIMIT, total: null, pages: null };
+        renderDirectoryScope({});
+        retireDirectoryFacets();
+        renderEmployeesNotice(state.employeeReadRevoked ? 'permission' : 'withdrawn', false);
+      }
+
+      function employeeVisibilityChanged() {
+        if (document.hidden) {
+          withdrawEmployeeDetail();
+          withdrawEmployeeDirectory('hidden');
+        }
+      }
+
+      function employeeCapabilitiesChanged(event) {
+        const values = event.detail?.tenantCapabilities;
+        if (!values) return;
+        // Mismo protocolo existente: el evento trae la autorización vigente del cliente y queda registrada en el estado
+        // que consultan las guardas de vigencia. No crea permisos: sólo refleja lo recibido.
+        state.tenantCapabilities = capabilitySet(typeof values.has === 'function' && typeof values[Symbol.iterator] === 'function' ? Array.from(values) : values);
+        const allowed = state.tenantCapabilities.has('workforce.employee.read');
+        if (!allowed) {
+          withdrawEmployeeDetail();
+          withdrawEmployeeDirectory('permission');
+        } else if (state.employeeReadRevoked) {
+          state.employeeReadRevoked = false;
+          renderEmployeesNotice('withdrawn', false);
+        }
+      }
+
+      async function loadEmployees(page, options) {
+        const explicit = Boolean(options && options.explicit);
+        const unavailable = employeeUnavailableReason();
+        if (unavailable) {
+          // Sin GET en un contexto no disponible; si había lista o consulta, se retira por la misma causa.
+          withdrawEmployeeDirectory(unavailable);
+          return unavailable === 'permission'
+            ? { ok: false, resource: 'employees', forbidden: true }
+            : { ok: false, resource: 'employees', unavailable: true };
+        }
+        if (state.employeeDirectoryWithdrawn && !explicit) return { ok: false, resource: 'employees', withdrawn: true };
         const query = employeeQuery(page);
         if (state.employeesLoading && state.employeeLastQuery === query) {
           return { ok: false, resource: 'employees', pending: true };
         }
-        if (state.employeeController) state.employeeController.abort();
-        const controller = new AbortController();
-        state.employeeController = controller;
+        state.employeeDirectoryWithdrawn = false;
+        const operation = startEmployeeOperation();
         state.employeeLastQuery = query;
-        const requestId = ++state.employeeRequest;
         const hasRows = state.employeesLoaded && els.employeeRows.querySelector('[data-legajo]');
         setEmployeesLoading(Boolean(hasRows));
 
         try {
-          const payload = await requestJSON(query, { signal: controller.signal });
-          if (requestId !== state.employeeRequest) return;
+          const payload = await requestEmployeeDirectory(query, operation);
+          ensureEmployeeOperationCurrent(operation);
           const result = normalizeEmployees(payload);
           state.pagination = result.pagination;
           state.employeesLoaded = true;
@@ -2564,15 +2793,41 @@
           renderEmployees(result.rows, result.pagination);
           return { ok: true, resource: 'employees' };
         } catch (error) {
-          if (error.name === 'AbortError') return { ok: false, resource: 'employees', cancelled: true };
+          if (operation.id !== state.employeeRequest || operation.reason === 'superseded' || operation.reason === 'withdrawn') {
+            return { ok: false, resource: 'employees', stale: true };
+          }
+          const unavailableNow = employeeUnavailableReason();
+          if (unavailableNow && !(error instanceof UnauthorizedError)) {
+            // Ningún aviso (plazo, cancelación, error) se publica en un contexto que dejó de estar disponible.
+            withdrawEmployeeDirectory(unavailableNow);
+            return { ok: false, resource: 'employees', stale: true };
+          }
           if (error instanceof UnauthorizedError) return { ok: false, resource: 'employees', unauthorized: true };
-          if (requestId !== state.employeeRequest) return { ok: false, resource: 'employees', stale: true };
+          if (error && error.employeeHttp) {
+            // Estado HTTP de error ya recibido: se informa aunque el cuerpo haya quedado retenido hasta el plazo.
+            state.employeesLoaded = false;
+            renderEmployeesError(error);
+            return { ok: false, resource: 'employees', error: error };
+          }
+          if (operation.reason === 'cancelled') {
+            state.employeesLoaded = false;
+            renderEmployeesNotice('cancelled', true);
+            return { ok: false, resource: 'employees', cancelled: true };
+          }
+          if (operation.reason === 'timeout') {
+            state.employeesLoaded = false;
+            renderEmployeesNotice('timeout', false);
+            return { ok: false, resource: 'employees', timeout: true };
+          }
+          state.employeesLoaded = false;
           renderEmployeesError(error);
           return { ok: false, resource: 'employees', error: error };
         } finally {
-          if (requestId === state.employeeRequest) {
+          finishEmployeeOperation(operation, null);
+          if (operation.id === state.employeeRequest) {
             state.employeesLoading = false;
             els.employeeTableWrap.setAttribute('aria-busy', 'false');
+            els.cancelEmployeeQuery.hidden = true;
           }
         }
       }
@@ -2731,14 +2986,16 @@
         els.nextPage.disabled = true;
       }
 
-      function applyFilters() {
+      // `explicit === true` sólo desde el submit de Buscar: tras un retiro, Buscar es una consulta nueva; los cambios de
+      // filtro (change/debounce) y los llamados automáticos siguen sin consultar mientras la lista está retirada.
+      function applyFilters(explicit) {
         state.filters.search = els.employeeSearch.value.trim();
         state.filters.sector = els.sectorFilter.value;
         state.filters.organization = els.organizationFilter.value;
         state.filters.agreement = els.agreementFilter.value;
         state.filters.status = els.statusFilter.value;
         state.filters.crosswalk = els.crosswalkFilter.value;
-        loadEmployees(1);
+        loadEmployees(1, explicit === true ? { explicit: true } : undefined);
       }
 
       function normalizeEmployeeDetail(payload) {
@@ -4004,23 +4261,22 @@
       window.addEventListener('popstate', function () { showView(viewFromLocation(), false, true); });
       els.retryAuth.addEventListener('click', authenticate);
       els.refreshButton.addEventListener('click', refreshCurrentView);
+      els.cancelEmployeeQuery.addEventListener('click', cancelEmployeeQuery);
+      els.logoutButton.addEventListener('click', function () { withdrawEmployeeDirectory('session'); });
       els.logoutButton.addEventListener('click', logout);
       els.closeDialog.addEventListener('click', closeDialog);
       els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
       function withdrawEmployeeDetail() {
         closeDialog();els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
       }
-      document.addEventListener('visibilitychange',function(){if(document.hidden)withdrawEmployeeDetail();});
-      document.addEventListener('municontrol:capabilities-ready',function(event){
-        const values=event.detail?.tenantCapabilities;
-        if(values && !(typeof values.has==='function'?values.has('workforce.employee.read'):Array.isArray(values)&&values.includes('workforce.employee.read')))withdrawEmployeeDetail();
-      });
+      document.addEventListener('visibilitychange',employeeVisibilityChanged);
+      document.addEventListener('municontrol:capabilities-ready',employeeCapabilitiesChanged);
       document.addEventListener('mc:native-employee-created', function(event) {
         if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
         els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;
         els.statusFilter.value='all'; applyFilters();
       });
-      els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(); });
+      els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(true); });
       els.employeeSearch.addEventListener('input', function () {
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(applyFilters, 380);

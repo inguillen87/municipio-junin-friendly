@@ -3,11 +3,31 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {createInternalDataHandler} from '../api/internal-data.js';
 import {row,proof,related,historySql,binding,principal,session,CONTRACT} from '../tests/fixtures/employment-adoption-history-synthetic.js';
-const origin='http://127.0.0.1:4328',root=path.resolve('public'),out=path.resolve('verification/adoption-history-browser-20261006');
-assert.ok(!fs.existsSync(out),'Do not overwrite an earlier browser result');fs.mkdirSync(out);
+const origin='http://127.0.0.1:4328',root=path.resolve('public');
+const outputOptions=process.argv.slice(2);
+assert.ok(outputOptions.length<=1&&outputOptions.every(arg=>arg.startsWith('--output=')),'Only one --output=verification/<fresh path> is supported');
+const outputRelative=outputOptions[0]?.slice(9)??'verification/adoption-history-browser-20261006';
+const outputRepo=fs.realpathSync(new URL('../',import.meta.url));
+assert.ok(/^verification\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?\/)*[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$/.test(outputRelative),'--output must be verification/<fresh relative path>');
+const outputParts=outputRelative.split('/');
+assert.ok(outputParts.every(part=>!(/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(part))),'Windows device names are not output directories');
+let outputParent=outputRepo;
+const outputWithin=p=>{const relative=path.relative(outputRepo,fs.realpathSync(p));assert.ok(relative!==''&&!path.isAbsolute(relative)&&relative!=='..'&&!relative.startsWith('..'+path.sep),'Output escapes repository');};
+for(const part of outputParts.slice(0,-1)){
+ const next=path.join(outputParent,part);let entry;
+ try{entry=fs.lstatSync(next);}catch(error){if(error.code!=='ENOENT')throw error;}
+ if(entry)assert.ok(entry.isDirectory()&&!entry.isSymbolicLink(),'Output parent must be a regular directory, without symlinks');
+ else fs.mkdirSync(next);
+ const current=fs.lstatSync(next);assert.ok(current.isDirectory()&&!current.isSymbolicLink(),'Output parent cannot be replaced with a symlink');outputWithin(next);outputParent=next;
+}
+const out=path.join(outputParent,outputParts.at(-1));let previousOutput;
+try{previousOutput=fs.lstatSync(out);}catch(error){if(error.code!=='ENOENT')throw error;}
+assert.equal(previousOutput,undefined,'Preserve prior browser evidence: output already exists');
+fs.mkdirSync(out);
+assert.ok(fs.lstatSync(out).isDirectory()&&!fs.lstatSync(out).isSymbolicLink(),'Output must be a fresh regular directory');outputWithin(out);
 const checks=[],errors=[],requests=[],detailReads=[];let mode='adopted',caps=['workforce.employee.read'];
 const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
-const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{channel:'chrome'})});let observedPage;
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});let observedPage;
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
  await context.route('**/*',async route=>{
@@ -39,6 +59,7 @@ try{
  await page.keyboard.press('Escape');mode='capped';await open();await history.waitFor();const counts=await history.locator('.detail-count').allTextContents();assert.match(counts[0],/57/);assert.match(counts[0],/Recibidos: 25/);assert.match(counts[3],/31/);assert.match(counts[3],/Recibidos: 20/);assert.match(await history.innerText(),/no representa el historial completo/);await dialog.screenshot({path:path.join(out,'capped-320.png')});checks.push('existing relation limits show original totals, received counts and an explicit incomplete warning');
  const storage=await page.evaluate(()=>({local:JSON.stringify({...localStorage}),session:JSON.stringify({...sessionStorage})}));assert.doesNotMatch(JSON.stringify(storage),/PERSONA SINTÉTICA|99999990|historico@example|FAMILIAR HISTÓRICO/);checks.push('no synthetic nominal history is persisted in browser storage');
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden;});assert.equal(await dialog.isVisible(),false);assert.equal(await page.locator('#dialogBody').textContent(),'');checks.push('hiding the page aborts, closes and removes the private detail');
+ assert.equal(await page.locator('#employeeRows [data-legajo]').count(),0);await page.locator('#employeeRows').getByRole('button',{name:'Volver a consultar',exact:true}).click();await page.waitForFunction(()=>{const wrap=document.querySelector('#employeeTableWrap'),rows=document.querySelector('#employeeRows');return wrap?.getAttribute('aria-busy')==='false'&&!!rows?.querySelector('[data-legajo]')&&[...rows.querySelectorAll('button')].some(button=>button.textContent.trim()==='Ver ficha');});
  mode='changed';await open();assert.equal(await history.count(),0);assert.match(await dialog.innerText(),/Cambió la fuente/);checks.push('changed source during real handler read delivers an actionable error and no stale history');await page.keyboard.press('Escape');
  mode='revoked';await open();assert.equal(await history.count(),0);assert.doesNotMatch(await dialog.innerText(),/FAMILIAR HISTÓRICO SINTÉTICO|historico@example/);checks.push('server-side revocation after relation reads suppresses all private detail');await page.keyboard.press('Escape');
  mode='adopted';await open();await history.waitFor();caps=[];await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));assert.equal(await dialog.isVisible(),false);assert.equal(await page.locator('#dialogBody').textContent(),'');checks.push('withdrawn read capability closes and removes the loaded private detail');

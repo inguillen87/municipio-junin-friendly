@@ -32,10 +32,18 @@ export const F931_FIELDS=Object.freeze(definitions.map(([label,width],i)=>{
 }));
 if(position!==500||F931_FIELDS.length!==60)throw Error('El diseño de referencia F.931 no está completo.');
 
+// Ítem 1 (29/10): la selección es sobre la jurisdicción laboral conservada en cada
+// participación cerrada (42/55). No es una población fiscal ni se infiere del padrón.
+export const OWN_F931_JURISDICTION_CHOICES=Object.freeze(['all','42','55']);
+export function ownF931Jurisdiction(value){
+ if(!OWN_F931_JURISDICTION_CHOICES.includes(value))throw Error('Elegí Todas las jurisdicciones, Jurisdicción 42 o Jurisdicción 55 conservadas en los cierres.');
+ return value;
+}
 export function ownF931Params(value){
- if(!salaryExact(value,['period','presentationDate','types'])||!isoDay(value.presentationDate))throw Error('Elegí período, fecha prevista de presentación y tipos completos.');
+ const withJurisdiction=salaryExact(value,['period','presentationDate','types','jurisdiction']);
+ if(!(withJurisdiction||salaryExact(value,['period','presentationDate','types']))||!isoDay(value.presentationDate))throw Error('Elegí período, fecha prevista de presentación y tipos completos.');
  const query=ownReportQuery({from:value.period,to:value.period,types:value.types});
- return {period:query.from,presentationDate:value.presentationDate,types:query.types};
+ return {period:query.from,presentationDate:value.presentationDate,types:query.types,jurisdiction:ownF931Jurisdiction(withJurisdiction?value.jurisdiction:'all')};
 }
 export function ownF931VersionRequirement(value){
  const p=ownF931Params(value),byPeriod=p.period>=F931_VERSION_RULE.firstPeriod,byPresentation=p.presentationDate>=F931_VERSION_RULE.effectiveDate;

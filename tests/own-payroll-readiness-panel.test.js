@@ -74,14 +74,40 @@ function harness(t){
  return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document,now:()=>clock};
 }
 
+function assertActionHelp(h,pattern,{href=null}={}){
+ const help=h.q('action-help'),link=h.q('action-help-link');assert.equal(help.hidden,false);assert.match(h.q('action-help-text').textContent,pattern);assert.equal(help.getAttribute('id'),'ownRunActionHelp');
+ for(const control of ['send','confirm'])assert.equal(h.q(control).getAttribute('aria-describedby'),help.getAttribute('id'));
+ assert.equal(link.hidden,href===null);if(href!==null)assert.equal(link.href,href);else{assert.equal(link.getAttribute('href'),null);assert.ok(!link.href);}
+}
+
+test('la guía de reintento se retira al revocar preparar aunque el intento incierto se conserve',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.submit();
+ const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);const first=posts[0];assert.ok(first.key);assert.ok(first.body);
+ assert.equal(h.q('recover').hidden,false);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,false);assertActionHelp(h,/misma referencia y el mismo contenido/);
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});
+ assert.equal(h.q('recover').hidden,false);assert.equal(h.q('recover').disabled,false);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
+ assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.equal(h.q('action-help-link').hidden,true);assert.equal(h.q('action-help-link').getAttribute('href'),null);assert.ok(!h.q('action-help-link').href);
+ const before=h.requests.length;await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,1);assert.equal(h.requests.length,before);assert.equal(h.requests.find(r=>r.method==='POST').key,first.key);assert.equal(h.requests.find(r=>r.method==='POST').body,first.body);
+});
+test('la guía de reintento se retira ante sesión 401 sin borrar el intento ni reenviar el cálculo',async t=>{
+ const h=harness(t);await h.start();await h.prepare();await h.submit();
+ const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);const first=posts[0];assert.ok(first.key);assert.ok(first.body);
+ assert.equal(h.q('recover').hidden,false);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,false);assertActionHelp(h,/misma referencia y el mismo contenido/);
+ h.state.authFailure=401;const beforeAuth=h.requests.length;await h.q('recover').emit('click');await h.idle();
+ const reads=h.requests.slice(beforeAuth);assert.equal(reads.length,1);assert.equal(reads[0].url,'/api/internal-auth');assert.equal(reads[0].method,'GET');assert.equal(h.q('login').hidden,false);
+ assert.equal(h.q('recover').hidden,false);assert.equal(h.q('recover').disabled,true);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
+ assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.equal(h.q('action-help-link').hidden,true);assert.equal(h.q('action-help-link').getAttribute('href'),null);assert.ok(!h.q('action-help-link').href);
+ const before=h.requests.length;await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,1);assert.equal(h.requests.length,before);assert.equal(h.requests.find(r=>r.method==='POST').key,first.key);assert.equal(h.requests.find(r=>r.method==='POST').body,first.body);
+});
+
 test('permiso de calcular con cero legajos propios no habilita el botón ni una captura',async t=>{
  const h=harness(t);h.state.roster=ownRoster(0);h.state.program=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await h.start();
- assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('send').hidden,true);assert.match(h.q('readiness-title').textContent,/incorporar el padrón propio/);assert.equal(h.q('readiness-link').href,'/personal?adopcion=pendientes#legajos');assert.match(h.q('readiness-facts').textContent,/0 legajos propios/);
+ assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('send').hidden,true);assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.match(h.q('readiness-title').textContent,/incorporar el padrón propio/);assert.equal(h.q('readiness-link').href,'/personal?adopcion=pendientes#legajos');assert.match(h.q('readiness-facts').textContent,/0 legajos propios/);
  await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('recover').hidden,true);
 });
 test('maestro pendiente y programa pendiente muestran su paso real, sin aprobarlos en pantalla',async t=>{
  const h=harness(t);h.state.program=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await h.start();assert.equal(h.q('readiness-link').href,'/nomina#parametros');assert.equal(h.q('fields').disabled,true);
- h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+ h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.equal(h.q('send').disabled,true);assertActionHelp(h,/falta aprobar las reglas/,{href:'/nomina#reglas'});assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 test('error de servicio, capacidad, aborto, JSON inválido y filtro se muestran sin verificar, nunca como cero',async t=>{
  const h=harness(t);await h.start();assert.equal(h.q('fields').disabled,false);
@@ -101,7 +127,7 @@ test('si cambia padrón o reglas después de revisar, no crea clave ni captura h
 });
 test('consulta y reintento existentes conservan clave y cuerpo aunque el padrón actual esté vacío',async t=>{
  const h=harness(t);await h.start();await h.prepare();await h.submit();const first=h.requests.find(r=>r.method==='POST');assert.ok(first);h.state.roster=ownRoster(0);h.state.program=bootstrap();await h.refresh();
- assert.equal(h.q('recover').disabled,false);assert.equal(h.q('send').disabled,false);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('readiness').hidden,true);
+ assert.equal(h.q('recover').disabled,false);assert.equal(h.q('send').disabled,false);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('readiness').hidden,true);assertActionHelp(h,/misma referencia y el mismo contenido/);
  await h.q('recover').emit('click');await h.idle();assert.equal(h.requests.at(-1).url,'/api/internal-own-payroll-run?resource=attempt&key='+first.key);
  const before=h.requests.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,2);assert.equal(posts[1].key,first.key);assert.equal(posts[1].body,first.body);assert.equal(h.requests.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length,before);
  await h.q('revise').emit('click');await h.idle();assert.equal(h.q('recover').hidden,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('readiness-link').href,'/personal?adopcion=pendientes#legajos');
@@ -112,7 +138,7 @@ test('respuesta tardía después de ocultar la página no restituye datos ni pre
 });
 test('otra sesión o permiso retirado no recupera la habilitación de preparar',async t=>{
  const h=harness(t);await h.start();h.state.sessionId=uid(31);await h.refresh();assert.equal(h.q('fields').disabled,true);assert.match(h.q('readiness-facts').textContent,/sin verificar/);
- h.state.sessionId=uid(30);await h.refresh();h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);
+ h.state.sessionId=uid(30);await h.refresh();h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});assert.equal(h.q('fields').disabled,true);assert.equal(h.q('send').disabled,true);assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.equal(h.q('action-help-link').hidden,true);assert.ok(!h.q('action-help-link').href);
 });
 
 test('volver visible revalida sólo GET y restaura fecha y reparticiones del borrador después del permiso fresco',async t=>{
@@ -175,8 +201,8 @@ test('picker de Calcular busca1339sobre851propios completos sin programa ni dire
 
 test('aprobación posterior conserva borrador completo y exige revisión manual antes de POST fresco',async t=>{
  const h=harness(t);h.state.program=bootstrap();h.state.postFailure=false;await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');h.q('codes').options[0].selected=true;const codes=h.q('codes').selectedOptions.map(o=>o.value);h.state.program=bootstrap({program:approved()});await h.refresh();
- assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),codes);assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
- h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);const before=h.requests.length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].body).payload.selection,{kind:'departments',values:codes});assert.ok(h.requests.slice(before).some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),codes);assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assertActionHelp(h,/Marcá «Revisé el período/);
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);assertActionHelp(h,/Revisión marcada/);const before=h.requests.length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].body).payload.selection,{kind:'departments',values:codes});assert.ok(h.requests.slice(before).some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));
 });
 
 test('borrador sin programa se retira al ocultar; sólo vuelve tras padrón y acceso completos frescos',async t=>{

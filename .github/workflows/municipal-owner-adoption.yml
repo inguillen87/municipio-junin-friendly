@@ -136,10 +136,12 @@ jobs:
       - name: Complete 186 October 01 source, handler and browser circuit
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+          MC_QA_BUSY_DIAGNOSTIC: '1'
         run: node scripts/verify-mixed-contract-adoption.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.baseline }} --output=verification/owner-mixed-oct01-pg${{ matrix.pg }}-${{ matrix.baseline }}
       - name: Complete 186 October 14 and canonical 183 four phases
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+          MC_QA_BUSY_DIAGNOSTIC: '1'
         run: node scripts/verify-mixed-contract-adoption.mjs --major=${{ matrix.pg }} --transport=ci --source-commit=${{ github.sha }} --operational-pair-baseline=${{ matrix.baseline }} --profile=october14 --output=verification/owner-mixed-oct14-pg${{ matrix.pg }}-${{ matrix.baseline }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
