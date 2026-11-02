@@ -1,6 +1,7 @@
 // Real product page + real HTTP handlers + committed isolated PostgreSQL.
 // Auth gateway and unavailable historical dashboard are QA fixtures; the own picker uses the real SQL-backed roster handler.
 import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
+import {qaBrowserJsonSnapshot} from './lib/qa-browser-json-snapshot.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -224,9 +225,10 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run');await rs('send').click();const failedResponse=await failedResponsePromise;await idle();
+  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run').then(qaBrowserJsonSnapshot);
+  const [failedResponse]=await Promise.all([failedResponsePromise,rs('send').click()]);await idle();
   const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
-  check(failedResponse.status()===422&&(await failedResponse.json()).code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  check(failedResponse.status===422&&failedResponse.body.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   check((await rs('source-summary').innerText()).includes('31 novedades')&&(await rs('source-summary').innerText()).includes('31 registros'),'source review inspects all 31 actual approved SQL novelties');
