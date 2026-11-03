@@ -37,7 +37,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const pick=id=>document.getElementById(id)?.closest('section.section');
  const report=document.createElement('div'),ownReport=document.createElement('div'),planillas=document.createElement('div'),sourceReport=document.createElement('div');mountOwnPayrollReports(ownReport);mountOwnPayrollPlanillas(planillas);mountSourceReports(sourceReport);report.append(ownReport,planillas,toolDetails(sourceReport,'Consultar liquidaciones incorporadas desde respaldos'));
  const comparison=document.createElement('div'),ownComparison=document.createElement('div'),sourceComparison=document.createElement('div');mountOwnPayrollComparison(ownComparison);mountPayrollComparison(sourceComparison);comparison.append(ownComparison,toolDetails(sourceComparison,'Comparar liquidaciones incorporadas desde respaldos'));
- let workspace,calculationPanel,decisionsPanel;
+ let workspace,calculationPanel,decisionsPanel,fiscalFactsPanel,f931Panel;
  const calculation=document.createElement('div');calculationPanel=mountOwnPayrollRun(calculation,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true)});
  const decisions=document.createElement('div');decisionsPanel=mountOwnPayrollLiquidation(decisions,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
  const summary=document.createElement('div');mountOwnPayrollSummary(summary,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true),onTask:id=>workspace.activate(id,true)});
@@ -50,8 +50,8 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const participation=document.createElement('div');mountOwnPeriodParticipation(participation);
  const artDays=document.createElement('div');mountOwnPeriodArtDays(artDays);
  const art=document.createElement('div');mountOwnArtReport(art);
- const fiscalFacts=document.createElement('div');mountOwnPeriodFiscalFacts(fiscalFacts);
- const f931=document.createElement('div');mountOwnF931Preparation(f931);
+ const fiscalFacts=document.createElement('div');fiscalFactsPanel=mountOwnPeriodFiscalFacts(fiscalFacts,{onReturn:context=>f931Panel.queueReview(context)&&workspace.activate('f931',true)});
+ const f931=document.createElement('div');f931Panel=mountOwnF931Preparation(f931,{onCorrect:context=>fiscalFactsPanel.queueCorrection(context)&&workspace.activate('datos-fiscales',true)});
  const seniority=document.createElement('div');mountOwnSalarySeniority(seniority);
  const workingTime=document.createElement('div');mountOwnContractWorkingTime(workingTime);
  const agreementTime=document.createElement('div');mountOwnAgreementWorkingTime(agreementTime);
