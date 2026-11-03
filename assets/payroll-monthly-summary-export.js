@@ -145,9 +145,15 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
       rect(left, y, contentWidth, headerHeight, '0.09 0.24 0.30'); let x = left;
       headerParts.forEach((p, i) => { p.forEach((line, j) => draw(x + 5, y + 12 + j * 10, line, 8, true, '1 1 1')); x += sizes[i]; }); y += headerHeight;
     }
-    const firstRowHeight = values.length ? Math.min(60, Math.max(...partsFor(values[0]).map(p => p.length)) * 10.5 + 8) : 22;
+    const firstRowHeight = values.length ? Math.max(...partsFor(values[0]).map(p => p.length)) * 10.5 + 8 : 24;
     const noteLines = note ? monthlyPdfLines(note, contentWidth, 8) : [];
-    const sectionHeight = 27 + noteLines.length * 11 + headerHeight + firstRowHeight;
+    const noteHeight = noteLines.length ? noteLines.length * 11 + 6 : 0;
+    // Keep a normal first row with its section title and column headings. If
+    // it cannot fit even on a fresh section page, reserve one line and let
+    // the measured row fragments below consume the remaining page space.
+    const firstPageRoom = bottom - 88 - noteHeight - headerHeight;
+    const firstRowReservation = values.length && firstRowHeight > firstPageRoom ? 10.5 + 8 : firstRowHeight;
+    const sectionHeight = 31 + noteHeight + headerHeight + firstRowReservation;
     if (!ops || y + sectionHeight > bottom) page();
     else { y += 14; draw(left, y + 9, title, 10, true); y += 17; }
     noteLines.forEach(line => { draw(left, y + 8, line); y += 11; });
@@ -162,7 +168,7 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
         let capacity = Math.floor((bottom - y - 8) / 10.5);
         if (capacity < 1) { page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5); }
         const remaining = lines - offset;
-        if (offset === 0 && remaining > capacity && remaining * 10.5 + 8 <= bottom - 88 - headerHeight) {
+        if (index !== 0 && offset === 0 && remaining > capacity && remaining * 10.5 + 8 <= bottom - 88 - headerHeight) {
           page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5);
         }
         const count = Math.min(remaining, capacity), h = count * 10.5 + 8;

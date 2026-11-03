@@ -261,7 +261,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   $('[data-fs-add-child]').setAttribute('aria-describedby', declarationStatus.id);
   let data = null, editor = null, controller = null, generation = 0, destroyed = false, busy = false;
   let familyContext = null, declarationEditor = null, authorityKey = null;
-  let declarationAccessReason = 'Verificando permiso para agregar hijos…';
+  let declarationAccessReason = 'Verificando permiso para agregar hijos…', busyReason = '';
   const pendingKey = contractId.toLowerCase();
   const hasPending = () => pendingSchoolingAttempts.has(pendingKey) || pendingFamilyAttempts.has(pendingKey);
   const clearPending = key => { if (pendingSchoolingAttempts.get(pendingKey)?.key === key) pendingSchoolingAttempts.delete(pendingKey); };
@@ -315,7 +315,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     // This action may request declaration authority; it never grants it. The form still requires mayDeclare().
     addChild.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRequestDeclaration();
     addChild.setAttribute('aria-disabled', String(addChild.disabled));
-    declarationStatus.textContent = busy ? declarationAccessReason || 'Esperá a que termine la operación en curso para agregar hijos.'
+    declarationStatus.textContent = busy ? busyReason || 'Esperá a que termine la operación en curso para agregar hijos.'
       : declarationEditor?.pending ? 'Verificá si el alta pendiente quedó guardada antes de agregar otro hijo.'
       : declarationEditor ? 'Terminá o cancelá el alta abierta antes de agregar otro hijo.'
       : editor || pendingSchoolingAttempts.has(pendingKey) ? 'Terminá o resolvé la carga de certificado pendiente antes de agregar hijos.'
@@ -403,7 +403,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   }
   async function load(announcement) {
     if (busy || editor || declarationEditor || !available()) return;
-    familyContext = null; declarationAccessReason = 'Consultando hijos y certificados antes de habilitar una nueva declaración…';
+    familyContext = null; busyReason = 'Consultando hijos y certificados antes de habilitar una nueva declaración…';
     controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
     try {
       await checkAuthority(controller);
@@ -431,7 +431,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       declarationAccessReason = [401,403].includes(e.status) || profileConflict(e) || e.code === 'FAMILY_ACTOR_CHANGED' ? message(e) : 'No se pudo habilitar el alta de hijos. Usá Actualizar registro para reintentar.';
       status.textContent = announcement
       ? announcement + ' No pudimos actualizar la vista. Usá Actualizar registro; no repitas el alta.' : message(e); } }
-    finally { if (seq === generation && available()) { busy = false; controls(); } }
+    finally { if (seq === generation && available()) { busy = false; busyReason = ''; controls(); } }
   }
   async function getDocument(certificate) {
     if (busy || !available() || !data) return;
@@ -671,7 +671,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   async function requestDeclarationContext() {
     if (busy || editor || declarationEditor || !mayRequestDeclaration()) return;
     familyContext = null; controller?.abort(); controller = new AbortController(); const seq = ++generation;
-    busy = true; declarationAccessReason = 'Verificando permiso e identidad antes de agregar un hijo…'; controls();
+    busy = true; busyReason = 'Verificando permiso e identidad antes de agregar un hijo…'; controls();
     let ready = false;
     try {
       await checkAuthority(controller);
@@ -692,7 +692,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         declarationAccessReason = [401,403].includes(e.status) || profileConflict(e) || e.code === 'FAMILY_ACTOR_CHANGED' ? message(e) : 'Los certificados siguen disponibles. No se pudo verificar el permiso de alta; elegí Agregar hijo/a para reintentar.';
       }
     } finally {
-      if (seq === generation && available()) { busy = false; controls(); if (ready) openDeclaration(); }
+      if (seq === generation && available()) { busy = false; busyReason = ''; controls(); if (ready) openDeclaration(); }
     }
   }
   function openDeclaration(pending = null) {
@@ -724,7 +724,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (pending) {
       for (const [key, input] of Object.entries(fields)) input.value = pending.body[key] ?? '';
       recheck.hidden = false; recheck.textContent = 'Verificar si quedó guardado';
-      feedback.textContent = 'Hay un envío sin confirmación. Conservamos sus datos y la clave: verificá su estado o reintentá exactamente el mismo alta.';
+      feedback.textContent = 'Hay un envío sin confirmación. Conservamos sus datos y la clave. Elegí Verificar si quedó guardado; si no se registró, se habilitará reintentar el mismo envío.';
     }
     declarationEditor = active; controls(); if (!pending) fields.familyName.focus();
     function confirmation(payload) {
@@ -802,7 +802,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const caps = supplied instanceof Set ? supplied : new Set(Array.isArray(supplied) ? supplied : []);
     const nextPropose = caps.has('employee.record.propose');
     if (caps.has('workforce.employee.read') && nextPropose === canPropose) return;
-    canPropose = nextPropose; generation++; controller?.abort(); busy = false;
+    canPropose = nextPropose; generation++; controller?.abort(); busy = false; busyReason = '';
     invalidateConsultedData(); controls();
   }
   function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.reading?.destroy(); editor?.photo?.destroy(); editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();

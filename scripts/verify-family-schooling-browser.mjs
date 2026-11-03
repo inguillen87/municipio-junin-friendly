@@ -55,6 +55,7 @@ let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee
 let delayedEmployee = null, alternateEmployee = false;
 let canDeclare = true, proposeCapability = true, childError = null, dropChildAck = false, contractToken = 'd'.repeat(64);
 let failFamilyContext = 0, delayFamilyContext = null;
+let failFamilyAttempt = 0, familyAttemptRequests = 0, delayFamilyHistory = null, historyReadStarted = null;
 let familyContextRequests = 0, contextReadStarted = null, familyContextWrong = false, authActor = 'qa@example.invalid';
 const declarations = [], declaredByKey = new Map();
 const employee = { contractId: syntheticUuid(1), legajo: '000001', nombre: 'AGENTE SINTÉTICO 0001', companyId: 7,
@@ -87,6 +88,7 @@ try {
     if (u.pathname === '/api/internal-family-certificates') {
       assert.equal(u.searchParams.get('version'), ['report','family'].includes(resource) ? '5' : '3', 'UNIFIED_API_VERSION_REQUIRED');
       if (resource === 'download') downloadRequests++;
+      if (resource === 'history' && delayFamilyHistory) { const pending = delayFamilyHistory; delayFamilyHistory = null; historyReadStarted?.(); historyReadStarted = null; await pending; }
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
         if (postError) { const next = postError; postError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code, error: 'Fallo sintético controlado' } }); }
@@ -124,7 +126,11 @@ try {
     if (u.pathname === '/api/internal-family-members') {
       assert.equal(u.searchParams.get('version'), '2');
       if (request.method() === 'GET') {
-        if (resource === 'attempt') { const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}}); }
+        if (resource === 'attempt') {
+          familyAttemptRequests++;
+          if (failFamilyAttempt) return route.fulfill({status:failFamilyAttempt,json:{ok:false,code:'EMPLOYEE_FAMILY_CAPABILITY_REQUIRED'}});
+          const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}});
+        }
         assert.equal(resource, 'context');
         familyContextRequests++; contextReadStarted?.(); contextReadStarted = null;
         if (delayFamilyContext) { const pending = delayFamilyContext; delayFamilyContext = null; await pending; }
@@ -134,7 +140,7 @@ try {
           subject: { contractId: familyContextWrong ? syntheticUuid(99999) : subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
             sourceCutoff: '2026-08-06T18:15:21Z', identityToken: contractToken } } } });
       }
-      const body = request.postDataJSON(), key = request.headers()['idempotency-key']; declarations.push({ body, key });
+      const body = request.postDataJSON(), key = request.headers()['idempotency-key']; declarations.push({ body, key, json: request.postData(), actor: authActor });
       assert.deepEqual(Object.keys(body).sort(), ['birthDate','contractId','contractIdentityToken','dni','familyName','validFrom','validTo']);
       if (childError) { const next = childError; childError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code } }); }
       assert.equal(body.contractIdentityToken, contractToken);
@@ -541,6 +547,16 @@ try {
     if (failure === 503) {
       await childAccess(false, /certificados siguen disponibles/);
       assert.ok(await family.locator('.fs-child').count() > 0);
+      let releaseHistory; delayFamilyHistory = new Promise(resolve => { releaseHistory = resolve; });
+      const historyStarted = new Promise(resolve => { historyReadStarted = resolve; });
+      try {
+        await family.locator('[data-fs-history]').first().click(); await historyStarted;
+        await childAccess(true, /Esperá a que termine la operación en curso/);
+        assert.doesNotMatch(await family.locator('[data-fs-create-status]').innerText(), /elegí Agregar hijo\/a para reintentar|Al elegir Agregar/);
+        assert.equal(declarations.length, writesBeforeAccessFailures);
+      } finally { releaseHistory(); }
+      await savedOrFailed(); await childAccess(false, /certificados siguen disponibles/);
+      checks.push('history busy status remains neutral after a context503 instead of inviting a disabled Add-child retry');
     } else {
       await childAccess(true, failure === 401 ? /sesión venció/ : /no tiene permiso vigente/);
       assert.equal(await family.locator('.fs-child').count(), 0);
@@ -825,6 +841,92 @@ try {
   assert.deepEqual(declaredByKey.get(restoredAttempt.key).body, restoredAttempt.body);
   assert.equal(await childField('familyName').count(), 0);
   checks.push('closing and reopening an uncertain declaration restores its exact locked body/key and recovers the original acknowledgement without another POST');
+
+  // Reopen the same document with Escape. Reloading would erase the volatile
+  // attempt and would not exercise restoration of the original intention.
+  async function restoreUnstoredDeclaration(label) {
+    await page.goto(ownUrl); await familyReady();
+    await family.locator('[data-fs-add-child]').click(); await childField('familyName').waitFor(); await savedOrFailed();
+    await childField('familyName').fill(label);
+    const persisted = declaredByKey.size, ownRows = dataset.data.rows.filter(row => row.familyRef.kind === 'own').length;
+    childError = {status:503,code:'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE'};
+    await childSubmit.click(); await savedOrFailed();
+    const attempt = structuredClone(declarations.at(-1)), submitted = declarations.length, contexts = familyContextRequests;
+    assert.equal(declaredByKey.has(attempt.key), false); assert.equal(declaredByKey.size, persisted);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own').length, ownRows);
+    assert.equal(await childField('familyName').isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('dialog[open]').count(), 0);
+    await page.locator('#employeeRows').getByRole('button', {name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+    assert.equal(declarations.length, submitted); assert.equal(familyContextRequests, contexts, 'reopen reads certificates without obtaining declaration authority');
+    assert.equal(await childField('familyName').inputValue(), label); assert.equal(await childField('familyName').isDisabled(), true);
+    assert.equal(await childSubmit.isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
+    assert.match(await childStatus.innerText(), /Elegí Verificar si quedó guardado; si no se registró, se habilitará reintentar el mismo envío/);
+    return {attempt,submitted,persisted,ownRows};
+  }
+  async function retryRestoredSameAttempt(saved) {
+    assert.equal(await childSubmit.isEnabled(), true); assert.equal(await childField('familyName').isDisabled(), true);
+    await childSubmit.click(); await savedOrFailed();
+    assert.equal(declarations.length, saved.submitted + 1);
+    assert.equal(declarations.at(-1).key, saved.attempt.key); assert.equal(declarations.at(-1).json, saved.attempt.json);
+    assert.deepEqual(declarations.at(-1).body, saved.attempt.body); assert.equal(declarations.at(-1).actor, saved.attempt.actor);
+    assert.equal(declaredByKey.size, saved.persisted + 1); assert.deepEqual(declaredByKey.get(saved.attempt.key).body, saved.attempt.body);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own').length, saved.ownRows + 1);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own' && row.familyName === saved.attempt.body.familyName).length, 1);
+    assert.equal(await childField('familyName').count(), 0);
+  }
+
+  const missingRestored = await restoreUnstoredDeclaration('Restaurado sin registro QA');
+  const beforeMissing = {attempts:familyAttemptRequests,contexts:familyContextRequests,reads:familyRequests,auth:authRequests};
+  const missingResponse = page.waitForResponse(response => { const url=new URL(response.url()); return url.pathname==='/api/internal-family-members' && url.searchParams.get('resource')==='attempt' && url.searchParams.get('key')===missingRestored.attempt.key; });
+  await family.locator('[data-fs-child-recheck]').click(); assert.equal((await missingResponse).status(),404); await savedOrFailed();
+  assert.equal(familyAttemptRequests,beforeMissing.attempts+1); assert.equal(familyContextRequests,beforeMissing.contexts+1); assert.equal(familyRequests,beforeMissing.reads+1); assert.ok(authRequests>beforeMissing.auth);
+  assert.equal(declarations.length,missingRestored.submitted); assert.equal(declaredByKey.has(missingRestored.attempt.key),false);
+  assert.match(await childStatus.innerText(),/sólo reintentá el mismo alta o volvé a verificar su estado/);
+  await retryRestoredSameAttempt(missingRestored);
+  checks.push('restored attempt404 obtains current authority, contract context and complete family read, then one explicit retry preserves exact key/JSON and creates exactly one synthetic record');
+
+  for (const denialStage of ['attempt','context']) {
+    const deniedRestored = await restoreUnstoredDeclaration('Restaurado con retiro '+denialStage+' QA');
+    const beforeDenial = {attempts:familyAttemptRequests,contexts:familyContextRequests,reads:familyRequests};
+    if(denialStage==='attempt')failFamilyAttempt=403;else failFamilyContext=403;
+    const refusal = page.waitForResponse(response => {const url=new URL(response.url());return url.pathname==='/api/internal-family-members'&&url.searchParams.get('resource')===denialStage&&response.status()===403;});
+    const siblingRead = denialStage==='context' ? page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/internal-family-certificates'&&url.searchParams.get('resource')==='family';}) : Promise.resolve();
+    await family.locator('[data-fs-child-recheck]').click(); await refusal; await siblingRead; await savedOrFailed();
+    assert.equal(declarations.length,deniedRestored.submitted);assert.equal(declaredByKey.has(deniedRestored.attempt.key),false);
+    assert.equal(familyAttemptRequests,beforeDenial.attempts+1);
+    assert.equal(familyContextRequests,beforeDenial.contexts+(denialStage==='context'?1:0));assert.equal(familyRequests,beforeDenial.reads+(denialStage==='context'?1:0));
+    assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-document],[data-fs-history]').count(),0);assert.equal(await family.locator('[data-fs-storage]').isVisible(),false);
+    assert.equal(await childField('familyName').inputValue(),deniedRestored.attempt.body.familyName);assert.equal(await childField('familyName').isDisabled(),true);
+    assert.equal(await childSubmit.isDisabled(),true);assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(),true);
+    const authBeforeForcedRestoredSubmit=authRequests;
+    await childSubmit.evaluate(n=>n.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await savedOrFailed();
+    assert.equal(authRequests,authBeforeForcedRestoredSubmit,'forced submit cannot begin reauthorization while restored authority is withdrawn');
+    assert.equal(declarations.length,deniedRestored.submitted,'forced submit cannot bypass withdrawn authority');
+    failFamilyAttempt=0;failFamilyContext=0;
+    await family.locator('[data-fs-child-recheck]').click();await savedOrFailed();
+    assert.equal(declarations.length,deniedRestored.submitted);assert.equal(await childField('familyName').inputValue(),deniedRestored.attempt.body.familyName);
+    await retryRestoredSameAttempt(deniedRestored);
+    checks.push('restored '+denialStage+'403 withdraws consulted metadata and locks the original draft; renewed read permits only its exact same-key/JSON retry without a new declaration intention');
+  }
+
+  await page.goto(ownUrl);await familyReady();
+  await family.locator('[data-fs-add-child]').click();await childField('familyName').waitFor();await savedOrFailed();
+  await childField('familyName').fill('Intento del actor anterior QA');
+  childError={status:503,code:'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE'};await childSubmit.click();await savedOrFailed();
+  const actorRestored=structuredClone(declarations.at(-1)),actorSubmitted=declarations.length,actorPersisted=declaredByKey.size,actorOwnRows=dataset.data.rows.filter(row=>row.familyRef.kind==='own').length;
+  await page.keyboard.press('Escape');authActor='restored-other-operator@example.invalid';
+  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  assert.equal(await childField('familyName').count(),0);assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-add-child]').isDisabled(),true);
+  assert.match(await family.locator('[data-fs-family-status]').innerText(),/Cambió la sesión/);
+  assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);assert.equal(declaredByKey.size,actorPersisted);
+  assert.equal(dataset.data.rows.filter(row=>row.familyRef.kind==='own').length,actorOwnRows);
+  await page.keyboard.press('Escape');authActor='qa@example.invalid';
+  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  assert.equal(await childField('familyName').count(),0);assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);
+  checks.push('reopening under another actor discards the old volatile intention, opens no declaration form and sends no old-actor POST; restoring the original actor does not resurrect it');
 
   assert.deepEqual(errors, []);
   assert.equal(publishedFailures.size, 0, 'PUBLISHED_ASSET_VERIFICATION_FAILED');
