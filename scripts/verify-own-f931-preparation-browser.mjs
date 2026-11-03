@@ -10,18 +10,26 @@ import {reportFixture} from '../tests/fixtures/own-payroll-report-synthetic.js';
 import {fiscalFactsHash} from '../assets/own-fiscal-facts-model.js';
 import {jurisdictionFixture} from '../tests/fixtures/own-payroll-jurisdiction-synthetic.js';
 import {sharedJurisdictionFixture} from '../tests/fixtures/own-f931-jurisdiction-synthetic.js';
+import {INACTIVE_F931_HISTORY_ADMISSION} from '../tests/fixtures/own-f931-inactive-admission.js';
+import {verifyOwnF931DefaultActiveBrowser} from './lib/own-f931-default-active-browser-qa.mjs';
 const root=fs.realpathSync(new URL('../public',import.meta.url)),output=path.resolve(process.env.OWN_F931_QA_OUTPUT??'verification/own-f931-browser-20261011');
-assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));fs.mkdirSync(output,{recursive:true});
+assert.ok(output.startsWith(fs.realpathSync(new URL('..',import.meta.url))+path.sep));assert.ok(!fs.existsSync(output),'Preserve earlier browser receipts; choose a new output');fs.mkdirSync(output,{recursive:true});
 const origin='http://127.0.0.1:4373',checks=[],errors=[],writes=[],downloads=[];
 const check=(condition,message)=>{assert.ok(condition,message);checks.push(message);};
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
-async function inspect(viewport,label,{shellAdmitted=true}={}){
+// Explicit legacy COMPONENT oracle only. The served module/default F4 remains active;
+// this factory option preserves the original v1 cases without calling them a full-shell proof.
+function legacyComponentDocument(){
+ return `<!doctype html><html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>QA sintética del componente F931 legado</title><link rel="stylesheet" href="/assets/municontrol-enterprise.css"><link rel="stylesheet" href="/assets/own-f931-preparation-panel.css"></head><body><main id="legacy-fixture"></main><script type="module">import {mountOwnF931Preparation} from '/assets/own-f931-preparation-panel.js';import {OWN_F931_HISTORY_ADMISSION,ownF931HistoryAdmission} from '/assets/own-f931-history-admission.js';if(ownF931HistoryAdmission(OWN_F931_HISTORY_ADMISSION).activated!==true)throw Error('Actual built default F4 must stay active');mountOwnF931Preparation(document.getElementById('legacy-fixture'),{admission:${JSON.stringify(INACTIVE_F931_HISTORY_ADMISSION)}});document.dispatchEvent(new CustomEvent('taskchange',{detail:{id:'f931'}}));</script></body></html>`;
+}
+async function inspectLegacy(viewport,label,{shellAdmitted=true}={}){
  const pageCaps=Object.freeze([...OWN_CLOSE_NOMINAL,...(shellAdmitted?['payroll.read']:[])]);
  let fixture=reportFixture(61),allowed=true,corrupt=false,fiscalDrift=false,fiscalReads=0,fiscalDriftStart=null,authStatus=200;const closeQueries=[],fiscalQueries=[];
  const context=await browser.newContext({viewport,locale:'es-AR',serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(req.method()!=='GET')writes.push({method:req.method(),path:u.pathname});
+  if(u.pathname==='/__qa/f931-legacy.html')return route.fulfill({contentType:'text/html; charset=utf-8',body:legacyComponentDocument()});
   if(u.pathname==='/api/internal-auth'&&authStatus===401)return route.fulfill({status:401,json:{ok:false,error:'Synthetic session expired'}});
   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic-user',email:'f931-qa@example.invalid'},access:{context:'tenant',tenant:{id:'10000000-0000-4000-8000-000000009991',roleKey:'QA'},tenantCapabilities:allowed?pageCaps:[],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
   if(u.pathname==='/api/internal-own-fiscal-facts'){
@@ -46,9 +54,10 @@ async function inspect(viewport,label,{shellAdmitted=true}={}){
  const idle=()=>page.waitForFunction(()=>document.querySelector('.own-f931')?.getAttribute('aria-busy')==='false');
  const populate=async()=>{$('period');await $('period').fill(fixture.query.from);await $('date').fill('2026-10-31');await $('consult').click();await idle();};
  try{
-  await page.goto(origin+'/nomina#f931',{waitUntil:'domcontentloaded'});
+  await page.goto(origin+(shellAdmitted?'/__qa/f931-legacy.html':'/nomina#f931'),{waitUntil:'domcontentloaded'});
   if(!shellAdmitted){await page.evaluate(async()=>{await window.MuniControlCapabilityGate.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});check(!pageCaps.includes('payroll.read')&&await page.locator('#mainContent').isHidden()&&await page.locator('.own-f931').isHidden()&&!await $('consult').isVisible(),label+': nominal fiscal capabilities alone do not bypass payroll page admission');return;}
-  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'f931'});await $('consult').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('[data-own-f931-target]')?.disabled);
+  // The explicit legacy component has no product sidebar; active contexts below use the real sidebar.
+  await $('consult').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('[data-own-f931-target]')?.disabled);
   check(await $('period').inputValue()===''&&await $('date').inputValue()==='',label+': period/presentation are explicit, without date defaults');
   await populate();check(await $('view').isVisible(),label+': complete own closed preparation visible');check((await $('count').innerText()).includes('61 participaciones'),label+': all 61 closed participations included');await page.locator('.own-f931 summary',{hasText:'Ver totales exactos de nómina'}).click();check((await $('totals').innerText()).includes('Bruto'),label+': exact payroll totals identified separately from fiscal bases');
   const referenceDetails=page.locator('.own-f931 details').filter({hasText:'Consultar los 60 campos'});await referenceDetails.locator('summary').click();
@@ -130,6 +139,13 @@ async function inspect(viewport,label,{shellAdmitted=true}={}){
   check(await fireTimer(afterHide.timers-1)===true&&await revokedCount(urlHide)===1,label+': the late timer after pagehide does not revoke twice');
  }finally{await context.close();}
 }
-try{await inspect({width:1440,height:1000},'narrow-route',{shellAdmitted:false});await inspect({width:1440,height:1000},'desktop');await inspect({width:390,height:844},'mobile');await inspect({width:320,height:812},'mobile320');assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,scope:'built UI plus synthetic GET fixture transport; not real SQL/session/municipal acceptance',checks:checks.length,proofs:checks,errors,writes},null,2)+'\n');console.log(JSON.stringify({ok:true,checks:checks.length,output}));
+try{
+ await inspectLegacy({width:1440,height:1000},'fullshell-narrow-route',{shellAdmitted:false});
+ await inspectLegacy({width:1440,height:1000},'legacy-desktop');
+ await inspectLegacy({width:390,height:844},'legacy-mobile');
+ await inspectLegacy({width:320,height:812},'legacy-mobile320');
+ const active=await verifyOwnF931DefaultActiveBrowser({browser,origin,root,output,check,errors,writes,downloads});
+ assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);check(true,'read-only synthetic transport; no writes or browser pageerrors');
+ const scopes={legacyComponent:checks.filter(c=>c.startsWith('legacy-')).length,fullShellAdmission:checks.filter(c=>c.startsWith('fullshell-narrow-route:')).length,defaultActiveFullShell:checks.filter(c=>c.startsWith('active-')).length,commonTransport:1};
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,scope:'built default-active /nomina shell plus separately labelled explicit legacy component; synthetic GET transport only, no real SQL/SDK/session/municipal acceptance',checks:checks.length,scopes,active,proofs:checks,errors,writes},null,2)+'\n');console.log(JSON.stringify({ok:true,checks:checks.length,scopes,output}));
 }finally{await browser.close();}
