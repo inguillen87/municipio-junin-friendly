@@ -46,7 +46,9 @@ export function createOwnLiquidationHandler(deps={}){
     if(!salaryExact(body,['operation','payload'])||body.operation!=='command')liquidationFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');
     let payload;try{payload=ownLiquidationCommand(body.payload);}catch{liquidationFail('INPUT_INVALID',422,'Revisá decisión, alcance y motivo.');}const caps=payload.command==='cancel'?OWN_LIQ_CANCEL:OWN_LIQ_REVIEW;if(!principalHasCapabilities(access.principal,caps))liquidationFail('FORBIDDEN',403,'Tu cuenta no permite esta decisión.');input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
    }
-   const data=await ownLiquidationOperation(await getSql(env,{expectedDestination:historyActive&&fullJson?historyDestination:null}),access.principal,session,operation,input,{fullJson});if(data.replayed)res.setHeader('Idempotency-Replayed','true');const status=method==='POST'&&!data.replayed?201:200;if(fullJson)return await sendOwnPayrollStream(res,status,data);return res.status(status).json({ok:true,data});
+   const expectedDestination=historyActive&&fullJson?historyDestination:null;let sql;
+   try{sql=await getSql(env,{expectedDestination});}catch(e){if(method==='GET'&&expectedDestination!==null&&e?.code==='ACTION_DATABASE_DESTINATION_REQUIRED')liquidationFail('UNAVAILABLE',503,'No se pudo verificar el destino de lectura del histórico cerrado. Avisá a administración del sistema antes de volver a consultar.');throw e;}
+   const data=await ownLiquidationOperation(sql,access.principal,session,operation,input,{fullJson});if(data.replayed)res.setHeader('Idempotency-Replayed','true');const status=method==='POST'&&!data.replayed?201:200;if(fullJson)return await sendOwnPayrollStream(res,status,data);return res.status(status).json({ok:true,data});
   }catch(e){if(res.headersSent){res.destroy();return;}const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):liquidationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}
  };
 }

@@ -6,12 +6,13 @@ import {EventEmitter} from 'node:events';
 import {createOwnCloseHandler} from '../api/internal-own-payroll-close.js';
 import {createOwnLiquidationHandler} from '../api/internal-own-payroll-liquidation.js';
 import {OWN_F931_HISTORY_ADMISSION,ownF931HistoryAdmission} from '../assets/own-f931-history-admission.js';
-import {OWN_CLOSE_NOMINAL} from '../assets/own-payroll-close-model.js';
+import {OWN_CLOSE_NOMINAL,OWN_CLOSE_WRITE} from '../assets/own-payroll-close-model.js';
 import {OWN_LIQ_REVIEW} from '../assets/own-payroll-liquidation-model.js';
 import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
 import {INACTIVE_F931_HISTORY_ADMISSION as INACTIVE} from './fixtures/own-f931-inactive-admission.js';
 import {jurisdictionFixture} from './fixtures/own-payroll-jurisdiction-synthetic.js';
-import {detail as liquidationDetail} from './fixtures/own-payroll-liquidation-synthetic.js';
+import {detail as liquidationDetail,command as liquidationCommand} from './fixtures/own-payroll-liquidation-synthetic.js';
+import {closeCommand} from './fixtures/own-payroll-close-synthetic.js';
 import {reportCensusFixture,liquidationDetailFor} from './fixtures/own-payroll-report-census-synthetic.js';
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
 const projectTarget=t=>({major:t.major,projectId:t.projectId,branchId:t.branchId,endpointId:t.endpointId,database:t.database});
@@ -28,19 +29,19 @@ class Response extends EventEmitter{
 const request=(kind,query,accept='application/json',extraHeaders={})=>({method:'GET',url:'/api/internal-own-payroll-'+kind+'?'+new URLSearchParams(query),query,headers:{accept,...extraHeaders}});
 function rig(kind,options={}){
  const f=jurisdictionFixture(4,()=>'42'),census=reportCensusFixture(f),receipt=f.receipts[0],detail=liquidationDetailFor(liquidationDetail().capture);
- const required=kind==='close'?OWN_CLOSE_NOMINAL:OWN_LIQ_REVIEW,sqlCalls=[],getSqlOptions=[];
+ const required=options.caps??(kind==='close'?OWN_CLOSE_NOMINAL:OWN_LIQ_REVIEW),sqlCalls=[],getSqlOptions=[];
  const sql={query:async(q,values)=>{sqlCalls.push({q,values});
   if(q.includes('own_close_report_census_v1'))return[{result:structuredClone(census)}];
   if(q.includes('own_close_group_'))return[{result:structuredClone(receipt)}];
   if(q.includes('own_liquidation_detail_'))return[{result:structuredClone(detail)}];
   throw Error('Unexpected synthetic query');
  }};
- const deps={env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireAccess:async()=>({mode:'managed',principal:principal(required)}),sessionFor:()=>session,
-  getSql:async(_env,settings)=>{getSqlOptions.push(structuredClone(settings));return sql;}};
+ const deps={env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireAccess:async(_req,res)=>{if(options.authStatus){res.status(options.authStatus).json({ok:false,code:'AUTH_'+options.authStatus,error:'Acceso sintético denegado.'});return null;}return{mode:'managed',principal:principal(required)};},sessionFor:()=>session,
+  getSql:async(_env,settings)=>{getSqlOptions.push(structuredClone(settings));if(options.sqlError)throw options.sqlError;return sql;}};
  // Omission uses the actual source default. Inactive/alternate DI is always explicit.
  if(Object.hasOwn(options,'admission'))deps.historyAdmission=options.admission;
  const handler=(kind==='close'?createOwnCloseHandler:createOwnLiquidationHandler)(deps);
- return{f,census,receipt,detail,sqlCalls,getSqlOptions,async call(query,accept='application/json',headers={}){const res=new Response();await handler(request(kind,query,accept,headers),res);return res;}};
+ return{f,census,receipt,detail,sqlCalls,getSqlOptions,handler,async call(query,accept='application/json',headers={}){const res=new Response();await handler(request(kind,query,accept,headers),res);return res;}};
 }
 const censusQuery=a=>({resource:'report-census',period:a.f.query.from,liquidationType:'monthly'});
 const groupQuery=a=>({resource:'group',id:a.receipt.groupId});
@@ -84,4 +85,46 @@ test('W5 HTTP query fields cannot select a destination or an admission; every at
 test('W6 spoofed HTTP metadata headers cannot replace the active source destination',async()=>{
  const expected=projectTarget(OWN_F931_HISTORY_ADMISSION.target),headers={'x-municontrol-destination':'other-branch','x-municontrol-history-admission':JSON.stringify(DI_ACTIVE)};
  for(const kind of['close','liquidation']){const a=rig(kind),query=kind==='close'?censusQuery(a):detailQuery(a);const r=await a.call(query,kind==='close'?'application/json':OWN_RUN_FULL_JSON,headers);assert.equal(r.statusCode,200);assert.deepEqual(a.getSqlOptions,[{expectedDestination:expected}]);}
+});
+
+
+const historyDestinationMessage='No se pudo verificar el destino de lectura del histórico cerrado. Avisá a administración del sistema antes de volver a consultar.';
+const destinationFailure=()=>Object.assign(Error('private-source-error: endpoint-and-branch-must-not-leak'),{code:'ACTION_DATABASE_DESTINATION_REQUIRED'});
+const unavailableMessage=kind=>kind==='close'?'No se confirmó el cierre. Consultá el mismo intento antes de enviar otro.':'No se confirmó la decisión. Consultá el mismo intento antes de enviar otra.';
+const unavailableCode=kind=>kind==='close'?'OWN_CLOSE_UNAVAILABLE':'OWN_LIQ_UNAVAILABLE';
+
+test('W7 unavailable destination on historical GET returns safe UNAVAILABLE 503 before any facade query',async()=>{
+ for(const [kind,resource,accept]of[['close','census','application/json'],['close','group',OWN_RUN_FULL_JSON],['liquidation','detail',OWN_RUN_FULL_JSON]]){
+  const a=rig(kind,{sqlError:destinationFailure()}),query=resource==='census'?censusQuery(a):resource==='group'?groupQuery(a):detailQuery(a);
+  const r=await a.call(query,accept);
+  assert.equal(r.statusCode,503);assert.deepEqual(r.value,{ok:false,code:unavailableCode(kind),error:historyDestinationMessage});
+  assert.deepEqual(a.getSqlOptions,[{expectedDestination:projectTarget(OWN_F931_HISTORY_ADMISSION.target)}]);
+  assert.equal(a.sqlCalls.length,0);assert.equal(r.chunks.length,0);assert.equal(r.headers['Idempotency-Replayed'],undefined);
+ }
+});
+
+test('W8 ordinary JSON reads and unrelated client errors retain their previous UNAVAILABLE response',async()=>{
+ for(const kind of['close','liquidation'])for(const historical of[false,true]){
+  const a=rig(kind,{sqlError:historical?Error('unrelated-private-client-error'):destinationFailure()}),query=kind==='close'?groupQuery(a):detailQuery(a);
+  const r=await a.call(query,historical?OWN_RUN_FULL_JSON:'application/json');
+  assert.equal(r.statusCode,503);assert.deepEqual(r.value,{ok:false,code:unavailableCode(kind),error:unavailableMessage(kind)});assert.equal(a.sqlCalls.length,0);
+  assert.deepEqual(a.getSqlOptions,[{expectedDestination:historical?projectTarget(OWN_F931_HISTORY_ADMISSION.target):null}]);
+ }
+});
+
+test('W9 POST destination failures keep decision/close ambiguity guidance, including FULL negotiation',async()=>{
+ for(const kind of['close','liquidation'])for(const accept of['application/json',OWN_RUN_FULL_JSON]){
+  const a=rig(kind,{caps:kind==='close'?OWN_CLOSE_WRITE:OWN_LIQ_REVIEW,sqlError:destinationFailure()}),r=new Response();
+  await a.handler({method:'POST',url:'/api/internal-own-payroll-'+kind,query:{},headers:{accept,origin:'https://municipio.example','content-type':'application/json','idempotency-key':uid(9)},body:JSON.stringify({operation:'command',payload:kind==='close'?closeCommand():liquidationCommand()})},r);
+  assert.equal(r.statusCode,503);assert.deepEqual(r.value,{ok:false,code:unavailableCode(kind),error:unavailableMessage(kind)});assert.equal(a.sqlCalls.length,0);
+  assert.deepEqual(a.getSqlOptions,[{expectedDestination:accept===OWN_RUN_FULL_JSON?projectTarget(OWN_F931_HISTORY_ADMISSION.target):null}]);
+ }
+});
+
+test('W10 auth 401/403 remain unchanged and stop historical GET before client acquisition',async()=>{
+ for(const kind of['close','liquidation'])for(const status of[401,403]){
+  const a=rig(kind,{authStatus:status,sqlError:destinationFailure()}),query=kind==='close'?censusQuery(a):detailQuery(a);
+  const r=await a.call(query,kind==='close'?'application/json':OWN_RUN_FULL_JSON);
+  assert.equal(r.statusCode,status);assert.deepEqual(r.value,{ok:false,code:'AUTH_'+status,error:'Acceso sintético denegado.'});assert.equal(a.sqlCalls.length,0);assert.equal(a.getSqlOptions.length,0);
+ }
 });
