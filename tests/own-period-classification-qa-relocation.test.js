@@ -99,3 +99,16 @@ test('the QA predecessor refuses altered138, altered strict body, public grants 
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,prerequisitePins:batch.prerequisitePins.map(p=>p.name==='payroll_fixed_registry_adopted_subject_v1'?{...p,runtime:true}:p)}}));
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,predecessorDefinition:'BEGIN NULL;END'}),/UNKNOWN_OPTION/);
 });
+
+test('the explicit observer R2 source epoch preserves the original business fixture and live source hashes',()=>{
+ assert.equal(artifact.fixtureChain,'legacy-native-payroll-without-final-source.v1');
+ assert.equal(Object.keys(artifact.fixtureSourceHashes).length,7);
+ assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'37b235e6fb7e58c606408ab7a92b3418118d16c4e0bead850cd2249bf187a442');
+ assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-lock-observation.mjs'],'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9');
+ assert.deepEqual(artifact.sourceHashes,batch.sourceHashes);
+ assert.equal(artifact.productionCompatible,false);assert.equal(artifact.normal165Installed,false);assert.equal(artifact.finalSourceFixture,false);
+});
+
+test('the diagnostic helper is an exact source prerequisite and cannot drift independently of its caller',()=>{
+ assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p==='scripts/lib/qa-lock-observation.mjs'?'\n-- observer source drift':'')}),/PERIOD_CLASSIFICATION_QA_FIXTURE_SOURCE_CHANGED: scripts\/lib\/qa-lock-observation\.mjs/);
+});
