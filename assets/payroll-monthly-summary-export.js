@@ -196,13 +196,30 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
       r.unit ?? 'No informada', String(r.sourceRows) + ' / ' + String(r.distinctLegajos), monthlyDecimal(r.quantity), monthlyDecimal(r.amount),
     ]), [185, 48, 65, 103, 130], { right: [2, 3, 4], note: 'Sin nota: sin faltantes en las líneas incluidas. Líneas / legajos: ocurrencias y legajos únicos; no son sumables entre conceptos.' });
   }
-  table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, volumen y huellas'], data.sources.map(s => [
-    s.datasetId + ' · ' + s.sourceLabel + ' · Fecha: ' + s.date,
-    s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus)
-      + ' · ' + s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt
-      + ' · Respaldo: ' + s.sourceSha256 + ' · Contenido: ' + s.payloadHash,
-  ]), [35, 65]);
-  const controls = controlRows(data, view, queriedAt, retentions); table('Control y alcance', controls[0], controls.slice(1), [30, 100]);
+  if (retentions) {
+    table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, volumen y huellas'], data.sources.map(s => [
+      s.datasetId + ' · ' + s.sourceLabel + ' · Fecha: ' + s.date,
+      s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus)
+        + ' · ' + s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt
+        + ' · Respaldo: ' + s.sourceSha256 + ' · Contenido: ' + s.payloadHash,
+    ]), [35, 65]);
+    const controls = controlRows(data, view, queriedAt, retentions); table('Control y alcance', controls[0], controls.slice(1), [30, 100]);
+  } else {
+    // Human-readable source references follow the unchanged Excel source order.
+    // UUIDs, source/content hashes and the complete methodology remain in Excel.
+    table('Fuentes seleccionadas', ['Fuente / tipo / período', 'Fecha / cierre', 'Fuente y corte', 'Legajos / líneas'], data.sources.map((s, index) => [
+      String(index + 1) + '. ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0'),
+      s.date + ' · ' + monthlyClosure(s.closureStatus), s.sourceLabel, String(s.statementCount) + ' / ' + String(s.lineCount),
+    ]), [90, 113, 228, 100], { right: [3] });
+    const filterLabel = { all: 'Todos', missing: 'Con datos faltantes', informed: 'Sin faltantes en las líneas incluidas' }[view.filters.status];
+    const control = data.counts.datasetCount + ' corridas; ' + data.counts.statementParticipations + ' participaciones; '
+      + data.counts.distinctLegajos + ' legajos únicos; ' + data.counts.lineCount + ' líneas; ' + view.rows.length + ' de '
+      + data.counts.conceptCount + ' conceptos exportados. Filtro: ' + filterLabel + '. Búsqueda: ' + (view.filters.search || 'Sin búsqueda') + '. '
+      + 'Líneas: ocurrencias, no personas. Cantidades según unidad. Faltantes: No informado. Un concepto ausente no equivale a cero. No se suman conceptos entre sí. '
+      + 'Sólo corridas seleccionadas; no certifica mes completo. Control interno, sin cálculo, pago, cierre ni presentación oficial. '
+      + 'Excel conserva las fuentes en este orden, UUID, huellas completas, incorporación y metodología. Consulta y huella del resumen completas al pie.';
+    table('Control y alcance', ['Selección, límites y trazabilidad'], [[control]], [100]);
+  }
   const objects = [null, '<< /Type /Catalog /Pages 2 0 R >>', null, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'], kids = [];
   for (const p of pages) { const id = objects.length, content = p.join('\n'); kids.push(id + ' 0 R'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id + 1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); }
   objects[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`; let result = '%PDF-1.4\n'; const offsets = [0];
