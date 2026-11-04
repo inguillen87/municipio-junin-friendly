@@ -16,7 +16,10 @@ import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'SCHOOLING_PUBLISHED_ORIGIN_NOT_ALLOWED');
-const base = path.resolve('public'), out = path.resolve('verification'), origin = publishedOrigin ?? 'https://municontrol.test';
+const args=process.argv.slice(2);assert.ok(args.every(arg=>arg.startsWith('--output=')),'UNKNOWN_ARGUMENT');
+const outputArg=args.find(arg=>arg.startsWith('--output='));
+const base = path.resolve('public'), out = path.resolve(outputArg?.slice(9)||'verification'), origin = publishedOrigin ?? 'https://municontrol.test';
+if(outputArg){assert.ok(out.startsWith(path.resolve('verification')+path.sep),'OUTPUT_OUTSIDE_VERIFICATION');assert.ok(!fs.existsSync(out),'Preserve earlier browser evidence');}
 for (const asset of ['assets/family-schooling.js','assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css']) {
   assert.ok(fs.existsSync(path.join(base, asset)) && fs.readFileSync(path.join(base, asset)).equals(fs.readFileSync(asset)), 'STALE_OR_MISSING_BUILD_ASSET: ' + asset);
 }
@@ -50,7 +53,7 @@ async function publicAsset(url, expected) {
 const schoolAttempts = new Map(), schoolHistories = new WeakMap();
 let dropSchoolAck = false;
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
-let reportRequests = 0, authRequests = 0, downloadRequests = 0;
+let reportRequests = 0, authRequests = 0, downloadRequests = 0, directoryRequests = 0;
 let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
 let delayedEmployee = null, alternateEmployee = false;
 let canDeclare = true, proposeCapability = true, childError = null, dropChildAck = false, contractToken = 'd'.repeat(64);
@@ -166,8 +169,8 @@ try {
       payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: authActor, role: 'ADMIN_INTERNO' },
         access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', ...(proposeCapability ? ['employee.record.propose'] : []), ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
     } else if (resource === 'payrollControl') payload = {ok:true,status:'ready',sourcePolicy:{label:'QA sintética'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:['Datos sintéticos para verificar la navegación']};
-    else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
-      scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } };
+    else if (resource === 'employees') { directoryRequests++; payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
+      scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } }; }
     else if (resource === 'employee') payload = { ok: true, data: { ...(alternateEmployee && u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee), ...(wrongEmployee ? { contractId: syntheticUuid(2) } : {}), employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
     return route.fulfill({ status: 200, json: payload });
   });
@@ -178,6 +181,17 @@ try {
   async function consulted() {
     await report.locator('[data-fs-consult]').click();
     await page.waitForFunction(() => document.querySelector('[data-fs-status]')?.textContent.includes('Reporte consultado'));
+  }
+  // Reference-only scenarios enter Antecedentes through its real summary and explicit search.
+  // Keep the document alive when reopening a volatile certificate/declaration attempt.
+  async function consultReferenceDirectory() {
+    assert.equal(await page.locator('#employeeDialog[open]').count(),0,'CLOSE_SHEET_BEFORE_REFERENCE_SEARCH');
+    const before=directoryRequests,history=page.locator('#employeeHistory');
+    if(await history.getAttribute('open')===null)await history.locator(':scope > summary').click();
+    assert.equal(directoryRequests,before,'OPENING_REFERENCE_HISTORY_MUST_NOT_QUERY');
+    await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
+    assert.equal(directoryRequests,before+1,'ONE_EXPLICIT_REFERENCE_QUERY');
   }
   async function familyReady() {
     await family.locator('[data-fs-family-refresh]').waitFor();
@@ -390,8 +404,9 @@ try {
   await family.locator('[data-fs-register]').first().click(); await fillCertificate();
   const postsBeforeBack = posts.length, authBeforeBack = authRequests;
   const navigation = page.waitForEvent('load'); await page.evaluate(() => { window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); }); await navigation;
-  await page.waitForFunction(() => document.querySelector('#employeeRows button'));
+  await familyReady();
   assert.ok(authRequests > authBeforeBack); assert.equal(posts.length, postsBeforeBack); assert.equal(await page.locator('[data-fs-file]').count(), 0);
+  await page.keyboard.press('Escape');assert.equal(await page.locator('dialog[open]').count(),0);await consultReferenceDirectory();
   checks.push('bfcache restore restarts normal session checks and never replays or retains an upload draft');
 
   dataset = schoolingFixture(); const postsBeforeNavigation = posts.length;
@@ -431,7 +446,7 @@ try {
     assert.equal(await missing.evaluate(n => n === document.activeElement), true);
     assert.equal(await family.locator('[data-fs-file]').count(), 0);
   }
-  await page.goto(targetUrl.replace('familyId=2', 'familyId=2&familyId=1')); await page.locator('#employeeRows button').first().waitFor();
+  await page.goto(targetUrl.replace('familyId=2', 'familyId=2&familyId=1')); await consultReferenceDirectory(); await page.locator('#employeeRows button').first().waitFor();
   assert.equal(await page.locator('dialog[open]').count(), 0);
   checks.push('missing, other-contract and invalid child references show a clear notice; ambiguous query parameters never open a selection');
   wrongEmployee = true; const beforeWrongEmployee = familyRequests;
@@ -447,7 +462,7 @@ try {
   employee.contractId = syntheticUuid(1); dataset = schoolingFixture();
   checks.push('valid uppercase PostgreSQL UUID links reach the same canonical employee and exact child');
 
-  alternateEmployee = true; await page.goto(origin + '/internal-dashboard.html#legajos');
+  alternateEmployee = true; await page.goto(origin + '/internal-dashboard.html#legajos');await consultReferenceDirectory();
   await page.locator('#employeeRows').getByRole('button', { name: 'Ver ficha', exact: true }).nth(1).waitFor();
   let releaseOldEmployee; delayedEmployee = new Promise(resolve => releaseOldEmployee = resolve);
   const oldRequest = page.waitForRequest(r => new URL(r.url()).searchParams.get('resource') === 'employee');
@@ -468,7 +483,7 @@ try {
   authDenied = false; await page.goto(next.href); await exactChildVisible();
   checks.push('an expired session preserves the validated child destination and rechecks access before reopening it');
 
-  await page.goto(origin + '/internal-dashboard.html#legajos'); await page.locator('#employeeRows button').first().waitFor();
+  await page.goto(origin + '/internal-dashboard.html#legajos');await consultReferenceDirectory(); await page.locator('#employeeRows button').first().waitFor();
   await page.locator('#employeeSearch').fill('000001'); await page.locator('#employeeFilters').evaluate(n => n.requestSubmit());
   await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
   assert.equal(await page.locator('#employeeFamilyTitle').evaluate(n => n === document.activeElement), true);
@@ -644,7 +659,7 @@ try {
   await page.reload(); await familyReady();
   assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
   await page.keyboard.press('Escape'); assert.equal(await page.locator('dialog[open]').count(), 0);
-  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
   assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
   assert.equal(declarations.length, confirmedDeclarationCount);
   checks.push('confirmed child survives reload and dialog reopen from the synthetic persisted response without replaying its declaration');
@@ -773,7 +788,7 @@ try {
   assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
   const writesBeforeClose=posts.length; await page.keyboard.press('Escape');
   assert.equal(await page.locator('dialog[open]').count(),0);
-  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
   assert.equal(posts.length,writesBeforeClose); assert.equal(await schoolField('course').inputValue(),'6.º C'); assert.equal(await schoolField('course').isDisabled(),true);
   assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
 
@@ -832,7 +847,7 @@ try {
   dropChildAck = true; await childSubmit.click(); await savedOrFailed();
   const restoredAttempt = structuredClone(declarations.at(-1)), writesBeforeRestore = declarations.length;
   await page.keyboard.press('Escape');
-  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
   assert.equal(await childField('familyName').inputValue(), restoredAttempt.body.familyName);
   assert.equal(await childSubmit.isDisabled(), true);
   await childAccess(true, /alta pendiente quedó guardada/);
@@ -857,7 +872,7 @@ try {
     assert.equal(await childField('familyName').isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('dialog[open]').count(), 0);
-    await page.locator('#employeeRows').getByRole('button', {name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+    await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', {name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
     assert.equal(declarations.length, submitted); assert.equal(familyContextRequests, contexts, 'reopen reads certificates without obtaining declaration authority');
     assert.equal(await childField('familyName').inputValue(), label); assert.equal(await childField('familyName').isDisabled(), true);
     assert.equal(await childSubmit.isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
@@ -918,13 +933,13 @@ try {
   childError={status:503,code:'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE'};await childSubmit.click();await savedOrFailed();
   const actorRestored=structuredClone(declarations.at(-1)),actorSubmitted=declarations.length,actorPersisted=declaredByKey.size,actorOwnRows=dataset.data.rows.filter(row=>row.familyRef.kind==='own').length;
   await page.keyboard.press('Escape');authActor='restored-other-operator@example.invalid';
-  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
   assert.equal(await childField('familyName').count(),0);assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-add-child]').isDisabled(),true);
   assert.match(await family.locator('[data-fs-family-status]').innerText(),/Cambió la sesión/);
   assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);assert.equal(declaredByKey.size,actorPersisted);
   assert.equal(dataset.data.rows.filter(row=>row.familyRef.kind==='own').length,actorOwnRows);
   await page.keyboard.press('Escape');authActor='qa@example.invalid';
-  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
   assert.equal(await childField('familyName').count(),0);assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);
   checks.push('reopening under another actor discards the old volatile intention, opens no declaration form and sends no old-actor POST; restoring the original actor does not resurrect it');
 
