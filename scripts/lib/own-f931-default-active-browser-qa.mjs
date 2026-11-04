@@ -16,9 +16,19 @@ export async function verifyOwnF931DefaultActiveBrowser({browser,origin,root,out
  assert.equal(ledger.reduce((n,s)=>n+s.census.eventCount,0),26,'original synthetic ledger must retain all26 events');
  async function inspect(viewport,label){
   let fixture=jurisdictionFixture(61),reopened=[],allowed=true,authStatus=200,fiscalReads=0;
-  let fullFault=null,missingCapture=false,corrupt=false,unavailable=false;
+  let fullFault=null,missingCapture=false,corrupt=false,unavailable=false,heldAuth=null;
   const traffic=[],fullResponses=[],caps=Object.freeze([...OWN_CLOSE_NOMINAL,'payroll.read']);
   const context=await browser.newContext({viewport,locale:'es-AR',serviceWorkers:'block'});
+   await context.addInitScript(()=>{
+    const original=window.setInterval.bind(window),state={count:0,run:null,done:false,error:null};window.__f931QaInterval=state;
+    window.setInterval=(fn,ms,...args)=>{
+     if(ms===20000&&typeof fn==='function'&&String(new Error().stack).includes('/assets/own-f931-preparation-panel.js')){
+      state.count++;state.run=()=>{state.done=false;state.error=null;Promise.resolve().then(()=>fn(...args)).then(()=>{state.done=true;},e=>{state.error=String(e?.message??e);state.done=true;});};
+      return original(()=>{},ms);
+     }
+     return original(fn,ms,...args);
+    };
+   });
   const full=async(route,data)=>{
    const bytes=Buffer.from(JSON.stringify({ok:true,data}),'utf8');
    const body=fullFault==='utf8'?Buffer.from([0xc3,0x28]):bytes;
@@ -30,6 +40,7 @@ export async function verifyOwnF931DefaultActiveBrowser({browser,origin,root,out
    const req=route.request(),url=new URL(req.url());if(url.origin!==origin)return route.abort();
    if(req.method()!=='GET')writes.push({method:req.method(),path:url.pathname});
    if(url.pathname==='/api/internal-auth'){
+     const hold=heldAuth;if(hold){heldAuth=null;hold.entered();await hold.wait;}
     if(authStatus===401)return route.fulfill({status:401,json:{ok:false,error:'Synthetic session expired'}});
     return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic-user',email:'f931-qa@example.invalid'},access:{context:'tenant',tenant:{id:'10000000-0000-4000-8000-000000009991',roleKey:'QA'},tenantCapabilities:allowed?caps:[],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()}});
    }
@@ -112,6 +123,24 @@ export async function verifyOwnF931DefaultActiveBrowser({browser,origin,root,out
    check(initial.filter(q=>q.kind!=='fiscal').every(q=>q.accept===OWN_RUN_FULL_JSON)&&fullResponses.every(r=>r.actual===r.announced),label+': all historical sources negotiate FULL with exact announced UTF8 bytes');
    await $('contracts').locator('summary').click();check(await $('contract-rows').locator('article').count()===20,label+': first page contains20 of61 original contracts');
    await $('contract-next').click();await $('contract-next').click();await $('contract-next').click();check(await $('contract-rows').locator('article').count()===1,label+': the final original contract remains accessible');
+   // Exercise the panel's original20s callback, not an equivalent test implementation.
+   check(await page.evaluate(()=>window.__f931QaInterval?.count===1&&typeof window.__f931QaInterval.run==='function'),label+': captures exactly the actual panel session interval');
+   await $('search').focus();
+   await page.evaluate(()=>{
+    const q=key=>document.querySelector('[data-own-f931-'+key+']'),p={search:q('search'),table:q('fields').querySelector('table'),rows:[...q('contract-rows').children],controls:['target','search','contract-search','contract-state','csv'].map(q),disabledSeen:false,liveWrites:0};window.__f931QaPollProbe=p;
+    p.controlsObserver=new MutationObserver(records=>{if(records.some(r=>r.oldValue!==null||r.target.disabled))p.disabledSeen=true;});for(const n of p.controls)p.controlsObserver.observe(n,{attributes:true,attributeOldValue:true,attributeFilter:['disabled']});
+    p.liveObserver=new MutationObserver(records=>{p.liveWrites+=records.length;});for(const key of ['status','page','contract-count','contract-page'])p.liveObserver.observe(q(key),{subtree:true,childList:true,characterData:true});
+    p.snapshot=()=>({focus:document.activeElement===p.search,table:q('fields').querySelector('table')===p.table,rows:q('contract-rows').children.length===p.rows.length&&p.rows.every((row,i)=>q('contract-rows').children[i]===row),disabled:p.disabledSeen||p.controls.some(n=>n.disabled||n.matches(':disabled')),liveWrites:p.liveWrites,busy:document.querySelector('.own-f931').getAttribute('aria-busy')});
+   });
+   let releaseAuth,authEntered,gateDeadline;const entered=new Promise(resolve=>{authEntered=resolve;}),wait=new Promise(resolve=>{releaseAuth=resolve;});heldAuth={entered:authEntered,wait};
+   try{
+    await page.evaluate(()=>{window.__f931QaInterval.run();});await Promise.race([entered,new Promise((_,reject)=>{gateDeadline=setTimeout(()=>reject(Error('Synthetic session poll did not request auth')),15000);})]);clearTimeout(gateDeadline);
+    const during=await page.evaluate(()=>window.__f931QaPollProbe.snapshot());check(during.focus&&during.table&&during.rows&&!during.disabled&&during.liveWrites===0&&during.busy==='false',label+': a pending same-session poll preserves real focus, exact table/legajo nodes and live regions without disabling controls');
+    releaseAuth();await page.waitForFunction(()=>window.__f931QaInterval.done);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    const after=await page.evaluate(()=>window.__f931QaPollProbe.snapshot());check(after.focus&&after.table&&after.rows&&!after.disabled&&after.liveWrites===0&&after.busy==='false'&&await page.evaluate(()=>window.__f931QaInterval.error===null),label+': identical session success leaves focus, nodes, controls and announcements intact');
+   }finally{clearTimeout(gateDeadline);heldAuth=null;releaseAuth();await page.evaluate(()=>{window.__f931QaPollProbe.controlsObserver.disconnect();window.__f931QaPollProbe.liveObserver.disconnect();});}
+   const beforePoll401=traffic.length;authStatus=401;await page.evaluate(()=>{window.__f931QaInterval.run();});await page.waitForFunction(()=>document.querySelector('[data-own-f931-view]').hidden&&document.querySelector('[data-own-f931-csv]').disabled);
+   check(await hidden()&&await $('login').isVisible()&&traffic.length===beforePoll401,label+': the same background poll retires the complete review on401 before any historical/fiscal query');authStatus=200;await $('access').click();await idle();await consult();check(await $('view').isVisible()&&navigations===1,label+': explicit access recovery after poll401 keeps the original document and complete-source consultation');
    await $('jurisdiction').selectOption('42');await consult();check((await $('count').innerText()).includes('31 participaciones en Jurisdicción 42 de 61 del alcance completo'),label+':42 is a view of the conserved complete61-participation scope');
    await $('jurisdiction').selectOption('55');await consult();check((await $('count').innerText()).includes('30 participaciones en Jurisdicción 55 de 61 del alcance completo'),label+':55 recovers its conserved view without F5');
    await $('jurisdiction').selectOption('all');await consult();

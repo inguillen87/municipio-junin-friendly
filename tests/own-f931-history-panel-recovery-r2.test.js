@@ -16,13 +16,13 @@ const ACTIVE=Object.freeze({version:'own-f931-history-admission.v1',activated:tr
 const auth=caps=>({ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic',email:'f931@example.invalid'},access:{context:'tenant',tenant:{id:'aaaaaaaa-0000-4000-8000-000000000001',roleKey:'test'},tenantCapabilities:[...caps]},expiresAt:'2099-01-01T00:00:00Z'});
 const stream=bytes=>new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=65536)c.enqueue(bytes.subarray(i,i+65536));c.close();}});
 function harness(t,{admission,fixture}={}){
- const saved=new Map(['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval','URL'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),root=new Element(),head=new Element('head'),docEvents=events(),winEvents=events(),requests=[],urls={created:0,revoked:0,clicked:0,removed:0,blobs:[],filenames:[]};
+ const saved=new Map(['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval','URL'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),root=new Element(),head=new Element('head'),docEvents=events(),winEvents=events(),requests=[],intervals=[],urls={created:0,revoked:0,clicked:0,removed:0,blobs:[],filenames:[]};
  const f=fixture??jurisdictionFixture(4,()=>'42'),state={f,census:reportCensusFixture(f),receipts:structuredClone(f.receipts),captures:structuredClone(f.details[0].captures),fiscal:null,caps:OWN_CLOSE_NOMINAL,failure:null,oversize:null,sessionStatus:200};
  const doc={...docEvents,hidden:false,head,body:new Element('body'),createElement:tag=>{const n=new Element(tag);if(tag==='a'){n.click=()=>{urls.clicked++;urls.filenames.push(n.download);};n.remove=()=>{const p=n.parentElement;if(p)p.children=p.children.filter(c=>c!==n);n.parentElement=null;n.isConnected=false;urls.removed++;};}return n;},querySelector:s=>head.querySelector(s)};
- Object.assign(globalThis,{document:doc,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},URL:Object.assign(function URLShim(...a){return new (saved.get('URL').value)(...a);},{createObjectURL(blob){urls.created++;urls.blobs.push(blob);return 'blob:synthetic-'+urls.created;},revokeObjectURL(){urls.revoked++;}})});
+ Object.assign(globalThis,{document:doc,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval(fn,ms){intervals.push({fn,ms,cleared:false});return intervals.length;},clearInterval(id){if(intervals[id-1])intervals[id-1].cleared=true;},URL:Object.assign(function URLShim(...a){return new (saved.get('URL').value)(...a);},{createObjectURL(blob){urls.created++;urls.blobs.push(blob);return 'blob:synthetic-'+urls.created;},revokeObjectURL(){urls.revoked++;}})});
  globalThis.fetch=async(url,options={})=>{const q=new (saved.get('URL').value)(url,'https://synthetic.invalid'),entry={url,options,query:q.searchParams,signal:options.signal};requests.push(entry);
   const reply=(status,data,{full=false,announced}={})=>{const bytes=new TextEncoder().encode(JSON.stringify(data));return {ok:status<400,status,headers:{get:name=>name==='content-type'?(full?OWN_RUN_FULL_JSON:'application/json'):name==='x-municontrol-json-bytes'?(full?String(announced??bytes.length):null):null},body:stream(bytes),async json(){return JSON.parse(new TextDecoder().decode(bytes));}};};
-  if(q.pathname==='/api/internal-auth')return state.sessionStatus===200?reply(200,auth(state.caps)):reply(401,{ok:false,code:'UNAUTHENTICATED',error:'La sesión venció.'});
+  if(q.pathname==='/api/internal-auth'){if(state.authOverride)return state.authOverride(reply,entry);return state.sessionStatus===200?reply(200,auth(state.caps)):reply(state.sessionStatus,{ok:false,code:'UNAUTHENTICATED',error:'La sesión venció.'});}
   if(state.failure){const x=state.failure;state.failure=null;return reply(x.status,{ok:false,code:x.code,error:x.error});}
   if(state.oversize&&q.searchParams.get('resource')===state.oversize.resource){const x=state.oversize;state.oversize=null;return reply(x.status??200,{ok:true,data:{padding:'x'.repeat(x.bytes)}},{full:x.full});}
   const resource=q.searchParams.get('resource'),full=options.headers?.Accept===OWN_RUN_FULL_JSON;
@@ -38,7 +38,7 @@ function harness(t,{admission,fixture}={}){
  const start=async()=>{docEvents.dispatch('taskchange',{id:'f931'});await flush();q('period').value=f.query.from;q('date').value='2026-10-31';};
  const complete=async()=>{const end=Date.now()+5000;while(root.querySelector('section')?.getAttribute('aria-busy')==='true'){assert.ok(Date.now()<end,'bounded synthetic read did not settle');await settle();}};
  t.after(()=>{winEvents.dispatch('pagehide');for(const[k,d]of saved)if(d)Object.defineProperty(globalThis,k,d);else delete globalThis[k];});
- return {q,requests,state,urls,start,complete,events:docEvents};
+ return {q,requests,state,urls,start,complete,events:docEvents,windowEvents:winEvents,tickPoll(){const interval=intervals.find(x=>!x.cleared&&x.ms===20000);assert.ok(interval,'session polling interval required');return interval.fn();}};
 }
 test('inactive admission: the panel keeps the operational v1 route (detail/group, plain JSON) and says so; no census or FULL is ever requested',async t=>{
  const h=harness(t,{admission:INACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();
@@ -107,7 +107,10 @@ for(const [label,admission]of [['operational',INACTIVE],['historical',ACTIVE]]){
   assert.equal(h.q('view').hidden,false,h.q('status').textContent);
   assert.equal(h.q('empty').hidden,false);assert.equal(h.q('populated').hidden,true);
   assert.match(h.q('empty-copy').textContent,/no encontró cierres propios/);
+  assert.equal(h.q('status').getAttribute('role'),'status');
+  assert.match(h.q('status').textContent,new RegExp('Sin liquidaciones propias cerradas en '+value.params.period));
   assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#cierre');
+  assert.equal(h.q('empty').querySelectorAll('a')[1].getAttribute('href'),'/nomina#calculo');
   assert.equal(h.q('technical').open,false);assert.equal(h.q('technical').getAttribute('open'),null);
   assert.equal(h.q('requirements').children.length,4,'fiscal requirements remain visible');
   assert.equal(h.q('coverage').textContent.includes('0 de 0 contratos con revisión vigente'),false);
@@ -128,6 +131,7 @@ test('jurisdiction with zero selected contracts is not an empty universe and ret
  assert.equal(h.q('empty').hidden,true);assert.equal(h.q('populated').hidden,false);
  assert.match(h.q('count').textContent,/0 participaciones en Jurisdicción 55 de 4 del alcance completo/);
  assert.equal(h.q('selection-note').hidden,false);assert.match(h.q('selection-note').textContent,/conserva 4 participaciones/);
+ assert.match(h.q('status').textContent,/Sin participaciones en Jurisdicción 55.*4 participaciones del alcance completo/);
  assert.match(h.q('contract-count').textContent,/4 contratos distintos/);
  assert.equal(h.q('requirements').textContent,requirements);
  assert.ok(h.requests.every(r=>!r.query.has('jurisdiction')),'scope selection must not trim source queries');
@@ -170,4 +174,45 @@ test('compact manual reaches all 60 fields; search cannot trim the downloaded co
  assert.equal(h.q('view').hidden,true);assert.equal(h.q('empty').hidden,true);assert.equal(h.q('populated').hidden,true);
  assert.equal(h.q('technical').open,false);assert.equal(h.q('fields').children.length,0);assert.equal(h.q('contract-rows').children.length,0);
  assert.equal(h.urls.revoked,2);const before=h.urls.created;await h.q('csv').emit('click');assert.equal(h.urls.created,before);
+});
+
+test('background session polling preserves focused controls, nodes and live regions during pending and identical success',async t=>{
+ const h=harness(t,{admission:ACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();
+ const search=h.q('search'),table=h.q('fields').querySelector('table'),legajos=h.q('contract-rows').children.slice(),disabledWrites=[],liveWrites=[];document.activeElement=search;
+ for(const key of ['search','contract-search','contract-state','csv']){const n=h.q(key);let value=n.disabled;Object.defineProperty(n,'disabled',{configurable:true,get:()=>value,set(next){disabledWrites.push([key,next]);if(next&&document.activeElement===n)document.activeElement=null;value=next;}});}
+ const text=Object.getOwnPropertyDescriptor(Element.prototype,'textContent');for(const key of ['status','page','contract-count','contract-page']){const n=h.q(key);Object.defineProperty(n,'textContent',{configurable:true,get(){return text.get.call(this);},set(value){liveWrites.push(key);text.set.call(this,value);}});}
+ let release;h.state.authOverride=reply=>new Promise(resolve=>{release=()=>resolve(reply(200,auth(OWN_CLOSE_NOMINAL)));});const at=h.requests.length;h.tickPoll();await flush();
+ try{
+  assert.equal(h.requests.length,at+1);assert.equal(h.requests.at(-1).url,'/api/internal-auth');assert.equal(h.q('target').disabled,false);assert.equal(document.activeElement,search);assert.deepEqual(disabledWrites,[]);assert.equal(h.q('fields').querySelector('table'),table);assert.ok(h.q('contract-rows').children.length===legajos.length&&h.q('contract-rows').children.every((row,i)=>row===legajos[i]));assert.deepEqual(liveWrites,[]);
+  release();await flush();assert.equal(h.q('view').hidden,false);assert.equal(document.activeElement,search);assert.deepEqual(disabledWrites,[]);assert.equal(h.q('fields').querySelector('table'),table);assert.ok(h.q('contract-rows').children.length===legajos.length&&h.q('contract-rows').children.every((row,i)=>row===legajos[i]));assert.deepEqual(liveWrites,[]);
+ }finally{release?.();await flush();}
+});
+
+for(const kind of ['401','403','changed-account','revoked-capability']){
+ test('background session polling withdraws on '+kind+' and permits explicit renewed access',async t=>{
+  const h=harness(t,{admission:ACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();await h.q('csv').emit('click');await h.complete();assert.equal(h.urls.created,1);
+  if(kind==='changed-account')h.state.authOverride=reply=>reply(200,{...auth(OWN_CLOSE_NOMINAL),user:{id:'another-synthetic-account',email:'other@example.invalid'}});else if(kind==='revoked-capability')h.state.caps=[];else h.state.sessionStatus=Number(kind);
+  h.tickPoll();await flush();assert.equal(h.q('view').hidden,true);assert.equal(h.q('fields').children.length,0);assert.equal(h.q('contract-rows').children.length,0);assert.equal(h.q('technical').open,false);assert.equal(h.q('csv').disabled,true);assert.equal(h.q('access').hidden,false);assert.equal(h.q('login').hidden,kind!=='401');assert.equal(h.urls.revoked,1);
+  h.state.authOverride=null;h.state.caps=OWN_CLOSE_NOMINAL;h.state.sessionStatus=200;await h.q('access').emit('click');await h.complete();await h.q('form').emit('submit');await h.complete();assert.equal(h.q('view').hidden,false,h.q('status').textContent);
+ });
+}
+
+for(const terminal of ['visibilitychange','pagehide']){
+ test('a late successful poll cannot restore or write a review retired by '+terminal,async t=>{
+  const h=harness(t,{admission:ACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();
+  let release;h.state.authOverride=reply=>new Promise(resolve=>{release=()=>resolve(reply(200,auth(OWN_CLOSE_NOMINAL)));});h.tickPoll();await flush();const pending=h.requests.at(-1);h.state.authOverride=null;
+  try{
+   if(terminal==='visibilitychange'){document.hidden=true;h.events.dispatch('visibilitychange');}else h.windowEvents.dispatch('pagehide');assert.equal(pending.signal.aborted,true);assert.equal(h.q('view').hidden,true);assert.equal(h.q('csv').disabled,true);
+   const login=h.q('login');let hidden=login.hidden,writes=0;Object.defineProperty(login,'hidden',{configurable:true,get:()=>hidden,set(value){writes++;hidden=value;}});release();await flush();assert.equal(writes,0,'retired callbacks cannot write even login state');assert.equal(h.q('view').hidden,true);assert.equal(h.q('fields').children.length,0);assert.equal(h.q('contract-rows').children.length,0);
+   if(terminal==='visibilitychange'){document.hidden=false;h.events.dispatch('visibilitychange');assert.equal(h.q('target').disabled,true);assert.equal(h.q('access').hidden,false);}
+  }finally{release?.();await flush();}
+ });
+}
+
+test('foreground reconsultation aborts a session poll and ignores its late failure',async t=>{
+ const h=harness(t,{admission:ACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();
+ let release;h.state.authOverride=reply=>new Promise(resolve=>{release=()=>resolve(reply(401,{ok:false,code:'UNAUTHENTICATED',error:'Synthetic late session result'}));});h.tickPoll();await flush();const pending=h.requests.at(-1);h.state.authOverride=null;
+ try{
+  await h.q('form').emit('submit');await h.complete();assert.equal(pending.signal.aborted,true);assert.equal(h.q('view').hidden,false);const freshTable=h.q('fields').querySelector('table'),freshStatus=h.q('status').textContent;release();await flush();assert.equal(h.q('view').hidden,false);assert.equal(h.q('fields').querySelector('table'),freshTable);assert.equal(h.q('status').textContent,freshStatus);assert.equal(h.q('login').hidden,true);assert.equal(h.q('target').disabled,false);
+ }finally{release?.();await flush();}
 });
