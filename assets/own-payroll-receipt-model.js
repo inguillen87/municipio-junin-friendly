@@ -1,4 +1,4 @@
-import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
+import {SALARY_UNITS,salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownReportQuery,ownReportFilters,emptyOwnReportFilters} from './own-payroll-report-model.js';
 import {OWN_CLOSE_NOMINAL,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
@@ -81,6 +81,20 @@ export function ownReceiptRecord(record){
  sums.gross=exactAdd(sums.remuneration,sums.non_remuneration);sums.net=exactSubtract(sums.gross,sums.deduction);
  for(const key of OWN_CLOSE_TOTAL_KEYS){formatOwnRunDecimal(record.totals[key]);need(quantize(sums[key],{precision:record.precision,mode:'exact'}).amount===record.totals[key],'Los conceptos no concilian con el total original conservado.');}
  return record;
+}
+const receiptNatureDescriptions=Object.freeze({
+ remuneration:{title:'Haberes remunerativos',explanation:'Se suman a tus haberes.'},
+ non_remuneration:{title:'Haberes no remunerativos',explanation:'Se suman a tus haberes como no remunerativos.'},
+ deduction:{title:'Descuentos y retenciones',explanation:'Se restan del bruto para obtener el neto.'},
+ employer_contribution:{title:'Aportes del empleador',explanation:'A cargo del empleador; no se descuentan nuevamente del neto.'},
+ auxiliary:{title:'Datos del cálculo',explanation:'Valores técnicos: no se suman a los haberes ni a los descuentos.'}
+});
+// Presentation only: no quantities, bases or rates are inferred from the result.
+export function ownReceiptPresentation(record){
+ ownReceiptRecord(record);
+ const groups=Object.entries(receiptNatureDescriptions).map(([nature,description])=>({nature,...description,rows:record.concepts.filter(c=>c.nature===nature).map(c=>({...c,displayUnit:Object.hasOwn(SALARY_UNITS,c.unit)?SALARY_UNITS[c.unit]:c.unit+' (unidad conservada)',displayAmount:formatOwnRunDecimal(c.amount,c.unit==='money')}))})).filter(group=>group.rows.length);
+ const totals=[['remuneration','Haberes remunerativos'],['non_remuneration','Haberes no remunerativos'],['deduction','Descuentos y retenciones'],['employer_contribution','Aportes patronales (a cargo del empleador)'],['gross','Total de haberes (bruto)'],['net','Neto']].map(([key,label])=>({key,label,amount:record.totals[key],displayAmount:formatOwnRunDecimal(record.totals[key])}));
+ return freeze({groups,totals,netExplanation:'El bruto suma los haberes remunerativos y no remunerativos. El neto es el bruto menos los descuentos y retenciones. Los aportes del empleador no se descuentan nuevamente del neto.'});
 }
 export function ownReceiptSnapshot(value){
  need(salaryExact(value,['version','params','sourceVersion','sources','records','recordCount','conceptCount','identityBasis','paymentDateBasis','signatureState','payrollPosted','paymentExecuted'])&&((value.version==='own-receipt-snapshot.v1'&&value.identityBasis==='native_registration_immutable')||(['own-receipt-snapshot.v2','own-receipt-snapshot.v3'].includes(value.version)&&value.identityBasis==='owned_registration_verified_at_capture'))&&salaryHash(value.sourceVersion)&&value.paymentDateBasis==='declared'&&value.signatureState==='pending'&&value.payrollPosted===false&&value.paymentExecuted===false,'No se verificó la copia de emisión y sus estados.');

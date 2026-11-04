@@ -2,9 +2,9 @@ name: Own payroll receipts
 on:
   push:
     branches: ['master', 'codex/own-payroll-receipts-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'centro-acciones.html', 'api/internal-own-payroll-receipts.js', 'lib/internal-own-payroll-receipts.js', 'scripts/migrations/126-*', 'scripts/*own-payroll*receipt*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-receipt*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-receipts.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'centro-acciones.html', 'nomina-control.html', 'api/internal-own-payroll-receipts.js', 'lib/internal-own-payroll-receipts.js', 'scripts/migrations/126-*', 'scripts/*own-payroll*receipt*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-receipt*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-receipts.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'centro-acciones.html', 'api/internal-own-payroll-receipts.js', 'lib/internal-own-payroll-receipts.js', 'scripts/migrations/126-*', 'scripts/*own-payroll*receipt*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-receipt*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-receipts.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'centro-acciones.html', 'nomina-control.html', 'api/internal-own-payroll-receipts.js', 'lib/internal-own-payroll-receipts.js', 'scripts/migrations/126-*', 'scripts/*own-payroll*receipt*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-receipt*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-receipts.yml']
 permissions:
   contents: read
 jobs:
@@ -43,4 +43,28 @@ jobs:
       - run: node scripts/verify-own-payroll-receipt-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-receipts-installation.json
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-own-payroll-receipt-types-browser.mjs --output=verification/own-receipt-types-operator-browser
+      - run: node scripts/verify-own-payroll-receipt-description-browser.mjs --output=verification/own-receipt-descriptions-operator-browser
       - run: node scripts/verify-own-payroll-receipt-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-receipts-ui.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receipts-operator-ux-pg${{ matrix.major }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            verification/own-receipt-descriptions-operator-browser/
+            verification/own-receipt-types-operator-browser/result.json
+            verification/own-receipt-types-operator-browser/partial.json
+            verification/own-receipt-types-operator-browser/failure.txt
+            verification/own-receipt-types-operator-browser/operator-choice-1366.png
+            verification/own-receipt-types-operator-browser/operator-choice-390.png
+            verification/own-receipt-types-operator-browser/operator-choice-320.png
+            verification/own-receipt-types-operator-browser/receipt-types-1366.png
+            verification/own-receipt-types-operator-browser/receipt-types-390.png
+            verification/own-receipt-types-operator-browser/receipt-types-320.png
+            verification/own-receipt-types-operator-browser/operator-group-1366.pdf
+            verification/own-receipt-types-operator-browser/operator-group-390.pdf
+            verification/own-receipt-types-operator-browser/operator-group-320.pdf
+            verification/own-receipt-types-operator-browser/operator-individual-1366.pdf
+            verification/own-receipt-types-operator-browser/operator-individual-390.pdf
+            verification/own-receipt-types-operator-browser/operator-individual-320.pdf
+          retention-days: 5
