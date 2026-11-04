@@ -1,3 +1,6 @@
+import {policySources} from './fixtures/own-monthly-day-policy-synthetic.js';
+import {PROGRAM_SOURCES,PROGRAM_MONTHLY_DAY_FIELDS} from '../assets/own-payroll-program-workspace-model.js';
+import {ownerProgramReviewRows} from '../assets/municipal-owner-program-workspace.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,webcrypto} from 'node:crypto';
@@ -50,3 +53,33 @@ test('sesión vencida incluso con HTTP200 no habilita vistas ni decisiones',()=>
  assert.throws(()=>programWorkspaceAccess(auth,Date.parse('2026-10-05T11:00:00Z')));assert.ok(programWorkspaceAccess(auth,Date.parse('2026-10-05T09:00:00Z')).caps.has('payroll.parameter.read'));
 });
 const clone=v=>structuredClone(v);
+
+
+test('monthly policy preparation stays explicit and the complete comparison includes its version, values and reference',()=>{
+ const {boot,definition}=monthlyFixture(),body=prepareProgramWorkspace(boot,definition,'Declaración de política únicamente sintética QA');
+ assert.equal(body.reviewConfirmed,false);assert.deepEqual(body.program.monthlyDaysPolicy,definition.monthlyDaysPolicy);
+ const view=programWorkspaceChanges(null,body.program);assert.equal(view.monthlyDaysVersion.before,null);assert.equal(view.monthlyDaysVersion.after,definition.monthlyDaysVersion);assert.deepEqual(view.monthlyDaysPolicy.after,definition.monthlyDaysPolicy);
+ const next=clone(body.program);next.monthlyDaysPolicy.reference='Otro respaldo únicamente sintético QA';const changed=programWorkspaceChanges(body.program,next);assert.equal(changed.changed,1);assert.equal(changed.monthlyDaysPolicy.before.reference,definition.monthlyDaysPolicy.reference);
+ assert.equal(PROGRAM_SOURCES.monthly_day_fact,'Días mensuales del programa aprobado');assert.deepEqual(Object.keys(PROGRAM_MONTHLY_DAY_FIELDS),['recognizedDays','baseDays']);
+});
+test('blank or weakened monthly policy and incompatible typed day inputs fail without a proposed command',()=>{
+ for(const mutate of[p=>p.monthlyDaysPolicy.reference='',p=>p.monthlyDaysPolicy.recognizedDays='28',p=>p.monthlyDaysPolicy.partial='calendar',p=>delete p.monthlyDaysPolicy,p=>p.bindings[0].unit='hours',p=>p.bindings[0].onMissing='zero',p=>p.bindings[0].sourceField='L18']){const {boot,definition}=monthlyFixture();mutate(definition);assert.throws(()=>prepareProgramWorkspace(boot,definition,'Política sintética inválida QA'));}
+});
+test('monthly policy cannot be pruned from approved history or combined with a second fraction',()=>{
+ const f=monthlyFixture(),old=clone(f.definition);f.boot.program={version:hash('b'),revision:1,definition:old,salaryVersion:f.boot.salaryCatalog.version,proposalId:uid(701),approvalId:uid(702)};
+ const noPolicy=clone(old);delete noPolicy.monthlyDaysVersion;delete noPolicy.monthlyDaysPolicy;assert.throws(()=>prepareProgramWorkspace(f.boot,noPolicy,'Retiro no permitido sintético QA'));
+ const t=f.definition.periodParticipation.treatments.find(t=>t.ruleKey.includes('concept:9100'));t.treatment='fraction';assert.throws(()=>prepareProgramWorkspace(monthlyFixture().boot,f.definition,'Doble fracción exclusivamente sintética QA'),e=>e.code==='MONTHLY_DAY_DOUBLE_FRACTION');
+});
+test('monthly source cannot be consumed by a mixed monthly and SAC rule',()=>{
+ const {boot,definition}=monthlyFixture();for(const r of definition.rules.slice(0,3))r.liquidationTypes=['monthly','sac'];for(const t of definition.periodParticipation.treatments)if(/:(?:concept|auxiliary):910[012]:/.test(t.ruleKey))t.ruleKey+=',sac';assert.throws(()=>prepareProgramWorkspace(boot,definition,'Tipos incompatibles exclusivamente sintéticos QA'),e=>e.code==='MONTHLY_DAY_TYPE_UNSUPPORTED');
+});
+test('pending monthly programme body and request key are immutable when a new local reference changes',()=>{
+ const f=monthlyFixture(),body=prepareProgramWorkspace(f.boot,f.definition,'Propuesta mensual exclusivamente sintética QA'),attempt=programWorkspaceAttempt(uid(703),body,'sesión propia ficticia QA');f.definition.monthlyDaysPolicy.reference='Cambió sólo el borrador local sintético';
+ assert.equal(attempt.key,uid(703));assert.notEqual(attempt.body.program.monthlyDaysPolicy.reference,f.definition.monthlyDaysPolicy.reference);assert.ok(Object.isFrozen(attempt.body.program.monthlyDaysPolicy));assert.throws(()=>{attempt.body.program.monthlyDaysPolicy.reference='Mutación';});
+});
+test('owner decision rows disclose every monthly policy component without changing prior policies or salary data',()=>{
+ const f=monthlyFixture(),p={baseDefinition:null,definition:f.definition,salaryItems:f.boot.salaryCatalog.items},before=clone(p),rows=ownerProgramReviewRows({proposal:p}),monthly=rows.policies.filter(r=>r.key.startsWith('Días mensuales')||r.key.startsWith('Política mensual'));
+ assert.equal(monthly.length,8);for(const value of[f.definition.monthlyDaysVersion,...Object.values(f.definition.monthlyDaysPolicy)])assert.ok(monthly.some(r=>r.after===value));assert.deepEqual(p,before);assert.equal(rows.rows.length,f.definition.rules.length+f.definition.bindings.length+f.definition.periodParticipation.treatments.length);
+ const legacy=ownerProgramReviewRows({proposal:{baseDefinition:null,definition:exactProgram(),salaryItems:bootstrap().salaryCatalog.items}});assert.equal(legacy.policies.some(r=>r.key.startsWith('Política mensual')),false);
+});
+function monthlyFixture(){const s=policySources(1),definition=clone(s.programState.program.definition),boot=clone(s.programState);boot.program={...boot.program,revision:0,definition:null,salaryVersion:null,proposalId:null,approvalId:null};return{boot,definition};}

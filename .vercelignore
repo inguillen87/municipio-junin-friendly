@@ -402,3 +402,5 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+!scripts/migrations/192-own-monthly-day-full-month-policy.sql

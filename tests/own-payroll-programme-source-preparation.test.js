@@ -1,3 +1,4 @@
+import {monthlyDayPreparationFixture,syntheticPreparedSources,absenceBatch,resealAbsenceBatch} from './fixtures/own-programme-monthly-day-preparation-synthetic.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {prepareOwnPayrollProgrammeSource,OWN_PROGRAMME_SOURCE_VERSION} from '../lib/own-payroll-programme-source-preparation.js';
@@ -248,4 +249,73 @@ test('two rules reuse one custom supplied L101 source without generating a dupli
  const expression={op:'choose',condition:{op:'compare',operator:'eq',left:{op:'period_month'},right:literal('units','9')},then:literal('money','1'),else:literal('money','0')},input=fixture([definition('301',{expression}),definition('302',{expression})]);input.programmeOptions.periodContextVersion=OWN_PAYROLL_PERIOD_CONTEXT_VERSION;
  input.bindings=[{agreementCode:'71',reference:'L[101]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'customMonth',unit:'units',sourceKind:'period_context_fact',sourceField:'monthNumber',combine:'single',onMissing:'error',ruleReference:'Origen de período exclusivamente ficticio QA'}}];
  const r=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(r.incidents,[]);assert.equal(r.draft.programme.bindings.length,1);assert.ok(r.draft.programme.rules.every(rule=>rule.expression.condition.left.key==='customMonth'));assert.equal(r.approved,false);assert.equal(r.executable,false);
+});
+
+
+// Regression: native monthly-day programme preparation. Every fact and rule below is synthetic.
+test('monthly-day policy survives typed source preparation without becoming an approval or a literal day input',()=>{
+ const f=monthlyDayPreparationFixture(),original=structuredClone(f.input);
+ // The canonical target accepts this definition before preparation; this exposed the old options whitelist defect.
+ assert.deepEqual(ownProgramDefinition(f.expectedDefinition,f.input.salary.catalog.items),f.expectedDefinition);
+ const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);assert.deepEqual(f.input,original);
+ assert.deepEqual(r.draft.programme,f.expectedDefinition);assert.equal(r.draft.programme.monthlyDaysVersion,f.input.programmeOptions.monthlyDaysVersion);
+ assert.deepEqual(r.draft.programme.monthlyDaysPolicy,f.input.programmeOptions.monthlyDaysPolicy);
+ assert.deepEqual(r.draft.programme.bindings.map(b=>[b.sourceKind,b.unit,b.onMissing,b.combine]),[['monthly_quantity','days','error','single'],['monthly_day_fact','days','error','single'],['monthly_day_fact','days','error','single']]);
+ assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);assert.equal(r.payrollPosted,false);
+ assert.equal(Object.hasOwn(r,'command'),false);assert.equal(Object.hasOwn(r,'requestKey'),false);
+ assert.ok(Object.isFrozen(r.draft.programme.monthlyDaysPolicy));assert.ok(r.trace.some(t=>t.sourceReference==='N[101]'&&t.unit==='days'));
+});
+test('prepared monthly policy and existing own novelty quantity reach the exact engine only with an explicit synthetic approval',()=>{
+ const f=monthlyDayPreparationFixture(),r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.throws(()=>prepareOwnPayrollInput({...f.runtime,programState:f.input.programme}),e=>e.code==='PROGRAM_APPROVAL_REQUIRED');
+ for(const[quantity,amount]of[['0','120.15'],['2','112.14'],['1.25','115.14']]){
+  const s=syntheticPreparedSources(r,f,quantity),input=prepareOwnPayrollInput(s),result=createOwnPayrollSnapshot(input).result;
+  assert.equal(input.employees.length,1);assert.equal(result.rows.length,1);assert.equal(result.rows[0].amount,amount);
+  const facts=Object.fromEntries(input.employees[0].inputs.map(x=>[x.key,x.value]));assert.equal(facts.recognizedDays,'30');assert.equal(facts.baseDays,'30');assert.equal(facts.approvedAbsenceDays,{'0':'0.00000000','2':'2.00000000','1.25':'1.25000000'}[quantity]);
+  assert.equal(result.payrollPosted,false);assert.equal(result.paymentExecuted,false);assert.equal(result.municipalApprovalVerified,false);
+  assert.equal(s.monthly.nativeBatches[0].rows[0].values.conceptSourceId,'101');assert.equal(s.periodParticipation.records[0].configuration.revision,0);
+ }
+});
+test('missing, null and multiple approved absence quantities remain distinct rejections, not fabricated zero',()=>{
+ const f=monthlyDayPreparationFixture(),r=prepareOwnPayrollProgrammeSource(f.input),missing=syntheticPreparedSources(r,f);
+ missing.monthly.nativeBatches=[];assert.throws(()=>prepareOwnPayrollInput(missing),e=>e.code==='SOURCE_VALUE_MISSING');
+ const nullQuantity=syntheticPreparedSources(r,f);nullQuantity.monthly.nativeBatches=[absenceBatch(null,'0')];
+ assert.throws(()=>prepareOwnPayrollInput(nullQuantity),e=>e.code==='SOURCE_VALUE_MISSING');
+ const duplicated=syntheticPreparedSources(r,f),second=structuredClone(duplicated.monthly.nativeBatches[0]);second.id='dddddddd-0000-4000-8000-000000099001';duplicated.monthly.nativeBatches.push(second);
+ assert.throws(()=>prepareOwnPayrollInput(duplicated),e=>e.code==='SOURCE_AMBIGUOUS');
+ const sameBatch=syntheticPreparedSources(r,f),b=sameBatch.monthly.nativeBatches[0],copy=structuredClone(b.rows[0]);copy.values.rowOrdinal=2;b.rows.push(copy);resealAbsenceBatch(b);
+ assert.throws(()=>prepareOwnPayrollInput(sameBatch),e=>e.code==='OWN_NOVELTY_DUPLICATE_ROW');
+});
+test('monthly preparation never supplies missing evidence bindings or changes native day and absence units',()=>{
+ const f=monthlyDayPreparationFixture();f.input.bindings=f.input.bindings.filter(b=>b.reference!=='N[101]');const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('SOURCE_BINDING_UNRESOLVED'));
+ for(const reference of['L[900001]','L[900002]','N[101]']){
+  const g=monthlyDayPreparationFixture();g.input.bindings.find(b=>b.reference===reference).binding.unit='hours';const bad=prepareOwnPayrollProgrammeSource(g.input);
+  assert.equal(bad.draft.programme,null);assert.ok(codes(bad).includes('SOURCE_BINDING_UNIT_MISMATCH'));
+ }
+});
+test('monthly preparation still requires exact approved catalogue validity and explicit result rounding',()=>{
+ for(const mutate of[
+  f=>{for(const rows of[f.input.salary.catalog.items,f.input.programme.salaryCatalog.items])rows.find(r=>r.code==='101').unit='hours';},
+  f=>{for(const rows of[f.input.salary.catalog.items,f.input.programme.salaryCatalog.items])Object.assign(rows.find(r=>r.code==='101'),{validFrom:'2026-09',validUntil:'2026-09'});}
+ ]){const f=monthlyDayPreparationFixture();mutate(f);const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));}
+ const f=monthlyDayPreparationFixture();f.input.definitions[0].rounding=null;const r=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('ROUNDING_UNRESOLVED'));
+});
+test('monthly policy cannot be half-declared, silently weakened or reused for a nonmonthly day consumer',()=>{
+ for(const mutate of[
+  i=>delete i.programmeOptions.monthlyDaysPolicy,
+  i=>delete i.programmeOptions.monthlyDaysVersion,
+  i=>{i.programmeOptions.monthlyDaysPolicy.recognizedDays='28';},
+  i=>{i.programmeOptions.monthlyDaysPolicy.partial='calendar';}
+ ]){const f=monthlyDayPreparationFixture();mutate(f.input);const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(codes(r).includes('PROGRAMME_CURRENT_CONTRACT_REJECTED'));}
+ const f=monthlyDayPreparationFixture();f.input.definitions[0].liquidationTypes=['monthly','sac'];f.input.programmeOptions.periodParticipation.treatments[0].ruleKey='1:concept:9100:2026-10:monthly,sac';
+ const r=prepareOwnPayrollProgrammeSource(f.input);assert.equal(r.draft.programme,null);assert.ok(r.incidents.some(i=>i.path==='MONTHLY_DAY_TYPE_UNSUPPORTED'));
+ const unknown=monthlyDayPreparationFixture();unknown.input.programmeOptions.arbitraryPolicy=true;assert.throws(()=>prepareOwnPayrollProgrammeSource(unknown.input),e=>e.code==='PREPARATION_CONTRACT_INVALID');
+});
+test('monthly policy evidence remains in the preparation hash without changing approved base versions',()=>{
+ const f=monthlyDayPreparationFixture(),a=prepareOwnPayrollProgrammeSource(f.input);f.input.programmeOptions.monthlyDaysPolicy.reference='Otra referencia exclusivamente sintética QA';const b=prepareOwnPayrollProgrammeSource(f.input);
+ assert.equal(b.presentable.programme,true);assert.notEqual(a.pins.preparationSha256,b.pins.preparationSha256);assert.notEqual(a.pins.evidenceSha256,b.pins.evidenceSha256);
+ assert.equal(a.pins.programVersion,b.pins.programVersion);assert.equal(a.pins.salaryVersion,b.pins.salaryVersion);
 });
