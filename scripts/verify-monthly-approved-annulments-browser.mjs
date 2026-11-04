@@ -1,3 +1,4 @@
+import {openNoveltyReferenceTool} from './lib/novelty-reference-browser.mjs';
 // Full workbench, real HTTP handlers and facade; only SQL responses are synthetic.
 // Every API is intercepted, including published mode: no municipal writes.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
@@ -61,7 +62,7 @@ try{
   if(live)return route.continue();const file=path.resolve(root,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'application/octet-stream'});
  });
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
- const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#monthlyAnnul:visible').waitFor();await page.locator('#monthlyAnnulRefresh').click();await page.waitForFunction(()=>!document.getElementById('monthlyAnnulMode').disabled);};
+ const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferenceTool(page,'monthlyAnnul');await page.locator('#monthlyAnnul:visible').waitFor();await page.locator('#monthlyAnnulRefresh').click();await page.waitForFunction(()=>!document.getElementById('monthlyAnnulMode').disabled);};
  const selectAll=async()=>{await page.locator('#monthlyAnnulSelectPage').click();while(await page.locator('#monthlyAnnulNext').isEnabled()){await page.locator('#monthlyAnnulNext').click();await page.locator('#monthlyAnnulSelectPage').click();}};
  const compare=async()=>{await page.locator('#monthlyAnnulReason').fill('Motivo administrativo sintético completo');await page.locator('#monthlyAnnulCompare').click();await page.locator('#monthlyAnnulReview:visible').waitFor();await page.waitForFunction(()=>!document.getElementById('monthlyAnnulConfirm').disabled);};
  const send=async()=>{await page.locator('#monthlyAnnulConfirm').check();await page.locator('#monthlyAnnulSend').click();await page.waitForFunction(()=>document.getElementById('monthlyAnnul').hidden||!document.getElementById('monthlyAnnulRefresh').disabled);};

@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {LIQUIDACIONES_TASKS,visibleLiquidacionesTasks,activeLiquidacionesTask} from '../assets/liquidaciones-menu.js';
-test('Liquidaciones groups working routes, no payroll execution',()=>{assert.equal(LIQUIDACIONES_TASKS.length,7);assert.ok(LIQUIDACIONES_TASKS.every(x=>/^\/(nomina#[a-z]+|novedades)$/.test(x.href)));assert.ok(Object.isFrozen(LIQUIDACIONES_TASKS));});
+import {LIQUIDACIONES_TASKS,visibleLiquidacionesTasks,activeLiquidacionesTask,LIQUIDACIONES_PROCESS_SECTIONS} from '../assets/liquidaciones-menu.js';
+test('Liquidaciones groups working routes, no payroll execution',()=>{assert.equal(LIQUIDACIONES_TASKS.length,11);assert.ok(LIQUIDACIONES_TASKS.every(x=>/^\/(nomina#[a-z]+|novedades)$/.test(x.href)));assert.ok(Object.isFrozen(LIQUIDACIONES_TASKS));});
 test('no permission means no payroll menu',()=>assert.equal(visibleLiquidacionesTasks([]).length,0));
-test('novelty and payroll permissions remain separate',()=>{assert.deepEqual(visibleLiquidacionesTasks(['payroll.novelty.read']).map(x=>x.href),['/novedades']);assert.equal(visibleLiquidacionesTasks(['payroll.read']).length,6);assert.equal(visibleLiquidacionesTasks(['payroll.read','payroll.novelty.read']).length,7);});
+test('novelty and payroll permissions remain separate',()=>{assert.deepEqual(visibleLiquidacionesTasks(['payroll.novelty.read']).map(x=>x.href),['/novedades']);assert.equal(visibleLiquidacionesTasks(['payroll.read']).length,10);assert.equal(visibleLiquidacionesTasks(['payroll.read','payroll.novelty.read']).length,11);});
 for(const path of ['/nomina','/nomina-control','/nomina-control.html'])test('canonical and legacy '+path,()=>{assert.equal(activeLiquidacionesTask(path),'/nomina#resumen');assert.equal(activeLiquidacionesTask(path,'#reportes'),'/nomina#reportes');assert.equal(activeLiquidacionesTask(path,'#arbitrary'),null);});
 test('other screens and novelties are unambiguous',()=>{assert.equal(activeLiquidacionesTask('/personal','#legajos'),null);assert.equal(activeLiquidacionesTask('/novedades-nomina.html'),'/novedades');});
 test('menu reuses gate, no additional requests or personal storage',()=>{const source=fs.readFileSync('assets/liquidaciones-menu.js','utf8');assert.doesNotMatch(source,/\bfetch\s*\(|innerHTML|localStorage|sessionStorage/);assert.match(source,/await gate.ready/);});
@@ -25,4 +25,15 @@ test('adoption preserves the original page gate for all tabs and the distinct le
  assert.match(source,/closest\('\[data-requires-any-capability\]'\)/);assert.match(source,/dataset\.liquidacionesDuplicate/);assert.match(source,/links\.after\(nav\)/);assert.match(source,/municontrol:liquidaciones-menu-change/);
  assert.doesNotMatch(source,/cloneNode|innerHTML|createElement\('button'\)/,'tabs are adopted, never rebuilt');
  const literals=[...source.matchAll(/'(payroll\.[a-z.]+)'/g)].map(m=>m[1]);assert.deepEqual([...new Set(literals)].sort(),['payroll.novelty.read','payroll.read']);
+});
+
+test('external pages share working cycle links grouped in the same operational order',()=>{
+ const all=LIQUIDACIONES_PROCESS_SECTIONS.flatMap(section=>section.hrefs);
+ assert.equal(new Set(all).size,11);assert.deepEqual([...all].sort(),LIQUIDACIONES_TASKS.map(task=>task.href).sort());
+ const cycle=LIQUIDACIONES_PROCESS_SECTIONS.find(section=>section.label==='Liquidar el período');
+ assert.deepEqual(cycle.hrefs,['/nomina#calculo','/nomina#anulacion','/nomina#decisiones','/nomina#cierre']);
+ for(const section of LIQUIDACIONES_PROCESS_SECTIONS){assert.ok(Object.isFrozen(section));assert.ok(Object.isFrozen(section.hrefs));}
+ const source=fs.readFileSync('assets/liquidaciones-menu.js','utf8');
+ assert.match(source,/dataset\.liquidacionesExternal/);assert.match(source,/setAttribute\('aria-label',section.label\)/);
+ assert.doesNotMatch(source,/role','tab'/,'external task links remain ordinary page navigation');
 });

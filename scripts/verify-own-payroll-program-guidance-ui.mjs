@@ -9,6 +9,7 @@ import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {bootstrap,uid,hash,definitions} from '../tests/fixtures/own-payroll-program-synthetic.js';
 import {exactProgram} from '../tests/fixtures/own-payroll-exact-program-synthetic.js';
 import {salarySerialized} from '../assets/native-salary-catalog-model.js';
+import {preparedProgramFixture} from '../tests/fixtures/own-payroll-program-prepared-synthetic.js';
 
 const root=path.resolve(import.meta.dirname,'..'),built=path.join(root,'public');
 const args=Object.fromEntries(process.argv.slice(2).map(a=>{const m=/^--(output|executable)=(.+)$/.exec(a);assert.ok(m);return[m[1],m[2]];}));
@@ -21,6 +22,7 @@ const session={email:principal.user.email,id:uid(3),version:2,releaseSha:'d'.rep
 const approved=()=>({version:hash('b'),revision:1,definition:exactProgram(),salaryVersion:hash('c'),proposalId:uid(80),approvalId:uid(81)});
 const proposal=i=>({id:uid(100+i),requestSha256:hash('d'),baseVersion:hash('b'),salaryVersion:hash('c'),salaryItems:definitions(),baseDefinition:null,definition:exactProgram(),reason:'Propuesta sintética completa QA',createdAt:'2026-10-10T12:00:00Z',authorLabel:'Operador sintético QA',canReview:i!==1,status:'pending',decision:null});
 let boot=bootstrap(),denied=false,malformed=false,held=null,holdReady=null,hold=false,lose=false,receipt=null,posts=0,reads=0;
+let preparedSalary=null;
 const writes=[],errors=[],checks=[],layoutMeasurements=[];
 const sha=v=>createHash('sha256').update(salarySerialized(v)).digest('hex');
 const handler=createOwnProgramHandler({env:{INTERNAL_APP_ORIGIN:origin},requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{
@@ -44,6 +46,12 @@ try{
    if(malformed)payload={ok:true,data:{version:'own-payroll-program.v1'}};
    if(hold){hold=false;await new Promise(resolve=>{held=resolve;holdReady?.();});}
    return route.fulfill({status,json:payload}).catch(()=>{});
+  }
+  if(u.pathname==='/api/internal-native-salary'&&preparedSalary){
+   if(req.method()!=='GET'||u.searchParams.get('resource')!=='stream')return route.fulfill({status:405,json:{ok:false}});
+   const bytes=Buffer.from(JSON.stringify(preparedSalary)),snapshotSha256=createHash('sha256').update(bytes).digest('hex'),pageBytes=256*1024,index=Number(u.searchParams.get('page')),pageCount=Math.ceil(bytes.length/pageBytes);
+   if(!Number.isSafeInteger(index)||index<0||index>=pageCount||index>0&&u.searchParams.get('snapshot')!==snapshotSha256)return route.fulfill({status:409,json:{ok:false,code:'SOURCE_CHANGED'}});
+   return route.fulfill({json:{ok:true,data:{version:'native-salary-stream.v1',scopeVersion:preparedSalary.scopeVersion,snapshotSha256,totalBytes:bytes.length,pageBytes,pageCount,pageIndex:index,hex:bytes.subarray(index*pageBytes,(index+1)*pageBytes).toString('hex')}}});
   }
   if(u.pathname==='/api/internal-data')return route.fulfill({json:{ok:true,status:'ready',sourcePolicy:{label:'QA SINTÉTICA'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:[]}});
   if(u.pathname.startsWith('/api/'))return route.fulfill({status:403,json:{ok:false,error:'Sólo fixtures sintéticos'}});
@@ -134,6 +142,69 @@ try{
  check(await $('catalog-link').isHidden()&&await $('pending-link').isDisabled(),'uncertain attempt prevents guidance navigation from opening another operation');
  check(await c('review').isDisabled()&&await c('download').isDisabled(),'coverage cannot reopen or export during an uncertain command');
  await $('recover').click();await $('receipt').waitFor({state:'visible'});check(writes.length===1&&JSON.stringify(writes[0])===JSON.stringify(original),'receipt recovery keeps original body and key');
+ // A prepared file enters the SAME editor and command/recovery path. No
+ // monetary authority comes from a self-declared source hash.
+ const asFile=(text,name='preparacion-completa.json')=>({name,mimeType:'application/json',buffer:Buffer.from(text)});
+ async function settled(){await page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');}
+ async function previewFile(f,text=f.text){
+  await $('file-input').setInputFiles(asFile(text));await $('file-review').click();await $('file-result').waitFor({state:'visible'});await settled();
+ }
+ for(const version of ['v1','v2']){
+  const f=preparedProgramFixture({version,prior:true});preparedSalary=f.salary;await load(f.programme);
+  const beforePosts=posts,beforeWrites=writes.length;
+  await previewFile(f);check(posts===beforePosts&&writes.length===beforeWrites,version+' file review makes no proposal POST');
+  check((await $('file-summary').innerText()).includes('definiciones completas')&&await $('file-comparison').locator('tbody tr').count()>=f.preparation.draft.programme.rules.length,version+' whole comparison retains new and historical rules');
+  check(await $('rule-select').locator('option').count()===1,version+' preview leaves original historical draft unchanged');
+  for(const width of [1440,390,320]){
+   await page.setViewportSize({width,height:1000});await page.evaluate(()=>document.fonts.ready);
+   const layout=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,apply:document.querySelector('[data-program-file-apply]').getBoundingClientRect().height}));
+   check(layout.scroll<=layout.width+1&&layout.apply>=44,version+' complete-file controls usable at '+width);layoutMeasurements.push({version,...layout});
+   await page.screenshot({path:output.replace(/\.json$/,'')+'-'+version+'-'+width+'.png',fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await $('file-confirm').check();await $('file-apply').click();await settled();
+  check(posts===beforePosts&&writes.length===beforeWrites,version+' applying the file only changes the local draft');
+  check(await $('rule-select').locator('option').count()===f.preparation.draft.programme.rules.length&&await $('binding-select').locator('option').count()===f.preparation.draft.programme.bindings.length,version+' all rules and inputs reach existing editor');
+  check(await $('file-result').isHidden()&&await $('file-input').inputValue()==='',version+' applied private file and preview are retired');
+  await $('reason').fill('Propuesta completa exclusivamente sintética del archivo revisado');await $('prepare').click();await $('confirm').check();
+  lose=version==='v2';await $('send').click();await settled();
+  check(posts===beforePosts+1&&writes.length===beforeWrites+1,version+' existing handler receives one explicit complete proposal');
+  const sent=structuredClone(writes.at(-1));check(salarySerialized(sent.body.program)===salarySerialized(f.preparation.draft.programme),version+' submitted program matches complete prepared program exactly');
+  if(version==='v2'){
+   check(await $('file-input').isDisabled()&&await $('file-review').isDisabled()&&await $('file-apply').isDisabled(),'uncertain file proposal locks all alternative loading');
+   await $('file-input').dispatchEvent('change');await $('recover').click();await $('receipt').waitFor({state:'visible'});
+   check(writes.length===beforeWrites+1&&salarySerialized(writes.at(-1))===salarySerialized(sent),'file proposal recovery preserves original full body and idempotency key');
+  }else await $('receipt').waitFor({state:'visible'});
+ }
+ const f=preparedProgramFixture({version:'v2',prior:true});preparedSalary=f.salary;await load(f.programme);
+ const untouched=await $('rule-editor').innerText(),beforeRejects=posts;
+ for(const bad of ['{',f.text.slice(0,-1),f.text.replace('"approved":false','"approved":true')]){
+  await $('file-input').setInputFiles(asFile(bad));await $('file-review').click();await settled();
+  check(await $('file-result').isHidden()&&await $('rule-editor').innerText()===untouched&&posts===beforeRejects,'invalid file preserves current work and never proposes');
+ }
+ await $('file-input').setInputFiles({name:'bytes-invalidos.json',mimeType:'application/json',buffer:Buffer.from([255,254])});await $('file-review').click();await settled();
+ check((await $('status').innerText()).includes('UTF-8')&&await $('rule-editor').innerText()===untouched,'invalid UTF8 is rejected without coercion or draft loss');
+ await previewFile(f);boot=structuredClone(f.programme);boot.program.version=hash('e');await $('file-confirm').check();await $('file-apply').click();await settled();
+ check(await $('file-result').isHidden()&&await $('rule-editor').innerText()===untouched&&posts===beforeRejects,'fresh changed program rejects apply and retains original draft');
+ preparedSalary=f.salary;await load(f.programme);await previewFile(f);preparedSalary=structuredClone(f.salary);preparedSalary.classification.version=hash('e');await $('file-confirm').check();await $('file-apply').click();await settled();
+ check(await $('file-result').isHidden()&&await $('rule-editor').innerText()===untouched&&posts===beforeRejects,'fresh changed classification rejects apply and retains original draft');
+ preparedSalary=f.salary;await load(f.programme);await previewFile(f);
+ await $('reason').fill('Cambio local del fundamento después de revisar archivo');
+ check(await $('file-result').isHidden()&&await $('file-input').inputValue()==='','manual editing retires the prepared-file review');
+ await previewFile(f);await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'resumen'});
+ check(await $('file-result').isHidden()&&await $('file-input').inputValue()==='','leaving the task withdraws the file and review');
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});await $('content').waitFor({state:'visible'});await settled();
+ await $('file-input').setInputFiles(asFile(f.text));
+ await page.evaluate(()=>{
+  const original=File.prototype.arrayBuffer;
+  File.prototype.arrayBuffer=function(){const file=this;return new Promise((resolve,reject)=>{window.finishPreparedFile=()=>{File.prototype.arrayBuffer=original;return original.call(file).then(resolve,reject);};});};
+ });
+ await $('file-review').click();await page.waitForFunction(()=>typeof window.finishPreparedFile==='function');
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));
+ await $('content').waitFor({state:'hidden'});await page.evaluate(()=>window.finishPreparedFile());await page.waitForTimeout(50);
+ check(await $('content').isHidden()&&await $('file-result').isHidden()&&await $('file-input').inputValue()===''&&posts===beforeRejects,'late file read cannot restore data or propose after revocation');
+ preparedSalary=null;
+
  check(await page.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'no private browser storage');
  check(errors.length===0,'no page errors');
  report={passed:true,checks:checks.length,labels:checks,layoutMeasurements,builtProductPage:true,realReadHandler:true,sqlResponsesSynthetic:true,posts,reads,productiveWrites:0,externalRequests:0,mobileWidths:[390,320],acceptanceCertified:false};

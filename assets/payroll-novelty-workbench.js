@@ -796,7 +796,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     if ([...select.options].some(option=>option.value===current)) select.value=current;
     if (handoffRequiresPayrollTypeSelection&&!current) select.value='';
     if (nativeSelected()) select.value='monthly';
-    renderBatches(); renderMonthlySubject();
+    renderBatches(); renderMonthlySubject(); revealReviewableLegacyBatches();
     renderAgileRows();sheetEditor?.render();
     byId('pageContent').hidden=false;byId('loadingState').hidden=true;
     if (selectedBatchId && hasCapability('payroll.novelty.nominal.read')) await openBatch(selectedBatchId,{quiet:true});
@@ -805,7 +805,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     if (!error.stale) {
       clearConsulted();
       byId('pageContent').hidden=false;byId('loadingState').hidden=true;
-      showMessage('error','No pudimos cargar novedades de nómina',errorMessage(error));
+      showMessage('error','No pudimos consultar los lotes anteriores',errorMessage(error));
     }
   } finally { if (!quiet) setBusy(false); }
 }
@@ -1359,6 +1359,43 @@ function syncAmountEntry() {
   applyMonthlyLocks();
 }
 
+function legacyNoveltyOperationPending() {
+  // Each tool seals pending before its mutating POST and retains it until an acknowledged or definitive outcome.
+  // busy/locked/inFlight also include GET, comparison and preview-only work; they do not identify an unconfirmed write.
+  return Boolean(pendingWrite)
+    || [monthlyDecisions, monthlyAnnul, monthlyCorrection].some(tool => Boolean(tool?.hasPending?.()));
+}
+
+function revealReviewableLegacyBatches() {
+  if (document.hidden || readBlocked || !['payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.approve'].every(capability => hasCapability(capability))) return false;
+  const batches = Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
+  const reviewable = batches.some(batch => batch.status === 'submitted' && Array.isArray(batch.allowedCommands)
+    && batch.allowedCommands.some(command => command === 'approve' || command === 'reject'));
+  if (reviewable) byId('noveltyReferenceWorkspace').open = true;
+  return reviewable;
+}
+
+function refreshNoveltyWorkspace() {
+  const reference = byId('noveltyReferenceWorkspace');
+  const ownPending = Boolean(ownBulkNovelties?.hasPending?.()), legacyPending = legacyNoveltyOperationPending();
+  if (ownPending && legacyPending) {
+    reference.open = true;
+    showMessage('info', 'Hay envíos pendientes en ambos espacios', 'Ambos intentos conservan su contenido y clave. No se actualizó ni reenvió ninguno: revisá y recuperá cada uno desde su espacio antes de iniciar otro envío.');
+    return;
+  }
+  // refresh only rechecks access and reads the own bootstrap; recovery/retry remains a separate explicit action.
+  if (ownPending) return ownBulkNovelties.refresh();
+  if (legacyPending) reference.open = true;
+  return reference.open ? loadBootstrap() : ownBulkNovelties?.refresh();
+}
+
+function keepPendingLegacyVisible(event) {
+  const disclosure = event.currentTarget;
+  if (disclosure.open || !legacyNoveltyOperationPending()) return;
+  disclosure.open = true;
+  showMessage('info', 'Hay una operación pendiente', 'Usá Detener o Recuperar según corresponda. Plegar no cancela la operación ni modifica el envío original.');
+}
+
 function initialize() {
   txtOptions = mountNoveltyTxtOptions(byId('bulkImportOptions'), ({encodingChanged}) => {
     invalidatePreparedDraft();
@@ -1526,7 +1563,10 @@ function initialize() {
     const button = event.target.closest('button[data-agile-remove]');
     if (button) removeAgileRow(Number(button.dataset.agileRemove));
   });
-  byId('refreshButton').addEventListener('click', () => loadBootstrap());
+  byId('refreshButton').addEventListener('click', refreshNoveltyWorkspace);
+  const legacyDisclosures = new Set(['noveltyReferenceWorkspace', 'monthlyDecisions', 'monthlyAnnul', 'monthlyCorrection']
+    .map(id => byId(id)?.closest('details')).filter(Boolean));
+  for (const disclosure of legacyDisclosures) disclosure.addEventListener('toggle', keepPendingLegacyVisible);
   byId('logoutButton').addEventListener('click', logout);
   byId('closeDetail').addEventListener('click', () => {
     selectedBatchId = null;
@@ -1536,8 +1576,11 @@ function initialize() {
   byId('forced').addEventListener('change',syncAmountEntry);
   syncAmountEntry();
   updateMode();
-  if (!requestedMonthlyContract && !hasRequestedBatch) consumePayrollNoveltyHandoff();
-  loadBootstrap().then(()=> {
+  const handoffRestored = !requestedMonthlyContract && !hasRequestedBatch && consumePayrollNoveltyHandoff();
+  // The native daily workspace has its own access and full bootstrap. A legacy read must not block it.
+  byId('pageContent').hidden=false;byId('loadingState').hidden=true;
+  if (requestedMonthlyContract || hasRequestedBatch || handoffRestored) byId('noveltyReferenceWorkspace').open=true;
+  loadBootstrap({ quiet: true }).then(()=> {
     if (hasRequestedBatch) return openRequestedBatch();
     if (requestedMonthlyContract && CONTRACT_UUID.test(requestedMonthlyContract)) return chooseMonthlySubject(requestedMonthlyContract);
     if (requestedMonthlyContract) showMessage('error','El enlace no identifica un vínculo válido','Volvé a abrir la ficha de la persona y usá Preparar novedad mensual.');

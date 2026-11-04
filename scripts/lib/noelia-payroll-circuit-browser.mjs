@@ -5,7 +5,7 @@ import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.j
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
-import {assertNoeliaClassifiedPlanillaCsv} from './noelia-planilla-csv-qa.mjs';
+import {assertNoeliaClassifiedPlanillaCsv} from './noelia-planilla-csv-qa.mjs'; import {employeeReceipt} from '../../assets/native-employee-confirmation-model.js';
 const root=path.resolve(import.meta.dirname,'../..');
 export async function selectNoeliaReceiptTypes(page,types){
  const choices=Object.keys(OWN_RUN_TYPES);
@@ -18,7 +18,7 @@ export async function selectNoeliaReceiptTypes(page,types){
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
- const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory']]);
+ const endpoints=new Map([['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory']]);
  const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??'calculate'}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
@@ -51,22 +51,54 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    assert.equal(writes.length,before+1,await page.locator('[role=status]:visible').allTextContents());const original=writes.at(-1);assert.equal(original.kind,kind);verify(original.receipt);
    check(await recover.isVisible(),'actual '+kind+' preserves its committed attempt after lost response');await recover.click();await idle();check(writes.length===before+1,'actual '+kind+' readback recovers the same key and body without another write');return original.receipt;
   }
+  async function createNativeDemo(draft){
+   assert.equal(draft.legajo,'19041');assert.equal(draft.jurisdictionCode,'42');
+   await fresh('/nomina-control.html#calculo');
+   // Mount the unchanged built creation component, not the whole Personas page.
+   // Every request below reaches this same server, real handler and QA PostgreSQL.
+   await page.evaluate(async()=>{const {mountEmployeeCreate}=await import('/assets/native-employee-create.js');const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/native-employee-create.css';document.head.append(css);const section=document.createElement('section');section.dataset.qaNativeDemo='true';const label=document.createElement('p');label.textContent='Alta de demostración exclusivamente sintética QA';const button=document.createElement('button');button.type='button';button.id='qa-native-demo-create';button.textContent='Nuevo legajo';section.append(label,button);document.body.append(section);mountEmployeeCreate(button);});
+   await page.waitForFunction(()=>[...document.styleSheets].some(s=>s.href?.endsWith('/assets/native-employee-create.css')),{},{timeout:15000});
+   await page.locator('#qa-native-demo-create').click();
+   const dialog=page.locator('dialog.native-employee-dialog'),form=dialog.locator('form');
+   await form.locator('[name=fullName]:enabled').waitFor();
+   for(const name of ['fullName','dni','cuil','birthDate','legajo','startDate','jobTitle','legalReference'])await form.locator('[name="'+name+'"]').fill(draft[name]);
+   for(const name of ['sexCode','jurisdictionCode','agreementCode','categoryCode','organizationId','sectorCode'])await form.locator('[name="'+name+'"]').selectOption(draft[name]);
+   const before=writes.length;await dialog.getByRole('button',{name:'Revisar alta',exact:true}).click();
+   await dialog.locator('[data-ne-review]:not([hidden])').waitFor();
+   check(writes.length===before,'reviewing the real native creation component performs no write');
+   const review=await dialog.locator('.ne-review').innerText();check(review.includes(draft.fullName)&&review.includes('19041')&&review.includes('42'),'real native creation reviews the original synthetic identity and explicit jurisdiction');
+   const sent=page.waitForRequest(req=>new URL(req.url()).origin===origin&&new URL(req.url()).pathname==='/api/internal-native-employees'&&req.method()==='POST',{timeout:30000});sent.catch(()=>{});
+   const idle=()=>page.waitForFunction(()=>{const d=document.querySelector('dialog.native-employee-dialog');return d?.open&&d.querySelector('[data-ne-confirm]')?.disabled===false;},{},{timeout:30000});
+   const receipt=await commitAndRecover({kind:'nativeEmployee',send:dialog.locator('[data-ne-confirm]'),recover:dialog.locator('[data-ne-recover]'),idle,verify:r=>{employeeReceipt(r,draft);assert.equal(r.replayed,false);}});
+   await dialog.locator('[data-ne-success]:not([hidden])').waitFor();
+   const request=await sent,body=request.postDataJSON(),key=request.headers()['idempotency-key'];
+   assert.deepEqual(Object.keys(body).sort(),['catalogVersion','draft']);assert.deepEqual(body.draft,draft);
+   assert.equal(request.headers()['x-municontrol-employee-scope'],qa.actors.maker.tenantId+':'+qa.actors.maker.membershipId);
+   assert.equal(key,writes.at(-1).key);assert.equal(writes.length,before+1);
+   assert.equal(new URL(await dialog.locator('[data-ne-open]').getAttribute('href'),origin).searchParams.get('contractId'),receipt.contractId);
+   check(receipt.origin==='MUNICONTROL'&&receipt.accountCreated===false&&receipt.payrollCalculated===false,'one real native UI/HTTP/SQL creation is recovered by the same key without an account, payroll or second POST');
+   await dialog.screenshot({path:path.join(output,'native-demo-component-success.png')});
+   await page.goto('about:blank');return {key,body,receipt};
+  }
   async function noveltyDecision({batchId,command}){
    await fresh('/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();
    check(await n('detail').locator('tbody tr').count()===29,'actual '+command+' reviews all 29 novelty rows before deciding');await page.locator('[data-n-decisions] [data-command="'+command+'"]').click();await idle();assert.ok((await n('reviewed').innerText()).includes('29 filas'));await n('confirm').check();
    return commitAndRecover({kind:'novelty',send:n('send'),recover:n('recover'),idle,verify:r=>{assert.equal(r.body.command,command);assert.equal(r.body.batchId,batchId);assert.equal(r.snapshot.rowCount,29);}});
   }
-  async function calculate({period,selection,expectedCount}){
+  async function calculate({period,selection,expectedCount,employeeNumber='A/3501'}){
    await fresh('/nomina-control.html#calculo');const r=k=>page.locator('[data-own-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
    await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(await page.locator('[data-own-fields]').evaluate(e=>!e.disabled),(await r('status').innerText())+' '+(await r('readiness-facts').innerText()));check((await r('readiness-facts').innerText()).includes('29 legajos propios')&&(await r('readiness').getAttribute('data-state'))==='success','new calculation verifies the complete real29-contract own roster and approved programme through actual HTTP and SQL');await r('period').fill(period);await r('type').selectOption('monthly');await r('period-end').click();const liquidationDate=await r('date').inputValue();assert.ok(liquidationDate.startsWith(period+'-'));check(!await r('confirm').isChecked(),'declaring the liquidation date requires a fresh explicit review');await r('kind').selectOption(selection.kind);
    if(selection.kind==='contracts'){
     assert.equal(selection.values.length,1);await r('picker').click();const picker=page.locator('#ownRunPicker');await picker.locator('#ownRunPickerSearch').fill('A/3501');await picker.locator('[data-picker-form] button[type=submit]').click();
-    const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact opaque adopted legajo from PostgreSQL');
+    await page.waitForFunction(()=>document.querySelector('#ownRunPicker [data-picker-form]')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+    check(await picker.locator('[data-picker-results] input').count()===1&&(await picker.innerText()).includes('A/3501'),'actual own directory still returns the exact opaque adopted legajo from PostgreSQL');
+    if(employeeNumber!=='A/3501'){await picker.locator('#ownRunPickerSearch').fill(employeeNumber);await picker.locator('[data-picker-form] button[type=submit]').click();}
+    const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact selected own legajo from PostgreSQL');
     check((await picker.innerText()).includes('Registro propio de MuniControl'),'picker describes municipal ownership without confusing adopted records with hires');
-    await input.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});check((await r('chips').innerText()).includes('A/3501'),'actual calculator preserves the exact selected identifier');
+    await input.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});check((await r('chips').innerText()).includes(employeeNumber),'actual calculator preserves the exact selected identifier');
    }
    await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.body.liquidationDate,liquidationDate);assert.equal(value.saved.result.employeeCount,expectedCount);}});
-   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill('a/3501');check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact opaque legajo');
+   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill(employeeNumber.toLowerCase());check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact selected employee number');
    return result;
   }
   async function confirmPartial({detail}){
@@ -94,7 +126,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await p('reason').fill('Revisión independiente de recibos exclusivamente sintéticos QA');await p('confirm').check();return commitAndRecover({kind:'receipt',send:p('approve'),recover:p('recover'),idle:pidle,verify:r=>{assert.equal(r.body.command,'approve');assert.equal(r.body.batchId,batchId);}});
   }
   async function prepare(rows,period){
-   expectedNumbers=rows.map(r=>r.legajo).sort();
+   const before=writes.length;expectedNumbers=rows.map(r=>r.legajo).sort();
    await page.goto(origin+'/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();assert.ok(await n('content').isVisible(),await n('status').innerText());
    check(await n('people').locator('input').count()===25&&!await n('next').isDisabled(),'actual bulk product shows first 25 of all 29 adopted/native subjects');await n('next').click();check(await n('people').locator('input').count()===4,'second page contains remaining four subjects');
    await n('search').fill('A/3501');check(await n('people').locator('input').count()===1,'opaque employee number searchable in actual product');await n('select-all').click();check((await n('selection').innerText()).startsWith('29 seleccionados'),'select all retains all pages despite the applied search');
@@ -102,7 +134,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    check((await n('count').innerText()).startsWith('29 filas')&&await n('rows').locator('tbody tr').count()===25,'opaque own bulk row validation accepts complete first page');await n('row-next').click();check(await n('rows').locator('tbody tr').count()===4,'remaining own novelty rows preserved in review');
    await n('review').click();await idle();assert.ok(await n('confirm-box').isVisible(),await n('status').innerText());await n('confirm').check();drop=true;await n('send').click();await idle();
    check(await n('recover').isVisible()&&!await n('new').isVisible(),'uncertain committed HTTP response keeps the same preparation pending');const original=writes.at(-1);assert.deepEqual(original.receipt.body.rows,rows);await n('recover').click();await idle();
-   check(await n('new').isVisible()&&!await n('recover').isVisible()&&writes.length===1,'readback recovers the same complete committed body and key without another write');
+   check(await n('new').isVisible()&&!await n('recover').isVisible()&&writes.length===before+1,'readback recovers the same complete committed body and key without another write');
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'bulk product fits '+width+'px');check(await n('refresh').evaluate(e=>e.getBoundingClientRect().height>=44),'bulk primary control accessible at '+width+'px');await page.locator('.own-novelties').screenshot({path:path.join(output,'novedades-'+width+'.png')});}
    await page.setViewportSize({width:1440,height:1100});return original.receipt;
   }
@@ -170,6 +202,6 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,close};
+  return {createNativeDemo,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,close};
  }catch(e){await close();throw e;}
 }
