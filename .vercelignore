@@ -402,3 +402,6 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Exact typed monthly-day declaration source; no municipal data.
+!scripts/migrations/193-own-monthly-day-declaration.sql
