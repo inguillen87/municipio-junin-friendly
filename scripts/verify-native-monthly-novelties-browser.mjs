@@ -260,7 +260,7 @@ try{
   await page.waitForFunction(()=>document.body.dataset.busy==='true');deny=true;
   // Trigger a newer authority read while the employee lookup remains in flight.
   await page.evaluate(()=>document.querySelector('#refreshButton').dispatchEvent(new Event('click')));
-  await page.locator('#messageHost').filter({hasText:'No pudimos cargar'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
+  await page.locator('#messageHost').filter({hasText:'No pudimos consultar los lotes anteriores'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
   await page.waitForFunction(()=>document.body.dataset.busy!=='true');
   assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   checks.push('late employee response cannot restore nominal identity after a newer denied authority read');
