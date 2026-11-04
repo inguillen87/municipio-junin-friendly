@@ -8,17 +8,18 @@ import {jurisdictionFixture} from './fixtures/own-payroll-jurisdiction-synthetic
 import {reportFixture} from './fixtures/own-payroll-report-synthetic.js';
 import {verifiedWorkspaceCapture} from '../assets/own-payroll-run-workspace-model.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
-import {reportCensusFixture,liquidationDetailFor,fiscalCensusFor,withIdentityToken} from './fixtures/own-payroll-report-census-synthetic.js';
+import {reportCensusFixture,reopenEvent,liquidationDetailFor,fiscalCensusFor,withIdentityToken} from './fixtures/own-payroll-report-census-synthetic.js';
+import {fiscalCoverageFixture} from './fixtures/own-f931-fiscal-coverage-synthetic.js';
 import {PayrollPanelElement as Element,payrollPanelEvents as events} from './fixtures/payroll-panel-dom.js';
 const settle=()=>new Promise(r=>setImmediate(r)),flush=async()=>{for(let i=0;i<12;i++)await settle();};
 const ACTIVE=Object.freeze({version:'own-f931-history-admission.v1',activated:true,sourceCommit:'4dc2c19b7549e07e1cad52b16924d25f87ea5589',epoch:'201',target:{major:18,projectId:'wild-cake-87689498',branchId:'br-plain-dawn-ac8crb1h',endpointId:'ep-falling-rain-aca27ph1',database:'neondb',role:'neondb_owner'},protocol:'1'.repeat(32),mode:'install_fresh',custodyRunSha256:'d'.repeat(64),capacityPostflightSha256:'a'.repeat(64),ledgerProjectionSha256:'b'.repeat(64),facades:{census:'5'.repeat(64),groupFull:'2'.repeat(64),liquidationDetailFull:'8'.repeat(64)},durableProofSha256:'c'.repeat(64)});
 const auth=caps=>({ok:true,authenticated:true,sessionVersion:2,user:{id:'f931-synthetic',email:'f931@example.invalid'},access:{context:'tenant',tenant:{id:'aaaaaaaa-0000-4000-8000-000000000001',roleKey:'test'},tenantCapabilities:[...caps]},expiresAt:'2099-01-01T00:00:00Z'});
 const stream=bytes=>new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=65536)c.enqueue(bytes.subarray(i,i+65536));c.close();}});
 function harness(t,{admission,fixture}={}){
- const saved=new Map(['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval','URL'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),root=new Element(),head=new Element('head'),docEvents=events(),winEvents=events(),requests=[],urls={created:0,revoked:0,clicked:0,removed:0};
+ const saved=new Map(['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval','URL'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),root=new Element(),head=new Element('head'),docEvents=events(),winEvents=events(),requests=[],urls={created:0,revoked:0,clicked:0,removed:0,blobs:[],filenames:[]};
  const f=fixture??jurisdictionFixture(4,()=>'42'),state={f,census:reportCensusFixture(f),receipts:structuredClone(f.receipts),captures:structuredClone(f.details[0].captures),fiscal:null,caps:OWN_CLOSE_NOMINAL,failure:null,oversize:null,sessionStatus:200};
- const doc={...docEvents,hidden:false,head,body:new Element('body'),createElement:tag=>{const n=new Element(tag);if(tag==='a'){n.click=()=>{urls.clicked++;};n.remove=()=>{const p=n.parentElement;if(p)p.children=p.children.filter(c=>c!==n);n.parentElement=null;n.isConnected=false;urls.removed++;};}return n;},querySelector:s=>head.querySelector(s)};
- Object.assign(globalThis,{document:doc,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},URL:Object.assign(function URLShim(...a){return new (saved.get('URL').value)(...a);},{createObjectURL(){urls.created++;return 'blob:synthetic-'+urls.created;},revokeObjectURL(){urls.revoked++;}})});
+ const doc={...docEvents,hidden:false,head,body:new Element('body'),createElement:tag=>{const n=new Element(tag);if(tag==='a'){n.click=()=>{urls.clicked++;urls.filenames.push(n.download);};n.remove=()=>{const p=n.parentElement;if(p)p.children=p.children.filter(c=>c!==n);n.parentElement=null;n.isConnected=false;urls.removed++;};}return n;},querySelector:s=>head.querySelector(s)};
+ Object.assign(globalThis,{document:doc,window:winEvents,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},URL:Object.assign(function URLShim(...a){return new (saved.get('URL').value)(...a);},{createObjectURL(blob){urls.created++;urls.blobs.push(blob);return 'blob:synthetic-'+urls.created;},revokeObjectURL(){urls.revoked++;}})});
  globalThis.fetch=async(url,options={})=>{const q=new (saved.get('URL').value)(url,'https://synthetic.invalid'),entry={url,options,query:q.searchParams,signal:options.signal};requests.push(entry);
   const reply=(status,data,{full=false,announced}={})=>{const bytes=new TextEncoder().encode(JSON.stringify(data));return {ok:status<400,status,headers:{get:name=>name==='content-type'?(full?OWN_RUN_FULL_JSON:'application/json'):name==='x-municontrol-json-bytes'?(full?String(announced??bytes.length):null):null},body:stream(bytes),async json(){return JSON.parse(new TextDecoder().decode(bytes));}};};
   if(q.pathname==='/api/internal-auth')return state.sessionStatus===200?reply(200,auth(state.caps)):reply(401,{ok:false,code:'UNAUTHENTICATED',error:'La sesión venció.'});
@@ -58,7 +59,7 @@ test('download refuses/renews when an original capture changed with the same cen
  h.state.captures=h.state.captures.map(c=>c.id===runId?withIdentityToken(c,contractId,'9'.repeat(64)):c);
  await h.q('csv').emit('click');await h.complete();
  assert.match(h.q('status').textContent,/Cambió la fuente/);assert.equal(h.urls.created,0);assert.equal(h.q('view').hidden,false);
- await h.q('csv').emit('click');await h.complete();assert.equal(h.urls.created,1);assert.match(h.q('status').textContent,/descargada/);
+ await h.q('csv').emit('click');await h.complete();assert.equal(h.urls.created,1);assert.equal(h.q('status').textContent,'Control de revisión descargado. No es un TXT fiscal ni acredita presentación.');
 });
 test('v2 capture payload mutation is rejected by the preserved jurisdiction hash before any download',async t=>{
  const h=harness(t,{admission:ACTIVE});await h.start();h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);await h.q('form').emit('submit');await h.complete();assert.equal(h.q('view').hidden,false);
@@ -97,4 +98,76 @@ test('source default is the real active literal: the panel uses complete history
  assert.equal(close.some(r=>r.query.get('resource')==='detail'),false);assert.ok(close.every(r=>r.options.headers.Accept===OWN_RUN_FULL_JSON));
  const originals=h.requests.filter(r=>r.url.startsWith('/api/internal-own-payroll-liquidation'));assert.equal(originals.length,2);assert.ok(originals.every(r=>r.options.headers.Accept===OWN_RUN_FULL_JSON));
  assert.ok(h.requests.filter(r=>r.url.startsWith('/api/internal-own-fiscal-facts')).every(r=>r.options.headers.Accept==='application/json'));
+});
+
+for(const [label,admission]of [['operational',INACTIVE],['historical',ACTIVE]]){
+ test(label+' empty review explains missing own closures without presenting zero fiscal facts as completed work',async t=>{
+  const value=await fiscalCoverageFixture(0),h=harness(t,{admission,fixture:value.report});
+  await h.start();h.state.fiscal=value.census;await h.q('form').emit('submit');await h.complete();
+  assert.equal(h.q('view').hidden,false,h.q('status').textContent);
+  assert.equal(h.q('empty').hidden,false);assert.equal(h.q('populated').hidden,true);
+  assert.match(h.q('empty-copy').textContent,/no encontró cierres propios/);
+  assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#cierre');
+  assert.equal(h.q('technical').open,false);assert.equal(h.q('technical').getAttribute('open'),null);
+  assert.equal(h.q('requirements').children.length,4,'fiscal requirements remain visible');
+  assert.equal(h.q('coverage').textContent.includes('0 de 0 contratos con revisión vigente'),false);
+  assert.equal(h.requests.some(r=>r.options.method&&r.options.method!=='GET'),false);
+  assert.equal(h.requests.some(r=>r.query.get('resource')==='group'),false);
+  assert.equal(h.requests.some(r=>r.url.startsWith('/api/internal-own-payroll-liquidation')),false);
+ });
+}
+
+test('jurisdiction with zero selected contracts is not an empty universe and retains all pending fiscal work',async t=>{
+ const h=harness(t,{admission:ACTIVE});await h.start();
+ h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);
+ await h.q('form').emit('submit');await h.complete();
+ const requirements=h.q('requirements').textContent;
+ h.q('jurisdiction').value='55';await h.q('jurisdiction').emit('change');
+ await h.q('form').emit('submit');await h.complete();
+ assert.equal(h.q('view').hidden,false,h.q('status').textContent);
+ assert.equal(h.q('empty').hidden,true);assert.equal(h.q('populated').hidden,false);
+ assert.match(h.q('count').textContent,/0 participaciones en Jurisdicción 55 de 4 del alcance completo/);
+ assert.equal(h.q('selection-note').hidden,false);assert.match(h.q('selection-note').textContent,/conserva 4 participaciones/);
+ assert.match(h.q('contract-count').textContent,/4 contratos distintos/);
+ assert.equal(h.q('requirements').textContent,requirements);
+ assert.ok(h.requests.every(r=>!r.query.has('jurisdiction')),'scope selection must not trim source queries');
+});
+
+test('an excluded reopened group remains explicit in the empty historical review',async t=>{
+ const h=harness(t,{admission:ACTIVE}),emptyFiscal=await fiscalCoverageFixture(0);await h.start();
+ h.state.census=reportCensusFixture(h.state.f,{reopened:[reopenEvent(h.state.receipts[0].groupId)]});
+ h.state.fiscal=emptyFiscal.census;await h.q('form').emit('submit');await h.complete();
+ assert.equal(h.q('view').hidden,false,h.q('status').textContent);
+ assert.equal(h.q('empty').hidden,false);assert.equal(h.q('populated').hidden,true);
+ assert.match(h.q('empty-copy').textContent,/1 grupo reabierto excluido/);
+ assert.match(h.q('coverage').textContent,/1 grupos reabiertos excluidos/);
+ assert.equal(h.requests.some(r=>r.query.get('resource')==='group'),false);
+ assert.equal(h.requests.some(r=>r.url.startsWith('/api/internal-own-payroll-liquidation')),false);
+});
+
+test('compact manual reaches all 60 fields; search cannot trim the downloaded control and invalidation retires every region',async t=>{
+ const h=harness(t,{admission:ACTIVE,fixture:jurisdictionFixture(61,()=>'42')});await h.start();
+ h.state.fiscal=await fiscalCensusFor(h.state.receipts[0],h.state.captures);
+ await h.q('form').emit('submit');await h.complete();
+ assert.equal(h.q('view').hidden,false,h.q('status').textContent);
+ assert.equal(h.q('technical').open,false);
+ const body=h.q('fields').querySelector('tbody');assert.equal(body.children.length,60);
+ assert.equal(new Set(body.children.map(row=>row.children[0].textContent.split(' · ')[0])).size,60);
+ assert.match(body.children.at(-1).children[0].textContent,/^60 · /);
+ assert.ok(h.q('fields').querySelector('caption'));assert.equal(h.q('fields').getAttribute('tabindex'),'0');
+ assert.equal(h.q('contract-rows').querySelectorAll('article').length,20);
+ await h.q('contract-next').emit('click');await h.q('contract-next').emit('click');await h.q('contract-next').emit('click');
+ assert.equal(h.q('contract-rows').querySelectorAll('article').length,1,'contract pagination remains separate');
+ await h.q('csv').emit('click');await h.complete();const full=await h.urls.blobs[0].text();
+ h.q('search').value='no-such-synthetic-field';await h.q('search').emit('input');
+ assert.equal(h.q('fields').querySelector('tbody').children.length,0);
+ await h.q('csv').emit('click');await h.complete();assert.equal(await h.urls.blobs[1].text(),full);
+ assert.equal((full.match(/"Campo \d+ ·/g)??[]).length,60);
+ assert.match(h.urls.filenames[0],/^municontrol_control_revision_F931_.*\.csv$/);
+ assert.equal(full.includes(h.state.receipts[0].groupId),false);
+ // The minimal DOM does not bubble events; dispatch the fieldset's real change listener.
+ h.q('technical').open=true;h.q('period').value='2026-08';await h.q('target').emit('change');
+ assert.equal(h.q('view').hidden,true);assert.equal(h.q('empty').hidden,true);assert.equal(h.q('populated').hidden,true);
+ assert.equal(h.q('technical').open,false);assert.equal(h.q('fields').children.length,0);assert.equal(h.q('contract-rows').children.length,0);
+ assert.equal(h.urls.revoked,2);const before=h.urls.created;await h.q('csv').emit('click');assert.equal(h.urls.created,before);
 });
