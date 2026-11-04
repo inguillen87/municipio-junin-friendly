@@ -402,3 +402,6 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Reviewed family self-service source read by build checks; no SQL execution.
+!scripts/migrations/195-native-family-self-service.sql

@@ -6,6 +6,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentChangeQa} from './verify-native-employment-change-sql.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
+import {nativeFamilyFixtureResolverGuard} from './lib/native-family-self-fixture-lifecycle-qa.mjs';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8').replaceAll('\r\n','\n');
 export function buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency=false,withMonthlySource=false}){
@@ -19,6 +20,7 @@ export function buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency
  exec(`CREATE TABLE employee_family_member(id uuid PRIMARY KEY,contract_id uuid,employee_person_id uuid,tenant_id uuid,source_binding_id uuid,native_registration_id uuid,family_name text,birth_date date,valid_to date,identity_token text,identity_snapshot jsonb,valid_from date,recorded_at timestamptz,contract_identity_token text);
  ${relocate(familyDef)};
  REVOKE ALL ON FUNCTION school_certificate_native_family_v5(jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;
+ ${nativeFamilyFixtureResolverGuard(schema,102)}
  lifecycle_canonical:=(SELECT to_jsonb(ec) FROM employment_contract ec WHERE ec.id=target_id);
  EXECUTE ${q(normalize(relocate(migration)))};
  lifecycle_boot:=${call('bootstrap')};lifecycle_subject:=lifecycle_boot->'subject';

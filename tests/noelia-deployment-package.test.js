@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildOwnJurisdictionInstallation} from '../scripts/lib/own-payroll-jurisdiction-installation.mjs';
 import {buildAdoptedPositionsInstallation} from '../scripts/lib/adopted-positions-installation.mjs';
+import {buildNativeFamilySelfInstallation} from '../scripts/lib/native-family-self-installation.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = file => fs.readFileSync(new URL(file, root), 'utf8');
@@ -27,6 +28,15 @@ test('the filtered Noelia deployment produces the same complete reviewed batches
     const batch = build(options);
     assert.deepEqual(batch, build({read, sourceCommit: options.sourceCommit}));
   }
+});
+
+test('the filtered deployment retains the complete family self-service source contract', () => {
+  const file = 'scripts/migrations/195-native-family-self-service.sql';
+  const sourceCommit = 'f'.repeat(40);
+  assert.deepEqual(
+    buildNativeFamilySelfInstallation({source: packagedRead(file), sourceCommit}),
+    buildNativeFamilySelfInstallation({source: read(file), sourceCommit})
+  );
 });
 
 test('the filtered build retains reference-scale SQL and keeps municipal private sources excluded', () => {
