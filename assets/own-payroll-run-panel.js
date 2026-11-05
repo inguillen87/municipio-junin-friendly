@@ -26,7 +26,7 @@ const errors={
   OWN_RUN_SOURCE_IDENTITY_CHANGED:'Cambió la identidad de un registro del alcance. Revisá su vínculo y consultá este intento antes de otra captura.',
   OWN_RUN_SOURCE_UNUSED:'El programa aprobado no contempla todas las novedades capturadas. Revisá sus conceptos; no se omitieron novedades ni se completó el cálculo.',
   OWN_RUN_SOURCE_VALUE_MISSING:'Falta un valor requerido en las novedades capturadas. Revisá importe y unidades; un dato ausente no se tomó como cero.',
-  OWN_RUN_SELECTION_INVALID:'No se pudo verificar todo el alcance. Revisá los legajos y su vigencia.',
+  OWN_RUN_SELECTION_INVALID:'No se calculó: algún legajo elegido no está vigente en ese mes o le faltan datos del período (encuadre, antigüedad, jornada). Revisalos en «Datos del período» o elegí otro mes.',
   OWN_RUN_LIMIT:'El conjunto completo supera la capacidad. No se omitieron ni dividieron filas.',
   OWN_RUN_BUSY:'Otra operación está en curso. Consultá o reintentá este mismo cálculo.',
   OWN_RUN_ENGINE_CHANGED:'Cambió la versión del motor. La captura anterior se conserva y no se recalcula con otra versión.',
@@ -331,7 +331,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       attempt=ownRunWorkspaceAttempt(crypto.randomUUID(),body,access.key);
     }
     controls();
-    const value=await verifiedWorkspaceCapture((await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})})).data,attempt);
+    // A 422 is a definitive rejection: nothing was registered, so the form unlocks at once
+    // (change month, type or legajos and calculate again) instead of keeping a retry-only attempt.
+    let response;try{response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});}
+    catch(error){if(error.status===422&&valid()){attempt=null;$('confirm').checked=false;}throw error;}
+    const value=await verifiedWorkspaceCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
   async function download(){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;return perform(async valid=>{
