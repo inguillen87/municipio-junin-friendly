@@ -56,7 +56,7 @@ export function mountMunicipalOwnerAdoption(host,{isLive=()=>true,onApplied=()=>
  $('open').addEventListener('click',()=>{$('panel').hidden=!$('panel').hidden;$('open').setAttribute('aria-expanded',String(!$('panel').hidden));if($('panel').hidden)machine.invalidate();else{$('heading').focus();controls();}});
  $('load').addEventListener('click',()=>act(()=>machine.load()));$('visible').addEventListener('click',()=>act(()=>machine.useReview(visibleReview)));
  $('preview').addEventListener('click',()=>act(()=>machine.chooseSource(machine.getState().sources?.rows[Number($('source').value)],$('mode').value)));
- $('source').addEventListener('change',()=>act(()=>machine.resetPreview()));$('mode').addEventListener('change',()=>act(async()=>{machine.resetPreview();const mixed=$('mode').value==='mixed-bootstrap',loaded=machine.getState().sources?.version==='employment-adoption-final-sources.v2';if(mixed!==loaded)await machine.loadSources(mixed?'mixed':'legacy');}));
+ $('source').addEventListener('change',()=>act(()=>machine.resetPreview()));$('mode').addEventListener('change',()=>act(async()=>{machine.resetPreview();if(machine.getState().sources?.version!=='employment-adoption-prepared-sources.v1')await machine.loadSources('prepared');}));
  $('form').addEventListener('submit',e=>{e.preventDefault();act(()=>machine.send({reason:$('reason').value,reviewConfirmed:$('confirm').checked}));});
  $('recover').addEventListener('click',()=>act(()=>machine.recover()));$('retry').addEventListener('click',()=>act(()=>machine.retry()));
  $('reason').addEventListener('input',()=>{$('confirm').checked=false;controls();});$('confirm').addEventListener('change',()=>controls());
