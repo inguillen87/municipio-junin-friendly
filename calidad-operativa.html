@@ -232,6 +232,7 @@
     }
   </style>
   <script src="assets/internal-guide.js" defer></script>
+  <script type="module" src="assets/quality-charts.js"></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 </head>
@@ -956,6 +957,8 @@
           return;
         }
         renderOverview(overview);
+        window.__mcQuality = { overview: overview, raw: settled[0].status === 'fulfilled' ? settled[0].value : null };
+        if (window.MuniControlQualityCharts) window.MuniControlQualityCharts.render(window.__mcQuality);
         renderIssues(issues);
         renderLineage(lineage);
         renderCaveats(overview, issues, lineage, failures);

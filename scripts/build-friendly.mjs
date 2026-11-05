@@ -191,6 +191,7 @@ const shellFiles = [
   'assets/payroll-bank-generator.js',
   'assets/mc-chart-loader.js',
   'assets/absence-charts.js',
+  'assets/quality-charts.js',
   'assets/mc-charts.css',
   'assets/payroll-bank-generator-model.js',
   'assets/payroll-bank-generator-export.js',
