@@ -5,6 +5,7 @@
   'use strict';
   if (!global || !global.document || typeof global.document.addEventListener !== 'function') return;
   var document = global.document;
+  var multiRefreshers = new WeakMap();
 
   // Select only options the browser currently allows the user to change.
   function dispatch(select) {
@@ -34,7 +35,8 @@
     none.type = 'button'; none.textContent = 'Ninguna'; none.className = 'mc-multi-helper';
     count.className = 'mc-multi-count'; count.setAttribute('aria-live', 'polite');
     var refresh = function () {
-      var options = enabledOptions(select);
+      // A disabled select (or one inside a disabled fieldset) offers no options, whatever the engine reports per option.
+      var options = select.matches(':disabled') ? [] : enabledOptions(select);
       var selected = options.filter(function (option) { return option.selected; }).length;
       count.textContent = options.length ? selected + ' de ' + options.length + ' disponibles' : '';
       all.disabled = !select.multiple || select.matches(':disabled') || !options.length || selected === options.length;
@@ -47,6 +49,7 @@
       setSelection(select, false); refresh();
     });
     select.addEventListener('change', refresh);
+    multiRefreshers.set(select, refresh);
     bar.appendChild(all); bar.appendChild(none); bar.appendChild(count);
     select.insertAdjacentElement('afterend', bar);
     var observer = new global.MutationObserver(refresh);
@@ -74,6 +77,19 @@
     if (typeof global.MutationObserver !== 'function' || typeof global.HTMLSelectElement !== 'function') return;
     installStyle();
     scan(document.body);
+    // Native reset restores option properties after dispatching the reset event.
+    // Refresh only the controls currently owned by that form, including form="id"
+    // controls outside it. Never emit input/change or alter the reset outcome.
+    document.addEventListener('reset', function (event) {
+      var form = event.target;
+      if (typeof global.HTMLFormElement !== 'function' || !(form instanceof global.HTMLFormElement)) return;
+      global.setTimeout(function () {
+        Array.prototype.forEach.call(form.elements, function (control) {
+          var refresh = multiRefreshers.get(control);
+          if (refresh) refresh();
+        });
+      }, 0);
+    });
     new global.MutationObserver(function (records) {
       records.forEach(function (record) { Array.prototype.forEach.call(record.addedNodes, scan); });
     }).observe(document.body, { childList: true, subtree: true });
