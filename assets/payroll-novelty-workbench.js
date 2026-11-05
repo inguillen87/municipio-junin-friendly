@@ -173,6 +173,8 @@ function applyMonthlyLocks() {
   monthlyCorrection?.update();
   byId('refreshButton').disabled = busy || Boolean(monthlyDecisions?.inFlight()) || Boolean(monthlyAnnul?.inFlight()) || Boolean(monthlyCorrection?.inFlight());
   renderPreparationGuide();
+  // Releasing a lock restores the snapshot taken while it was active; the clock pre-report recomputes its own controls.
+  if (!busy && !pendingWrite && !monthlyLocked()) attendancePreparte?.refreshAccess?.();
 }
 function renderPreparationGuide() {
   const help = byId('prepareHelp');
