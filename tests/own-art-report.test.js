@@ -30,12 +30,12 @@ test('extra-SUSS template matches the official layout: eight headers, B and G em
  const incomplete=ownArtFixture(2);incomplete.content.people[0].days.definition.workedDays=null;const b=await report(rehashArtFixture(incomplete));assert.throws(()=>ownArtExtraSussXlsx(b),/todas las observaciones/);
  assert.throws(()=>ownArtExtraSussXlsx(structuredClone(r)),/verificar/);
 });
-test('extra-SUSS readiness is exact: a salary beyond 2^53 cents, an unrepresentable name or days block only the template, with a visible observation and no rounding',async()=>{
+test('extra-SUSS readiness is exact: salary beyond the numeric-cell profile, unrepresentable names or days block only the template, with a visible observation and no rounding',async()=>{
  const {ownArtExtraSussXlsx,ownArtXlsx,ownArtCsv}=await import('../assets/own-art-report-export.js');
  const {artExtraSussReadiness,artExtraSussExactCents,artExtraSussName}=await import('../assets/art-extra-suss-template.js');
  const {decimal,exactEvidence}=await import('../assets/own-payroll-exact.js');
  // 90071992547409.93 is not a double: a Number consumer would read .94 (root finding on PR #263).
- assert.equal(artExtraSussExactCents('9007199254740993'),null);assert.equal(artExtraSussExactCents('9007199254740991'),'90071992547409.91');assert.equal(artExtraSussExactCents('10003'),'100.03');assert.equal(artExtraSussExactCents('7'),'0.07');assert.equal(artExtraSussExactCents('-1'),null);assert.equal(artExtraSussExactCents('01'),null);
+ assert.equal(artExtraSussExactCents('9007199254740993'),null);assert.equal(artExtraSussExactCents('9007199254740991'),null);assert.equal(artExtraSussExactCents('999999999999999'),'9999999999999.99');assert.equal(artExtraSussExactCents('10003'),'100.03');assert.equal(artExtraSussExactCents('7'),'0.07');assert.equal(artExtraSussExactCents('-1'),null);assert.equal(artExtraSussExactCents('01'),null);
  const huge=ownArtFixture(1),line=huge.content.groups[0].snapshot.concepts.find(r=>r.conceptCode==='993'),value=exactEvidence(decimal('90071992547409.91'));
  Object.assign(line,{amount:'90071992547409.91',exactValue:value});line.trace[0].result=value;
  const h=await report(rehashArtFixture(huge));assert.equal(h.canExport,true);assert.equal(h.rows[0].salaryCents,'9007199254740993');
@@ -49,4 +49,53 @@ test('extra-SUSS readiness is exact: a salary beyond 2^53 cents, an unrepresenta
   else{assert.equal(ready.canExport,true);assert.ok(new TextDecoder().decode(ownArtExtraSussXlsx(r)).includes('NOMBRÉ COMPUESTO'));}
  }
  const ok=await report(ownArtFixture(3));assert.deepEqual(artExtraSussReadiness(ok),{canExport:true,issueCount:0,rows:[]});
+});
+test('extra-SUSS rejects the changed-cent counterexample and noncanonical cents without coercion or truncation',async()=>{
+ const {artExtraSussExactCents,artExtraSussIssues}=await import('../assets/art-extra-suss-template.js');
+ const changed='70368744177664.12';
+ // The former multiplication-based round trip passed despite the consumer changing a cent.
+ assert.equal(Math.round(Number(changed)*100).toString(),'7036874417766412');
+ assert.equal(Number(changed).toFixed(2),'70368744177664.13');
+ for(const value of['7036874417766412','1000000000000000','9007199254740991',7,7n,true,null,undefined,'',' 7','7 ','+7','-0','-1','00','01','7.0','7.00','1e2','1,00','NaN','Infinity'])assert.equal(artExtraSussExactCents(value),null,String(value));
+ for(const [value,text]of[['0','0.00'],['7','0.07'],['10003','100.03'],['999999999999998','9999999999999.98'],['999999999999999','9999999999999.99']]){assert.equal(artExtraSussExactCents(value),text);assert.equal(Number(text).toFixed(2),text);}
+ const row=(await report(ownArtFixture(1))).rows[0];
+ assert.match(artExtraSussIssues({...row,salaryCents:10003}).join(' '),/Sueldo fuera del rango exacto/);
+});
+test('extra-SUSS monetary readiness and export agree at the numeric-cell limits while native exact amounts remain intact',async()=>{
+ const {ownArtExtraSussXlsx}=await import('../assets/own-art-report-export.js');
+ const {artExtraSussReadiness}=await import('../assets/art-extra-suss-template.js');
+ const {decimal,exactEvidence}=await import('../assets/own-payroll-exact.js');
+ for(const[amount,ready]of[['70368744177664.12',false],['10000000000000.00',false],['9999999999999.99',true],['0.00',true],['0.07',true],['100.03',true]]){
+  const source=ownArtFixture(1);
+  for(const[code,value]of[['993',amount],['995','0.00']]){const line=source.content.groups[0].snapshot.concepts.find(r=>r.conceptCode===code),exact=exactEvidence(decimal(value));Object.assign(line,{amount:value,exactValue:exact,trace:[{operation:'literal',reference:null,stage:null,result:exact}]});}
+  rehashArtFixture(source);const original=JSON.stringify(source),r=await report(source),state=artExtraSussReadiness(r);
+  assert.equal(r.canExport,true);assert.equal(r.rows[0].salaryCents,BigInt(amount.replace('.','')).toString());assert.equal(state.canExport,ready);assert.ok(ownArtCsv(r).includes(amount));assert.ok(ownArtXlsx(r).length>0);
+  if(ready){const text=new TextDecoder().decode(ownArtExtraSussXlsx(r));assert.ok(text.includes('<c r="H2"><v>'+amount+'</v></c>'));assert.equal(Number(amount).toFixed(2),amount);assert.equal(state.issueCount,0);}
+  else{assert.equal(state.issueCount,1);assert.match(state.rows[0].issues[0],/15 dígitos/);assert.throws(()=>ownArtExtraSussXlsx(r),/observaciones propias/);}
+  assert.equal(JSON.stringify(source),original);
+ }
+});
+test('extra-SUSS does not invent names by converting non-string source values',async()=>{
+ const {ownArtExtraSussXlsx}=await import('../assets/own-art-report-export.js');
+ const {artExtraSussName,artExtraSussReadiness}=await import('../assets/art-extra-suss-template.js');
+ for(const name of[true,12345,['QA'],null,{first:'QA'}]){
+  assert.equal(artExtraSussName(name),null);
+  const source=ownArtFixture(1);source.content.people[0].name=name;rehashArtFixture(source);const original=JSON.stringify(source),r=await report(source),state=artExtraSussReadiness(r);
+  assert.equal(r.canExport,true);assert.equal(state.canExport,false);assert.equal(state.issueCount,1);assert.match(state.rows[0].issues[0],/Apellido y nombre/);assert.throws(()=>ownArtExtraSussXlsx(r),/observaciones propias/);assert.ok(ownArtCsv(r).length>0);assert.ok(ownArtXlsx(r).length>0);assert.equal(JSON.stringify(source),original);
+ }
+});
+test('extra-SUSS NFC output does not replace the original recorded name',async()=>{
+ const {ownArtExtraSussXlsx}=await import('../assets/own-art-report-export.js');
+ const {artExtraSussReadiness}=await import('../assets/art-extra-suss-template.js');
+ const source=ownArtFixture(1),name='  Muñoz,\tJosé  ';source.content.people[0].name=name;rehashArtFixture(source);const original=JSON.stringify(source),r=await report(source);
+ assert.equal(r.rows[0].name,name);assert.equal(artExtraSussReadiness(r).canExport,true);assert.ok(new TextDecoder().decode(ownArtExtraSussXlsx(r)).includes('MUÑOZ, JOSÉ'));assert.equal(JSON.stringify(source),original);
+});
+test('extra-SUSS readiness catches normalized CUIL length before the existing exporter guard',async()=>{
+ const {ownArtExtraSussXlsx}=await import('../assets/own-art-report-export.js');
+ const {artExtraSussReadiness}=await import('../assets/art-extra-suss-template.js');
+ // Deliberately synthetic prefix accepted by the current source checksum contract.
+ // This checks agreement with the existing exporter, not the legal validity of a CUIL prefix.
+ const source=ownArtFixture(1),p=source.content.people[0],base='00'+p.dni,n=11-[5,4,3,2,7,6,5,4,3,2].reduce((sum,w,i)=>sum+w*Number(base[i]),0)%11;
+ p.cuil=base+(n===11?'0':n===10?'9':String(n));rehashArtFixture(source);const original=JSON.stringify(source),r=await report(source),state=artExtraSussReadiness(r);
+ assert.equal(r.canExport,true);assert.equal(state.canExport,false);assert.equal(state.issueCount,1);assert.match(state.rows[0].issues[0],/CUIL de 11 dígitos/);assert.throws(()=>ownArtExtraSussXlsx(r),/observaciones propias/);assert.ok(ownArtCsv(r).includes(p.cuil));assert.ok(ownArtXlsx(r).length>0);assert.equal(JSON.stringify(source),original);
 });
