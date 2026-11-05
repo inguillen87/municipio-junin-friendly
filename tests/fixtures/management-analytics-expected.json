@@ -1,0 +1,1317 @@
+{
+ "payload": {
+  "data": {
+   "budget": {
+    "approvedExpenditures": "31854092000.00",
+    "available": true,
+    "currency": {
+     "basis": "nominal",
+     "code": "ARS",
+     "unit": "pesos"
+    },
+    "detailPath": "/presupuesto-control",
+    "execution": {
+     "available": false,
+     "status": "source_not_loaded"
+    },
+    "fiscalYear": 2026,
+    "label": "Presupuesto aprobado 2026",
+    "source": {
+     "cutoff": "2025-12-26",
+     "legalInstrument": {
+      "number": "1021/2025",
+      "type": "Ordenanza"
+     },
+     "title": "Calculo de Recursos, Financiamiento y Presupuesto de Gastos 2026",
+     "url": "https://hcdjunin.gob.ar/digesto/pdfs/ordenanzas/2025/Ord251021_Presupuesto_26.pdf"
+    },
+    "status": "approved_budget_loaded"
+   },
+   "calendarYears": [
+    {
+     "absenceEvents": 215,
+     "affectedContracts": 103,
+     "balance": 2,
+     "elapsedDays": 22,
+     "exitPersons": 0,
+     "exits": 0,
+     "future": false,
+     "hirePersons": 2,
+     "hires": 2,
+     "partial": true,
+     "range": {
+      "from": "2019-12-10",
+      "to": "2019-12-31"
+     },
+     "sourceDeclaredDays": 642,
+     "transition": false,
+     "year": 2019
+    },
+    {
+     "absenceEvents": 3400,
+     "affectedContracts": 352,
+     "balance": 16,
+     "elapsedDays": 366,
+     "exitPersons": 12,
+     "exits": 12,
+     "future": false,
+     "hirePersons": 28,
+     "hires": 28,
+     "partial": false,
+     "range": {
+      "from": "2020-01-01",
+      "to": "2020-12-31"
+     },
+     "sourceDeclaredDays": 10274,
+     "transition": false,
+     "year": 2020
+    },
+    {
+     "absenceEvents": 3453,
+     "affectedContracts": 354,
+     "balance": 24,
+     "elapsedDays": 365,
+     "exitPersons": 9,
+     "exits": 9,
+     "future": false,
+     "hirePersons": 33,
+     "hires": 33,
+     "partial": false,
+     "range": {
+      "from": "2021-01-01",
+      "to": "2021-12-31"
+     },
+     "sourceDeclaredDays": 10425,
+     "transition": false,
+     "year": 2021
+    },
+    {
+     "absenceEvents": 3419,
+     "affectedContracts": 354,
+     "balance": 23,
+     "elapsedDays": 365,
+     "exitPersons": 17,
+     "exits": 17,
+     "future": false,
+     "hirePersons": 39,
+     "hires": 40,
+     "partial": false,
+     "range": {
+      "from": "2022-01-01",
+      "to": "2022-12-31"
+     },
+     "sourceDeclaredDays": 10324,
+     "transition": false,
+     "year": 2022
+    },
+    {
+     "absenceEvents": 3475,
+     "affectedContracts": 352,
+     "balance": 20,
+     "elapsedDays": 365,
+     "exitPersons": 13,
+     "exits": 13,
+     "future": false,
+     "hirePersons": 31,
+     "hires": 33,
+     "partial": false,
+     "range": {
+      "from": "2023-01-01",
+      "to": "2023-12-31"
+     },
+     "sourceDeclaredDays": 10439,
+     "transition": true,
+     "year": 2023
+    },
+    {
+     "absenceEvents": 3428,
+     "affectedContracts": 352,
+     "balance": 31,
+     "elapsedDays": 366,
+     "exitPersons": 11,
+     "exits": 11,
+     "future": false,
+     "hirePersons": 41,
+     "hires": 42,
+     "partial": false,
+     "range": {
+      "from": "2024-01-01",
+      "to": "2024-12-31"
+     },
+     "sourceDeclaredDays": 10239,
+     "transition": false,
+     "year": 2024
+    },
+    {
+     "absenceEvents": 3351,
+     "affectedContracts": 352,
+     "balance": 15,
+     "elapsedDays": 365,
+     "exitPersons": 17,
+     "exits": 17,
+     "future": false,
+     "hirePersons": 32,
+     "hires": 32,
+     "partial": false,
+     "range": {
+      "from": "2025-01-01",
+      "to": "2025-12-31"
+     },
+     "sourceDeclaredDays": 10020,
+     "transition": false,
+     "year": 2025
+    },
+    {
+     "absenceEvents": 2058,
+     "affectedContracts": 330,
+     "balance": 2,
+     "elapsedDays": 218,
+     "exitPersons": 11,
+     "exits": 11,
+     "future": false,
+     "hirePersons": 13,
+     "hires": 13,
+     "partial": true,
+     "range": {
+      "from": "2026-01-01",
+      "to": "2026-08-06"
+     },
+     "sourceDeclaredDays": 6158,
+     "transition": false,
+     "year": 2026
+    }
+   ],
+   "comparison": {
+    "basis": "same_elapsed_days",
+    "changePercent": {
+     "balance": -18.6,
+     "exits": 37.9,
+     "hires": 0
+    },
+    "elapsedDays": 972
+   },
+   "managementYears": [
+    {
+     "comparableToCurrent": true,
+     "current": {
+      "absenceEvents": 3433,
+      "affectedContracts": 353,
+      "balance": 28,
+      "elapsedDays": 366,
+      "exitPersons": 12,
+      "exits": 12,
+      "future": false,
+      "hirePersons": 39,
+      "hires": 40,
+      "partial": false,
+      "range": {
+       "from": "2023-12-09",
+       "to": "2024-12-08"
+      },
+      "sourceDeclaredDays": 10234
+     },
+     "currentStatus": "complete",
+     "index": 1,
+     "previous": {
+      "absenceEvents": 3411,
+      "affectedContracts": 350,
+      "balance": 17,
+      "elapsedDays": 366,
+      "exitPersons": 11,
+      "exits": 11,
+      "future": false,
+      "hirePersons": 28,
+      "hires": 28,
+      "partial": false,
+      "range": {
+       "from": "2019-12-10",
+       "to": "2020-12-09"
+      },
+      "sourceDeclaredDays": 10297
+     }
+    },
+    {
+     "comparableToCurrent": true,
+     "current": {
+      "absenceEvents": 3341,
+      "affectedContracts": 351,
+      "balance": 20,
+      "elapsedDays": 365,
+      "exitPersons": 15,
+      "exits": 15,
+      "future": false,
+      "hirePersons": 35,
+      "hires": 35,
+      "partial": false,
+      "range": {
+       "from": "2024-12-09",
+       "to": "2025-12-08"
+      },
+      "sourceDeclaredDays": 10004
+     },
+     "currentStatus": "complete",
+     "index": 2,
+     "previous": {
+      "absenceEvents": 3454,
+      "affectedContracts": 353,
+      "balance": 23,
+      "elapsedDays": 365,
+      "exitPersons": 10,
+      "exits": 10,
+      "future": false,
+      "hirePersons": 33,
+      "hires": 33,
+      "partial": false,
+      "range": {
+       "from": "2020-12-10",
+       "to": "2021-12-09"
+      },
+      "sourceDeclaredDays": 10414
+     }
+    },
+    {
+     "comparableToCurrent": true,
+     "current": {
+      "absenceEvents": 2277,
+      "affectedContracts": 335,
+      "balance": 0,
+      "elapsedDays": 241,
+      "exitPersons": 13,
+      "exits": 13,
+      "future": false,
+      "hirePersons": 13,
+      "hires": 13,
+      "partial": true,
+      "range": {
+       "from": "2025-12-09",
+       "to": "2026-08-06"
+      },
+      "sourceDeclaredDays": 6813
+     },
+     "currentStatus": "partial",
+     "index": 3,
+     "previous": {
+      "absenceEvents": 2240,
+      "affectedContracts": 337,
+      "balance": 19,
+      "elapsedDays": 241,
+      "exitPersons": 8,
+      "exits": 8,
+      "future": false,
+      "hirePersons": 27,
+      "hires": 27,
+      "partial": true,
+      "range": {
+       "from": "2021-12-10",
+       "to": "2022-08-07"
+      },
+      "sourceDeclaredDays": 6766
+     }
+    },
+    {
+     "comparableToCurrent": false,
+     "current": null,
+     "currentStatus": "future",
+     "index": 4,
+     "previous": {
+      "absenceEvents": 3494,
+      "affectedContracts": 352,
+      "balance": 20,
+      "elapsedDays": 364,
+      "exitPersons": 13,
+      "exits": 13,
+      "future": false,
+      "hirePersons": 31,
+      "hires": 33,
+      "partial": false,
+      "range": {
+       "from": "2022-12-10",
+       "to": "2023-12-08"
+      },
+      "sourceDeclaredDays": 10512
+     }
+    }
+   ],
+   "payrollComparison": {
+    "alignedEventChangePercent": 55.6,
+    "basis": "same_complete_closed_payroll_months",
+    "current": {
+     "affectedAlignedContracts": 293,
+     "alignedEvents": 3479,
+     "averageLiquidated": 255.6,
+     "closedMonths": 31,
+     "contractMonths": 7923,
+     "eventsPer100ContractMonths": 43.91,
+     "excludedEvents": 5298,
+     "expectedMonths": 31,
+     "range": {
+      "from": "2024-01-01",
+      "to": "2026-07-31"
+     },
+     "totalEvents": 8777
+    },
+    "previous": {
+     "affectedAlignedContracts": 206,
+     "alignedEvents": 2236,
+     "averageLiquidated": 164.9,
+     "closedMonths": 31,
+     "contractMonths": 5111,
+     "eventsPer100ContractMonths": 43.75,
+     "excludedEvents": 6592,
+     "expectedMonths": 31,
+     "range": {
+      "from": "2020-01-01",
+      "to": "2022-07-31"
+     },
+     "totalEvents": 8828
+    },
+    "rateChangePercent": 0.4,
+    "unit": "events_per_100_closed_payroll_contract_months"
+   },
+   "periods": {
+    "current": {
+     "absenceEvents": 9051,
+     "affectedContracts": 360,
+     "balance": 48,
+     "elapsedDays": 972,
+     "exitPersons": 40,
+     "exits": 40,
+     "future": false,
+     "hirePersons": 87,
+     "hires": 88,
+     "partial": true,
+     "range": {
+      "from": "2023-12-09",
+      "to": "2026-08-06"
+     },
+     "sourceDeclaredDays": 27051
+    },
+    "previousComparable": {
+     "absenceEvents": 9105,
+     "affectedContracts": 360,
+     "balance": 59,
+     "elapsedDays": 972,
+     "exitPersons": 29,
+     "exits": 29,
+     "future": false,
+     "hirePersons": 87,
+     "hires": 88,
+     "partial": false,
+     "range": {
+      "from": "2019-12-10",
+      "to": "2022-08-07"
+     },
+     "sourceDeclaredDays": 27477
+    },
+    "previousFull": {
+     "absenceEvents": 13748,
+     "affectedContracts": 360,
+     "balance": 85,
+     "elapsedDays": 1460,
+     "exitPersons": 50,
+     "exits": 50,
+     "future": false,
+     "hirePersons": 128,
+     "hires": 135,
+     "partial": false,
+     "range": {
+      "from": "2019-12-10",
+      "to": "2023-12-08"
+     },
+     "sourceDeclaredDays": 41470
+    }
+   },
+   "sectors": {
+    "consolidated": [
+     {
+      "currentAffectedContracts": 24,
+      "currentContractMonths": 645,
+      "currentEvents": 352,
+      "currentEventsPer100ContractMonths": 54.57,
+      "label": "SECTOR 10 C101",
+      "previousAffectedContracts": 20,
+      "previousContractMonths": 480,
+      "previousEvents": 255,
+      "previousEventsPer100ContractMonths": 53.13,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 10 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 26,
+      "currentContractMonths": 657,
+      "currentEvents": 260,
+      "currentEventsPer100ContractMonths": 39.57,
+      "label": "Sector sin catálogo (11)",
+      "previousAffectedContracts": 18,
+      "previousContractMonths": 459,
+      "previousEvents": 150,
+      "previousEventsPer100ContractMonths": 32.68,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (11)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 26,
+      "currentContractMonths": 607,
+      "currentEvents": 293,
+      "currentEventsPer100ContractMonths": 48.27,
+      "label": "Sector sin catálogo (12)",
+      "previousAffectedContracts": 15,
+      "previousContractMonths": 376,
+      "previousEvents": 178,
+      "previousEventsPer100ContractMonths": 47.34,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (12)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 18,
+      "currentContractMonths": 493,
+      "currentEvents": 240,
+      "currentEventsPer100ContractMonths": 48.68,
+      "label": "SECTOR 2 C101",
+      "previousAffectedContracts": 17,
+      "previousContractMonths": 372,
+      "previousEvents": 199,
+      "previousEventsPer100ContractMonths": 53.49,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 2 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 21,
+      "currentContractMonths": 512,
+      "currentEvents": 274,
+      "currentEventsPer100ContractMonths": 53.52,
+      "label": "SECTOR 7 C101",
+      "previousAffectedContracts": 14,
+      "previousContractMonths": 326,
+      "previousEvents": 189,
+      "previousEventsPer100ContractMonths": 57.98,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 7 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 20,
+      "currentContractMonths": 525,
+      "currentEvents": 278,
+      "currentEventsPer100ContractMonths": 52.95,
+      "label": "SECTOR 4 C101",
+      "previousAffectedContracts": 13,
+      "previousContractMonths": 273,
+      "previousEvents": 122,
+      "previousEventsPer100ContractMonths": 44.69,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 4 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 156,
+      "currentContractMonths": 458,
+      "currentEvents": 232,
+      "currentEventsPer100ContractMonths": 50.66,
+      "label": "Sector ambiguo en el mes",
+      "previousAffectedContracts": 82,
+      "previousContractMonths": 300,
+      "previousEvents": 108,
+      "previousEventsPer100ContractMonths": 36,
+      "quality": "ambiguous",
+      "sourceLabels": [
+       "Sector ambiguo en el mes"
+      ]
+     },
+     {
+      "currentAffectedContracts": 16,
+      "currentContractMonths": 406,
+      "currentEvents": 108,
+      "currentEventsPer100ContractMonths": 26.6,
+      "label": "SECTOR 3 C102",
+      "previousAffectedContracts": 11,
+      "previousContractMonths": 260,
+      "previousEvents": 77,
+      "previousEventsPer100ContractMonths": 29.62,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 3 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 18,
+      "currentContractMonths": 444,
+      "currentEvents": 236,
+      "currentEventsPer100ContractMonths": 53.15,
+      "label": "SECTOR 3 C101",
+      "previousAffectedContracts": 9,
+      "previousContractMonths": 221,
+      "previousEvents": 135,
+      "previousEventsPer100ContractMonths": 61.09,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 3 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 16,
+      "currentContractMonths": 364,
+      "currentEvents": 199,
+      "currentEventsPer100ContractMonths": 54.67,
+      "label": "SECTOR 9 C101",
+      "previousAffectedContracts": 10,
+      "previousContractMonths": 274,
+      "previousEvents": 152,
+      "previousEventsPer100ContractMonths": 55.47,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 9 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 17,
+      "currentContractMonths": 438,
+      "currentEvents": 224,
+      "currentEventsPer100ContractMonths": 51.14,
+      "label": "SECTOR 1 C101",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 166,
+      "previousEvents": 91,
+      "previousEventsPer100ContractMonths": 54.82,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 1 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 12,
+      "currentContractMonths": 361,
+      "currentEvents": 196,
+      "currentEventsPer100ContractMonths": 54.29,
+      "label": "SECTOR 5 C101",
+      "previousAffectedContracts": 11,
+      "previousContractMonths": 205,
+      "previousEvents": 115,
+      "previousEventsPer100ContractMonths": 56.1,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 5 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 12,
+      "currentContractMonths": 303,
+      "currentEvents": 154,
+      "currentEventsPer100ContractMonths": 50.83,
+      "label": "SECTOR 6 C101",
+      "previousAffectedContracts": 10,
+      "previousContractMonths": 188,
+      "previousEvents": 115,
+      "previousEventsPer100ContractMonths": 61.17,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 6 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 96,
+      "currentContractMonths": 280,
+      "currentEvents": 132,
+      "currentEventsPer100ContractMonths": 47.14,
+      "label": "Sin sector en la liquidación",
+      "previousAffectedContracts": 62,
+      "previousContractMonths": 206,
+      "previousEvents": 76,
+      "previousEventsPer100ContractMonths": 36.89,
+      "quality": "missing",
+      "sourceLabels": [
+       "Sin sector en la liquidación"
+      ]
+     },
+     {
+      "currentAffectedContracts": 10,
+      "currentContractMonths": 285,
+      "currentEvents": 77,
+      "currentEventsPer100ContractMonths": 27.02,
+      "label": "SECTOR 2 C102",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 169,
+      "previousEvents": 54,
+      "previousEventsPer100ContractMonths": 31.95,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 2 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 11,
+      "currentContractMonths": 306,
+      "currentEvents": 80,
+      "currentEventsPer100ContractMonths": 26.14,
+      "label": "SECTOR 4 C102",
+      "previousAffectedContracts": 6,
+      "previousContractMonths": 141,
+      "previousEvents": 39,
+      "previousEventsPer100ContractMonths": 27.66,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 4 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 10,
+      "currentContractMonths": 266,
+      "currentEvents": 71,
+      "currentEventsPer100ContractMonths": 26.69,
+      "label": "SECTOR 1 C102",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 144,
+      "previousEvents": 32,
+      "previousEventsPer100ContractMonths": 22.22,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 1 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 8,
+      "currentContractMonths": 218,
+      "currentEvents": 60,
+      "currentEventsPer100ContractMonths": 27.52,
+      "label": "SECTOR 5 C102",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 163,
+      "previousEvents": 39,
+      "previousEventsPer100ContractMonths": 23.93,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 5 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 7,
+      "currentContractMonths": 202,
+      "currentEvents": 51,
+      "currentEventsPer100ContractMonths": 25.25,
+      "label": "SECTOR 10 C102",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 124,
+      "previousEvents": 24,
+      "previousEventsPer100ContractMonths": 19.35,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 10 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 6,
+      "currentContractMonths": 153,
+      "currentEvents": 33,
+      "currentEventsPer100ContractMonths": 21.57,
+      "label": "SECTOR 6 C102",
+      "previousAffectedContracts": 6,
+      "previousContractMonths": 141,
+      "previousEvents": 29,
+      "previousEventsPer100ContractMonths": 20.57,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 6 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 6,
+      "currentContractMonths": 142,
+      "currentEvents": 39,
+      "currentEventsPer100ContractMonths": 27.46,
+      "label": "SECTOR 9 C102",
+      "previousAffectedContracts": 4,
+      "previousContractMonths": 118,
+      "previousEvents": 32,
+      "previousEventsPer100ContractMonths": 27.12,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 9 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 4,
+      "currentContractMonths": 83,
+      "currentEvents": 49,
+      "currentEventsPer100ContractMonths": 59.04,
+      "label": "SECTOR 8 C101",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 122,
+      "previousEvents": 75,
+      "previousEventsPer100ContractMonths": 61.48,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 8 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 2,
+      "currentContractMonths": 54,
+      "currentEvents": 6,
+      "currentEventsPer100ContractMonths": 11.11,
+      "label": "SECTOR 7 C102",
+      "previousAffectedContracts": 3,
+      "previousContractMonths": 87,
+      "previousEvents": 30,
+      "previousEventsPer100ContractMonths": 34.48,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 7 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 3,
+      "currentContractMonths": 83,
+      "currentEvents": 13,
+      "currentEventsPer100ContractMonths": 15.66,
+      "label": "SECTOR 8 C102",
+      "previousAffectedContracts": 3,
+      "previousContractMonths": 46,
+      "previousEvents": 11,
+      "previousEventsPer100ContractMonths": 23.91,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 8 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 3,
+      "currentContractMonths": 7,
+      "currentEvents": 4,
+      "currentEventsPer100ContractMonths": 57.14,
+      "label": "Sector sin catálogo (99)",
+      "previousAffectedContracts": 1,
+      "previousContractMonths": 3,
+      "previousEvents": 1,
+      "previousEventsPer100ContractMonths": 33.33,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (99)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 0,
+      "currentContractMonths": 0,
+      "currentEvents": 3880,
+      "currentEventsPer100ContractMonths": null,
+      "label": "Evento sin contrato canónico",
+      "previousAffectedContracts": 0,
+      "previousContractMonths": 0,
+      "previousEvents": 3977,
+      "previousEventsPer100ContractMonths": null,
+      "quality": "unlinked_contract",
+      "sourceLabels": [
+       "Evento sin contrato canónico"
+      ]
+     },
+     {
+      "currentAffectedContracts": 165,
+      "currentContractMonths": 0,
+      "currentEvents": 1418,
+      "currentEventsPer100ContractMonths": null,
+      "label": "Evento sin contrato-mes liquidado cerrado",
+      "previousAffectedContracts": 248,
+      "previousContractMonths": 0,
+      "previousEvents": 2615,
+      "previousEventsPer100ContractMonths": null,
+      "quality": "no_closed_payroll_contract_month",
+      "sourceLabels": [
+       "Evento sin contrato-mes liquidado cerrado"
+      ]
+     }
+    ],
+    "literal": [
+     {
+      "currentAffectedContracts": 24,
+      "currentContractMonths": 645,
+      "currentEvents": 352,
+      "currentEventsPer100ContractMonths": 54.57,
+      "label": "SECTOR 10 C101",
+      "previousAffectedContracts": 20,
+      "previousContractMonths": 480,
+      "previousEvents": 255,
+      "previousEventsPer100ContractMonths": 53.13,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 10 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 26,
+      "currentContractMonths": 657,
+      "currentEvents": 260,
+      "currentEventsPer100ContractMonths": 39.57,
+      "label": "Sector sin catálogo (11)",
+      "previousAffectedContracts": 18,
+      "previousContractMonths": 459,
+      "previousEvents": 150,
+      "previousEventsPer100ContractMonths": 32.68,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (11)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 26,
+      "currentContractMonths": 607,
+      "currentEvents": 293,
+      "currentEventsPer100ContractMonths": 48.27,
+      "label": "Sector sin catálogo (12)",
+      "previousAffectedContracts": 15,
+      "previousContractMonths": 376,
+      "previousEvents": 178,
+      "previousEventsPer100ContractMonths": 47.34,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (12)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 18,
+      "currentContractMonths": 493,
+      "currentEvents": 240,
+      "currentEventsPer100ContractMonths": 48.68,
+      "label": "SECTOR 2 C101",
+      "previousAffectedContracts": 17,
+      "previousContractMonths": 372,
+      "previousEvents": 199,
+      "previousEventsPer100ContractMonths": 53.49,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 2 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 21,
+      "currentContractMonths": 512,
+      "currentEvents": 274,
+      "currentEventsPer100ContractMonths": 53.52,
+      "label": "SECTOR 7 C101",
+      "previousAffectedContracts": 14,
+      "previousContractMonths": 326,
+      "previousEvents": 189,
+      "previousEventsPer100ContractMonths": 57.98,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 7 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 20,
+      "currentContractMonths": 525,
+      "currentEvents": 278,
+      "currentEventsPer100ContractMonths": 52.95,
+      "label": "SECTOR 4 C101",
+      "previousAffectedContracts": 13,
+      "previousContractMonths": 273,
+      "previousEvents": 122,
+      "previousEventsPer100ContractMonths": 44.69,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 4 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 156,
+      "currentContractMonths": 458,
+      "currentEvents": 232,
+      "currentEventsPer100ContractMonths": 50.66,
+      "label": "Sector ambiguo en el mes",
+      "previousAffectedContracts": 82,
+      "previousContractMonths": 300,
+      "previousEvents": 108,
+      "previousEventsPer100ContractMonths": 36,
+      "quality": "ambiguous",
+      "sourceLabels": [
+       "Sector ambiguo en el mes"
+      ]
+     },
+     {
+      "currentAffectedContracts": 16,
+      "currentContractMonths": 406,
+      "currentEvents": 108,
+      "currentEventsPer100ContractMonths": 26.6,
+      "label": "SECTOR 3 C102",
+      "previousAffectedContracts": 11,
+      "previousContractMonths": 260,
+      "previousEvents": 77,
+      "previousEventsPer100ContractMonths": 29.62,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 3 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 18,
+      "currentContractMonths": 444,
+      "currentEvents": 236,
+      "currentEventsPer100ContractMonths": 53.15,
+      "label": "SECTOR 3 C101",
+      "previousAffectedContracts": 9,
+      "previousContractMonths": 221,
+      "previousEvents": 135,
+      "previousEventsPer100ContractMonths": 61.09,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 3 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 16,
+      "currentContractMonths": 364,
+      "currentEvents": 199,
+      "currentEventsPer100ContractMonths": 54.67,
+      "label": "SECTOR 9 C101",
+      "previousAffectedContracts": 10,
+      "previousContractMonths": 274,
+      "previousEvents": 152,
+      "previousEventsPer100ContractMonths": 55.47,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 9 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 17,
+      "currentContractMonths": 438,
+      "currentEvents": 224,
+      "currentEventsPer100ContractMonths": 51.14,
+      "label": "SECTOR 1 C101",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 166,
+      "previousEvents": 91,
+      "previousEventsPer100ContractMonths": 54.82,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 1 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 12,
+      "currentContractMonths": 361,
+      "currentEvents": 196,
+      "currentEventsPer100ContractMonths": 54.29,
+      "label": "SECTOR 5 C101",
+      "previousAffectedContracts": 11,
+      "previousContractMonths": 205,
+      "previousEvents": 115,
+      "previousEventsPer100ContractMonths": 56.1,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 5 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 12,
+      "currentContractMonths": 303,
+      "currentEvents": 154,
+      "currentEventsPer100ContractMonths": 50.83,
+      "label": "SECTOR 6 C101",
+      "previousAffectedContracts": 10,
+      "previousContractMonths": 188,
+      "previousEvents": 115,
+      "previousEventsPer100ContractMonths": 61.17,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 6 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 96,
+      "currentContractMonths": 280,
+      "currentEvents": 132,
+      "currentEventsPer100ContractMonths": 47.14,
+      "label": "Sin sector en la liquidación",
+      "previousAffectedContracts": 62,
+      "previousContractMonths": 206,
+      "previousEvents": 76,
+      "previousEventsPer100ContractMonths": 36.89,
+      "quality": "missing",
+      "sourceLabels": [
+       "Sin sector en la liquidación"
+      ]
+     },
+     {
+      "currentAffectedContracts": 10,
+      "currentContractMonths": 285,
+      "currentEvents": 77,
+      "currentEventsPer100ContractMonths": 27.02,
+      "label": "SECTOR 2 C102",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 169,
+      "previousEvents": 54,
+      "previousEventsPer100ContractMonths": 31.95,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 2 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 11,
+      "currentContractMonths": 306,
+      "currentEvents": 80,
+      "currentEventsPer100ContractMonths": 26.14,
+      "label": "SECTOR 4 C102",
+      "previousAffectedContracts": 6,
+      "previousContractMonths": 141,
+      "previousEvents": 39,
+      "previousEventsPer100ContractMonths": 27.66,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 4 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 10,
+      "currentContractMonths": 266,
+      "currentEvents": 71,
+      "currentEventsPer100ContractMonths": 26.69,
+      "label": "SECTOR 1 C102",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 144,
+      "previousEvents": 32,
+      "previousEventsPer100ContractMonths": 22.22,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 1 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 8,
+      "currentContractMonths": 218,
+      "currentEvents": 60,
+      "currentEventsPer100ContractMonths": 27.52,
+      "label": "SECTOR 5 C102",
+      "previousAffectedContracts": 7,
+      "previousContractMonths": 163,
+      "previousEvents": 39,
+      "previousEventsPer100ContractMonths": 23.93,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 5 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 7,
+      "currentContractMonths": 202,
+      "currentEvents": 51,
+      "currentEventsPer100ContractMonths": 25.25,
+      "label": "SECTOR 10 C102",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 124,
+      "previousEvents": 24,
+      "previousEventsPer100ContractMonths": 19.35,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 10 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 6,
+      "currentContractMonths": 153,
+      "currentEvents": 33,
+      "currentEventsPer100ContractMonths": 21.57,
+      "label": "SECTOR 6 C102",
+      "previousAffectedContracts": 6,
+      "previousContractMonths": 141,
+      "previousEvents": 29,
+      "previousEventsPer100ContractMonths": 20.57,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 6 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 6,
+      "currentContractMonths": 142,
+      "currentEvents": 39,
+      "currentEventsPer100ContractMonths": 27.46,
+      "label": "SECTOR 9 C102",
+      "previousAffectedContracts": 4,
+      "previousContractMonths": 118,
+      "previousEvents": 32,
+      "previousEventsPer100ContractMonths": 27.12,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 9 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 4,
+      "currentContractMonths": 83,
+      "currentEvents": 49,
+      "currentEventsPer100ContractMonths": 59.04,
+      "label": "SECTOR 8 C101",
+      "previousAffectedContracts": 5,
+      "previousContractMonths": 122,
+      "previousEvents": 75,
+      "previousEventsPer100ContractMonths": 61.48,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 8 C101"
+      ]
+     },
+     {
+      "currentAffectedContracts": 2,
+      "currentContractMonths": 54,
+      "currentEvents": 6,
+      "currentEventsPer100ContractMonths": 11.11,
+      "label": "SECTOR 7 C102",
+      "previousAffectedContracts": 3,
+      "previousContractMonths": 87,
+      "previousEvents": 30,
+      "previousEventsPer100ContractMonths": 34.48,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 7 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 3,
+      "currentContractMonths": 83,
+      "currentEvents": 13,
+      "currentEventsPer100ContractMonths": 15.66,
+      "label": "SECTOR 8 C102",
+      "previousAffectedContracts": 3,
+      "previousContractMonths": 46,
+      "previousEvents": 11,
+      "previousEventsPer100ContractMonths": 23.91,
+      "quality": "matched",
+      "sourceLabels": [
+       "SECTOR 8 C102"
+      ]
+     },
+     {
+      "currentAffectedContracts": 3,
+      "currentContractMonths": 7,
+      "currentEvents": 4,
+      "currentEventsPer100ContractMonths": 57.14,
+      "label": "Sector sin catálogo (99)",
+      "previousAffectedContracts": 1,
+      "previousContractMonths": 3,
+      "previousEvents": 1,
+      "previousEventsPer100ContractMonths": 33.33,
+      "quality": "unmatched_catalog",
+      "sourceLabels": [
+       "Sector sin catálogo (99)"
+      ]
+     },
+     {
+      "currentAffectedContracts": 0,
+      "currentContractMonths": 0,
+      "currentEvents": 3880,
+      "currentEventsPer100ContractMonths": null,
+      "label": "Evento sin contrato canónico",
+      "previousAffectedContracts": 0,
+      "previousContractMonths": 0,
+      "previousEvents": 3977,
+      "previousEventsPer100ContractMonths": null,
+      "quality": "unlinked_contract",
+      "sourceLabels": [
+       "Evento sin contrato canónico"
+      ]
+     },
+     {
+      "currentAffectedContracts": 165,
+      "currentContractMonths": 0,
+      "currentEvents": 1418,
+      "currentEventsPer100ContractMonths": null,
+      "label": "Evento sin contrato-mes liquidado cerrado",
+      "previousAffectedContracts": 248,
+      "previousContractMonths": 0,
+      "previousEvents": 2615,
+      "previousEventsPer100ContractMonths": null,
+      "quality": "no_closed_payroll_contract_month",
+      "sourceLabels": [
+       "Evento sin contrato-mes liquidado cerrado"
+      ]
+     }
+    ],
+    "mapping": {
+     "companyId": 101,
+     "coverage": {
+      "currentContractMonths": 0,
+      "previousContractMonths": 0,
+      "sourceLabels": []
+     },
+     "id": "garden_sector_family_v1",
+     "label": "Sectores de jardines",
+     "reversible": true,
+     "sourceSectorCodes": [
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "31",
+      "33",
+      "36",
+      "37",
+      "38",
+      "39",
+      "40"
+     ],
+     "status": "analytical_grouping",
+     "warning": "Agrupa códigos de sector de jardines; no representa a todo el personal asignado a áreas de jardines."
+    },
+    "quality": {
+     "currentAmbiguousContractMonths": 458,
+     "currentEventsWithoutClosedContractMonth": 5298,
+     "previousAmbiguousContractMonths": 300,
+     "previousEventsWithoutClosedContractMonth": 6592
+    }
+   }
+  },
+  "meta": {
+   "absenceMetricSemantics": "Eventos administrativos registrados por 100 contrato-mes liquidados y cerrados; no es tasa de ausentismo, presentismo ni jornadas perdidas.",
+   "authority": "GRH",
+   "containsPersonalData": false,
+   "currentPeriodPartial": true,
+   "grain": "employment_contract (legajo por empresa)",
+   "loadedAt": "2026-08-13T21:43:41.000Z",
+   "monetaryComparisonAvailable": false,
+   "sectorSemantics": "Sector temporal dominante de la liquidación cerrada del mismo contrato-mes; ambigüedades y eventos sin denominador permanecen visibles.",
+   "sourceCutoff": "2026-08-06"
+  },
+  "ok": true,
+  "quality": {
+   "absenceAfterCutoff": 443,
+   "absenceBeforeCoverage": 239,
+   "absenceRows": 24191,
+   "contracts": 360,
+   "invertedAbsenceRanges": 237,
+   "lastClosedPayrollPeriod": "2026-07-01",
+   "latestOpenPayrollPeriod": "2026-08-01",
+   "missingValidStartDate": 15,
+   "movementRows": 5000,
+   "movementsWithoutType": 3024,
+   "personsWithContract": 324,
+   "reconciliations": {
+    "currentSectorContractMonths": false,
+    "currentSectorEvents": false,
+    "equalElapsedDays": true,
+    "periodExitsToCalendar": true,
+    "periodHiresToCalendar": true,
+    "previousSectorContractMonths": false,
+    "previousSectorEvents": false
+   },
+   "unlinkedAbsences": 10890
+  }
+ },
+ "status": 200
+}
