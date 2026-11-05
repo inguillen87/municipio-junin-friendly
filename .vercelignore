@@ -406,3 +406,5 @@ local-agents/
 
 # Schooling set-based reader (internal SQL implementation, HTTP v5 unchanged).
 !scripts/migrations/191-schooling-set-based-read.sql
+# Municipal rounding policy for new programme rules (owner decision 2026-11-05).
+!scripts/migrations/192-own-program-rounding-policy.sql
