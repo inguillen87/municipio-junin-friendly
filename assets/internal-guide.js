@@ -351,7 +351,8 @@
 
   function insertFirstVisitBanner() {
     state.seen = state.seen || {};
-    if (state.seen[PAGE_KEY]) return;
+    // «Ahora no» on any screen silences the first-visit banner for the rest of the session; the header help stays.
+    if (state.seen[PAGE_KEY] || state.bannersMuted) return;
     var main = document.querySelector('main');
     if (!main) return;
     var banner = document.createElement('section');
@@ -365,6 +366,7 @@
       startTour();
     });
     banner.querySelector('[data-mc-dismiss]').addEventListener('click', function () {
+      state.bannersMuted = true;
       acknowledgePage();
       banner.remove();
     });
