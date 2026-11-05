@@ -13,7 +13,7 @@ let source=syntheticCostReport(),mode='ok',pending=null,calls=0,downloads=0;
 const checks=[],errors=[];
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
 try{
- const context=await browser.newContext({viewport:{width:1440,height:1040},locale:'es-AR',acceptDownloads:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1040},locale:'es-AR',acceptDownloads:true,reducedMotion:'reduce'});
  await context.route('**/*',async route=>{
   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
   if(u.pathname.startsWith('/api/')){
@@ -33,14 +33,20 @@ try{
  await p.goto(origin);await p.locator('[data-catalog]').click();await p.locator('[data-query]:not([hidden])').waitFor();
  const load=async()=>{await p.locator('[data-query] button').click();await p.locator('[data-result]:not([hidden])').waitFor();};
  await load();assert.equal(await p.locator('[data-cost-total]').textContent(),'$ 1.245,00');checks.push('visible cost uses exactly the five required concepts');
+ await p.waitForFunction(()=>document.querySelectorAll('[data-cost-chart] .mc-chart[data-loading=false] canvas').length===1);const originalCostChart=await p.locator('[data-cost-chart] table').textContent();assert.equal(await p.locator('[data-cost-chart] tbody tr').count(),5);assert.equal(await p.locator('[data-source-report-rows] tr').count(),source.rows.length);checks.push('cost chart retains five exact components and does not replace the main report table');
  await p.locator('.rc-cost-detail summary').click();assert.equal(await p.locator('.rc-cost-detail dl>div').count(),5);
  assert.match(await p.locator('.rc-cost-checks').innerText(),/0,08/);assert.match(await p.locator('.rc-cost-checks').innerText(),/1,00/);checks.push('breakdown and discrepancies visible without correcting source');
- await p.locator('[data-group]').selectOption('discounts');assert.equal(await p.locator('[data-result]>.rc-table-wrap tbody tr').count(),0);assert.equal(await p.locator('[data-cost-total]').textContent(),'$ 1.245,00');checks.push('empty detail filter does not silently change cost scope');
+ await p.locator('[data-group]').selectOption('discounts');assert.equal(await p.locator('[data-result]>.rc-table-wrap tbody tr').count(),0);assert.equal(await p.locator('[data-cost-total]').textContent(),'$ 1.245,00');assert.equal(await p.locator('[data-cost-chart] table').textContent(),originalCostChart);checks.push('empty detail filter does not silently change cost scope');
  await p.locator('[data-group]').selectOption('all');const n=calls;
  for(const ext of ['pdf','xlsx','csv']){const event=p.waitForEvent('download');await p.locator(`[data-format="${ext}"]`).click();await(await event).saveAs(path.join(out,'concepts-synthetic.'+ext));}
  assert.equal(calls,n+3);checks.push('three exports revalidate the authenticated dataset before download');
  await p.locator('[data-salary-cost]').screenshot({path:path.join(out,'cost-desktop-synthetic.png')});
- for(const width of [390,320]){await p.setViewportSize({width,height:1000});await p.locator('[data-salary-cost]').scrollIntoViewIfNeeded();assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await p.locator('[data-salary-cost]').screenshot({path:path.join(out,`cost-mobile-${width}-synthetic.png`)});checks.push('mobile '+width+'px has no horizontal page overflow');}
+ for(const width of [390,320]){
+  await p.setViewportSize({width,height:1000});await p.locator('[data-salary-cost]').scrollIntoViewIfNeeded();
+  await p.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth+1,undefined,{timeout:3500});
+  await p.waitForFunction(async()=>{const {echarts}=await import('/assets/mc-charts.js');const host=document.querySelector('[data-cost-chart] .mc-chart');const chart=host&&echarts.getInstanceByDom(host);return chart?.getModel().getComponent('grid')?.coordinateSystem?.getRect().width>=90;},undefined,{timeout:3500});
+  await p.locator('[data-salary-cost]').screenshot({path:path.join(out,`cost-mobile-${width}-synthetic.png`)});checks.push('mobile '+width+'px has no page overflow and at least 90 pixels of usable bar width');
+ }
  const wasOpen=await p.locator('.rc-cost-detail').getAttribute('open');await p.locator('.rc-cost-detail summary').focus();await p.keyboard.press('Enter');assert.notEqual(await p.locator('.rc-cost-detail').getAttribute('open'),wasOpen);checks.push('cost details keyboard control');
  mode='wait';const before=downloads;await p.locator('[data-format=pdf]').click();await p.waitForFunction(()=>document.querySelector('[data-state]').textContent.startsWith('Verificando'));
  await p.locator('[data-search]').fill('Concepto de control');mode='ok';pending?.();await p.waitForFunction(()=>!document.querySelector('[data-format=pdf]').disabled);assert.equal(downloads,before);assert.match(await p.locator('[data-state]').textContent(),/cancelada/);checks.push('filter change during revalidation cancels stale download');

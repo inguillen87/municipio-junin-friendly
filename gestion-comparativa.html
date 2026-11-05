@@ -754,7 +754,21 @@
         if (content !== undefined && content !== null) node.textContent = String(content);
         return node;
       }
-      function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+      var comparisonChartJobs = new WeakMap(), comparisonChartView = null;
+      function clear(node) {
+        if(comparisonChartView && comparisonChartJobs.has(node)) comparisonChartView.clearAggregateCharts(node);
+        comparisonChartJobs.delete(node);
+        while (node.firstChild) node.removeChild(node.firstChild);
+      }
+      function clearComparisonCharts(){['yearChart','sectorBars'].forEach(function(id){clear(byId(id));});}
+      function queueComparisonChart(host, options){
+        if(!options.rows.length)return;
+        var job={source:state.analytics}; comparisonChartJobs.set(host,job);
+        import('./assets/aggregate-chart-view.js').then(function(view){
+          if(comparisonChartJobs.get(host)!==job||state.analytics!==job.source||redirecting||!host.isConnected)return;
+          comparisonChartView=view;return view.drawAggregateCharts(host,[view.comparisonChart(options)]);
+        }).catch(function(){/* Existing exact tables remain available. */});
+      }
       function formatInteger(value) { var number = finite(value); return number === null ? 'No informado' : integerFormat.format(number); }
       function formatDecimal(value) { var number = finite(value); return number === null ? 'No informado' : decimalFormat.format(number); }
       function formatRatio(value) { var number = finite(value); return number === null ? 'No informado' : ratioFormat.format(number); }
@@ -970,6 +984,7 @@
       function redirectToLogin() {
         if (redirecting) return;
         redirecting = true;
+        clearComparisonCharts();
         location.replace(LOGIN_URL);
       }
 
@@ -1007,6 +1022,7 @@
       }
 
       function showLoading(message) {
+        clearComparisonCharts();
         byId('loadingMessage').textContent = message || 'Consultando información.';
         byId('loading').hidden = false;
         byId('errorHost').hidden = true;
@@ -1014,6 +1030,7 @@
       }
 
       function showError(error) {
+        clearComparisonCharts();
         if (error && error.unauthorized) return;
         var host = byId('errorHost');
         clear(host);
@@ -1220,6 +1237,10 @@
         byId('yearsBadge').className = 'status-pill ' + (calendar ? 'partial' : 'context');
         byId('yearsBadge').textContent = calendar ? 'Contexto, no equivalencia' : 'Año de gestión';
         if (calendar) renderCalendarYears(); else renderManagementYears();
+        queueComparisonChart(byId('yearChart'),{key:'comparison-years',title:byId('yearChartTitle').textContent,
+          subtitle:byId('yearChartNote').textContent, left:calendar?'Altas':'Gestión anterior',right:calendar?'Bajas':'Gestión actual',
+          rows:calendar?state.analytics.calendarYears.map(function(row){return {label:row.label||String(row.year),previous:row.period.hires,current:row.period.exits,
+            note:[row.management,row.transition?'Año de transición':'',row.partial?'Parcial; sin proyección':''].filter(Boolean).join(' · ')};}):managementYearRows()});
       }
 
       function renderPairList(host, rows, previousLabel, currentLabel) {
@@ -1330,6 +1351,9 @@
             host.append(item);
           });
         }
+        queueComparisonChart(host,{key:'comparison-sectors',title:'Distribución comparada',horizontal:true,
+          subtitle:(state.sectorMetric==='events'?'Eventos':'Meses-contrato')+' · hasta diez categorías; el detalle conserva todas.',
+          rows:visible.map(function(row){var pair=sectorValues(row);return {label:row.label,previous:pair.previous,current:pair.current};})});
         var table = byId('sectorRows');
         clear(table);
         ordered.forEach(function (row) {

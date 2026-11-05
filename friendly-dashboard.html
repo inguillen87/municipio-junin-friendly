@@ -191,6 +191,7 @@
             </div>
           </section>
           <div class="trust-strip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg><div><strong>La interfaz no completa huecos con números inventados.</strong><span>Los importes de nómina no se publican en este tablero; sólo están disponibles en el control interno para corridas cerradas y reconciliadas. Ejecución presupuestaria y licencias actuales aún esperan fuente homologada.</span></div></div>
+          <div id="executiveCharts" aria-label="Series agregadas del corte"></div>
           <div class="grid"><article class="panel wide"><div class="panel-head"><div><h2>Lecturas para la gestión</h2><p class="panel-sub">Hallazgos descriptivos, sin inferir desempeño ni causalidad.</p></div><button class="action" data-open="calidad">Ver calidad</button></div><div class="insight-list" id="homeInsights"></div></article></div>
         </section>
 
@@ -397,6 +398,15 @@
         ].map(item=>`<div class="insight"><div class="insight-number">${item[0]}</div><div><strong>${item[1]}</strong><p>${item[2]}</p></div></div>`).join('');
       }
 
+      let executiveChartGeneration=0;
+      function renderExecutiveCharts(){
+        const generation=++executiveChartGeneration,current=data,host=$('executiveCharts');
+        import('./assets/aggregate-chart-view.js').then(view=>{
+          if(generation!==executiveChartGeneration||current!==data||!host.isConnected)return;
+          return view.drawAggregateCharts(host,view.executiveCharts(current));
+        }).catch(()=>{if(generation===executiveChartGeneration)host.replaceChildren();});
+      }
+
       function renderAll(){
         const w=data.workforce;
         $('snapshotLabel').textContent='Corte '+dateLabel(data.source.snapshotAt);
@@ -404,7 +414,7 @@
         $('footerSource').textContent=`${data.source.dataset} · ${dateLabel(data.source.snapshotAt)}`;
         renderHome();
         $('activeRing').style.setProperty('--value',w.activeSharePct);$('activePct').textContent=w.activeSharePct+'%';$('activeLegend').textContent=format(w.active);$('inactiveLegend').textContent=format(w.inactive);$('historicalLegend').textContent=format(w.historicalRecords);
-        renderBars($('genderBars'),w.genderActive,w.active);renderBars($('sectorBars'),w.activeSectors,w.active);renderManagement();renderAbsence();renderQuality();
+        renderBars($('genderBars'),w.genderActive,w.active);renderBars($('sectorBars'),w.activeSectors,w.active);renderManagement();renderAbsence();renderQuality();renderExecutiveCharts();
       }
 
       document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.section)));
