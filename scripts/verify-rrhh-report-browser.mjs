@@ -130,7 +130,8 @@ async function inspect(viewport, label, downloadFiles) {
       page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' }),
     ]);
     // Read the body at once: Chromium can drop a consumed fetch body from the DevTools buffer before a later read.
-    const sessionBody = await sessionResponse.text();
+    // If Chromium already released it, re-read the same synthetic session from the page (same route, same fixture).
+    const sessionBody = await sessionResponse.text().catch(() => page.evaluate(() => fetch('/api/internal-auth', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(response => response.text())));
     assert.equal(sessionResponse.status(), 200, `${label}: respuesta de sesión sintética`);
     assert.deepEqual(JSON.parse(sessionBody), sessionFixture, `${label}: contrato de sesión completo`);
     await page.waitForSelector('#reportContent:not([hidden])');
