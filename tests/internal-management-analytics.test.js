@@ -223,3 +223,66 @@ test('el resumen público recorta 2019 al inicio real de la ventana', async () =
   assert.equal(data.management.yearly.reduce((sum, item) => sum + item.hires, 0), 582);
   assert.equal(data.management.yearly.reduce((sum, item) => sum + item.exits, 0), 509);
 });
+
+test('managementAnalytics informa la duración de cada consulta y conserva el resultado en modo secuencial', async () => {
+  const parallel = fixtureSql();
+  const expected = await managementAnalytics(parallel);
+  const sql = fixtureSql();
+  const diagnostics = [];
+  let clock = 0;
+  const result = await managementAnalytics(sql, { sequential: true, report: (d) => diagnostics.push(d), now: () => (clock += 250) });
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.payload, expected.payload);
+  assert.deepEqual(sql.calls.map((call) => call.marker), ['source', 'metrics', 'payroll-comparison', 'sectors', 'quality']);
+  assert.deepEqual(diagnostics.map((d) => [d.version, d.query, d.outcome, d.durationMs]), [
+    ['management-analytics-phase.v1', 'metrics', 'fulfilled', 250],
+    ['management-analytics-phase.v1', 'payroll-comparison', 'fulfilled', 250],
+    ['management-analytics-phase.v1', 'sectors', 'fulfilled', 250],
+    ['management-analytics-phase.v1', 'quality', 'fulfilled', 250],
+  ]);
+  assert.ok(diagnostics.every((d) => Object.isFrozen(d) && Number.isInteger(d.rows) && d.rows >= 1));
+});
+
+test('managementAnalytics probe ejecuta una sola consulta con el mismo SQL y no devuelve datos', async () => {
+  const reference = fixtureSql();
+  await managementAnalytics(reference);
+  for (const probe of ['metrics', 'payroll-comparison', 'sectors', 'quality']) {
+    const sql = fixtureSql();
+    const diagnostics = [];
+    const result = await managementAnalytics(sql, { probe, report: (d) => diagnostics.push(d) });
+    assert.equal(result.status, 200);
+    assert.deepEqual(Object.keys(result.payload).sort(), ['ok', 'probe']);
+    assert.deepEqual(Object.keys(result.payload.probe).sort(), ['durationMs', 'query', 'rows', 'sourceCutoff']);
+    assert.equal(result.payload.probe.query, probe);
+    assert.equal(result.payload.probe.sourceCutoff, '2026-08-06');
+    assert.deepEqual(sql.calls.map((call) => call.marker), ['source', probe]);
+    const same = reference.calls.find((call) => call.marker === probe);
+    assert.equal(sql.calls[1].sql, same.sql);
+    assert.deepEqual(sql.calls[1].values, same.values);
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].query, probe);
+  }
+  const invalid = fixtureSql();
+  const rejected = await managementAnalytics(invalid, { probe: 'drop' });
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.payload.code, 'MANAGEMENT_PROBE_INVALID');
+  assert.deepEqual(invalid.calls, []);
+});
+
+test('managementAnalytics informa la consulta rechazada y propaga el error', async () => {
+  const sql = fixtureSql();
+  const base = sql.query.bind(sql);
+  sql.query = async (statement, values) => { if (markerOf(statement) === 'sectors') throw new Error('SECTORS_DOWN'); return base(statement, values); };
+  const diagnostics = [];
+  await assert.rejects(managementAnalytics(sql, { report: (d) => diagnostics.push(d) }), /SECTORS_DOWN/);
+  assert.deepEqual(diagnostics.find((d) => d.query === 'sectors').outcome, 'rejected');
+});
+
+test('el handler enruta probe, el modo secuencial por entorno y el informe de fases', async () => {
+  const source = await readFile(new URL('../api/internal-data.js', import.meta.url), 'utf8');
+  const branch = source.slice(source.indexOf("resource === 'managementanalytics'"), source.indexOf("resource === 'qualityoverview'"));
+  assert.match(branch, /const probe = typeof req\.query\?\.probe === 'string' \? req\.query\.probe : null;/);
+  assert.match(branch, /managementAnalytics\(sql, \{\s*probe, sequential: env\.MANAGEMENT_ANALYTICS_SEQUENTIAL === '1', report: reportManagementPhase,\s*\}\)/);
+  assert.match(source, /const reportManagementPhase = dependencies\.reportManagementPhase \?\? \(\(diagnostic\) => console\.info\('\[internal-data:management-phase\]', diagnostic\)\);/);
+});

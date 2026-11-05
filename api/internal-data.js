@@ -2528,7 +2528,12 @@ function managementSectorProjection(rows, grouping) {
  * Compara dos gestiones con ventanas exactas y una base temporal equivalente.
  * El contrato es agregado: no publica nombres, documentos ni identificadores de legajo.
  */
-export async function managementAnalytics(sql) {
+export const MANAGEMENT_ANALYTICS_QUERIES = Object.freeze(['metrics', 'payroll-comparison', 'sectors', 'quality']);
+export async function managementAnalytics(sql, { probe = null, sequential = false, report = null, now = null } = {}) {
+  const managementNow = () => { try { const value = (now ?? (() => performance.now()))(); return Number.isFinite(value) ? value : null; } catch { return null; } };
+  const managementElapsed = (from) => { const to = managementNow(); return from === null || to === null ? null : Math.max(0, Math.round(to - from)); };
+  const managementReport = (diagnostic) => { try { const pending = report?.(Object.freeze(diagnostic)); if (pending && typeof pending.then === 'function') void Promise.resolve(pending).catch(() => {}); } catch {} };
+  if (probe !== null && !MANAGEMENT_ANALYTICS_QUERIES.includes(probe)) return { status: 400, payload: { ok: false, code: 'MANAGEMENT_PROBE_INVALID', error: 'La consulta de diagnóstico no existe.' } };
   const [source = null] = await sql.query(`
     /* management:source */
     SELECT id AS "batchId", source_cutoff AS "sourceCutoff",
@@ -2611,8 +2616,8 @@ export async function managementAnalytics(sql) {
   const payrollPrevious = managementCompleteMonthRange(MANAGEMENT_PREVIOUS.from, previousComparableTo);
   const payrollCurrent = managementCompleteMonthRange(MANAGEMENT_CURRENT.from, currentTo);
 
-  const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = await Promise.all([
-    sql.query(`
+  const managementQueries = [
+    ['metrics', () => sql.query(`
       /* management:metrics */
       -- The effective absence view is evaluated once and reused by every window: the curated
       -- view costs a key function per base row, so one evaluation per window would not finish
@@ -2659,8 +2664,8 @@ export async function managementAnalytics(sql) {
       JOIN departure USING (id)
       JOIN event USING (id)
       LEFT JOIN affected USING (id)
-    `, metricScope.values),
-    sql.query(`
+    `, metricScope.values)],
+    ['payroll-comparison', () => sql.query(`
       /* management:payroll-comparison */
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
@@ -2708,8 +2713,8 @@ export async function managementAnalytics(sql) {
                AS "eventsPer100ContractMonths"
       FROM denominator JOIN numerator USING (window_key)
       ORDER BY denominator.window_key
-    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
-    sql.query(`
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to])],
+    ['sectors', () => sql.query(`
       /* management:sectors */
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
@@ -2798,8 +2803,8 @@ export async function managementAnalytics(sql) {
       LEFT JOIN denominator USING (window_key, sector_key)
       LEFT JOIN numerator USING (window_key, sector_key)
       ORDER BY keys.window_key, "contractMonths" DESC, label
-    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
-    sql.query(`
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to])],
+    ['quality', () => sql.query(`
       /* management:quality */
       WITH absence AS MATERIALIZED (
         SELECT absence.company_id, absence.legajo, absence.fecha, absence.fecha_hasta
@@ -2834,8 +2839,30 @@ export async function managementAnalytics(sql) {
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
       FROM absence_quality, movement_quality
-    `, [cutoff]),
-  ]);
+    `, [cutoff])],
+  ];
+  const runManagementQuery = async ([name, run]) => {
+    const started = managementNow();
+    try {
+      const rows = await run();
+      managementReport({ version: 'management-analytics-phase.v1', query: name, durationMs: managementElapsed(started), rows: Array.isArray(rows) ? rows.length : null, outcome: 'fulfilled' });
+      return rows;
+    } catch (error) {
+      managementReport({ version: 'management-analytics-phase.v1', query: name, durationMs: managementElapsed(started), rows: null, outcome: 'rejected' });
+      throw error;
+    }
+  };
+  if (probe !== null) {
+    // Read-only diagnostic: one named query, same SQL and parameters as the page, no payload.
+    const entry = managementQueries.find(([name]) => name === probe);
+    if (!entry) return { status: 400, payload: { ok: false, code: 'MANAGEMENT_PROBE_INVALID', error: 'La consulta de diagnóstico no existe.' } };
+    const started = managementNow();
+    const rows = await runManagementQuery(entry);
+    return { status: 200, payload: { ok: true, probe: { query: probe, durationMs: managementElapsed(started), rows: rows.length, sourceCutoff: cutoff } } };
+  }
+  const managementResults = sequential ? [] : await Promise.all(managementQueries.map(runManagementQuery));
+  if (sequential) for (const entry of managementQueries) managementResults.push(await runManagementQuery(entry));
+  const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = managementResults;
 
   const metrics = new Map(metricRows.map((row) => [row.id, row]));
   const windowById = new Map(metricWindows.map((window) => [window.id, window]));
@@ -4003,6 +4030,7 @@ export function createInternalDataHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const reportReadFailure = dependencies.reportReadFailure ?? ((diagnostic) => console.error('[internal-data]', diagnostic));
   const reportEmployeesPhase = dependencies.reportEmployeesPhase ?? ((diagnostic) => console.info('[internal-data:employees-phase]', diagnostic));
+  const reportManagementPhase = dependencies.reportManagementPhase ?? ((diagnostic) => console.info('[internal-data:management-phase]', diagnostic));
   const employeesPhaseNow = dependencies.employeesPhaseNow ?? (() => performance.now());
 
   return async function handler(req, res) {
@@ -4134,7 +4162,10 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond( result.status, result.payload);
       }
       if (resource === 'managementanalytics') {
-        const result = await managementAnalytics(sql);
+        const probe = typeof req.query?.probe === 'string' ? req.query.probe : null;
+        const result = await managementAnalytics(sql, {
+          probe, sequential: env.MANAGEMENT_ANALYTICS_SEQUENTIAL === '1', report: reportManagementPhase,
+        });
         return await respond( result.status, result.payload);
       }
       if (resource === 'qualityoverview') {
