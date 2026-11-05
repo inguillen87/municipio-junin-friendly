@@ -1,6 +1,6 @@
 import {trustedOwnArtReport,artCentsText} from './own-art-report-model.js';
 import {storedZip} from './clock-dashboard-zip.js';
-import {ART_EXTRA_SUSS_HEADERS,ART_EXTRA_SUSS_SHEET,ART_EXTRA_SUSS_TEMPLATE_VERSION,artExtraSussName} from './art-extra-suss-template.js';
+import {ART_EXTRA_SUSS_HEADERS,ART_EXTRA_SUSS_SHEET,ART_EXTRA_SUSS_TEMPLATE_VERSION,artExtraSussName,artExtraSussReadiness,artExtraSussExactInteger,artExtraSussExactCents} from './art-extra-suss-template.js';
 const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','>':'&gt;','<':'&lt;','"':'&quot;',"'":'&apos;'}[c]));
 const cell=v=>'"'+(/^[\s]*[=+\-@\t\r\n]/.test(String(v))?"'":'')+String(v??'').replaceAll('"','""')+'"';
 function table(v){trustedOwnArtReport(v);if(!v.canExport)throw Error('Corregí todas las observaciones antes de descargar ART completo.');return [['DNI','CUIL','Sexo','Días trabajados','Sueldo (993 + 995)'],...v.rows.map(r=>[r.dni,r.cuil,r.sex,r.workedDays,artCentsText(r.salaryCents)])];}
@@ -17,9 +17,10 @@ export function ownArtXlsx(v){const rows=table(v),provenance=[['Procedencia','Va
 // Official insurer template from the same trusted report: eight fixed columns, B and G empty as in
 // the municipal example, numbers as numeric cells, names in upper case. Same export gate as the review file.
 function extraSussRows(v){trustedOwnArtReport(v);if(!v.canExport)throw Error('Corregí todas las observaciones antes de descargar la plantilla extra-SUSS.');
- return v.rows.map(r=>{const name=artExtraSussName(r.name);if(!name)throw Error('Falta apellido y nombre válidos para el legajo '+r.employeeNumber+'; completá el padrón antes de exportar.');
-  if(!/^\d+$/.test(String(r.dni))||!/^\d{11}$/.test(String(r.cuil))||!/^\d+$/.test(String(r.workedDays))||!/^\d+$/.test(String(r.salaryCents)))throw Error('La plantilla extra-SUSS requiere DNI, CUIL, días y sueldo numéricos completos.');
-  return [{n:r.dni},null,{n:r.cuil},{s:name},{s:r.sex},{n:String(r.workedDays)},null,{n:artCentsText(r.salaryCents)}];});}
+ const readiness=artExtraSussReadiness(v);if(!readiness.canExport)throw Error('La plantilla extra-SUSS tiene '+readiness.issueCount+' observaciones propias (legajo '+readiness.rows[0].employeeNumber+': '+readiness.rows[0].issues[0]+'). No se exporta parcial ni redondeado.');
+ return v.rows.map(r=>{const name=artExtraSussName(r.name),dni=artExtraSussExactInteger(String(r.dni)),cuil=artExtraSussExactInteger(String(r.cuil)),days=artExtraSussExactInteger(String(r.workedDays)),salary=artExtraSussExactCents(String(r.salaryCents));
+  if(!name||dni===null||cuil===null||days===null||salary===null||!/^\d{11}$/.test(cuil))throw Error('La plantilla extra-SUSS requiere nombre, DNI, CUIL, días y sueldo exactos para el legajo '+r.employeeNumber+'.');
+  return [{n:dni},null,{n:cuil},{s:name},{s:r.sex},{n:days},null,{n:salary}];});}
 const col=j=>String.fromCharCode(65+j);
 function extraSussSheet(rows){const header='<row r="1">'+ART_EXTRA_SUSS_HEADERS.map((h,j)=>'<c r="'+col(j)+'1" t="inlineStr"><is><t xml:space="preserve">'+xml(h)+'</t></is></c>').join('')+'</row>';
  const body=rows.map((r,i)=>'<row r="'+(i+2)+'">'+r.map((c,j)=>c===null?'':c.n!==undefined?'<c r="'+col(j)+(i+2)+'"><v>'+xml(c.n)+'</v></c>':'<c r="'+col(j)+(i+2)+'" t="inlineStr"><is><t xml:space="preserve">'+xml(c.s)+'</t></is></c>').join('')+'</row>').join('');

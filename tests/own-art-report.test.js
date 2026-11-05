@@ -30,3 +30,23 @@ test('extra-SUSS template matches the official layout: eight headers, B and G em
  const incomplete=ownArtFixture(2);incomplete.content.people[0].days.definition.workedDays=null;const b=await report(rehashArtFixture(incomplete));assert.throws(()=>ownArtExtraSussXlsx(b),/todas las observaciones/);
  assert.throws(()=>ownArtExtraSussXlsx(structuredClone(r)),/verificar/);
 });
+test('extra-SUSS readiness is exact: a salary beyond 2^53 cents, an unrepresentable name or days block only the template, with a visible observation and no rounding',async()=>{
+ const {ownArtExtraSussXlsx,ownArtXlsx,ownArtCsv}=await import('../assets/own-art-report-export.js');
+ const {artExtraSussReadiness,artExtraSussExactCents,artExtraSussName}=await import('../assets/art-extra-suss-template.js');
+ const {decimal,exactEvidence}=await import('../assets/own-payroll-exact.js');
+ // 90071992547409.93 is not a double: a Number consumer would read .94 (root finding on PR #263).
+ assert.equal(artExtraSussExactCents('9007199254740993'),null);assert.equal(artExtraSussExactCents('9007199254740991'),'90071992547409.91');assert.equal(artExtraSussExactCents('10003'),'100.03');assert.equal(artExtraSussExactCents('7'),'0.07');assert.equal(artExtraSussExactCents('-1'),null);assert.equal(artExtraSussExactCents('01'),null);
+ const huge=ownArtFixture(1),line=huge.content.groups[0].snapshot.concepts.find(r=>r.conceptCode==='993'),value=exactEvidence(decimal('90071992547409.91'));
+ Object.assign(line,{amount:'90071992547409.91',exactValue:value});line.trace[0].result=value;
+ const h=await report(rehashArtFixture(huge));assert.equal(h.canExport,true);assert.equal(h.rows[0].salaryCents,'9007199254740993');
+ const readiness=artExtraSussReadiness(h);assert.equal(readiness.canExport,false);assert.equal(readiness.issueCount,1);assert.match(readiness.rows[0].issues[0],/rango exacto/);
+ assert.throws(()=>ownArtExtraSussXlsx(h),/observaciones propias/);assert.ok(ownArtXlsx(h).length>0);assert.ok(ownArtCsv(h).includes('90071992547409.93'));
+ // Names: NFC equivalence is accepted; symbols the insurer's text column cannot carry are an observation, not a crash.
+ assert.equal(artExtraSussName('Muñoz, José'),'MUÑOZ, JOSÉ');assert.equal(artExtraSussName(''),null);assert.equal(artExtraSussName('=HYPERLINK("x")'),null);
+ for(const [change,pattern]of[[v=>{v.content.people[0].name='=HYPERLINK("https://example.invalid")';},/Apellido y nombre/],[v=>{v.content.people[0].name='Nombré Compuesto';},null]]){
+  const v=ownArtFixture(1);change(v);const r=await report(rehashArtFixture(v));assert.equal(r.canExport,true);const ready=artExtraSussReadiness(r);
+  if(pattern){assert.equal(ready.canExport,false);assert.match(ready.rows[0].issues[0],pattern);assert.throws(()=>ownArtExtraSussXlsx(r),/observaciones propias/);}
+  else{assert.equal(ready.canExport,true);assert.ok(new TextDecoder().decode(ownArtExtraSussXlsx(r)).includes('NOMBRÉ COMPUESTO'));}
+ }
+ const ok=await report(ownArtFixture(3));assert.deepEqual(artExtraSussReadiness(ok),{canExport:true,issueCount:0,rows:[]});
+});
