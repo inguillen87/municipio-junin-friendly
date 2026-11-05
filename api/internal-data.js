@@ -2529,6 +2529,8 @@ function managementSectorProjection(rows, grouping) {
  * El contrato es agregado: no publica nombres, documentos ni identificadores de legajo.
  */
 export const MANAGEMENT_ANALYTICS_QUERIES = Object.freeze(['metrics', 'payroll-comparison', 'sectors', 'quality']);
+// Directory cost probes: source-only reconstruction, per-row lifecycle projection, per-row current native read (the page).
+export const DIRECTORY_PROBES = Object.freeze(['directory-source', 'directory-lifecycle', 'directory-current']);
 export async function managementAnalytics(sql, { probe = null, sequential = false, report = null, now = null } = {}) {
   const managementNow = () => { try { const value = (now ?? (() => performance.now()))(); return Number.isFinite(value) ? value : null; } catch { return null; } };
   const managementElapsed = (from) => { const to = managementNow(); return from === null || to === null ? null : Math.max(0, Math.round(to - from)); };
@@ -4182,6 +4184,20 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'employees') {
         const nativeRead=access.mode==='managed';
+        const probe=queryValue(req,'probe')||null;
+        if(probe!==null){
+          // Read-only diagnostic of the directory query cost (S3-7). Same access, filters and
+          // parameters as the page; the response carries only timing and the total count.
+          if(!nativeRead||!DIRECTORY_PROBES.includes(probe))return await respond(400,{ok:false,code:'DIRECTORY_PROBE_INVALID',error:'La consulta de diagnóstico no existe.'});
+          const binding=directorySourceBinding(env);
+          if(!binding||!access.principal?.tenant?.id)return await respond(400,{ok:false,code:'DIRECTORY_PROBE_INVALID',error:'La consulta de diagnóstico no existe.'});
+          const variant=probe==='directory-source'?binding:{...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))};
+          const started=performance.now();
+          const probed=await readPhase('directory', () => employees(sql, req, variant, {currentNativeRead:probe==='directory-current'}));
+          const durationMs=Math.round(performance.now()-started);
+          const total=Number.isSafeInteger(probed?.payload?.pagination?.total)?probed.payload.pagination.total:null;
+          return await respond(probed.status===200?200:probed.status,probed.status===200?{ok:true,probe:{query:probe,durationMs,total}}:probed.payload);
+        }
         const before=nativeRead?await readPhase('native_before', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding)):null;
         const result = await readPhase('directory', () => employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'}));
         if(nativeRead){const after=await readPhase('native_after', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding));if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
