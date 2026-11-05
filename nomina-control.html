@@ -213,6 +213,12 @@
       border-radius: var(--radius);
     }
     .notice-mark { font-weight: 900; }
+    details.notice { display: block; padding: 0; }
+    details.notice summary { list-style: none; cursor: pointer; display: flex; gap: 11px; align-items: center; padding: 10px 16px; font-size: 14px; }
+    details.notice summary::-webkit-details-marker { display: none; }
+    details.notice summary::after { content: '›'; margin-left: auto; font-size: 20px; line-height: 1; transform: rotate(90deg); transition: transform .16s; }
+    details.notice[open] summary::after { transform: rotate(-90deg); }
+    details.notice > p { margin: 0; padding: 0 16px 12px 73px; }
     .notice strong { display: block; color: #5b3e12; }
     .notice p { margin: 2px 0 0; font-size: 12px; }
 
@@ -602,14 +608,14 @@
 
       <main id="mainContent" hidden data-requires-any-capability="payroll.read">
         <section class="page-head" aria-labelledby="pageTitle">
-          <div><p class="eyebrow">Nómina · consultas y liquidación propia</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Prepará el cálculo, revisá sus resultados y cerrá las liquidaciones propias. La información incorporada sirve como referencia; los importes abiertos quedan fuera de los indicadores ejecutivos.</p></div>
+          <div><p class="eyebrow">Nómina · consultas y liquidación propia</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Calculá, revisá y cerrá las liquidaciones propias.</p></div>
           <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Estado del control</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
         </section>
 
-        <section class="notice" aria-labelledby="publicationRuleTitle"><span class="notice-mark" aria-hidden="true">Nota</span><div><strong id="publicationRuleTitle">La fecha más reciente no siempre es un cierre</strong><p>Una preliquidación sirve para control operativo, pero no para comunicar gasto, costo ni evolución financiera. La API debe autorizar expresamente la publicación ejecutiva.</p></div></section>
+        <details class="notice" aria-labelledby="publicationRuleTitle"><summary><span class="notice-mark" aria-hidden="true">Nota</span> <strong id="publicationRuleTitle">La fecha más reciente no siempre es un cierre</strong></summary><p>Una preliquidación sirve para control operativo, pero no para comunicar gasto, costo ni evolución financiera. La API debe autorizar expresamente la publicación ejecutiva.</p></details>
 
         <section class="section" aria-labelledby="runsTitle">
-          <header class="section-head"><div><span class="section-index">01 · ESTADO DE CORRIDAS</span><h2 id="runsTitle">Cierre de referencia y período abierto</h2><p>Los meses, cantidades y estados provienen del contrato interno. La interfaz no completa ni estima valores faltantes.</p></div><span class="state-badge" id="runsBadge">Consultando</span></header>
+          <header class="section-head"><div><span class="section-index">01 · ESTADO DE CORRIDAS</span><h2 id="runsTitle">Cierre de referencia y período abierto</h2><p>Meses y estados de la fuente incorporada.</p></div><span class="state-badge" id="runsBadge">Consultando</span></header>
           <div class="run-grid">
             <article class="run-card" id="closedRunCard">
               <header class="run-card-head"><div><span class="run-kicker">Última corrida cerrada</span><h3 class="run-month" id="closedMonth">—</h3></div><span class="state-badge" id="closedBadge">Sin confirmar</span></header>
@@ -636,7 +642,7 @@
         </section>
 
         <section class="section" aria-labelledby="reconciliationTitle">
-          <header class="section-head"><div><span class="section-index">02 · CONCILIACIÓN ARITMÉTICA</span><h2 id="reconciliationTitle">Cómo se valida el neto pagable</h2><p>La conciliación se aplica a la última corrida cerrada. Una diferencia dentro de tolerancia habilita el control aritmético, no reemplaza el cierre administrativo.</p></div><span class="state-badge" id="reconciliationBadge">Consultando</span></header>
+          <header class="section-head"><div><span class="section-index">02 · CONCILIACIÓN ARITMÉTICA</span><h2 id="reconciliationTitle">Validación del neto pagable</h2><p>Sobre la última corrida cerrada.</p></div><span class="state-badge" id="reconciliationBadge">Consultando</span></header>
           <div class="formula-panel">
             <article class="panel"><h3>Reglas de cálculo</h3><p class="panel-note">Las expresiones usan los totales literales de GRH; no se suma indiscriminadamente el importe técnico de todos los conceptos.</p><div class="formula">993 + 994 + 995 - 996 = 999</div><div class="formula">Costo empleador proxy = 993 + 994 + 995 + 990</div><div class="reconcile-grid"><div class="reconcile-item"><span>Diferencia aritmética</span><strong id="arithmeticDifference">—</strong></div><div class="reconcile-item"><span>Tolerancia</span><strong id="roundingTolerance">—</strong></div><div class="reconcile-item"><span>Aportes patronales</span><strong id="employerContributions">—</strong></div></div></article>
             <article class="panel"><div class="decision"><div><h3>Decisión de publicación</h3><p class="panel-note">Deben coincidir el estado de cierre, la conciliación y la autorización ejecutiva enviada por la API.</p></div><div class="decision-state" id="decisionState"><strong id="decisionTitle">Validando corrida</strong><p id="decisionDetail">Todavía no hay una decisión disponible.</p></div></div></article>
@@ -1683,12 +1689,12 @@
         </section>
 
         <section class="section" aria-labelledby="historyTitle">
-          <header class="section-head"><div><span class="section-index">11 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <header class="section-head"><div><span class="section-index">11 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Importes nominales; los períodos no publicables se ocultan.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
-          <header class="section-head"><div><span class="section-index">12 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <header class="section-head"><div><span class="section-index">12 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>Origen, reglas y límites de la lectura.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
