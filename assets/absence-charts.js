@@ -36,6 +36,7 @@ async function render(analytics) {
  const drawn = await drawChart(s.trend.host, m => {
   const option = m.trendOption({points: monthly.map(i => [monthLabel(i.month) + (i.partial ? ' *' : ''), i.events || 0]), name: 'Eventos'});
   option.series.push({type: 'bar', name: 'Legajos con eventos', data: monthly.map(i => i.contracts || 0), barMaxWidth: 18, itemStyle: {borderRadius: [5, 5, 0, 0], color: 'rgba(49,95,130,.35)'}, z: 1});
+  option.xAxis.boundaryGap = true; option.yAxis.scale = false;
   option.legend = {top: 0, right: 0}; option.tooltip = {trigger: 'axis', valueFormatter: v => m.formatNumber(v)};
   return option;
  }, {ariaLabel: 'Eventos y legajos con eventos por mes'});
