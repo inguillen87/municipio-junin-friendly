@@ -403,3 +403,6 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Schooling set-based reader (internal SQL implementation, HTTP v5 unchanged).
+!scripts/migrations/191-schooling-set-based-read.sql
