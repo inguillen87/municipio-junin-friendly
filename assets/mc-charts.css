@@ -17,3 +17,4 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .mc-chart-card{background:linear-gradient(180deg,#14232b 0%,#101c22 100%);border-color:#2c3e46}
  :root:not([data-theme=light]) .mc-chart-card figcaption strong{color:#e6eef0}}
 @media (max-width:640px){.mc-chart{height:230px}.mc-chart-card{padding:14px 12px 10px}}
+.nr-charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));margin:12px 0 16px}
