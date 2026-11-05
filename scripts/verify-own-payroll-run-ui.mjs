@@ -146,6 +146,8 @@ try{
   const zeroReviewPosts=posts;await select('source-review-button').click();await select('source-report').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
   check((await select('source-summary').innerText()).includes('2 novedades')&&(await select('source-summary').innerText()).includes('0 registros')&&await select('source-rows').locator('tr').count()===0,'complete successful capture reports no source observations without inventing errors');
   const zeroDownloadPromise=page.waitForEvent('download');await select('source-download').click();const zeroCsv=fs.readFileSync(await (await zeroDownloadPromise).path(),'utf8');check(zeroCsv.trim().split('\r\n').length===1&&posts===zeroReviewPosts,'zero-observation CSV contains only its schema and never recalculates');
+  check(!await select('concept-details').evaluate(el=>el.open)&&await select('totals').isVisible(),'concept detail starts collapsed while totals remain visible');
+  if(!await select('concept-details').evaluate(el=>el.open))await select('concept-details').locator('summary').click();
   await select('search').fill('120');check((await select('rows').locator('tr').count())===1,'result search covers the complete model');
   const downloadPromise=page.waitForEvent('download');await select('download').click();const download=await downloadPromise,downloadPath=await download.path(),csv=fs.readFileSync(downloadPath,'utf8');
   check(csv.trim().split('\r\n').length===7&&csv.includes('19041'),'voluntary CSV contains all six rows despite active filter');
@@ -178,7 +180,7 @@ try{
   await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'resumen'});held();held=null;
   check((await select('rows').locator('tr').count())===0,'late response cannot repopulate a closed task');
   await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
-  await select('recover').click();await select('result').waitFor({state:'visible'});await select('search').fill('');
+  await select('recover').click();await select('result').waitFor({state:'visible'});if(!await select('concept-details').evaluate(el=>el.open))await select('concept-details').locator('summary').click();await select('search').fill('');
   await scope.screenshot({path:prefix+'-desktop.png'});
   await page.screenshot({path:prefix+'-desktop-viewport.png'});
   const mobileContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),mobile=await mobileContext.newPage();

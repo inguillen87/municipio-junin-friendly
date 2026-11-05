@@ -40,20 +40,20 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(![...document.querySelectorAll('link[rel=stylesheet]')].some(l=>l.href===href)){const link=node('link');link.rel='stylesheet';link.href=href;document.head.append(link);}
   }
   host.className='own-run';
-  host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN · MOTOR PROPIO</p><h2>Calcular nómina</h2><p>Elegí el período y el alcance. Se conservan el programa aprobado, las novedades y el resultado de cada cálculo.</p></div><button class="button" type="button" data-own-refresh>Actualizar acceso y corridas</button></header>
+  host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
   <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
-  <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><p data-own-readiness-facts></p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
-  <details class="own-run-notice" data-own-prerequisites><summary>Antes del primer cálculo: padrón, valores y reglas</summary><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
+  <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
+  <details class="own-run-notice" data-own-prerequisites><summary>Requisitos y configuración</summary><p data-own-readiness-facts></p><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
     <label for="ownRunPeriod">Período<input id="ownRunPeriod" data-own-period type="month" required></label>
-    <div class="own-run-date"><label for="ownRunDate">Fecha de liquidación<input id="ownRunDate" data-own-date type="date" min="1900-01-01" max="2099-12-31" required aria-describedby="ownRunDateHelp"></label><small id="ownRunDateHelp">Fecha declarada de este cálculo. Las reglas aprobadas se aplican al período; esta fecha no es una fecha de pago.</small><button class="button" type="button" data-own-period-end>Usar último día del período</button></div>
+    <div class="own-run-date"><label for="ownRunDate">Fecha de liquidación<input id="ownRunDate" data-own-date type="date" min="1900-01-01" max="2099-12-31" required aria-describedby="ownRunDateHelp"></label><small id="ownRunDateHelp">No es la fecha de pago.</small><button class="button" type="button" data-own-period-end>Fin de mes</button></div>
     <label for="ownRunType">Tipo de liquidación<select id="ownRunType" data-own-type required><option value="">Elegí el tipo</option></select></label>
     <label for="ownRunKind">Alcance<select id="ownRunKind" data-own-kind required><option value="">Elegí el alcance</option><option value="contracts">Legajos seleccionados</option><option value="departments">Reparticiones</option><option value="agreements">Convenios</option><option value="all">Todos los legajos propios</option></select></label></div>
     <div data-own-contracts hidden><button class="button" type="button" data-own-picker>Buscar y agregar legajos</button><div class="own-run-chips" data-own-chips></div></div>
-    <label data-own-codes-box hidden for="ownRunCodes">Opciones del encuadre municipal<select id="ownRunCodes" data-own-codes multiple size="5" aria-describedby="ownRunCodesHelp"></select><small id="ownRunCodesHelp">Podés elegir varias opciones. El cálculo vuelve a verificar el conjunto completo.</small></label>
-    <p data-own-scope>Elegí expresamente el alcance.</p>
-    <label class="own-run-confirm"><input type="checkbox" data-own-confirm aria-describedby="ownRunActionHelp">Revisé el período, la fecha, el tipo y todo el alcance. El resultado quedará pendiente de confirmación y cierre.</label>
-  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send aria-describedby="ownRunActionHelp" disabled>Calcular y guardar resultado</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div><p id="ownRunActionHelp" class="own-run-status" data-own-action-help role="status" aria-live="polite" hidden><span data-own-action-help-text></span> <a data-own-action-help-link hidden></a></p></form>
+    <label data-own-codes-box hidden for="ownRunCodes">Opciones del alcance<select id="ownRunCodes" data-own-codes multiple size="5" aria-describedby="ownRunCodesHelp"></select><small id="ownRunCodesHelp">Podés elegir varias opciones.</small></label>
+    <p data-own-scope>Elegí el alcance.</p>
+    <label class="own-run-confirm"><input type="checkbox" data-own-confirm aria-describedby="ownRunActionHelp">Revisé período, fecha, tipo y alcance. Calcular guarda el resultado para su revisión.</label>
+  </fieldset><div class="own-run-actions"><button class="button primary" type="submit" data-own-send aria-describedby="ownRunActionHelp" disabled>Calcular</button><button class="button" type="button" data-own-recover hidden disabled>Consultar este intento</button><button class="button" type="button" data-own-new hidden disabled>Preparar otro cálculo</button><button class="button" type="button" data-own-revise hidden disabled>Revisar preparación no registrada</button></div><p id="ownRunActionHelp" class="own-run-status" data-own-action-help role="status" aria-live="polite" hidden><span data-own-action-help-text></span> <a data-own-action-help-link hidden></a></p></form>
   <div class="own-run-actions"><button class="button" type="button" data-own-source-review-button hidden disabled>Revisar incidencias de la captura</button></div>
   <section data-own-source-report hidden aria-labelledby="ownSourceReportTitle"><h3 id="ownSourceReportTitle" tabindex="-1">Novedades que necesitan revisión</h3><p data-own-source-summary></p><p>Revisión de las novedades y sus fuentes declaradas en las reglas capturadas. No certifica los importes, las unidades ni la homologación salarial. Corregir una fuente no cambia esta captura: el intento conserva su contenido original.</p>
     <div class="own-run-actions"><button class="button" type="button" data-own-source-download disabled>Descargar incidencias sin datos personales CSV</button></div>
@@ -61,16 +61,18 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Incidencias completas de las novedades capturadas"><table><caption>Incidencias por registro · búsqueda y página no limitan la descarga</caption><thead><tr><th>Legajo</th><th>Convenio</th><th>Concepto</th><th>Origen y fila</th><th>Estado</th><th>Acción sugerida</th></tr></thead><tbody data-own-source-rows></tbody></table></div>
     <nav class="own-run-actions" aria-label="Páginas de incidencias"><button class="button" type="button" data-own-source-prev>Anterior</button><span data-own-source-page></span><button class="button" type="button" data-own-source-next>Siguiente</button></nav>
   </section>
-  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p></div><button class="button" type="button" data-own-download disabled>Descargar detalle completo CSV</button></header>
-    <p class="own-run-notice">Importes del cálculo guardado. Consultá el resumen individual para verificar su estado actual. Este cálculo no es un recibo ni una orden de pago.</p>
-    <button class="button" type="button" data-own-review disabled>Revisar confirmación y anulación</button>
+  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p></div><button class="button" type="button" data-own-download disabled>Descargar CSV completo</button></header>
+    <p class="own-run-notice">Resultado calculado. Consultá el resumen individual para ver el estado de cada legajo.</p>
+    <button class="button primary" type="button" data-own-review disabled>Revisar liquidación</button>
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Totales por legajo, tabla desplazable"><table><caption>Totales por legajo de la corrida guardada</caption><thead><tr><th>Legajo</th><th>Bruto</th><th>Retenciones</th><th>Neto calculado</th><th>Aportes patronales</th><th>Resumen</th></tr></thead><tbody data-own-totals></tbody></table></div><section data-own-individual hidden></section>
+    <details data-own-concept-details><summary>Detalle por concepto</summary>
     <label for="ownRunSearch">Buscar legajo o concepto en el resultado<input id="ownRunSearch" data-own-search type="search" maxlength="100" autocomplete="off"></label>
     <p data-own-range></p><div class="own-run-scroll" tabindex="0" role="region" aria-label="Detalle por concepto, tabla desplazable"><table><caption>Detalle por concepto · la búsqueda no limita la descarga</caption><thead><tr><th>Legajo</th><th>Concepto</th><th>Naturaleza</th><th>Valor calculado</th><th>Respaldo</th></tr></thead><tbody data-own-rows></tbody></table></div>
     <nav class="own-run-actions" aria-label="Páginas del detalle"><button class="button" type="button" data-own-prev>Anterior</button><span data-own-page></span><button class="button" type="button" data-own-next>Siguiente</button></nav>
+    </details>
     <details><summary>Ver versiones y trazabilidad</summary><dl data-own-trace></dl></details><div data-own-position-capture></div>
   </section>
-  <section aria-labelledby="ownRunHistoryTitle"><h3 id="ownRunHistoryTitle">Cálculos propios guardados</h3><p>Consultá un resultado o recuperá una captura pendiente. Abrir una corrida no ejecuta otro cálculo.</p><div data-own-history></div></section>`;
+  <section aria-labelledby="ownRunHistoryTitle"><h3 id="ownRunHistoryTitle">Historial de cálculos</h3><p>Consultá resultados y operaciones pendientes.</p><div data-own-history></div></section>`;
   const $=s=>host.querySelector('[data-own-'+s+']');
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
@@ -91,7 +93,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
     $('fields').disabled=busy||!canSelect()||!!attempt;$('confirm').disabled=busy||!canStart()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&(!canStart()||!$('confirm').checked)||!!attempt&&!attempt.body;
-    $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
+    $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular';
     $('send').hidden=!!current?.saved||!attempt&&!canSelect();
     renderActionGuidance();
     $('recover').hidden=!attempt;$('recover').disabled=busy||!can(OWN_RUN_NOMINAL);
@@ -112,19 +114,19 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function renderActionGuidance(){
     const help=$('action-help'),text=$('action-help-text'),link=$('action-help-link');let message='',href=null,label='';
-    help.hidden=$('send').hidden||!live()||!can(OWN_RUN_PREPARE);
+    help.hidden=$('send').hidden||!live()||!can(OWN_RUN_PREPARE)||!busy&&!attempt&&(!canStart()&&!$('readiness').hidden||canStart()&&$('confirm').checked);
     if(!help.hidden){
       if(busy)message='Hay una consulta o un envío en curso. Esperá a que termine antes de volver a enviarlo.';
       else if(attempt)message='Consultá este intento si no conocés su estado. Reintentar conserva la misma referencia y el mismo contenido.';
       else if(!canStart()){message=readiness.state==='program_required'?'Falta guardar la configuración de cálculo en el motor. El borrador se conserva.':readiness.title+'. '+readiness.description;href=readiness.href;label=readiness.action??'';}
-      else if(!$('confirm').checked)message='Marcá «Revisé el período, la fecha, el tipo y todo el alcance» cuando hayas terminado la revisión.';
+      else if(!$('confirm').checked)message='Marcá la revisión de los datos para calcular.';
       else message='Revisión marcada. Al calcular se volverán a verificar el padrón y las reglas aprobadas.';
     }
     if(text.textContent!==message)text.textContent=message;
     link.hidden=!href;if(href){link.href=href;if(link.textContent!==label)link.textContent=label;}else{link.removeAttribute('href');link.textContent='';}
   }
   function renderReadiness(){
-    $('readiness').hidden=!!attempt&&attempt.key!==knownSavedKey;
+    $('readiness').hidden=readiness.state==='linked'||!!attempt&&attempt.key!==knownSavedKey;
     $('readiness').dataset.state=readiness.state==='linked'?'success':'warning';
     $('readiness-title').textContent=readiness.title;$('readiness-description').textContent=readiness.description;
     $('readiness-facts').textContent=readiness.rosterTotal===null?'Padrón y configuración: sin verificar.':readiness.rosterTotal+' legajos propios en la consulta completa · '+(readiness.catalogRevision?'maestro aprobado, revisión '+readiness.catalogRevision:'maestro sin aprobación')+' · '+(readiness.programRevision?'programa aprobado, revisión '+readiness.programRevision:'configuración de cálculo sin registrar')+'.';
