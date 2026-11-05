@@ -288,6 +288,7 @@ const shellFiles = [
   'assets/own-payroll-exact.js',
   'assets/native-salary-catalog-model.js',
   'assets/native-salary-file-model.js',
+  'assets/native-salary-grid-export.js',
   'assets/native-salary-file-panel.js',
   'assets/payroll-detail-model.js',
   'assets/payroll-detail-selection.js',
