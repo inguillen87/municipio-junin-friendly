@@ -21,15 +21,23 @@ export function netHistogram(nets) {
  return bins;
 }
 
-export function drawRunCharts(section, result) {
- if (!section || typeof document === 'undefined') return;
- const anchor = section.querySelector('.own-run-scroll'); if (!anchor) return;
+const STATE_COLORS = {calculated: '#d08c2f', confirmed: '#0f766e', annulled: '#c2604f', cancelled: '#9fb3bd'};
+
+/** states (optional): [{key, name, value}] for the review of decisions; anchor defaults to the totals table of Calcular. */
+export function drawRunCharts(section, result, {anchor = section?.querySelector('.own-run-scroll'), states = null} = {}) {
+ if (!section || !anchor || typeof document === 'undefined') return;
  let row = section.querySelector('[data-own-run-charts]');
  if (!row) {
   row = document.createElement('div'); row.className = 'mc-chart-row'; row.dataset.ownRunCharts = 'true';
+  const status = states ? chartSlot('Estado de los legajos', {subtitle: 'Decisiones registradas sobre esta corrida', key: 'own-run-states'}) : null;
   const composition = chartSlot('Composición del bruto', {subtitle: 'Neto y retenciones de la corrida guardada', key: 'own-run-composition'});
   const spread = chartSlot('Distribución del neto', {subtitle: 'Legajos por rango de neto calculado', key: 'own-run-spread'});
-  row.append(composition.figure, spread.figure); anchor.before(row); row.__slots = {composition, spread};
+  row.append(...[status?.figure, composition.figure, spread.figure].filter(Boolean)); anchor.before(row); row.__slots = {status, composition, spread};
+ }
+ const stateItems = (Array.isArray(states) ? states : []).filter(i => i && i.value > 0).map(i => ({name: i.name, value: i.value, itemStyle: {color: STATE_COLORS[i.key] || '#315f82'}}));
+ if (row.__slots.status) {
+  row.__slots.status.figure.hidden = !stateItems.length;
+  if (stateItems.length) drawChart(row.__slots.status.host, m => m.donutOption({items: stateItems, totalLabel: 'Legajos', format: m.formatNumber}), {ariaLabel: 'Legajos por estado de decisión'});
  }
  const totals = Array.isArray(result?.employeeTotals) ? result.employeeTotals : [];
  const sum = key => totals.reduce((s, t) => s + decimal(t?.[key]), 0);
