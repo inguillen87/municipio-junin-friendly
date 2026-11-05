@@ -336,10 +336,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       attempt=ownRunWorkspaceAttempt(crypto.randomUUID(),body,access.key);
     }
     controls();
-    // A 422 is a definitive rejection: nothing was registered, so the form unlocks at once
-    // (change month, type or legajos and calculate again) instead of keeping a retry-only attempt.
-    let response;try{response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});}
-    catch(error){if(error.status===422&&valid()){attempt=null;$('confirm').checked=false;}throw error;}
+    // A failed response, including 422, can follow a committed capture or result.
+    // Keep its original key and body until recovery verifies that attempt's state.
+    const response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});
     const value=await verifiedWorkspaceCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
