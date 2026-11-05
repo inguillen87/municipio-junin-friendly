@@ -41,3 +41,10 @@
 @supports (interpolate-size:allow-keywords) and selector(details::details-content){.report-index .rc-side-nav .task-section{interpolate-size:allow-keywords}.report-index .rc-side-nav .task-section::details-content{block-size:0;overflow:clip;transition:block-size .2s ease,content-visibility .2s;transition-behavior:allow-discrete}.report-index .rc-side-nav .task-section[open]::details-content{block-size:auto}}
 @media(max-width:1100px){.report-centre-ready .report-shell{display:block}.report-centre-ready .report-index{position:static;max-height:none;margin-bottom:18px}.report-index .rc-side-nav{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
 @media(prefers-reduced-motion:reduce){.report-index .rc-side-nav .task-section>summary::after,.report-index .rc-side-nav [role=tab]{transition:none!important}}
+/* The public top navigation moves into the left index as a vertical block while the report centre is active. */
+.report-index .rc-site-nav{display:grid;gap:2px;margin:0 0 8px;padding:6px;border:1px solid #d6e2e6;border-radius:10px;background:#fff;box-shadow:0 1px 2px #10384a0d}
+.report-index .rc-site-nav a{display:block;padding:8px 10px 8px 14px;margin:0;border:0;border-left:2px solid transparent;border-radius:7px;color:#2f5464;font:600 13px/1.45 inherit;text-decoration:none;transition:background-color .16s,color .16s}
+.report-index .rc-site-nav a:hover{background:#eef5f6;color:#10384a}
+.report-index .rc-site-nav a[aria-current=page]{border-left-color:#0f8a7c;background:#e4f3f0;color:#10384a}
+.report-index .rc-site-nav .internal-link{margin:4px 0 0;border:1px solid #c9deda;text-align:center}
+.report-centre-ready .site-header .header-inner{justify-content:flex-start}
