@@ -83,7 +83,8 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const monthOnly=['art','f931','horas-convenio','condiciones','reglas'];
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
   if(id==='calculo'){const field=key=>calculation.querySelector('[data-own-'+key+']'),set=(input,value)=>{input.value=value;input.dispatchEvent(new Event('change',{bubbles:true}));};
-   const period=field('period'),date=field('date'),type=field('type');
+   const period=field('period'),date=field('date'),type=field('type'),kind=field('kind');
+   if(kind&&!kind.value&&[...kind.options].some(o=>o.value==='all'))set(kind,'all');
    if(period&&!period.value)set(period,lastMonth());
    if(date&&!date.value&&/^\d{4}-\d{2}$/.test(period?.value??'')){const [y,m]=period.value.split('-').map(Number);set(date,y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'));}
    if(type&&!type.value){if([...type.options].some(o=>o.value==='monthly'))set(type,'monthly');else if(retries-->0)setTimeout(preload,700);}}
