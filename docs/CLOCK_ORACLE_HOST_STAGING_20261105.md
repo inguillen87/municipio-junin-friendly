@@ -12,7 +12,8 @@ Lectura del huésped `municontrol-relojes-01` hecha por Claude el 2026-11-05 ent
 | Cuenta técnica | `municontrol-clock` existe: uid 996, gid 989. |
 | Configuración privada | `/etc/municontrol` existe (root, no legible por `ocarun`); contenido desconocido. |
 | Estado | `/var/lib/municontrol` existe (root). `/var/lib/municontrol/clock-gateway` no se pudo listar. |
-| Unidades | Ninguna unidad `municontrol*` ni `openvpn*` cargada. |
+| Unidades | Ninguna unidad `municontrol*` cargada. `openvpn-client@municontrol.service` y `openvpn.service` existen en `/etc/systemd/system` pero están **masked** (inactivas); `/etc/openvpn/client` y `/etc/openvpn/server` están **vacíos**; `tun=0`; journal sin entradas. Es decir: el paquete `openvpn` está instalado (`/usr/sbin/openvpn`) pero **no hay perfil ni certificado** para la VM. |
+| Egreso | HTTPS a nodejs.org, github.com y municontrol.com responde 200. Uptime 6 semanas 23 h. Usuarios interactivos: `ubuntu`, `opc`. |
 | Run command | Corre como **`ocarun` sin sudo** («a password is required»). Por este canal no se puede instalar, escribir en `/opt`, `/etc/municontrol` ni registrar unidades. |
 | Salida de Run command | Limitada a ~1 KB en la consola. |
 
@@ -31,7 +32,7 @@ Conclusión: **para instalar hace falta root por SSH** (usuario `ubuntu`, 168.12
    Ensayado el 2026-11-05 en contenedor con `STAGE_PREFIX` (release real, Node 22): staging, reinstalación con copia previa, rechazo por sha256 incorrecto y rechazo por unidad existente.
 3. Configuración privada (operador, como `municontrol-clock`, modo 0600): `gateway.json`, `fleet-capture.json`, `fleet-delivery.json` o `fleet-source.json`, credenciales por reloj y tokens de ingesta. Plantillas abajo. Los valores reales (CommKey, tokens) salen de la instalación actual de la PC por el canal del operador; nunca por Run command, chat, Git ni CI.
 4. `sudo bash /opt/municontrol/app/clock-fleet/install-machine-linux.sh` → registra la unidad **deshabilitada**.
-5. VPN: perfil propio para la VM (`client-oracle-municontrol`) emitido por Cómputos; `openvpn-client@municontrol.service` habilitado; comprobar `ip route get 172.100.96.x` por el túnel. Con el certificado de Marcelo no se puede: el servidor no acepta dos sesiones con la misma identidad y la PC lo usa.
+5. VPN: perfil propio para la VM (`client-oracle-municontrol`) emitido por Cómputos en `/etc/openvpn/client/municontrol.conf` (root 0600); `systemctl unmask openvpn-client@municontrol` y habilitarla; comprobar `ip route get 172.100.96.x` por el túnel. Con el certificado de Marcelo no se puede: el servidor no acepta dos sesiones con la misma identidad y la PC lo usa.
 6. Traspaso: `gateway.mjs stop` en la PC, copiar `pending`, `delivery/receipts`, `delivery-zk40` y estados con manifiesto de hashes (nunca `process.lock`), `runuser -u municontrol-clock -- /opt/municontrol/runtime/node /opt/municontrol/app/clock-fleet/gateway.mjs start --config /etc/municontrol/gateway.json`, `systemctl enable --now municontrol-clock-gateway`.
 7. Cierre: primer acuse nuevo en municontrol.com **con la PC apagada**, primero PM-02, después el resto. Hugo ve cada acuse en `/relojes`; la cadencia por reloj (`pollSeconds`, 900 = 15 min) ya cubre el pedido de 15–30 min.
 
