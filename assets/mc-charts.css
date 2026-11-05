@@ -6,6 +6,7 @@
 .mc-chart-card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(18,50,71,.06),0 18px 36px -20px rgba(18,50,71,.45)}
 .mc-chart-card figcaption{display:flex;flex-direction:column;gap:2px}
 .mc-chart-card figcaption strong{font-size:14px;font-weight:700;color:var(--navy,#123247);letter-spacing:-.01em}
+.mc-chart-card figcaption strong::before{content:'';display:inline-block;width:8px;height:8px;margin:0 8px 1px 0;border-radius:50%;background:linear-gradient(135deg,#0f766e,#69d3c5);box-shadow:0 0 0 3px rgba(15,118,110,.12);vertical-align:middle}
 .mc-chart-card figcaption span{font-size:12px;color:var(--muted,#5d6f78)}
 .mc-chart{position:relative;width:100%;height:260px;border-radius:12px}
 .mc-chart-card[data-size=sm] .mc-chart{height:200px}.mc-chart-card[data-size=lg] .mc-chart{height:340px}.mc-chart-card[data-size=xl] .mc-chart{height:420px}
