@@ -31,6 +31,7 @@ const shellFiles = [
   'assets/own-art-report-panel.js',
   'assets/own-art-report-panel.css',
   'assets/own-art-report-export.js',
+  'assets/art-extra-suss-template.js',
   'assets/own-program-coverage-model.js',
   'assets/own-program-coverage-panel.js',
   'assets/own-period-participation-program.js',
