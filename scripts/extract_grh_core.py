@@ -41,6 +41,7 @@ EXPECTED_SOURCE_SHA256 = (
     "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92"
 )
 EXPECTED_CURRENT_PAYROLL_DATE = "2026-08-31"
+FINAL_SETTLEMENT_PAYROLL_TYPE = "F"
 MIN_VALID_PAYROLL_DATE = "2008-01-01"
 EXPECTED_COUNTS = {
     "calculo": 4_363_790,
@@ -725,9 +726,16 @@ def extract(
         active_liquidated = active_keys & current_keys
         active_not_liquidated = active_keys - current_keys
         liquidated_not_active = current_keys - active_keys
-        if liquidated_not_active:
+        # A final settlement run (TIPO_31 = 'F') liquidates employees whose exit date is already
+        # recorded. Those legajos stay counted as liquidatedNotActive, which the selected profile
+        # must declare explicitly; any other run type for an inactive legajo is still a hard error.
+        unexplained_inactive = {
+            key for key in liquidated_not_active
+            if not multi_run or any(ref[4] != FINAL_SETTLEMENT_PAYROLL_TYPE for ref in snapshot_run_refs.get(key, []))
+        }
+        if unexplained_inactive:
             raise ExtractionError(
-                f"Current payroll contains {len(liquidated_not_active)} administratively inactive legajos"
+                f"Current payroll contains {len(unexplained_inactive)} administratively inactive legajos"
             )
         reconciliation = {
             "administrativeActive": len(active_keys),
