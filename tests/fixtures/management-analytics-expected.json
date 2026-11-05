@@ -1283,7 +1283,7 @@
    "containsPersonalData": false,
    "currentPeriodPartial": true,
    "grain": "employment_contract (legajo por empresa)",
-   "loadedAt": "2026-08-13T21:43:41.000Z",
+   "loadedAt": "2026-08-13T21:43:41+00:00",
    "monetaryComparisonAvailable": false,
    "sectorSemantics": "Sector temporal dominante de la liquidación cerrada del mismo contrato-mes; ambigüedades y eventos sin denominador permanecen visibles.",
    "sourceCutoff": "2026-08-06"
