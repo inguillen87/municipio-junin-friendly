@@ -82,6 +82,11 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  // Tasks whose consult needs more choices (presentation, jurisdiction, codes): only the month is preselected.
  const monthOnly=['art','f931','horas-convenio','condiciones','reglas'];
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
+  if(id==='calculo'){const field=key=>calculation.querySelector('[data-own-'+key+']'),set=(input,value)=>{input.value=value;input.dispatchEvent(new Event('change',{bubbles:true}));};
+   const period=field('period'),date=field('date'),type=field('type');
+   if(period&&!period.value)set(period,lastMonth());
+   if(date&&!date.value&&/^\d{4}-\d{2}$/.test(period?.value??'')){const [y,m]=period.value.split('-').map(Number);set(date,y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'));}
+   if(type&&!type.value){if([...type.options].some(o=>o.value==='monthly'))set(type,'monthly');else if(retries-->0)setTimeout(preload,700);}}
   if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&!input.disabled){input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
   if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;if(period&&!period.value&&!period.disabled){period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
