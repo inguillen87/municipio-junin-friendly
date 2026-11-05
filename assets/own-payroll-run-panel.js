@@ -216,6 +216,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Resultado guardado y recuperable. Consultá su estado actual antes de confirmar o anular.','success');controls();
   }
   async function refresh({metadataOnly=false}={}){return perform(async valid=>{
+    if(!attempt&&!current?.saved)status('Verificando acceso, padrón propio y reglas del período…');
     if(!suspendedPreparation&&!attempt&&canSelect())suspendedPreparation=preparationDraft();
     invalidateReadiness();
     clearSourceReview();
