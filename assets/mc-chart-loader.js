@@ -14,7 +14,7 @@ export function loadCharts() {
 /** <figure> card with title, optional subtitle and a sized canvas host. */
 export function chartSlot(title, {subtitle = '', size = 'md', key = ''} = {}) {
  ensureCss();
- const figure = document.createElement('figure'); figure.className = 'mc-chart-card'; figure.dataset.size = size; if (key) figure.dataset.chart = key;
+ const figure = document.createElement('figure'); figure.className = 'mc-chart-card'; figure.dataset.size = size; if (key) figure.dataset.mcChart = key;
  const caption = document.createElement('figcaption'), strong = document.createElement('strong'); strong.textContent = title; caption.append(strong);
  if (subtitle) { const small = document.createElement('span'); small.textContent = subtitle; caption.append(small); }
  const host = document.createElement('div'); host.className = 'mc-chart'; host.dataset.loading = 'true'; host.setAttribute('role', 'img'); host.setAttribute('aria-label', title);
