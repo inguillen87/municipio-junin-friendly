@@ -28,6 +28,7 @@ export function mountPayrollBankGenerator(host) {
     <p class="pbg-note">Excel y PDF son documentos de control. No ordenan transferencias ni acreditan pagos. El archivo de pago para el banco requiere un formato homologado.</p>
     <section data-pbg-result hidden aria-label="Planilla bancaria de la liquidación seleccionada"><div class="rc-source" data-pbg-source></div>
       <div class="pbg-source-grid"><p><span>Período de imputación</span><strong data-pbg-period></strong></p><p><span>Fecha de liquidación</span><strong data-pbg-date></strong></p><p><span>Corte de cuentas bancarias</span><strong data-pbg-cutoff></strong><small>Fecha y hora declaradas en origen, sin zona horaria informada.</small></p></div>
+      <div class="pbg-banks" data-pbg-banks role="group" aria-label="Planilla por banco"></div>
       <div class="rc-filter pbg-filters"><label>Banco<select data-pbg-bank><option value="all">Todos los bancos</option><option value="credicoop">Credicoop</option><option value="santander">Santander</option><option value="nacion">Nación</option><option value="unknown">Sin identificar</option></select></label><label>Jurisdicción<select data-pbg-jurisdiction><option value="all">Todas</option></select></label><label>Tipo de cuenta<select data-pbg-account><option value="all">Todos los tipos</option><option value="caja_ahorro">Caja de ahorro verificada</option><option value="cuenta_corriente">Cuenta corriente verificada</option><option value="unknown">Tipo sin verificar</option></select></label><label>Control<select data-pbg-issues><option value="all">Todas las filas</option><option value="observed">Con observaciones</option><option value="informed">Sin observaciones informadas</option></select></label><label>Buscar persona o repartición<input type="search" data-pbg-search maxlength="100" placeholder="Legajo, nombre, CUIL o repartición"></label></div>
       <p class="pbg-note" data-pbg-account-note>Los tipos sin verificar conservan el código original. La cuenta no se reconstruye ni se completa manualmente.</p>
       <div class="rc-kpis"><div><span>Filas del filtro</span><strong data-pbg-count></strong></div><div><span>Neto del filtro</span><strong data-pbg-total></strong><small data-pbg-missing></small></div><div><span>Con observaciones</span><strong data-pbg-observed></strong></div></div>
@@ -47,6 +48,7 @@ export function mountPayrollBankGenerator(host) {
     $('[data-pbg-consult]').disabled = busy || !catalog || !$('[data-pbg-dataset]').value;
     $('[data-pbg-dataset]').disabled = busy || !catalog;
     host.querySelectorAll('[data-pbg-export]').forEach(button => { button.disabled = busy || !data || !view().rows.length; });
+    host.querySelectorAll('[data-pbg-bank-choice]').forEach(button => { button.disabled = busy || !data || button.dataset.unavailable === 'true'; });
     $('[data-pbg-prev]').disabled = busy || !data || page <= 1;
     $('[data-pbg-next]').disabled = busy || !data || page >= Math.ceil(view().rows.length / PAGE_SIZE);
   }
@@ -89,7 +91,22 @@ export function mountPayrollBankGenerator(host) {
     const unknown = data?.rows.filter(row => row.accountType === null).length || 0;
     $('[data-pbg-account-note]').textContent = unknown ? unknown + ' filas conservan un código de tipo de cuenta cuyo significado todavía no fue verificado. No se presume caja de ahorro ni cuenta corriente.' : 'Los filtros por tipo usan únicamente correspondencias verificadas en la fuente. Las cuentas no se completan manualmente.';
   }
+  // One click per bank (Nación, Credicoop, Santander…): count and net of each, honoring the other filters.
+  function renderBanks() {
+    const box = $('[data-pbg-banks]'), current = $('[data-pbg-bank]').value, others = filters();
+    const keys = ['all', ...Object.keys(bankNames).filter(key => data.rows.some(row => row.bankKey === key)), ...(data.rows.some(row => row.bankKey === null) ? ['unknown'] : [])];
+    box.replaceChildren(...keys.map(key => {
+      let part; try { part = bankReportFilter(data, { ...others, bank: key }); } catch { part = null; }
+      const button = node('button'); button.type = 'button'; button.className = 'pbg-bank'; button.dataset.pbgBankChoice = key;
+      button.setAttribute('aria-pressed', String(current === key)); button.dataset.unavailable = String(!part); button.disabled = busy || !part;
+      button.append(node('strong', key === 'all' ? 'Todos los bancos' : key === 'unknown' ? 'Sin identificar' : bankNames[key]),
+        node('span', part ? part.rows.length + ' cuentas' : 'No combinable'), node('span', part ? bankMoney(part.total ?? part.knownTotal) : ''));
+      button.addEventListener('click', () => { const select = $('[data-pbg-bank]'); if (busy || !part || select.value === key) return; select.value = key; select.dispatchEvent(new Event('input', { bubbles: true })); });
+      return button;
+    }));
+  }
   function render() {
+    renderBanks();
     const selected = view(), pages = Math.max(1, Math.ceil(selected.rows.length / PAGE_SIZE)); page = Math.min(page, pages);
     $('[data-pbg-source]').textContent = data.dataset.sourceLabel + ' · ' + monthlyType(data.dataset.type) + ' · ' + data.rows.length + ' filas disponibles en esta liquidación.';
     $('[data-pbg-period]').textContent = data.dataset.period; $('[data-pbg-date]').textContent = data.dataset.date; $('[data-pbg-cutoff]').textContent = data.bankSource.cutoff.replace('T', ' ');
@@ -140,7 +157,7 @@ export function mountPayrollBankGenerator(host) {
       const bytes = bundle ? bundle.bytes : format === 'pdf' ? bankReportPdf(original, selected, queried) : bankReportXlsx(original, selected, queried);
       if (!valid(job)) return;
       const url = URL.createObjectURL(new Blob([bytes], { type: bundle ? 'application/zip' : format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), a = node('a');
-      a.href = url; a.download = bundle ? bundle.filename : 'municontrol_planilla-bancaria_' + original.dataset.period + '_' + original.dataset.datasetId.slice(0, 8) + '.' + format; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+      a.href = url; a.download = bundle ? bundle.filename : 'municontrol_planilla-bancaria_' + original.dataset.period + (selected.filters.bank === 'all' ? '' : '_' + (selected.filters.bank === 'unknown' ? 'sin-banco' : selected.filters.bank)) + '_' + original.dataset.datasetId.slice(0, 8) + '.' + format; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
       status.textContent = bundle ? 'Paquete de control generado con '+selected.rows.length+' filas del filtro. Incluye Excel, PDF, conciliación completa y manifiesto. SHA-256: '+bundle.sha256+'. No es una remesa de pago.' : (format === 'pdf' ? 'PDF' : 'Excel de control') + ' generado con ' + selected.rows.length + ' filas del filtro y sus observaciones.';
     } catch (error) { if (valid(job)) failure(error, error.code !== 'SOURCE_CHANGED'); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }));
