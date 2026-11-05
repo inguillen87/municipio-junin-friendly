@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://municontrol.local/contracts/junin-payroll-institutional-rules.v1.json",
+  "contractVersion": "junin-payroll-institutional-rules.v1",
+  "municipality": "Municipalidad de Junín (Mendoza)",
+  "activation": "PREPARATION_ONLY",
+  "policy": {
+    "activation": "Ninguna regla de este contrato modifica un cálculo hasta que un programa aprobado la referencie explícitamente por ruleId y versión.",
+    "evidenceKinds": [
+      "responsible_confirmation",
+      "observed_grh_configuration",
+      "national_law",
+      "provincial_law",
+      "technical_default"
+    ],
+    "statuses": {
+      "confirmed": "Confirmada por la responsable de liquidación y coherente con la configuración GRH observada.",
+      "observed": "Observada en la configuración GRH de Junín; sin confirmación verbal todavía.",
+      "legal_default": "Regla legal vigente propuesta; no observada en GRH.",
+      "inactive": "Regla disponible pero declarada inaplicable en Junín por la responsable.",
+      "pending": "Sin regla suficiente; bloquea aprobación."
+    },
+    "parameterValidity": "Cada parámetro lleva validFrom (YYYY-MM) y opcional validUntil; el valor vigente para un período es el último validFrom <= período. Sin valor vigente, la regla no se evalúa.",
+    "prohibited": "No copiar constantes monetarias dentro de fórmulas; no inferir una regla de un manual GRH genérico; no activar por lectura."
+  },
+  "sources": {
+    "noelia_audios_20261104": { "kind": "responsible_confirmation", "reference": ".handoff/claude-out/NOELIA_AUDIOS_20261104_R1/NOELIA_CONFIRMACIONES_20261104.md", "observedOn": "2026-11-04" },
+    "grh_junin_readonly_20261105": { "kind": "observed_grh_configuration", "reference": ".handoff/claude-out/GRH_JUNIN_CONFIG_READONLY_20261105_R1/CONVENIOS_1_14_FORMULAS_DIFERENCIAS.md", "observedOn": "2026-11-05", "surface": "GRH_WEB Definición de Conceptos, Cálculos Auxiliares, Asignaciones" },
+    "decreto_484_1987": { "kind": "national_law", "reference": "https://www.argentina.gob.ar/normativa/nacional/77255/texto" },
+    "resolucion_4_2026_smvm": { "kind": "national_law", "reference": "Consejo Nacional del Empleo, la Productividad y el SMVM, Res. 4/2026 (BO 02/09/2026)" },
+    "ley_23041": { "kind": "national_law", "reference": "https://www.argentina.gob.ar/normativa/nacional/ley-23041-28165/texto" },
+    "decreto_1078_1984": { "kind": "national_law", "reference": "Decreto 1078/84 art. 1-2" },
+    "ley_24241": { "kind": "national_law", "reference": "Ley 24.241 aporte personal 11 %" },
+    "resolucion_anses_304_2026": { "kind": "national_law", "reference": "RESOL-2026-304-ANSES, bases imponibles devengado noviembre 2026" },
+    "ley_5811_mendoza": { "kind": "provincial_law", "reference": "Ley 5811 Mendoza art. 24, 37-40, 49" },
+    "ley_5892_mendoza": { "kind": "provincial_law", "reference": "Ley 5892 Mendoza art. 27, 32, 38, 53" },
+    "decreto_892_2026_mendoza": { "kind": "provincial_law", "reference": "Decreto 892/2026 Mendoza, asignaciones familiares desde 2026-05 (montos a confirmar contra anexo oficial)" }
+  },
+  "rules": [
+    {
+      "ruleId": "net_rounding",
+      "title": "Redondeo del neto",
+      "status": "confirmed",
+      "statement": "No se redondea el neto en el sector público: el neto es la suma de conceptos a dos decimales. La diferencia de redondeo (L[151]) es siempre 0.",
+      "parameters": [
+        { "key": "netRoundingMode", "unit": "enum", "values": [ { "validFrom": "2026-01", "value": "none" } ] },
+        { "key": "conceptPrecision", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "2" } ] },
+        { "key": "conceptRoundingMode", "unit": "enum", "values": [ { "validFrom": "2026-01", "value": "half_up" } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:54:11 «no va el redondeo del neto»; 22:54:48 «cero, no tiene que hacer diferencia»" }, { "source": "grh_junin_readonly_20261105", "detail": "Concepto 998 con función 9 en los 14 convenios; L[151] y concepto 296 presentes" } ]
+    },
+    {
+      "ruleId": "garnishment_commercial",
+      "title": "Embargo comercial",
+      "status": "confirmed",
+      "statement": "El importe a retener es el monto fijo del oficio judicial. El sistema valida que no supere el máximo legal: 0 si el bruto no supera un SMVM; 10 % del excedente sobre un SMVM si el bruto no supera dos SMVM; 20 % del excedente sobre un SMVM si lo supera. Alimentos quedan fuera del tope.",
+      "formula": "max = bruto <= S ? 0 : (bruto <= 2S ? 0.10 : 0.20) * (bruto - S); retenido = min(oficio, max)",
+      "parameters": [
+        { "key": "smvm", "unit": "money", "values": [ { "validFrom": "2026-09", "value": "383800.00" }, { "validFrom": "2026-10", "value": "391200.00" }, { "validFrom": "2026-11", "value": "398800.00" }, { "validFrom": "2026-12", "value": "406400.00" }, { "validFrom": "2027-01", "value": "414200.00" }, { "validFrom": "2027-02", "value": "422000.00" }, { "validFrom": "2027-03", "value": "429600.00" }, { "validFrom": "2027-04", "value": "437000.00" } ] },
+        { "key": "lowBandRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.10" } ] },
+        { "key": "highBandRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.20" } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 embargos cargados como monto fijo del oficio; los manuales calculan mal" }, { "source": "decreto_484_1987", "detail": "art. 1 incisos 1 y 2; art. 2 base bruta; art. 4 alimentos" }, { "source": "resolucion_4_2026_smvm", "detail": "SMVM mensual por período" }, { "source": "grh_junin_readonly_20261105", "detail": "A[55]: 0.2/0.1 × (A[12] − L[93]); A[77] = R[993] − L[93]; concepto 609 = L[195]" } ]
+    },
+    {
+      "ruleId": "sac",
+      "title": "Sueldo anual complementario",
+      "status": "confirmed",
+      "statement": "SAC = mayor haber sujeto del semestre / 360 × días trabajados del semestre (equivale a mitad del mejor haber proporcional sobre 180 días). Se liquida en junio, diciembre o con motivo de egreso.",
+      "formula": "A[22] / 360 * A[23]",
+      "parameters": [ { "key": "semesterDayDivisor", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "180" } ] } ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:54:35 «la de aguinaldo está perfecto»" }, { "source": "grh_junin_readonly_20261105", "detail": "Concepto 3 en 12 convenios: U=A[23]; SI (L[101]==6)||(L[101]==12)||(L[103]>0); C=A[22]/360*U[3]" }, { "source": "ley_23041", "detail": "art. 1: 50 % de la mayor remuneración mensual del semestre" }, { "source": "decreto_1078_1984", "detail": "proporcional al tiempo trabajado" } ]
+    },
+    {
+      "ruleId": "attendance_bonus",
+      "title": "Presentismo escalonado",
+      "status": "confirmed",
+      "statement": "Presentismo = 10 % de la base × factor según inasistencias del mes: 0 faltas 100 %, 1 falta 67 %, 2 faltas 50 %, 3 o más 0 %.",
+      "parameters": [
+        { "key": "baseRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.10" } ] },
+        { "key": "factorByAbsences", "unit": "table", "values": [ { "validFrom": "2026-01", "value": { "0": "100", "1": "67", "2": "50", "3+": "0" } } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 confirma 33 % / 50 % / 100 % de pérdida (transcripto «53»; la ley dice 50)" }, { "source": "ley_5811_mendoza", "detail": "art. 24" }, { "source": "grh_junin_readonly_20261105", "detail": "A[18]=100 si 30−A[379]>=30; A[19]=67 si ==29; A[20]=50 si ==28; si no 0; concepto 144 × 10/100" } ]
+    },
+    {
+      "ruleId": "vacation_days",
+      "title": "Vacaciones: días y valor diario",
+      "status": "confirmed",
+      "statement": "Días corridos por antigüedad al 31/12: más de 6 meses y hasta 5 años 14; hasta 10 años 21; hasta 20 años 28; más de 20 años 35. Licencias no gozadas: mayor sueldo percibido / 25 por día.",
+      "parameters": [
+        { "key": "daysBySeniority", "unit": "table", "values": [ { "validFrom": "2026-01", "value": { "0.5-5": "14", "5-10": "21", "10-20": "28", "20+": "35" } } ] },
+        { "key": "unusedLeaveDayDivisor", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "25" } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 días 14/21/28 sí; no gozadas: mayor sueldo percibido dividido 25, también en lo público" }, { "source": "ley_5811_mendoza", "detail": "art. 37 días; art. 38-39 liquidación" } ]
+    },
+    {
+      "ruleId": "severance_incapacity",
+      "title": "Indemnización por incapacidad o supresión de cargo",
+      "status": "confirmed",
+      "statement": "Un mes de la mejor remuneración mensual normal y habitual del último año por cada año de servicio o fracción mayor de tres meses.",
+      "parameters": [ { "key": "fractionThresholdMonths", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "3" } ] } ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 «para la indemnización, eso está bien, es fijo»" }, { "source": "ley_5811_mendoza", "detail": "art. 49" }, { "source": "ley_5892_mendoza", "detail": "art. 38" } ]
+    },
+    {
+      "ruleId": "osep_contributions",
+      "title": "OSEP: cuota, fondo catastrófico y fondo discapacidad",
+      "status": "confirmed",
+      "statement": "Sobre remunerativo + no remunerativo (R[993]+R[994]): cuota 601 = 5 % en todos los casos; 604 fondo enfermedades catastróficas = 0,25 %; 685 fondo discapacidad directo = 0,75 %. Indirectos (682) con porcentaje informado por novedad.",
+      "parameters": [
+        { "key": "osepQuotaRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.05" } ] },
+        { "key": "osepCatastrophicRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.0025" } ] },
+        { "key": "osepDisabilityDirectRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.0075" } ] },
+        { "key": "employerOsepRate", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.07" } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 685 fijo 0,75 % del bruto y no remunerativo; 604 0,25 % del 993 e impacta en no remunerativos; 22:56:14 601 = 5 % en todos los casos" }, { "source": "grh_junin_readonly_20261105", "detail": "601 NO:(R993+R994)*5/100; 604 (R993+R994)*0.0025; 685 (R993+R994)*0.0075; 701 7 %" } ]
+    },
+    {
+      "ruleId": "retirement_contribution",
+      "title": "Jubilación: aporte personal y topes",
+      "status": "observed",
+      "statement": "Aporte personal = base imponible × L[39] / 100 (L[39] en porcentaje, 11). La base se acota entre la mínima y la máxima de ANSES del período. Contribuciones patronales 16 % y 10,753 %.",
+      "parameters": [
+        { "key": "personalRatePercent", "unit": "percent", "values": [ { "validFrom": "2026-01", "value": "11" } ] },
+        { "key": "taxableBaseMin", "unit": "money", "values": [ { "validFrom": "2026-11", "value": "149592.45" } ] },
+        { "key": "taxableBaseMax", "unit": "money", "values": [ { "validFrom": "2026-11", "value": "4861685.38" } ] },
+        { "key": "employerRatePercent", "unit": "percent", "values": [ { "validFrom": "2026-01", "value": "16" } ] },
+        { "key": "employerRatePercentSecondary", "unit": "percent", "values": [ { "validFrom": "2026-01", "value": "10.753" } ] }
+      ],
+      "evidence": [ { "source": "grh_junin_readonly_20261105", "detail": "600 (R993)*L[39]/100; convenio 2: tope 4861685.38 escrito en la fórmula; 700 16 %; 703 10,753 %" }, { "source": "ley_24241", "detail": "11 %" }, { "source": "resolucion_anses_304_2026", "detail": "bases mínima y máxima noviembre 2026" } ]
+    },
+    {
+      "ruleId": "guaranteed_minimum_salary",
+      "title": "Cláusula de garantía (mínimo garantizado)",
+      "status": "confirmed",
+      "statement": "Si (G / L[18] × U[1]) − (haberes brutos sujetos + adelantos − retro garantía + mayor dedicación + full time [+ bono]) > 0, se paga la diferencia. G se actualiza por acta paritaria; vigente noviembre 2026: 525.000.",
+      "parameters": [ { "key": "guaranteedMinimum", "unit": "money", "values": [ { "validFrom": "2026-11", "value": "525000.00" } ] } ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:55:40 garantía de noviembre 525 mil; se modifica a mano por acta paritaria; GRH aún con el valor anterior" }, { "source": "grh_junin_readonly_20261105", "detail": "Concepto 196 con 255000.00 escrito en la fórmula (convenio 8 compara con 25500.00)" } ],
+      "alerts": [ "Recordatorio mensual: confirmar vigencia del mínimo garantizado tras cada acta paritaria." ]
+    },
+    {
+      "ruleId": "family_allowances_scale",
+      "title": "Asignaciones familiares (escala provincial)",
+      "status": "confirmed",
+      "statement": "Escala por tramo de remuneración bruta del Decreto 892/2026 (vigente 2026-05). Hijo con discapacidad usa cantidad L[62] e importe propio del tramo; nunca los de hijo común. Régimen general con valores únicos observado en GRH: a revisar con la responsable.",
+      "parameters": [
+        { "key": "brackets", "unit": "table", "values": [ { "validFrom": "2026-05", "value": [ { "upTo": "790000.00", "child": "35000.00", "disabledChild": "270000.00", "prenatal": "39000.00" }, { "upTo": "1185000.00", "child": "27000.00", "disabledChild": "165000.00", "prenatal": "31000.00" }, { "upTo": "2700000.00", "child": "18000.00", "disabledChild": "110000.00", "prenatal": "18500.00" } ] } ] },
+        { "key": "fixed", "unit": "table", "values": [ { "validFrom": "2026-05", "value": { "schoolAid": "50000.00", "schoolAidDisabled": "170000.00", "spouse": "1600.00", "birth": "20000.00", "marriage": "31000.00", "adoption": "2000000.00" } } ] }
+      ],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 «propongo la escala provincial de mayo»; hijo con discapacidad en régimen docente por tramo" }, { "source": "grh_junin_readonly_20261105", "detail": "Región 2 docente: hijo 35000/27000/18000, discapacidad 270000/165000/110000, cónyuge 1600; región 1 general: hijo 35000, discapacidad 180000 sin tramos; concepto 302 = L[62]×L[82]" }, { "source": "decreto_892_2026_mendoza", "detail": "montos tomados de prensa; confirmar anexo oficial" } ],
+      "openQuestions": [ "Régimen general: ¿valores únicos actuales o escala provincial por tramo?" ]
+    },
+    {
+      "ruleId": "absence_day_value",
+      "title": "Valor diario para inasistencias y licencias sin goce",
+      "status": "observed",
+      "statement": "Descuentos por inasistencia, suspensión, licencia sin goce y parte de enfermo se valúan a haberes sujetos / 30 por día.",
+      "parameters": [ { "key": "absenceDayDivisor", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "30" } ] } ],
+      "evidence": [ { "source": "grh_junin_readonly_20261105", "detail": "100: (R993−R5−R144)/30 × U × −1; 108: R993/30 × U × −1; 110: R993/30 × N × −1" } ]
+    },
+    {
+      "ruleId": "seniority_rate",
+      "title": "Antigüedad",
+      "status": "observed",
+      "statement": "2 % por año de antigüedad sobre básico + SAC adicional (convenio 1). Funcionarios, concejales y HCD: sueldo de clase de revista × coeficiente de legajo L[97] × 2 % × años.",
+      "parameters": [ { "key": "ratePerYear", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "0.02" } ] } ],
+      "evidence": [ { "source": "grh_junin_readonly_20261105", "detail": "48: (R1+R2)*2/100*L[27]; convenios 2,7,11: (A[88]*L[97]*0.02)*L[27]; pantalla Convenios: porcentaje fijo 2,0" } ]
+    },
+    {
+      "ruleId": "overtime",
+      "title": "Horas extras",
+      "status": "inactive",
+      "statement": "Junín no liquida horas extras como concepto. El trabajo adicional se paga por Mayor dedicación (44) y Full time (95) como porcentaje informado sobre la base. Regla legal disponible: valor hora = sueldo / horas mensuales (180 según convenio 1), recargo 50 % y 100 %.",
+      "parameters": [ { "key": "monthlyHours", "unit": "integer", "values": [ { "validFrom": "2026-01", "value": "180" } ] }, { "key": "surcharge50", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "1.5" } ] }, { "key": "surcharge100", "unit": "ratio", "values": [ { "validFrom": "2026-01", "value": "2" } ] } ],
+      "evidence": [ { "source": "grh_junin_readonly_20261105", "detail": "No existe concepto de horas extras en el maestro; convenio 1: 6 h/día, 180 h/mes" }, { "source": "ley_5892_mendoza", "detail": "art. 27 y 53" } ]
+    },
+    {
+      "ruleId": "subrogation",
+      "title": "Subrogancia",
+      "status": "inactive",
+      "statement": "La responsable declara que Junín no liquida subrogancia. La fórmula GRH del convenio 1 (diferencia de clase + antigüedad + título + jerarquía) se conserva como regla disponible.",
+      "parameters": [],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:49:09 «no tenemos subrogancia»" }, { "source": "grh_junin_readonly_20261105", "detail": "96: SI L[98]>0; ((L78−L10)*2/100*L23)+((L78−L10)*L106/100)+(L78−L10)+(L79−L11)+(A78−R80)" } ]
+    },
+    {
+      "ruleId": "income_tax",
+      "title": "Impuesto a las ganancias",
+      "status": "inactive",
+      "statement": "No se liquida ganancias en Junín. El concepto 610 permanece inactivo.",
+      "parameters": [],
+      "evidence": [ { "source": "noelia_audios_20261104", "detail": "22:56:25 «ganancia no le des bola, no estoy liquidando ganancia»" } ]
+    },
+    {
+      "ruleId": "formula_language",
+      "title": "Lenguaje de fórmulas",
+      "status": "confirmed",
+      "statement": "Precedencia estándar con paréntesis conservados; «caso contrario» vacío = el concepto no se liquida; punto decimal; `==`/`=`, `!=`/`<>`, `&&`/`y`, `||`/`o` equivalentes; novedad forzada paga el importe informado; novedad no forzada decide la fórmula (puede leer I[x]).",
+      "parameters": [],
+      "evidence": [ { "source": "grh_junin_readonly_20261105", "detail": "Todas las fórmulas observadas usan ==, !=, &&, || y punto decimal; conceptos con «caso contrario» vacío no aparecen en recibo" } ]
+    }
+  ]
+}
