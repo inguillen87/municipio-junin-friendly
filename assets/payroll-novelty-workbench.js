@@ -797,7 +797,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     if (handoffRequiresPayrollTypeSelection&&!current) select.value='';
     if (nativeSelected()) select.value='monthly';
     renderBatches(); renderMonthlySubject(); revealReviewableLegacyBatches();
-    renderAgileRows();sheetEditor?.render();
+    renderAgileRows();sheetEditor?.render();attendancePreparte?.refreshAccess?.();
     byId('pageContent').hidden=false;byId('loadingState').hidden=true;
     if (selectedBatchId && hasCapability('payroll.novelty.nominal.read')) await openBatch(selectedBatchId,{quiet:true});
     if (changed) showMessage('info','La sesión o el ámbito cambió','Se descartó el borrador de la sesión anterior. Elegí nuevamente la persona antes de preparar.');
@@ -1581,6 +1581,9 @@ function initialize() {
   // The native daily workspace has its own access and full bootstrap. A legacy read must not block it.
   byId('pageContent').hidden=false;byId('loadingState').hidden=true;
   if (requestedMonthlyContract || hasRequestedBatch || handoffRestored) byId('noveltyReferenceWorkspace').open=true;
+  // Owner decision 2026-11-05: the own roster and batches load on open and again when the page becomes visible.
+  const ownAutoRefresh=()=>{if(!document.hidden&&!ownBulkNovelties?.hasPending?.())ownBulkNovelties?.refresh();};
+  ownAutoRefresh();document.addEventListener('visibilitychange',ownAutoRefresh);
   loadBootstrap({ quiet: true }).then(()=> {
     if (hasRequestedBatch) return openRequestedBatch();
     if (requestedMonthlyContract && CONTRACT_UUID.test(requestedMonthlyContract)) return chooseMonthlySubject(requestedMonthlyContract);
