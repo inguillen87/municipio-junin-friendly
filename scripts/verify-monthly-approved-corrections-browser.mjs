@@ -1,3 +1,4 @@
+import {openNoveltyReferenceTool} from './lib/novelty-reference-browser.mjs';
 // Real workbench, raw HTTP handlers and facade; all SQL responses are synthetic.
 // Published mode also intercepts every API. No municipal command is sent.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
@@ -60,7 +61,7 @@ try{
   if(live)return route.continue();const file=path.resolve(root,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'application/octet-stream'});
  });
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
- const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#monthlyCorrection:visible').waitFor();await page.locator('#monthlyCorrectionRefresh').click();await page.waitForFunction(()=>!document.getElementById('monthlyCorrectionMode').disabled);};
+ const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferenceTool(page,'monthlyCorrection');await page.locator('#monthlyCorrection:visible').waitFor();await page.locator('#monthlyCorrectionRefresh').click();await page.waitForFunction(()=>!document.getElementById('monthlyCorrectionMode').disabled);};
  const selectAll=async()=>{await page.locator('#monthlyCorrectionSelectPage').click();while(await page.locator('#monthlyCorrectionNext').isEnabled()){await page.locator('#monthlyCorrectionNext').click();await page.locator('#monthlyCorrectionSelectPage').click();}};
  const compare=async(edit=true)=>{if(edit){await page.locator('#monthlyCorrectionChooseobservation').check();await page.locator('#monthlyCorrectionValueobservation').fill('Corrección sintética completa');}await page.locator('#monthlyCorrectionReason').fill('Motivo administrativo sintético completo');await page.locator('#monthlyCorrectionCompare').click();await page.locator('#monthlyCorrectionReview:visible').waitFor();await page.waitForFunction(()=>!document.getElementById('monthlyCorrectionConfirm').disabled);};
  const send=async()=>{await page.locator('#monthlyCorrectionConfirm').check();await page.locator('#monthlyCorrectionSend').click();await page.waitForFunction(()=>document.getElementById('monthlyCorrection').hidden||!document.getElementById('monthlyCorrectionRefresh').disabled);};

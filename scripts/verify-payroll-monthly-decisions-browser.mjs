@@ -1,3 +1,4 @@
+import {openNoveltyReferences,openNoveltyReferenceTool} from './lib/novelty-reference-browser.mjs';
 // Real workbench and API handler; private SQL business responses are synthetic.
 // POSTs are intercepted locally even in published mode. No municipal writes.
 import fs from 'node:fs';
@@ -11,7 +12,11 @@ import {transitionPayrollNoveltyV2 as executeMonthlyTransition} from '../lib/int
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 
 const live=process.argv.includes('--published'),origin=live?'https://municontrol.com':'https://municontrol.test';
-const root=path.resolve('public'),out='verification/monthly-decisions-'+(live?'published':'local');fs.mkdirSync(out,{recursive:true});
+const outputArgs=process.argv.slice(2).filter(a=>a.startsWith('--output='));assert.ok(outputArgs.length<=1,'use a single --output=verification/<new-directory>');
+const root=path.resolve('public'),out=outputArgs.length?path.resolve(outputArgs[0].slice(9)):'verification/monthly-decisions-'+(live?'published':'local');
+assert.ok(path.resolve(out).startsWith(path.resolve('verification')+path.sep),'output must be inside verification');
+assert.ok(!fs.existsSync(out),'preserve existing evidence; choose a new output');
+fs.mkdirSync(out,{recursive:false});
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex'),build=publishedBuildVerification({origin,root});
 const assets=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-native-monthly-model.js',
   'assets/payroll-monthly-decisions.js','assets/payroll-monthly-decisions-model.js','assets/payroll-monthly-decisions.css'];
@@ -83,12 +88,30 @@ try{
     return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'application/octet-stream'});
   });
   page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
-  const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#monthlyDecisions:visible').waitFor();};
+  const open=async()=>{await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferenceTool(page,'monthlyDecisions');await page.locator('#monthlyDecisions:visible').waitFor();};
   const selectAll=async()=>{await page.locator('#monthlyDecisionSelectPage').click();while(await page.locator('#monthlyDecisionNext').isEnabled()){
     await page.locator('#monthlyDecisionNext').click();await page.locator('#monthlyDecisionSelectPage').click();}};
   const compare=async()=>{await page.locator('#monthlyDecisionCompare').click();await page.locator('#monthlyDecisionReview:visible').waitFor();assert.equal(posts.length,0);};
   const confirm=async()=>{await page.locator('#monthlyDecisionConfirm').check();await page.locator('#monthlyDecisionSend').click();};
   const settled=async()=>{await page.locator('#monthlyDecisionStop').waitFor({state:'hidden'});};
+  // Enter without a batch parameter and without opening the reference helper: actual checker capabilities and allowed commands decide discovery.
+  seed(1,1,'submitted');await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');
+  await page.waitForFunction(()=>document.getElementById('batchRows').children.length===1);
+  assert.equal(await page.locator('#noveltyReferenceWorkspace').getAttribute('open'),'');assert.equal(await page.locator('#readOnlySection').isVisible(),true);assert.equal(posts.length,0);checks.push('one submitted checker batch is discoverable without a query parameter or automatic POST');
+  seed(1,1,'submitted');actor='maker';member=3;await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');
+  await page.waitForFunction(()=>document.getElementById('batchRows').children.length===1);
+  assert.equal(await page.locator('#noveltyReferenceWorkspace').getAttribute('open'),null);assert.equal(posts.length,0);checks.push('a maker with no allowed approve or reject command receives no checker invitation');
+  seed(3);await open();lateRead=true;await page.locator('#batchRows button').first().click();
+  const readDeadline=Date.now()+12000;while(!releaseRead){assert.ok(Date.now()<readDeadline,'held read never reached its synthetic gate');await new Promise(resolve=>setTimeout(resolve,10));}
+  try{
+    assert.equal(await page.locator('body').getAttribute('data-busy'),'true');
+    await page.evaluate(()=>{window.__qaReadFold=null;const reference=document.getElementById('noveltyReferenceWorkspace');reference.addEventListener('toggle',()=>{window.__qaReadFold=reference.open;},{once:true});});
+    await page.locator('#noveltyReferenceWorkspace > summary').click();await page.waitForFunction(()=>window.__qaReadFold!==null);
+    assert.equal(await page.evaluate(()=>window.__qaReadFold),false);assert.equal(await page.locator('#noveltyReferenceWorkspace').getAttribute('open'),null);
+    assert.doesNotMatch(await page.locator('#messageHost').innerText(),/Hay una operación pendiente/);assert.equal(posts.length,0);
+  }finally{releaseRead();releaseRead=null;}
+  await page.waitForFunction(()=>document.body.dataset.busy==='false');assert.equal(await page.locator('#noveltyReferenceWorkspace').getAttribute('open'),null);assert.equal(posts.length,0);
+  checks.push('a held legacy detail GET remains foldable through its native toggle and completion without a pending-write warning');
   seed();await open();assert.equal(await page.locator('#batchRows tr').count(),20);await selectAll();
   assert.match(await page.locator('#monthlyDecisionCount').innerText(),/26 lotes/);await page.locator('#monthlyDecisionSearch').fill('no-result-synthetic');assert.equal(await page.locator('#batchRows tr').count(),0);
   await compare();assert.equal(await page.locator('[data-monthly-decision-batch]').count(),26);assert.equal(await page.locator('[data-monthly-decision-row]').count(),793);
@@ -144,14 +167,21 @@ try{
   seed(3);await open();await selectAll();lateRead=true;await page.locator('#monthlyDecisionCompare').click();while(!releaseRead)await new Promise(r=>setTimeout(r,25));
   await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));releaseRead();await page.locator('#monthlyDecisionCompare').waitFor({state:'hidden'});
   assert.equal(await page.locator('[data-monthly-decision-row]').count(),0);assert.equal(posts.length,0);checks.push('late detail response after revocation cannot repopulate nominal review');
-  seed(3);await open();await selectAll();await compare();failAck=true;await confirm();await settled();member=8;
+  seed(3);await open();await selectAll();await compare();failAck=true;await confirm();await settled();
+  const sealedBeforeCollapse=structuredClone(posts[0]);
+  const pendingDisclosure=page.locator('#monthlyDecisions').locator('xpath=ancestor-or-self::details[not(@id="noveltyReferenceWorkspace")][1]');
+  await pendingDisclosure.locator(':scope > summary').click();await page.waitForFunction(()=>document.getElementById('monthlyDecisions').closest('details').open);
+  assert.equal(posts.length,1);assert.deepEqual(posts[0],sealedBeforeCollapse);assert.match(await page.locator('#messageHost').innerText(),/Hay una operación pendiente/);
+  await page.locator('#noveltyReferenceWorkspace > summary').click();await page.waitForFunction(()=>document.getElementById('noveltyReferenceWorkspace').open);
+  assert.equal(posts.length,1);assert.deepEqual(posts[0],sealedBeforeCollapse);checks.push('pending decision keeps its tool/reference open; folding creates no POST and preserves the sealed body and key');
+  member=8;
   await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));await page.locator('#refreshButton').click();
   await page.locator('#monthlyDecisions:visible').waitFor();assert.equal(await page.locator('#monthlyDecisionRetry').isDisabled(),true);assert.equal(posts.length,1);
   member=3;await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));await page.locator('#refreshButton').click();await page.locator('#monthlyDecisionRetry:enabled').waitFor();
   await page.locator('#monthlyDecisionRetry').click();await settled();assert.equal(posts.length,2);assert.deepEqual(posts[0],posts[1]);assert.equal(receipts.size,1);checks.push('changed membership cannot recover or change the sealed attempt; original membership recovers only that command');
   seed(22,500);await open();await selectAll();await page.locator('#monthlyDecisionCompare').click();await page.locator('#monthlyDecisionMessage').filter({hasText:'supera las 5.000'}).waitFor();
   assert.equal(posts.length,0);assert.equal(await page.locator('#monthlyDecisionReview').isVisible(),false);checks.push('whole selection above 5000 review rows is rejected globally without truncation or splitting');
-  seed(26);actor='checker';member=5;approve=false;await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#batchTable:visible').waitFor();
+  seed(26);actor='checker';member=5;approve=false;await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#batchTable:visible').waitFor();
   assert.equal(await page.locator('#monthlyDecisions').isVisible(),false);assert.equal(await page.locator('#batchRows tr').count(),26);assert.equal(await page.locator('#batchRows button').count(),26);
   assert.equal(posts.length,0);checks.push('read-only actor retains the complete original batch overview and individual detail without decision privileges');
   assert.deepEqual(errors,[]);const report={ok:true,checksPassed:checks.length,checks,publishedAssets:live,apiHandlerReal:true,transitionFacadeReal:true,sqlResponsesSynthetic:true,businessResponsesSynthetic:true,realMunicipalWrites:0,humanAcceptance:false,assets:Object.fromEntries(expected)};

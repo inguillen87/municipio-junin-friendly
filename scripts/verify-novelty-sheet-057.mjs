@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Browser integration. All APIs including writes are intercepted; no real municipal session. */
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import { chromium } from 'playwright';
 const live=process.env.SHEET_LIVE_ASSETS==='1',origin=live?'https://municipio-junin-friendly.vercel.app':(process.env.SHEET_QA_ORIGIN||'https://municontrol.test');
@@ -32,7 +33,7 @@ try {
  const openGroup=async(text,code='44',units='1')=>{await page.locator('#sheetGroup').click();await page.locator('#sheetGroupLegajos').fill(text);await page.locator('#sheetGroupConcept').fill(code);await page.locator('#sheetGroupQuantity').fill(units);};
  const addGroup=async(text,code='44',units='1')=>{await openGroup(text,code,units);await page.locator('#sheetGroupApply').click();await page.locator('#sheetGroupDialog').waitFor({state:'hidden'});};
  const validate=async()=>{await page.locator('#preflightButton').click();};
- await page.goto(origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.goto(origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#preflightButton:enabled').waitFor();
  await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('95');await page.locator('#adjustmentMonth').fill('2026-09');await page.locator('#quantityDecimal').fill('100');
  await validate();assert.match(await page.locator('#messageHost').innerText(),/legajo inválido/);assert.equal(await page.locator('#prepareButton').isDisabled(),true);
  assert.equal(await page.locator('#legajo').getAttribute('aria-invalid'),'true');assert.equal(await page.locator('#legajo').evaluate(el=>document.activeElement===el),true);assert.equal(individualPosts.length,0);assert.match(await page.locator('#prepareHelp').innerText(),/Corregí el campo/);

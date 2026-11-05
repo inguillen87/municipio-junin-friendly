@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Full workbench. All API requests, including POSTs, are intercepted with synthetic QA data. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,7 +45,7 @@ try {
     return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream',body:fs.readFileSync(file)});
   });
   const page=await context.newPage(); page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/novedades-nomina.html');await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
+  await page.goto(origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
   await page.locator('#periodMonth').fill('2026-09');await page.locator('[name=sourceMode][value=bulk]').check();
   const file=page.locator('#bulkFile'),format=page.locator('#bulkFormat');
   const upload=async(text,name='novedades-qa.txt',bytes=null)=>{await file.setInputFiles({name,mimeType:'text/plain',buffer:bytes??Buffer.from(text)});await page.locator('#messageHost').filter({hasText:'Archivo leído, sin guardar'}).waitFor();};

@@ -55,7 +55,9 @@ try{
  await page.locator('.mc-work-clear').click();await page.keyboard.press('Alt+m');assert.equal(await page.locator('#mcWorkAreaSearch').evaluate(n=>n===document.activeElement),true);
  await page.locator('[data-work-area=asistencia]>summary').click();await page.waitForFunction(()=>document.querySelectorAll('[data-work-area][open]').length===1);
  await nav.screenshot({path:out+'/desktop.png'});checks.push('accent-insensitive search, explicit no results, keyboard focus and single open accordion');
- await page.locator('[data-work-area=liquidaciones]>summary').click();await nav.locator('a[href="/nomina#reportes"]').click();
+ await page.locator('[data-work-area=liquidaciones]>summary').click();
+ await page.locator('[data-work-area=liquidaciones] details.task-section').filter({has:page.locator('a[href="/nomina#reportes"]')}).locator(':scope > summary').click();
+ await nav.locator('a[href="/nomina#reportes"]').click();
  await page.locator('[data-work-area=liquidaciones][open]').waitFor();assert.match(page.url(),/\/nomina#reportes$/);
  await nav.locator('a[href="/nomina#comparar"]').click();await page.goBack();await page.waitForURL('**/nomina#reportes');checks.push('existing payroll anchors and browser back preserved');
  await page.evaluate(async()=>{const m=await import('/assets/work-area-menu.js');await m.mountWorkAreaMenu();await m.mountWorkAreaMenu();});assert.equal(await nav.count(),1);checks.push('repeated mount does not duplicate controls');
@@ -75,7 +77,7 @@ try{
  await page.locator('#logoutButton').click();assert.equal(await nav.isHidden(),true);await page.keyboard.press('Alt+m');assert.equal(await nav.isHidden(),true);checks.push('permission refresh and logout do not reveal stale navigation');
  full=true;caps=all;await visit(origin+'/personal#legajos');await page.locator('#appShell').waitFor();await nav.waitFor();
  await page.locator('[data-work-area=personas]>summary').click();await page.locator('#mcWorkAreaSearch').fill('Personas');
- await nav.locator('button[data-view=legajos]').click();await page.locator('#view-legajos').waitFor();await page.locator('#employeeSearch').fill('QA SIN PERSONAS');
+ await nav.locator('button[data-view=legajos]').click();await page.locator('#view-legajos').waitFor();await page.locator('#employeeHistory > summary').click();await page.locator('#employeeSearch').fill('QA SIN PERSONAS');
  await page.locator('#mcWorkAreaSearch').fill('');await nav.locator('button[data-view=inicio]').click();await page.locator('#view-inicio').waitFor();
  await page.locator('[data-work-area=personas]>summary').click();await nav.locator('button[data-view=legajos]').click();await page.locator('#view-legajos').waitFor();
  assert.equal(await page.locator('#employeeSearch').inputValue(),'QA SIN PERSONAS');assert.equal(await page.locator('button[data-employee-create]').isVisible(),true);
@@ -141,6 +143,12 @@ try{
  const syntheticBadge=()=>page.evaluate(()=>{const b=document.createElement('div');b.textContent='QA SINTÉTICA · APIs interceptadas · Sin sesión municipal';Object.assign(b.style,{position:'fixed',left:'0',right:'0',bottom:'0',zIndex:'2147483647',background:'#ffefbd',color:'#332500',padding:'5px',textAlign:'center',font:'600 12px system-ui',pointerEvents:'none'});document.body.append(b);});
  await syntheticBadge();await page.screenshot({path:out+'/payroll-full-desktop-synthetic.png'});
  checks.push('actual compiled payroll page keeps a bounded left sidebar, all29 original tasks and the original content column');
+ await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reportes'});
+ const incorporatedReportLink=page.locator('[data-payroll-incorporated-reports] a');
+ assert.equal(await incorporatedReportLink.isVisible(),true,'monthly source report remains reachable above empty or failed own reports');
+ assert.equal(await incorporatedReportLink.getAttribute('href'),'/reportes#resumen-mensual');
+ await syntheticBadge();await page.screenshot({path:out+'/payroll-reports-entry-desktop-synthetic.png'});
+ checks.push('actual reports task exposes its monthly source summary without opening a hidden detail');
  for(const width of [390,320]){
   await page.setViewportSize({width,height:844});await visit(nomina+'#resumen');await tasks.waitFor({state:'attached'});
   const toggle=page.locator('.mc-work-toggle');assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.click();
@@ -149,6 +157,11 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'actual payroll viewport '+width);
   await syntheticBadge();await page.screenshot({path:out+'/payroll-full-mobile-'+width+'-synthetic.png'});
   await toggle.click();await page.screenshot({path:out+'/payroll-full-menu-'+width+'-synthetic.png'});
+  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reportes'});await page.waitForURL('**/nomina#reportes');
+  assert.equal(await incorporatedReportLink.isVisible(),true,'monthly report entry visible at '+width);
+  const reportLinkBox=await incorporatedReportLink.boundingBox();assert.ok(reportLinkBox&&reportLinkBox.height>=44&&reportLinkBox.width<=width,'monthly report touch target at '+width);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'actual report entry viewport '+width);
+  await syntheticBadge();await page.screenshot({path:out+'/payroll-reports-entry-mobile-'+width+'-synthetic.png'});
   checks.push('actual compiled payroll page and drawer work without document overflow at'+width+'px');
  }
  caps=all;

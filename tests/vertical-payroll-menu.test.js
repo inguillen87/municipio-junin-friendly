@@ -101,8 +101,8 @@ for(const order of ['workspace-first','sidebar-first'])test('orden de montaje '+
  assert.equal(s.nav.querySelector('[data-task="resumen"]').getAttribute('data-requires-any-capability'),'payroll.read');
  assert.equal(s.nav.querySelector('[data-task="antiguedad"]').getAttribute('data-requires-any-capability'),'payroll.read');
  assert.equal(s.nav.querySelector('[data-task="antiguedad"]').hasAttribute('data-requires-all-capability'),false);
- // the six /nomina links of the original seven-task menu are hidden duplicates; Novedades stays; nothing is cloned
- const links=s.group.querySelectorAll('a[href]');assert.equal(links.filter(a=>a.hasAttribute('data-liquidaciones-duplicate')).length,6);
+ // The ten /nomina links are hidden duplicates of the29 adopted tasks; Novedades stays; nothing is cloned
+ const links=s.group.querySelectorAll('a[href]');assert.equal(links.filter(a=>a.hasAttribute('data-liquidaciones-duplicate')).length,10);
  for(const a of links)assert.equal(a.hasAttribute('data-liquidaciones-duplicate'),a.getAttribute('href').startsWith('/nomina#'),a.getAttribute('href'));
  assert.equal(s.group.querySelector('a[href="/novedades"]').hidden,false);assert.equal(s.group.querySelector('a[href="/novedades"]').hasAttribute('data-liquidaciones-duplicate'),false);
  assert.equal(s.group.dataset.active,'true');assert.equal(s.group.open,true);

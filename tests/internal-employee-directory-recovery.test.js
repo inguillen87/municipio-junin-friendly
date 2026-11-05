@@ -58,6 +58,7 @@ const FUNCTIONS = ['text', 'finiteNumber', 'nonNegativeNumber', 'normalizeBoolea
   'controlStateLabel', 'appendCell', 'detailButton', 'renderEmployees', 'renderEmployeesError', 'applyFilters', 'showView'];
 const BINDINGS = [
   line('let searchTimer = null;'),
+  statement("els.employeeHistory.addEventListener('toggle', "),
   line("els.employeeFilters.addEventListener('submit', "),
   statement("els.employeeSearch.addEventListener('input', function () {"),
   ...['sectorFilter', 'organizationFilter', 'agreementFilter', 'statusFilter', 'crosswalkFilter'].map(id => line(`els.${id}.addEventListener('change', applyFilters);`)),
@@ -129,7 +130,7 @@ function harness() {
   });
   const json = (status, value, options) => response(status, JSON.stringify(value), options);
   const events = [], redirects = [], detailWithdrawals = [];
-  const ids = ['employeeRows', 'employeeTableWrap', 'employeeResultCount', 'cancelEmployeeQuery', 'previousPage', 'nextPage', 'paginationStatus',
+  const ids = ['employeeHistory', 'employeeRows', 'employeeTableWrap', 'employeeResultCount', 'cancelEmployeeQuery', 'previousPage', 'nextPage', 'paginationStatus',
     'scopeContracts', 'scopePeople', 'scopeMatched', 'scopeAmbiguous', 'scopeUnmatched', 'sectorFilter', 'organizationFilter', 'agreementFilter',
     'statusFilter', 'crosswalkFilter', 'employeeSearch', 'employeeFilters', 'breadcrumbCurrent', 'topbarViewTitle'];
   const els = Object.fromEntries(ids.map(id => [id, new FakeNode(id)]));
@@ -139,7 +140,7 @@ function harness() {
     createElement: tag => new FakeNode(tag),
     createTextNode: value => ({ tagName: '#text', textContent: String(value) }),
     createDocumentFragment: () => new FakeNode('#fragment'),
-    querySelectorAll: () => [], querySelector: () => null,
+    querySelectorAll: () => [], querySelector: () => null, dispatchEvent: () => true,
   };
   class Event { constructor(type) { this.type = type; } }
   class CustomEvent extends Event { constructor(type, init) { super(type); this.detail = init?.detail; } }
@@ -165,6 +166,9 @@ function harness() {
 }
 // Precondición explícita de los casos positivos: vista Personas, documento visible y permiso vigente recibido.
 function ready(h) {
+  // Precondición de los casos del transporte: histórico abierto y solicitado por el operador.
+  h.els.employeeHistory.open = true;
+  h.state.employeeHistoryQueried = true;
   h.state.currentView = 'legajos';
   h.document.hidden = false;
   h.api.employeeCapabilitiesChanged({ detail: { tenantCapabilities: ['workforce.employee.read'] } });
@@ -189,15 +193,17 @@ test('la fuente fija el plazo, el botón accesible, Buscar explícito y separa l
   assert.match(html, /document\.addEventListener\('municontrol:capabilities-ready',employeeCapabilitiesChanged\);/);
   assert.doesNotMatch(functionSource('requestJSON'), /EMPLOYEE_QUERY_DEADLINE_MS|employeeOperation/);
   assert.doesNotMatch(functionSource('loadEmployees'), /requestJSON\(/);
-  assert.doesNotMatch(functionSource('refreshCurrentView'), /explicit/);
+  assert.doesNotMatch(functionSource('refreshCurrentView').split('els.refreshButton.disabled = true;')[1], /loadEmployees/);
   for (const name of ['requestEmployeeDirectory', 'loadEmployees', 'withdrawEmployeeDirectory', 'renderEmployeesNotice', 'retireDirectoryFacets', 'employeeCapabilitiesChanged'])
     assert.doesNotMatch(functionSource(name), /localStorage|sessionStorage|caches\.|method:\s*'(?:POST|PUT|PATCH|DELETE)'|setInterval/);
   assert.doesNotMatch(objectConst('EMPLOYEE_NOTICES'), /controlador|generaci|SQL|AbortError|abort|fetch|25000/i);
 });
 
-test('control positivo: carga inicial automática, data[] publicada con total, filtros y página de 25; sin temporizadores remanentes', async () => {
+test('control positivo: Buscar explícito, data[] publicada con total, filtros y página de 25; sin temporizadores remanentes', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
+  assert.equal(h.requests.length, 0, 'entrar en Personas no consulta antecedentes');
+  h.submit();
   assert.equal(h.requests.length, 1);
   const { url, options } = h.requests[0];
   assert.match(url, /^\/api\/internal-data\?resource=employees&search=&sector=&organization=&agreement=&status=administrative_active&crosswalk=all&includeFacets=1&page=1&limit=25$/);
@@ -511,6 +517,7 @@ test('plazo vencido o falla de red con el documento ya oculto (sin evento): no p
 test('ocultar documento (evento real) con respuesta retenida: invalida primero, retira lista/contadores/facetas/evidencia, conserva filtros; al volver no hay GET', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
+  h.submit();
   h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
   h.state.filters.search = 'PERS'; h.state.filters.sector = 'Sector A';
   const pending = h.api.loadEmployees(2); const retained = h.requests[1];
@@ -534,6 +541,7 @@ test('ocultar documento (evento real) con respuesta retenida: invalida primero, 
 test('Buscar (submit real) tras retiro es una consulta nueva con filtros conservados; debounce y cambios de filtro no consultan solos', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
+  h.submit();
   h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
   h.document.hidden = true; h.api.employeeVisibilityChanged(); h.document.hidden = false; h.api.employeeVisibilityChanged();
   h.els.employeeSearch.value = '  PERS  ';
@@ -567,6 +575,7 @@ test('Buscar con permiso retirado no consulta; restaurar no consulta; Buscar pos
 test('salir del área retira la lista; volver muestra la acción explícita y no consulta sola', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
+  h.submit();
   h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
   h.api.showView('inicio', false, false);
   assert.match(h.rows(), /Consulta retirada/); assert.doesNotMatch(h.rows(), /PERSONA A/);
@@ -610,4 +619,55 @@ test('error del servidor conserva la referencia segura y no deja filas previas c
   assert.equal(result.error.status, 500);
   assert.match(h.rows(), /Referencia: 12345678-1234-1234-1234-123456789abc/); assert.doesNotMatch(h.rows(), /PREVIA/);
   assert.equal(h.state.employeesLoaded, false);
+});
+
+
+test('Personas y abrir Antecedentes no consultan; primera búsqueda es explícita y no usa summary', async () => {
+  const h = fresh(); h.els.employeeHistory.open = false; h.state.employeeHistoryQueried = false;
+  h.api.showView('legajos', false, false);
+  assert.equal(h.requests.length, 0);
+  h.els.employeeHistory.open = true; h.els.employeeHistory.emit('toggle');
+  assert.equal(h.requests.length, 0);
+  assert.deepEqual(plain(await h.api.loadEmployees(1)), { ok: false, resource: 'employees', notRequested: true });
+  assert.equal(h.requests.length, 0);
+  h.submit(); assert.equal(h.requests.length, 1);
+  h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(12, 'ANTECEDENTE SINTÉTICO')]))); await h.flush();
+  assert.match(h.rows(), /ANTECEDENTE SINTÉTICO/);
+  assert.doesNotMatch(functionSource('authenticate'), /loadSummary\(|loadEmployees\(/);
+  assert.match(functionSource('showView'), /target !== 'legajos'.*loadSummary\(/);
+});
+
+test('cerrar Antecedentes retira una lectura pendiente; reabrir no consulta y un 401 tardío no redirige', async () => {
+  const h = fresh(), pending = h.api.loadEmployees(1), retained = h.requests[0];
+  h.els.employeeHistory.open = false; h.els.employeeHistory.emit('toggle');
+  assert.deepEqual(plain(await pending), STALE);
+  assert.equal(retained.options.signal.aborted, true); assert.equal(h.clock.pending(), 0);
+  assert.equal(h.state.employeeHistoryQueried, false);
+  h.els.employeeHistory.open = true; h.els.employeeHistory.emit('toggle');
+  retained.resolve(h.json(401, {ok:false})); await h.flush();
+  assert.equal(h.requests.length, 1); assert.equal(h.redirects.length, 0); assert.doesNotMatch(h.rows(), /Sin resultados/);
+  h.action().click(); assert.equal(h.requests.length, 2);
+  h.requests[1].resolve(h.json(200, PAGE([]))); await h.flush();
+});
+
+test('Actualizar Personas vuelve a consultar sólo la entrada visible elegida; no llama summary ni pierde filtros de antecedentes', () => {
+  for (const ownOpen of [false, true]) for (const historyOpen of [false, true]) {
+    const roster = { open: ownOpen }, events = [], calls = [];
+    const context = {
+      state: { currentView: 'legajos', pagination: { page: 3 } },
+      document: { querySelector: () => roster, dispatchEvent: event => events.push(event.type) },
+      els: { employeeHistory: { open: historyOpen } },
+      Event: class { constructor(type) { this.type = type; } },
+      loadEmployees: (...args) => calls.push(args),
+      loadSummary: () => assert.fail('Actualizar Personas no consulta summary'),
+    };
+    vm.runInNewContext(functionSource('refreshCurrentView') + '\nrefreshCurrentView();', context);
+    if (ownOpen || !historyOpen) {
+      assert.equal(roster.open, true);
+      assert.deepEqual(events, ['mc:native-roster-refresh']); assert.equal(calls.length, 0);
+    } else {
+      assert.deepEqual(events, []);
+      assert.deepEqual(plain(calls), [[3, { explicit: true }]]);
+    }
+  }
 });

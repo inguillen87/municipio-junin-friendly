@@ -1351,10 +1351,13 @@
 
           <section class="panel" aria-labelledby="employeeTableTitle">
             <h2 class="sr-only" id="employeeTableTitle">Directorio de personas y legajos</h2>
-            <details class="native-roster" data-native-roster data-requires-all-capability="workforce.employee.read"></details>
+            <details class="native-roster" data-native-roster data-requires-all-capability="workforce.employee.read" open></details>
             <details class="adoption-review" data-adoption-review data-requires-all-capability="workforce.employee.read"></details>
+            <details class="workforce-history employee-history" id="employeeHistory">
+              <summary>Antecedentes e histórico · consulta complementaria</summary>
+              <p>El padrón propio de arriba es la entrada para el trabajo diario. Esta consulta reúne el archivo incorporado y los registros municipales del mismo ámbito; sus indicadores de corrida y corte son referencias, no haberes propios confirmados. Abrir esta sección no consulta datos: elegí los filtros y pulsá Buscar.</p>
             <section class="workforce-workspace" id="workforceWorkspace" aria-labelledby="workforceTitle">
- <div class="workforce-heading"><div><p class="eyebrow">Operación de personal</p><h2 id="workforceTitle">Trabajá primero con el padrón activo</h2><p>Elegí un grupo para consultar sus legajos. Las bajas y el archivo completo permanecen disponibles sin mezclarse con el trabajo habitual.</p></div></div>
+ <div class="workforce-heading"><div><p class="eyebrow">Antecedentes del archivo</p><h2 id="workforceTitle">Consultar el directorio de referencia</h2><p>Los grupos y sus indicadores corresponden al directorio combinado de esta consulta. La búsqueda y los filtros acotan la tabla; no certifican una liquidación propia.</p></div></div>
  <div class="workforce-grid">
   <button type="button" class="workforce-card" data-workforce-status="administrative_active" aria-pressed="true"><span>Legajos activos</span><strong data-workforce-count="activeContracts">—</strong><small>Consultar el padrón operativo →</small></button>
   <button type="button" class="workforce-card" data-workforce-status="liquidable" aria-pressed="false"><span>Incluidos en corrida informada</span><strong data-workforce-count="payrollIncluded">—</strong><small>Inclusión de origen, no pago confirmado →</small></button>
@@ -1368,7 +1371,7 @@
   <button type="button" class="button" data-workforce-status="inactive" aria-pressed="false">Consultar inactivos / histórico</button>
  </div>
  <p id="workforceClosedLabel">Mes cerrado de referencia: por consultar.</p>
- <p class="workforce-source" id="workforceSource">Consultando el corte de la fuente. La cantidad de legajos no equivale a la cantidad de personas.</p>
+ <p class="workforce-source" id="workforceSource">Consulta sin iniciar. La fecha y los indicadores se mostrarán cuando se verifique el resultado completo.</p>
  <p class="workforce-selection" id="workforceSelection" role="status" aria-live="polite"></p>
 </section>
 
@@ -1434,7 +1437,7 @@
             </form>
 
             <div class="table-meta">
-              <div id="employeeResultCount" role="status" aria-live="polite">Preparando consulta…</div>
+              <div id="employeeResultCount" role="status" aria-live="polite">Consulta complementaria sin iniciar</div>
               <button class="button" id="cancelEmployeeQuery" type="button" hidden>Cancelar consulta</button>
               <span class="evidence source">Fuente</span>
             </div>
@@ -1454,7 +1457,7 @@
                   </tr>
                 </thead>
                 <tbody id="employeeRows">
-                  <tr><td class="table-message" colspan="7">Abrí esta sección para consultar los legajos.</td></tr>
+                  <tr><td class="table-message" colspan="7">Elegí los filtros y pulsá Buscar para consultar los antecedentes.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1464,6 +1467,7 @@
               <span class="pagination-status" id="paginationStatus">Página —</span>
               <button class="button" id="nextPage" type="button" disabled>Siguiente</button>
             </nav>
+            </details>
           </section>
         </section>
 
@@ -1622,6 +1626,7 @@
         user: null,
         summary: null,
         summaryError: null,
+        summaryLoading: false,
         tenantCapabilities: new Set(),
         currentView: 'inicio',
         employeesLoaded: false,
@@ -1631,6 +1636,7 @@
         employeeController: null,
         employeeOperation: null,
         employeeDirectoryWithdrawn: false,
+        employeeHistoryQueried: false,
         employeeReadRevoked: false,
         detailController: null,
         payrollController: null,
@@ -1688,6 +1694,7 @@
         employeeResultCount: document.getElementById('employeeResultCount'),
         employeeTableWrap: document.getElementById('employeeTableWrap'),
         cancelEmployeeQuery: document.getElementById('cancelEmployeeQuery'),
+        employeeHistory: document.getElementById('employeeHistory'),
         employeeRows: document.getElementById('employeeRows'),
         previousPage: document.getElementById('previousPage'),
         nextPage: document.getElementById('nextPage'),
@@ -2058,8 +2065,6 @@
           const detailRequest = detailRequestFromLocation();
           const initialView = detailRequest ? 'legajos' : viewFromLocation();
           showView(initialView, false, false);
-          loadSummary();
-          if (initialView === 'legajos') loadEmployees(1);
           if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo', detailRequest);
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
@@ -2098,7 +2103,9 @@
         document.title = viewLabel + ' | MuniControl';
 
         if (target !== 'legajos' && (state.employeesLoaded || state.employeesLoading)) withdrawEmployeeDirectory('area');
-        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading && !state.employeeDirectoryWithdrawn && !state.employeeReadRevoked) loadEmployees(1);
+        // Personas abre el padrón municipal; el directorio complementario sólo se consulta mediante Buscar.
+        document.dispatchEvent(new CustomEvent('mc:people-view-changed', { detail: { active: target === 'legajos' } }));
+        if (target !== 'legajos' && state.user && !state.summary && !state.summaryLoading) loadSummary();
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
           if (heading) heading.focus({ preventScroll: true });
@@ -2208,6 +2215,8 @@
       }
 
       async function loadSummary() {
+        if (state.summaryLoading) return { ok: false, resource: 'summary', pending: true };
+        state.summaryLoading = true;
         state.summaryError = null;
         setSummaryLoading();
         try {
@@ -2220,6 +2229,8 @@
           state.summaryError = error;
           setSummaryError(error);
           return { ok: false, resource: 'summary', error: error };
+        } finally {
+          state.summaryLoading = false;
         }
       }
 
@@ -2601,6 +2612,7 @@
         if (state.employeeReadRevoked || !state.tenantCapabilities.has('workforce.employee.read')) return 'permission';
         if (document.hidden) return 'hidden';
         if (state.currentView !== 'legajos') return 'area';
+        if (!els.employeeHistory.open) return 'history';
         return null;
       }
 
@@ -2768,7 +2780,9 @@
             ? { ok: false, resource: 'employees', forbidden: true }
             : { ok: false, resource: 'employees', unavailable: true };
         }
+        if (!explicit && !state.employeeHistoryQueried) return { ok: false, resource: 'employees', notRequested: true };
         if (state.employeeDirectoryWithdrawn && !explicit) return { ok: false, resource: 'employees', withdrawn: true };
+        if (explicit) state.employeeHistoryQueried = true;
         const query = employeeQuery(page);
         if (state.employeesLoading && state.employeeLastQuery === query) {
           return { ok: false, resource: 'employees', pending: true };
@@ -2976,7 +2990,7 @@
         const retry = create('button', 'button', 'Reintentar');
         retry.type = 'button';
         retry.style.margin = '14px auto 0';
-        retry.addEventListener('click', function () { loadEmployees(state.pagination.page || 1); });
+        retry.addEventListener('click', function () { loadEmployees(state.pagination.page || 1, { explicit: true }); });
         cell.appendChild(retry);
         row.appendChild(cell);
         els.employeeRows.appendChild(row);
@@ -3970,7 +3984,7 @@
         host.textContent = 'Consultando encuadre administrativo…';
         section.append(heading, host);
         const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);
-        import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);loadEmployees(state.pagination.page);}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
+        import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);withdrawEmployeeDirectory('changed');}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
         const leaveSection=document.createElement('section');leaveSection.className='employee-section';const leaveTitle=document.createElement('h3');leaveTitle.textContent='Licencias y saldos propios';const leaveHost=document.createElement('div');leaveSection.append(leaveTitle,leaveHost);
         import('./assets/native-leave.js').then(function(module){if(!leaveHost.isConnected||!els.employeeDialog.open)return;module.mountNativeLeave(leaveHost,{contractId:employee.contractId});}).catch(function(){if(leaveHost.isConnected)leaveHost.textContent='No se pudo abrir la consulta de licencias. Cerrá y volvé a abrir la ficha.';});
         import('./assets/native-employment-change.js').then(function (module) {
@@ -3978,7 +3992,7 @@
           module.mountNativeEmploymentChange(host, { contractId: employee.contractId, onApplied: function () {
             if (!host.isConnected || !els.employeeDialog.open) return;
             openEmployee(employee.contractId, employee.legajo, employee.companyId, employee.nombre);
-            loadEmployees(state.pagination.page);
+            withdrawEmployeeDirectory('changed');
           }});
         }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
         const positionSection=document.createElement('section');positionSection.className='employee-section';const positionHost=document.createElement('div');positionSection.append(positionHost);
@@ -4236,9 +4250,18 @@
       }
 
       function refreshCurrentView() {
+        if (state.currentView === 'legajos') {
+          const ownRoster = document.querySelector('[data-native-roster]');
+          if (ownRoster && (ownRoster.open || !els.employeeHistory.open)) {
+            ownRoster.open = true;
+            document.dispatchEvent(new Event('mc:native-roster-refresh'));
+          } else if (els.employeeHistory.open) {
+            loadEmployees(state.pagination.page || 1, { explicit: true });
+          }
+          return;
+        }
         els.refreshButton.disabled = true;
         const tasks = [loadSummary()];
-        if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
         Promise.allSettled(tasks).then(function (results) {
           const incomplete = results.some(function (result) {
             return result.status === 'rejected' || !result.value || result.value.ok !== true;
@@ -4262,6 +4285,12 @@
       els.retryAuth.addEventListener('click', authenticate);
       els.refreshButton.addEventListener('click', refreshCurrentView);
       els.cancelEmployeeQuery.addEventListener('click', cancelEmployeeQuery);
+      els.employeeHistory.addEventListener('toggle', function () {
+        if (!els.employeeHistory.open) {
+          state.employeeHistoryQueried = false;
+          withdrawEmployeeDirectory('history');
+        }
+      });
       els.logoutButton.addEventListener('click', function () { withdrawEmployeeDirectory('session'); });
       els.logoutButton.addEventListener('click', logout);
       els.closeDialog.addEventListener('click', closeDialog);
@@ -4273,8 +4302,13 @@
       document.addEventListener('municontrol:capabilities-ready',employeeCapabilitiesChanged);
       document.addEventListener('mc:native-employee-created', function(event) {
         if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
-        els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;
-        els.statusFilter.value='all'; applyFilters();
+        const own = document.querySelector('[data-native-roster]');
+        if (!own) return;
+        own.open = true;
+        const search = own.querySelector('input[name="search"]');
+        const status = own.querySelector('select[name="status"]');
+        if (status) status.value = 'all';
+        if (search) { search.value = event.detail.legajo; search.dispatchEvent(new Event('input', { bubbles: true })); search.focus(); }
       });
       els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(true); });
       els.employeeSearch.addEventListener('input', function () {
@@ -4305,7 +4339,10 @@
       });
       els.goToEmployees.addEventListener('click', function () {
         showView('legajos', true, true);
-        window.setTimeout(function () { els.employeeSearch.focus(); }, 0);
+        window.setTimeout(function () {
+          const own = document.querySelector('[data-native-roster]');
+          if (own) { own.open = true; own.querySelector('input[name="search"]')?.focus(); }
+        }, 0);
       });
 
       authenticate();

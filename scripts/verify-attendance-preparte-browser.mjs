@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 // Compiled or published frontend; every API call, including writes, is intercepted.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -76,7 +77,7 @@ try {
     return route.fulfill({ contentType: types[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
   });
   page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-  await page.goto(origin + '/novedades'); await page.locator('#preflightButton:enabled').waitFor();
+  await page.goto(origin + '/novedades'); await openNoveltyReferences(page); await page.locator('#preflightButton:enabled').waitFor();
   await page.locator('#periodMonth').fill('2026-09'); await page.locator('#payrollType').selectOption('monthly');
   const panel = page.locator('#attendancePreparte'), status = panel.locator('[data-ap-status]');
   const load = async () => { await panel.locator('[data-ap-load]').click(); await page.waitForFunction(() =>
