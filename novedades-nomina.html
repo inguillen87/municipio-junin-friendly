@@ -64,10 +64,14 @@
     .button.danger { color: var(--red); border-color: #d9aaa6; }
     .button.compact { min-height: 34px; padding: 5px 10px; }
     main { max-width: 1450px; margin: 0 auto; padding: 34px; }
-    .page-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 370px); gap: 30px; align-items: end; padding-bottom: 24px; }
+    .page-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; padding-bottom: 20px; }
     .eyebrow { margin: 0 0 8px; color: var(--green); font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { margin: 0; color: var(--navy); font-size: clamp(32px, 4vw, 50px); line-height: 1.04; letter-spacing: -.035em; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(28px, 3vw, 38px); line-height: 1.15; letter-spacing: -.035em; }
     .lead { max-width: 820px; margin: 12px 0 0; color: #506874; font-size: 16px; }
+    .novelty-reference { margin-top: 22px; border: 1px solid var(--line); border-radius: 10px; padding: 0 18px 18px; background: var(--surface); }
+    .novelty-reference > summary, #monthlyDecisions > summary, #monthlyAnnul > summary, #monthlyCorrection > summary { cursor: pointer; padding: 16px 0; min-height: 48px; color: var(--navy); font-weight: 800; }
+    .novelty-reference summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .novelty-reference > p { color: var(--muted); margin: 0 0 14px; }
     .boundary { padding: 16px 18px; color: #65430f; background: var(--amber-soft); border: 1px solid #e7ca87; border-left: 4px solid #b87b17; border-radius: 5px; }
     .boundary strong { display: block; color: #50350d; }
     .boundary p { margin: 5px 0 0; }
@@ -189,7 +193,7 @@
         <a href="reportes-rrhh.html"><span class="nav-code">IR</span><span>Reportes RRHH</span></a>
         <a href="calidad-operativa.html"><span class="nav-code">DQ</span><span>Calidad operativa</span></a>
       </nav>
-      <div class="side-note"><strong>Alcance operativo</strong>Una aprobación habilita exportación controlada. No calcula haberes, no publica recibos y no modifica GRH.</div>
+      <div class="side-note"><strong>Tu circuito de trabajo</strong>Cargá y revisá las novedades. Continuá en Calcular para procesar el período y en Documentos para consultar sus resultados.</div>
     </aside>
 
     <div class="workspace">
@@ -198,12 +202,12 @@
         <div class="top-actions"><a class="button primary" href="importar-novedades-grh.html">Importar TXT de entidades</a><span class="scope-chip" id="sessionScope">Validando capacidades</span><button class="button" id="refreshButton" type="button">Actualizar</button><button class="button danger" id="logoutButton" type="button">Cerrar sesión</button></div>
       </header>
 
-      <div class="loading" id="loadingState" role="status"><div><strong>Preparando novedades de nómina</strong><span>Validando sesión, fuente GRH certificada y capacidades efectivas.</span></div></div>
+      <div class="loading" id="loadingState" role="status"><div><strong>Preparando novedades de nómina</strong><span>Preparando el área de trabajo. Cada consulta verifica tu sesión y el acceso vigente.</span></div></div>
       <main id="mainContent">
         <div id="pageContent" hidden>
           <section class="page-head" aria-labelledby="pageTitle">
-            <div><p class="eyebrow">Nómina · ingreso gobernado</p><h1 id="pageTitle">Novedades listas para revisar, no para improvisar</h1><p class="lead">Cargá una novedad o un lote, detectá errores antes de guardar y enviá a una segunda persona para aprobar. La salida aprobada queda trazada y exportable.</p></div>
-            <aside class="boundary"><strong>Límite operativo explícito</strong><p>Esta pantalla no escribe <code>GRH</code>, no toca <code>calculo</code> ni <code>employment_movement</code>. La integración final queda para una etapa homologada.</p></aside>
+            <div><p class="eyebrow">Liquidaciones · novedades</p><h1 id="pageTitle">Cargar novedades de nómina</h1><p class="lead">Elegí uno o varios legajos del padrón propio, agregá conceptos y revisá el lote completo. Después de su aprobación, continuá con el cálculo del período.</p></div>
+            <nav class="form-actions" aria-label="Continuar el circuito de nómina"><a class="button" href="nomina-control.html#calculo">Ir a Calcular</a><a class="button" href="nomina-control.html#reportes">Consultar reportes</a></nav>
           </section>
 
           <div class="message" id="messageHost" role="status" aria-live="polite" hidden></div>
@@ -218,12 +222,15 @@
             <div data-fixed-host></div>
           </details>
 
+          <details class="novelty-reference" id="noveltyReferenceWorkspace">
+            <summary>Otras cargas, archivos incorporados y lotes anteriores</summary>
+            <p>Usá estas herramientas para continuar un lote anterior, una carga por archivo o la novedad mensual abierta desde una ficha. Para el trabajo habitual con registros propios, usá la carga de arriba.</p>
           <section class="section" id="readOnlySection" aria-labelledby="readOnlyTitle" hidden>
             <header class="section-head"><div><span class="section-index">CONSULTA HABILITADA</span><h2 id="readOnlyTitle">Bandeja visible sin permiso de carga</h2><p>Tu perfil puede consultar la bandeja habilitada por el servidor. El detalle nominal, la auditoría y la exportación aparecen únicamente si tus capacidades efectivas los autorizan.</p></div><span class="status submitted">Sólo lectura</span></header>
           </section>
 
           <section class="section" id="entrySection" aria-labelledby="entryTitle" hidden>
-            <header class="section-head"><div><span class="section-index">01 · CARGAR Y VALIDAR</span><h2 id="entryTitle">Preparar novedades</h2><p>La validación previa ocurre primero en el navegador y se repite de forma autoritativa en el servidor.</p></div><span class="status draft">Hasta <span id="maxRows">500</span>&nbsp;filas</span></header>
+            <header class="section-head"><div><span class="section-index">01 · CARGAR Y VALIDAR</span><h2 id="entryTitle">Preparar novedades</h2><p>Elegí el modo de carga, revisá todas las filas y confirmá el lote antes de enviarlo.</p></div><span class="status draft">Hasta <span id="maxRows">500</span>&nbsp;filas</span></header>
 
             <section class="boundary" id="nativeMonthlyPanel" aria-labelledby="nativeMonthlyTitle" style="margin-bottom:20px;overflow-wrap:anywhere" hidden>
               <h3 id="nativeMonthlyTitle">Novedad de una persona</h3>
@@ -249,7 +256,7 @@
 
             <div class="form-grid" id="individualFields">
               <div class="field"><label for="legajo">Legajo</label><input id="legajo" inputmode="numeric" maxlength="20" placeholder="Ej.: 571"><button type="button" class="button picker-open-button" id="pickLegajoButton">Buscar por nombre</button><p id="pickedLegajoName" class="picker-picked-name" role="status" aria-live="polite"></p></div>
-              <div class="field"><label for="conceptSourceId">Concepto</label><input id="conceptSourceId" inputmode="numeric" maxlength="20" placeholder="Código GRH"></div>
+              <div class="field"><label for="conceptSourceId">Concepto</label><input id="conceptSourceId" inputmode="numeric" maxlength="20" placeholder="Código de concepto"></div>
               <div class="field"><label for="costCenterSourceId">Área / centro de costo</label><input id="costCenterSourceId" inputmode="numeric" maxlength="20" placeholder="Opcional"></div>
               <div class="field"><label for="adjustmentMonth">Mes de ajuste</label><input id="adjustmentMonth" type="month"><small>Debe ser igual o anterior al período.</small></div>
               <div class="field"><label for="quantityDecimal">Unidades</label><input id="quantityDecimal" inputmode="decimal" placeholder="Ej.: 2,5"></div>
@@ -301,7 +308,7 @@
               </div>
               <p id="agileVisibleCount" role="status" aria-live="polite"></p>
               <div class="table-wrap" id="agileTable" hidden><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Fundamento</th><th>Acción</th></tr></thead><tbody id="agileRows"></tbody></table></div>
-              <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. El servidor vuelve a validar todas las filas, el binding GRH y tus capacidades.</p>
+              <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. Al guardar, se comprueban todas las filas, sus vínculos y tu acceso vigente.</p>
             </div>
 
             <div id="sheetFields" hidden></div>
@@ -319,7 +326,7 @@
 
             <div class="form-actions"><button class="button" id="preflightButton" type="button" aria-describedby="prepareHelp">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" aria-describedby="prepareHelp" disabled>Crear lote trazable</button></div>
             <p id="prepareHelp" class="hint" role="status" aria-live="polite">Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Crear lote trazable.</p>
-            <p class="hint">Este lote guarda novedades para revisión. Anular o liquidar por legajo y generar su recibo o planilla nuevos todavía no está disponible en este circuito.</p>
+            <p class="hint">Esta acción guarda el lote de novedades. El cálculo, la anulación de liquidaciones y los recibos se gestionan en sus tareas del menú Liquidaciones.</p>
 
             <section id="noveltyIssuesPanel" hidden></section>
             <div class="preview" id="previewPanel" hidden>
@@ -330,11 +337,11 @@
           </section>
 
           <section class="section" aria-labelledby="batchesTitle">
-            <header class="section-head"><div><span class="section-index">02 · PREPARACIÓN Y REVISIÓN</span><h2 id="batchesTitle">Lotes y decisiones</h2><p>Los botones aparecen únicamente cuando el backend confirma la capacidad y el estado permitido.</p></div></header>
-            <div class="empty" id="batchEmpty">Todavía no hay lotes visibles para esta sesión y binding certificado.</div>
-            <section id="monthlyDecisions" hidden></section>
-            <section id="monthlyAnnul" hidden></section>
-            <section id="monthlyCorrection" hidden></section>
+            <header class="section-head"><div><span class="section-index">02 · PREPARACIÓN Y REVISIÓN</span><h2 id="batchesTitle">Lotes y decisiones</h2><p>Abrí un lote para revisar sus filas, aprobarlo o consultar su historial.</p></div></header>
+            <div class="empty" id="batchEmpty">No hay lotes anteriores disponibles para esta cuenta y ámbito.</div>
+            <details id="monthlyDecisions" hidden><summary>Decidir varios lotes</summary></details>
+            <details id="monthlyAnnul" hidden><summary>Anular lotes de novedades aprobados</summary></details>
+            <details id="monthlyCorrection" hidden><summary>Corregir lotes de novedades aprobados</summary></details>
             <div class="table-wrap" id="batchTable" hidden><table><thead><tr><th>Lote</th><th>Período</th><th>Liquidación</th><th>Filas</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="batchRows"></tbody></table></div>
           </section>
 
@@ -348,6 +355,7 @@
             <div class="detail-toolbar"><div class="field" id="rejectReasonField" hidden><label for="rejectReason">Motivo de rechazo</label><select id="rejectReason"><option value="invalid_rows">Filas inválidas</option><option value="unsupported_concept">Concepto sin homologar</option><option value="duplicate_or_conflict">Duplicado o conflicto</option></select></div><div class="detail-actions" id="detailActions"></div></div>
             <p class="panel-note" id="detailExportNote"><strong>Excel de revisión:</strong> conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.</p>
           </section>
+          </details>
         </div>
       </main>
     </div>

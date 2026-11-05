@@ -18,7 +18,7 @@ const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
 const errors={
-  OWN_RUN_PROGRAM_REQUIRED:'Falta aprobar un programa propio compatible con las definiciones salariales. El cálculo no se completó.',
+  OWN_RUN_PROGRAM_REQUIRED:'Falta registrar en el motor una configuración de cálculo compatible con las definiciones salariales. Completala en Reglas de cálculo. El cálculo no se completó.',
   OWN_RUN_PROGRAM_CHANGED:'Cambió el programa aprobado. Consultá el intento antes de revisar otra preparación.',
   OWN_RUN_PRORATION_REQUIRED:'Hay una vigencia laboral parcial. Se necesita una regla de prorrateo aprobada; no se supusieron días ni horas.',
   OWN_RUN_HISTORY_REQUIRED:'Falta aprobar el encuadre de este período. Abrí Encuadre por período, elegí el legajo y el mes, y prepará la declaración para su revisión independiente. Después consultá este intento antes de calcular de nuevo.',
@@ -43,7 +43,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN · MOTOR PROPIO</p><h2>Calcular nómina</h2><p>Elegí el período y el alcance. Se conservan el programa aprobado, las novedades y el resultado de cada cálculo.</p></div><button class="button" type="button" data-own-refresh>Actualizar acceso y corridas</button></header>
   <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><p data-own-readiness-facts></p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
-  <details class="own-run-notice" data-own-prerequisites><summary>Antes del primer cálculo: padrón, valores y reglas</summary><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Prepará y aprobá el programa en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
+  <details class="own-run-notice" data-own-prerequisites><summary>Antes del primer cálculo: padrón, valores y reglas</summary><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
     <label for="ownRunPeriod">Período<input id="ownRunPeriod" data-own-period type="month" required></label>
     <div class="own-run-date"><label for="ownRunDate">Fecha de liquidación<input id="ownRunDate" data-own-date type="date" min="1900-01-01" max="2099-12-31" required aria-describedby="ownRunDateHelp"></label><small id="ownRunDateHelp">Fecha declarada de este cálculo. Las reglas aprobadas se aplican al período; esta fecha no es una fecha de pago.</small><button class="button" type="button" data-own-period-end>Usar último día del período</button></div>
@@ -116,7 +116,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!help.hidden){
       if(busy)message='Hay una consulta o un envío en curso. Esperá a que termine antes de volver a enviarlo.';
       else if(attempt)message='Consultá este intento si no conocés su estado. Reintentar conserva la misma referencia y el mismo contenido.';
-      else if(!canStart()){message=readiness.state==='program_required'?'Para calcular falta aprobar las reglas mediante revisión independiente. El borrador se conserva.':readiness.title+'. '+readiness.description;href=readiness.href;label=readiness.action??'';}
+      else if(!canStart()){message=readiness.state==='program_required'?'Falta guardar la configuración de cálculo en el motor. El borrador se conserva.':readiness.title+'. '+readiness.description;href=readiness.href;label=readiness.action??'';}
       else if(!$('confirm').checked)message='Marcá «Revisé el período, la fecha, el tipo y todo el alcance» cuando hayas terminado la revisión.';
       else message='Revisión marcada. Al calcular se volverán a verificar el padrón y las reglas aprobadas.';
     }
@@ -127,7 +127,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('readiness').hidden=!!attempt&&attempt.key!==knownSavedKey;
     $('readiness').dataset.state=readiness.state==='linked'?'success':'warning';
     $('readiness-title').textContent=readiness.title;$('readiness-description').textContent=readiness.description;
-    $('readiness-facts').textContent=readiness.rosterTotal===null?'Padrón y aprobaciones: sin verificar.':readiness.rosterTotal+' legajos propios en la consulta completa · '+(readiness.catalogRevision?'maestro aprobado, revisión '+readiness.catalogRevision:'maestro sin aprobación')+' · '+(readiness.programRevision?'programa aprobado, revisión '+readiness.programRevision:'programa sin aprobación')+'.';
+    $('readiness-facts').textContent=readiness.rosterTotal===null?'Padrón y configuración: sin verificar.':readiness.rosterTotal+' legajos propios en la consulta completa · '+(readiness.catalogRevision?'maestro aprobado, revisión '+readiness.catalogRevision:'maestro sin aprobación')+' · '+(readiness.programRevision?'programa aprobado, revisión '+readiness.programRevision:'configuración de cálculo sin registrar')+'.';
     $('readiness-link').hidden=!readiness.href;
     if(readiness.href){$('readiness-link').href=readiness.href;$('readiness-link').textContent=readiness.action;}else $('readiness-link').removeAttribute('href');
     $('readiness-check').hidden=readiness.state!=='unverified';$('readiness-check').disabled=busy||!can(OWN_RUN_READ);
@@ -234,7 +234,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
     renderHistory();controls();
     if(draftIssue){status(draftIssue,'warning');return;}
-    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta aprobar las reglas antes de confirmar el alcance y calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
+    status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
     const program=await request('/api/internal-own-payroll-program?resource=bootstrap');

@@ -14,6 +14,7 @@ import { access, open, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
 
 const TOOL_VERSION = '1.0.0';
@@ -725,6 +726,49 @@ async function fileMagic(inputPath) {
   }
 }
 
+/** Internal streaming seam: no path, file creation or parser replacement. */
+export async function profileSqlSourceStream(input, { isGzip, sourceBytes }) {
+  const sourceHash = createHash('sha256');
+  const hashTap = new Transform({
+    transform(chunk, _encoding, callback) {
+      sourceHash.update(chunk);
+      callback(null, chunk);
+    },
+  });
+  const gunzip = isGzip ? createGunzip() : null;
+  const scanner = new SqlStructureScanner();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let logicalBytes = 0;
+  try {
+    await pipeline(input, hashTap, ...(gunzip ? [gunzip] : []), async (stream) => {
+      for await (const chunk of stream) {
+        if (logicalBytes > MAX_LOGICAL_BYTES - chunk.length) {
+          throw new BackupProfileError('tamano logico excede el limite seguro');
+        }
+        logicalBytes += chunk.length;
+        if (isGzip && logicalBytes > COMPRESSION_RATIO_CHECK_AFTER_BYTES
+            && logicalBytes > sourceBytes * MAX_COMPRESSION_RATIO) {
+          throw new BackupProfileError('expansion gzip excede el limite seguro');
+        }
+        scanner.feed(decoder.decode(chunk, { stream: true }));
+      }
+      scanner.feed(decoder.decode());
+      scanner.finish();
+    });
+  } catch (error) {
+    if (error instanceof BackupProfileError) throw error;
+    throw new BackupProfileError(
+      isGzip ? 'gzip o SQL invalido; perfil abortado' : 'SQL invalido; perfil abortado',
+      { cause: error },
+    );
+  } finally {
+    input.destroy();
+    hashTap.destroy();
+    gunzip?.destroy();
+  }
+  return { scanner, logicalBytes, sha256: sourceHash.digest('hex') };
+}
+
 export async function profileSqlFile(inputPath) {
   const absolutePath = path.resolve(inputPath);
   await access(absolutePath);
@@ -741,40 +785,9 @@ export async function profileSqlFile(inputPath) {
     throw new BackupProfileError('archivo .gz con cabecera gzip invalida');
   }
 
-  const sourceHash = createHash('sha256');
-  const hashTap = new Transform({
-    transform(chunk, _encoding, callback) {
-      sourceHash.update(chunk);
-      callback(null, chunk);
-    },
+  const { scanner, logicalBytes, sha256 } = await profileSqlSourceStream(createReadStream(absolutePath), {
+    isGzip, sourceBytes: sourceStat.size,
   });
-  const scanner = new SqlStructureScanner();
-  const decoder = new TextDecoder('utf-8', { fatal: true });
-  let logicalBytes = 0;
-  let stream = createReadStream(absolutePath).pipe(hashTap);
-  if (isGzip) stream = stream.pipe(createGunzip());
-
-  try {
-    for await (const chunk of stream) {
-      if (logicalBytes > MAX_LOGICAL_BYTES - chunk.length) {
-        throw new BackupProfileError('tamano logico excede el limite seguro');
-      }
-      logicalBytes += chunk.length;
-      if (isGzip && logicalBytes > COMPRESSION_RATIO_CHECK_AFTER_BYTES
-          && logicalBytes > sourceStat.size * MAX_COMPRESSION_RATIO) {
-        throw new BackupProfileError('expansion gzip excede el limite seguro');
-      }
-      scanner.feed(decoder.decode(chunk, { stream: true }));
-    }
-    scanner.feed(decoder.decode());
-    scanner.finish();
-  } catch (error) {
-    if (error instanceof BackupProfileError) throw error;
-    throw new BackupProfileError(
-      isGzip ? 'gzip o SQL invalido; perfil abortado' : 'SQL invalido; perfil abortado',
-      { cause: error },
-    );
-  }
 
   const tables = finalizedTables(scanner);
   const candidates = Object.fromEntries(Object.entries(CANDIDATE_SIGNALS).map(([type, signals]) => [
@@ -808,7 +821,7 @@ export async function profileSqlFile(inputPath) {
       container: isGzip ? 'gzip' : 'plain-sql',
       bytes: sourceStat.size,
       logicalBytes,
-      sha256: sourceHash.digest('hex'),
+      sha256,
     },
     sql: {
       dialect: 'MariaDB/MySQL',

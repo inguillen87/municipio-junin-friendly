@@ -110,6 +110,12 @@ async function responsive(scenario){
   const targets=await page.locator('#qa .button,#qa input:not([type=checkbox]),#qa select').evaluateAll(elements=>elements.filter(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').map(e=>({label:e.textContent?.trim().slice(0,80)||e.getAttribute('aria-label')||e.id,tag:e.tagName,height:e.getBoundingClientRect().height})));
   for(const target of targets)assert.ok(target.height>=43.9,scenario+' '+width+'px target below44px: '+JSON.stringify(target));
   check(targets.length>0,scenario+' has '+targets.length+' visible targets of at least44px at '+width+'px');
+  if(scenario.startsWith('calculation')){
+   const fields=await page.locator('.own-run-grid input[type=month],.own-run-grid input[type=date],.own-run-grid select').evaluateAll(elements=>elements.filter(e=>e.getClientRects().length).map(e=>({id:e.id,height:e.getBoundingClientRect().height})));
+   assert.equal(fields.length,4,scenario+' exposes the four calculation controls');
+   for(const field of fields)assert.ok(field.height>=43.9&&field.height<=64,scenario+' '+width+'px control should remain compact and accessible: '+JSON.stringify(field));
+   check(true,scenario+' keeps period, date, type and scope at44–64px at '+width+'px');
+  }
   const file=scenario+'-'+width+'.png';await page.screenshot({path:path.join(output,file),fullPage:true});screenshots.push(file);
  }
 }

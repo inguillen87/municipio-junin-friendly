@@ -107,7 +107,7 @@ test('permiso de calcular con cero legajos propios no habilita el botón ni una 
 });
 test('maestro pendiente y programa pendiente muestran su paso real, sin aprobarlos en pantalla',async t=>{
  const h=harness(t);h.state.program=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await h.start();assert.equal(h.q('readiness-link').href,'/nomina#parametros');assert.equal(h.q('fields').disabled,true);
- h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.equal(h.q('send').disabled,true);assertActionHelp(h,/falta aprobar las reglas/,{href:'/nomina#reglas'});assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+ h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/configuración de cálculo sin registrar/);assert.equal(h.q('send').disabled,true);assertActionHelp(h,/Falta guardar la configuración de cálculo en el motor/,{href:'/nomina#reglas'});assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 test('error de servicio, capacidad, aborto, JSON inválido y filtro se muestran sin verificar, nunca como cero',async t=>{
  const h=harness(t);await h.start();assert.equal(h.q('fields').disabled,false);
@@ -184,7 +184,7 @@ test('una preparación encolada mientras está oculta no provoca lectura nominal
 
 test('851 propios verificados y programa cero permiten borrador completo sin clave, ACK ni POST',async t=>{
  const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);h.state.roster.rows[0].recordKind='adopted';h.state.roster.rows[0].sexCode='Femenino';h.state.roster.rows[1].recordKind='adopted';h.state.roster.rows[1].sexCode='Masculino';await h.start();
- assert.match(h.q('readiness-facts').textContent,/851 legajos propios/);assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.match(h.q('readiness-description').textContent,/borrador/);assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
+ assert.match(h.q('readiness-facts').textContent,/851 legajos propios/);assert.match(h.q('readiness-facts').textContent,/configuración de cálculo sin registrar/);assert.match(h.q('readiness-description').textContent,/borrador/);assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
  h.q('period').value='2026-10';await h.q('period-end').emit('click');assert.equal(h.q('date').value,'2026-10-31');h.q('type').value='monthly';h.q('kind').value='departments';await h.q('kind').emit('change');assert.ok(h.q('codes').options.length);h.q('codes').options[0].selected=true;await h.q('codes').emit('change');assert.equal(h.q('codes').selectedOptions.length,1);
  // A forged DOM checkbox/submission still cannot cross the unchanged canStart gate.
  h.q('confirm').checked=true;await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('recover').hidden,true);

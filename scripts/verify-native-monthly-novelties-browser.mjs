@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Real UI; all private APIs (GET and POST) are intercepted synthetic fixtures. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -259,12 +260,12 @@ try{
   await page.waitForFunction(()=>document.body.dataset.busy==='true');deny=true;
   // Trigger a newer authority read while the employee lookup remains in flight.
   await page.evaluate(()=>document.querySelector('#refreshButton').dispatchEvent(new Event('click')));
-  await page.locator('#messageHost').filter({hasText:'No pudimos cargar'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
+  await page.locator('#messageHost').filter({hasText:'No pudimos consultar los lotes anteriores'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
   await page.waitForFunction(()=>document.body.dataset.busy!=='true');
   assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   checks.push('late employee response cannot restore nominal identity after a newer denied authority read');
   deny=false;directory=true;nominal=true;prepare=true;actor='maker';current=true;currentSubject=clone(original);batches.clear();
-  const openWithoutContract=async()=>{const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);await page.goto(target.href);await page.locator('#preflightButton:enabled').waitFor();};
+  const openWithoutContract=async()=>{const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);await page.goto(target.href);await openNoveltyReferences(page);await page.locator('#preflightButton:enabled').waitFor();};
   const searchDirectory=async(button)=>{await page.locator(button).click();const dialog=page.locator('#employeePicker');await dialog.locator('input[type=search]').fill('QA');await dialog.locator('button[type=submit]').click();await dialog.locator('.picker-row').first().waitFor();return dialog;};
   await openWithoutContract();await page.locator('#periodMonth').fill('2026-10');await page.locator('#conceptSourceId').fill('95');await page.locator('#quantityDecimal').fill('100');
   const beforeName=posts.length;

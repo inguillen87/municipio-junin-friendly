@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Real workbench and draft parser; all private requests, including POSTs, use synthetic fixtures. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -87,7 +88,7 @@ try{
  });
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const preview=page.locator('#previewPanel'),table=page.locator('#previewRows');
- await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#preflightButton:enabled').waitFor();
  await page.locator('#periodMonth').fill('2026-09');await page.locator('[name=sourceMode][value=bulk]').check();
  const validate=async()=>{await page.locator('#bulkSource').fill(csv);await page.locator('#preflightButton').click();await preview.waitFor({state:'visible'});};
  await validate();assert.equal(posts.length,0);assert.equal(await table.locator('[data-review-row]').count(),25);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {F931_REFERENCE,F931_FIELDS,ownF931Params,ownF931VersionRequirement} from '../assets/own-f931-contract.js';
+import {F931_REFERENCE,F931_VERSION_RULE,F931_FIELDS,ownF931Params,ownF931VersionRequirement} from '../assets/own-f931-contract.js';
 import {prepareOwnF931,ownF931Proof,ownF931VisibleFields,ownF931PreparationCsv} from '../assets/own-f931-preparation-model.js';
 import {loadOwnF931Preparation} from '../assets/own-f931-preparation-client.js';
 import {reportFixture,historicalReportFixture,rehashReportFixture} from './fixtures/own-payroll-report-synthetic.js';
@@ -16,12 +16,40 @@ test('official V47.5 reference has 60 contiguous fields and 499 positions, not a
  assert.deepEqual(F931_FIELDS.filter(f=>[1,12,13,20,41,57,58,59,60].includes(f.number)).map(f=>[f.number,f.from,f.to]),[[1,1,11],[12,68,69],[13,70,81],[20,139,188],[41,320,328],[57,463,463],[58,464,475],[59,476,487],[60,488,499]]);
  assert.match(F931_REFERENCE.sha256,/^[a-f0-9]{64}$/);
 });
-test('version48 requires period OR presentation cutoff, including old-period rectifications',()=>{
+test('RG5915 moves both independent V48 cutoffs to December without choosing a pre-cutoff version',()=>{
+ assert.equal(F931_VERSION_RULE.effectiveDate,'2026-12-01');assert.equal(F931_VERSION_RULE.firstPeriod,'2026-12');
+ assert.equal(F931_VERSION_RULE.url,'https://www.argentina.gob.ar/normativa/nacional/norma-430768/actualizacion');
+ assert.match(F931_VERSION_RULE.articles,/17 y 19/);assert.match(F931_VERSION_RULE.articles,/RG 5915\/2026/);assert.match(F931_VERSION_RULE.articles,/puntos 3 y 4/);assert.ok(Object.isFrozen(F931_VERSION_RULE));
+ const p=params(fixture()),cases=[
+  ['2026-09','2026-10-31',null,false,false],
+  ['2026-11','2026-11-01',null,false,false],
+  ['2026-11','2026-11-30',null,false,false],
+  ['2026-11','2026-12-01','48',false,true],
+  ['2026-12','2026-11-30','48',true,false],
+  ['2026-12','2026-12-01','48',true,true],
+  ['2025-01','2026-11-30',null,false,false],
+  ['2025-01','2026-12-01','48',false,true],
+  ['2027-01','2027-02-01','48',true,true],
+ ];
+ for(const [period,presentationDate,version,byPeriod,byPresentation]of cases){
+  const r=ownF931VersionRequirement({...p,period,presentationDate});
+  assert.deepEqual([r.mandatedVersion,r.byPeriod,r.byPresentation],[version,byPeriod,byPresentation],period+' / '+presentationDate);
+  assert.equal(r.layoutConfirmed,false);assert.equal(r.referenceVersion,'47.5');assert.equal(r.referenceWidth,499);assert.ok(Object.isFrozen(r));
+  if(version===null)assert.doesNotMatch(r.label,/Requiere versi[oó]n (?:47\.8|48)/);
+ }
+});
+test('labor jurisdiction cannot select a fiscal version or establish a declaration population',()=>{
  const p=params(fixture());
- assert.equal(ownF931VersionRequirement(p).mandatedVersion,null);
- assert.deepEqual([ownF931VersionRequirement({...p,period:'2026-11'}).byPeriod,ownF931VersionRequirement({...p,presentationDate:'2026-11-01'}).byPresentation],[true,true]);
- for(const v of [{...p,period:'2026-11'},{...p,presentationDate:'2026-11-01'},{...p,period:'2025-01',presentationDate:'2027-02-01'}]){const r=ownF931VersionRequirement(v);assert.equal(r.mandatedVersion,'48');assert.equal(r.layoutConfirmed,false);}
- assert.equal(ownF931VersionRequirement({...p,presentationDate:'2026-10-31'}).layoutConfirmed,false);
+ for(const presentationDate of ['2026-11-30','2026-12-01']){
+  const base=ownF931VersionRequirement({...p,period:'2026-11',presentationDate});
+  for(const jurisdiction of ['all','42','55'])assert.deepEqual(ownF931VersionRequirement({...p,period:'2026-11',presentationDate,jurisdiction}),base);
+  for(const fiscalPopulation of ['General','42','55'])assert.throws(()=>ownF931VersionRequirement({...p,presentationDate,fiscalPopulation}));
+ }
+});
+test('V48 date requirement keeps generation, submission and fiscal population homologation pending',async()=>{
+ const f=fixture(),r=await prepareOwnF931({...params(f),presentationDate:'2026-12-01'},f.details,f.receipts);
+ assert.equal(r.versionRequirement.mandatedVersion,'48');assert.equal(r.versionRequirement.layoutConfirmed,false);assert.equal(r.canGenerate,false);assert.equal(r.canSubmit,false);
+ assert.ok(r.requirements.some(x=>x.code==='DECLARATION_POPULATIONS'));assert.ok(r.requirements.some(x=>x.code==='FISCAL_FIELDS_AND_MAPPINGS'));assert.ok(r.requirements.some(x=>x.code==='FIELD_REPRESENTATION'));
 });
 test('explicit dates/types, actual civil dates and strict fields; no automatic today or monthly default',()=>{
  const p=params(fixture());for(const bad of [{...p,presentationDate:null},{...p,presentationDate:'2026-02-29'},{...p,presentationDate:'2026-11-31'},{...p,presentationDate:'2026-10-01T00:00:00Z'},{...p,types:[]},{...p,types:['monthly','monthly']},{...p,period:'2026-13'},{...p,extra:'ignored'}])assert.throws(()=>ownF931Params(bad));

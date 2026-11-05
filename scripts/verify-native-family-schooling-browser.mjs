@@ -11,10 +11,32 @@ import {draft,bootstrap,receipt as registrationReceipt} from '../tests/fixtures/
 import {nativeEmployeeDetail} from '../lib/native-employee-directory.js';
 import '../assets/app-routes.js';
 
-assert.ok(process.argv.slice(2).every(x=>x==='--published'),'UNKNOWN_ARGUMENT');
-const published=process.argv.includes('--published'),origin=published?'https://municipio-junin-friendly.vercel.app':'https://municontrol.test';
-const base=path.resolve('public'),out=path.resolve('verification/native-family-schooling-'+(published?'published':'local'));
-fs.mkdirSync(out,{recursive:true});
+const outputOptions=process.argv.slice(2),outputValues=outputOptions.filter(arg=>arg.startsWith('--output='));
+assert.ok(outputValues.length<=1&&outputOptions.filter(arg=>arg==='--published').length<=1&&outputOptions.every(arg=>arg==='--published'||arg.startsWith('--output=')),'UNKNOWN_ARGUMENT');
+const published=outputOptions.includes('--published'),origin=published?'https://municipio-junin-friendly.vercel.app':'https://municontrol.test';
+function freshOutput(relative){
+ assert.ok(/^verification\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?\/)*[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$/.test(relative),'--output must be verification/<fresh relative path>');
+ const parts=relative.split('/');
+ assert.ok(parts.every(part=>!(/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(part))),'Windows device names are not output directories');
+ const repo=fs.realpathSync(new URL('../',import.meta.url));
+ const within=p=>{const location=path.relative(repo,fs.realpathSync(p));assert.ok(location!==''&&!path.isAbsolute(location)&&location!=='..'&&!location.startsWith('..'+path.sep),'Output escapes repository');};
+ let parent=repo;
+ for(const part of parts.slice(0,-1)){
+  const next=path.join(parent,part);let entry;
+  try{entry=fs.lstatSync(next);}catch(error){if(error.code!=='ENOENT')throw error;}
+  if(entry)assert.ok(entry.isDirectory()&&!entry.isSymbolicLink(),'Output parent must be a regular directory, without symlinks');
+  else fs.mkdirSync(next);
+  const current=fs.lstatSync(next);assert.ok(current.isDirectory()&&!current.isSymbolicLink(),'Output parent cannot be replaced with a symlink');within(next);parent=next;
+ }
+ const target=path.join(parent,parts.at(-1));let existing;
+ try{existing=fs.lstatSync(target);}catch(error){if(error.code!=='ENOENT')throw error;}
+ assert.equal(existing,undefined,'Preserve prior browser evidence: output already exists');
+ fs.mkdirSync(target);
+ assert.ok(fs.lstatSync(target).isDirectory()&&!fs.lstatSync(target).isSymbolicLink(),'Output must be a fresh regular directory');within(target);
+ return target;
+}
+const base=path.resolve('public'),out=outputValues.length?freshOutput(outputValues[0].slice(9)):path.resolve('verification/native-family-schooling-'+(published?'published':'local'));
+if(!outputValues.length)fs.mkdirSync(out,{recursive:true});
 const ownedAssets=['assets/family-schooling.js','assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css','assets/native-employee-create.js'];
 for(const file of ownedAssets)assert.ok(fs.readFileSync(file).equals(fs.readFileSync(path.join(base,file))),'STALE_BUILD:'+file);
 const checks=[],errors=[],requests=[],familyPosts=[],schoolPosts=[],downloads=[],assetReceipts=new Map(),routeFailures=[];
@@ -139,6 +161,16 @@ try{
  await openChild('Hijo nativo sintético');dropChild=true;await family.locator('[data-fs-child-save]').click();await ready();
  assert.equal(familyPosts.length,1);assert.equal(await family.locator('[data-fs-child-field="familyName"]').isDisabled(),true);assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(),true);
  await page.locator('#employeeDialog').getByRole('button',{name:/Cerrar ficha/}).click();
+ // The pending in-memory attempt must reopen through the voluntary complementary directory.
+ const directoryReads=()=>requests.filter(r=>r.path==='/api/internal-data'&&r.method==='GET'&&r.resource==='employees').length;
+ const historyEntry=page.locator('#employeeHistory'),beforeDirectory=directoryReads();
+ assert.equal(beforeDirectory,0);assert.equal(await historyEntry.evaluate(n=>n.open),false);
+ await historyEntry.locator('summary').first().click();
+ assert.equal(directoryReads(),beforeDirectory,'OPENING_HISTORY_MUST_NOT_QUERY');
+ await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Hijos y certificados'));
+ assert.equal(directoryReads(),beforeDirectory+1,'ONE_EXPLICIT_DIRECTORY_QUERY');
+ checks.push('native family reopen uses the real complementary entry and one explicit search, with no automatic directory read');
  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await ready();
  // Closing the dialog retains the uncertain attempt in memory. Recovery is a
  // scoped GET; if the UI already resolved it on reopen no extra click is needed.
@@ -164,8 +196,18 @@ try{
  assert.equal(await family.locator('[data-fs-child-field="familyName"]').isDisabled(),true);const beforeRecovery=familyPosts.length;
  await family.locator('[data-fs-child-recheck]').click();await saved();assert.equal(familyPosts.length,beforeRecovery);
  checks.push('a wrong-contract receipt stays uncertain until the exact scoped attempt is recovered, without another POST');
- await openFamily();wrongContext=true;await family.locator('[data-fs-family-refresh]').click();await ready();assert.equal(await family.locator('[data-fs-add-child]').isEnabled(),false);wrongContext=false;
- checks.push('context for the wrong contract cannot enable a family declaration');
+ await openFamily();wrongContext=true;
+ const declarationContextGets=()=>requests.filter(r=>r.path==='/api/internal-family-members'&&r.method==='GET'&&r.resource==='context').length;
+ const beforeWrongContext=declarationContextGets(),beforeWrongContextPosts=familyPosts.length,consultedChildren=await family.locator('.fs-child').count();
+ await family.locator('[data-fs-family-refresh]').click();await ready();
+ assert.equal(declarationContextGets(),beforeWrongContext);assert.equal(await family.locator('.fs-create-editor').count(),0);assert.equal(familyPosts.length,beforeWrongContextPosts);
+ const wrongContextResponse=page.waitForResponse(response=>{const url=new URL(response.url());return response.request().method()==='GET'&&url.pathname==='/api/internal-family-members'&&url.searchParams.get('resource')==='context'&&url.searchParams.get('contractId')===subject.contractId;});
+ await family.locator('[data-fs-add-child]').click();const rejectedContext=await wrongContextResponse;
+ assert.equal(rejectedContext.status(),200);assert.equal((await rejectedContext.json()).data.subject.contractId,otherSubject.contractId);await ready();
+ assert.equal(declarationContextGets(),beforeWrongContext+1);assert.equal(await family.locator('.fs-create-editor').count(),0);assert.equal(await family.locator('[data-fs-child-field]').count(),0);
+ assert.equal(await family.locator('[data-fs-child-save]:enabled').count(),0);assert.equal(familyPosts.length,beforeWrongContextPosts);
+ assert.match(await family.locator('[data-fs-create-status]').innerText(),/No se pudo verificar el permiso de alta/);assert.ok(consultedChildren>0);assert.equal(await family.locator('.fs-child').count(),consultedChildren);wrongContext=false;
+ checks.push('declaration context is requested only on Add-child; a wrong contract cannot open or submit a declaration and leaves consultation available');
  await family.locator('[data-fs-family-refresh]').click();await ready();wrongFamily=true;await family.locator('[data-fs-family-refresh]').click();await ready();assert.equal(await family.locator('.fs-child').count(),0);wrongFamily=false;
  checks.push('a family response carrying another contract clears consulted rows');
  canWrite=false;await family.locator('[data-fs-family-refresh]').click();await ready();assert.equal(await family.locator('[data-fs-add-child]').isEnabled(),false);assert.equal(await family.locator('[data-fs-register]:enabled').count(),0);canWrite=true;

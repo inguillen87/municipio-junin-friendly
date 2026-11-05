@@ -33,3 +33,45 @@ const selectorRequest={query:{resource:'employees',view:'novelty-selector',statu
 test('own novelty selector preserves every opaque and zero-prefixed identifier in its verified page',async()=>{const rows=selectorRows(),r=await employees({query:async()=>rows},selectorRequest,{...binding,lifecycleContext:employeeContext(principal,session)},{nativeOnly:true});assert.equal(r.status,200);assert.equal(r.payload.data.length,20);assert.deepEqual(r.payload.data.map(s=>s.legajo),rows.map(s=>s.legajo));assert.equal(r.payload.pagination.total,57);assert.equal(r.currentCensusTotal,57);assert.equal(r.payload.scope.payrollEligibilityCertified,false);assert.deepEqual(Object.keys(r.payload.data[0]).sort(),['activo','contractId','convenio','legajo','nombre','recordOrigin','sector','statusSnapshotDate']);});
 for(const patch of [{legajo:''},{legajo:'A\n07'},{legajo:'a'.repeat(65)},{legajo:7},{recordOrigin:'GRH'},{recordOrigin:null},{activo:false},{contractId:'private'}])test('own selector rejects the complete page when a municipal projection is invalid '+JSON.stringify(patch),async()=>{const rows=selectorRows();Object.assign(rows[19],patch);const r=await employees({query:async()=>rows},selectorRequest,{...binding,lifecycleContext:employeeContext(principal,session)},{nativeOnly:true});assert.equal(r.status,422);assert.equal(r.payload.code,'NATIVE_DIRECTORY_SELECTOR_UNSUPPORTED');assert.equal(r.payload.data,undefined);assert.match(r.payload.error,/no se omitieron filas/);});
 for(const mode of ['unchanged','changed','revoked'])test('mixed imported/own main directory rechecks the whole municipal cohort '+mode,async()=>{let reads=0;const sql={query:async q=>{if(q.includes('effective-source:snapshot'))return[{token:'c'.repeat(64)}];if(q.startsWith('SELECT public.native_employee_directory_snapshot')){reads++;if(reads===2&&mode==='revoked')throw Error('NATIVE_EMPLOYEE_FORBIDDEN');return[{result:currentSnapshot(57,{imported:1,token:(reads===2&&mode==='changed'?'b':'a').repeat(64)})}];}if(q.includes('__total')){assert.match(q,/native_employee_read_projection_v1/);return directoryRows(58);}throw Error('unexpected');}};const res=response();await currentHandler(sql)({method:'GET',query:{resource:'employees',status:'all'}},res);assert.equal(reads,2);if(mode==='unchanged'){assert.equal(res.code,200);assert.equal(res.body.scope.authority,'GRH_AND_MUNICONTROL');}else{assert.notEqual(res.code,200);assert.equal(res.body.data,undefined);}});
+
+// Explicit V2 grammar. Response/parameter tests do not claim PostgreSQL execution.
+function exactRosterRows(legajos){
+ const d=currentRoster(),template=d.rows[56];
+ d.rows=legajos.map((legajo,i)=>({...template,contractId:d.rows[56-i].contractId,registrationId:d.rows[56-i].registrationId,recordKind:'adopted',legajo}));
+ d.total=d.rows.length;d.people=d.rows.length;d.counts={active:d.total,pending_start:0,inactive:0,state_error:0,unknown:0};return d;
+}
+test('V2 exact legajo binds one opaque value and retains whole-cohort bookends and all eight parameters',async()=>{
+ const calls=[],d=exactRosterRows(['571']);
+ const sql={query:async(q,p)=>{calls.push({q,p});return[{result:q===NATIVE_ROSTER_V2_SQL?raw(d):currentSnapshot()}];}};
+ const r=await internalNativeRoster(sql,{query:{schema:'2',search:'legajo:571'}},principal,session);
+ assert.equal(calls.length,3);assert.equal(calls[1].q,NATIVE_ROSTER_V2_SQL);assert.equal(calls[1].p.length,8);assert.equal(calls[1].p[6],'legajo:571');assert.equal(calls[1].p[7],10001);
+ assert.equal(r.payload.data.total,1);assert.equal(r.payload.data.rows[0].contractId,currentRoster().rows[56].contractId);assert.equal(r.payload.data.filters.search,'legajo:571');
+ const match=NATIVE_ROSTER_V2_SQL.match(/CASE WHEN left\(\$7::text,7\)='legajo:' THEN ([\s\S]*?) ELSE/);assert.ok(match,'V2 needs a distinct exact branch');
+ assert.equal(match[1],'legajo COLLATE "C" = substr($7::text,8) COLLATE "C"');assert.doesNotMatch(match[1],/ILIKE|dni|cuil|name|::(?:int|numeric)/i);
+});
+for(const legajo of ['0901','901','A3501','a3501','A/07','QA%_\\'])test('V2 exact legajo preserves literal identity '+legajo,async()=>{
+ let bound;const d=exactRosterRows([legajo]);
+ const sql={query:async(q,p)=>{if(q===NATIVE_ROSTER_V2_SQL){bound=p[6];return[{result:raw(d)}];}return[{result:currentSnapshot()}];}};
+ const r=await internalNativeRoster(sql,{query:{schema:'2',search:'legajo:'+legajo}},principal,session);
+ assert.equal(bound,'legajo:'+legajo);assert.equal(r.payload.data.rows[0].legajo,legajo);assert.equal(r.payload.data.rows.length,1);
+});
+test('V2 exact legajo retains distinct contracts sharing that exact identifier',async()=>{
+ const d=exactRosterRows(['571','571']);let reads=0;
+ const r=await internalNativeRoster({query:async q=>{reads++;return[{result:q===NATIVE_ROSTER_V2_SQL?raw(d):currentSnapshot()}];}},{query:{schema:'2',search:'legajo:571'}},principal,session);
+ assert.equal(reads,3);assert.equal(r.payload.data.total,2);assert.equal(new Set(r.payload.data.rows.map(x=>x.contractId)).size,2);
+});
+test('V2 exact legajo rejects a DNI or substring collision instead of returning a broader response',async()=>{
+ const d=exactRosterRows(['1571']);d.rows[0].dni='99000571';let reads=0;
+ await assert.rejects(internalNativeRoster({query:async q=>{reads++;return[{result:q===NATIVE_ROSTER_V2_SQL?raw(d):currentSnapshot()}];}},{query:{schema:'2',search:'legajo:571'}},principal,session),{code:'NATIVE_ROSTER_INVALID'});
+ assert.equal(reads,2);
+});
+for(const search of ['legajo:','legajo:'+'x'.repeat(65)])test('V2 malformed exact search never opens a census '+search.length,async()=>{
+ let reads=0;await assert.rejects(internalNativeRoster({query:async()=>{reads++;throw Error('not reached');}},{query:{schema:'2',search}},principal,session),{status:400,code:'NATIVE_ROSTER_FILTERS_INVALID'});assert.equal(reads,0);
+});
+test('V2 general search keeps escaping and may match documents without numeric coercion',async()=>{
+ let bound;const d=exactRosterRows(['1571','0901']);d.rows.forEach(r=>r.dni='99000571');
+ const r=await internalNativeRoster({query:async(q,p)=>{if(q===NATIVE_ROSTER_V2_SQL){bound=p[6];return[{result:raw(d)}];}return[{result:currentSnapshot()}];}},{query:{schema:'2',search:'571'}},principal,session);
+ assert.equal(bound,'%571%');assert.equal(r.payload.data.total,2);
+ const literal=exactRosterRows(['QA%_\\']);
+ await internalNativeRoster({query:async(q,p)=>{if(q===NATIVE_ROSTER_V2_SQL){assert.equal(p[6],'%QA\\%\\_\\\\%');return[{result:raw(literal)}];}return[{result:currentSnapshot()}];}},{query:{schema:'2',search:'QA%_\\'}},principal,session);
+});

@@ -1,0 +1,2 @@
+// Explicit inactive fixture for negative tests. No proof fields, no activation or default-source assumption.
+export const INACTIVE_F931_HISTORY_ADMISSION=Object.freeze({version:'own-f931-history-admission.v1',activated:false,sourceCommit:null,epoch:null,target:null,protocol:null,mode:null,custodyRunSha256:null,capacityPostflightSha256:null,ledgerProjectionSha256:null,facades:null,durableProofSha256:null});
