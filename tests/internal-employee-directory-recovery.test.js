@@ -622,31 +622,31 @@ test('error del servidor conserva la referencia segura y no deja filas previas c
 });
 
 
-test('Personas y abrir Antecedentes no consultan; primera búsqueda es explícita y no usa summary', async () => {
+// Decisión del propietario (5/11/26): los listados cargan a priori, como GRH. Mostrar Personas no consulta el
+// archivo histórico, pero abrir «Antecedentes» lo consulta una vez, sin otro «Buscar».
+test('Personas no consulta el archivo; abrir Antecedentes consulta una vez sin «Buscar» y no usa summary', async () => {
   const h = fresh(); h.els.employeeHistory.open = false; h.state.employeeHistoryQueried = false;
   h.api.showView('legajos', false, false);
   assert.equal(h.requests.length, 0);
   h.els.employeeHistory.open = true; h.els.employeeHistory.emit('toggle');
-  assert.equal(h.requests.length, 0);
-  assert.deepEqual(plain(await h.api.loadEmployees(1)), { ok: false, resource: 'employees', notRequested: true });
-  assert.equal(h.requests.length, 0);
-  h.submit(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.state.employeeHistoryQueried, true);
   h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(12, 'ANTECEDENTE SINTÉTICO')]))); await h.flush();
   assert.match(h.rows(), /ANTECEDENTE SINTÉTICO/);
   assert.doesNotMatch(functionSource('authenticate'), /loadSummary\(|loadEmployees\(/);
   assert.match(functionSource('showView'), /target !== 'legajos'.*loadSummary\(/);
 });
 
-test('cerrar Antecedentes retira una lectura pendiente; reabrir no consulta y un 401 tardío no redirige', async () => {
+test('cerrar Antecedentes retira una lectura pendiente; reabrir consulta de nuevo y un 401 tardío del retiro no redirige', async () => {
   const h = fresh(), pending = h.api.loadEmployees(1), retained = h.requests[0];
   h.els.employeeHistory.open = false; h.els.employeeHistory.emit('toggle');
   assert.deepEqual(plain(await pending), STALE);
   assert.equal(retained.options.signal.aborted, true); assert.equal(h.clock.pending(), 0);
   assert.equal(h.state.employeeHistoryQueried, false);
   h.els.employeeHistory.open = true; h.els.employeeHistory.emit('toggle');
+  assert.equal(h.requests.length, 2);
   retained.resolve(h.json(401, {ok:false})); await h.flush();
-  assert.equal(h.requests.length, 1); assert.equal(h.redirects.length, 0); assert.doesNotMatch(h.rows(), /Sin resultados/);
-  h.action().click(); assert.equal(h.requests.length, 2);
+  assert.equal(h.redirects.length, 0); assert.doesNotMatch(h.rows(), /Sin resultados/);
   h.requests[1].resolve(h.json(200, PAGE([]))); await h.flush();
 });
 
