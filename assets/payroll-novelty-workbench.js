@@ -1581,6 +1581,13 @@ function initialize() {
   // The native daily workspace has its own access and full bootstrap. A legacy read must not block it.
   byId('pageContent').hidden=false;byId('loadingState').hidden=true;
   if (requestedMonthlyContract || hasRequestedBatch || handoffRestored) byId('noveltyReferenceWorkspace').open=true;
+  // Shortcuts open a folded section (and the sections around it) and bring it into view.
+  for (const jump of document.querySelectorAll('[data-novelty-jump]')) jump.addEventListener('click', () => {
+    const target = byId(jump.dataset.noveltyJump); if (!target) return;
+    for (let node = target; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+    target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    target.querySelector('summary')?.focus({ preventScroll: true });
+  });
   // Owner decision 2026-11-05: the own roster and batches load on open and again when the page becomes visible.
   const ownAutoRefresh=()=>{if(!document.hidden&&!ownBulkNovelties?.hasPending?.())ownBulkNovelties?.refresh();};
   ownAutoRefresh();document.addEventListener('visibilitychange',ownAutoRefresh);
