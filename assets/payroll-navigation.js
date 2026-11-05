@@ -88,9 +88,11 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
    if(date&&!date.value&&/^\d{4}-\d{2}$/.test(period?.value??'')){const [y,m]=period.value.split('-').map(Number);set(date,y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'));}
    if(type&&!type.value){if([...type.options].some(o=>o.value==='monthly'))set(type,'monthly');else if(retries-->0)setTimeout(preload,700);}}
   if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&!input.disabled){input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
-  if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;if(period&&!period.value&&!period.disabled){period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
-   if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
-   if(!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
+  if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;let changed=false;if(period&&!period.value&&!period.disabled){changed=true;period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
+   if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){changed=true;type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
+   // A panel may invalidate its view shortly after a field changes: consult on the next pass, not in the same tick.
+   if(changed&&!task.loaded&&retries-->0){setTimeout(preload,700);}
+   else if(!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
   if(id==='comparar'&&ownComparison.querySelector('[data-oc-query]')?.hidden)enabled(ownComparison,'[data-oc-refresh]')?.click();};
  for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type].filter(Boolean))task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
  const schedule=()=>{retries=20;setTimeout(preload,0);};document.addEventListener('taskchange',event=>{if(event.detail?.id!==workspaceHost.dataset.activeTask)return;for(const task of Object.values(periodTasks))task.loaded=false;schedule();});
