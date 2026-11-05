@@ -1252,6 +1252,7 @@
         lastEvents = null; byId('eventRows').replaceChildren(); setText('eventsReadStatus', 'Consultando eventos…');
         byId('eventsRetry').hidden = true; byId('previousPage').disabled = true; byId('nextPage').disabled = true;
         var analyticsQuery = DATA_URL + '?' + buildParams('absenceanalytics').toString();
+        window.__mcAbsenceQuery = analyticsQuery;
         var eventsQuery = DATA_URL + '?' + buildParams('absenceevents').toString();
         function active() { return requestId === loadingRequest && !signal.aborted && !redirectIssued; }
         function failed(error, part) {

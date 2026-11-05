@@ -66,8 +66,10 @@ try{
  checks.push('Late analytics preserves edited dates while filling untouched defaults.');
  assert.doesNotMatch(await page.locator('#eventsChange').innerText(),/0%/);
  checks.push('A zero prior baseline is not displayed as zero percent variation.');
- const before=calls.length,url=page.url();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).click();
- assert.equal(page.url(),url);assert.equal(calls.length,before);assert.match(await page.locator('.absence-case-row').first().innerText(),/366 días/);
+ // The daily heatmap reads bucket=day asynchronously after the analytics render; opening a case must still add no request.
+ const caseCalls=()=>calls.filter(c=>c.query.get('bucket')!=='day').length;
+ const before=caseCalls(),url=page.url();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).click();
+ assert.equal(page.url(),url);assert.equal(caseCalls(),before);assert.match(await page.locator('.absence-case-row').first().innerText(),/366 días/);
  assert.equal(await page.getByRole('link',{name:'Abrir legajo completo',exact:true}).count(),1);
  checks.push('The case expands in place from its already-authorized row, preserves context and flags the 2033 end date without modifying it.');
  await page.screenshot({path:path.join(out,'absence-case-desktop.png'),fullPage:true});

@@ -1115,7 +1115,7 @@ export async function payrollControl(sql) {
 }
 
 const ABSENCE_MIN_DATE = '1990-01-01';
-const ABSENCE_BUCKETS = new Set(['month', 'year']);
+const ABSENCE_BUCKETS = new Set(['month', 'year', 'day']);
 const ABSENCE_UNIT_SEMANTICS = 'Días declarados por GRH (DIAS_24); no equivalen a jornadas perdidas, duración ni tasa de ausentismo.';
 const ABSENCE_SECTOR_SEMANTICS = 'Sector actual observado en el legajo al corte de importación; no reconstruye la asignación histórica al momento del evento.';
 
@@ -1303,7 +1303,7 @@ export async function absenceAnalytics(sql, req) {
   const filters = { from, to, sector: request.sector, reasonCode: request.reasonCode };
   const scope = absenceFilter(filters);
   const validScope = absenceFilter({ from: ABSENCE_MIN_DATE, to: source.cutoff });
-  const interval = request.bucket === 'month' ? '1 month - 1 day' : '1 year - 1 day';
+  const interval = request.bucket === 'month' ? '1 month - 1 day' : request.bucket === 'day' ? '0 days' : '1 year - 1 day';
   const priorRange = comparisonFor(request.range);
   const comparisonPromise = priorRange
     ? queryAbsenceSummary(sql, { ...priorRange, sector: request.sector, reasonCode: request.reasonCode }, 'comparison')
