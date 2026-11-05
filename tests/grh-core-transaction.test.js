@@ -499,7 +499,7 @@ function lifecycleClient({ commitReplyLost = false, commitRejected = false, roll
     calls,
     get databaseCommitted() { return databaseCommitted; },
     async connect() { calls.push('connect'); if (connectFailure) throw new Error(PRIVATE_DETAIL); },
-    async query(sql) {
+    async query(sql, values) {
       calls.push(sql);
       if (sql === 'COMMIT') {
         if (commitRejected) throw new Error(PRIVATE_DETAIL);
@@ -507,6 +507,7 @@ function lifecycleClient({ commitReplyLost = false, commitRejected = false, roll
         if (commitReplyLost) throw new Error(PRIVATE_DETAIL);
       }
       if (sql === 'ROLLBACK' && rollbackReplyLost) throw new Error(PRIVATE_DETAIL);
+      if (sql.includes('source-analyze:guard')) return {rows: values[0].map(name => ({name, kind: 'r', allowed: true}))};
       return { rows: [] };
     },
     end() { calls.push('end'); if (closeFailure) throw new Error(PRIVATE_DETAIL); return Promise.resolve(); },
@@ -545,7 +546,10 @@ test('CLI reports confirmed commit and preserves that evidence if connection cle
   assert.equal(report.committed, true);
   assert.equal(report.requiresLedgerReconciliation, false);
   assert.equal(report.rollbackConfirmed, false);
-  assert.deepEqual(client.calls, ['connect', 'BEGIN', 'COMMIT', 'end']);
+  assert.equal(report.plannerMaintenance.status, 'completed');
+  assert.deepEqual(client.calls.slice(0, 3), ['connect', 'BEGIN', 'COMMIT']);
+  assert.equal(client.calls.filter(sql => sql.startsWith('ANALYZE ')).length, 1);
+  assert.deepEqual(client.calls.slice(-2), ['COMMIT', 'end']);
 });
 
 test('CLI defaults to verified rollback and never requests COMMIT without apply', async () => {
