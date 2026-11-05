@@ -1,6 +1,8 @@
 -- 191: set-based historical schooling read; HTTP and payload remain version5.
 -- Private candidate. Apply in one owner-reviewed transaction after exact102.
 -- Existing readers, authority, source identities and audit events are unchanged.
+-- Rebased 2026-11-05 on the live PG17 catalogue: school_certificate_context_v1 (107) and
+-- school_certificate_native_family_v5 (110) carry their 107/110 bodies; signatures unchanged.
 DO $read_v6_requires_native$
 BEGIN
  IF to_regprocedure('public.school_certificate_read_v5(text,uuid,integer,text,uuid,uuid,uuid)') IS NULL
@@ -16,7 +18,7 @@ BEGIN
  THEN RAISE EXCEPTION 'EMPLOYEE_FAMILY_NATIVE_PREREQUISITE'; END IF;
  SELECT count(*) INTO installed FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=ANY(ARRAY['employee_family_subject_v2','employee_family_write_context_v2','employee_family_receipt_v2','employee_family_context_v2','employee_family_attempt_v2','employee_family_native_link_v2','school_certificate_native_family_v5','school_certificate_read_v5','employee_family_declare_v2']);
  FOR item IN SELECT * FROM (VALUES
- ('school_certificate_context_v1(text,uuid,integer,text,uuid,uuid,boolean,text)','7724d80c2924c0727b923909953bff96d515ae816234a58e9b196d573286b488','7724d80c2924c0727b923909953bff96d515ae816234a58e9b196d573286b488',false),
+ ('school_certificate_context_v1(text,uuid,integer,text,uuid,uuid,boolean,text)','40bf8d36f6ea086941a850fac4d3196d1c790268fb1d9386d225083dd64b96a4','40bf8d36f6ea086941a850fac4d3196d1c790268fb1d9386d225083dd64b96a4',false),
  ('school_certificate_current_family_v1(jsonb,uuid)','8e5b8f66f99c58fe1689e832af368fd54d3bc32809e0ddc907d894c39310c861','8e5b8f66f99c58fe1689e832af368fd54d3bc32809e0ddc907d894c39310c861',false),
  ('school_certificate_storage_capacity_v1()','c336af98a96d8e692a682a79a2a47b490a917837b54064db1b76847d73f8e375','c336af98a96d8e692a682a79a2a47b490a917837b54064db1b76847d73f8e375',false),
  ('school_certificate_storage_reserve_v1(uuid,text,integer)','f348f462206e4765c85f7fe6ea3cd4f6aa1dce5a7e5711c6f690ebf94e72e242','f348f462206e4765c85f7fe6ea3cd4f6aa1dce5a7e5711c6f690ebf94e72e242',false),
@@ -52,7 +54,7 @@ BEGIN
  ('employee_family_context_v2(text,uuid,integer,text,uuid,uuid,uuid)','66a8a00cd9414eebd8e05c37a7c4a912e88bb8cd4f00d70d0a9d1ab00708d40a',true),
  ('employee_family_attempt_v2(text,uuid,integer,text,uuid,uuid,text)','96044a43802904590b7752f6bee9b7e745614b4423fa056b01cf51d310a8f3cb',true),
  ('employee_family_native_link_v2()','9ababcb9e414867845ad78f63a76e0a25f50aa2f6ff81534140a1d101467ed95',false),
- ('school_certificate_native_family_v5(jsonb,uuid)','9204d4fd4350ce9f66f5544422a01453421286e7b278a349d344a22f9338e042',false),
+ ('school_certificate_native_family_v5(jsonb,uuid)','4a6051eca23e78e417505fa5537d31d3434f151e35311474151bec80cbc1c74c',false),
  ('school_certificate_read_v5(text,uuid,integer,text,uuid,uuid,uuid)','6acaf9ff8b684060602725e8832c349d23c15594366c12daec723436e4930869',true),
  ('employee_family_declare_v2(text,uuid,integer,text,uuid,uuid,jsonb,text)','8e5636c0d63d41953995f3daf35955b03a1904502adad872060564d5214c9c71',true)
  ) v(signature,body_sha,runtime_allowed) LOOP

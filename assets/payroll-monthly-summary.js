@@ -112,8 +112,9 @@ export function mountMonthlySummary(host) {
     try { const next = await read('catalog', job, period); if (!valid(job)) return; catalog = next;
       const blank = node('option', 'Elegí un período'); blank.value = '';
       $('[data-ms-period]').replaceChildren(blank, ...[...new Set(next.items.map(sourceMonthlyPeriod))].sort().reverse().map(p => { const o = node('option', p); o.value = p; return o; }));
+      const latest = $('[data-ms-period]').options[1]?.value; if (latest) $('[data-ms-period]').value = latest;
       $('[data-ms-selection]').hidden = false; sources();
-      status.textContent = next.total ? next.total + ' liquidaciones disponibles. Elegí período y liquidaciones; no se selecciona ninguna automáticamente.' : 'No hay liquidaciones incorporadas disponibles para tu ámbito.';
+      status.textContent = next.total ? next.total + ' liquidaciones disponibles' + (latest ? ' · período ' + latest + ' preseleccionado' : '') + '. Marcá las liquidaciones a reunir (ninguna se marca sola).' : 'No hay liquidaciones incorporadas disponibles para tu ámbito.';
     } catch (e) { if (valid(job)) failure(e); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }
   function render() {

@@ -3,7 +3,7 @@
   "publicRequestVersion": 5,
   "payloadVersion": "family-schooling.v5",
   "migration": "scripts/migrations/191-schooling-set-based-read.sql",
-  "migrationSha256": "5f9d4f5962061bbf24dfccf42cc4327ff398e124cff4014d5728666fe37f141d",
+  "migrationSha256": "e1955dc4b15628cc8e31833fc86b903301020efa245af2ed41c56f5214683482",
   "activationEnvironment": {
     "name": "SCHOOL_CERTIFICATE_READ_IMPLEMENTATION",
     "default": "v5",
@@ -282,7 +282,7 @@
     {
       "name": "school_certificate_native_family_v5",
       "signature": "public.school_certificate_native_family_v5(jsonb,uuid)",
-      "sha256": "9204d4fd4350ce9f66f5544422a01453421286e7b278a349d344a22f9338e042",
+      "sha256": "4a6051eca23e78e417505fa5537d31d3434f151e35311474151bec80cbc1c74c",
       "argNames": [
         "ctx",
         "target",
@@ -412,7 +412,7 @@
     {
       "name": "school_certificate_context_v1",
       "signature": "public.school_certificate_context_v1(text,uuid,integer,text,uuid,uuid,boolean,text)",
-      "sha256": "7724d80c2924c0727b923909953bff96d515ae816234a58e9b196d573286b488",
+      "sha256": "40bf8d36f6ea086941a850fac4d3196d1c790268fb1d9386d225083dd64b96a4",
       "argNames": [
         "p_email",
         "p_session",
