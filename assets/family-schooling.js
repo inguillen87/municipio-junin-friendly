@@ -52,7 +52,7 @@ function message(error) {
 }
 async function request(url, controller, options = {}) {
   const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options,
-    headers: { Accept: 'application/json', ...options.headers }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]) });
+    headers: { Accept: 'application/json', ...options.headers }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(58000)]) });
   if (!response.ok) {
     let code = ''; try { code = (await response.json()).code; } catch { /* Never display arbitrary server output. */ }
     throw Object.assign(Error('Request failed'), { status: response.status, code });
