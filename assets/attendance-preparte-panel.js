@@ -1,7 +1,7 @@
 import { verifyPreparte, preparteDuration, reviewedSeconds, referencePercentage, reviewPreparteSelections } from './attendance-preparte-model.js';
 import { preparteXlsx } from './attendance-preparte-export.js';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUse, onDenied }={}) {
+export function mountAttendancePreparte(host,{ canUse, unavailableReason=()=>null, period, payrollType, onUse, onDenied }={}) {
   host.classList.add('ap-panel');host.dataset.reviewOnly='true';
   host.innerHTML=`<summary>Generar preparte de mayor dedicación desde relojes</summary><div class="ap-body">
   <div class="ap-heading"><div><p class="ap-eyebrow">PERSONAL → PREPARTE → NOVEDADES</p><h3>Horas registradas, revisión por legajo</h3><p>Consultá el mes elegido arriba. Revisá horas, tope individual y porcentaje antes de agregarlos a novedades.</p></div><span class="ap-badge">Sin importe ni pago automático</span></div>
@@ -22,7 +22,7 @@ export function mountAttendancePreparte(host,{ canUse, period, payrollType, onUs
   const context=()=>({period:period(),site:$('[data-ap-site]').value});
   const decision=row=>{if(!decisions.has(row.key))decisions.set(row.key,{selected:false,hours:row.canPropose&&row.extraSeconds%60===0?preparteDuration(row.extraSeconds).slice(0,-3):'',cap:'',percent:row.canPropose?String(referencePercentage(row.extraSeconds)??''):''});return decisions.get(row.key);};
   const current=()=>data&&data.period===period()&&data.site.key===$('[data-ap-site]').value;
-  function controls(){const available=canUse();if(!data&&!busy&&!externalBusy&&available!==lastAccess){status(available?'Listo para consultar el mes elegido desde relojes.':'Se necesitan permisos de asistencia, consulta de legajos y preparación de novedades. Esta sesión aún no los habilita.');lastAccess=available;}host.querySelectorAll('button,input,select').forEach(n=>n.disabled=busy||externalBusy||!canUse());
+  function controls(){const available=canUse();if(!data&&!busy&&!externalBusy&&available!==lastAccess){status(available?'Listo para consultar el mes elegido desde relojes.':unavailableReason()==='source'?'Relojes: disponible cuando estén incorporadas las marcaciones del mes.':'Se necesitan permisos de asistencia, consulta de legajos y preparación de novedades. Esta sesión aún no los habilita.');lastAccess=available;}host.querySelectorAll('button,input,select').forEach(n=>n.disabled=busy||externalBusy||!canUse());
     host.querySelectorAll('[data-blocked]').forEach(n=>n.disabled=true);$('[data-ap-clear]').disabled=busy||externalBusy;
     $('[data-ap-prev]').disabled=busy||externalBusy||page<=1;$('[data-ap-next]').disabled=busy||externalBusy||page*25>=visible().length;
     $('[data-ap-use]').disabled=busy||externalBusy||!canUse()||!current()||![...decisions.values()].some(v=>v.selected);

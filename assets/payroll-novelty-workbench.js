@@ -1439,6 +1439,7 @@ function initialize() {
   attendancePreparte = mountAttendancePreparte(byId('attendancePreparte'), {
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden &&
       hasCapability('payroll.novelty.prepare') && bootstrapState?.sourceFeatures?.attendancePreparte===true,
+    unavailableReason: () => hasCapability('payroll.novelty.prepare') && bootstrapState && bootstrapState.sourceFeatures?.attendancePreparte!==true ? 'source' : null,
     period: () => byId('periodMonth').value,
     payrollType: () => byId('payrollType').value,
     onDenied: error => { if(error.status===401){sheetEditor.clear();invalidatePreparedDraft();location.replace(LOGIN_URL);} },
