@@ -586,7 +586,7 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
   const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
   const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
     ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
-  // Shell UX (visibility grace + multi-select helpers) travels with the capability gate on every sidebar page.
+  // Multi-select helpers keep native visibility and each panel's lifecycle handling intact.
   const withShellUx = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate) && !withGate.includes('internal-shell-ux.js')
     ? withGate.replace('</head>', '<script src="/assets/internal-shell-ux.js"></script></head>') : withGate;
   const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withShellUx)
