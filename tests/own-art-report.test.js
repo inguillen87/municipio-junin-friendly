@@ -13,3 +13,20 @@ test('multiple contracts of one agent and duplicate nominal identity are explici
 test('an empty closed scope does not invent errors or a nominal file',async()=>{const v=ownArtFixture(1);Object.assign(v.content,{groups:[],people:[],sourceRecordCount:0});const r=await report(rehashArtFixture(v));assert.equal(r.total,0);assert.equal(r.issueCount,0);assert.equal(r.canExport,false);});
 test('hash changes, incomplete population, substituted period and repeated closes cannot become trusted artifacts',async()=>{const unverified=ownArtFixture(1);assert.throws(()=>prepareOwnArtReport(unverified),/Verificá/);for(const change of[v=>v.content.complete=false,v=>v.content.sourceRecordCount++,v=>v.content.people.push(v.content.people[0]),v=>v.content.groups.push(v.content.groups[0]),v=>v.content.params.period='2026-09',v=>v.content.people[0].dni='invalid']){const v=ownArtFixture(1);change(v);await assert.rejects(()=>verifiedOwnArtSource(v));}assert.throws(()=>ownArtParams({period:'2026-10',types:['monthly','monthly']}));const r=await report(ownArtFixture(1));assert.throws(()=>ownArtXlsx(structuredClone(r)),/verificar/);});
 test('CSV escapes cells and contains only the requested five fields, never names or source identifiers',async()=>{const v=ownArtFixture(1);v.content.people[0].name='=HYPERLINK("https://example.invalid")';const r=await report(rehashArtFixture(v)),csv=ownArtCsv(r);assert.doesNotMatch(csv,/HYPERLINK|1001|source|contract|runId/);assert.match(csv,/"0";"100.03"\r\n/);assert.equal(artFixtureHash(v.content),v.sourceVersion);});
+test('extra-SUSS template matches the official layout: eight headers, B and G empty, numeric A/C/F/H, Hoja1, same export gate',async()=>{
+ const {ownArtExtraSussXlsx}=await import('../assets/own-art-report-export.js');
+ const {ART_EXTRA_SUSS_HEADERS}=await import('../assets/art-extra-suss-template.js');
+ const r=await report(ownArtFixture(5)),bytes=ownArtExtraSussXlsx(r),text=new TextDecoder().decode(bytes);
+ assert.equal(bytes[0],0x50);assert.equal(bytes[1],0x4b);assert.equal(bytes.rowCount,5);assert.equal(bytes.templateVersion,'art-extra-suss-template.v1');
+ const sheet=text.slice(text.indexOf('<worksheet'),text.indexOf('</worksheet>'));
+ assert.equal((sheet.match(/<row r=/g)??[]).length,6);
+ for(const header of ART_EXTRA_SUSS_HEADERS)assert.ok(sheet.includes('<t xml:space="preserve">'+header.replace('\n','\n')+'</t>')||sheet.includes(header.replace(/&/g,'&amp;')),header);
+ assert.equal(ART_EXTRA_SUSS_HEADERS.length,8);assert.equal(ART_EXTRA_SUSS_HEADERS[4],'Sexo (M:Masculino F:Femenino \nX: No Binario)');
+ // Data rows: A, C, F, H numeric (<v>), D and E inline strings, no B or G cells at all.
+ const rows=sheet.match(/<row r="[2-9]">.*?<\/row>/g);assert.equal(rows.length,5);
+ for(const row of rows){assert.match(row,/<c r="A\d+"><v>\d+<\/v><\/c>/);assert.match(row,/<c r="C\d+"><v>\d{11}<\/v><\/c>/);assert.match(row,/<c r="F\d+"><v>\d+<\/v><\/c>/);assert.match(row,/<c r="H\d+"><v>\d+\.\d{2}<\/v><\/c>/);assert.match(row,/<c r="D\d+" t="inlineStr"><is><t xml:space="preserve">[A-ZÁÉÍÓÚÜÑ0-9 .,'-]+<\/t>/);assert.match(row,/<c r="E\d+" t="inlineStr"><is><t xml:space="preserve">[FMX]<\/t>/);assert.doesNotMatch(row,/<c r="[BG]\d+"/);}
+ assert.ok(text.includes('<sheet name="Hoja1"'));assert.doesNotMatch(text,/<f>|vbaProject|externalLink|macroEnabled/);
+ const blocked=await report(rehashArtFixture(Object.assign(ownArtFixture(1),{})));assert.equal(blocked.canExport,true);
+ const incomplete=ownArtFixture(2);incomplete.content.people[0].days.definition.workedDays=null;const b=await report(rehashArtFixture(incomplete));assert.throws(()=>ownArtExtraSussXlsx(b),/todas las observaciones/);
+ assert.throws(()=>ownArtExtraSussXlsx(structuredClone(r)),/verificar/);
+});
