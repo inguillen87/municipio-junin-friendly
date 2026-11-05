@@ -5,7 +5,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import pg from 'pg';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).map((item) => {
@@ -24,16 +25,31 @@ function marker(statement) {
   return String(statement).match(/\/\* management:([^*]+) \*\//)?.[1] || 'unknown';
 }
 
-function sqlAdapter(pool, label) {
+// No database driver dependency: each parameterized statement is prepared and executed through
+// psql, with every parameter typed by the casts the statements already carry, and the rows come
+// back as one JSON document. Values are only ever synthetic window ids and dates.
+const run = promisify(execFile);
+async function psql(dsn, sqlText, { stdin = null } = {}) {
+  const args = [dsn, '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1'];
+  const options = { maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PGCONNECT_TIMEOUT: '10' } };
+  if (stdin !== null) { const child = execFile('psql', [...args, '-f', '-'], options); child.stdin.end(stdin); return new Promise((ok, fail) => { let out = '', err = ''; child.stdout.on('data', (d) => { out += d; }); child.stderr.on('data', (d) => { err += d; }); child.on('close', (code) => (code === 0 ? ok(out) : fail(new Error(err.trim() || `psql exit ${code}`)))); }); }
+  const { stdout } = await run('psql', [...args, '-c', sqlText], options);
+  return stdout;
+}
+const literal = (value) => (value === null || value === undefined ? 'NULL' : `'${String(value).replace(/'/g, "''")}'`);
+function sqlAdapter(dsn, label) {
   const calls = [];
   return {
     calls,
     async query(text, values = []) {
       const started = process.hrtime.bigint();
-      const result = await pool.query(String(text), values);
+      const name = `management_qa_${calls.length}_${Date.now()}`;
+      const prepared = `PREPARE ${name} AS SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM (${String(text)}\n) t; EXECUTE ${name}${values.length ? `(${values.map(literal).join(', ')})` : ''};`;
+      const output = await psql(dsn, prepared);
+      const rows = JSON.parse(output.trim() || '[]');
       const ms = Number(process.hrtime.bigint() - started) / 1e6;
-      calls.push({ label, marker: marker(text), ms: Math.round(ms), rows: result.rows.length });
-      return result.rows;
+      calls.push({ label, marker: marker(text), ms: Math.round(ms), rows: rows.length });
+      return rows;
     },
   };
 }
@@ -44,14 +60,13 @@ function canonical(value) {
     : item));
 }
 
-const pool = new pg.Pool({ connectionString: dsn, max: 4 });
-try {
+{
   if (args.load === 'true') {
     const { MANAGEMENT_ANALYTICS_SYNTHETIC_SQL } = await import(pathToFileURL(resolve(root, 'tests/fixtures/management-analytics-synthetic.js')).href);
-    await pool.query(MANAGEMENT_ANALYTICS_SYNTHETIC_SQL);
+    await psql(dsn, '', { stdin: MANAGEMENT_ANALYTICS_SYNTHETIC_SQL });
   }
   const { managementAnalytics: candidate } = await import(candidateModule);
-  const candidateSql = sqlAdapter(pool, 'candidate');
+  const candidateSql = sqlAdapter(dsn, 'candidate');
   const candidateStarted = process.hrtime.bigint();
   const candidateResult = await candidate(candidateSql);
   const candidateMs = Math.round(Number(process.hrtime.bigint() - candidateStarted) / 1e6);
@@ -61,7 +76,7 @@ try {
   };
   if (referenceModule) {
     const { managementAnalytics: reference } = await import(referenceModule);
-    const referenceSql = sqlAdapter(pool, 'reference');
+    const referenceSql = sqlAdapter(dsn, 'reference');
     const referenceStarted = process.hrtime.bigint();
     const referenceResult = await reference(referenceSql);
     const referenceMs = Math.round(Number(process.hrtime.bigint() - referenceStarted) / 1e6);
@@ -90,6 +105,4 @@ try {
   }
   console.log(JSON.stringify(report, null, 2));
   if ((referenceModule && !report.identical) || (args.expected && !report.matchesExpected)) process.exitCode = 1;
-} finally {
-  await pool.end();
 }
