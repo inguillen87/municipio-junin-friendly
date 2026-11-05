@@ -89,6 +89,13 @@ function integerCell(ref, value, style = 4) {
   return `<c r="${ref}" s="${style}" t="n"><v>${value}</v></c>`;
 }
 
+function centsCell(ref, cents, style = 4) {
+  const value = BigInt(cents);
+  const negative = value < 0n;
+  const digits = String(negative ? -value : value).padStart(3, '0');
+  return `<c r="${ref}" s="${style}" t="n"><v>${negative ? '-' : ''}${digits.slice(0, -2)}.${digits.slice(-2)}</v></c>`;
+}
+
 function columnName(index) {
   let current = index + 1;
   let result = '';
@@ -114,6 +121,7 @@ function worksheet(rows, {
       if (cell === null || cell === undefined) return '';
       const ref = `${columnName(columnIndex)}${rowNumber}`;
       if (cell.type === 'number') return integerCell(ref, cell.value, cell.style);
+      if (cell.type === 'cents') return centsCell(ref, cell.value, cell.style);
       return inlineCell(ref, cell.value, cell.style);
     }).join('');
     const height = row.height ? ` ht="${row.height}" customHeight="1"` : '';
@@ -297,8 +305,8 @@ function stylesXml() {
 </styleSheet>`;
 }
 
-function workbookEntries(report) {
-  const sheets = [
+function workbookEntries(report, customSheets = null) {
+  const sheets = customSheets || [
     ['Resumen', summarySheet(report)],
     ['Detalle nominal', detailSheet(report)],
     ['Rechazados', rejectedSheet(report)],
@@ -634,6 +642,62 @@ async function artifact(report, kind, bytes, cryptoImpl) {
     byteLength: bytes.byteLength,
     sha256: await sha256Bytes(bytes, cryptoImpl),
     bytes,
+  });
+}
+
+// Plantilla «presentación extra-SUSS» de la ART (observada en la carpeta de
+// liquidación de agosto 2026): una hoja, ocho columnas, un agente por fila.
+// Los nombres no forman parte del reporte ART canónico: se reciben aparte,
+// indexados por DNI, y faltar uno bloquea la exportación.
+export const PAYROLL_ART_EXTRA_SUSS_TEMPLATE_VERSION = 'art-extra-suss-template.v1';
+export const PAYROLL_ART_EXTRA_SUSS_HEADERS = Object.freeze([
+  'Nº Doc.', 'Tipo de Doc.', 'CUIL (sin guiones)', 'Apellido y Nombre',
+  'Sexo (M:Masculino F:Femenino \nX: No Binario)', 'Cantidad de Días Trabajados', 'Fecha de Nacimiento', 'Sueldo',
+]);
+const EXTRA_SUSS_NAME = /^[A-ZÁÉÍÓÚÜÑ0-9 .,'-]{2,80}$/;
+
+function extraSussNames(report, names) {
+  const lookup = names instanceof Map ? names : new Map(Object.entries(names && typeof names === 'object' ? names : {}));
+  const resolved = new Map();
+  const missing = [];
+  for (const row of report.acceptedRows) {
+    const value = typeof lookup.get(row.dni) === 'string' ? lookup.get(row.dni).replace(/[\t\r\n]/g, ' ').trim().toUpperCase() : '';
+    if (!EXTRA_SUSS_NAME.test(value)) missing.push(row.dni);
+    else resolved.set(row.dni, value);
+  }
+  if (missing.length > 0) {
+    fail('ART_EXTRA_SUSS_NAME_MISSING', `Faltan apellido y nombre válidos para ${missing.length} agente(s) del reporte; completá el padrón antes de exportar.`);
+  }
+  return resolved;
+}
+
+function extraSussSheet(report, resolvedNames) {
+  const rows = [
+    { cells: PAYROLL_ART_EXTRA_SUSS_HEADERS.map((value) => t(value, 5)) },
+    ...report.acceptedRows.map((row) => ({ cells: [
+      n(Number(row.dni)), null, n(Number(row.cuil)), t(resolvedNames.get(row.dni)), t(row.sex),
+      n(Number(row.workedDays)), null, { type: 'cents', value: row.salaryCents, style: 4 },
+    ] })),
+  ];
+  return worksheet(rows, { widths: [11.4, 11.4, 19.3, 49.7, 16.3, 11.4, 11.4, 16.4], freezeAt: 1, orientation: 'portrait' });
+}
+
+export async function createPayrollArtExtraSussXlsxArtifact(
+  report,
+  { names, cryptoImpl = globalThis.crypto } = {},
+) {
+  const trusted = requireTrustedPayrollArtReport(report);
+  if (!trusted.readyForReview) fail('ART_EXTRA_SUSS_NOT_READY', 'El reporte ART tiene validaciones pendientes; no se exporta la plantilla.');
+  if (trusted.acceptedRows.length === 0) fail('ART_EXTRA_SUSS_EMPTY', 'No hay agentes aceptados para la plantilla.');
+  const resolvedNames = extraSussNames(trusted, names);
+  const bytes = storedZip(workbookEntries(trusted, [['Hoja1', extraSussSheet(trusted, resolvedNames)]]));
+  const base = await artifact(trusted, 'xlsx', bytes, cryptoImpl);
+  return Object.freeze({
+    ...base,
+    templateVersion: PAYROLL_ART_EXTRA_SUSS_TEMPLATE_VERSION,
+    fileName: `plantilla_presentacion_extra-suss_${trusted.period}_${fileScope(trusted.scope)}.xlsx`,
+    rowCount: trusted.acceptedRows.length,
+    salaryTotalCents: trusted.acceptedRows.reduce((sum, row) => sum + BigInt(row.salaryCents), 0n).toString(),
   });
 }
 
