@@ -147,6 +147,7 @@ const shellFiles = [
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-capability-gate.js',
+  'assets/internal-shell-ux.js',
   'assets/workday-export.js',
   'assets/workday-panel.css',
   'assets/workday-panel.js',
@@ -585,8 +586,11 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
   const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
   const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
     ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
-  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
-    ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
+  // Shell UX (visibility grace + multi-select helpers) travels with the capability gate on every sidebar page.
+  const withShellUx = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate) && !withGate.includes('internal-shell-ux.js')
+    ? withGate.replace('</head>', '<script src="/assets/internal-shell-ux.js"></script></head>') : withGate;
+  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withShellUx)
+    ? withShellUx.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withShellUx;
   const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
     ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
   const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
