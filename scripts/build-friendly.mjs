@@ -9,6 +9,7 @@ import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildDocumentReader } from './build-document-reader.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
+import { buildCharts } from './build-charts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -188,6 +189,8 @@ const shellFiles = [
   'assets/structure-people.js',
   'assets/structure-people.css',
   'assets/payroll-bank-generator.js',
+  'assets/mc-chart-loader.js',
+  'assets/mc-charts.css',
   'assets/payroll-bank-generator-model.js',
   'assets/payroll-bank-generator-export.js',
   'assets/payroll-bank-reconciliation.js',
@@ -601,6 +604,8 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
 await buildLegalRegistry(root, output);
 await buildReactIslands(root, output);
 await buildLeaveRulesIsland(root, output);
+const charts = await buildCharts(root, output);
+console.log(`MuniControl charts: ${(charts.gzipBytes / 1024).toFixed(1)} KB gzip, loaded on demand.`);
 buildClockFleet(root, output);
 buildDocumentReader(root, output);
 

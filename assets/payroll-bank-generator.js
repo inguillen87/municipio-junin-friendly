@@ -3,6 +3,7 @@ import { bankReportXlsx, bankReportPdf } from './payroll-bank-generator-export.j
 import { monthlyType } from './payroll-monthly-summary-model.js';
 import {bankReportReconciliation,bankControlNotes,assertBankReportUnchanged} from './payroll-bank-reconciliation.js';
 import {bankControlPackage} from './payroll-bank-control-package.js';
+import {chartSlot, drawChart} from './mc-chart-loader.js';
 import {renderBankReview} from './payroll-bank-review-panel.js';
 
 const API = '/api/internal-payroll-bank-report';
@@ -28,7 +29,7 @@ export function mountPayrollBankGenerator(host) {
     <p class="pbg-note">Excel y PDF son documentos de control. No ordenan transferencias ni acreditan pagos. El archivo de pago para el banco requiere un formato homologado.</p>
     <section data-pbg-result hidden aria-label="Planilla bancaria de la liquidación seleccionada"><div class="rc-source" data-pbg-source></div>
       <div class="pbg-source-grid"><p><span>Período de imputación</span><strong data-pbg-period></strong></p><p><span>Fecha de liquidación</span><strong data-pbg-date></strong></p><p><span>Corte de cuentas bancarias</span><strong data-pbg-cutoff></strong><small>Fecha y hora declaradas en origen, sin zona horaria informada.</small></p></div>
-      <div class="pbg-banks" data-pbg-banks role="group" aria-label="Planilla por banco"></div>
+      <div class="pbg-banks" data-pbg-banks role="group" aria-label="Planilla por banco"></div><div class="mc-chart-row" data-pbg-charts hidden></div>
       <div class="rc-filter pbg-filters"><label>Banco<select data-pbg-bank><option value="all">Todos los bancos</option><option value="credicoop">Credicoop</option><option value="santander">Santander</option><option value="nacion">Nación</option><option value="unknown">Sin identificar</option></select></label><label>Jurisdicción<select data-pbg-jurisdiction><option value="all">Todas</option></select></label><label>Tipo de cuenta<select data-pbg-account><option value="all">Todos los tipos</option><option value="caja_ahorro">Caja de ahorro verificada</option><option value="cuenta_corriente">Cuenta corriente verificada</option><option value="unknown">Tipo sin verificar</option></select></label><label>Control<select data-pbg-issues><option value="all">Todas las filas</option><option value="observed">Con observaciones</option><option value="informed">Sin observaciones informadas</option></select></label><label>Buscar persona o repartición<input type="search" data-pbg-search maxlength="100" placeholder="Legajo, nombre, CUIL o repartición"></label></div>
       <p class="pbg-note" data-pbg-account-note>Los tipos sin verificar conservan el código original. La cuenta no se reconstruye ni se completa manualmente.</p>
       <div class="rc-kpis"><div><span>Filas del filtro</span><strong data-pbg-count></strong></div><div><span>Neto del filtro</span><strong data-pbg-total></strong><small data-pbg-missing></small></div><div><span>Con observaciones</span><strong data-pbg-observed></strong></div></div>
@@ -104,6 +105,24 @@ export function mountPayrollBankGenerator(host) {
       button.addEventListener('click', () => { const select = $('[data-pbg-bank]'); if (busy || !part || select.value === key) return; select.value = key; select.dispatchEvent(new Event('input', { bubbles: true })); });
       return button;
     }));
+    renderBankCharts(keys.filter(key => key !== 'all'), others);
+  }
+  let bankCharts = null;
+  function renderBankCharts(keys, others) {
+    const row = $('[data-pbg-charts]'); if (!row || typeof document === 'undefined') return;
+    const parts = keys.map(key => { let part = null; try { part = bankReportFilter(data, { ...others, bank: key }); } catch {} return { key, name: key === 'unknown' ? 'Sin identificar' : bankNames[key], part }; }).filter(item => item.part);
+    row.hidden = parts.length < 1; if (row.hidden) return;
+    if (!bankCharts) {
+      const net = chartSlot('Neto por banco', { subtitle: 'Tocá un banco para ver su planilla', key: 'bank-net' }), count = chartSlot('Cuentas por banco', { subtitle: 'Cantidad de cuentas acreditadas', key: 'bank-count' });
+      row.replaceChildren(net.figure, count.figure); bankCharts = { net, count };
+    }
+    const choose = key => { const select = $('[data-pbg-bank]'); if (busy || !key || select.value === key) return; select.value = key; select.dispatchEvent(new Event('input', { bubbles: true })); };
+    const byName = new Map(parts.map(item => [item.name, item.key]));
+    const amount = item => Number(item.part.total ?? item.part.knownTotal ?? 0);
+    drawChart(bankCharts.net.host, m => m.donutOption({ items: parts.map(item => ({ name: item.name, value: amount(item) })), totalLabel: 'Neto total', format: m.formatCompactMoney }),
+      { ariaLabel: 'Neto por banco', onClick: p => choose(byName.get(p.name)) });
+    drawChart(bankCharts.count.host, m => m.barOption({ categories: parts.map(item => item.name), values: parts.map(item => item.part.rows.length), horizontal: true, format: m.formatNumber, name: 'Cuentas' }),
+      { ariaLabel: 'Cuentas por banco', onClick: p => choose(byName.get(p.name)) });
   }
   function render() {
     renderBanks();
