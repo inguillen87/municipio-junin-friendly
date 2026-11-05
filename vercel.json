@@ -16,7 +16,7 @@
       "maxDuration": 20
     },
     "api/internal-data.js": {
-      "maxDuration": 20
+      "maxDuration": 60
     },
     "api/internal-employment-catalog.js": {
       "maxDuration": 20

@@ -2614,35 +2614,61 @@ export async function managementAnalytics(sql) {
   const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = await Promise.all([
     sql.query(`
       /* management:metrics */
+      -- The effective absence view is evaluated once and reused by every window: the curated
+      -- view costs a key function per base row, so one evaluation per window would not finish
+      -- inside the function budget.
       WITH windows(id, date_from, date_to) AS (
         VALUES ${metricScope.sql}
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.dias
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN (SELECT min(date_from) FROM windows) AND (SELECT max(date_to) FROM windows)
+      ), hire AS (
+        SELECT period.id, count(contract.id)::int AS hires, count(DISTINCT contract.person_id)::int AS hire_persons
+        FROM windows period
+        LEFT JOIN employment_contract contract ON contract.start_date BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), departure AS (
+        SELECT period.id, count(contract.id)::int AS exits, count(DISTINCT contract.person_id)::int AS exit_persons
+        FROM windows period
+        LEFT JOIN employment_contract contract ON contract.end_date BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), event AS (
+        SELECT period.id, count(absence.fecha)::int AS absence_events,
+               COALESCE(sum(absence.dias), 0)::numeric AS source_declared_days
+        FROM windows period
+        LEFT JOIN absence ON absence.fecha BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), affected AS (
+        SELECT period.id, count(DISTINCT contract.id)::int AS affected_contracts
+        FROM windows period
+        JOIN absence ON absence.fecha BETWEEN period.date_from AND period.date_to
+        JOIN employment_contract contract
+          ON contract.legacy_company_id = absence.company_id
+         AND contract.legacy_legajo = absence.legajo
+        GROUP BY period.id
       )
       SELECT period.id, period.date_from AS "from", period.date_to AS "to",
-             (SELECT count(*)::int FROM employment_contract contract
-               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS hires,
-             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
-               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS "hirePersons",
-             (SELECT count(*)::int FROM employment_contract contract
-               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS exits,
-             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
-               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS "exitPersons",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 absence
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "absenceEvents",
-             (SELECT count(DISTINCT contract.id)::int
-                FROM grh_effective_absences_v1 absence
-                JOIN employment_contract contract
-                  ON contract.legacy_company_id = absence.company_id
-                 AND contract.legacy_legajo = absence.legajo
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "affectedContracts",
-             (SELECT COALESCE(sum(absence.dias), 0)::numeric FROM grh_effective_absences_v1 absence
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "sourceDeclaredDays"
+             hire.hires, hire.hire_persons AS "hirePersons",
+             departure.exits, departure.exit_persons AS "exitPersons",
+             event.absence_events AS "absenceEvents",
+             COALESCE(affected.affected_contracts, 0)::int AS "affectedContracts",
+             event.source_declared_days AS "sourceDeclaredDays"
       FROM windows period
+      JOIN hire USING (id)
+      JOIN departure USING (id)
+      JOIN event USING (id)
+      LEFT JOIN affected USING (id)
     `, metricScope.values),
     sql.query(`
       /* management:payroll-comparison */
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
                ('current'::text, $3::date, $4::date)
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN $1::date AND $2::date OR absence.fecha BETWEEN $3::date AND $4::date
       ), contract_month AS (
         SELECT fact.employment_contract_id,
                date_trunc('month', fact.payroll_date)::date AS period_month
@@ -2666,7 +2692,7 @@ export async function managementAnalytics(sql) {
                count(DISTINCT contract.id) FILTER (WHERE contract_month.employment_contract_id IS NOT NULL)::int
                  AS "affectedAlignedContracts"
         FROM windows period
-        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2688,6 +2714,10 @@ export async function managementAnalytics(sql) {
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
                ('current'::text, $3::date, $4::date)
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN $1::date AND $2::date OR absence.fecha BETWEEN $3::date AND $4::date
       ), contract_month_raw AS (
         SELECT fact.employment_contract_id,
                date_trunc('month', fact.payroll_date)::date AS period_month,
@@ -2741,7 +2771,7 @@ export async function managementAnalytics(sql) {
                     WHEN contract_month.employment_contract_id IS NULL THEN 'no_closed_payroll_contract_month'
                     ELSE contract_month.sector_quality END AS sector_quality
         FROM windows period
-        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2771,20 +2801,39 @@ export async function managementAnalytics(sql) {
     `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
     sql.query(`
       /* management:quality */
+      WITH absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.fecha_hasta
+        FROM grh_effective_absences_v1 absence
+      ), contract_key AS (
+        SELECT DISTINCT contract.legacy_company_id AS company_id, contract.legacy_legajo AS legajo
+        FROM employment_contract contract
+      ), absence_quality AS (
+        SELECT count(*)::int AS absence_rows,
+               count(*) FILTER (WHERE absence.fecha < DATE '1990-01-01')::int AS absence_before_coverage,
+               count(*) FILTER (WHERE absence.fecha > $1::date)::int AS absence_after_cutoff,
+               count(*) FILTER (WHERE absence.fecha_hasta < absence.fecha)::int AS inverted_absence_ranges,
+               count(*) FILTER (WHERE contract_key.company_id IS NULL)::int AS unlinked_absences
+        FROM absence
+        LEFT JOIN contract_key
+          ON contract_key.company_id = absence.company_id AND contract_key.legajo = absence.legajo
+      ), movement_quality AS (
+        SELECT count(*)::int AS movement_rows,
+               count(*) FILTER (WHERE movement_type IS NULL)::int AS movements_without_type
+        FROM grh_effective_employment_movement_v1
+      )
       SELECT (SELECT count(*)::int FROM employment_contract) AS "contracts",
              (SELECT count(DISTINCT person_id)::int FROM employment_contract) AS "personsWithContract",
              (SELECT count(*)::int FROM employment_contract WHERE start_date IS NULL) AS "missingValidStartDate",
-             (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceRows",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceBeforeCoverage",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceAfterCutoff",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha_hasta < fecha) AS "invertedAbsenceRanges",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 absence LEFT JOIN employment_contract contract
-                ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
-               WHERE contract.id IS NULL) AS "unlinkedAbsences",
-             (SELECT count(*)::int FROM grh_effective_employment_movement_v1) AS "movementRows",
-             (SELECT count(*)::int FROM grh_effective_employment_movement_v1 WHERE movement_type IS NULL) AS "movementsWithoutType",
+             absence_quality.absence_rows AS "absenceRows",
+             absence_quality.absence_before_coverage AS "absenceBeforeCoverage",
+             absence_quality.absence_after_cutoff AS "absenceAfterCutoff",
+             absence_quality.inverted_absence_ranges AS "invertedAbsenceRanges",
+             absence_quality.unlinked_absences AS "unlinkedAbsences",
+             movement_quality.movement_rows AS "movementRows",
+             movement_quality.movements_without_type AS "movementsWithoutType",
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
+      FROM absence_quality, movement_quality
     `, [cutoff]),
   ]);
 
