@@ -12,7 +12,8 @@ echarts.use([BarChart, LineChart, PieChart, HeatmapChart, TreemapChart, GridComp
 export const MC_PALETTE = Object.freeze(['#0f766e', '#315f82', '#d08c2f', '#c2604f', '#6b5ca5', '#3a8fb7', '#7a9a3a', '#b0577f', '#1b465e', '#4fa38f']);
 export const MC_SEQUENTIAL = Object.freeze(['#eef7f4', '#c9e8df', '#8fd0bf', '#45a99a', '#0f766e', '#0b5b55', '#123247']);
 const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
-const dark = () => typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light';
+// The product shell is light-only; charts go dark only when a page explicitly opts in with data-theme="dark".
+const dark = () => typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark';
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function theme(isDark) {
