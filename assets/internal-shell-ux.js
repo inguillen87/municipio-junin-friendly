@@ -70,7 +70,11 @@
     style.id = 'mc-shell-ux-style';
     style.textContent = '.mc-multi-helpers{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 0}' +
       '.mc-multi-helper{font:inherit;min-height:32px;padding:4px 12px;border:1px solid #afc7cc;border-radius:6px;background:#fff;color:#154854;cursor:pointer}' +
-      '.mc-multi-helper:disabled{opacity:.5;cursor:not-allowed}.mc-multi-count{font-size:.9em;color:#4d6973}';
+      '.mc-multi-helper:disabled{opacity:.5;cursor:not-allowed}.mc-multi-count{font-size:.9em;color:#4d6973}' +
+      // Sections open and close with a short height animation (no layout jump); reduced motion keeps it instant.
+      '@supports (interpolate-size:allow-keywords){main details{interpolate-size:allow-keywords}main details::details-content{height:0;overflow:clip;transition:height .24s ease,content-visibility .24s allow-discrete}main details[open]::details-content{height:auto}}' +
+      'main details>summary{transition:color .15s}main details>summary:hover{color:#0f5a66}' +
+      '@media (prefers-reduced-motion:reduce){main details::details-content{transition:none}}';
     (document.head || document.documentElement).appendChild(style);
   }
   function startMultiHelpers() {
