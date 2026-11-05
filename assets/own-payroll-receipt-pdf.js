@@ -23,4 +23,15 @@ export async function createOwnReceiptPdf(value,{signal,preview=false,self=false
  for(const [i,record]of records.entries()){signal?.throwIfAborted();pages.push(...ownReceiptPages(record,params,sources.find(s=>s.id===record.sourceGroupId),{state,batchId}));if(pages.length>8000)throw Error('El conjunto supera la capacidad de PDF. No se exportó una parte.');if(i%10===0)await new Promise(resolve=>setTimeout(resolve,0));}
  signal?.throwIfAborted();const bytes=encodePayrollPages(pages);await new Promise(resolve=>setTimeout(resolve,0));if(signal?.aborted){bytes.fill(0);signal.throwIfAborted();}return {bytes,recordCount:records.length,pageCount:pages.length};
 }
-export function saveOwnReceiptPdf(result,name){const url=URL.createObjectURL(new Blob([result.bytes],{type:'application/pdf'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+export function saveOwnReceiptPdf(result,name){
+ let url=null;
+ try{
+  const blob=new Blob([result.bytes],{type:'application/pdf'});
+  url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;link.download=name;link.click();
+ }finally{
+  try{result?.bytes?.fill(0);}
+  finally{if(url!==null)setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ }
+}
