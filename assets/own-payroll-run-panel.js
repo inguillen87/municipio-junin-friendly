@@ -237,6 +237,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
     renderHistory();controls();
     if(draftIssue){status(draftIssue,'warning');return;}
+    // With «Todos» the engine rejects the whole run when one active legajo lacks its repartición: say which, before trying.
+    const unsectored=(Array.isArray(preparationRoster?.rows)?preparationRoster.rows:[]).filter(r=>r&&r.status==='active'&&!(typeof r.sector==='string'&&r.sector.trim())).map(r=>String(r.legajo));
+    if(!attempt&&canStart()&&unsectored.length){status(`${unsectored.length===1?'El legajo '+unsectored[0]+' no tiene':'Los legajos '+unsectored.slice(0,8).join(', ')+(unsectored.length>8?' y '+(unsectored.length-8)+' más':'')+' no tienen'} repartición cargada: con «Todos los legajos propios» el cálculo se rechaza. Corregí su ficha en Personas o elegí «Reparticiones».`,'warning');return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
