@@ -1,6 +1,6 @@
 // Ausentismo: ECharts views of the same aggregated analytics the page already renders (monthly series, reasons, sectors).
 // No extra request and no personal data. The accessible tables stay; the old CSS bars hide only after a chart is drawn.
-import {chartSlot, drawChart} from './mc-chart-loader.js';
+import {chartSlot, drawChart, loadCharts} from './mc-chart-loader.js';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const monthLabel = value => { const m = /^(\d{4})-(\d{2})/.exec(String(value || '')); return m ? MONTHS[Number(m[2]) - 1] + ' ' + m[1].slice(2) : String(value || ''); };
@@ -68,7 +68,9 @@ async function drawDaily(s, monthly = []) {
   s.calendar.figure.hidden = !days.length; if (!days.length) return;
   const sorted = days.map(d => d[0]).sort(), last = sorted.at(-1), start = new Date(last + 'T12:00:00'); start.setDate(start.getDate() - 364);
   const from = sorted[0] > start.toISOString().slice(0, 10) ? sorted[0] : start.toISOString().slice(0, 10);
-  drawChart(s.calendar.host, m => m.calendarHeatmapOption({days: days.filter(d => d[0] >= from), range: [from, last], label: 'eventos'}), {ariaLabel: 'Eventos de ausentismo por día'});
+  const shown = days.filter(d => d[0] >= from).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const mounted = await drawChart(s.calendar.host, m => m.calendarHeatmapOption({days: shown, range: [from, last], label: 'eventos'}), {ariaLabel: 'Eventos de ausentismo por día'});
+  if (mounted && token === dailyToken) (await loadCharts()).revealSeries?.(mounted.chart, shown);
  } catch { if (token === dailyToken) s.calendar.figure.hidden = true; }
 }
 

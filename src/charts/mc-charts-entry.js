@@ -99,6 +99,19 @@ export function calendarHeatmapOption({days, range, max, label = 'eventos', titl
  };
 }
 
+/** Sweeps a series in, oldest cell first (heatmaps have no entrance animation). No-op with reduced motion. */
+export function revealSeries(chart, data, {steps = 16, interval = 50} = {}) {
+ if (reduced() || !chart || chart.isDisposed() || !Array.isArray(data) || data.length < steps) return;
+ const size = Math.ceil(data.length / steps); let shown = size;
+ chart.setOption({series: [{data: data.slice(0, shown)}]});
+ const tick = () => {
+  if (chart.isDisposed()) return;
+  shown = Math.min(data.length, shown + size); chart.setOption({series: [{data: data.slice(0, shown)}]});
+  if (shown < data.length) setTimeout(tick, interval);
+ };
+ setTimeout(tick, interval);
+}
+
 /** Hour × weekday heatmap. cells: [[hour 0-23, weekday 0-6 (lunes=0), value]] */
 export function weekHourHeatmapOption({cells, label = 'marcaciones', title}) {
  const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], peak = Math.max(1, ...cells.map(c => c[2] || 0));
