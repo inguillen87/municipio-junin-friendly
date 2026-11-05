@@ -76,13 +76,18 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  // (editable) and consult again whenever period or type changes. No write is ever started from here.
  const lastMonth=()=>{const d=new Date(),m=d.getMonth();return m?d.getFullYear()+'-'+String(m).padStart(2,'0'):(d.getFullYear()-1)+'-12';};
  const enabled=(root,selector)=>{const button=root.querySelector(selector);return button&&!button.disabled&&!button.hidden?button:null;};
- const periodTasks={anulacion:{root:annulment,period:'[data-annul-period]',type:'[data-annul-type]',load:'[data-annul-load]'},cierre:{root:close,period:'[data-close-period]',type:'[data-close-type]',load:'[data-close-consult]'}};
+ const periodTasks={anulacion:{root:annulment,period:'[data-annul-period]',type:'[data-annul-type]',load:'[data-annul-load]'},cierre:{root:close,period:'[data-close-period]',type:'[data-close-type]',load:'[data-close-consult]'},
+  imputacion:{root:imputation,period:'[data-imputation-period]',type:'[data-imputation-type]',load:'[data-imputation-consult]'},asientos:{root:journal,period:'[data-journal-period]',type:'[data-journal-type]',load:'[data-journal-consult]'},
+  conciliacion:{root:reconciliationDocuments,period:'[data-rec-period]',type:'[data-rec-type]',load:'[data-rec-consult]'},recibos:{root:receipts,period:'[data-receipt-period]',type:null,load:'[data-receipt-history]'}};
+ // Tasks whose consult needs more choices (presentation, jurisdiction, codes): only the month is preselected.
+ const monthOnly=['art','f931','horas-convenio','condiciones','reglas'];
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
-  if(task){const period=task.root.querySelector(task.period),type=task.root.querySelector(task.type);if(period&&!period.value&&!period.disabled){period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
+  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&!input.disabled){input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
+  if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;if(period&&!period.value&&!period.disabled){period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
-   if(!task.loaded&&period?.value&&type?.value){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
+   if(!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
   if(id==='comparar'&&ownComparison.querySelector('[data-oc-query]')?.hidden)enabled(ownComparison,'[data-oc-refresh]')?.click();};
- for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type])task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
+ for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type].filter(Boolean))task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
  const schedule=()=>{retries=20;setTimeout(preload,0);};document.addEventListener('taskchange',event=>{if(event.detail?.id!==workspaceHost.dataset.activeTask)return;for(const task of Object.values(periodTasks))task.loaded=false;schedule();});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){for(const task of Object.values(periodTasks))task.loaded=false;schedule();}});document.addEventListener('municontrol:capabilities-ready',schedule);schedule();
 }
