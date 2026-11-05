@@ -10,6 +10,8 @@ on:
       - 'scripts/verify-novelty-list*'
       - 'tests/payroll-novelty-legajo-list-057.test.js'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'sw.js'
 permissions:
   contents: read

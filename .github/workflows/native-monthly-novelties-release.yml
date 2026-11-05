@@ -49,6 +49,8 @@ on:
       - 'assets/native-employee-create.js'
       - 'novedades-nomina.html'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/migrations/101-*'
       - 'scripts/verify-native-monthly-*.mjs'
       - 'scripts/verify-novelty-*.mjs'

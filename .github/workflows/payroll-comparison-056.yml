@@ -11,6 +11,8 @@ on:
       - 'reportes-rrhh.html'
       - 'nomina-control.html'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/verify-payroll-comparison*'
       - 'scripts/payroll-comparison-synthetic.mjs'
       - 'tests/payroll-comparison-056.test.js'

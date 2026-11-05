@@ -12,6 +12,8 @@ on:
       - 'assets/internal-capability-gate.js'
       - 'assets/app-routes.js'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/lib/published-build-verification.mjs'
       - 'assets/payroll-novelty-review*'
       - 'tests/novelty-batch-control.test.js'

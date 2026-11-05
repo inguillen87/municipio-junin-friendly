@@ -22,6 +22,8 @@ on:
       - 'tests/fixtures/*school-photo*'
       - 'tests/fixtures/*school-reading*'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
   push:
@@ -48,6 +50,8 @@ on:
       - 'tests/fixtures/*school-photo*'
       - 'tests/fixtures/*school-reading*'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
 permissions:

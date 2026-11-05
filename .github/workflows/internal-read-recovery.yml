@@ -75,6 +75,8 @@ on:
       - 'assets/workforce-*'
       - 'internal-dashboard.html'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/verify-workforce-operations-browser.mjs'
       - 'tests/internal-data-*'
       - 'scripts/verify-management-analytics-postgres.mjs'
