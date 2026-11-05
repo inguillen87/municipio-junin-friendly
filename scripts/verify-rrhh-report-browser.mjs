@@ -129,8 +129,10 @@ async function inspect(viewport, label, downloadFiles) {
         && response.request().method() === 'GET'),
       page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' }),
     ]);
+    // Read the body at once: Chromium can drop a consumed fetch body from the DevTools buffer before a later read.
+    const sessionBody = await sessionResponse.text();
     assert.equal(sessionResponse.status(), 200, `${label}: respuesta de sesión sintética`);
-    assert.deepEqual(await sessionResponse.json(), sessionFixture, `${label}: contrato de sesión completo`);
+    assert.deepEqual(JSON.parse(sessionBody), sessionFixture, `${label}: contrato de sesión completo`);
     await page.waitForSelector('#reportContent:not([hidden])');
     await page.waitForFunction(() => document.querySelector('#reportPackStatus')?.dataset.state === 'ready');
     await page.locator('.rc-overview summary').click();
