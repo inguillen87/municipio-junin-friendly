@@ -1,20 +1,28 @@
 -- 192: municipal rounding policy for new programme rules (owner decision 2026-11-05, GRH parity).
 -- A new rule keeps every stage exact, or declares commercial rounding to cents (half_up, precision 2)
--- in its result and in any explicit round node. References may use the rounded stage of another
--- concept, as GRH chains concepts on their rounded amounts. Nothing else of 190 changes:
--- history, participation expressions, provenance, grants and the independent/owner paths are identical.
--- Private candidate. Apply only through the source-pinned installation protocol, after 191.
+-- in its result and in any explicit round / rounded quantity phase. References may use the rounded
+-- stage of another concept, as GRH chains concepts on their rounded amounts. Nothing else changes:
+-- the body is the live PG17 function (190 plus the monthly-day, forced-amount and quantity-phase
+-- guards installed from root's later candidates), with only the precision guard rewritten.
+-- Prerequisite: the live prosrc sha256 must equal the pinned value below (PG17 destination).
+-- The PG18 destination still holds the plain 190 body and must receive those candidates first.
 DO $rounding_policy_prerequisite$
 DECLARE src text;
 BEGIN
  IF to_regprocedure('public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)') IS NULL
  THEN RAISE EXCEPTION 'OWN_PROGRAM_ROUNDING_POLICY_PREREQUISITE'; END IF;
  SELECT prosrc INTO src FROM pg_proc WHERE oid='public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)'::regprocedure;
- IF src IS NULL OR encode(public.digest(src,'sha256'),'hex')<>'62498aca393b8115c9fab0e84c98b95f68c5b2b47013e6d9044443042736e1e4'
+ IF src IS NULL OR encode(public.digest(src,'sha256'),'hex')<>'f56ee83ba0de87a33bd941fdd4609113c65608dc5a94a27f90f995495711691c'
  THEN RAISE EXCEPTION 'OWN_PROGRAM_ROUNDING_POLICY_SOURCE_CHANGED'; END IF;
 END $rounding_policy_prerequisite$;
 
-CREATE OR REPLACE FUNCTION public.municipal_owner_program_command_core_v1(p jsonb,body jsonb,key uuid,decision_mode text,owner_command jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $function$
+CREATE OR REPLACE FUNCTION public.municipal_owner_program_command_core_v1(p jsonb, body jsonb, key uuid, decision_mode text, owner_command jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
 DECLARE ctx jsonb;cmd text;current_program jsonb;catalog jsonb;proposal public.own_payroll_program_event;prior public.own_payroll_program_event;definition jsonb;eid uuid:=gen_random_uuid();pid uuid;rev integer;fingerprint text;receipt_value jsonb;baseline jsonb;source_items jsonb;field text;
  authority_value jsonb;preview_value jsonb;owner_value jsonb;existing jsonb;inserted public.own_payroll_program_event;
 BEGIN
@@ -43,7 +51,11 @@ BEGIN
   IF body->'proposalId'<>'null' OR body->'proposalSha256'<>'null' OR body->'reviewConfirmed'<>'false' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
   IF body->>'baseVersion' IS DISTINCT FROM current_program->>'version' OR body->>'salaryVersion' IS DISTINCT FROM catalog->>'version' OR (catalog->>'revision')::integer=0 THEN RAISE EXCEPTION 'OWN_PROGRAM_BASE_CHANGED';END IF;
   definition:=public.own_program_definition_v1(body->'program',catalog->'items');IF definition IS DISTINCT FROM body->'program' OR definition=current_program->'definition' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  IF current_program#>>'{definition,monthlyDayDeclarationVersion}'='own-monthly-approved-days.v1' AND definition->>'monthlyDayDeclarationVersion' IS DISTINCT FROM 'own-monthly-approved-days.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,monthlyDaysVersion}'='own-monthly-day-facts.v2' AND definition->>'monthlyDaysVersion' IS DISTINCT FROM 'own-monthly-day-facts.v2' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
   IF current_program#>>'{definition,periodParticipation,version}'='own-period-participation.v1' AND definition#>>'{periodParticipation,version}' IS DISTINCT FROM 'own-period-participation.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,fixedForcedAmountsVersion}'='own-fixed-forced-amount.v1' AND definition->>'fixedForcedAmountsVersion' IS DISTINCT FROM 'own-fixed-forced-amount.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(current_program#>'{definition,fixedForcedAmountsPolicy,policies}','[]'::jsonb)) old_policy WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(definition#>'{fixedForcedAmountsPolicy,policies}','[]'::jsonb)) new_policy WHERE new_policy=old_policy)) THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
   IF current_program#>>'{definition,salaryConditionsVersion}'='own-contract-salary-conditions.v1' AND definition->>'salaryConditionsVersion' IS DISTINCT FROM 'own-contract-salary-conditions.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
   IF current_program#>>'{definition,periodContextVersion}'='own-payroll-period-context.v1' AND definition->>'periodContextVersion' IS DISTINCT FROM 'own-payroll-period-context.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
   IF current_program#>>'{definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' AND definition->>'agreementWorkingTimeVersion' IS DISTINCT FROM 'own-agreement-working-time.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
@@ -58,7 +70,7 @@ BEGIN
     WHERE jsonb_set(candidate.value-'validUntil','{expression}',public.own_participation_expression_v1(candidate.value,definition))=jsonb_set(historical.value-'validUntil','{expression}',public.own_participation_expression_v1(historical.value,current_program->'definition'))
     AND (candidate.value->'validUntil'=historical.value->'validUntil' OR candidate.value->'validUntil'<>'null'::jsonb AND (historical.value->'validUntil'='null'::jsonb OR candidate.value->>'validUntil'<=historical.value->>'validUntil'))
    ) AND (NOT (candidate.value#>>'{rounding,mode}'='exact' OR (candidate.value#>>'{rounding,mode}'='half_up' AND candidate.value#>'{rounding,precision}'='2'::jsonb)) OR jsonb_path_exists(candidate.value,
-    '$.expression.** ? (@.op == "round" && !(@.rounding.mode == "exact" || (@.rounding.mode == "half_up" && @.rounding.precision == 2)))'))
+    '$.expression.** ? ((@.op == "round" || @.op == "quantity_phase" && @.stage == "rounded") && !(@.rounding.mode == "exact" || (@.rounding.mode == "half_up" && @.rounding.precision == 2)))'))
   ) THEN RAISE EXCEPTION 'OWN_PROGRAM_PRECISION_REQUIRED';END IF;
   pid:=eid;baseline:=current_program->'definition';source_items:=catalog->'items';
  ELSE
