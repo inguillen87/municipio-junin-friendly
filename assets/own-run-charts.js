@@ -9,13 +9,13 @@ function niceStep(span, bins) {
  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 2.5 ? 2.5 : unit <= 5 ? 5 : 10) * power;
 }
 
-/** Legajos per net range: at most ten ranges with round limits. */
+/** Legajos per net range: about √n ranges (2–8 target) with round limits. */
 export function netHistogram(nets) {
  const values = nets.filter(n => Number.isFinite(n));
  if (!values.length) return [];
  const min = Math.min(...values), max = Math.max(...values);
  if (min === max) return [{from: min, to: max, count: values.length}];
- const step = niceStep(max - min, 8), start = Math.floor(min / step) * step, bins = [];
+ const step = niceStep(max - min, Math.min(8, Math.max(2, Math.ceil(Math.sqrt(values.length))))), start = Math.floor(min / step) * step, bins = [];
  for (let from = start; from <= max; from += step) bins.push({from, to: from + step, count: 0});
  for (const v of values) bins[Math.min(bins.length - 1, Math.floor((v - start) / step))].count++;
  return bins;
@@ -57,6 +57,7 @@ export function drawRunCharts(section, result, {anchor = section?.querySelector(
   const label = b => limit(b.from) + '–' + limit(b.to);
   const option = m.barOption({categories: bins.map(label), values: bins.map(b => b.count), name: 'Legajos', color: '#315f82'});
   option.xAxis.axisLabel = {interval: 0, rotate: bins.length > 5 ? 30 : 0, fontSize: 10};
+  option.yAxis.minInterval = 1;
   option.tooltip = {trigger: 'axis', axisPointer: {type: 'shadow'}, formatter: p => `<b>${p[0].name}</b><br>${m.formatNumber(p[0].value)} legajos`};
   return option;
  }, {ariaLabel: 'Cantidad de legajos por rango de neto calculado'});
