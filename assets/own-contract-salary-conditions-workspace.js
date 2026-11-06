@@ -62,3 +62,18 @@ export function conditionsComparison(before,after){
  const a=new Map(before.map(r=>[r.contractId,r])),b=new Map(after.map(r=>[r.contractId,r]));
  return[...new Set([...a.keys(),...b.keys()])].sort().map(contractId=>({contractId,before:a.get(contractId)??null,after:b.get(contractId)??null})).filter(r=>salarySerialized(r.before)!==salarySerialized(r.after));
 }
+
+// A complete preparation prepared from the municipal source (JSON, one row per contract). Its rows are matched to
+// the bootstrap consulted in this session by contract and legajo; identities always come from the bootstrap.
+export function conditionsPreparationFile(value,text){
+ const b=salaryConditionsBootstrap(value);let raw;
+ if(typeof text!=='string'||new TextEncoder().encode(text).length>SALARY_CONDITIONS_MAX_BYTES)fail('El archivo supera 4 MiB. No se cargó ninguna fila.');
+ try{raw=JSON.parse(text.charCodeAt(0)===0xfeff?text.slice(1):text);}catch{fail('El archivo no es un JSON válido.');}
+ if(!raw||typeof raw!=='object'||Array.isArray(raw)||raw.nativeDefinitionVersion!=='own-contract-salary-conditions.v1'||typeof raw.version!=='string'||!/-preparation\.v1$/.test(raw.version)||raw.readyToPost!==false)fail('El archivo no es una preparación de condiciones salariales admitida.');
+ if(raw.period!==b.period)fail('La preparación es de '+raw.period+' y la consulta es de '+b.period+'. Elegí el mismo período.');
+ if(!Array.isArray(raw.rows)||raw.rows.length!==b.source.subjects.length)fail('La preparación tiene '+(Array.isArray(raw.rows)?raw.rows.length:0)+' contratos y el padrón consultado '+b.source.subjects.length+'. Rehacé la preparación con el padrón vigente.');
+ const byContract=new Map();
+ for(const r of raw.rows){if(!r||typeof r!=='object'||typeof r.contractId!=='string'||typeof r.legajo!=='string'||!r.definition||typeof r.definition!=='object')fail('Hay una fila sin contrato, legajo o declaración.');if(byContract.has(r.contractId))fail('Hay contratos repetidos en la preparación.');byContract.set(r.contractId,r);}
+ const items=b.source.subjects.map(s=>{const r=byContract.get(s.contractId);if(!r||r.legajo!==s.legajo)fail('El legajo '+s.legajo+' no coincide con la preparación. No se cargaron filas.');return{contractId:s.contractId,identityToken:s.identityToken,definition:structuredClone(r.definition)};});
+ salaryConditionsItems(items,b.period,{empty:false});return items;
+}
