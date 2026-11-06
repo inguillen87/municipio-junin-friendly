@@ -136,8 +136,14 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const box=$('coverage'),c=currentCoverage(),show=!!c&&c.missing.length>0&&live()&&(!attempt||computeBlocked==='OWN_RUN_PAY_RULE_MISSING'||computeBlocked==='coverage')&&!current?.saved;
     box.hidden=!show;if(!show)return;
     const text=ownRunCoverageText(c);if($('coverage-text').textContent!==text)$('coverage-text').textContent=text;
-    const items=c.missing.map(a=>'Convenio '+a.code+' · '+a.label+' — '+a.people+(a.people===1?' persona':' personas')+(a.validity.length?' · reglas sólo para '+a.validity.join(', '):' · sin reglas'));
-    if($('coverage-list').dataset.items!==items.join('|')){$('coverage-list').dataset.items=items.join('|');$('coverage-list').replaceChildren(...items.map(t=>node('li',t)));}
+    // One animated bar per convenio: missing in amber, covered in teal, width by people.
+    const all=[...c.missing.map(a=>({...a,ok:false})),...c.covered.map(a=>({...a,ok:true}))],max=Math.max(1,...all.map(a=>a.people));
+    const signature=all.map(a=>a.code+':'+a.people+':'+a.ok).join('|');
+    if($('coverage-list').dataset.items!==signature){$('coverage-list').dataset.items=signature;$('coverage-list').replaceChildren(...all.map((a,i)=>{
+      const li=node('li');li.className=a.ok?'is-covered':'is-missing';li.style.setProperty('--cv-i',String(i));li.style.setProperty('--cv-w',Math.max(3,Math.round(a.people/max*100))+'%');
+      const label=node('span','Convenio '+a.code+' · '+a.label);label.className='cv-label';const bar=node('span');bar.className='cv-bar';bar.setAttribute('aria-hidden','true');
+      const meta=node('span',a.people+(a.people===1?' persona':' personas')+' · '+(a.ok?'cubierto':a.validity.length?'reglas sólo '+a.validity.join(', '):'sin reglas'));meta.className='cv-meta';
+      li.append(label,bar,meta);return li;}));}
   }
   function renderUnsectored(){
     const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
