@@ -216,6 +216,8 @@ const shellFiles = [
   'assets/export-sex-code.js',
   'assets/payroll-roster-model.js',
   'assets/payroll-roster-panel.js',
+  'assets/payroll-entity-export-panel.js',
+  'assets/entity-discount-export.js',
   'assets/payroll-navigation.js',
   'assets/own-payroll-summary-model.js',
   'assets/own-payroll-summary-panel.js',

@@ -1,6 +1,7 @@
 import {drawAggregateCharts,clearAggregateCharts} from './aggregate-chart-view.js';
 import {sourceCostChart} from './aggregate-chart-model.js';
 import { mountPayrollRoster } from './payroll-roster-panel.js';
+import { mountEntityExport } from './payroll-entity-export-panel.js';
 import {payrollSourceReport,sourceReportDocument,formatSalaryAmount,sourceReportCatalog,sourceReportTypeLabel} from './payroll-source-report-model.js';
 import {saveReport} from './report-document.js';
 import {civilDate,civilMonthLabel} from './civil-date.js';
@@ -24,9 +25,10 @@ export function mountSourceReports(host){
  <div class="rc-downloads"><button type="button" class="rc-button" data-format="pdf">Descargar PDF</button><button type="button" class="rc-button" data-format="xlsx">Descargar Excel</button><button type="button" class="rc-button secondary" data-format="csv">Descargar CSV</button></div>
  <p data-scope></p><div class="rc-table-wrap"><table class="rc-table"><thead data-source-report-head></thead><tbody data-source-report-rows></tbody></table></div></div>`;
  const rosterHost=e('section');host.append(rosterHost);const roster=mountPayrollRoster(rosterHost);
+ const entityHost=e('section');host.append(entityHost);const entityExport=mountEntityExport(entityHost);
  let current=null,catalog=null,version=0,busy=false;
  const $=s=>host.querySelector(s),status=$('[data-state]'),result=$('[data-result]');
- const clear=()=>{clearAggregateCharts($('[data-cost-chart]'));current=null;result.hidden=true;for(const selector of ['[data-salary-cost]','[data-source]','[data-scope]','[data-source-report-head]','[data-source-report-rows]'])$(selector).replaceChildren();roster.setDataset(null)};
+ const clear=()=>{clearAggregateCharts($('[data-cost-chart]'));current=null;result.hidden=true;for(const selector of ['[data-salary-cost]','[data-source]','[data-scope]','[data-source-report-head]','[data-source-report-rows]'])$(selector).replaceChildren();roster.setDataset(null);entityExport.setDataset(null)};
  const forgetCatalog=()=>{catalog=null;$('[data-query]').hidden=true;$('[data-dataset]').replaceChildren();$('[data-catalog-scope]').replaceChildren();$('[data-catalog-month]').replaceChildren(option('all','Todos los meses'));$('[data-catalog-type]').replaceChildren(option('all','Todos los tipos'))};
  const option=(value,label)=>{const n=e('option',label);n.value=value;return n};
  async function request(dataset){
@@ -81,7 +83,7 @@ export function mountSourceReports(host){
    const d=await request(selected);if(seq!==version)return;
    if(!d.found)throw Error('La liquidación ya no está disponible.');
    if(d.datasetId!==selected)throw Error('La respuesta no corresponde a la liquidación elegida. Volvé a consultar.');
-   current=d;render();roster.setDataset(d.datasetId);status.textContent='Reporte consultado. Filtrá y descargá el resultado.';
+   current=d;render();roster.setDataset(d.datasetId);entityExport.setDataset(d.datasetId);status.textContent='Reporte consultado. Filtrá y descargá el resultado.';
   }catch(err){clear();status.textContent=err.message}finally{busy=false}
  });
  $('[data-dataset]').addEventListener('change',()=>{version++;clear();status.textContent='Consultá la liquidación seleccionada antes de exportar.'});

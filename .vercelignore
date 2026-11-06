@@ -410,3 +410,4 @@ local-agents/
 !scripts/migrations/192-own-program-rounding-policy.sql
 !scripts/migrations/221-attendance-time-exception.sql
 !scripts/migrations/222-own-run-scope-fixes.sql
+!scripts/migrations/223-payroll-entity-export.sql
