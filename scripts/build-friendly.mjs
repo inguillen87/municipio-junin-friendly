@@ -484,6 +484,7 @@ const shellFiles = [
   'assets/payroll-novelty-sheet.js',
   'assets/attendance-preparte-panel.js',
   'assets/attendance-preparte-model.js',
+  'assets/attendance-tardiness-model.js',
   'assets/attendance-preparte-export.js',
   'assets/attendance-preparte.css',
   'assets/payroll-novelty-sheet-model.js',

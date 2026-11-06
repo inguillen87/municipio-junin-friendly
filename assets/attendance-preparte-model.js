@@ -33,14 +33,17 @@ export function verifyPreparte(data, period, site) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(data.period) || typeof data.site.label!=='string' || data.site.label.length>500 ||
     !['generatedAt','timezone','rulesVersion'].every(key=>typeof data[key]==='string'&&data[key].length<=100) ||
     !Number.isFinite(Date.parse(data.generatedAt)) || data.lastReceiptAt!==null&&!Number.isFinite(Date.parse(data.lastReceiptAt)) ||
-    !number(data.summary.readyForReview) || !number(data.summary.withIncidents)) invalid();
+    !number(data.summary.readyForReview) || !number(data.summary.withIncidents) || !['codes','order'].includes(data.entryProfile)) invalid();
+  const monthDays=new Date(Date.UTC(Number(data.period.slice(0,4)),Number(data.period.slice(5,7)),0)).getUTCDate();
   const ids=new Set();
   for (const row of data.rows) {
     if (!/^[a-f0-9]{64}$/.test(row.evidenceHash||'') || !/^[a-f0-9]{64}$/.test(row.key||'') || ids.has(row.key) || typeof row.name!=='string' || row.name.length>500 ||
       !(row.legajo===null || /^(?:0|[1-9]\d{0,19})$/.test(row.legajo)) || !number(row.daysObserved) || row.daysObserved>31 ||
       !number(row.daysToReview) || row.daysToReview>row.daysObserved || !number(row.extraIntervals) ||
       ![row.ordinarySeconds,row.extraSeconds].every(n=>n===null||number(n)&&n<=31*86400) ||
-      !Array.isArray(row.issues) || row.issues.some(s=>typeof s!=='string'||s.length>200) || typeof row.canPropose!=='boolean') invalid();
+      !Array.isArray(row.issues) || row.issues.some(s=>typeof s!=='string'||s.length>200) || typeof row.canPropose!=='boolean' ||
+      typeof row.entryReady!=='boolean' || !Array.isArray(row.entries) || row.entries.length>monthDays || (row.legajo===null&&row.entries.length) ||
+      row.entries.some((e,i)=>typeof e!=='string'||!/^(0[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(e)||Number(e.slice(0,2))>monthDays||i&&e.slice(0,2)<=row.entries[i-1].slice(0,2))) invalid();
     if (row.canPropose && (!row.legajo || row.issues.length || row.daysToReview || row.extraSeconds===null || !row.extraIntervals || data.observations)) invalid();
     ids.add(row.key);
   }

@@ -5,13 +5,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import * as model from '../assets/attendance-preparte-model.js';
+import * as tardiness from '../assets/attendance-tardiness-model.js';
 import {preparteXlsx} from '../assets/attendance-preparte-export.js';
 import {appendPreparteRows} from '../assets/payroll-novelty-sheet-model.js';
 import {correctionPreparte} from './fixtures/preparte-correction-synthetic.js';
 
 async function panel(count=60){
   const sourceData=await correctionPreparte(count),requests=[],transfers=[],downloads=[],confirms=[],listeners=new Map();
-  const state={allowed:true,period:'2026-09',payrollType:'monthly',hold:null,deny:false,sheet:[],confirm:true,changed:false};
+  const state={allowed:true,period:'2026-09',payrollType:'monthly',hold:null,deny:false,sheet:[],confirm:true,changed:false,exceptions:undefined};
   let focused=null;
   const camel=s=>s.replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
   class Element {
@@ -36,7 +37,7 @@ async function panel(count=60){
       for(const tag of html.matchAll(/<([a-z0-9]+)\b([^>]*)>/g)){
         const match=/\bdata-(ap-[\w-]+)(?:="([^"]*)")?/.exec(tag[2]);if(!match)continue;
         const node=new Element(tag[1]);node.dataset[camel(match[1])]=match[2]??'';node.hidden=/\bhidden\b/.test(tag[2]);
-        if(match[1]==='ap-site')node.value='pm-10';if(match[1]==='ap-filter')node.value='all';this.append(node);
+        if(match[1]==='ap-site')node.value='pm-10';if(match[1]==='ap-filter')node.value='all';if(match[1]==='ap-td-filter')node.value='late';this.append(node);
       }
     }
   }
@@ -45,12 +46,13 @@ async function panel(count=60){
   const fetch=async(url,options)=>{
     assert.ok(url.startsWith('/api/internal-attendance?'),'only the existing read endpoint');assert.equal(options.method,undefined,'no POST');
     requests.push({url,options});if(state.hold)await state.hold;
+    if(url.includes('resource=time-exceptions')&&state.exceptions!==undefined)return new Response(JSON.stringify({ok:true,version:'attendance-time-exceptions.v1',canManage:false,items:state.exceptions}),{headers:{'Content-Type':'application/json'}});
     if(state.deny)return new Response(JSON.stringify({error:'Acceso retirado'}),{status:403});
     const result=structuredClone(sourceData);if(state.changed)result.evidenceHash='f'.repeat(64);
     return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json'}});
   };
   const source=fs.readFileSync('assets/attendance-preparte-panel.js','utf8');
-  const context={...model,preparteXlsx,document,fetch,Map,Set,URLSearchParams,AbortSignal,Blob,setTimeout,
+  const context={...model,...tardiness,preparteXlsx,document,fetch,Map,Set,URLSearchParams,AbortSignal,Blob,setTimeout,
     URL:{createObjectURL:()=> 'blob:synthetic',revokeObjectURL(){}},window:{confirm:message=>{confirms.push(message);return state.confirm;}}};
   vm.createContext(context);vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace('export function mountAttendancePreparte','function mountAttendancePreparte'),context);
   const controller=context.mountAttendancePreparte(host,{canUse:()=>state.allowed,period:()=>state.period,payrollType:()=>state.payrollType,
@@ -93,7 +95,8 @@ test('correction updates all errors live and valid transfer includes the whole s
   h.q('search').value='Persona QA 60';h.q('search').emit('input');await h.q('use').click();
   assert.equal(h.transfers.length,1);assert.equal(h.transfers[0].rows.length,60);assert.equal(h.state.sheet.length,60);
   assert.equal(h.confirms.length,1);assert.match(h.confirms[0],/60 filas/);assert.equal(h.q('corrections').hidden,true);
-  assert.equal(h.requests.length,2);assert.ok(h.requests[1].url.includes('evidence='));
+  const reads=h.requests.filter(r=>r.url.includes('resource=clock-preparte'));assert.equal(reads.length,2);assert.ok(reads[1].url.includes('evidence='));
+  assert.equal(h.requests.filter(r=>r.url.includes('resource=time-exceptions')).length,1,'exceptions read once at load; no tardiness selected');
 });
 
 test('global documentation correction navigates directly to its field',async()=>{
@@ -122,7 +125,7 @@ test('changed evidence or server denial never append part of the selection',asyn
 
 test('double click only verifies once and the atomic sheet adapter blocks duplicate dedicated concepts',async()=>{
   const h=await panel();await h.selectAll();const release=h.hold(),pending=h.q('use').click();await h.q('use').click();
-  assert.equal(h.requests.length,2);release();await pending;assert.equal(h.transfers.length,1);
+  assert.equal(h.requests.filter(r=>r.url.includes('resource=clock-preparte')).length,2);release();await pending;assert.equal(h.transfers.length,1);
   assert.ok(h.state.sheet.every(row=>row[5]===''));
 });
 
@@ -149,4 +152,23 @@ test('initial read cannot repopulate nominal fields after local access withdrawa
   assert.equal(h.q('corrections').hidden,true);assert.equal(h.q('correction-list').children.length,0);
   assert.equal(h.q('use').disabled,true);assert.equal(h.q('export').disabled,true);
   assert.equal(h.transfers.length,0);assert.equal(h.downloads.length,0);
+});
+
+test('tardiness section: no exceptions read blocks selection; with exceptions the reviewed 101 row joins the same transfer',async()=>{
+  const h=await panel(3),key=h.sourceData.rows[0].key,legajo=h.sourceData.rows[0].legajo;
+  h.sourceData.rows[0].entries=['01 07:20:00','02 07:10:00','07 08:30:00'];
+  await h.q('load').click();
+  const tdRow=()=>h.host.querySelector(`[data-ap-td-key="${key}"]`),tdField=name=>tdRow()?.querySelector(`[data-ap-td-field="${name}"]`);
+  assert.ok(tdRow(),'late person listed under the default filter');assert.equal(tdField('td-selected').disabled,true,'no exceptions → no discount proposal');
+  assert.match(h.q('td-status').textContent,/No se pudieron leer las excepciones/);
+  h.state.exceptions=[{id:'x1',legajo,kind:'salida_transitoria',weekdays:[1,2,3,4,5],from:'07:30',to:'08:30',validFrom:'2026-01-01',validTo:null,revokedAt:null}];
+  await h.q('load').click();
+  assert.equal(tdField('td-start').value,'07:00');assert.equal(tdField('td-selected').disabled,false);
+  const select=tdField('td-selected');select.checked=true;select.emit('change');
+  h.q('reference').value='Listado sintético de Personal, versión 1';h.q('reference').emit('input');h.q('reviewed').checked=true;h.q('reviewed').emit('change');
+  await h.q('use').click();
+  assert.equal(h.transfers.length,1);const rows=h.transfers[0].rows;assert.equal(rows.length,1);
+  // 20 + 10 + 30 (08:30 arrival, 07:30–08:30 window authorized) = 60 min → ½ jornada.
+  assert.deepEqual([rows[0][0],rows[0][1],rows[0][4]],[legajo,'101','0.5']);assert.match(rows[0][8],/excepciones aplicadas en 1 días/);
+  assert.equal(h.requests.filter(r=>r.url.includes('resource=time-exceptions')).length,3,'two loads plus the re-check before transfer');
 });

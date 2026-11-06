@@ -18,3 +18,10 @@
 .ap-panel .ap-corrections li>span{display:block;font-size:12px}
 .ap-panel .ap-corrections button{margin-top:8px;max-width:100%;white-space:normal}
 @media(max-width:720px){.ap-panel .ap-corrections{padding:12px}.ap-panel .ap-corrections button{width:100%}}
+.ap-panel .ap-tardiness{margin:22px 0 6px;padding:16px;border:1px solid #cfe0dc;border-radius:10px;background:linear-gradient(180deg,#f6fbfa,#fff)}
+.ap-panel .ap-tardiness h4{margin:0 0 6px;font-size:15px;color:#0f4f49}
+.ap-panel .ap-tardiness .ap-td-rule{margin:0 0 8px;font-size:12px;line-height:1.6;color:#41545a}
+.ap-panel .ap-tardiness [data-ap-td-status]{margin:0 0 10px;font-size:12px}
+.ap-panel .ap-tardiness [data-ap-td-status][data-error="true"]{color:#8a3b12}
+.ap-panel .ap-tardiness table{min-width:760px}
+.ap-panel .ap-tardiness input[data-ap-td-field="td-start"]{width:6.5em}
