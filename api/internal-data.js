@@ -3320,7 +3320,8 @@ export async function employees(sql, req, binding = null, options = {}) {
       ${tokens.length ? ` OR (${tokens.map((t) => `translate(lower(${col.nombre}), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${t}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})` : ''}
     )`;
     conditions.push(predicate({ nombre: 'directory.nombre', legajo: 'directory.legajo', dni: 'directory.dni', cuil: 'directory.cuil' }));
-    if (!includeScope && !includeFacets && !picker && !options.nativeOnly && status !== 'multiple_active') searchSql = predicate({ nombre: 'COALESCE(identity.full_name, employee.nombre)', legajo: 'contract.legacy_legajo', dni: 'identity.dni', cuil: 'identity.cuil' });
+    // The picker never shows totals, so it always takes the fast path; the directory does once it holds its totals.
+    if ((picker || !includeScope) && !includeFacets && !options.nativeOnly && status !== 'multiple_active') searchSql = predicate({ nombre: 'COALESCE(identity.full_name, employee.nombre)', legajo: 'contract.legacy_legajo', dni: 'identity.dni', cuil: 'identity.cuil' });
   }
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
   if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
@@ -3356,7 +3357,10 @@ export async function employees(sql, req, binding = null, options = {}) {
     ), directory_count AS (
       SELECT count(*)::int AS total FROM filtered_directory
     ), directory_scope AS (
-      ${searchSql ? 'SELECT NULL::timestamptz AS "sourceCutoffFrom", NULL::timestamptz AS "sourceCutoffTo"' : operationalScopeSelectSql('')}
+      ${searchSql ? `SELECT min(batch.source_cutoff) AS "sourceCutoffFrom", max(batch.source_cutoff) AS "sourceCutoffTo"
+        FROM employment_contract contract JOIN source_import_batch batch ON batch.id = contract.source_batch_id
+        WHERE contract.source_system='GRH' AND batch.source_system='GRH' AND batch.validation_state='published'
+          AND batch.legacy_import_run_id IS NOT NULL${binding ? ' AND batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''}` : operationalScopeSelectSql('')}
     ), directory_page AS (
       SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate", "recordOrigin"' : '*'},
              row_number() OVER (ORDER BY ${pageOrder}) AS "__pageOrder"

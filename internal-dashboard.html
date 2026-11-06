@@ -2550,7 +2550,7 @@
         params.set('crosswalk', state.filters.crosswalk);
         params.set('includeFacets', state.directoryFacetsLoaded ? '0' : '1');
         // A search reuses the totals already on screen, so the server only builds the matching legajos.
-        params.set('includeScope', state.directoryScopeLoaded && state.directoryFacetsLoaded && state.filters.search ? '0' : '1');
+        if (state.directoryScopeLoaded && state.directoryFacetsLoaded && state.filters.search) params.set('includeScope', '0');
         params.set('page', String(page));
         params.set('limit', String(PAGE_LIMIT));
         return DATA_URL + '?' + params.toString();

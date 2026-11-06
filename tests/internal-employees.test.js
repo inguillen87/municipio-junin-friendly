@@ -262,7 +262,8 @@ test('search fast path: with the totals already on screen, only the matching con
   assert.match(call.statement, /OR contract\.legacy_legajo ILIKE \$5/);
   assert.match(call.statement, /OR identity\.dni ILIKE \$5 OR identity\.cuil ILIKE \$5/);
   assert.match(call.statement, /WHERE contract\.id IN \(SELECT id FROM search_contracts\) AND \(\(contract\.source_system='GRH'/);
-  assert.match(call.statement, /directory_scope AS \(\s*SELECT NULL::timestamptz AS "sourceCutoffFrom"/);
+  assert.match(call.statement, /directory_scope AS \(\s*SELECT min\(batch\.source_cutoff\) AS "sourceCutoffFrom", max\(batch\.source_cutoff\) AS "sourceCutoffTo"/);
+  assert.match(call.statement, /AND batch\.source_database=\$1::text AND contract\.legacy_company_id=\$2::bigint\` ?|AND batch\.source_database=\$1::text AND contract\.legacy_company_id=\$2::bigint/);
   assert.doesNotMatch(call.statement, /count\(DISTINCT "contractId"\)::int AS "totalContracts"/);
   assert.match(call.statement, /directory\.nombre ILIKE \$5/);
   assert.deepEqual(call.values.slice(4, 7), ['%Nombre Apellido%', '%Nombre%', '%Apellido%']);
@@ -287,7 +288,20 @@ test('search fast path: with the totals already on screen, only the matching con
 
 test('Personas: a search reuses the totals on screen and never paints empty totals', async () => {
   const html = await readFile(new URL('../internal-dashboard.html', import.meta.url), 'utf8');
-  assert.match(html, /params\.set\('includeScope', state\.directoryScopeLoaded && state\.directoryFacetsLoaded && state\.filters\.search \? '0' : '1'\);/);
+  assert.match(html, /if \(state\.directoryScopeLoaded && state\.directoryFacetsLoaded && state\.filters\.search\) params\.set\('includeScope', '0'\);/);
   assert.match(html, /if \(!result\.scopeOmitted\) \{\s*renderDirectoryScope\(result\.scope\);/);
   assert.match(html, /scopeOmitted: payload\.scopeOmitted === true/);
+});
+
+test('picker search always takes the fast path and keeps the source cut-off range', async () => {
+  const sql = mockListSql(), seen = [];
+  const base = sql.query.bind(sql);
+  sql.query = async (statement, values = []) => { seen.push({ statement: String(statement), values }); return base(statement); };
+  const binding = { database: 'grh_junin', companyId: 101 };
+  // The list fixture is not a picker row; only the statement is checked here (picker payloads have their own suite).
+  await employees(sql, { query: { resource: 'employees', view: 'novelty-selector', search: 'Perez', status: 'administrative_active', includeFacets: '0', page: '1', limit: '20' } }, binding).catch(() => null);
+  const statement = seen.find(c => c.statement.includes('directory_page.*')).statement;
+  assert.match(statement, /search_contracts AS MATERIALIZED/);
+  assert.doesNotMatch(statement, /identity\.dni ILIKE/);
+  assert.match(statement, /min\(batch\.source_cutoff\) AS "sourceCutoffFrom"/);
 });
