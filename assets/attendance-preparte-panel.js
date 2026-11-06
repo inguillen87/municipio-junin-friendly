@@ -183,7 +183,8 @@ export function mountAttendancePreparte(host,{ canUse, unavailableReason=()=>nul
       status(rows.length+' filas agregadas a la planilla. Usá Validar y previsualizar y luego Crear lote; se conserva la revisión independiente.');render();});
   });
   $('[data-ap-export]').addEventListener('click',()=>withCurrent(async original=>{
-    const bytes=preparteXlsx(original,decisions,$('[data-ap-reference]').value),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const tardiness=original.rows.filter(row=>row.legajo&&row.entryReady&&row.entries.length).map(row=>{const month=tdMonth(row),value=tdDecision(row);return [row.legajo,row.name,value.start||'',row.entries.length,month?month.lateDays:'',month?month.totalLateMinutes:'',month?month.excusedDays:'',month?fractionLabel(month.percent):'Entrada inválida',month?.units||'',value.selected?'Sí':'No'];});
+    const bytes=preparteXlsx(original,decisions,$('[data-ap-reference]').value,tardiness),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
     const a=node('a');a.href=url;a.download='preparte-'+original.site.key+'-'+original.period+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     status('Excel generado con todo el preparte y sus decisiones declaradas. No es una liquidación ni una aprobación.');
   }));

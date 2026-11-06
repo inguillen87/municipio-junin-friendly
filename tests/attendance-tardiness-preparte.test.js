@@ -5,6 +5,8 @@ import { clockSeconds, referenceStart, activeExceptions, dayLateMinutes, monthly
 import { appendPreparteRows, emptySheetRow } from '../assets/payroll-novelty-sheet-model.js';
 import { preparteSynthetic } from './fixtures/attendance-preparte-synthetic.js';
 import { preparteEntryProfile } from '../lib/attendance-preparte.js';
+import { preparteXlsx } from '../assets/attendance-preparte-export.js';
+import { unzipSync, strFromU8 } from 'fflate';
 
 const graciela = { id: 'e1', legajo: '9001', kind: 'salida_transitoria', weekdays: [1, 2, 3, 4, 5], from: '07:30', to: '08:30',
   validFrom: '2026-03-01', validTo: null, revokedAt: null };
@@ -94,4 +96,14 @@ test('combined review: tardiness alone still needs document and acknowledgment; 
   const both = reviewPreparteAll(data, md, td, { ...reviewed, exceptions: [] });
   assert.equal(both.valid, true); assert.deepEqual(both.rows.map(r => r[1]), ['44', '101']);
   assert.equal(appendPreparteRows([], both.rows).length, 2);
+});
+
+test('Excel export adds a Tardanzas sheet only when tardiness rows are given', async () => {
+  const data = await preparteSynthetic();
+  const without = unzipSync(preparteXlsx(data, new Map(), 'Listado QA'));
+  assert.equal(without['xl/worksheets/sheet4.xml'], undefined);
+  const files = unzipSync(preparteXlsx(data, new Map(), 'Listado QA', [['9001', 'Persona QA', '07:00', 2, 2, 30, 0, '½ jornada', '0.5', 'Sí']]));
+  assert.match(strFromU8(files['xl/workbook.xml']), /name="Tardanzas"/);
+  assert.match(strFromU8(files['[Content_Types].xml']), /sheet4\.xml/);
+  assert.match(strFromU8(files['xl/worksheets/sheet4.xml']), /½ jornada/);
 });
