@@ -176,7 +176,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     box.hidden=!show;if(!show)return;
     const text=ownRunUnsectoredText(plan);if($('unsectored-text').textContent!==text)$('unsectored-text').textContent=text;
     $('unsectored-all').hidden=!plan.codes.length||plan.unmatched.length>0;$('unsectored-all').disabled=busy;
-    $('unsectored-all').textContent='Calcular las '+plan.codes.length+' reparticiones ('+plan.covered+' legajos)';
+    $('unsectored-all').textContent=(plan.codes.length===1?'Calcular la repartición':'Calcular las '+plan.codes.length+' reparticiones')+' ('+plan.covered+(plan.covered===1?' legajo)':' legajos)');
   }
   function renderActionGuidance(){
     const help=$('action-help'),text=$('action-help-text'),link=$('action-help-link');let message='',href=null,label='';
@@ -486,7 +486,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if([...$('codes').selectedOptions].length!==plan.codes.length){$('kind').value='all';renderKind();status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return false;}
     $('confirm').checked=false;controls();
     const out=plan.unsectored.length===1?'el legajo '+plan.unsectored[0]+', que no tiene repartición':'los legajos '+plan.unsectored.slice(0,8).join(', ')+(plan.unsectored.length>8?' y '+(plan.unsectored.length-8)+' más':'')+', que no tienen repartición';
-    status((automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). '+(plan.unsectored.length===1?'Queda fuera ':'Quedan fuera ')+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
+    status((plan.codes.length===1?(automatic?'«Todos» quedó como la repartición':'Elegida la repartición'):(automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones')+' con personal activo ('+plan.covered+(plan.covered===1?' legajo). ':' legajos). ')+(plan.unsectored.length===1?'Queda fuera ':'Quedan fuera ')+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
     if(!automatic)$('confirm').focus();
     return true;
   }
