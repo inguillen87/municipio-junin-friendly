@@ -4,10 +4,12 @@
 // No requests of its own and no data: every action clicks, focuses or opens an existing control, and an
 // action is offered only while its target exists and is enabled.
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-const visible = node => Boolean(node && node.isConnected && !node.closest('[hidden]') && node.getClientRects().length);
+// A block inside another section tab is still available: the action switches to its tab first.
+const visible = node => Boolean(node && node.isConnected && !node.closest('[hidden]') && (node.getClientRects().length || node.closest('.mc-tab-off')));
 
 function reveal(node) {
   if (!node) return;
+  globalThis.mcSectionTabsReveal?.(node);
   for (let parent = node.parentElement; parent; parent = parent.parentElement) if (parent.tagName === 'DETAILS' && !parent.open) parent.open = true;
   // Land below the sticky bar, not under it.
   const bar = document.querySelector('.mc-quickbar');
@@ -204,7 +206,7 @@ export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar])
       if (!target || target.disabled) { say('Esa acción todavía no está disponible en esta pantalla.'); return; }
       if (action.run === 'focus') { reveal(target); target.focus({ preventScroll: true }); }
       else if (action.run === 'scroll' || action.run === 'open') reveal(target);
-      else if (action.run === 'click') { target.click(); say(action.kind === 'export' ? 'Exportación iniciada con el filtro vigente.' : ''); if (action.reveal) reveal(document.querySelector(action.reveal)); }
+      else if (action.run === 'click') { globalThis.mcSectionTabsReveal?.(target); target.click(); say(action.kind === 'export' ? 'Exportación iniciada con el filtro vigente.' : ''); if (action.reveal) reveal(document.querySelector(action.reveal)); }
       else if (action.run === 'print') printScope(action.target, 'mc-print-scope');
       else if (action.run === 'filter') {
         target.value = action.value; target.dispatchEvent(new Event('change', { bubbles: true }));

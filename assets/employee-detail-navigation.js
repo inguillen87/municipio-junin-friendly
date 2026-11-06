@@ -147,6 +147,7 @@ export function mountEmployeeDetailNavigation(container){
   action('Imprimir / PDF','Imprimir la ficha o guardarla como PDF',()=>{document.body.classList.add('mc-print-ficha');const done=()=>document.body.classList.remove('mc-print-ficha');addEventListener('afterprint',done,{once:true});window.print();setTimeout(done,1500);}),
   action('Excel','Descargar la ficha en Excel',()=>{const h=heading();download(fileBase()+'.xlsx',fichaXlsx(h.title,h.subtitle,fichaRows(container)),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');say('Excel descargado con los datos visibles.');}),
   action('TXT','Descargar la ficha como texto',()=>{const h=heading();download(fileBase()+'.txt','﻿'+fichaText(h.title,h.subtitle,fichaRows(container)),'text/plain;charset=utf-8');say('Texto descargado.');}),
+  action('Dar de baja','Ir a la sección para dar de baja o reingresar este legajo',()=>{const i=sections.findIndex(x=>/^Baja/i.test(x.label));if(i<0){say('Esta ficha no tiene la sección de bajas para tu cuenta.');return;}select.value=String(i);scrollTo(i);}),
   action('Copiar resumen','Copiar el resumen de la ficha',()=>{const h=heading();navigator.clipboard?.writeText(fichaText(h.title,h.subtitle,fichaRows(container))).then(()=>say('Resumen copiado.'),()=>say('El navegador no permitió copiar.'));}),
   feedback);
  renderChips();renderSummary();

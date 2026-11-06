@@ -4,3 +4,22 @@
 .own-novelties-import>summary{cursor:pointer;font-weight:700;color:#14524c;min-height:32px}
 .own-novelties-import [data-n-import-result]{margin-top:10px}
 .own-novelties-import [data-n-import-result] ul{max-height:220px;overflow-y:auto;margin:6px 0;padding-left:20px;font-size:.9rem}
+/* 06/11 · carga guiada: pasos, buscador de legajos sin lista eterna, conceptos con catálogo, datos opcionales plegados */
+.own-novelties-step{display:flex;align-items:flex-start;gap:12px;margin:20px 0 6px}
+.own-novelties-step-n{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;font-weight:800;box-shadow:0 4px 12px #0f766e33;animation:onv-pop .35s cubic-bezier(.2,.7,.2,1) backwards}
+.own-novelties-step strong{display:block;font-size:1.05rem;color:#123d45}.own-novelties-step span{display:block;color:#4c6b6e;font-size:.92rem;line-height:1.45}
+.own-novelties-picker{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}.own-novelties-picker label{margin:6px 0}.own-novelties-picker button{margin:6px 0;background:#146b61;color:#fff}
+.own-novelties-muted{color:#56716f;font-size:.9rem;margin:4px 0}
+.own-novelties-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 12px}
+.own-novelties label.own-novelties-person{margin:0;padding:6px 10px;min-height:42px;border:1px solid #dbe8e5;border-radius:8px;background:#fbfdfc;transition:background .15s,border-color .15s}
+.own-novelties label.own-novelties-person:hover{background:#eef7f4;border-color:#9cc9bf}.own-novelties label.own-novelties-person:has(input:checked){background:#e3f4ef;border-color:#14766d}
+.own-novelties-person b{color:#0f5f58}
+.own-novelties-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.own-novelties-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:999px;background:#e3f4ef;border:1px solid #9fcfc4;font-size:.88rem;color:#174f4a;animation:onv-pop .25s ease backwards}
+.own-novelties .own-novelties-chip button{min-height:28px;min-width:28px;padding:0;border-radius:50%;border:0;background:#fff;color:#14766d;font-weight:800;line-height:1}
+.own-novelties-concept small{font-weight:500;color:#0f5f58;min-height:1.3em;line-height:1.35}
+.own-novelties-more{margin:10px 0;border:1px dashed #b9d2cc;border-radius:10px;padding:4px 14px;background:#fbfdfc}.own-novelties-more summary{cursor:pointer;padding:10px 0;font-weight:700;color:#174f4a}
+.own-novelties-pager{margin:8px 0}
+@keyframes onv-pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+@media(max-width:760px){.own-novelties-picker{grid-template-columns:1fr}.own-novelties-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.own-novelties-step-n,.own-novelties-chip{animation:none}}

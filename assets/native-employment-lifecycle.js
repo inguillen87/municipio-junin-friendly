@@ -23,7 +23,8 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  let bootstrap=null,detail=null,detailScope=null,busy=false,epoch=0,controller=null,closed=false;
  host.innerHTML=`<p class="nlc-note">Registrá una baja o un reingreso con respaldo y revisión de otra persona. Se conserva el mismo legajo, contrato y todos los períodos laborales. La baja indica el último día de vigencia, inclusive. No calcula haberes, antigüedad ni pagos.</p>
  <p role="status" aria-live="polite" class="nlc-status" data-nlc-status></p>
- <div class="nlc-actions"><button type="button" data-nlc-refresh>Actualizar consulta</button><button type="button" class="nlc-primary" data-nlc-create hidden>Preparar movimiento</button></div>
+ <div class="nlc-actions"><button type="button" data-nlc-refresh>Actualizar consulta</button><button type="button" class="nlc-primary" data-nlc-create hidden>Dar de baja o reingresar</button></div>
+ <p class="nlc-note nlc-why" data-nlc-why hidden></p>
  <section class="nlc-pending" data-nlc-pending hidden><h4>Envío sin confirmar</h4><p>Se conserva el mismo contenido y su referencia. Consultá el resultado antes de preparar otro cambio.</p><p data-nlc-attempt></p><div class="nlc-actions"><button type="button" data-nlc-recover>Consultar confirmación</button><button type="button" data-nlc-retry disabled>Reenviar el mismo intento</button></div></section>
  <div data-nlc-content hidden><p data-nlc-source class="nlc-note"></p><div class="nlc-values" data-nlc-current></div></div>
  <form data-nlc-form hidden><h4>Propuesta de movimiento</h4><p class="nlc-note" data-nlc-draft-note></p><div class="nlc-fields" data-nlc-fields></div><label>Resolución o documento<input data-nlc-reference required minlength="3" maxlength="180"></label><label>Motivo<textarea data-nlc-reason required minlength="10" maxlength="1000" rows="3"></textarea></label><div data-nlc-diff></div><label class="nlc-reviewed"><input type="checkbox" data-nlc-propose-checked>Revisé el movimiento y todos los períodos, el motivo y el documento de respaldo</label><div class="nlc-actions"><button type="submit" class="nlc-primary" data-nlc-send>Enviar a revisión</button><button type="button" data-nlc-discard>Descartar borrador</button></div></form>
@@ -37,6 +38,9 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
   host.querySelectorAll('button,input,textarea,select').forEach(n=>n.disabled=busy||closed);
   const pending=state.pending,draft=state.draft,stale=draft&&bootstrap&&(draft.baseVersion!==bootstrap.employment.version);
   $('[data-nlc-create]').hidden=!bootstrap?.permissions.canPropose||!!draft||!!pending;
+  // Say why the button is missing instead of leaving an empty section.
+  const why=!bootstrap||draft||pending||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':'Tu cuenta puede consultar pero no preparar bajas. Lo hace una persona con el rol «RRHH · operador» (permiso «Proponer cambios de legajo») y la aprueba otra con «RRHH · aprobador». Se asignan en Administración de plataforma › Usuarios y roles.';
+  if($('[data-nlc-why]').textContent!==why)$('[data-nlc-why]').textContent=why;$('[data-nlc-why]').hidden=!why;
   $('[data-nlc-pending]').hidden=!pending||!bootstrap;if(pending)$('[data-nlc-attempt]').textContent='Referencia: '+pending.key;
   $('[data-nlc-retry]').disabled=busy||!pending?.retryReady;
   for(const n of host.querySelectorAll('[data-nlc-form] input,[data-nlc-form] select,[data-nlc-form] textarea,[data-nlc-form] button,[data-nlc-review-form] textarea,[data-nlc-decision]'))n.disabled=busy||!!pending;
