@@ -42,3 +42,4 @@
 .native-roster tbody td:last-child{width:1%;white-space:nowrap;text-align:right}
 .native-roster tbody td:last-child .button{white-space:nowrap;min-height:36px;padding:8px 14px;border-radius:8px}
 @media(max-width:650px){.native-roster tbody td:last-child{width:auto;text-align:left}}
+.native-roster tr.nr-row{cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease}.native-roster tr.nr-row:hover{background:#f1f8f6;box-shadow:inset 3px 0 0 #0f766e}.native-roster tr.nr-row.is-opening{animation:nr-open .6s ease-out}@keyframes nr-open{from{background:#d9f0ea}to{background:transparent}}@media (prefers-reduced-motion:reduce){.native-roster tr.nr-row{transition:none}.native-roster tr.nr-row.is-opening{animation:none}}

@@ -3137,6 +3137,14 @@
         }
       }
 
+      // Lists inside this page (padrón propio) open a record here, without reloading and losing their filters.
+      window.MuniControlOpenEmployee = function (request) {
+        const contractId = text(request && request.contractId);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) return false;
+        openEmployee(contractId, text(request.legajo), '', text(request.name) || 'Ficha de legajo');
+        return true;
+      };
+
       function detailField(label, value, formatter, evidenceType) {
         const field = create('div', 'detail-field');
         const term = create('dt', '', label);
