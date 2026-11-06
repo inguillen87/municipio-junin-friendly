@@ -60,6 +60,6 @@
 .own-run-coverage-list .is-covered .cv-meta{color:#0f5f58}
 @keyframes cv-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes cv-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-@media(max-width:640px){.own-run-coverage-list li{grid-template-columns:1fr auto;}.own-run-coverage-list .cv-bar{grid-column:1/-1;order:3}}
+@media(max-width:640px){.own-run-coverage-list li{grid-template-columns:1fr;gap:4px}.own-run-coverage-list .cv-meta{white-space:normal}}
 @media(prefers-reduced-motion:reduce){.own-run-coverage-list li,.own-run-coverage-list .cv-bar::after{animation:none}}
 .own-run-unsectored h3{margin:0 0 6px;font-size:1rem}
