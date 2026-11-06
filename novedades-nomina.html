@@ -135,6 +135,12 @@
     .status.submitted { color: #174d70; background: var(--blue-soft); border-color: #b6d2e2; }
     .status.draft { color: #70490e; background: var(--amber-soft); border-color: #e7ca87; }
     .status.rejected, .status.cancelled { color: #792722; background: var(--red-soft); border-color: #e0aaa5; }
+    .batch-hint { display: block; margin-top: 6px; max-width: 46ch; color: #4d6370; font-size: 12px; line-height: 1.4; white-space: normal; }
+    .batch-hint.is-yours { color: #70490e; }
+    #detailActions .batch-hint { flex-basis: 100%; max-width: none; margin: 0 0 4px; font-size: 13px; }
+    #lotes.is-arrived { animation: lotes-arrive 1.6s ease-out 1; }
+    @keyframes lotes-arrive { 0% { box-shadow: 0 0 0 0 rgba(15,118,110,.38); } 100% { box-shadow: 0 0 0 14px rgba(15,118,110,0); } }
+    @media (prefers-reduced-motion: reduce) { #lotes.is-arrived { animation: none; } }
     .detail-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px; border: 1px solid var(--line); border-radius: 5px; }
     .detail-summary div { padding: 14px; border-right: 1px solid var(--line); }
     .detail-summary div:last-child { border-right: 0; }
@@ -346,13 +352,13 @@
             </div>
           </section>
 
-          <section class="section" aria-labelledby="batchesTitle">
+          <section class="section" id="lotes" aria-labelledby="batchesTitle">
             <header class="section-head"><div><span class="section-index">02 · PREPARACIÓN Y REVISIÓN</span><h2 id="batchesTitle">Lotes y decisiones</h2><p>Abrí un lote para revisar sus filas, aprobarlo o consultar su historial.</p></div></header>
             <div class="empty" id="batchEmpty">No hay lotes anteriores disponibles para esta cuenta y ámbito.</div>
+            <div class="table-wrap" id="batchTable" hidden><table><thead><tr><th>Lote</th><th>Período</th><th>Liquidación</th><th>Filas</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="batchRows"></tbody></table></div>
             <details id="monthlyDecisions" hidden><summary>Decidir varios lotes</summary></details>
             <details id="monthlyAnnul" hidden><summary>Anular lotes de novedades aprobados</summary></details>
             <details id="monthlyCorrection" hidden><summary>Corregir lotes de novedades aprobados</summary></details>
-            <div class="table-wrap" id="batchTable" hidden><table><thead><tr><th>Lote</th><th>Período</th><th>Liquidación</th><th>Filas</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="batchRows"></tbody></table></div>
           </section>
 
           <section class="section" id="detailPanel" aria-labelledby="detailTitle" hidden>

@@ -389,6 +389,8 @@ const shellFiles = [
   'assets/internal-work-today.js',
   'assets/internal-work-today-sections.css',
   'assets/municontrol-enterprise.css',
+  'assets/fonts/inter-latin-opsz-normal.woff2',
+  'assets/fonts/inter-LICENSE.txt',
   'assets/brand/municontrol-mark.svg',
   'assets/brand/logo-horizontal.svg',
   'assets/brand/logo-horizontal-inverse.svg',
@@ -466,6 +468,7 @@ const shellFiles = [
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',
+  'assets/payroll-novelty-batch-hint.js',
   'assets/payroll-novelty-txt.js',
   'assets/payroll-novelty-txt-panel.js',
   'assets/payroll-native-monthly-model.js',
@@ -624,7 +627,10 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
     ? withShellUx.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withShellUx;
   const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
     ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
+  // The interface typeface ships with the app (no third-party font host); preload it where the shared stylesheet is used.
+  const withFont = file.endsWith('.html') && legalLinked.includes('municontrol-enterprise.css') && !legalLinked.includes('inter-latin-opsz-normal.woff2')
+    ? legalLinked.replace('</head>', '<link rel="preload" href="/assets/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin></head>') : legalLinked;
+  const routed = file.endsWith('.html') ? applyCleanRouteLinks(withFont, file) : withFont;
   fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
 

@@ -14,6 +14,30 @@ function proposals(items, describe) {
   return { count: pending.length, reviewable: pending.filter(p => p.canReview === true).length, items: pending.slice(0, 3).map(p => ({ who: text(p.authorLabel, 60), when: shortDate(p.createdAt), what: describe ? describe(p) : text(p.reason) })) };
 }
 
+// Monthly novelty batches: who prepared each one (from the commands the server allows) and why the account cannot decide.
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+function batchWhat(b) {
+  const rows = list(b.rows), first = rows[0];
+  const detail = rows.length === 1 && first ? ['legajo ' + (first.legajo ?? '?'), first.conceptSourceId ? 'concepto ' + first.conceptSourceId : '', first.quantityDecimal != null ? 'cant. ' + first.quantityDecimal : ''].filter(Boolean).join(' · ')
+    : Number.isInteger(b.rowCount) ? plural(b.rowCount, 'fila', 'filas') : '';
+  return text([periodLabel(b.periodMonth), typeLabel(b.payrollType), detail].filter(Boolean).join(' · '));
+}
+export function monthlyBatches(p) {
+  const rows = list(p?.batches).filter(b => b?.status === 'submitted');
+  const commands = b => list(b.allowedCommands);
+  const reviewable = rows.filter(b => commands(b).includes('approve')).length, mine = rows.filter(b => commands(b).includes('cancel')).length;
+  const caps = new Set(list(p?.principal?.capabilities)), unlinked = p?.principal?.employmentLinked === false && caps.has('payroll.novelty.approve');
+  const others = rows.length - reviewable - mine;
+  const notes = [];
+  if (reviewable) notes.push(reviewable === rows.length ? (reviewable === 1 ? 'Podés aprobarlo o rechazarlo.' : 'Podés aprobarlos o rechazarlos.') : plural(reviewable, 'lo podés aprobar o rechazar vos.', 'los podés aprobar o rechazar vos.'));
+  if (mine) notes.push((mine === 1 ? '1 lo preparaste vos: podés cancelarlo; lo aprueba otra persona.' : mine + ' los preparaste vos: podés cancelarlos; los aprueba otra persona.'));
+  if (others) notes.push(unlinked ? (others === 1 ? '1 lo preparó otra cuenta. ' : others + ' los preparó otra cuenta. ') + 'Tu cuenta no está vinculada a un legajo, así que no aprueba: lo decide una cuenta vinculada con permiso, o quien lo preparó lo cancela.'
+    : (others === 1 ? '1 lo decide otra persona con permiso de aprobación.' : others + ' los decide otra persona con permiso de aprobación.'));
+  return { count: rows.length, reviewable, note: notes.join(' ') || undefined,
+    items: rows.slice(0, 3).map(b => ({ who: commands(b).includes('cancel') ? 'preparado por vos' : '', when: shortDate(b.submittedAt ?? b.createdAt), what: batchWhat(b),
+      href: typeof b.id === 'string' && /^[0-9a-f-]{36}$/i.test(b.id) ? '/novedades?batchId=' + b.id + '#lotes' : undefined })) };
+}
+
 export const APPROVAL_SOURCES = Object.freeze([
   { key: 'program', area: 'Liquidaciones', title: 'Programa de cálculo', href: '/nomina#reglas', caps: ['workforce.employee.read', 'payroll.parameter.read'],
     url: () => '/api/internal-own-payroll-program?resource=bootstrap', pick: p => proposals(p?.data?.proposals) },
@@ -35,10 +59,8 @@ export const APPROVAL_SOURCES = Object.freeze([
     url: () => '/api/internal-payroll-fixed-novelties?resource=list',
     pick: p => { const rows = list(p?.data?.rows).filter(r => r?.pending); return { count: rows.length, reviewable: rows.filter(r => r.pending.canReview === true).length,
       items: rows.slice(0, 3).map(r => ({ who: '', when: shortDate(r.pending.proposedAt), what: text(['Legajo ' + (r.subject?.legajo ?? '?'), r.pending.operation === 'annul' ? 'anular' : 'alta o cambio', r.pending.values?.conceptSourceId ? 'concepto ' + r.pending.values.conceptSourceId : ''].filter(Boolean).join(' · ')) })) }; } },
-  { key: 'monthly-batches', area: 'Novedades', title: 'Lotes mensuales', href: '/novedades#monthlyDecisions', caps: ['payroll.novelty.read'],
-    url: () => '/api/internal-payroll-novelties?resource=bootstrap&version=2',
-    pick: p => { const rows = list(p?.batches).filter(b => b?.status === 'submitted'); return { count: rows.length, reviewable: rows.filter(b => list(b.allowedCommands).includes('approve')).length,
-      items: rows.slice(0, 3).map(b => ({ who: '', when: '', what: [periodLabel(b.periodMonth), typeLabel(b.payrollType), Number.isInteger(b.rowCount) ? b.rowCount + ' filas' : ''].filter(Boolean).join(' · ') })) }; } },
+  { key: 'monthly-batches', area: 'Novedades', title: 'Lotes mensuales', href: '/novedades#lotes', caps: ['payroll.novelty.read'],
+    url: () => '/api/internal-payroll-novelties?resource=bootstrap&version=2', pick: monthlyBatches },
   { key: 'monthly-annul', area: 'Novedades', title: 'Anulaciones de lotes', href: '/novedades#monthlyAnnul', caps: ['payroll.novelty.read', 'payroll.novelty.nominal.read'],
     url: () => '/api/internal-payroll-monthly-annul?resource=bootstrap', pick: p => proposals(p?.data?.proposals) },
   { key: 'monthly-correction', area: 'Novedades', title: 'Correcciones de lotes', href: '/novedades#monthlyCorrection', caps: ['payroll.novelty.read', 'payroll.novelty.nominal.read'],

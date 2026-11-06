@@ -539,6 +539,8 @@
       background: var(--canvas-2);
     }
 
+    .composition-chart { height: 210px; margin: -6px 0 6px; }
+    .composition-chart[data-loading="error"] { display: none; }
     .composition-active { width: 0; background: var(--blue); transition: width .3s ease; }
     .composition-inactive { flex: 1; background: #bdc9c6; }
 
@@ -1302,6 +1304,7 @@
                 <span class="evidence loading" id="compositionEvidence">Cargando</span>
               </div>
               <div class="composition" id="composition" aria-busy="true">
+                <div class="composition-chart mc-chart" id="compositionChart" data-loading="true" hidden></div>
                 <div class="composition-track" role="img" aria-label="Composición todavía no disponible">
                   <span class="composition-active" id="compositionActive"></span>
                   <span class="composition-inactive"></span>
@@ -2273,6 +2276,17 @@
         collectWorkforceSectors(summary.sectors);
       }
 
+      // Donut drawn with the shared ECharts loader; the bar and legend stay as the accessible, chart-free reading.
+      function drawCompositionChart(active, inactive, historical, share) {
+        const host = document.getElementById('compositionChart');
+        if (!host || !(historical > 0)) return;
+        host.hidden = false;
+        import('/assets/mc-chart-loader.js').then(({ drawChart }) => drawChart(host, m => m.donutOption({
+          items: [{ name: 'Activos', value: active, itemStyle: { color: '#0f766e' } }, { name: 'Inactivos', value: inactive, itemStyle: { color: '#b8c7c4' } }],
+          total: historical, totalLabel: 'Registros históricos',
+        }), { ariaLabel: percentFormatter.format(share) + ' de los registros históricos están activos' })).catch(() => { host.dataset.loading = 'error'; });
+      }
+
       function renderComposition(metrics) {
         const historical = metrics.historical.value;
         const active = metrics.active.value;
@@ -2298,6 +2312,7 @@
         els.compositionShare.textContent = percentFormatter.format(share);
         els.composition.querySelector('.composition-track').setAttribute('aria-label', percentFormatter.format(share) + ' de los registros históricos están activos');
         setEvidence(els.compositionEvidence, 'derived');
+        drawCompositionChart(active, inactive === null ? historical - active : inactive, historical, share);
 
         if (inactive !== null && historical === active + inactive) {
           els.reconciliationNotice.className = 'notice';

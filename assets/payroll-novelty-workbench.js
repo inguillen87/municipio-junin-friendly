@@ -1,5 +1,6 @@
 import './app-routes.js';
 import { createEmployeePicker } from './employee-picker.js';
+import { batchDecisionHint } from './payroll-novelty-batch-hint.js';
 import { noveltySelectionIssue } from './employee-picker-model.js';
 import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
@@ -619,6 +620,15 @@ function stateClass(status) {
     ? status : 'unknown';
 }
 
+function appendBatchHint(host, batch) {
+  const hint = batchDecisionHint(batch, bootstrapState?.principal);
+  if (!hint) return;
+  const note = document.createElement('small');
+  note.className = 'batch-hint' + (hint.yours ? ' is-yours' : '');
+  note.textContent = hint.text;
+  host.appendChild(note);
+}
+
 function renderBatches() {
   const batches = monthlyDecisions && !readBlocked ? monthlyDecisions.view()
     : Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
@@ -649,6 +659,7 @@ function renderBatches() {
     badge.className = `status ${stateClass(batch.status)}`;
     badge.textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status || 'Sin estado';
     status.appendChild(badge);
+    appendBatchHint(status, batch);
     tr.appendChild(status);
     const actionCell = document.createElement('td');
     if (hasCapability('payroll.novelty.nominal.read')) {
@@ -721,6 +732,7 @@ function renderBatchDetail(payload) {
   actions.replaceChildren();
   const commands = Array.isArray(batch.allowedCommands) ? batch.allowedCommands : [];
   byId('rejectReasonField').hidden = !commands.includes('reject');
+  appendBatchHint(actions, batch);
   for (const command of commands) actions.appendChild(createActionButton(batch, command));
   if (batch.canExport === true) {
     const excelButton = document.createElement('button');
@@ -736,7 +748,7 @@ function renderBatchDetail(payload) {
     csvButton.addEventListener('click', () => exportBatch(batch.id, 'csv'));
     actions.appendChild(csvButton);
   }
-  if (!actions.childElementCount) {
+  if (!actions.querySelector('button')&&!actions.querySelector('.batch-hint')) {
     const note = document.createElement('span');
     note.className = 'muted';
     note.textContent = 'No hay acciones habilitadas para esta sesión y estado.';
@@ -1377,6 +1389,17 @@ function revealReviewableLegacyBatches() {
   return reviewable;
 }
 
+// Links from «Pendientes de aprobación» land on the list itself: the page loads above it, so wait for the bootstrap.
+function revealBatchList() {
+  const section = byId('lotes'); if (!section) return;
+  byId('noveltyReferenceWorkspace').open = true;
+  requestAnimationFrame(() => {
+    section.scrollIntoView({ behavior: 'auto', block: 'start' });
+    section.classList.remove('is-arrived'); void section.offsetWidth; section.classList.add('is-arrived');
+    byId('batchesTitle')?.setAttribute('tabindex', '-1'); byId('batchesTitle')?.focus({ preventScroll: true });
+  });
+}
+
 function refreshNoveltyWorkspace() {
   const reference = byId('noveltyReferenceWorkspace');
   const ownPending = Boolean(ownBulkNovelties?.hasPending?.()), legacyPending = legacyNoveltyOperationPending();
@@ -1595,6 +1618,7 @@ function initialize() {
   ownAutoRefresh();document.addEventListener('visibilitychange',ownAutoRefresh);
   loadBootstrap({ quiet: true }).then(()=> {
     if (hasRequestedBatch) return openRequestedBatch();
+    if (['#lotes','#monthlyDecisions'].includes(location.hash)) revealBatchList();
     if (requestedMonthlyContract && CONTRACT_UUID.test(requestedMonthlyContract)) return chooseMonthlySubject(requestedMonthlyContract);
     if (requestedMonthlyContract) showMessage('error','El enlace no identifica un vínculo válido','Volvé a abrir la ficha de la persona y usá Preparar novedad mensual.');
   });

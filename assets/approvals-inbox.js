@@ -37,8 +37,8 @@ export function mountApprovalsInbox(host) {
     if (r.error) { c.classList.add('is-error'); count.textContent = '—'; foot.textContent = 'No se pudo consultar ahora. Abrí la pantalla para revisar.'; link.textContent = 'Abrir'; return; }
     c.classList.toggle('is-zero', r.count === 0); c.classList.toggle('is-waiting', r.count > 0);
     count.textContent = String(r.count); count.setAttribute('aria-label', r.count + (r.count === 1 ? ' pendiente' : ' pendientes'));
-    body.replaceChildren(...r.items.map(i => { const li = el('li'); const what = el('span', 'what', i.what || 'Propuesta'); li.append(what); const meta = [i.who, i.when].filter(Boolean).join(' · '); if (meta) li.append(el('span', 'meta', meta)); return li; }));
-    foot.textContent = r.count === 0 ? 'Nada esperando.' : Number.isInteger(r.reviewable) ? (r.reviewable === r.count ? 'Podés revisarlos vos.' : r.reviewable === 0 ? 'Los revisa otra persona: no podés aprobar lo propio ni sin el permiso.' : r.reviewable + ' podés revisarlos vos; el resto, otra persona.') : 'Al abrirlos, el sistema te muestra cuáles podés aprobar.';
+    body.replaceChildren(...r.items.map(i => { const li = el('li'); const what = el(i.href ? 'a' : 'span', 'what', i.what || 'Propuesta'); if (i.href) what.href = i.href; li.append(what); const meta = [i.who, i.when].filter(Boolean).join(' · '); if (meta) li.append(el('span', 'meta', meta)); return li; }));
+    foot.textContent = r.count === 0 ? 'Nada esperando.' : r.note ? r.note : Number.isInteger(r.reviewable) ? (r.reviewable === r.count ? 'Podés revisarlos vos.' : r.reviewable === 0 ? 'Los revisa otra persona: no podés aprobar lo propio ni sin el permiso.' : r.reviewable + ' podés revisarlos vos; el resto, otra persona.') : 'Al abrirlos, el sistema te muestra cuáles podés aprobar.';
     link.textContent = r.count > 0 ? 'Revisar (' + r.count + ')' : 'Abrir';
   }
   async function getJson(url, signal) {

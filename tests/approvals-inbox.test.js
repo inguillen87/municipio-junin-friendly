@@ -66,3 +66,20 @@ test('section tabs follow deep links from the bandeja: reveal the tab and open t
   assert.match(tabs, /addEventListener\('hashchange', followHash\); followHash\(\);/);
   assert.match(tabs, /if \(d\.tagName === 'DETAILS'\) d\.open = true;/);
 });
+
+test('monthly batches explain own batches and an account not linked to a legajo, and link each batch', async () => {
+  const { monthlyBatches } = await import('../assets/approvals-inbox-model.js');
+  const id = '537d0cc7-2db6-413f-a1bc-af1553cda622';
+  const r = monthlyBatches({ principal: { capabilities: ['payroll.novelty.approve'], employmentLinked: false }, batches: [
+    { id, status: 'submitted', periodMonth: '2026-08-01', payrollType: 'monthly', rowCount: 1, allowedCommands: [], submittedAt: '2026-09-15T12:50:16Z', rows: [{ legajo: '1339', conceptSourceId: '44', quantityDecimal: '95' }] },
+    { id: 'da8572b5-c76a-43d6-8ba3-5be88b08d302', status: 'submitted', periodMonth: '2026-08-01', payrollType: 'monthly', rowCount: 1, allowedCommands: ['cancel'], rows: [{ legajo: '1339', conceptSourceId: '144', quantityDecimal: '0' }] },
+  ] });
+  assert.equal(r.count, 2); assert.equal(r.reviewable, 0);
+  assert.equal(r.items[0].what, 'agosto 2026 · mensual · legajo 1339 · concepto 44 · cant. 95');
+  assert.equal(r.items[0].href, '/novedades?batchId=' + id + '#lotes');
+  assert.equal(r.items[1].who, 'preparado por vos');
+  assert.match(r.note, /1 lo preparaste vos: podés cancelarlo/);
+  assert.match(r.note, /no está vinculada a un legajo/);
+  assert.equal(monthlyBatches({ batches: [{ status: 'submitted', rowCount: 1, allowedCommands: ['approve'] }] }).note, 'Podés aprobarlo o rechazarlo.');
+});
+
