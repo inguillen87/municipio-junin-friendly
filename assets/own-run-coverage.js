@@ -79,3 +79,78 @@ export function ownRunCoverageText(coverage) {
     : 'Hoy el programa aprobado no tiene reglas de haberes.';
   return `El programa de liquidación no tiene reglas de haberes para ${when} en ${coverage.missing.length} ${coverage.missing.length === 1 ? 'convenio' : 'convenios'} del alcance (${coverage.missingPeople} ${coverage.missingPeople === 1 ? 'persona' : 'personas'}). ${today} El cálculo se detendría sin resultado: completá el programa en Reglas de cálculo o elegí sólo convenios cubiertos.`;
 }
+
+const validityLabel = v => String(v).split('…').map(p => /^\d{4}-\d{2}$/.test(p) ? monthLabel(p) : p).join(' a ');
+const inForceAt = (x, period) => !!x && typeof x.validFrom === 'string' && x.validFrom <= period && (x.validUntil === null || x.validUntil === undefined || x.validUntil >= period);
+
+/** What is still missing to calculate the period, in the order the work happens: salary master, rules in force, approval. */
+export function ownRunPeriodReadiness(programData, { period, liquidationType, agreements }) {
+  const definition = programData?.program?.definition ?? null;
+  const coverage = ownRunProgramCoverage(definition, { period, liquidationType, agreements });
+  const items = Array.isArray(programData?.salaryCatalog?.items) ? programData.salaryCatalog.items.filter(i => i && i.active !== false) : [];
+  const scope = (agreements ?? []).map(a => String(a.code));
+  const masterFor = new Map();
+  for (const item of items) if (inForceAt(item, period)) masterFor.set(String(item.agreementCode), (masterFor.get(String(item.agreementCode)) ?? 0) + 1);
+  const withoutMaster = scope.filter(code => !masterFor.get(code));
+  // Definitions that the approved rules of these convenios use and that have no version in force for the period.
+  const namespaced = definition?.namespaceVersion === 'own-payroll-namespaces.v2';
+  const have = new Set(items.filter(i => inForceAt(i, period)).map(i => i.kind + ':' + i.agreementCode + ':' + i.code));
+  const missingDefinitions = new Map();
+  for (const rule of Array.isArray(definition?.rules) ? definition.rules : []) {
+    if (!scope.includes(String(rule.agreementCode))) continue;
+    const kind = namespaced && rule.nature === 'auxiliary' ? 'auxiliary' : 'concept', id = kind + ':' + rule.agreementCode + ':' + rule.code;
+    if (!have.has(id)) missingDefinitions.set(id, { kind, agreementCode: String(rule.agreementCode), code: String(rule.code) });
+  }
+  const proposals = Array.isArray(programData?.proposals) ? programData.proposals : [];
+  const pending = proposals.filter(p => p?.status === 'pending');
+  const forPeriod = pending.filter(p => (Array.isArray(p?.definition?.rules) ? p.definition.rules : []).some(r => PAY.has(r.nature) && inForceAt(r, period) && Array.isArray(r.liquidationTypes) && r.liquidationTypes.includes(liquidationType) && scope.includes(String(r.agreementCode))));
+  return Object.freeze({
+    period, liquidationType, coverage, ready: coverage.complete,
+    master: { scope: scope.length, withMaster: scope.length - withoutMaster.length, withoutMaster, missingDefinitions: [...missingDefinitions.values()] },
+    program: { revision: Number(programData?.program?.revision ?? 0), covered: coverage.covered.length, missing: coverage.missing.length, history: coverage.programAgreements },
+    approval: { pending: pending.length, forPeriod: forPeriod.length, canPropose: programData?.permissions?.canPropose === true, canReview: programData?.permissions?.canReview === true },
+  });
+}
+
+/** Plain-language checklist for the Calcular screen. Each step: done | wait | todo, a sentence and where to do it. */
+export function ownRunReadinessSteps(r) {
+  if (!r) return [];
+  const when = monthLabel(r.period), total = r.program.covered + r.program.missing;
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const byAgreement = new Map();
+  for (const d of r.master.missingDefinitions) byAgreement.set(d.agreementCode, [...(byAgreement.get(d.agreementCode) ?? []), d]);
+  const missingText = [...byAgreement].map(([code, list]) => {
+    const concepts = list.filter(d => d.kind === 'concept').length, aux = list.length - concepts;
+    return 'al convenio ' + code + ' le faltan ' + [concepts ? plural(concepts, 'concepto', 'conceptos') : '', aux ? plural(aux, 'auxiliar', 'auxiliares') : ''].filter(Boolean).join(' y ');
+  }).join('; ');
+  const masterDone = !r.master.withoutMaster.length && !r.master.missingDefinitions.length;
+  const history = r.program.history.length
+    ? ' El programa aprobado' + (r.program.revision ? ' (revisión ' + r.program.revision + ')' : '') + ' tiene reglas de ' + r.program.history.map(a => 'convenio ' + a.code + ' para ' + a.validity.map(validityLabel).join(', ')).join('; ') + '.'
+    : ' Todavía no hay un programa aprobado.';
+  const approvalState = r.ready ? 'done' : r.approval.forPeriod ? 'wait' : 'todo';
+  return [
+    { key: 'master', state: masterDone ? 'done' : 'todo', title: 'Maestro salarial de ' + when,
+      text: masterDone ? 'Tiene valores vigentes para ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.'
+        : 'Tiene valores vigentes para ' + r.master.withMaster + ' de ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.' + (missingText ? ' Además, ' + missingText + ' con versión de ' + when + '.' : ''),
+      href: '/nomina#parametros', action: 'Abrir Parámetros' },
+    { key: 'program', state: r.ready ? 'done' : 'todo', title: 'Reglas de cálculo vigentes para ' + when,
+      text: (r.program.covered ? r.program.covered + ' de ' + plural(total, 'convenio tiene', 'convenios tienen') + ' reglas vigentes.' : (total === 1 ? 'El convenio del alcance no tiene' : 'Ningún convenio del alcance tiene') + ' reglas vigentes.') + (r.ready ? '' : history),
+      href: '/nomina#reglas', action: 'Abrir Reglas de cálculo' },
+    { key: 'approval', state: approvalState, title: 'Aprobación de la versión de ' + when,
+      text: r.ready ? 'La versión vigente está aprobada.'
+        : r.approval.forPeriod ? plural(r.approval.forPeriod, 'versión espera', 'versiones esperan') + ' aprobación. La revisa otra persona con permiso de aprobar' + (r.approval.canReview ? '; tu cuenta puede revisarla.' : '.')
+        : 'Todavía no hay una versión propuesta para ' + when + '. La prepara una persona con permiso de preparar y la aprueba otra distinta.',
+      href: '/nomina#reglas', action: r.approval.forPeriod ? 'Ver propuestas' : 'Ir a Reglas de cálculo' },
+    { key: 'calculate', state: r.ready ? 'done' : 'todo', title: 'Calcular',
+      text: r.ready ? 'Todo listo: elegí el alcance y calculá.' : 'Se habilita cuando los tres pasos anteriores estén listos. Mientras tanto podés preparar el alcance; nada se guarda hasta calcular.' },
+  ];
+}
+
+/** Heading of the readiness box. */
+export function ownRunReadinessTitle(r) {
+  if (!r) return '';
+  const when = monthLabel(r.period), total = r.program.covered + r.program.missing;
+  const cap = when.charAt(0).toUpperCase() + when.slice(1);
+  if (r.ready) return cap + ': listo para calcular';
+  return r.program.covered ? cap + ': ' + r.program.covered + ' de ' + total + ' convenios listos para calcular' : cap + ' todavía no se puede calcular';
+}

@@ -12,7 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
-import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunCoverageText,ownRunUnsectoredInAgreements,ownRunCoveredContracts} from './own-run-coverage.js';
+import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunUnsectoredInAgreements,ownRunCoveredContracts,ownRunPeriodReadiness,ownRunReadinessSteps,ownRunReadinessTitle} from './own-run-coverage.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -48,7 +48,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
-  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle">Programa incompleto para el período</h3><p data-own-coverage-text></p><ul class="own-run-coverage-list" data-own-coverage-list></ul><p class="own-run-coverage-note" data-own-coverage-note hidden></p><div class="own-run-actions"><button class="button primary" type="button" data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</button><a class="button" href="/nomina#reglas">Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle" data-own-coverage-title>Programa incompleto para el período</h3><p data-own-coverage-text></p><ol class="own-run-steps" data-own-coverage-steps aria-label="Qué falta para calcular"></ol><details class="own-run-coverage-detail"><summary>Ver convenios del alcance</summary><ul class="own-run-coverage-list" data-own-coverage-list></ul></details><p class="own-run-coverage-note" data-own-coverage-note hidden></p><div class="own-run-actions"><button class="button primary" type="button" data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</button><a class="button" href="/nomina#reglas">Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice" data-own-prerequisites><summary>Requisitos y configuración</summary><p data-own-readiness-facts></p><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
@@ -84,7 +84,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
-  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null,departmentPlan=null,programDefinition=null,rosterRows=null,computeBlocked=null,coverageMemo=null,coveredPlan=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null,departmentPlan=null,programDefinition=null,programData=null,rosterRows=null,computeBlocked=null,coverageMemo=null,coveredPlan=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
@@ -128,14 +128,30 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const values=kind==='all'?[]:kind==='contracts'?chosen.map(c=>c.contractId):[...$('codes').selectedOptions].map(o=>o.value);
     if(kind!=='all'&&!values.length)return null;
     const memo=[kind,period,type,values.join(','),rosterRows.length].join('|');if(coverageMemo?.key===memo)return coverageMemo.value;
-    const value=ownRunProgramCoverage(programDefinition,{period,liquidationType:type,agreements:ownRunScopeAgreements(rosterRows,catalog.catalog.items,{kind,values}).agreements});
-    coverageMemo={key:memo,value};return value;
+    const agreements=ownRunScopeAgreements(rosterRows,catalog.catalog.items,{kind,values}).agreements;
+    const value=ownRunProgramCoverage(programDefinition,{period,liquidationType:type,agreements});
+    let readinessValue=null;try{readinessValue=ownRunPeriodReadiness(programData,{period,liquidationType:type,agreements});}catch{readinessValue=null;}
+    coverageMemo={key:memo,value,readiness:readinessValue};return value;
   }
+  const currentReadiness=()=>{currentCoverage();return coverageMemo?.readiness??null;};
   const coverageBlocks=()=>{const c=currentCoverage();return !!c&&c.missing.length>0;};
   function renderCoverage(){
     const box=$('coverage'),c=currentCoverage(),show=!!c&&c.missing.length>0&&live()&&(!attempt||computeBlocked==='OWN_RUN_PAY_RULE_MISSING'||computeBlocked==='coverage')&&!current?.saved;
     box.hidden=!show;if(!show)return;
-    const text=ownRunCoverageText(c);if($('coverage-text').textContent!==text)$('coverage-text').textContent=text;
+    // What is missing, in the order the work happens, with the exact place to do it.
+    const r=currentReadiness(),steps=ownRunReadinessSteps(r),title=ownRunReadinessTitle(r)||'Programa incompleto para el período';
+    if($('coverage-title').textContent!==title)$('coverage-title').textContent=title;
+    const text=c.covered.length?'Podés calcular ya los convenios listos con el botón de abajo. Para el resto faltan estos pasos:':'El cálculo se detendría sin resultado. Faltan estos pasos, en orden:';
+    if($('coverage-text').textContent!==text)$('coverage-text').textContent=text;
+    const stepSig=steps.map(s=>s.key+':'+s.state+':'+s.text).join('|');
+    if($('coverage-steps').dataset.items!==stepSig){$('coverage-steps').dataset.items=stepSig;$('coverage-steps').replaceChildren(...steps.map((s,i)=>{
+      const li=node('li');li.className='own-run-step is-'+s.state;li.style.setProperty('--st-i',String(i));
+      const mark=node('span',s.state==='done'?'✓':String(i+1));mark.className='st-mark';mark.setAttribute('aria-hidden','true');
+      const body=node('div');body.className='st-body';
+      const head=node('strong',s.title);const badge=node('span',s.state==='done'?'Listo':s.state==='wait'?'Esperando aprobación':'Pendiente');badge.className='st-badge';
+      const line=node('p',s.text);body.append(head,badge,line);
+      if(s.href&&s.state!=='done'){const a=node('a',s.action);a.className='st-link';a.href=s.href;body.append(a);}
+      li.append(mark,body);return li;}));}
     // One animated bar per convenio: missing in amber, covered in teal, width by people.
     const all=[...c.missing.map(a=>({...a,ok:false})),...c.covered.map(a=>({...a,ok:true}))],max=Math.max(1,...all.map(a=>a.people));
     const signature=all.map(a=>a.code+':'+a.people+':'+a.ok).join('|');
@@ -191,7 +207,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     clearSourceReview();
     individual.clear();
     positionCapture.clear();
-    picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;departmentPlan=null;programDefinition=null;rosterRows=null;computeBlocked=null;coverageMemo=null;
+    picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;departmentPlan=null;programDefinition=null;programData=null;rosterRows=null;computeBlocked=null;coverageMemo=null;
     invalidateReadiness();
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
@@ -311,7 +327,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const roster=await request(OWN_PAYROLL_READINESS_ROSTER_URL);
     if(!valid())return;
     const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
-    programDefinition=program.data?.program?.definition??null;rosterRows=Array.isArray(roster.data?.rows)?roster.data.rows:null;coverageMemo=null;
+    programDefinition=program.data?.program?.definition??null;programData=program.data??null;rosterRows=Array.isArray(roster.data?.rows)?roster.data.rows:null;coverageMemo=null;
     await session(required);if(!valid())return;
     readiness=next;readinessAccessKey=access.key;readinessRosterScope=nativeRosterScope(roster.data.scope);
     return roster.data;

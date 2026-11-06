@@ -74,3 +74,52 @@ test('when a legajo without repartición is inside the covered convenios, the ex
   assert.deepEqual(ownRunCoveredContracts(roster, catalog, ['1']).map(e => [e.legajo, e.nombre, e.recordOrigin]), [['3', 'Dos', 'MUNICONTROL'], ['12', 'Uno', 'MUNICONTROL']]);
   assert.deepEqual(ownRunCoveredContracts(roster, catalog, ['4']).map(e => e.legajo), ['7']);
 });
+
+test('readiness checklist: master in force, rules in force and approval, in plain language', async () => {
+  const { ownRunPeriodReadiness, ownRunReadinessSteps, ownRunReadinessTitle } = await import('../assets/own-run-coverage.js');
+  const agreements = [{ code: '1', label: 'PLANTA PERMANENTE', people: 81 }, { code: '4', label: 'PERSONAL TEMPORARIO', people: 158 }];
+  const data = {
+    program: { revision: 1, definition: { namespaceVersion: 'own-payroll-namespaces.v2', rules: [
+      { code: '1', agreementCode: '1', nature: 'remuneration', validFrom: '2026-09', validUntil: '2026-09', liquidationTypes: ['monthly'] },
+      { code: '700', agreementCode: '1', nature: 'deduction', validFrom: '2026-09', validUntil: '2026-09', liquidationTypes: ['monthly'] },
+      { code: '980', agreementCode: '1', nature: 'auxiliary', validFrom: '2026-09', validUntil: '2026-09', liquidationTypes: ['monthly'] },
+    ] } },
+    salaryCatalog: { items: [
+      { kind: 'concept', agreementCode: '1', code: '1', validFrom: '2026-09', validUntil: '2026-09', active: true },
+      { kind: 'concept', agreementCode: '1', code: '700', validFrom: '2026-09', validUntil: '2026-09', active: true },
+      { kind: 'auxiliary', agreementCode: '1', code: '980', validFrom: '2026-09', validUntil: '2026-09', active: true },
+      { kind: 'scale', agreementCode: '1', code: '1', categoryCode: '12', validFrom: '2026-10', validUntil: '2026-10', active: true },
+    ] },
+    proposals: [], permissions: { canPropose: true, canReview: false },
+  };
+  const r = ownRunPeriodReadiness(data, { period: '2026-10', liquidationType: 'monthly', agreements });
+  assert.equal(r.ready, false);
+  assert.deepEqual(r.master.withoutMaster, ['4']);
+  assert.deepEqual(r.master.missingDefinitions.map(d => d.kind + ':' + d.code), ['concept:1', 'concept:700', 'auxiliary:980']);
+  assert.equal(ownRunReadinessTitle(r), 'Octubre 2026 todavía no se puede calcular');
+  const [master, program, approval, calc] = ownRunReadinessSteps(r);
+  assert.equal(master.state, 'todo');
+  assert.equal(master.text, 'Tiene valores vigentes para 1 de 2 convenios del alcance. Además, al convenio 1 le faltan 2 conceptos y 1 auxiliar con versión de octubre 2026.');
+  assert.equal(master.href, '/nomina#parametros');
+  assert.equal(program.text, 'Ningún convenio del alcance tiene reglas vigentes. El programa aprobado (revisión 1) tiene reglas de convenio 1 para septiembre 2026.');
+  assert.equal(approval.state, 'todo');
+  assert.match(approval.text, /^Todavía no hay una versión propuesta para octubre 2026\. La prepara una persona con permiso de preparar y la aprueba otra distinta\.$/);
+  assert.equal(calc.state, 'todo');
+  // A pending proposal with October rules moves approval to «wait».
+  const pending = { ...data, proposals: [{ status: 'pending', definition: { rules: [{ code: '1', agreementCode: '1', nature: 'remuneration', validFrom: '2026-10', validUntil: null, liquidationTypes: ['monthly'] }] } }] };
+  const w = ownRunReadinessSteps(ownRunPeriodReadiness(pending, { period: '2026-10', liquidationType: 'monthly', agreements }))[2];
+  assert.equal(w.state, 'wait'); assert.equal(w.text, '1 versión espera aprobación. La revisa otra persona con permiso de aprobar.');
+  // September, convenio 1 only: everything in force.
+  const sep = ownRunPeriodReadiness(data, { period: '2026-09', liquidationType: 'monthly', agreements: agreements.slice(0, 1) });
+  assert.equal(sep.ready, true); assert.equal(ownRunReadinessTitle(sep), 'Septiembre 2026: listo para calcular');
+  assert.ok(ownRunReadinessSteps(sep).every(s => s.state === 'done'));
+  assert.deepEqual(ownRunPeriodReadiness(null, { period: '2026-10', liquidationType: 'monthly', agreements }).master.withoutMaster, ['1', '4']);
+});
+
+test('Calcular shows the checklist and keeps the per-convenio bars folded', () => {
+  const src = fs.readFileSync(new URL('../assets/own-payroll-run-panel.js', import.meta.url), 'utf8');
+  assert.match(src, /data-own-coverage-steps/);
+  assert.match(src, /<details class="own-run-coverage-detail"><summary>Ver convenios del alcance<\/summary><ul class="own-run-coverage-list" data-own-coverage-list><\/ul><\/details>/);
+  assert.match(src, /programData=program\.data\?\?null/);
+  assert.match(src, /ownRunReadinessSteps\(r\)/);
+});
