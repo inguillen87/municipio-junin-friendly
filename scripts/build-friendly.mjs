@@ -621,7 +621,7 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 }
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
-  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
+  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza').replaceAll('Friendly · Junín', 'Junín, Mendoza · Uso interno'))) : original;
   const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
     ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
   // Multi-select helpers keep native visibility and each panel's lifecycle handling intact.
