@@ -12,3 +12,5 @@
 @media(max-width:640px){.mc-section-tabs [role=tablist]{display:grid;grid-template-columns:1fr}.mc-section-tabs-ink{display:none}.mc-section-tabs button[aria-selected=true]{background:linear-gradient(135deg,#0f766e,#14a08f)}}
 @media(prefers-reduced-motion:reduce){.mc-section-tabs-ink{transition:none}.mc-tab-in{animation:none!important}}
 @media print{.mc-section-tabs{display:none}.mc-tab-off{display:block!important}}
+.mc-concept-hint{display:block;margin-top:4px;color:#0f5f58;font-size:12px;font-weight:600;line-height:1.35;min-height:0}
+.mc-concept-hint:empty{display:none}
