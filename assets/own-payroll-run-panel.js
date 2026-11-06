@@ -151,9 +151,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const offer=!attempt&&canSelect()&&!!mode;coveredPlan=offer?{mode,codes:c.covered.map(a=>String(a.code)),contracts:exact,inside,people}:null;
     $('coverage-covered').hidden=!offer;$('coverage-covered').disabled=busy;
     const who=inside.length===1?'el legajo '+inside[0]:'los legajos '+inside.slice(0,8).join(', ')+(inside.length>8?' y '+(inside.length-8)+' más':'');
-    const note=!inside.length?'':mode==='contracts'?'Como '+who+(inside.length===1?' no tiene':' no tienen')+' repartición, se eligen uno por uno los '+exact.length+' legajos con repartición de esos convenios.':'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+who+': están en esos convenios y el motor rechazaría la corrida.';
+    const note=!inside.length?'':mode==='contracts'?'Como '+who+(inside.length===1?' no tiene':' no tienen')+' repartición, se eligen uno por uno los '+exact.length+' legajos con repartición '+(c.covered.length===1?'de ese convenio.':'de esos convenios.'):'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+who+': están en esos convenios y el motor rechazaría la corrida.';
     if($('coverage-note').textContent!==note)$('coverage-note').textContent=note;$('coverage-note').hidden=!note;
-    if(offer)$('coverage-covered').textContent=mode==='agreements'?'Calcular sólo los '+c.covered.length+(c.covered.length===1?' convenio cubierto':' convenios cubiertos')+' ('+people+(people===1?' persona)':' personas)'):'Calcular los '+exact.length+' legajos con repartición de '+(c.covered.length===1?'el convenio cubierto':'los convenios cubiertos');
+    if(offer)$('coverage-covered').textContent=mode==='agreements'?'Calcular sólo los '+c.covered.length+(c.covered.length===1?' convenio cubierto':' convenios cubiertos')+' ('+people+(people===1?' persona)':' personas)'):'Calcular los '+exact.length+' legajos con repartición '+(c.covered.length===1?'del convenio cubierto':'de los convenios cubiertos');
   }
   function renderUnsectored(){
     const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
