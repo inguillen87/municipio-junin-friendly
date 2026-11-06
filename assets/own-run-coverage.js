@@ -59,6 +59,18 @@ export function ownRunUnsectoredInAgreements(rows, catalogItems, codes) {
   return out.sort((a, b) => Number(a) - Number(b) || (a < b ? -1 : 1));
 }
 
+/** Active contracts with repartición inside the given convenios (for «Legajos seleccionados» when «Convenios» cannot be used). */
+export function ownRunCoveredContracts(rows, catalogItems, codes) {
+  const agreements = new Map(), wanted = new Set((codes ?? []).map(String)), out = [];
+  for (const item of Array.isArray(catalogItems) ? catalogItems : []) if (item?.kind === 'agreements') agreements.set(key(item.label), [...(agreements.get(key(item.label)) ?? []), String(item.code)]);
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || row.status !== 'active' || !key(row.sector) || typeof row.contractId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(row.contractId)) continue;
+    const match = agreements.get(key(row.agreement));
+    if (match?.length === 1 && wanted.has(match[0])) out.push(Object.freeze({ contractId: row.contractId, legajo: String(row.legajo), nombre: typeof row.name === 'string' ? row.name : null, recordOrigin: 'MUNICONTROL' }));
+  }
+  return out.sort((a, b) => Number(a.legajo) - Number(b.legajo) || (a.legajo < b.legajo ? -1 : 1));
+}
+
 export function ownRunCoverageText(coverage) {
   if (!coverage || coverage.complete || !coverage.missing.length) return '';
   const when = monthLabel(coverage.period);

@@ -12,7 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
-import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunCoverageText,ownRunUnsectoredInAgreements} from './own-run-coverage.js';
+import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunCoverageText,ownRunUnsectoredInAgreements,ownRunCoveredContracts} from './own-run-coverage.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -84,7 +84,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
-  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null,departmentPlan=null,programDefinition=null,rosterRows=null,computeBlocked=null,coverageMemo=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null,departmentPlan=null,programDefinition=null,rosterRows=null,computeBlocked=null,coverageMemo=null,coveredPlan=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
@@ -145,11 +145,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       const meta=node('span',a.people+(a.people===1?' persona':' personas')+' · '+(a.ok?'cubierto':a.validity.length?'reglas sólo '+a.validity.join(', '):'sin reglas'));meta.className='cv-meta';
       li.append(label,bar,meta);return li;}));}
     // Shortcut: the same period and type, only the convenios that already have pay rules in force.
-    const people=c.covered.reduce((n,a)=>n+a.people,0),inside=ownRunUnsectoredInAgreements(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code)),offer=!attempt&&canSelect()&&c.covered.length>0&&!inside.length;
+    // «Convenios» when every legajo inside has a repartición; otherwise the exact legajos with repartición (up to 500).
+    const people=c.covered.reduce((n,a)=>n+a.people,0),inside=ownRunUnsectoredInAgreements(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code));
+    const exact=inside.length?ownRunCoveredContracts(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code)):[],mode=!c.covered.length?null:!inside.length?'agreements':exact.length>0&&exact.length<=500?'contracts':null;
+    const offer=!attempt&&canSelect()&&!!mode;coveredPlan=offer?{mode,codes:c.covered.map(a=>String(a.code)),contracts:exact,inside,people}:null;
     $('coverage-covered').hidden=!offer;$('coverage-covered').disabled=busy;
-    const note=inside.length?'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+(inside.length===1?'el legajo '+inside[0]:'los legajos '+inside.slice(0,8).join(', ')+(inside.length>8?' y '+(inside.length-8)+' más':''))+': están en esos convenios y el motor rechazaría la corrida.':'';
+    const who=inside.length===1?'el legajo '+inside[0]:'los legajos '+inside.slice(0,8).join(', ')+(inside.length>8?' y '+(inside.length-8)+' más':'');
+    const note=!inside.length?'':mode==='contracts'?'Como '+who+(inside.length===1?' no tiene':' no tienen')+' repartición, se eligen uno por uno los '+exact.length+' legajos con repartición de esos convenios.':'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+who+': están en esos convenios y el motor rechazaría la corrida.';
     if($('coverage-note').textContent!==note)$('coverage-note').textContent=note;$('coverage-note').hidden=!note;
-    if(offer)$('coverage-covered').textContent='Calcular sólo los '+c.covered.length+(c.covered.length===1?' convenio cubierto':' convenios cubiertos')+' ('+people+(people===1?' persona)':' personas)');
+    if(offer)$('coverage-covered').textContent=mode==='agreements'?'Calcular sólo los '+c.covered.length+(c.covered.length===1?' convenio cubierto':' convenios cubiertos')+' ('+people+(people===1?' persona)':' personas)'):'Calcular los '+exact.length+' legajos con repartición de '+(c.covered.length===1?'el convenio cubierto':'los convenios cubiertos');
   }
   function renderUnsectored(){
     const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
@@ -439,8 +443,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
   $('coverage-covered').addEventListener('click',()=>{
-    const c=currentCoverage();if(!c?.covered.length||attempt||busy||!canSelect())return;
-    const codes=c.covered.map(a=>String(a.code)),left=c.missing.map(a=>'convenio '+a.code+' ('+a.people+')').join(', ');
+    const c=currentCoverage(),plan=coveredPlan;if(!c?.covered.length||!plan||attempt||busy||!canSelect())return;
+    const codes=plan.codes,left=c.missing.map(a=>'convenio '+a.code+' ('+a.people+')').join(', ');
+    if(plan.mode==='contracts'){
+      $('kind').value='contracts';renderKind();chosen=plan.contracts.map(e=>({...e}));$('confirm').checked=false;renderChosen();controls();
+      status('Elegidos los '+chosen.length+' legajos con repartición de los convenios con reglas vigentes. Quedan fuera: '+left+(plan.inside.length?' y '+plan.inside.length+' sin repartición':'')+'. Revisá y marcá la confirmación para calcular.','neutral');
+      $('confirm').focus();return;
+    }
     $('kind').value='agreements';renderKind();
     for(const option of $('codes').options)option.selected=codes.includes(option.value);
     if([...$('codes').selectedOptions].length!==codes.length){status('Un convenio cubierto no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return;}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { ownRunScopeAgreements, ownRunProgramCoverage, ownRunCoverageText, ownRunUnsectoredInAgreements } from '../assets/own-run-coverage.js';
+import { ownRunScopeAgreements, ownRunProgramCoverage, ownRunCoverageText, ownRunUnsectoredInAgreements, ownRunCoveredContracts } from '../assets/own-run-coverage.js';
 
 const catalog = [
   { kind: 'agreements', code: '1', label: 'PLANTA PERMANENTE' }, { kind: 'agreements', code: '6', label: 'PERSONAL INTERINO' }, { kind: 'agreements', code: '4', label: 'PERSONAL TEMPORARIO' },
@@ -55,6 +55,22 @@ test('«Calcular sólo los convenios cubiertos» is offered only when no legajo 
   const panel = fs.readFileSync('assets/own-payroll-run-panel.js', 'utf8');
   assert.match(panel, /data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</);
   assert.match(panel, /\$\('kind'\)\.value='agreements';renderKind\(\);/);
-  assert.match(panel, /offer=!attempt&&canSelect\(\)&&c\.covered\.length>0&&!inside\.length/);
+  assert.match(panel, /mode=!c\.covered\.length\?null:!inside\.length\?'agreements':exact\.length>0&&exact\.length<=500\?'contracts':null/);
+  assert.match(panel, /\$\('kind'\)\.value='contracts';renderKind\(\);chosen=plan\.contracts\.map/);
   assert.match(panel, /data-own-coverage-note hidden/);
+});
+
+test('when a legajo without repartición is inside the covered convenios, the exact legajos with repartición are chosen instead', () => {
+  const id = n => n.repeat(8) + '-' + n.repeat(4) + '-' + n.repeat(4) + '-' + n.repeat(4) + '-' + n.repeat(12);
+  const roster = [
+    { contractId: id('a'), legajo: '12', name: 'Uno', status: 'active', agreement: 'PLANTA PERMANENTE', sector: 'ADMINISTRATIVO' },
+    { contractId: id('b'), legajo: '3', name: 'Dos', status: 'active', agreement: 'PLANTA PERMANENTE', sector: 'TEMPORARIOS' },
+    { contractId: id('c'), legajo: '792', status: 'active', agreement: 'PLANTA PERMANENTE', sector: '' },
+    { contractId: id('d'), legajo: '7', status: 'active', agreement: 'PERSONAL TEMPORARIO', sector: 'TEMPORARIOS' },
+    { contractId: id('e'), legajo: '8', status: 'inactive', agreement: 'PLANTA PERMANENTE', sector: 'ADMINISTRATIVO' },
+    { contractId: 'not-a-uuid', legajo: '9', status: 'active', agreement: 'PLANTA PERMANENTE', sector: 'ADMINISTRATIVO' },
+  ];
+  assert.deepEqual(ownRunUnsectoredInAgreements(roster, catalog, ['1']), ['792']);
+  assert.deepEqual(ownRunCoveredContracts(roster, catalog, ['1']).map(e => [e.legajo, e.nombre, e.recordOrigin]), [['3', 'Dos', 'MUNICONTROL'], ['12', 'Uno', 'MUNICONTROL']]);
+  assert.deepEqual(ownRunCoveredContracts(roster, catalog, ['4']).map(e => e.legajo), ['7']);
 });
