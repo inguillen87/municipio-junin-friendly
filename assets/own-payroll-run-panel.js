@@ -177,8 +177,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function renderReadiness(){
     $('readiness').hidden=readiness.state==='linked'||!!attempt&&attempt.key!==knownSavedKey;
-    $('readiness').dataset.state=readiness.state==='linked'?'success':'warning';
-    $('readiness-title').textContent=readiness.title;$('readiness-description').textContent=readiness.description;
+    // While the first verification is still running, say so calmly instead of showing «no verificada» as an error.
+    const checking=busy&&readiness.state==='unverified'&&readinessAccessKey===null;
+    $('readiness').dataset.state=readiness.state==='linked'?'success':checking?'info':'warning';
+    $('readiness-title').textContent=checking?'Verificando padrón, maestro y programa…':readiness.title;$('readiness-description').textContent=checking?'Consultamos el padrón propio y las reglas aprobadas del período. Tarda unos segundos.':readiness.description;
     $('readiness-facts').textContent=readiness.rosterTotal===null?'Padrón y configuración: sin verificar.':readiness.rosterTotal+' legajos propios en la consulta completa · '+(readiness.catalogRevision?'maestro aprobado, revisión '+readiness.catalogRevision:'maestro sin aprobación')+' · '+(readiness.programRevision?'programa aprobado, revisión '+readiness.programRevision:'configuración de cálculo sin registrar')+'.';
     $('readiness-link').hidden=!readiness.href;
     if(readiness.href){$('readiness-link').href=readiness.href;$('readiness-link').textContent=readiness.action;}else $('readiness-link').removeAttribute('href');

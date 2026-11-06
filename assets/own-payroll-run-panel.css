@@ -64,3 +64,8 @@
 @media(max-width:640px){.own-run-coverage-list li{grid-template-columns:1fr;gap:4px}.own-run-coverage-list .cv-meta{white-space:normal}}
 @media(prefers-reduced-motion:reduce){.own-run-coverage-list li,.own-run-coverage-list .cv-bar::after{animation:none}}
 .own-run-unsectored h3{margin:0 0 6px;font-size:1rem}
+/* 06/11: first verification in progress — neutral, with a sliding progress line */
+.own-run-status[data-state=info]{border-color:#9cc9bf;background:#f1f8f6;position:relative;overflow:hidden}
+.own-run-status[data-state=info]::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:36%;border-radius:3px;background:linear-gradient(90deg,transparent,#0f766e,#14b8a6,transparent);animation:own-run-slide 1.3s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes own-run-slide{from{transform:translateX(-100%)}to{transform:translateX(280%)}}
+@media(prefers-reduced-motion:reduce){.own-run-status[data-state=info]::after{animation:none;width:100%;opacity:.5}}
