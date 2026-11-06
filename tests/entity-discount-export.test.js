@@ -9,7 +9,7 @@ const base = { version: 'payroll-entity-export.v1', found: true, datasetId: id, 
 const row = (legajo, amount, extra = {}) => ({ legajo, amount, sector: '12', contractMatches: 1, dni: '20111222', name: 'PEREZ, JUAN CARLOS', jurisdiction: '42', ...extra });
 
 test('lines follow GRH «Exportacion Descuentos» position by position (76, CRLF, Windows-1252)', () => {
-  const data = entityExportResponse({ ...base, rows: [row('571', '2500.00'), row('9', '12.05', { name: 'MUÑOZ, ANA MARÍA DE LOS ÁNGELES', dni: '5123456', sector: '1234567', jurisdiction: '55' })] });
+  const data = entityExportResponse({ ...base, rows: [row('571', '2500.00'), row('9', '12.05', { name: 'MUÑOZ, ANA MARÍA DE LOS ÁNGELES', dni: '5123456', sector: '1234', jurisdiction: '55' })] });
   const file = entityDiscountFile(data);
   assert.equal(file.name, '638 082026.txt');
   assert.deepEqual(file.lines, [
@@ -50,5 +50,5 @@ test('223 is additive, session-bound and shipped with the build file set', () =>
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.payroll_entity_export_v1\(text,uuid,integer,text,uuid,uuid,uuid,text\) TO municontrol_actions_runtime_app;/);
   assert.doesNotMatch(sql, /\b(UPDATE|DELETE FROM|DROP|ALTER TABLE)\b/);
   assert.match(fs.readFileSync('.vercelignore', 'utf8'), /^!scripts\/migrations\/223-payroll-entity-export\.sql$/m);
-  assert.match(fs.readFileSync('assets/payroll-source-reports.js', 'utf8'), /entityExport\.setDataset\(d\.datasetId\)/);
+  assert.match(fs.readFileSync('assets/payroll-source-reports.js', 'utf8'), /entityExport\.setDataset\(d\.datasetId, d\)/);
 });
