@@ -61,7 +61,7 @@ async function panel(count=60){
   async function selectAll(){
     await q('load').click();
     for(let page=0;page<Math.ceil(count/25);page++){
-      for(const row of rows()){const key=row.dataset.apKey;edit(key,'cap','3');const input=field(key,'selected');input.checked=true;input.emit('change');}
+      for(const row of rows()){const key=row.dataset.apKey;edit(key,'cap','5');const input=field(key,'selected');input.checked=true;input.emit('change');}
       if(page+1<Math.ceil(count/25))q('next').click();
     }
     q('reference').value='Listado sintético de Personal, versión 1';q('reference').emit('input');q('reviewed').checked=true;q('reviewed').emit('change');

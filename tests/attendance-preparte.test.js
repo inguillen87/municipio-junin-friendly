@@ -5,7 +5,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { continuousWorkdayFixture, workdayQuery } from './fixtures/continuous-workdays-synthetic.js';
 import { preparteMonth, summarizePreparte } from '../lib/attendance-preparte.js';
 import { getAttendancePreparte } from '../lib/internal-attendance-workdays.js';
-import { verifyPreparte, preparteNoveltyRows, referencePercentage, reviewedSeconds, MONTHLY_DEDICATION_REFERENCE } from '../assets/attendance-preparte-model.js';
+import { verifyPreparte, preparteNoveltyRows, referencePercentage, reviewedSeconds, MONTHLY_DEDICATION_REFERENCE, dedicationPercent } from '../assets/attendance-preparte-model.js';
 import { appendPreparteRows, emptySheetRow } from '../assets/payroll-novelty-sheet-model.js';
 import { preparteXlsx } from '../assets/attendance-preparte-export.js';
 const principal={user:{email:'qa@example.test'},tenant:{source:'membership',id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',membershipId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',certifiedReleaseSha:'a'.repeat(40)}};
@@ -16,6 +16,8 @@ async function dataFixture(settings={}){const raw=await rawFixture(settings);let
  const data=await getAttendancePreparte(sql,principal,options,session);return{raw,data:{ok:true,...data},calls};}
 const reviewed={documentReference:'Listado QA de Personal versión 1',confirmed:true};
 function decisionFor(data,patch={}){const row=data.rows.find(row=>row.legajo==='9001');return new Map([[row.key,{selected:true,hours:'02:00',cap:'5',percent:'3',...patch}]]);}
+// 6 h = 5 % scale: give 9001 enough reconstructed extra time for the default 3 % decision (scale 5 % from 3 h).
+function withExtra(data,hours){const row=data.rows.find(r=>r.legajo==='9001');row.extraSeconds=hours*3600;return data;}
 test('month bounds validate leap years and never convert minutes or blank values into a date',()=>{
  assert.deepEqual(preparteMonth('2024-02'),{from:'2024-02-01',to:'2024-02-29'});
  for(const value of ['','2026-13','2026-9','1900-01',null])assert.throws(()=>preparteMonth(value));
@@ -45,13 +47,19 @@ test('unknown timestamp observations cannot silently turn into payable time',asy
 test('no paired overtime means unknown, not an approved zero',async()=>{
  const {data}=await dataFixture();const row=data.rows.find(r=>r.legajo==='9002');assert.equal(row.extraSeconds,null);assert.equal(row.canPropose,false);
 });
+test('6 h = 5 % scale reproduces every payable point of the reference table and rounds to the nearest step',()=>{
+ for(const [hours,percent]of MONTHLY_DEDICATION_REFERENCE.filter(([,p])=>p%5===0))assert.equal(dedicationPercent(hours*3600),percent,hours+' h');
+ assert.equal(dedicationPercent(0),0);assert.equal(dedicationPercent(3*3600-1),0);assert.equal(dedicationPercent(3*3600),5);
+ assert.equal(dedicationPercent(9*3600-60),5);assert.equal(dedicationPercent(9*3600),10);assert.equal(dedicationPercent(117*3600),100);
+ assert.equal(dedicationPercent(200*3600),100);for(const bad of [-1,1.5,null,'3600',NaN])assert.equal(dedicationPercent(bad),null);
+});
 for(const [hours,percent]of MONTHLY_DEDICATION_REFERENCE)test('exact monthly reference '+hours+'h => '+percent+'%',()=>assert.equal(referencePercentage(hours*3600),percent));
 test('no interpolation, weekly conversion, decimal comma or fractional-second loss',()=>{
  assert.equal(reviewedSeconds('13:30'),48600);assert.equal(referencePercentage(48600),null);assert.equal(referencePercentage(4*3600+1),null);
  for(const value of ['13,3','13.30','13:60','-1:00','1e2','1:2','00:00:10'])assert.throws(()=>reviewedSeconds(value));
 });
 test('review creates percentage units, distinct concept and no manual salary amount',async()=>{
- const {data}=await dataFixture();const rows=preparteNoveltyRows(data,decisionFor(data),reviewed);
+ const {data}=await dataFixture();withExtra(data,3);const rows=preparteNoveltyRows(data,decisionFor(data,{hours:'03:00'}),reviewed);
  assert.equal(rows[0][1],'44');assert.equal(rows[0][4],'3');assert.equal(rows[0][5],'');assert.equal(rows[0][9],'NO');
  assert.match(rows[0][8],new RegExp(data.rows.find(row=>row.legajo==='9001').evidenceHash));assert.ok(rows[0][8].length<=500);
 });
@@ -68,10 +76,12 @@ test('Full Time and mayor dedicacion remain distinct; individual ceiling is neve
  assert.equal(preparteNoveltyRows(data,decisionFor(data,{hours:'120:00',cap:'100',percent:'100'}),reviewed)[0][1],'95');
  assert.throws(()=>preparteNoveltyRows(data,decisionFor(data,{hours:'120:00',cap:'95',percent:'100'}),reviewed));
  assert.equal(preparteNoveltyRows(data,decisionFor(data,{hours:'120:00',cap:'95',percent:'95'}),reviewed)[0][1],'44');
- source.extraSeconds=4*3600;assert.throws(()=>preparteNoveltyRows(data,decisionFor(data,{hours:'04:00',cap:'100',percent:'5'}),reviewed));
+ source.extraSeconds=4*3600;assert.equal(preparteNoveltyRows(data,decisionFor(data,{hours:'04:00',cap:'100',percent:'5'}),reviewed)[0][4],'5');
+ assert.throws(()=>preparteNoveltyRows(data,decisionFor(data,{hours:'04:00',cap:'100',percent:'10'}),reviewed),/hasta 5 %/);
+ source.extraSeconds=2*3600;assert.throws(()=>preparteNoveltyRows(data,decisionFor(data,{hours:'02:00',cap:'100',percent:'3'}),reviewed),/hasta 0 %/);
 });
 test('append is atomic, preserves earlier work and disallows simultaneous 44/95 for the same legajo',async()=>{
- const {data}=await dataFixture(),incoming=preparteNoveltyRows(data,decisionFor(data),reviewed),existing=[emptySheetRow('999','1','30')],before=JSON.stringify(existing);
+ const {data}=await dataFixture();withExtra(data,3);const incoming=preparteNoveltyRows(data,decisionFor(data,{hours:'03:00'}),reviewed),existing=[emptySheetRow('999','1','30')],before=JSON.stringify(existing);
  const combined=appendPreparteRows(existing,incoming);assert.equal(combined.length,2);assert.equal(JSON.stringify(existing),before);
  assert.throws(()=>appendPreparteRows([emptySheetRow('9001','95','100')],incoming));assert.throws(()=>appendPreparteRows(existing,[...incoming,...incoming]));assert.throws(()=>appendPreparteRows(existing,incoming,1));
  incoming[0][5]='999';assert.throws(()=>appendPreparteRows(existing,incoming));
@@ -103,15 +113,17 @@ test('refresh counts only deliberate review decisions, not rows displayed with d
 test('Full Time cannot bypass the monthly reference through a non-table duration',async()=>{
   const {data}=await dataFixture();
   const row=data.rows.find(r=>r.legajo==='9001'); row.extraSeconds=121*3600;
-  for(const hours of ['01:00','02:00','119:59','120:01','121:00']) {
+  for(const hours of ['01:00','02:00','100:00','116:59']) {
     assert.throws(()=>preparteNoveltyRows(data,decisionFor(data,{hours,cap:'100',percent:'100'}),reviewed),/120 horas/);
   }
+  for(const hours of ['117:00','119:59','120:01','121:00'])
+    assert.equal(preparteNoveltyRows(data,decisionFor(data,{hours,cap:'100',percent:'100'}),reviewed)[0][1],'95');
   const result=preparteNoveltyRows(data,decisionFor(data,{hours:'120:00',cap:'100',percent:'100'}),reviewed);
   assert.equal(result[0][1],'95');assert.equal(result[0][4],'100');
   assert.equal(result[0][5],'');assert.equal(result[0][9],'NO');
 });
 test('existing leading-zero aliases cannot duplicate the same dedication assignment',async()=>{
-  const {data}=await dataFixture(),incoming=preparteNoveltyRows(data,decisionFor(data),reviewed);
+  const {data}=await dataFixture();withExtra(data,3);const incoming=preparteNoveltyRows(data,decisionFor(data,{hours:'03:00'}),reviewed);
   for(const concept of ['044','0095',' 44 ']){
     const rows=[emptySheetRow(' 0009001 ',concept,'3')],before=JSON.stringify(rows);
     assert.throws(()=>appendPreparteRows(rows,incoming),/ya tiene mayor dedicación/);
