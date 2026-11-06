@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="assets/workday-panel.css">
   <script type="module" src="assets/workday-panel.js"></script>
 <script type="module" src="assets/clock-dashboard.js"></script>
+<link rel="stylesheet" href="assets/time-exceptions.css">
+<script type="module" src="assets/time-exceptions-panel.js"></script>
   <style>
     :root{color-scheme:light;--navy:#123247;--navy-2:#1b465e;--teal:#0f766e;--teal-dark:#0b5b55;--canvas:#eef2f0;--surface:#fff;--surface-2:#f6f8f7;--ink:#132e3d;--muted:#5f7480;--line:#d5dfe1;--line-strong:#aebfc4;--amber:#8a570b;--amber-bg:#fff7e7;--red:#9d3838;--red-bg:#fff1f0;--green:#176553;--green-bg:#edf8f4;--blue:#245c7a;--blue-bg:#edf5f9;--shadow:0 16px 38px rgba(14,41,55,.12);--radius:6px;--sidebar:258px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box}html{min-width:320px;background:var(--canvas);scroll-behavior:smooth}body{min-width:320px;min-height:100vh;margin:0;color:var(--ink);background:var(--canvas);font-size:14px;line-height:1.45}button{font:inherit}button,a{-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid rgba(15,118,110,.28);outline-offset:2px}[hidden]{display:none!important}.sr-only{position:absolute!important;top:0!important;left:0!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}.skip-link{position:fixed;z-index:10000;top:8px;left:8px;padding:10px 14px;color:#fff;background:var(--navy);border-radius:4px;transform:translateY(-160%)}.skip-link:focus{transform:translateY(0)}
@@ -101,6 +103,7 @@
 <section id="clockIssuesWrap" role="tabpanel" aria-labelledby="clockTabIssues" hidden><h3>Calidad de la fuente</h3><p class="ck-note">Hasta 100 observaciones de toda la fuente, no sólo del filtro. Los años y registros originales no se corrigieron silenciosamente.</p><div class="ck-table-scroll"><table><thead><tr><th>Fila de origen</th><th>Fecha declarada</th><th>Observación</th></tr></thead><tbody id="clockIssues"></tbody></table></div></section>
 <p class="ck-check">Última consulta: <span id="clockChecked">—</span>. Consulta automática cada 60 segundos en la primera página, cuando no estás usando los controles ni leyendo un detalle. <strong>Sin impacto automático en nómina.</strong></p><p class="ck-print-only">Informe de actividad observada, no liquidación. El detalle impreso corresponde a la página visible; CSV y Excel del filtro completo incluyen todas sus filas.</p>
 </div></section>
+<section id="timeExceptions" class="tx" hidden aria-labelledby="txTitle"></section>
 
         <details class="ck-infrastructure"><summary>Inventario informado y estado de recepción</summary><section class="truth-strip" aria-labelledby="truthTitle"><div><strong id="truthTitle">Recepción pendiente de consulta</strong><p id="truthCopy">Consultá los acuses y las fechas de captura por punto. El inventario por sí solo no confirma una conexión física.</p></div><span class="truth-state" id="hardwareState">Sin consulta confirmada</span></section>
 

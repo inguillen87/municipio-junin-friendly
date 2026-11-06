@@ -358,6 +358,8 @@ const shellFiles = [
   'assets/attendance-clock-operations.css',
   'assets/attendance-clock-operations.js',
   'assets/attendance-connector-admin.js',
+  'assets/time-exceptions-panel.js',
+  'assets/time-exceptions.css',
   'assets/internal-guide.js',
   'assets/liquidaciones-menu.js',
   'assets/liquidaciones-menu.css',

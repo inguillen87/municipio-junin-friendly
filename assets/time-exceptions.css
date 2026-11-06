@@ -1,0 +1,19 @@
+.tx{margin:28px 0;padding:22px;border:1px solid #cfe0dc;border-radius:14px;background:linear-gradient(180deg,#f5fbf9,#fff);box-shadow:0 1px 2px rgba(16,52,60,.05)}
+.tx-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.tx-head h2{margin:2px 0 6px;font-size:20px;color:#0f3f3b}.tx-head p{margin:0;max-width:72ch;color:#3f5357;line-height:1.6;font-size:14px}
+.tx-eyebrow{margin:0;font-size:11px;letter-spacing:.08em;color:#167468;font-weight:700}
+.tx-badge{align-self:flex-start;padding:6px 10px;border-radius:999px;background:#e6f4f1;color:#0f5d55;font-size:12px;font-weight:600}
+.tx-status{margin:14px 0 8px;font-size:13px}.tx-status[data-error="true"]{color:#8a3b12}
+.tx-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:10px 0}.tx-toolbar label{display:grid;gap:4px;font-size:12px;color:#3f5357}
+.tx-form{margin:12px 0 18px;padding:16px;border:1px solid #d6e3e0;border-radius:12px;background:#fff;animation:tx-in .22s ease-out}
+.tx-form h3{margin:0 0 12px;font-size:16px;color:#0f3f3b}
+.tx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.tx-grid label,.tx-note{display:grid;gap:4px;font-size:12px;color:#3f5357}
+.tx-days{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0;border:1px solid #e1ebe8;border-radius:10px;padding:8px 12px}.tx-days label{display:flex;gap:4px;align-items:center;font-size:13px}
+.tx-note small{color:#7a5a12}.tx-issues{margin:8px 0;padding:10px 14px 10px 28px;border:1px solid #e6c48d;border-radius:10px;background:#fff8eb;color:#704c16;font-size:13px}
+.tx-table{overflow:auto;border:1px solid #d6e3e0;border-radius:12px;background:#fff}.tx-table table{width:100%;min-width:820px;border-collapse:collapse}
+.tx-table th{padding:10px 12px;text-align:left;font-size:12px;color:#36504f;background:#f1f7f5;border-bottom:1px solid #d6e3e0}
+.tx-table td{padding:10px 12px;border-bottom:1px solid #edf3f1;vertical-align:top;font-size:13px}.tx-table td small{display:block;color:#5d7074;margin-top:3px}
+.tx-on{color:#0f6b5f;font-weight:600}.tx-off{color:#8a3b12;font-weight:600}.tx-revoke{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.tx-revoke input{min-width:180px}
+@keyframes tx-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.tx-form{animation:none}}
+@media (max-width:640px){.tx{padding:16px}.tx-head h2{font-size:18px}}
