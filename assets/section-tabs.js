@@ -39,5 +39,8 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   const observer = new MutationObserver(refresh); for (const t of items) for (const n of t.nodes()) observer.observe(n, { attributes: true, attributeFilter: ['hidden'] });
   addEventListener('resize', place, { passive: true });
   activate(memory.get() ?? items[0].id, false); refresh();
+  // Deep links (e.g. «Revisar» from the approvals bandeja: /novedades#fixedNovelties) open the tab that holds the target.
+  const followHash = () => { const id = decodeURIComponent(location.hash.slice(1)); if (!id) return; const target = document.getElementById(id); if (!target) return; globalThis.mcSectionTabsReveal(target); for (let d = target; d; d = d.parentElement?.closest('details')) if (d.tagName === 'DETAILS') d.open = true; requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })); };
+  addEventListener('hashchange', followHash); followHash();
   return { activate: id => activate(id, true), refresh };
 }
