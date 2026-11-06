@@ -700,6 +700,14 @@
     .cell-stack small { color: var(--ink-soft); font-size: .71rem; }
 
     .table-message { padding: 34px 18px; text-align: center; color: var(--ink-soft); }
+    .dialog-body[aria-busy="true"] > .table-message { display: grid; gap: 6px; justify-items: center; }
+    .dialog-body[aria-busy="true"] > .table-message::after { content: ""; width: min(560px, 100%); height: 132px; margin-top: 14px; border-radius: 10px;
+      background: linear-gradient(90deg, #eef3f2 0%, #e2ebe9 40%, #eef3f2 80%) 0 0 / 200% 100%, #eef3f2;
+      -webkit-mask: linear-gradient(#000 0 0) 0 0 / 100% 22px no-repeat, linear-gradient(#000 0 0) 0 40px / 82% 16px no-repeat, linear-gradient(#000 0 0) 0 70px / 64% 16px no-repeat, linear-gradient(#000 0 0) 0 100px / 90% 16px no-repeat;
+      mask: linear-gradient(#000 0 0) 0 0 / 100% 22px no-repeat, linear-gradient(#000 0 0) 0 40px / 82% 16px no-repeat, linear-gradient(#000 0 0) 0 70px / 64% 16px no-repeat, linear-gradient(#000 0 0) 0 100px / 90% 16px no-repeat;
+      animation: skeleton-sweep 1.2s linear infinite; }
+    @keyframes skeleton-sweep { to { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .dialog-body[aria-busy="true"] > .table-message::after { animation: none; } }
     .table-message strong { display: block; margin-bottom: 5px; color: var(--ink); }
 
     .pagination {
@@ -790,8 +798,8 @@
     @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
     dialog {
-      width: min(900px, calc(100vw - 32px));
-      max-height: min(860px, calc(100vh - 32px));
+      width: min(1080px, calc(100vw - 32px));
+      max-height: min(920px, calc(100vh - 32px));
       padding: 0;
       overflow: hidden;
       border: 1px solid var(--line-strong);
@@ -801,9 +809,14 @@
       box-shadow: 0 24px 80px rgba(15, 35, 45, .28);
     }
 
-    dialog::backdrop { background: rgba(13, 32, 42, .62); }
+    dialog::backdrop { background: rgba(13, 32, 42, .5); backdrop-filter: blur(3px); }
+    dialog[open] { animation: dialog-in .26s cubic-bezier(.2, .8, .2, 1); }
+    dialog[open]::backdrop { animation: backdrop-in .26s ease-out; }
+    @keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { dialog[open], dialog[open]::backdrop { animation: none; } }
 
-    .dialog-shell { max-height: min(860px, calc(100vh - 32px)); display: flex; flex-direction: column; }
+    .dialog-shell { max-height: min(920px, calc(100vh - 32px)); display: flex; flex-direction: column; }
 
     .dialog-head {
       display: flex;
