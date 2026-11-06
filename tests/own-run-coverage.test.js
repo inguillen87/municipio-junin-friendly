@@ -173,3 +173,11 @@ test('Calcular shows the encuadre step before calculating and offers the first m
   assert.match(src, /const offer=!attempt&&canSelect\(\)&&!!mode&&!before;/);
   assert.match(src, /OWN_RUN_HISTORY_REQUIRED:'Para este mes no vale el encuadre actual de algún legajo/);
 });
+
+test('bajas: a proposal waiting for review is shown and a second one is not offered', () => {
+  const src = fs.readFileSync(new URL('../assets/native-employment-lifecycle.js', import.meta.url), 'utf8');
+  assert.match(src, /data-nlc-waiting hidden/);
+  assert.match(src, /\$\('\[data-nlc-create\]'\)\.hidden=!bootstrap\?\.permissions\.canPropose\|\|!!draft\|\|!!pending\|\|waiting\.length>0;/);
+  assert.match(src, /Si alguna está repetida, se aprueba una y las demás se rechazan con el motivo «Duplicada»/);
+  assert.match(src, /no hace falta volver a enviarla/);
+});

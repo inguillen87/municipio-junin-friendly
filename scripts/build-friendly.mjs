@@ -41,6 +41,8 @@ const shellFiles = [
   'assets/own-salary-seniority-model.js',
   'assets/own-salary-seniority-panel.js',
   'assets/own-salary-seniority-panel.css',
+  'assets/own-salary-seniority-collective.js',
+  'assets/own-salary-seniority-collective-panel.js',
   'assets/own-contract-working-time-model.js',
   'assets/own-contract-working-time-panel.js',
   'assets/own-contract-working-time-collective.js',
