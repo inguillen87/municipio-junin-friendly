@@ -17,6 +17,7 @@ MuniControl_Codex_Handoff*/
 *.backup*
 *.txt
 !assets/vendor/fflate-0.8.3-LICENSE.txt
+!assets/fonts/inter-LICENSE.txt
 lookups.json
 transcripts_audios.json
 backend/
@@ -126,6 +127,7 @@ test_prisma.js
 !calidad-operativa.html
 !asistente.html
 !centro-ayuda.html
+!homologacion-desarrollo.html
 !assets/identity-security.css
 !scripts/migrations/005-tenant-identity-gateway.sql
 
