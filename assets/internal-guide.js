@@ -311,6 +311,7 @@
     style.textContent = [
       '.mc-guide-button{min-height:44px;padding:8px 12px;border:1px solid #9fb1c1;border-radius:8px;background:#fff;color:#0b2940;font:750 12px/1.1 system-ui,sans-serif;cursor:pointer}',
       '.mc-guide-button:hover,.mc-guide-button:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.16);outline-offset:2px}',
+      '@media(min-width:521px){.mc-guide-button{white-space:nowrap}}',
       '.mc-guide-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:18px 0;padding:14px 16px;border:1px solid #b9d8d3;border-left:4px solid #0f766e;border-radius:10px;background:#f3faf8;color:#102f3f;font:500 13px/1.45 system-ui,sans-serif}',
       '.mc-guide-banner strong{display:block;margin-bottom:2px;color:#082b3d;font-size:14px}.mc-guide-banner-actions{display:flex;gap:8px;flex:0 0 auto}.mc-guide-banner button{min-height:42px;padding:8px 12px;border:1px solid #8ca8a4;border-radius:7px;background:#fff;color:#0b2940;font-weight:750;cursor:pointer}.mc-guide-banner button:first-child{border-color:#0f766e;background:#0f766e;color:#fff}',
       '.mc-guide-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(5,22,34,.42)}',

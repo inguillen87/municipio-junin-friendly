@@ -57,6 +57,11 @@
     .crumb a { color: var(--green); font-weight: 800; text-decoration: none; }
     .top-title { margin-top: 2px; color: var(--navy); font-size: 14px; font-weight: 800; }
     .top-actions { display: flex; align-items: center; gap: 9px; }
+    /* 06/11: actions never break inside a label; the informational scope chip yields space first. */
+    .top-actions { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+    .top-actions .button, .topbar .button { white-space: nowrap; }
+    .scope-chip { white-space: nowrap; text-overflow: ellipsis; }
+    @media (max-width: 1440px) { .scope-chip { display: none; } }
     .scope-chip { max-width: 300px; min-height: 44px; display: inline-flex; align-items: center; padding: 8px 11px; overflow: hidden; color: var(--green); background: var(--green-soft); border: 1px solid #b8d9d1; border-radius: 4px; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
     .button { min-height: 43px; padding: 8px 13px; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-weight: 750; }
     .button:hover:not(:disabled) { border-color: var(--navy-2); background: var(--surface-2); }
