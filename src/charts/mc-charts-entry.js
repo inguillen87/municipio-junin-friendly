@@ -76,7 +76,9 @@ export function donutOption({items, total, totalLabel = 'Total', format = format
 
 /** Horizontal or vertical bars. categories: [label], values: [number] */
 export function barOption({categories, values, format = formatNumber, horizontal = false, color, title, name = ''}) {
- const cat = {type: 'category', data: categories}, val = {type: 'value', splitNumber: horizontal ? 3 : 5, axisLabel: {formatter: v => format(v), hideOverlap: true}};
+ // Counts get whole-number ticks only (small totals otherwise repeat labels: 0 1 1 2 2).
+ const whole = values.length > 0 && values.every(v => Number.isInteger(v));
+ const cat = {type: 'category', data: categories}, val = {type: 'value', splitNumber: horizontal ? 3 : 5, ...(whole ? {minInterval: 1} : {}), axisLabel: {formatter: v => format(v), hideOverlap: true}};
  return {
   title: title ? {text: title, left: 0, top: 0} : undefined,
   tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}, valueFormatter: v => format(v)},

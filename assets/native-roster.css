@@ -38,3 +38,7 @@
 .native-roster .nr-filters{align-items:start}
 .native-roster .nr-filters small{display:none}
 .native-roster .nr-filters:has([data-nr-search-mode] option[value=legajo]:checked) small{display:block}
+/* 06/11: «Abrir ficha» never wraps letter by letter; the action column keeps its width. */
+.native-roster tbody td:last-child{width:1%;white-space:nowrap;text-align:right}
+.native-roster tbody td:last-child .button{white-space:nowrap;min-height:36px;padding:8px 14px;border-radius:8px}
+@media(max-width:650px){.native-roster tbody td:last-child{width:auto;text-align:left}}

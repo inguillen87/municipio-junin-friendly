@@ -118,7 +118,8 @@ export function mountEmployeeDetailNavigation(container){
   if(!item||item.section.parentElement!==container||item.section.hidden||!item.heading.isConnected)return;
   if(!item.heading.matches('summary'))item.heading.tabIndex=-1;
   // The body already reserves scroll padding for the bar; align it to the bar's real height so the title lands right under it.
-  container.style.scrollPaddingTop=Math.ceil(nav.getBoundingClientRect().height)+'px';item.heading.style.scrollMarginTop='18px';
+  // The full bar scrolls away; only the slim dock floats, so titles land just under it.
+  container.style.scrollPaddingTop='76px';item.heading.style.scrollMarginTop='8px';
   item.heading.scrollIntoView({block:'start',behavior:reduceMotion()?'auto':'smooth'});item.heading.focus({preventScroll:true});
  }
  function jump(){if(/^\d+$/.test(select.value))scrollTo(Number(select.value));}
@@ -150,13 +151,29 @@ export function mountEmployeeDetailNavigation(container){
   feedback);
  renderChips();renderSummary();
  go.addEventListener('click',jump);select.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();jump();}});
- container.prepend(nav);nav.before(summary);
+ // Slim dock: appears only when the full bar has scrolled out of view (no layout shift: zero-height sticky holder).
+ const dock=document.createElement('div');dock.className='esn-dock';dock.inert=true;
+ const dockBar=document.createElement('div');dockBar.className='esn-dock-bar';dockBar.setAttribute('role','navigation');dockBar.setAttribute('aria-label','Secciones de la ficha (barra compacta)');
+ const dockLabel=document.createElement('span');dockLabel.className='esn-dock-current';
+ const dockSelect=document.createElement('select');dockSelect.setAttribute('aria-label','Ir a una sección');
+ const dockGo=document.createElement('button');dockGo.type='button';dockGo.className='esn-dock-go';dockGo.textContent='Ir';dockGo.setAttribute('aria-label','Ir a la sección elegida');
+ const dockTop=document.createElement('button');dockTop.type='button';dockTop.className='esn-dock-top';dockTop.textContent='↑';dockTop.setAttribute('aria-label','Volver al inicio de la ficha');
+ const dockOptions=()=>{dockSelect.replaceChildren(...sections.map((x,i)=>new Option(x.label,String(i))));};dockOptions();
+ dockLabel.textContent='Sección';dockBar.append(dockLabel,dockSelect,dockGo,dockTop);dock.append(dockBar);
+ dockGo.addEventListener('click',()=>{if(/^\d+$/.test(dockSelect.value)){select.value=dockSelect.value;scrollTo(Number(dockSelect.value));}});
+ dockSelect.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();dockGo.click();}});
+ dockTop.addEventListener('click',()=>{container.scrollTo({top:0,behavior:reduceMotion()?'auto':'smooth'});select.focus({preventScroll:true});});
+ const setDock=on=>{dock.classList.toggle('is-on',on);dock.inert=!on;};
+ container.prepend(nav);nav.before(summary);nav.before(dock);
+ const dockObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)setDock(!entry.isIntersecting&&entry.boundingClientRect.top<(entry.rootBounds?.top??0));},{root:container,threshold:0}):null;
+ dockObserver?.observe(nav);
  // Scroll-spy: the chip of the last section whose title passed under the bar stays highlighted.
  let frame=0;
- const spy=()=>{frame=0;if(!nav.isConnected)return;const box=container.getBoundingClientRect(),line=nav.getBoundingClientRect().bottom+Math.max(24,(box.bottom-nav.getBoundingClientRect().bottom)*0.25);let index=0;
+ const spy=()=>{frame=0;if(!nav.isConnected)return;const box=container.getBoundingClientRect(),top=Math.max(box.top+70,nav.getBoundingClientRect().bottom),line=top+Math.max(24,(box.bottom-top)*0.25);let index=0;
   sections.forEach((x,i)=>{if(x.section.getBoundingClientRect().top<=line)index=i;});
   if(container.scrollTop+container.clientHeight>=container.scrollHeight-2)index=sections.length-1;
   chips.querySelectorAll('.esn-chip').forEach(c=>c.toggleAttribute('aria-current',c.dataset.esnIndex===String(index)));
+  if(sections[index]&&document.activeElement!==dockSelect&&dockSelect.value!==String(index))dockSelect.value=String(index);
   const active=chips.querySelector('[aria-current]');if(active&&(active.offsetLeft<chips.scrollLeft||active.offsetLeft+active.offsetWidth>chips.scrollLeft+chips.clientWidth))chips.scrollLeft=active.offsetLeft-12;};
  const watch=()=>{if(!frame)frame=requestAnimationFrame(spy);};
  watch();
@@ -169,8 +186,8 @@ export function mountEmployeeDetailNavigation(container){
   if(next.length===sections.length&&next.every((x,i)=>x.section===sections[i].section&&x.heading===sections[i].heading&&x.label===sections[i].label))return;
   const selected=sections[Number(select.value)]?.section;
   sections=next;select.replaceChildren();options();const index=sections.findIndex(x=>x.section===selected);select.value=String(Math.max(0,index));nav.hidden=sections.length<2;
-  renderChips();renderSummary();watch();
+  dockOptions();renderChips();renderSummary();watch();
  });
- function dispose(){if(stopped)return;stopped=true;observer.disconnect();cancelAnimationFrame(frame);container.removeEventListener('scroll',onScroll);dialog?.removeEventListener('close',dispose);}
+ function dispose(){if(stopped)return;stopped=true;observer.disconnect();dockObserver?.disconnect();dock.remove();cancelAnimationFrame(frame);container.removeEventListener('scroll',onScroll);dialog?.removeEventListener('close',dispose);}
  observer.observe(container,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['hidden']});dialog?.addEventListener('close',dispose,{once:true});return dispose;
 }
