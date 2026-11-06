@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#15354a">
+  <title>Homologación de desarrollo · MuniControl</title>
+  <link rel="stylesheet" href="/assets/developer-homologation.css">
+  <script type="module" src="/assets/developer-homologation-panel.js"></script>
+</head>
+<body>
+  <a class="skip" href="#principal">Ir al contenido</a>
+  <header class="top"><div class="frame top-inner">
+    <a class="brand" href="/inicio" aria-label="MuniControl, inicio"><img src="/assets/brand/logo-horizontal-inverse.svg" alt="MuniControl"></a>
+    <a href="/administracion">Volver a Administración</a>
+  </div></header>
+  <main id="principal" class="frame">
+    <div class="breadcrumb"><a href="/administracion">Administración</a><span aria-hidden="true">/</span><span>Entorno de desarrollo</span></div>
+    <header class="hero">
+    <div class="eyebrow"><span class="signal" aria-hidden="true"></span> ESPACIO DE PRUEBAS</div>
+    <h1>Homologación de desarrollo</h1>
+    <p class="intro">Probá los controles de cada rol con tu propia cuenta. Los ejemplos de prueba no dan altas, no aprueban bajas ni generan liquidaciones.</p>
+    <div class="session" aria-label="Estado de tu acceso"><span id="qa-state" class="tag">Verificando acceso</span><span id="qa-operator"></span><span id="qa-end"></span></div>
+    </header>
+    <p id="qa-notice" class="notice" role="status" aria-live="polite" aria-atomic="true">Consultando tu sesión…</p>
+    <div id="qa-recovery" class="row" hidden>
+      <button type="button" id="qa-refresh">Volver a consultar acceso</button>
+      <a id="qa-login" href="/acceso" hidden>Ingresar con mi cuenta</a>
+      <a id="qa-tenant" href="/inicio" hidden>Volver a la operación municipal</a>
+    </div>
+    <section class="card" id="qa-intro" aria-labelledby="qa-intro-title" hidden>
+      <div class="eyebrow">ANTES DE EMPEZAR</div><h2 id="qa-intro-title" tabindex="-1">Abrir una jornada de pruebas</h2>
+      <p>La jornada dura hasta 24 horas y podés terminarla antes. Elegir un rol cambia el control que vas a probar; tu identidad sigue siendo la misma.</p>
+      <label class="ack"><input id="qa-reviewed" type="checkbox"> Entiendo que estos resultados son de prueba y que no representan decisiones municipales.</label>
+      <button id="qa-start" class="primary" type="button" disabled>Iniciar jornada</button>
+    </section>
+    <div id="qa-workspace" hidden>
+      <nav class="section-menu" aria-label="Secciones de homologación">
+        <a href="#qa-manual-novelty">Ejercicio guiado</a><a href="#qa-cases-title">Controles por función</a><a href="#qa-read-title">Período municipal</a><a href="#qa-history-title">Informe</a>
+      </nav>
+      <section class="progress-panel" aria-labelledby="qa-progress-heading">
+        <div class="eyebrow">ACTIVIDAD DE ESTA VISITA</div>
+        <h2 id="qa-progress-heading">Tu avance en los controles</h2>
+        <p id="qa-progress-copy"></p><progress id="qa-progress" aria-label="Controles ejecutados durante esta visita" value="0" max="1"></progress>
+        <div id="qa-next"></div>
+        <figure id="qa-chart-wrap" hidden><figcaption>Último resultado de cada control, por función</figcaption><div class="chart-key" aria-label="Leyenda"><span data-key="passed">Verificado</span><span data-key="pending">Sin probar</span><span data-key="blocked">Bloqueado</span><span data-key="failed">Falló</span></div><div id="qa-chart" aria-hidden="true"></div></figure>
+        <details id="qa-stat-details"><summary>Ver cantidades y alcance por función</summary><div id="qa-stats"></div></details>
+        <p class="fine">Se cuentan controles técnicos de esta visita, no trámites municipales aprobados. La prueba manual y la consulta de período se informan por separado.</p>
+      </section>
+      <section id="qa-manual-novelty" class="card" aria-label="Ejercicio manual de novedad" hidden></section>
+      <section class="card" aria-labelledby="qa-cases-title">
+        <div class="eyebrow">1 · CONTROLES DEL CIRCUITO</div><h2 id="qa-cases-title" tabindex="-1">¿Qué rol querés probar?</h2>
+        <p>Usamos ejemplos preparados con las reglas del módulo. Un control puede pasar aunque todavía falten datos para liquidar el mes.</p>
+        <div class="filters"><div><label for="qa-role">Perfil a evaluar</label>
+        <select id="qa-role"><option value="all">Todos los perfiles</option><option value="preparation">Preparación</option><option value="review">Revisión</option><option value="control">Control</option></select></div>
+        <div><label for="qa-function">Función</label><select id="qa-function"><option value="all">Todas las funciones</option></select></div></div>
+        <div id="qa-list" class="cases"></div>
+      </section>
+      <section class="card" aria-labelledby="qa-read-title">
+        <div class="eyebrow">2 · DATOS DEL SISTEMA</div><h2 id="qa-read-title">Consultar un período</h2>
+        <p>Se muestran cantidades y versiones registradas en tu ámbito. Esta consulta no calcula ni certifica una liquidación.</p>
+        <form id="qa-period-form"><label for="qa-month">Mes y año</label><div class="row"><input type="month" id="qa-month" required><button type="submit" id="qa-read">Consultar período</button></div></form>
+        <div id="qa-readiness"></div>
+      </section>
+      <section class="card" aria-labelledby="qa-history-title">
+        <div class="eyebrow">3 · INFORME</div><h2 id="qa-history-title" tabindex="-1">Resultados de esta visita</h2>
+        <p>El informe guarda hasta los últimos 100 controles de esta visita. Descargalo antes de cambiar de pestaña o terminar la jornada; luego esta vista se despeja.</p>
+        <div id="qa-history"></div><div class="row end-tools">
+          <button type="button" id="qa-export" disabled>Descargar informe JSON</button>
+          <button type="button" id="qa-stop">Terminar jornada</button>
+        </div>
+        <div id="qa-confirm-stop" class="confirm" hidden><p>¿Terminar la jornada ahora? Se deshabilitan los controles y se despeja el informe de la pantalla.</p><div class="row"><button type="button" id="qa-stop-yes">Sí, terminar</button><button type="button" id="qa-stop-no">Seguir probando</button></div></div>
+      </section>
+    </div>
+    <noscript><p>Necesitás activar JavaScript para verificar el acceso y consultar los controles.</p></noscript>
+  </main>
+</body>
+</html>

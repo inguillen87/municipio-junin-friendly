@@ -454,6 +454,7 @@
       <div class="gate-actions" id="platformContextActions" hidden>
         <button class="button primary" id="switchToPlatformButton" type="button">Cambiar a Administración de plataforma</button>
         <a class="button" id="reloginPlatformLink" href="login.html?next=administracion-plataforma.html">Volver a ingresar y elegir Plataforma</a>
+        <a class="button" href="/homologacion">Probar circuitos en mi ámbito municipal</a>
         <a class="button quiet" href="internal-dashboard.html#inicio">Volver a la operación de Junín</a>
       </div>
     </div>
@@ -478,6 +479,7 @@
           <span class="nav-label">Identidad y acceso</span>
           <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
           <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+          <a class="nav-link" href="/homologacion" data-operation-target="/homologacion"><span class="nav-code" aria-hidden="true">QA</span>Homologación de desarrollo</a>
           <a class="nav-link" href="seguridad-cuenta.html"><span class="nav-code" aria-hidden="true">SE</span>Mi seguridad</a>
         </div>
         <div class="nav-group">
@@ -965,6 +967,7 @@
       'platform.roles.manage'
     ]);
     var OPERATION_TARGETS = Object.freeze([
+      '/homologacion',
       'internal-dashboard.html#inicio',
       'centro-acciones.html'
     ]);

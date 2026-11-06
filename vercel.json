@@ -24,6 +24,9 @@
     "api/internal-actions.js": {
       "maxDuration": 20
     },
+    "api/internal-developer-homologation.js": {
+      "maxDuration": 20
+    },
     "api/internal-admin.js": {
       "maxDuration": 20
     },
@@ -487,6 +490,10 @@
     {
       "source": "/tiempo",
       "destination": "/fuentes-tiempo.html"
+    },
+    {
+      "source": "/homologacion",
+      "destination": "/homologacion-desarrollo.html"
     },
     {
       "source": "/administracion",
@@ -1190,6 +1197,18 @@
       ]
     },
     {
+      "source": "/homologacion",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/homologacion-desarrollo.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
       "source": "/administracion",
       "headers": [
         {
@@ -1436,6 +1455,16 @@
     {
       "source": "/fuentes-tiempo",
       "destination": "/tiempo",
+      "permanent": false
+    },
+    {
+      "source": "/homologacion-desarrollo.html",
+      "destination": "/homologacion",
+      "permanent": false
+    },
+    {
+      "source": "/homologacion-desarrollo",
+      "destination": "/homologacion",
       "permanent": false
     },
     {

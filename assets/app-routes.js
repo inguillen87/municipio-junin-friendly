@@ -12,6 +12,7 @@
     ['centro-acciones.html', '/acciones', ['/centro-acciones']],
     ['relojes-marcaciones.html', '/relojes', ['/relojes-marcaciones']],
     ['fuentes-tiempo.html', '/tiempo', ['/fuentes-tiempo']],
+    ['homologacion-desarrollo.html', '/homologacion', ['/homologacion-desarrollo']],
     ['administracion-plataforma.html', '/administracion', ['/administracion-plataforma', '/admin']],
     ['estructura.html', '/estructura', ['/organigrama']],
     ['integracion-datos.html', '/integracion', ['/integracion-datos']],
