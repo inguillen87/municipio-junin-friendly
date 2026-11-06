@@ -39,3 +39,14 @@ test('Inicio shortcuts open real pages and payroll tasks that exist', () => {
     if (!file) assert.match(fs.readFileSync('internal-dashboard.html', 'utf8'), new RegExp(`data-section="${hash}"`), href);
   }
 });
+
+test('Novedades quickbar targets the entry modes and sections of its page', () => {
+  const page = fs.readFileSync('novedades-nomina.html', 'utf8');
+  assert.match(page, /<nav data-quickbar="novedades"><\/nav>/);
+  for (const action of QUICKBARS.novedades.actions) for (const selector of [action.target, action.reveal].filter(Boolean)) {
+    const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], mode = /value="([a-z]+)"/.exec(selector)?.[1];
+    if (id) assert.ok(page.includes(`id="${id}"`), selector);
+    else if (mode) assert.ok(page.includes(`name="sourceMode" value="${mode}"`), selector);
+    else assert.fail(selector);
+  }
+});

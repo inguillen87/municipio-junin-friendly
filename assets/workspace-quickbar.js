@@ -57,6 +57,19 @@ export const QUICKBARS = Object.freeze({
       { text: 'Centro de acciones', run: 'link', href: 'centro-acciones.html' },
     ],
   },
+  novedades: {
+    label: 'Acciones rápidas de Novedades',
+    actions: [
+      { text: 'Preparte de relojes', run: 'open', target: '#attendancePreparte' },
+      { text: 'Carga rápida', run: 'click', target: 'input[name="sourceMode"][value="agile"]', reveal: '#entrySection' },
+      { text: 'Planilla', run: 'click', target: 'input[name="sourceMode"][value="sheet"]', reveal: '#entrySection' },
+      { text: 'TXT / CSV', run: 'click', target: 'input[name="sourceMode"][value="bulk"]', reveal: '#entrySection' },
+      { text: 'Buscar legajo', run: 'click', target: '#pickLegajoButton' },
+      { text: 'Validar y previsualizar', run: 'click', target: '#preflightButton', kind: 'primary' },
+      { text: 'Lotes y decisiones', run: 'scroll', target: '#batchesTitle' },
+      { text: 'Novedades fijas', run: 'open', target: '#fixedNovelties' },
+    ],
+  },
   ausentismo: {
     label: 'Acciones rápidas de Ausentismo',
     actions: [

@@ -9,6 +9,8 @@
   <script src="assets/internal-capability-gate.js"></script>
   <meta name="description" content="Carga individual, rápida y masiva de novedades con validación, aprobación y exportación trazable.">
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="assets/workspace-quickbar.css">
+  <script type="module" src="assets/workspace-quickbar.js"></script>
   <link rel="stylesheet" href="assets/payroll-fixed-novelties.css">
   <link rel="stylesheet" href="assets/payroll-native-monthly-review.css">
   <link rel="stylesheet" href="assets/payroll-monthly-decisions.css">
@@ -209,6 +211,7 @@
             <div><p class="eyebrow">Liquidaciones · novedades</p><h1 id="pageTitle">Cargar novedades de nómina</h1><p class="lead">Elegí uno o varios legajos del padrón propio, agregá conceptos y revisá el lote completo. Después de su aprobación, continuá con el cálculo del período.</p></div>
             <nav class="form-actions" aria-label="Continuar el circuito de nómina"><button class="button" type="button" data-novelty-jump="attendancePreparte">Horas extra desde relojes</button><button class="button" type="button" data-novelty-jump="fixedNovelties">Novedades fijas</button><button class="button" type="button" data-novelty-jump="noveltyReferenceWorkspace">Lotes anteriores</button><a class="button" href="nomina-control.html#calculo">Ir a Calcular</a><a class="button" href="nomina-control.html#reportes">Consultar reportes</a></nav>
           </section>
+          <nav data-quickbar="novedades"></nav>
 
           <div class="message" id="messageHost" role="status" aria-live="polite" hidden></div>
           <section class="message" id="nativeMonthlyPending" role="status" aria-live="polite" hidden>
