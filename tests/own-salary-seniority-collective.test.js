@@ -160,3 +160,11 @@ test('the filtered static publication retains both seniority batch modules and e
  const included=file=>{let keep=true;for(const rule of rules){const neg=rule.startsWith('!'),p=neg?rule.slice(1):rule;if(p.endsWith('/')?file.startsWith(p):path.matchesGlob(file,p)||(!p.includes('/')&&path.matchesGlob(path.basename(file),p)))keep=neg;}return keep;};
  const seen=new Set(),walk=file=>{if(seen.has(file))return;seen.add(file);assert.equal(included(file),true,'Excluded runtime source: '+file);assert.equal(copied.filter(f=>f===file).length,1,'Runtime source must be copied exactly once: '+file);for(const m of read(file).matchAll(/(?:from\s*|import\s*)['"](\.\.?\/[^'"]+)['"]/g))walk(path.posix.normalize(path.posix.join(path.posix.dirname(file),m[1])));};walk('assets/own-salary-seniority-panel.js');assert.ok(seen.has('assets/own-salary-seniority-collective.js'));assert.ok(seen.has('assets/own-salary-seniority-collective-panel.js'));assert.equal(included('assets/own-salary-seniority-panel.css'),true);assert.equal(copied.filter(f=>f==='assets/own-salary-seniority-panel.css').length,1);
 });
+
+test('the reviewer can use the same declarations file: each contract\'s single pending proposal is found and compared in full',async()=>{
+ const f=collectiveFixture(),maker=createCollectiveSeniorityWorkspace(f.io);await maker.prepare(f.file,'propose',reason);await maker.send(confirm(maker));assert.equal(f.writes.length,3);
+ f.setActor('checker');const checker=createCollectiveSeniorityWorkspace(f.io);await checker.prepare(f.file,'approve',reason);assert.equal(checker.comparisons().length,3);assert.ok(checker.comparisons().every(r=>r.action==='approve'));
+ await checker.send(confirm(checker));assert.equal(f.writes.length,6);for(const a of f.writes.slice(3)){assert.equal(a.body.command,'approve');assert.equal(a.body.reviewConfirmed,true);}
+ // A different declaration in the file than the pending proposal is refused before any write.
+ const g=collectiveFixture(),m2=createCollectiveSeniorityWorkspace(g.io);await m2.prepare(g.file,'propose',reason);await m2.send(confirm(m2));g.setActor('checker');const changed=structuredClone(g.file);changed.records[1].definition.months='9';const c2=createCollectiveSeniorityWorkspace(g.io);await assert.rejects(c2.prepare(changed,'approve',reason));assert.equal(g.writes.length,3);
+});

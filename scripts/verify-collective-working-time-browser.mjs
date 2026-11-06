@@ -24,7 +24,7 @@ export async function verifyCollectiveWorkingTimeBrowser({root=fileURLToPath(new
    return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
   });
   page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(30000);const c=key=>page.locator('[data-collective-time-'+key+']');
-  const fresh=async()=>{await page.goto(origin+'/tests/fixtures/own-contract-working-time-collective-browser.html');await page.getByText('Jornada para varios legajos',{exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-working-time')?.getAttribute('aria-busy')==='false');};
+  const fresh=async()=>{await page.goto(origin+'/tests/fixtures/own-contract-working-time-collective-browser.html');await page.getByText('Jornada para varios legajos · carga y aprobación por lote',{exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-working-time')?.getAttribute('aria-busy')==='false');};
   const idle=()=>page.waitForFunction(()=>document.querySelector('.working-time-collective')?.getAttribute('aria-busy')==='false');
   const upload=async()=>{await c('file').setInputFiles({name:'jornadas-sinteticas.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture.file))});await idle();};
   await fresh();await upload();await c('reason').fill('Constancia y revisión del conjunto exclusivamente sintético QA');await c('prepare').click();await idle();
