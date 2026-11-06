@@ -181,3 +181,12 @@ test('bajas: a proposal waiting for review is shown and a second one is not offe
   assert.match(src, /Si alguna está repetida, se aprueba una y las demás se rechazan con el motivo «Duplicada»/);
   assert.match(src, /no hace falta volver a enviarla/);
 });
+
+test('ficha: reads wait briefly when another operation holds the legajo and the message says so', () => {
+  for (const file of ['../assets/native-employment-change.js', '../assets/native-employment-lifecycle.js']) {
+    const src = fs.readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.match(src, /if\(read&&r\.status===409&&\/BUSY\$\/\.test\(String\(d\?\.code\?\?''\)\)&&attempt<3\)/);
+    assert.match(src, /Hay otra operación en curso sobre este legajo/);
+    assert.match(src, /serverMessage:typeof d\?\.error==='string'\?d\.error:''/);
+  }
+});
