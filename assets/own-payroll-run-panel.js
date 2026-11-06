@@ -11,6 +11,7 @@ import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
+import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -41,7 +42,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
-  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir todas las reparticiones</button><a class="button" href="/personal#legajos">Corregir fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice" data-own-prerequisites><summary>Requisitos y configuración</summary><p data-own-readiness-facts></p><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
@@ -77,7 +78,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,accessTenantId=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1,knownSavedKey=null,queuedPreparation=null;
-  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null;
+  let readiness=ownPayrollReadinessUnavailable(),readinessAccessKey=null,readinessRosterScope=null,suspendedPreparation=null,departmentPlan=null;
   let sourceReview=null,sourcePage=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
@@ -110,7 +111,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('review').disabled=busy||!current?.saved||!can(OWN_RUN_NOMINAL)||typeof onReview!=='function';
     for(const button of $('totals').querySelectorAll('[data-own-individual-open]'))button.disabled=busy||!can(OWN_RUN_NOMINAL);
     for(const button of $('history').querySelectorAll('button'))button.disabled=busy||!can(OWN_RUN_NOMINAL)||!!attempt&&!current?.saved;
+    renderUnsectored();
     host.setAttribute('aria-busy',String(busy));
+  }
+  function renderUnsectored(){
+    const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
+    box.hidden=!show;if(!show)return;
+    const text=ownRunUnsectoredText(plan);if($('unsectored-text').textContent!==text)$('unsectored-text').textContent=text;
+    $('unsectored-all').hidden=!plan.usable;$('unsectored-all').disabled=busy||!plan.usable;
+    $('unsectored-all').textContent='Elegir las '+plan.codes.length+' reparticiones ('+plan.covered+' legajos)';
   }
   function renderActionGuidance(){
     const help=$('action-help'),text=$('action-help-text'),link=$('action-help-link');let message='',href=null,label='';
@@ -139,7 +148,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     clearSourceReview();
     individual.clear();
     positionCapture.clear();
-    picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;
+    picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;departmentPlan=null;
     invalidateReadiness();
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
@@ -238,9 +247,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
     renderHistory();controls();
     if(draftIssue){status(draftIssue,'warning');return;}
-    // With «Todos» the engine rejects the whole run when one active legajo lacks its repartición: say which, before trying.
-    const unsectored=(Array.isArray(preparationRoster?.rows)?preparationRoster.rows:[]).filter(r=>r&&r.status==='active'&&!(typeof r.sector==='string'&&r.sector.trim())).map(r=>String(r.legajo));
-    if(!attempt&&canStart()&&unsectored.length){status(`${unsectored.length===1?'El legajo '+unsectored[0]+' no tiene':'Los legajos '+unsectored.slice(0,8).join(', ')+(unsectored.length>8?' y '+(unsectored.length-8)+' más':'')+' no tienen'} repartición cargada: con «Todos los legajos propios» el cálculo se rechaza. Corregí su ficha en Personas o elegí «Reparticiones».`,'warning');return;}
+    // With «Todos» the engine rejects the whole run when one active legajo lacks its repartición: say which, before
+    // trying, and offer every repartición with active people (the «Reparticiones» scope skips the unassigned ones).
+    departmentPlan=ownRunDepartmentsForAll(preparationRoster?.rows,catalog?.catalog.items);controls();
+    if(!attempt&&canStart()&&departmentPlan.unsectored.length&&['','all'].includes($('kind').value)){status('Antes de calcular a todos, revisá los legajos sin repartición.','warning');return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
@@ -337,8 +347,22 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     }
     controls();
     // A failed response, including 422, can follow a committed capture or result.
-    // Keep its original key and body until recovery verifies that attempt's state.
-    const response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});
+    // Keep its original key and body until recovery verifies that attempt's state: a 422 consults the same key at
+    // once; a registered capture is shown, and only a verified «not registered» frees the form (same values) to fix it.
+    let response;
+    try{response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});}
+    catch(error){
+      if(error.status!==422||!valid()||!can(OWN_RUN_NOMINAL))throw error;
+      const rejected=attempt;let registered=null,missing=false;
+      try{registered=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(rejected.key))).data,rejected);}
+      catch(check){if(check.status===404)missing=true;else if(check.name==='AbortError')throw check;}
+      if(!valid())return;
+      if(registered){showCapture(registered);return;}
+      if(!missing||attempt!==rejected)throw error;
+      attempt=null;notFound=false;$('confirm').checked=false;
+      const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' La causa es que hay legajos activos sin repartición: usá «Elegir todas las reparticiones» o corregí su ficha.':'';
+      throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
+    }
     const value=await verifiedWorkspaceCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
@@ -370,6 +394,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
+  $('unsectored-all').addEventListener('click',()=>{
+    const plan=departmentPlan;if(!plan?.usable||attempt||busy||!canSelect())return;
+    $('kind').value='departments';renderKind();
+    for(const option of $('codes').options)option.selected=plan.codes.includes(option.value);
+    if([...$('codes').selectedOptions].length!==plan.codes.length){status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return;}
+    $('confirm').checked=false;controls();
+    status('Elegidas las '+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). Quedan fuera '+plan.unsectored.length+' sin repartición. Revisá y marcá la confirmación para calcular.','neutral');
+    $('confirm').focus();
+  });
   $('source-review-button').addEventListener('click',()=>reviewSources());$('source-download').addEventListener('click',()=>reviewSources(true));
   $('source-search').addEventListener('input',()=>{sourcePage=1;renderSourceReview();});$('source-prev').addEventListener('click',()=>{sourcePage--;renderSourceReview();});$('source-next').addEventListener('click',()=>{sourcePage++;renderSourceReview();});
   $('review').addEventListener('click',()=>{if(busy||!current?.saved||!can(OWN_RUN_NOMINAL))return;if(onReview?.({runId:current.id,resultSha256:current.saved.resultSha256,accessKey:access.key,contractId:individual.selected})!==true)status('Hay una decisión pendiente en Confirmar y anular. Consultala antes de cambiar de corrida.','warning');});

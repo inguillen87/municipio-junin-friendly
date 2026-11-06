@@ -50,3 +50,20 @@ test('Novedades quickbar targets the entry modes and sections of its page', () =
     else assert.fail(selector);
   }
 });
+
+test('quick actions are grouped and wrap: no row scrolls sideways, and a compact dock keeps the same groups', async () => {
+  const { QUICK_GROUPS, quickGroupOf } = await import('../assets/workspace-quickbar.js');
+  for (const [screen, config] of Object.entries(QUICKBARS)) {
+    const groups = new Set(config.actions.map(quickGroupOf));
+    for (const group of groups) assert.ok(QUICK_GROUPS[group], screen + ' → ' + group);
+    assert.ok(groups.size >= 2 && groups.size <= 5, screen + ' groups: ' + groups.size);
+  }
+  const css = fs.readFileSync('assets/workspace-quickbar.css', 'utf8');
+  assert.doesNotMatch(css, /overflow-x\s*:\s*(auto|scroll)/);
+  assert.match(css, /\.mc-quickbar-row\{display:flex;flex-wrap:wrap/);
+  assert.match(css, /\.mc-quickdock\{position:fixed/);
+  assert.match(fs.readFileSync('assets/employee-detail-navigation.css', 'utf8'), /\.esn-chips\{grid-area:chips;display:flex;flex-wrap:wrap/);
+  const source = fs.readFileSync('assets/workspace-quickbar.js', 'utf8');
+  assert.match(source, /setAttribute\('aria-haspopup', 'menu'\)/);
+  assert.match(source, /event\.key === 'Escape'/);
+});

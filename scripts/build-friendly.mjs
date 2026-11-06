@@ -221,6 +221,7 @@ const shellFiles = [
   'assets/own-payroll-summary-panel.js',
   'assets/own-payroll-summary.css',
   'assets/own-payroll-run-panel.js',
+  'assets/own-run-departments.js',
   'assets/own-payroll-readiness-model.js',
   'assets/own-payroll-source-review.js',
   'assets/own-payroll-individual-panel.js',
