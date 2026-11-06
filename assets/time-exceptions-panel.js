@@ -50,6 +50,7 @@ export function mountTimeExceptions(section) {
   <div class="tx-table" role="region" aria-label="Excepciones horarias" tabindex="0"><table><thead><tr><th>Persona / legajo</th><th>Tipo</th><th>Días y horario</th><th>Vigencia</th><th>Motivo y respaldo</th><th>Estado</th></tr></thead><tbody data-tx="rows"></tbody></table></div>`;
   const $ = key => section.querySelector(`[data-tx="${key}"]`);
   let items = [], canManage = false, busy = false, pending = null;
+  const pendingRevocations = new Map();
   const status = (text, error = false) => { $('status').textContent = text; $('status').dataset.error = String(error); };
 
   async function api(method, body) {
@@ -90,10 +91,38 @@ export function mountTimeExceptions(section) {
         if (canManage) {
           const box = node('div', undefined, 'tx-revoke'), reason = node('input'); reason.placeholder = 'Motivo de la revocación'; reason.maxLength = 160; reason.hidden = true;
           const button = node('button', 'Revocar', 'button compact'); button.type = 'button';
+          const retry = pendingRevocations.get(item.id);
+          if (retry) { reason.value = retry.reason; reason.hidden = false; reason.readOnly = true; button.textContent = 'Reintentar revocación'; }
+          button.disabled = busy;
           button.addEventListener('click', async () => {
+            if (busy) return;
             if (reason.hidden) { reason.hidden = false; reason.focus(); button.textContent = 'Confirmar revocación'; return; }
-            if (reason.value.trim().length < 3) { status('Indicá el motivo de la revocación.', true); reason.focus(); return; }
-            await run(() => api('POST', { action: 'time-exception.revoke', requestKey: uuid(), id: item.id, reason: reason.value.trim() }), 'Excepción revocada. El historial la conserva.');
+            let attempt = pendingRevocations.get(item.id);
+            if (!attempt) {
+              if (reason.value.trim().length < 3) { status('Indicá el motivo de la revocación.', true); reason.focus(); return; }
+              // Until confirmed, the original body and key survive retries and local filtering.
+              attempt = Object.freeze({ action: 'time-exception.revoke', requestKey: uuid(), id: item.id, reason: reason.value.trim() });
+              pendingRevocations.set(item.id, attempt);
+            }
+            reason.value = attempt.reason; reason.readOnly = true; button.textContent = 'Reintentar revocación';
+            await run(async () => {
+              try {
+                const result = await api('POST', attempt);
+                if (result.item?.id !== item.id || !result.item.revokedAt) throw Error('Respuesta fuera de contrato.');
+                items = items.map(current => current.id === item.id ? result.item : current);
+                pendingRevocations.delete(item.id);
+                render();
+              } catch (error) {
+                if (error.code === 'ATTENDANCE_TIME_EXCEPTION_ALREADY_REVOKED') {
+                  await load();
+                  if (!pendingRevocations.has(item.id)) return;
+                } else if (error.code === 'ATTENDANCE_TIME_EXCEPTION_INPUT_INVALID') {
+                  pendingRevocations.delete(item.id);
+                  render();
+                }
+                throw error;
+              }
+            }, 'Excepción revocada. El historial la conserva.', () => pendingRevocations.has(item.id));
           });
           box.append(reason, button); state.append(box);
         }
@@ -107,6 +136,7 @@ export function mountTimeExceptions(section) {
       const result = await api('GET');
       if (result.version !== 'attendance-time-exceptions.v1' || !Array.isArray(result.items)) throw Error('Respuesta fuera de contrato.');
       items = result.items; canManage = result.canManage === true; section.hidden = false;
+      for (const item of items) if (item.revokedAt) pendingRevocations.delete(item.id);
       $('new').hidden = !canManage;
       status(items.length ? `${items.filter(i => !i.revokedAt).length} excepciones vigentes o futuras.` + (canManage ? '' : ' Tu perfil puede consultarlas; las carga Personal.') : 'Sin excepciones registradas.' + (canManage ? ' Usá «Nueva excepción» para el primer caso.' : ''));
       render();
@@ -115,10 +145,10 @@ export function mountTimeExceptions(section) {
       section.hidden = false; status(error.code === 'ATTENDANCE_TIME_EXCEPTIONS_NOT_INSTALLED' || error.status === 404 ? 'Las excepciones horarias estarán disponibles cuando se instale su tabla.' : error.message, true);
     }
   }
-  async function run(action, done) {
+  async function run(action, done, hasPending = () => Boolean(pending)) {
     if (busy) return; busy = true; section.querySelectorAll('button').forEach(b => { b.disabled = true; });
-    try { await action(); pending = null; status(done); await load(); }
-    catch (error) { status(error.message + (pending ? ' Podés reintentar: se usa la misma clave y no se duplica.' : ''), true); }
+    try { await action(); status(done); await load(); }
+    catch (error) { status(error.message + (hasPending() ? ' Podés reintentar: se usa la misma clave y no se duplica.' : ''), true); }
     finally { busy = false; section.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
   }
   const form = $('form');
@@ -128,6 +158,7 @@ export function mountTimeExceptions(section) {
   $('cancel').addEventListener('click', () => { form.reset(); form.hidden = true; pending = null; $('issues').hidden = true; });
   form.addEventListener('submit', event => {
     event.preventDefault();
+    if (busy) return;
     const f = form.elements, kind = f.kind.value;
     const value = { legajo: f.legajo.value.trim(), kind, weekdays: [...form.querySelectorAll('input[name="weekday"]:checked')].map(i => Number(i.value)),
       from: kind === 'exento' ? null : f.from.value, to: kind === 'exento' ? null : f.to.value, validFrom: f.validFrom.value, validTo: f.validTo.value || null,
@@ -138,7 +169,7 @@ export function mountTimeExceptions(section) {
     // Same body and key on retry: an unconfirmed response never duplicates the exception.
     const signature = JSON.stringify(value);
     if (!pending || pending.signature !== signature) pending = { signature, key: uuid() };
-    run(() => api('POST', { action: 'time-exception.register', requestKey: pending.key, ...value }), 'Excepción registrada. Desde ahora el preparte la descuenta de las tardanzas.')
+    run(async () => { await api('POST', { action: 'time-exception.register', requestKey: pending.key, ...value }); pending = null; }, 'Excepción registrada. Desde ahora el preparte la descuenta de las tardanzas.')
       .then(() => { if (!pending) { form.reset(); form.hidden = true; } });
   });
   $('search').addEventListener('input', render); $('filter').addEventListener('change', render);
