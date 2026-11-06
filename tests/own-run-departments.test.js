@@ -28,7 +28,7 @@ test('Calcular releases a rejected attempt only after the same key is verified a
   const panel = fs.readFileSync('assets/own-payroll-run-panel.js', 'utf8');
   assert.match(panel, /if\(error\.status!==422\|\|!valid\(\)\|\|!can\(OWN_RUN_NOMINAL\)\)throw error;/);
   assert.match(panel, /resource=attempt&key='\+encodeURIComponent\(rejected\.key\)/);
-  assert.match(panel, /if\(registered\)\{showCapture\(registered\);return;\}\s*if\(!missing\|\|attempt!==rejected\)throw error;\s*attempt=null;/);
+  assert.match(panel, /if\(registered\)\{[^\n]*showCapture\(registered\);[^\n]*return;\}\s*if\(!missing\|\|attempt!==rejected\)throw error;\s*attempt=null;/);
   assert.match(panel, /data-own-unsectored-all/);
   assert.match(panel, /\$\('kind'\)\.value='departments';renderKind\(\);/);
   assert.match(fs.readFileSync('scripts/build-friendly.mjs', 'utf8'), /'assets\/own-run-departments\.js'/);
