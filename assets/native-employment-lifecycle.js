@@ -52,7 +52,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
   $('[data-nlc-create]').hidden=!bootstrap?.permissions.canPropose||!!draft||!!pending||waiting.length>0;
   renderWaiting(waiting);
   // Say why the button is missing instead of leaving an empty section.
-  const why=!bootstrap||draft||pending||waiting.length||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':'Tu cuenta puede consultar pero no preparar bajas. Para prepararlas hace falta el permiso «Proponer cambios de legajo» y que el usuario esté vinculado a su legajo municipal (Administración de plataforma › Usuarios y roles). La baja la aprueba otra persona con permiso de aprobación.';
+  const why=!bootstrap||draft||pending||waiting.length||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':state.canProposeCap?'Tu cuenta tiene el permiso «Proponer cambios de legajo», pero el servidor no la habilita para este legajo: hace falta que el usuario esté vinculado a un legajo vigente del padrón propio. Las bajas las prepara una persona con legajo vigente y las aprueba otra con permiso de aprobación.':'Tu cuenta puede consultar pero no preparar bajas. Para prepararlas hace falta el permiso «Proponer cambios de legajo» y que el usuario esté vinculado a su legajo municipal (Administración de plataforma › Usuarios y roles). La baja la aprueba otra persona con permiso de aprobación.';
   if($('[data-nlc-why]').textContent!==why)$('[data-nlc-why]').textContent=why;$('[data-nlc-why]').hidden=!why;
   $('[data-nlc-pending]').hidden=!pending||!bootstrap;if(pending)$('[data-nlc-attempt]').textContent='Referencia: '+pending.key;
   $('[data-nlc-retry]').disabled=busy||!pending?.retryReady;
@@ -78,7 +78,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  async function authority(seq){
   const value=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
   const email=value.user?.email,caps=value.access?.tenantCapabilities;if(value.authenticated!==true||typeof email!=='string'||!email.trim()||!Array.isArray(caps))throw issue('SESSION_INVALID',401);
-  const actor=JSON.stringify([email.trim().toLowerCase(),value.access.tenant?.id??null,value.access.tenant?.roleKey??value.user.role??null]);if(state.actor&&state.actor!==actor)changedActor();state.actor=actor;if(!caps.includes('workforce.employee.read'))throw issue('FORBIDDEN',403);
+  const actor=JSON.stringify([email.trim().toLowerCase(),value.access.tenant?.id??null,value.access.tenant?.roleKey??value.user.role??null]);if(state.actor&&state.actor!==actor)changedActor();state.actor=actor;state.canProposeCap=caps.includes('employee.record.propose');if(!caps.includes('workforce.employee.read'))throw issue('FORBIDDEN',403);
  }
  async function fresh(seq){
   const d=validateLifecycleBootstrap((await request(API+'?'+new URLSearchParams({resource:'bootstrap',contractId}))).data,contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
