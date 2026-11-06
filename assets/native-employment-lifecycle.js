@@ -39,7 +39,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
   const pending=state.pending,draft=state.draft,stale=draft&&bootstrap&&(draft.baseVersion!==bootstrap.employment.version);
   $('[data-nlc-create]').hidden=!bootstrap?.permissions.canPropose||!!draft||!!pending;
   // Say why the button is missing instead of leaving an empty section.
-  const why=!bootstrap||draft||pending||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':'Tu cuenta puede consultar pero no preparar bajas. Lo hace una persona con el rol «RRHH · operador» (permiso «Proponer cambios de legajo») y la aprueba otra con «RRHH · aprobador». Se asignan en Administración de plataforma › Usuarios y roles.';
+  const why=!bootstrap||draft||pending||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':'Tu cuenta puede consultar pero no preparar bajas. Para prepararlas hace falta el permiso «Proponer cambios de legajo» y que el usuario esté vinculado a su legajo municipal (Administración de plataforma › Usuarios y roles). La baja la aprueba otra persona con permiso de aprobación.';
   if($('[data-nlc-why]').textContent!==why)$('[data-nlc-why]').textContent=why;$('[data-nlc-why]').hidden=!why;
   $('[data-nlc-pending]').hidden=!pending||!bootstrap;if(pending)$('[data-nlc-attempt]').textContent='Referencia: '+pending.key;
   $('[data-nlc-retry]').disabled=busy||!pending?.retryReady;
