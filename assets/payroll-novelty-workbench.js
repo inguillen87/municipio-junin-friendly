@@ -795,7 +795,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     }
     if (payload.sourceFeatures?.attendancePreparte !== true) attendancePreparte?.clear();
     fixedNovelties?.setAccess({capabilities:[...capabilitySet(payload.principal)],principalKey:principalKey(payload.principal)});
-    byId('sessionScope').textContent = capabilityText(payload.principal);
+    byId('sessionScope').textContent = capabilityText(payload.principal); byId('sessionScope').title = byId('sessionScope').textContent;
     byId('entrySection').hidden = !canPrepare || !mayRestore;
     byId('readOnlySection').hidden = canPrepare;
     byId('maxRows').textContent = String(payload.limits.maxRows);
