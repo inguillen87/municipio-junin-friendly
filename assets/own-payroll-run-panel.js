@@ -42,7 +42,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
-  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir todas las reparticiones</button><a class="button" href="/personal#legajos">Corregir fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice" data-own-prerequisites><summary>Requisitos y configuración</summary><p data-own-readiness-facts></p><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
@@ -118,8 +118,8 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
     box.hidden=!show;if(!show)return;
     const text=ownRunUnsectoredText(plan);if($('unsectored-text').textContent!==text)$('unsectored-text').textContent=text;
-    $('unsectored-all').hidden=!plan.usable;$('unsectored-all').disabled=busy||!plan.usable;
-    $('unsectored-all').textContent='Elegir las '+plan.codes.length+' reparticiones ('+plan.covered+' legajos)';
+    $('unsectored-all').hidden=!plan.codes.length||plan.unmatched.length>0;$('unsectored-all').disabled=busy;
+    $('unsectored-all').textContent='Calcular las '+plan.codes.length+' reparticiones ('+plan.covered+' legajos)';
   }
   function renderActionGuidance(){
     const help=$('action-help'),text=$('action-help-text'),link=$('action-help-link');let message='',href=null,label='';
@@ -188,7 +188,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     finally{clearTimeout(timeout);if(version===seq){busy=false;controller=null;controls();}}
   }
   function renderChosen(){
-    $('chips').replaceChildren(...chosen.map(item=>{const chip=node('span');chip.append(node('span','Legajo '+item.legajo+' · '+(item.nombre??'Nombre no informado')));const remove=node('button','Quitar');remove.type='button';remove.className='button';remove.setAttribute('aria-label','Quitar legajo '+item.legajo);remove.addEventListener('click',()=>{if(attempt||busy)return;chosen=chosen.filter(e=>e.contractId!==item.contractId);$('confirm').checked=false;renderChosen();controls();});chip.append(remove);return chip;}));
+    const many=chosen.length>24;
+    $('chips').replaceChildren(...(many?chosen.slice(0,12):chosen).map(item=>{const chip=node('span');chip.append(node('span','Legajo '+item.legajo+' · '+(item.nombre??'Nombre no informado')));const remove=node('button','Quitar');remove.type='button';remove.className='button';remove.setAttribute('aria-label','Quitar legajo '+item.legajo);remove.addEventListener('click',()=>{if(attempt||busy)return;chosen=chosen.filter(e=>e.contractId!==item.contractId);$('confirm').checked=false;renderChosen();controls();});chip.append(remove);return chip;}));
+    if(many)$('chips').append(node('span','… y '+(chosen.length-12)+' legajos más: todos se incluyen en el cálculo.'));
     $('scope').textContent=$('kind').value==='all'?'Alcance elegido: todo el padrón propio. El cálculo verificará la elegibilidad para el período; una búsqueda o página no reduce este alcance.':$('kind').value==='contracts'?chosen.length+' legajos propios elegidos.':'Se incluirá el conjunto completo de las opciones elegidas.';
   }
   function renderKind(){
@@ -360,7 +362,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(registered){showCapture(registered);return;}
       if(!missing||attempt!==rejected)throw error;
       attempt=null;notFound=false;$('confirm').checked=false;
-      const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' La causa es que hay legajos activos sin repartición: usá «Elegir todas las reparticiones» o corregí su ficha.':'';
+      const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones o cargá su repartición o su baja en Personas.':'';
       throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
     }
     const value=await verifiedWorkspaceCapture(response.data,attempt);

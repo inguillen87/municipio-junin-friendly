@@ -14,16 +14,13 @@ test('picks only the reparticiones with active people and lists the legajos left
   assert.deepEqual(plan.codes, ['1', '4']);
   assert.equal(plan.covered, 3);
   assert.deepEqual(plan.unsectored, ['792', '793', '869']);
-  assert.equal(plan.usable, true);
-  assert.match(ownRunUnsectoredText(plan), /^Los legajos 792, 793, 869 no tienen repartición cargada: .*las 2 reparticiones con personal activo: incluye a los 3 legajos restantes y deja fuera sólo esos 3/);
+  assert.match(ownRunUnsectoredText(plan), /^Los legajos 792, 793, 869 están activos pero no tienen repartición: con «Todos los legajos propios» el motor rechaza la corrida entera\. Calculá las 2 reparticiones con personal activo \(3 legajos\) y, en paralelo, cargá su repartición .*registrá su baja/);
 });
 
-test('a repartición name outside the catalog (or ambiguous) blocks the shortcut instead of dropping people', () => {
+test('names outside the catalog are reported; nothing to say when every active legajo has a repartición', () => {
   const unknown = ownRunDepartmentsForAll([row('10', 'ADMINISTRATIVO'), row('11', 'OBRAS NUEVAS'), row('869', null)], catalog);
-  assert.equal(unknown.usable, false); assert.deepEqual(unknown.unmatched, ['OBRAS NUEVAS']);
-  assert.match(ownRunUnsectoredText(unknown), /Corregí su ficha en Personas antes de calcular a todos\.$/);
-  const twice = ownRunDepartmentsForAll([row('10', 'ADMINISTRATIVO')], [...catalog, { kind: 'sectors', code: '21', label: 'Administrativo' }]);
-  assert.equal(twice.usable, false);
+  assert.deepEqual(unknown.unmatched, ['OBRAS NUEVAS']);
+  assert.match(ownRunUnsectoredText(unknown), /^El legajo 869 está activo pero no tiene repartición: con «Todos los legajos propios» el motor rechaza la corrida entera\. Cargá su repartición/);
   assert.equal(ownRunUnsectoredText(ownRunDepartmentsForAll([row('10', 'ADMINISTRATIVO')], catalog)), '');
 });
 
@@ -33,5 +30,6 @@ test('Calcular releases a rejected attempt only after the same key is verified a
   assert.match(panel, /resource=attempt&key='\+encodeURIComponent\(rejected\.key\)/);
   assert.match(panel, /if\(registered\)\{showCapture\(registered\);return;\}\s*if\(!missing\|\|attempt!==rejected\)throw error;\s*attempt=null;/);
   assert.match(panel, /data-own-unsectored-all/);
+  assert.match(panel, /\$\('kind'\)\.value='departments';renderKind\(\);/);
   assert.match(fs.readFileSync('scripts/build-friendly.mjs', 'utf8'), /'assets\/own-run-departments\.js'/);
 });
