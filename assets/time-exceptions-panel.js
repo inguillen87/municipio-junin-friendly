@@ -56,7 +56,7 @@ export function mountTimeExceptions(section) {
     if (body) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
     const response = await fetch(method === 'GET' ? '/api/internal-attendance?resource=time-exceptions' : '/api/internal-attendance', options);
     let result = {}; try { result = await response.json(); } catch {}
-    if (!response.ok || result.ok !== true) throw Object.assign(Error(result.error || 'La operación no se pudo completar.'), { status: response.status });
+    if (!response.ok || result.ok !== true) throw Object.assign(Error(result.error || 'La operación no se pudo completar.'), { status: response.status, code: result.code });
     return result;
   }
   function visible() {
@@ -102,7 +102,7 @@ export function mountTimeExceptions(section) {
       render();
     } catch (error) {
       if ([401, 403].includes(error.status)) { section.hidden = true; return; }
-      section.hidden = false; status(error.status === 400 || error.status === 404 ? 'Las excepciones horarias estarán disponibles cuando se instale su tabla.' : error.message, true);
+      section.hidden = false; status(error.code === 'ATTENDANCE_TIME_EXCEPTIONS_NOT_INSTALLED' || error.status === 404 ? 'Las excepciones horarias estarán disponibles cuando se instale su tabla.' : error.message, true);
     }
   }
   async function run(action, done) {
