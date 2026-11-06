@@ -302,14 +302,18 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     await session(OWN_RUN_READ);
     if(!valid())return;
     if(!hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)){suspendedPreparation=null;clearViews();}
-    const next=ownRunBootstrap((await request(endpoint+'?resource=bootstrap&contractVersion=2')).data);
+    // The four reads are independent: ask for them together (about 5 s instead of 10–14 s one after another).
+    const bootRead=request(endpoint+'?resource=bootstrap&contractVersion=2'),catalogRead=request('/api/internal-employment-catalog?resource=bootstrap');
+    const prefetch={program:request('/api/internal-own-payroll-program?resource=bootstrap'),roster:request(OWN_PAYROLL_READINESS_ROSTER_URL)};
+    for(const read of [catalogRead,prefetch.program,prefetch.roster])read.catch(()=>{});
+    const next=ownRunBootstrap((await bootRead).data);
     if(!valid())return;
-    const nextCatalog=validateCatalogBootstrap((await request('/api/internal-employment-catalog?resource=bootstrap')).data);
+    const nextCatalog=validateCatalogBootstrap((await catalogRead).data);
     if(!valid())return;
     if(boot&&(boot.scopeVersion!==next.scopeVersion||boot.programVersion!==next.programVersion))$('confirm').checked=false;
     boot=next;catalog=nextCatalog;
     renderKind();renderHistory();controls();
-    let preparationRoster;try{preparationRoster=await verifyPreparation(next,valid);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
+    let preparationRoster;try{preparationRoster=await verifyPreparation(next,valid,OWN_RUN_READ,prefetch);}catch(error){if(!valid())return;invalidateReadiness();if([401,403].includes(error.status))throw error;status('No se pudo verificar la preparación. '+(error.name==='AbortError'?'La consulta no terminó.':error.message),'warning');controls();return;}
     if(!valid())return;
     if(!metadataOnly&&queuedPreparation&&canStart()){const context=queuedPreparation;queuedPreparation=null;await acceptPreparation(context,valid);if(!valid())return;suspendedPreparation=null;renderHistory();controls();return;}
     renderKind();const draftIssue=restoreSuspendedPreparation(preparationRoster);
@@ -324,10 +328,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       let tries=0;const later=()=>{if(attempt||!['','all'].includes($('kind').value))return;if(busy&&tries++<20){setTimeout(later,250);return;}applyAllWithoutUnsectored(true);};setTimeout(later,0);return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
-  async function verifyPreparation(run,valid,required=OWN_RUN_READ){
-    const program=await request('/api/internal-own-payroll-program?resource=bootstrap');
+  async function verifyPreparation(run,valid,required=OWN_RUN_READ,prefetch=null){
+    const program=await (prefetch?.program??request('/api/internal-own-payroll-program?resource=bootstrap'));
     if(!valid())return;
-    const roster=await request(OWN_PAYROLL_READINESS_ROSTER_URL);
+    const roster=await (prefetch?.roster??request(OWN_PAYROLL_READINESS_ROSTER_URL));
     if(!valid())return;
     const next=ownPayrollReadiness({run,program:program.data,roster:roster.data},accessTenantId);
     programDefinition=program.data?.program?.definition??null;programData=program.data??null;rosterRows=Array.isArray(roster.data?.rows)?roster.data.rows:null;coverageMemo=null;
