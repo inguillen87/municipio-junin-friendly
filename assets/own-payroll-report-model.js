@@ -117,7 +117,9 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
   columns=[['Período / tipo',20],['Legajo / convenio / repartición',26],['Concepto / descripción original',45],['Haberes exactos',18],['Retenciones exactas',18],['Contribuciones patronales exactas',20],['Auxiliares exactos',18],['Totales cerrados exactos',18],['Versión / fecha declarada',24]].map(([label,width])=>({...text(label),width}));
   rows=ownLegajoReportRows({...b,captures:bundle.captures},chosen,OWN_REPORT_MAX_ROWS);
  }else if(view==='payroll'){
-  title='Planilla de liquidaciones propias';columns=['Período','Tipo','Legajo','Convenio','Repartición','Bruto exacto','Retenciones exactas','Neto exacto',...(jurisdictionColumns?['Jurisdicción conservada']:[])].map(text);
+  title='Planilla de liquidaciones propias';columns=[...['Período','Tipo','Legajo','Convenio','Repartición'].map(text),
+   {...text('Bruto exacto'),xlsxAmount:'gross'}, {...text('Retenciones exactas'),xlsxAmount:'deduction'}, {...text('Neto exacto'),xlsxAmount:'net'},
+   ...(jurisdictionColumns?[text('Jurisdicción conservada')]:[])];
   rows=chosen.map(({period,type,source,employee:e})=>[period,OWN_RUN_TYPES[type],e.employeeNumber,e.agreementCode,e.departmentCode,e.totals.gross,e.totals.deduction,e.totals.net,...jurisdictionCell(source,e)]);
  }else if(view==='statement'){
   title='Informe de liquidación para expediente';
