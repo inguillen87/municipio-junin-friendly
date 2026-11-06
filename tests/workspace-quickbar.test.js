@@ -15,3 +15,16 @@ test('every quick action points at an existing control of its screen and never s
     for (const hook of hooks) assert.ok(page.includes(hook) || roster.includes(hook), action.text + ' → ' + hook);
   }
 });
+
+test('Ausentismo and Relojes quickbars only target ids their pages define', () => {
+  for (const [screen, file] of [['ausentismo', 'ausentismo-control.html'], ['relojes', 'relojes-marcaciones.html']]) {
+    const page = fs.readFileSync(file, 'utf8');
+    assert.match(page, new RegExp(`<nav data-quickbar="${screen}"></nav>`)); assert.match(page, /src="assets\/workspace-quickbar\.js"/);
+    for (const action of QUICKBARS[screen].actions) for (const selector of [action.target, action.before, action.reveal].filter(Boolean)) {
+      const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], chart = /data-mc-chart="([a-z-]+)"/.exec(selector)?.[1];
+      if (id) assert.ok(page.includes(`id="${id}"`), screen + ' → ' + selector);
+      else if (chart) assert.ok(fs.readFileSync('assets/absence-charts.js', 'utf8').includes(`key: '${chart}'`), selector);
+      else assert.fail('unexpected selector ' + selector);
+    }
+  }
+});

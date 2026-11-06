@@ -39,6 +39,36 @@ export const QUICKBARS = Object.freeze({
       { text: 'Antecedentes', run: 'open', target: '#employeeHistory' },
     ],
   },
+  ausentismo: {
+    label: 'Acciones rápidas de Ausentismo',
+    actions: [
+      { text: 'Período', run: 'focus', target: '#fromInput' },
+      { text: 'Motivo', run: 'focus', target: '#reasonSelect' },
+      { text: 'Sector', run: 'focus', target: '#sectorSelect' },
+      { text: 'Limpiar filtros', run: 'click', target: '#resetFilters' },
+      { text: 'Evolución', run: 'scroll', target: '[data-mc-chart="absence-trend"]' },
+      { text: 'Mapa de calor', run: 'scroll', target: '[data-mc-chart="absence-calendar"]' },
+      { text: 'Motivos y sectores', run: 'scroll', target: '#rankingsTitle' },
+      { text: 'Buscar evento', run: 'focus', target: '#eventSearch' },
+      { text: 'Eventos', run: 'scroll', target: '#eventsPanel' },
+      { text: 'Imprimir / PDF', run: 'print', target: '#mainContent', kind: 'export' },
+    ],
+  },
+  relojes: {
+    label: 'Acciones rápidas de Relojes',
+    actions: [
+      { text: 'Jornadas', run: 'click', target: '#clockTabWorkdays', reveal: '#clockWorkdays' },
+      { text: 'Buscar persona', run: 'focus', target: '#wdSearch', before: '#clockTabWorkdays' },
+      { text: 'Resumen', run: 'click', target: '#clockTabOverview', reveal: '#clockOverview' },
+      { text: 'Marcaciones', run: 'click', target: '#clockTabRecords', reveal: '#clockRecords' },
+      { text: 'Calidad', run: 'click', target: '#clockTabIssues', reveal: '#clockIssuesWrap' },
+      { text: 'Jornadas · Excel', run: 'click', target: '#wdXlsx', before: '#clockTabWorkdays', kind: 'export' },
+      { text: 'Jornadas · CSV', run: 'click', target: '#wdCsv', before: '#clockTabWorkdays', kind: 'export' },
+      { text: 'Marcaciones · Excel', run: 'click', target: '#clockExportXlsx', before: '#clockTabRecords', kind: 'export' },
+      { text: 'Imprimir / PDF', run: 'click', target: '#clockPrint', kind: 'export' },
+      { text: 'Excepciones horarias', run: 'scroll', target: '#timeExceptions' },
+    ],
+  },
 });
 
 export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar]) {
@@ -53,11 +83,13 @@ export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar])
     element.textContent = action.text; element.style.setProperty('--mc-quick-i', String(index));
     element.addEventListener('click', event => {
       if (action.run === 'link') return;
+      const before = action.before && document.querySelector(action.before);
+      if (before && !before.disabled && before.getAttribute('aria-selected') !== 'true') before.click();
       const target = document.querySelector(action.target);
       if (!target || target.disabled) { status.textContent = 'Esa acción todavía no está disponible en esta pantalla.'; return; }
       if (action.run === 'focus') { reveal(target); target.focus({ preventScroll: true }); }
       else if (action.run === 'scroll' || action.run === 'open') reveal(target);
-      else if (action.run === 'click') { target.click(); status.textContent = action.kind === 'export' ? 'Descarga iniciada con el filtro vigente.' : ''; }
+      else if (action.run === 'click') { target.click(); status.textContent = action.kind === 'export' ? 'Exportación iniciada con el filtro vigente.' : ''; if (action.reveal) reveal(document.querySelector(action.reveal)); }
       else if (action.run === 'print') printScope(action.target, 'mc-print-scope');
       else if (action.run === 'filter') {
         target.value = action.value; target.dispatchEvent(new Event('change', { bubbles: true }));
@@ -75,7 +107,7 @@ export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar])
     for (const [action, element] of buttons) {
       if (action.run === 'link') continue;
       const target = document.querySelector(action.target);
-      const available = Boolean(target) && !target.disabled && (action.run === 'open' || action.run === 'focus' || action.run === 'filter' || visible(target) || target.closest('details:not([open])') !== null);
+      const available = Boolean(target) && !target.disabled && (Boolean(action.before) || action.run === 'open' || action.run === 'focus' || action.run === 'filter' || visible(target) || target.closest('details:not([open])') !== null);
       element.hidden = !target || (action.run === 'click' && target.hidden);
       element.disabled = !available;
     }
