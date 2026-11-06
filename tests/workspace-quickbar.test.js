@@ -28,3 +28,14 @@ test('Ausentismo and Relojes quickbars only target ids their pages define', () =
     }
   }
 });
+
+test('Inicio shortcuts open real pages and payroll tasks that exist', () => {
+  const tasks = fs.readFileSync('assets/payroll-navigation.js', 'utf8');
+  assert.match(fs.readFileSync('internal-dashboard.html', 'utf8'), /<nav data-quickbar="inicio"><\/nav>/);
+  for (const { href } of QUICKBARS.inicio.actions) {
+    const [file, hash] = href.split('#');
+    if (file) assert.ok(fs.existsSync(file), href);
+    if (file === 'nomina-control.html') assert.match(tasks, new RegExp(`id:'${hash}'`), href);
+    if (!file) assert.match(fs.readFileSync('internal-dashboard.html', 'utf8'), new RegExp(`data-section="${hash}"`), href);
+  }
+});

@@ -39,6 +39,24 @@ export const QUICKBARS = Object.freeze({
       { text: 'Antecedentes', run: 'open', target: '#employeeHistory' },
     ],
   },
+  inicio: {
+    label: 'Accesos rápidos a los módulos',
+    actions: [
+      { text: 'Buscar persona', run: 'link', href: '#legajos', kind: 'primary' },
+      { text: 'Calcular liquidación', run: 'link', href: 'nomina-control.html#calculo' },
+      { text: 'Revisar liquidación', run: 'link', href: 'nomina-control.html#decisiones' },
+      { text: 'Novedades', run: 'link', href: 'novedades-nomina.html' },
+      { text: 'Haberes y reportes', run: 'link', href: 'nomina-control.html#reportes' },
+      { text: 'Recibos', run: 'link', href: 'nomina-control.html#recibos' },
+      { text: 'Banco', run: 'link', href: 'nomina-control.html#banco' },
+      { text: 'Relojes', run: 'link', href: 'relojes-marcaciones.html' },
+      { text: 'Ausentismo', run: 'link', href: 'ausentismo-control.html' },
+      { text: 'Reportes RR. HH.', run: 'link', href: 'reportes-rrhh.html' },
+      { text: 'Estructura', run: 'link', href: 'estructura.html' },
+      { text: 'Calidad de datos', run: 'link', href: 'calidad-operativa.html' },
+      { text: 'Centro de acciones', run: 'link', href: 'centro-acciones.html' },
+    ],
+  },
   ausentismo: {
     label: 'Acciones rápidas de Ausentismo',
     actions: [
