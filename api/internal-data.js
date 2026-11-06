@@ -34,6 +34,7 @@ import {
   reasonPolicyMapping,
 } from '../assets/mendoza-title-vi.js';
 import { JUNIN_BUDGET_2026 } from '../assets/junin-budget-2026.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -4060,7 +4061,7 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
       }
       if(resource==='nativeroster'){
-        const result=await internalNativeRoster(await getSql(),req,access.principal,getTenantSession(access,env));
+        const result=await internalNativeRoster(busyRetrySql(await getSql()),req,access.principal,getTenantSession(access,env));
         return send(res,result.status,result.payload);
       }
       if(resource==='employmentadoptionreview'){

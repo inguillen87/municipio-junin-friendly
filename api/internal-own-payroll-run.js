@@ -10,6 +10,7 @@ import { ownRunCommand, OWN_RUN_MAX_BODY } from '../assets/own-payroll-run-model
 import { RUN_READ, RUN_NOMINAL, RUN_CALCULATE, runFail, runError, ownRunOperation } from '../lib/internal-own-payroll-run.js';
 import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
 import {supportsOwnPayrollStream,sendOwnPayrollStream} from '../lib/own-payroll-response.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 export const config = { api: { bodyParser: false } };
 export function createOwnRunHandler(deps = {}) {
   const env = deps.env ?? process.env, authorize = deps.requireAccess ?? requireCompatibleInternalAccess,
@@ -49,7 +50,7 @@ export function createOwnRunHandler(deps = {}) {
         if (!salaryExact(body, ['operation', 'payload']) || body.operation !== 'calculate') runFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
         input = { body: ownRunCommand(body.payload), key: schoolCertificateHttp.header(req, 'idempotency-key') };
       }
-      const data = await ownRunOperation(await getSql(env), access.principal, session, operation, input, {...deps,fullJson});
+      const data = await ownRunOperation((req.method || 'GET') === 'GET' ? busyRetrySql(await getSql(env)) : await getSql(env), access.principal, session, operation, input, {...deps,fullJson});
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       const status=method === 'POST' && !data.replayed ? 201 : 200;
       if(fullJson)return await sendOwnPayrollStream(res,status,data);
