@@ -1,0 +1,20 @@
+/* Quick-action bar (05/11): sticky on desktop, horizontally scrollable row on phones. */
+.mc-quickbar{position:sticky;top:10px;z-index:30;margin:0 0 22px;padding:10px 12px;border:1px solid #cfe2dc;border-radius:14px;background:rgba(255,255,255,.92);backdrop-filter:saturate(1.4) blur(8px);-webkit-backdrop-filter:saturate(1.4) blur(8px);box-shadow:0 10px 26px #0f3f3b14}
+.mc-quickbar-row{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:thin;padding:2px}
+.mc-quick{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:7px 13px;border:1px solid #b8d4cc;border-radius:999px;background:#fff;color:#134746;font:600 13px/1.2 system-ui,sans-serif;text-decoration:none;cursor:pointer;
+ animation:mc-quick-in .38s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--mc-quick-i,0) * 35ms);transition:background .18s,border-color .18s,transform .18s,box-shadow .18s,opacity .18s}
+.mc-quick:hover:not(:disabled){transform:translateY(-1px);border-color:#0f766e;box-shadow:0 6px 14px #0f766e1f}
+.mc-quick:disabled{opacity:.45;cursor:not-allowed}
+.mc-quick-export{background:#f3faf8;border-color:#9cc4bb}
+.mc-quick-primary{background:#0f766e;border-color:#0f766e;color:#fff}
+.mc-quick-primary:hover:not(:disabled){background:#0b5f58}
+.mc-quick:focus-visible{outline:3px solid #ad7417;outline-offset:2px}
+.mc-quickbar-status{flex:0 0 auto;margin-left:4px;font-size:12px;color:#36605c}
+@keyframes mc-quick-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:860px){.mc-quickbar{position:static;padding:8px;border-radius:12px}.mc-quick{min-height:34px;padding:6px 11px;font-size:12px}}
+@media(prefers-reduced-motion:reduce){.mc-quick{animation:none;transition:none}}
+@media print{.mc-quickbar{display:none!important}
+ body.mc-print-scope *{visibility:hidden}
+ body.mc-print-scope .mc-print-target,body.mc-print-scope .mc-print-target *{visibility:visible}
+ body.mc-print-scope .mc-print-target{position:absolute;inset:0 auto auto 0;width:100%}
+ body.mc-print-scope .mc-print-target :is(button,.nr-pages){display:none!important}}
