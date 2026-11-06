@@ -60,8 +60,10 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
   if(draft?.entity)for(const key of ['reasonCode','durationUnit']){const n=$('[data-nleave-field="'+key+'"]');if(n)n.disabled=true;}
   if(draft?.kind==='profile'){const n=$('[data-nleave-field="entitledUnits"]');if(n)n.disabled=busy||!!pending||draft.values.mode!=='confirmed';}
  }
- async function request(url,options={}){
+ async function request(url,options={},attempt=0){
   const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});let d;try{d=await r.json();}catch{throw issue('CONTRACT_INVALID',503);}
+  // A read that meets another operation on the same legajo (BUSY) is repeated a few times before showing an error.
+  const code=String(d?.code??'');if(r.status===409&&/BUSY$/.test(code)&&(!options.method||options.method==='GET')&&attempt<3){await new Promise(done=>setTimeout(done,400+600*attempt));if(controller.signal.aborted)throw new DOMException('Consulta descartada','AbortError');return request(url,options,attempt+1);}
   if(!r.ok||d?.ok!==true)throw issue(String(d?.code??'UNAVAILABLE').replace(/^NATIVE_LEAVE_/,''),r.status,typeof d?.error==='string'?d.error:null);return d.data??d;
  }
  async function authority(seq){
