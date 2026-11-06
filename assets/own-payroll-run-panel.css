@@ -50,6 +50,7 @@
 /* Calcular: cobertura del programa (06/11) */
 .own-run-coverage{border-left-color:#b45309;background:#fffaf0}
 .own-run-coverage h3{margin:0 0 6px;font-size:1rem;color:#7c3d06}
+.own-run-coverage-note{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:#fdf0dc;color:#6b3a06;font-size:.9rem}
 .own-run-coverage-list{display:grid;gap:8px;margin:12px 0 6px;padding:0;list-style:none;font-size:.92rem}
 .own-run-coverage-list li{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(120px,2fr) 15rem;align-items:center;gap:12px;animation:cv-in .4s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--cv-i,0)*40ms)}
 .own-run-coverage-list .cv-label{font-weight:650;color:#3b2a10;overflow-wrap:anywhere}

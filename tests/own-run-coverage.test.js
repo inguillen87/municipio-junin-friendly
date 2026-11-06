@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { ownRunScopeAgreements, ownRunProgramCoverage, ownRunCoverageText } from '../assets/own-run-coverage.js';
+import { ownRunScopeAgreements, ownRunProgramCoverage, ownRunCoverageText, ownRunUnsectoredInAgreements } from '../assets/own-run-coverage.js';
 
 const catalog = [
   { kind: 'agreements', code: '1', label: 'PLANTA PERMANENTE' }, { kind: 'agreements', code: '6', label: 'PERSONAL INTERINO' }, { kind: 'agreements', code: '4', label: 'PERSONAL TEMPORARIO' },
@@ -45,4 +45,16 @@ test('Calcular blocks a calculation the programme cannot complete and stops offe
   assert.match(panel, /OWN_RUN_PAY_RULE_MISSING:'El programa de liquidación no tiene reglas de haberes vigentes/);
   assert.match(panel, /Captura sin resultado: el programa no cubre todo su alcance/);
   assert.match(fs.readFileSync('scripts/build-friendly.mjs', 'utf8'), /'assets\/own-run-coverage\.js'/);
+});
+
+test('«Calcular sólo los convenios cubiertos» is offered only when no legajo without repartición falls inside them', () => {
+  const withGap = [...rows, { contractId: 'e', legajo: '869', status: 'active', agreement: 'PERSONAL TEMPORARIO', sector: '' }, { contractId: 'f', legajo: '792', status: 'inactive', agreement: 'PLANTA PERMANENTE', sector: null }];
+  assert.deepEqual(ownRunUnsectoredInAgreements(withGap, catalog, ['1', '6']), []);
+  assert.deepEqual(ownRunUnsectoredInAgreements(withGap, catalog, ['4']), ['869']);
+  assert.deepEqual(ownRunUnsectoredInAgreements(withGap, catalog, [4]), ['869']);
+  const panel = fs.readFileSync('assets/own-payroll-run-panel.js', 'utf8');
+  assert.match(panel, /data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</);
+  assert.match(panel, /\$\('kind'\)\.value='agreements';renderKind\(\);/);
+  assert.match(panel, /offer=!attempt&&canSelect\(\)&&c\.covered\.length>0&&!inside\.length/);
+  assert.match(panel, /data-own-coverage-note hidden/);
 });

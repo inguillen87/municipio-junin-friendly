@@ -12,7 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
-import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunCoverageText} from './own-run-coverage.js';
+import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunCoverageText,ownRunUnsectoredInAgreements} from './own-run-coverage.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -48,7 +48,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
-  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle">Programa incompleto para el período</h3><p data-own-coverage-text></p><ul class="own-run-coverage-list" data-own-coverage-list></ul><div class="own-run-actions"><a class="button" href="/nomina#reglas">Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle">Programa incompleto para el período</h3><p data-own-coverage-text></p><ul class="own-run-coverage-list" data-own-coverage-list></ul><p class="own-run-coverage-note" data-own-coverage-note hidden></p><div class="own-run-actions"><button class="button primary" type="button" data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</button><a class="button" href="/nomina#reglas">Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice" data-own-prerequisites><summary>Requisitos y configuración</summary><p data-own-readiness-facts></p><ol><li><a href="/personal?adopcion=pendientes#legajos">Revisar las propuestas de adopción en Personas</a>. Un legajo de la fuente histórica todavía no puede seleccionarse para este cálculo.</li><li>Revisá las definiciones salariales del período en <a href="/nomina#parametros">Parámetros</a>.</li><li>Registrá la configuración que usará el motor en <a href="/nomina#reglas">Reglas de cálculo</a>, con sus novedades y datos requeridos.</li></ol><p>Confirmar o anular requiere un resultado propio previamente calculado. Consultar estos pasos no adopta registros, aprueba reglas ni ejecuta un cálculo.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
@@ -144,6 +144,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       const label=node('span','Convenio '+a.code+' · '+a.label);label.className='cv-label';const bar=node('span');bar.className='cv-bar';bar.setAttribute('aria-hidden','true');
       const meta=node('span',a.people+(a.people===1?' persona':' personas')+' · '+(a.ok?'cubierto':a.validity.length?'reglas sólo '+a.validity.join(', '):'sin reglas'));meta.className='cv-meta';
       li.append(label,bar,meta);return li;}));}
+    // Shortcut: the same period and type, only the convenios that already have pay rules in force.
+    const people=c.covered.reduce((n,a)=>n+a.people,0),inside=ownRunUnsectoredInAgreements(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code)),offer=!attempt&&canSelect()&&c.covered.length>0&&!inside.length;
+    $('coverage-covered').hidden=!offer;$('coverage-covered').disabled=busy;
+    const note=inside.length?'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+(inside.length===1?'el legajo '+inside[0]:'los legajos '+inside.slice(0,8).join(', ')+(inside.length>8?' y '+(inside.length-8)+' más':''))+': están en esos convenios y el motor rechazaría la corrida.':'';
+    if($('coverage-note').textContent!==note)$('coverage-note').textContent=note;$('coverage-note').hidden=!note;
+    if(offer)$('coverage-covered').textContent='Calcular sólo los '+c.covered.length+(c.covered.length===1?' convenio cubierto':' convenios cubiertos')+' ('+people+(people===1?' persona)':' personas)');
   }
   function renderUnsectored(){
     const box=$('unsectored'),plan=departmentPlan,show=!!plan?.unsectored.length&&!attempt&&!current?.saved&&live()&&canSelect()&&['','all'].includes($('kind').value);
@@ -432,6 +438,16 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
+  $('coverage-covered').addEventListener('click',()=>{
+    const c=currentCoverage();if(!c?.covered.length||attempt||busy||!canSelect())return;
+    const codes=c.covered.map(a=>String(a.code)),left=c.missing.map(a=>'convenio '+a.code+' ('+a.people+')').join(', ');
+    $('kind').value='agreements';renderKind();
+    for(const option of $('codes').options)option.selected=codes.includes(option.value);
+    if([...$('codes').selectedOptions].length!==codes.length){status('Un convenio cubierto no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return;}
+    $('confirm').checked=false;controls();
+    status('Elegidos los '+codes.length+' convenios con reglas de haberes vigentes ('+c.covered.reduce((n,a)=>n+a.people,0)+' personas). Quedan fuera: '+left+'. Revisá y marcá la confirmación para calcular.','neutral');
+    $('confirm').focus();
+  });
   $('unsectored-all').addEventListener('click',()=>{
     const plan=departmentPlan;if(!plan?.usable||attempt||busy||!canSelect())return;
     $('kind').value='departments';renderKind();

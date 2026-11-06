@@ -46,6 +46,19 @@ export function ownRunProgramCoverage(definition, { period, liquidationType, agr
   });
 }
 
+/** Legajos without repartición inside the given convenios: «Convenios» would include them and the engine rejects the run. */
+export function ownRunUnsectoredInAgreements(rows, catalogItems, codes) {
+  const agreements = new Map(), wanted = new Set((codes ?? []).map(String));
+  for (const item of Array.isArray(catalogItems) ? catalogItems : []) if (item?.kind === 'agreements') agreements.set(key(item.label), [...(agreements.get(key(item.label)) ?? []), String(item.code)]);
+  const out = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || row.status !== 'active' || key(row.sector)) continue;
+    const match = agreements.get(key(row.agreement));
+    if (match?.length === 1 && wanted.has(match[0])) out.push(String(row.legajo));
+  }
+  return out.sort((a, b) => Number(a) - Number(b) || (a < b ? -1 : 1));
+}
+
 export function ownRunCoverageText(coverage) {
   if (!coverage || coverage.complete || !coverage.missing.length) return '';
   const when = monthLabel(coverage.period);
