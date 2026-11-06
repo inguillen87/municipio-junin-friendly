@@ -297,7 +297,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     // With «Todos» the engine rejects the whole run when one active legajo lacks its repartición: say which, before
     // trying, and offer every repartición with active people (the «Reparticiones» scope skips the unassigned ones).
     departmentPlan=ownRunDepartmentsForAll(preparationRoster?.rows,catalog?.catalog.items);controls();
-    if(!attempt&&canStart()&&departmentPlan.unsectored.length&&['','all'].includes($('kind').value)){status('Antes de calcular a todos, revisá los legajos sin repartición.','warning');return;}
+    if(!attempt&&canStart()&&departmentPlan.unsectored.length&&['','all'].includes($('kind').value)){if(applyAllWithoutUnsectored(true))return;status('Antes de calcular a todos, revisá los legajos sin repartición.','warning');return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
@@ -457,15 +457,21 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     status('Elegidos los '+codes.length+' convenios con reglas de haberes vigentes ('+c.covered.reduce((n,a)=>n+a.people,0)+' personas). Quedan fuera: '+left+'. Revisá y marcá la confirmación para calcular.','neutral');
     $('confirm').focus();
   });
-  $('unsectored-all').addEventListener('click',()=>{
-    const plan=departmentPlan;if(!plan?.usable||attempt||busy||!canSelect())return;
+  // «Todos» with legajos lacking a repartición = every repartición with active people; the unassigned ones stay out, by number.
+  function applyAllWithoutUnsectored(automatic){
+    const plan=departmentPlan;if(!plan?.usable||!plan.unsectored.length||!plan.codes.length||plan.unmatched.length||attempt||busy||!canSelect())return false;
     $('kind').value='departments';renderKind();
     for(const option of $('codes').options)option.selected=plan.codes.includes(option.value);
-    if([...$('codes').selectedOptions].length!==plan.codes.length){status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return;}
+    if([...$('codes').selectedOptions].length!==plan.codes.length){$('kind').value='all';renderKind();status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return false;}
     $('confirm').checked=false;controls();
-    status('Elegidas las '+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). Quedan fuera '+plan.unsectored.length+' sin repartición. Revisá y marcá la confirmación para calcular.','neutral');
-    $('confirm').focus();
-  });
+    const out=plan.unsectored.length===1?'el legajo '+plan.unsectored[0]+', que no tiene repartición':'los legajos '+plan.unsectored.slice(0,8).join(', ')+(plan.unsectored.length>8?' y '+(plan.unsectored.length-8)+' más':'')+', que no tienen repartición';
+    status((automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). Queda fuera '+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
+    if(!automatic)$('confirm').focus();
+    return true;
+  }
+  $('unsectored-all').addEventListener('click',()=>applyAllWithoutUnsectored(false));
+  // After the generic field handler (which re-renders the options), so the automatic selection is not wiped.
+  $('kind').addEventListener('change',()=>{if($('kind').value==='all')setTimeout(()=>{if($('kind').value==='all')applyAllWithoutUnsectored(true);},0);});
   $('source-review-button').addEventListener('click',()=>reviewSources());$('source-download').addEventListener('click',()=>reviewSources(true));
   $('source-search').addEventListener('input',()=>{sourcePage=1;renderSourceReview();});$('source-prev').addEventListener('click',()=>{sourcePage--;renderSourceReview();});$('source-next').addEventListener('click',()=>{sourcePage++;renderSourceReview();});
   $('review').addEventListener('click',()=>{if(busy||!current?.saved||!can(OWN_RUN_NOMINAL))return;if(onReview?.({runId:current.id,resultSha256:current.saved.resultSha256,accessKey:access.key,contractId:individual.selected})!==true)status('Hay una decisión pendiente en Confirmar y anular. Consultala antes de cambiar de corrida.','warning');});
