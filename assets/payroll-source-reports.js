@@ -83,7 +83,7 @@ export function mountSourceReports(host){
    const d=await request(selected);if(seq!==version)return;
    if(!d.found)throw Error('La liquidación ya no está disponible.');
    if(d.datasetId!==selected)throw Error('La respuesta no corresponde a la liquidación elegida. Volvé a consultar.');
-   current=d;render();roster.setDataset(d.datasetId);entityExport.setDataset(d.datasetId);status.textContent='Reporte consultado. Filtrá y descargá el resultado.';
+   current=d;render();roster.setDataset(d.datasetId);entityExport.setDataset(d.datasetId, d);status.textContent='Reporte consultado. Filtrá y descargá el resultado.';
   }catch(err){clear();status.textContent=err.message}finally{busy=false}
  });
  $('[data-dataset]').addEventListener('change',()=>{version++;clear();status.textContent='Consultá la liquidación seleccionada antes de exportar.'});
