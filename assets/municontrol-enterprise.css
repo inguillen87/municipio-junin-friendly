@@ -41,6 +41,15 @@ body::before {
   background: linear-gradient(90deg, #0f766e 0%, #167468 40%, #69d3c5 78%, #c4e963 100%);
 }
 
+/* While the app waits for its own API (more than a moment), the brand line moves: quiet, global feedback. */
+html.mc-loading body::before {
+  height: 3px;
+  background: linear-gradient(90deg, #0f766e 0%, #69d3c5 25%, #c4e963 50%, #69d3c5 75%, #0f766e 100%) 0 0 / 200% 100%;
+  animation: mc-activity 1.1s linear infinite;
+}
+@keyframes mc-activity { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { html.mc-loading body::before { animation: none; opacity: .7; } }
+
 .brand-mark,
 .gate-mark {
   color: transparent !important;
