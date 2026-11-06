@@ -12,7 +12,7 @@ import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATUR
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
-import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunUnsectoredInAgreements,ownRunCoveredContracts,ownRunPeriodReadiness,ownRunReadinessSteps,ownRunReadinessTitle} from './own-run-coverage.js';
+import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunUnsectoredInAgreements,ownRunCoveredContracts,ownRunPeriodReadiness,ownRunReadinessSteps,ownRunReadinessTitle,ownRunRegistrationHistory,ownRunMonthLabel} from './own-run-coverage.js';
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
@@ -23,7 +23,7 @@ const errors={
   OWN_RUN_PROGRAM_REQUIRED:'Falta registrar en el motor una configuración de cálculo compatible con las definiciones salariales. Completala en Reglas de cálculo. El cálculo no se completó.',
   OWN_RUN_PROGRAM_CHANGED:'Cambió el programa aprobado. Consultá el intento antes de revisar otra preparación.',
   OWN_RUN_PRORATION_REQUIRED:'Hay una vigencia laboral parcial. Se necesita una regla de prorrateo aprobada; no se supusieron días ni horas.',
-  OWN_RUN_HISTORY_REQUIRED:'Falta aprobar el encuadre de este período. Abrí Encuadre por período, elegí el legajo y el mes, y prepará la declaración para su revisión independiente. Después consultá este intento antes de calcular de nuevo.',
+  OWN_RUN_HISTORY_REQUIRED:'Para este mes no vale el encuadre actual de algún legajo: se registró o se rectificó en MuniControl después. Aprobá su encuadre del mes en Encuadre por período, o calculá desde el mes del alta.',
   OWN_RUN_SOURCE_VIGENCY_INVALID:'Hay un registro sin vigencia laboral verificada para todo el período. Revisá sus fechas y consultá este intento antes de preparar otro cálculo.',
   OWN_RUN_SOURCE_IDENTITY_CHANGED:'Cambió la identidad de un registro del alcance. Revisá su vínculo y consultá este intento antes de otra captura.',
   OWN_RUN_SOURCE_UNUSED:'El programa aprobado no contempla todas las novedades capturadas. Revisá sus conceptos; no se omitieron novedades ni se completó el cálculo.',
@@ -48,7 +48,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   host.className='own-run';
   host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí período, fecha, tipo y alcance.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
-  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle" data-own-coverage-title>Programa incompleto para el período</h3><p data-own-coverage-text></p><ol class="own-run-steps" data-own-coverage-steps aria-label="Qué falta para calcular"></ol><details class="own-run-coverage-detail"><summary>Ver convenios del alcance</summary><ul class="own-run-coverage-list" data-own-coverage-list></ul></details><p class="own-run-coverage-note" data-own-coverage-note hidden></p><div class="own-run-actions"><button class="button primary" type="button" data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</button><a class="button" href="/nomina#reglas">Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
+  <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p><section class="own-run-notice own-run-coverage" data-own-coverage hidden aria-labelledby="ownRunCoverageTitle"><h3 id="ownRunCoverageTitle" data-own-coverage-title>Programa incompleto para el período</h3><p data-own-coverage-text></p><ol class="own-run-steps" data-own-coverage-steps aria-label="Qué falta para calcular"></ol><details class="own-run-coverage-detail"><summary>Ver convenios del alcance</summary><ul class="own-run-coverage-list" data-own-coverage-list></ul></details><p class="own-run-coverage-note" data-own-coverage-note hidden></p><div class="own-run-actions"><button class="button primary" type="button" data-own-coverage-covered hidden>Calcular sólo los convenios cubiertos</button><button class="button primary" type="button" data-own-coverage-month hidden></button><a class="button" href="/nomina#reglas" data-own-coverage-rules>Ir a Reglas de cálculo</a></div></section><section class="own-run-notice own-run-unsectored" data-own-unsectored hidden aria-labelledby="ownRunUnsectoredTitle"><h3 id="ownRunUnsectoredTitle">Legajos sin repartición</h3><p data-own-unsectored-text></p><div class="own-run-actions"><button class="button primary" type="button" data-own-unsectored-all>Elegir las reparticiones con personal</button><a class="button" href="/personal#legajos">Corregir sus fichas en Personas</a></div></section><button class="button" type="button" data-own-login hidden>Ingresar con la cuenta original</button>
   <section class="own-run-status" data-own-readiness aria-labelledby="ownRunReadinessTitle"><h3 id="ownRunReadinessTitle" data-own-readiness-title>Preparación no verificada</h3><p data-own-readiness-description>Actualizá la consulta para verificar el padrón propio y las reglas antes de calcular.</p><div class="own-run-actions"><a class="button primary" data-own-readiness-link hidden></a><button class="button primary" type="button" data-own-readiness-check disabled>Volver a verificar preparación</button></div></section>
   <details class="own-run-notice own-run-howto" data-own-prerequisites><summary>Cómo se prepara un mes nuevo</summary><p data-own-readiness-facts></p><p>Lo hace quien administra, una vez por mes, antes de calcular:</p><ol><li><strong>Personas:</strong> que cada legajo esté en el padrón propio. Los que vienen de la fuente histórica se suman desde <a href="/personal?adopcion=pendientes#legajos">las altas pendientes en Personas</a>.</li><li><strong>Maestro salarial del mes</strong> (escalas y conceptos) en <a href="/nomina#parametros">Parámetros</a>.</li><li><strong>Reglas de cálculo vigentes para el mes</strong> en <a href="/nomina#reglas">Reglas de cálculo</a>, aprobadas por otra persona.</li></ol><p>Con eso listo, Calcular guarda el resultado para revisar, confirmar o anular. Leer esta ayuda no cambia nada.</p></details>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">
@@ -130,18 +130,18 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const memo=[kind,period,type,values.join(','),rosterRows.length].join('|');if(coverageMemo?.key===memo)return coverageMemo.value;
     const agreements=ownRunScopeAgreements(rosterRows,catalog.catalog.items,{kind,values}).agreements;
     const value=ownRunProgramCoverage(programDefinition,{period,liquidationType:type,agreements});
-    let readinessValue=null;try{readinessValue=ownRunPeriodReadiness(programData,{period,liquidationType:type,agreements});}catch{readinessValue=null;}
+    let readinessValue=null;try{const history=ownRunRegistrationHistory(rosterRows,catalog.catalog.items,{kind,values,period});readinessValue=ownRunPeriodReadiness(programData,{period,liquidationType:type,agreements,history});}catch{readinessValue=null;}
     coverageMemo={key:memo,value,readiness:readinessValue};return value;
   }
   const currentReadiness=()=>{currentCoverage();return coverageMemo?.readiness??null;};
   const coverageBlocks=()=>{const c=currentCoverage();return !!c&&c.missing.length>0;};
   function renderCoverage(){
-    const box=$('coverage'),c=currentCoverage(),show=!!c&&c.missing.length>0&&live()&&(!attempt||computeBlocked==='OWN_RUN_PAY_RULE_MISSING'||computeBlocked==='coverage')&&!current?.saved;
+    const box=$('coverage'),c=currentCoverage(),before=!!currentReadiness()?.history,show=!!c&&(c.missing.length>0||before)&&live()&&(!attempt||computeBlocked==='OWN_RUN_PAY_RULE_MISSING'||computeBlocked==='coverage')&&!current?.saved;
     box.hidden=!show;if(!show)return;
     // What is missing, in the order the work happens, with the exact place to do it.
     const r=currentReadiness(),steps=ownRunReadinessSteps(r),title=ownRunReadinessTitle(r)||'Programa incompleto para el período';
     if($('coverage-title').textContent!==title)$('coverage-title').textContent=title;
-    const text=c.covered.length?'Podés calcular ya los convenios listos con el botón de abajo. Para el resto faltan estos pasos:':'El cálculo se detendría sin resultado. Faltan estos pasos, en orden:';
+    const text=before?(c.missing.length?'El cálculo de este mes se detendría sin resultado. Faltan estos pasos, en orden:':'Las reglas están listas, pero el cálculo de este mes se detendría sin resultado. Falta este paso:'):c.covered.length?'Podés calcular ya los convenios listos con el botón de abajo. Para el resto faltan estos pasos:':'El cálculo se detendría sin resultado. Faltan estos pasos, en orden:';
     if($('coverage-text').textContent!==text)$('coverage-text').textContent=text;
     const stepSig=steps.map(s=>s.key+':'+s.state+':'+s.text).join('|');
     if($('coverage-steps').dataset.items!==stepSig){$('coverage-steps').dataset.items=stepSig;$('coverage-steps').replaceChildren(...steps.map((s,i)=>{
@@ -164,8 +164,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     // «Convenios» when every legajo inside has a repartición; otherwise the exact legajos with repartición (up to 500).
     const people=c.covered.reduce((n,a)=>n+a.people,0),inside=ownRunUnsectoredInAgreements(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code));
     const exact=inside.length?ownRunCoveredContracts(rosterRows,catalog.catalog.items,c.covered.map(a=>a.code)):[],mode=!c.covered.length?null:!inside.length?'agreements':exact.length>0&&exact.length<=500?'contracts':null;
-    const offer=!attempt&&canSelect()&&!!mode;coveredPlan=offer?{mode,codes:c.covered.map(a=>String(a.code)),contracts:exact,inside,people}:null;
+    const offer=!attempt&&canSelect()&&!!mode&&!before;coveredPlan=offer?{mode,codes:c.covered.map(a=>String(a.code)),contracts:exact,inside,people}:null;
     $('coverage-covered').hidden=!offer;$('coverage-covered').disabled=busy;
+    // A month before the legajos' registration: offer the first month the current encuadre applies to.
+    const firstMonth=before?currentReadiness().history.firstPeriod:null,monthOffer=!attempt&&canSelect()&&!!firstMonth&&firstMonth>$('period').value;
+    $('coverage-rules').hidden=before&&!c.missing.length;$('coverage-month').hidden=!monthOffer;$('coverage-month').disabled=busy;if(monthOffer){const t='Pasar a '+ownRunMonthLabel(firstMonth);if($('coverage-month').textContent!==t)$('coverage-month').textContent=t;}
     const who=inside.length===1?'el legajo '+inside[0]:'los legajos '+inside.slice(0,8).join(', ')+(inside.length>8?' y '+(inside.length-8)+' más':'');
     const note=!inside.length?'':mode==='contracts'?'Como '+who+(inside.length===1?' no tiene':' no tienen')+' repartición, se eligen uno por uno los '+exact.length+' legajos con repartición '+(c.covered.length===1?'de ese convenio.':'de esos convenios.'):'Para calcular sólo los convenios cubiertos, primero cargá la repartición de '+who+': están en esos convenios y el motor rechazaría la corrida.';
     if($('coverage-note').textContent!==note)$('coverage-note').textContent=note;$('coverage-note').hidden=!note;
@@ -463,6 +466,11 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('login').addEventListener('click',()=>location.assign('/acceso?next=%2Fnomina%23calculo'));
   $('refresh').addEventListener('click',refresh);$('recover').addEventListener('click',()=>recover());$('download').addEventListener('click',download);
   $('readiness-check').addEventListener('click',refresh);
+  $('coverage-month').addEventListener('click',()=>{
+    const month=currentReadiness()?.history?.firstPeriod;if(!month||attempt||busy||!canSelect())return;
+    $('period').value=month;$('confirm').checked=false;controls();
+    status('Período cambiado a '+ownRunMonthLabel(month)+', el primer mes que se calcula con el encuadre actual de esos legajos. Revisá lo que falta y la fecha de liquidación.','neutral');$('period').focus();
+  });
   $('coverage-covered').addEventListener('click',()=>{
     const c=currentCoverage(),plan=coveredPlan;if(!c?.covered.length||!plan||attempt||busy||!canSelect())return;
     const codes=plan.codes,left=c.missing.map(a=>'convenio '+a.code+' ('+a.people+')').join(', ');
