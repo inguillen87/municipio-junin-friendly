@@ -146,9 +146,9 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     const stepSig=steps.map(s=>s.key+':'+s.state+':'+s.text).join('|');
     if($('coverage-steps').dataset.items!==stepSig){$('coverage-steps').dataset.items=stepSig;$('coverage-steps').replaceChildren(...steps.map((s,i)=>{
       const li=node('li');li.className='own-run-step is-'+s.state;li.style.setProperty('--st-i',String(i));
-      const mark=node('span',s.state==='done'?'✓':String(i+1));mark.className='st-mark';mark.setAttribute('aria-hidden','true');
+      const mark=node('span',s.state==='done'?'✓':s.state==='info'?'i':String(steps.slice(0,i+1).filter(x=>x.state!=='info').length));mark.className='st-mark';mark.setAttribute('aria-hidden','true');
       const body=node('div');body.className='st-body';
-      const head=node('strong',s.title);const badge=node('span',s.state==='done'?'Listo':s.state==='wait'?'Esperando aprobación':'Pendiente');badge.className='st-badge';
+      const head=node('strong',s.title);const badge=node('span',s.state==='done'?'Listo':s.state==='wait'?'Esperando aprobación':s.state==='info'?'Para revisar':'Pendiente');badge.className='st-badge';
       const line=node('p',s.text);body.append(head,badge,line);
       if(s.href&&s.state!=='done'){const a=node('a',s.action);a.className='st-link';a.href=s.href;body.append(a);}
       li.append(mark,body);return li;}));}

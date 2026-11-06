@@ -85,3 +85,4 @@
 .own-run-status[data-state=info]::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:36%;border-radius:3px;background:linear-gradient(90deg,transparent,#0f766e,#14b8a6,transparent);animation:own-run-slide 1.3s cubic-bezier(.4,0,.2,1) infinite}
 @keyframes own-run-slide{from{transform:translateX(-100%)}to{transform:translateX(280%)}}
 @media(prefers-reduced-motion:reduce){.own-run-status[data-state=info]::after{animation:none;width:100%;opacity:.5}}
+.own-run-step.is-info{border-color:#d5e0ea;background:#f8fafc}.own-run-step.is-info .st-mark{background:#e5edf5;color:#33506d;font-style:italic}.own-run-step.is-info .st-badge{background:#e9eff5;color:#33506d}.own-run-step.is-info .st-link{border-color:#b9c9d8;color:#24496b}

@@ -5,6 +5,14 @@ const key = value => String(value ?? '').trim().toUpperCase();
 const PAY = new Set(['remuneration', 'non_remuneration']);
 export const ownRunMonthLabel = period => { const [y, m] = String(period).split('-'); const names = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']; return names[Number(m) - 1] ? names[Number(m) - 1] + ' ' + y : String(period); };
 const monthLabel = ownRunMonthLabel;
+const FACTS = Object.freeze([
+  { key: 'workingTimeVersion', label: 'jornada de cada legajo' },
+  { key: 'employmentFactsVersion', label: 'antigüedad de cada legajo' },
+  { key: 'salaryConditionsVersion', label: 'condiciones salariales' },
+  { key: 'agreementWorkingTimeVersion', label: 'horas mensuales por convenio' },
+  { key: 'periodParticipation', label: 'participación en meses parciales' },
+]);
+const listText = items => items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' y ' + items.at(-1);
 
 /** Rows of the roster inside the chosen scope, with their convenio (labels matched exactly against the catalog). */
 function scopeRows(rows, catalogItems, { kind = 'all', values = [] } = {}) {
@@ -136,8 +144,10 @@ export function ownRunPeriodReadiness(programData, { period, liquidationType, ag
   const pending = proposals.filter(p => p?.status === 'pending');
   const forPeriod = pending.filter(p => (Array.isArray(p?.definition?.rules) ? p.definition.rules : []).some(r => PAY.has(r.nature) && inForceAt(r, period) && Array.isArray(r.liquidationTypes) && r.liquidationTypes.includes(liquidationType) && scope.includes(String(r.agreementCode))));
   const registered = history && history.period === period && history.after > 0 ? history : null;
+  // Per-person and per-convenio facts the approved programme reads; each one is declared and approved for the month.
+  const facts = FACTS.filter(f => definition && definition[f.key] != null).map(f => f.label);
   return Object.freeze({
-    period, liquidationType, coverage, rulesReady: coverage.complete, ready: coverage.complete && !registered, history: registered,
+    period, liquidationType, coverage, rulesReady: coverage.complete, ready: coverage.complete && !registered, history: registered, facts,
     master: { scope: scope.length, withMaster: scope.length - withoutMaster.length, withoutMaster, missingDefinitions: [...missingDefinitions.values()] },
     program: { revision: Number(programData?.program?.revision ?? 0), covered: coverage.covered.length, missing: coverage.missing.length, history: coverage.programAgreements },
     approval: { pending: pending.length, forPeriod: forPeriod.length, canPropose: programData?.permissions?.canPropose === true, canReview: programData?.permissions?.canReview === true },
@@ -182,6 +192,9 @@ export function ownRunReadinessSteps(r) {
       + 'Para un mes anterior al alta, el sistema no usa el encuadre actual: cada legajo necesita su encuadre de ' + when + ' aprobado por otra persona.'
       + (h.firstPeriod ? ' Con el encuadre actual se calcula desde ' + monthLabel(h.firstPeriod) + '.' : ''),
     href: '/nomina#encuadre', action: 'Abrir Encuadre por período' });
+  if (Array.isArray(r.facts) && r.facts.length && !r.ready) steps.push({ key: 'facts', state: 'info', title: 'Datos aprobados de ' + when,
+    text: 'El programa también usa ' + listText(r.facts) + ', aprobados para ' + when + '. Jornada y antigüedad se cargan para todos los legajos de una vez («para varios legajos») y otra persona las aprueba con el mismo archivo.',
+    href: '/nomina#jornada', action: 'Abrir Jornada' });
   steps.push({ key: 'calculate', state: r.ready ? 'done' : 'todo', title: 'Calcular',
     text: r.ready ? 'Todo listo: elegí el alcance y calculá.'
       : h && h.firstPeriod && rules ? 'El cálculo de ' + when + ' se detendría hasta que ese encuadre esté aprobado. Para calcular ya, elegí ' + monthLabel(h.firstPeriod) + ' o un mes posterior.'

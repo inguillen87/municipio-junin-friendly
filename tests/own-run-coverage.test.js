@@ -190,3 +190,13 @@ test('ficha: reads wait briefly when another operation holds the legajo and the 
     assert.match(src, /serverMessage:typeof d\?\.error==='string'\?d\.error:''/);
   }
 });
+
+test('readiness names the per-person facts the programme reads, as guidance (not a fake «pending»)', async () => {
+  const { ownRunPeriodReadiness, ownRunReadinessSteps } = await import('../assets/own-run-coverage.js');
+  const data = { program: { revision: 1, definition: { workingTimeVersion: 'own-contract-working-time.v1', employmentFactsVersion: 'own-salary-seniority.v1', salaryConditionsVersion: 'x', agreementWorkingTimeVersion: 'y', rules: [] } }, salaryCatalog: { items: [] }, proposals: [], permissions: {} };
+  const r = ownRunPeriodReadiness(data, { period: '2026-10', liquidationType: 'monthly', agreements: [{ code: '1', label: 'PLANTA', people: 82 }] });
+  const facts = ownRunReadinessSteps(r).find(s => s.key === 'facts');
+  assert.equal(facts.state, 'info');
+  assert.match(facts.text, /^El programa también usa jornada de cada legajo, antigüedad de cada legajo, condiciones salariales y horas mensuales por convenio, aprobados para octubre 2026\./);
+  assert.equal(ownRunReadinessSteps(ownRunPeriodReadiness({ ...data, program: { revision: 1, definition: { rules: [] } } }, { period: '2026-10', liquidationType: 'monthly', agreements: [] })).some(s => s.key === 'facts'), false);
+});
