@@ -2258,15 +2258,15 @@
       function renderSummary(summary) {
         const metrics = summary.metrics;
         setMetricCard('kpiHistorical', metrics.historical, {
-          source: 'Total informado por el resumen interno.',
+          source: 'Total del respaldo GRH incorporado, a la fecha de corte.',
           unavailable: 'El resumen no informó este total.'
         });
         setMetricCard('kpiActive', metrics.active, {
-          source: 'Estado activo informado por la fuente.',
+          source: 'Activos en el respaldo GRH a la fecha de corte. El padrón propio vigente se consulta en Personas.',
           unavailable: 'El resumen no informó personas activas.'
         });
         setMetricCard('kpiInactive', metrics.inactive, {
-          source: 'Total inactivo informado por la fuente.',
+          source: 'Inactivos en el respaldo GRH a la fecha de corte.',
           derived: 'Calculado como históricos menos activos.',
           unavailable: 'No hay valores suficientes para obtenerlo.'
         });
