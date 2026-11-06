@@ -243,3 +243,51 @@ test('ficha interna declara directorio, filtros canónicos y secciones ricas sin
   assert.match(api, /LIMIT \$\{DETAIL_MOVEMENT_LIMIT\}/);
   assert.doesNotMatch(api, /JOIN\s+\w*personas\w*\s+ON\s+[^;]*idpersona/is);
 });
+
+test('search fast path: with the totals already on screen, only the matching contracts are built and the totals are not recomputed', async () => {
+  const sql = mockListSql(), seen = [];
+  const base = sql.query.bind(sql);
+  sql.query = async (statement, values = []) => { seen.push({ statement: String(statement), values }); return base(statement); };
+  const binding = { database: 'grh_junin', companyId: 101, tenantId: '00000000-0000-4000-8000-000000000001', lifecycleContext: { tenantId: 't' } };
+  const fast = await employees(sql, { query: { search: 'Nombre Apellido', page: '1', limit: '25', status: 'administrative_active', crosswalk: 'all', includeFacets: '0', includeScope: '0' } }, binding);
+  assert.equal(fast.status, 200);
+  assert.equal(fast.payload.scopeOmitted, true);
+  assert.equal(fast.payload.scope, null);
+  assert.equal(fast.payload.operational, null);
+  assert.deepEqual(fast.payload.pagination, { page: 1, limit: 25, total: 2450, pages: 98 });
+  const call = seen.find(c => c.statement.includes('directory_page.*'));
+  // Same predicate on the base columns, before the per-contract projections; same parameters.
+  assert.match(call.statement, /search_contracts AS MATERIALIZED \(/);
+  assert.match(call.statement, /COALESCE\(identity\.full_name, employee\.nombre\) ILIKE \$5/);
+  assert.match(call.statement, /OR contract\.legacy_legajo ILIKE \$5/);
+  assert.match(call.statement, /OR identity\.dni ILIKE \$5 OR identity\.cuil ILIKE \$5/);
+  assert.match(call.statement, /WHERE contract\.id IN \(SELECT id FROM search_contracts\) AND \(\(contract\.source_system='GRH'/);
+  assert.match(call.statement, /directory_scope AS \(\s*SELECT NULL::timestamptz AS "sourceCutoffFrom"/);
+  assert.doesNotMatch(call.statement, /count\(DISTINCT "contractId"\)::int AS "totalContracts"/);
+  assert.match(call.statement, /directory\.nombre ILIKE \$5/);
+  assert.deepEqual(call.values.slice(4, 7), ['%Nombre Apellido%', '%Nombre%', '%Apellido%']);
+
+  // First load, facets requested, no search or «multiple active»: the complete path stays as it was.
+  for (const query of [
+    { search: 'Perez', includeFacets: '0' },
+    { search: 'Perez', includeFacets: '1', includeScope: '0' },
+    { search: '', includeFacets: '0', includeScope: '0' },
+    { search: 'Perez', includeFacets: '0', includeScope: '0', status: 'multiple_active' },
+  ]) {
+    seen.length = 0;
+    const full = await employees(sql, { query: { page: '1', limit: '25', crosswalk: 'all', status: 'all', ...query } }, binding);
+    assert.equal(full.status, 200);
+    assert.notEqual(full.payload.scopeOmitted, true);
+    assert.equal(full.payload.scope.totalContracts, 2450);
+    const statement = seen.find(c => c.statement.includes('directory_page.*')).statement;
+    assert.doesNotMatch(statement, /search_contracts/);
+    assert.match(statement, /count\(DISTINCT "contractId"\)::int AS "totalContracts"/);
+  }
+});
+
+test('Personas: a search reuses the totals on screen and never paints empty totals', async () => {
+  const html = await readFile(new URL('../internal-dashboard.html', import.meta.url), 'utf8');
+  assert.match(html, /params\.set\('includeScope', state\.directoryScopeLoaded && state\.directoryFacetsLoaded && state\.filters\.search \? '0' : '1'\);/);
+  assert.match(html, /if \(!result\.scopeOmitted\) \{\s*renderDirectoryScope\(result\.scope\);/);
+  assert.match(html, /scopeOmitted: payload\.scopeOmitted === true/);
+});

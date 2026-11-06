@@ -1649,6 +1649,7 @@
         filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
+        directoryScopeLoaded: false,
         sectors: new Set(),
         organizations: new Set(),
         agreements: new Set()
@@ -2533,7 +2534,8 @@
           pagination: { page: page, limit: limit, total: total, pages: pages },
           operational: payload.operational && typeof payload.operational === 'object' ? payload.operational : {},
           scope: payload && payload.scope && typeof payload.scope === 'object' ? payload.scope : {},
-          facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {}
+          facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {},
+          scopeOmitted: payload.scopeOmitted === true
         };
       }
 
@@ -2547,6 +2549,8 @@
         params.set('status', state.filters.status);
         params.set('crosswalk', state.filters.crosswalk);
         params.set('includeFacets', state.directoryFacetsLoaded ? '0' : '1');
+        // A search reuses the totals already on screen, so the server only builds the matching legajos.
+        params.set('includeScope', state.directoryScopeLoaded && state.directoryFacetsLoaded && state.filters.search ? '0' : '1');
         params.set('page', String(page));
         params.set('limit', String(PAGE_LIMIT));
         return DATA_URL + '?' + params.toString();
@@ -2724,6 +2728,7 @@
       // Retira el catálogo de facetas pero conserva los filtros elegidos (su valor queda como única opción conocida).
       function retireDirectoryFacets() {
         state.directoryFacetsLoaded = false;
+        state.directoryScopeLoaded = false;
         [[state.sectors, state.filters.sector], [state.organizations, state.filters.organization], [state.agreements, state.filters.agreement]].forEach(function (pair) {
           pair[0].clear();
           if (pair[1]) pair[0].add(pair[1]);
@@ -2805,8 +2810,11 @@
           state.employeesLoaded = true;
           collectDirectoryFacets(result.facets);
           if (Object.keys(result.facets).length) state.directoryFacetsLoaded = true;
-          renderDirectoryScope(result.scope);
-          window.dispatchEvent(new CustomEvent('municontrol:workforce-scope', {detail:result.operational}));
+          if (!result.scopeOmitted) {
+            renderDirectoryScope(result.scope);
+            window.dispatchEvent(new CustomEvent('municontrol:workforce-scope', {detail:result.operational}));
+            state.directoryScopeLoaded = true;
+          }
           collectRowSectors(result.rows);
           renderEmployees(result.rows, result.pagination);
           return { ok: true, resource: 'employees' };

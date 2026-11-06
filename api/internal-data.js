@@ -3151,12 +3151,20 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, searchSql = '') {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
       FROM grh_effective_employees_v1
-    ), directory AS MATERIALIZED (
+    ), ${searchSql ? `search_contracts AS MATERIALIZED (
+      -- Search fast path: the expensive per-contract projections run only for the contracts whose
+      -- name, legajo, DNI or CUIL match (the same expressions the directory exposes).
+      SELECT contract.id FROM employment_contract contract
+      JOIN person_identity identity ON identity.id = contract.person_id
+      LEFT JOIN directory_employees employee ON employee.company_id = contract.legacy_company_id
+       AND employee.legajo = contract.legacy_legajo AND contract.source_system = 'GRH'
+      WHERE ${searchSql}
+    ), ` : ''}directory AS MATERIALIZED (
       SELECT contract.id AS "contractId",
              contract.person_id AS "canonicalPersonId",
              contract.legacy_company_id AS "companyId",
@@ -3251,10 +3259,10 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
         ORDER BY assignment.snapshot_date DESC
         LIMIT 1
       ) latest_assignment ON true
-      WHERE (contract.source_system='GRH' AND source_batch.source_system='GRH'
+      WHERE ${searchSql ? 'contract.id IN (SELECT id FROM search_contracts) AND (' : ''}(contract.source_system='GRH' AND source_batch.source_system='GRH'
         AND source_batch.validation_state='published' AND source_batch.legacy_import_run_id IS NOT NULL
         ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''})
-        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}
+        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}${searchSql ? ')' : ''}
     )
   `;
 }
@@ -3278,6 +3286,8 @@ export async function employees(sql, req, binding = null, options = {}) {
   const organization = boundedQueryValue(req, 'organization');
   const agreement = boundedQueryValue(req, 'agreement');
   const includeFacets = queryValue(req, 'includeFacets', '1') !== '0';
+  // The screen keeps the source-wide totals of its first load; a search then skips them (fast path).
+  const includeScope = queryValue(req, 'includeScope', '1') !== '0';
   const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || DEFAULT_WORKFORCE_STATUS;
   const status = requestedStatus === 'active' ? 'administrative_active' : requestedStatus;
   if(options.nativeOnly&&['liquidable','gap','last_closed'].includes(status))return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_PAYROLL_UNAVAILABLE',error:'Este padrón verifica los contratos propios. La cobertura de liquidaciones todavía no está certificada; consultá por situación administrativa.'}};
@@ -3297,19 +3307,20 @@ export async function employees(sql, req, binding = null, options = {}) {
     values.push(value);
     return `$${values.length}`;
   };
+  let searchSql = '';
   if (search) {
     const term = parameter(`%${picker ? escapePickerLike(search) : search}%`);
     const nameTokens = [...new Set(search.split(/\s+/).map((token) => token.trim()).filter(Boolean))]
       .slice(0, 8);
-    const tokenNameMatch = nameTokens.length
-      ? ` OR (${nameTokens.map((token) => `translate(lower(directory.nombre), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${parameter(`%${picker ? escapePickerLike(token) : token}%`)}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})`
-      : '';
-    conditions.push(`(
-      directory.nombre ILIKE ${term}
-      OR directory.legajo ILIKE ${term}
-      ${picker ? '' : `OR directory.dni ILIKE ${term} OR directory.cuil ILIKE ${term}`}
-      ${tokenNameMatch}
-    )`);
+    const tokens = nameTokens.map((token) => parameter(`%${picker ? escapePickerLike(token) : token}%`));
+    const predicate = (col) => `(
+      ${col.nombre} ILIKE ${term}
+      OR ${col.legajo} ILIKE ${term}
+      ${picker ? '' : `OR ${col.dni} ILIKE ${term} OR ${col.cuil} ILIKE ${term}`}
+      ${tokens.length ? ` OR (${tokens.map((t) => `translate(lower(${col.nombre}), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${t}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})` : ''}
+    )`;
+    conditions.push(predicate({ nombre: 'directory.nombre', legajo: 'directory.legajo', dni: 'directory.dni', cuil: 'directory.cuil' }));
+    if (!includeScope && !includeFacets && !picker && !options.nativeOnly && status !== 'multiple_active') searchSql = predicate({ nombre: 'COALESCE(identity.full_name, employee.nombre)', legajo: 'contract.legacy_legajo', dni: 'identity.dni', cuil: 'identity.cuil' });
   }
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
   if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
@@ -3324,7 +3335,7 @@ export async function employees(sql, req, binding = null, options = {}) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead)));
+  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),searchSql));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3345,7 +3356,7 @@ export async function employees(sql, req, binding = null, options = {}) {
     ), directory_count AS (
       SELECT count(*)::int AS total FROM filtered_directory
     ), directory_scope AS (
-      ${operationalScopeSelectSql('')}
+      ${searchSql ? 'SELECT NULL::timestamptz AS "sourceCutoffFrom", NULL::timestamptz AS "sourceCutoffTo"' : operationalScopeSelectSql('')}
     ), directory_page AS (
       SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate", "recordOrigin"' : '*'},
              row_number() OVER (ORDER BY ${pageOrder}) AS "__pageOrder"
@@ -3397,8 +3408,9 @@ export async function employees(sql, req, binding = null, options = {}) {
     payload: {
       ok: true,
       data: data.map(({sourceSystem, sourceBatchId, sourceCutoff, ...row}) => row),
-      operational: {...operationalScopeFromRow(scope, status),...(options.nativeOnly?{countsScope:'authenticated_native_directory',payrollIncluded:null,activeOutsidePayroll:null,lastClosedContracts:null,lastClosedMonth:null}:{})},
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+      ...(searchSql ? { operational: null, scope: null, scopeOmitted: true } : {
+      operational: {...operationalScopeFromRow(scope, status),...(options.nativeOnly?{countsScope:'authenticated_native_directory',payrollIncluded:null,activeOutsidePayroll:null,lastClosedContracts:null,lastClosedMonth:null}:{})},
       scope: {
         grain: 'employment_contract',
         authority: options.nativeOnly?'MUNICONTROL':nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
@@ -3409,6 +3421,7 @@ export async function employees(sql, req, binding = null, options = {}) {
         ambiguous: Number(scope?.ambiguous || 0),
         unmatched: Number(scope?.unmatched || 0)
       },
+      }),
       facets: { sectors, organizations, agreements }
     }
   };
