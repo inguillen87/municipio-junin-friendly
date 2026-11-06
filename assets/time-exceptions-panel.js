@@ -31,6 +31,7 @@ export function mountTimeExceptions(section) {
   section.innerHTML = `<header class="tx-head"><div><p class="tx-eyebrow">PERSONAL · ASISTENCIA</p><h2 id="txTitle">Excepciones horarias por legajo</h2>
   <p>Para casos humanos y documentados: una persona que sale a llevar a su hijo al colegio, lactancia, estudio, tratamientos. Indicá días, horario y vigencia; el preparte de relojes no cuenta esas ventanas como tardanza.</p></div>
   <span class="tx-badge">Historial completo · sin efecto salarial directo</span></header>
+  <div class="tx-kpis" data-tx="kpis" hidden></div>
   <p class="tx-status" data-tx="status" role="status" aria-live="polite">Consultando excepciones…</p>
   <div class="tx-toolbar"><label>Buscar<input data-tx="search" type="search" maxlength="80" placeholder="Persona o legajo" autocomplete="off"></label>
   <label>Mostrar<select data-tx="filter"><option value="active">Vigentes</option><option value="all">Todas, con revocadas</option></select></label>
@@ -64,7 +65,16 @@ export function mountTimeExceptions(section) {
     return items.filter(item => ($('filter').value === 'all' || !item.revokedAt && (!item.validTo || item.validTo >= today))
       && ((item.name || '') + ' ' + item.legajo).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(query));
   }
+  function kpis() {
+    const today = new Date().toISOString().slice(0, 10), soon = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    const active = items.filter(i => !i.revokedAt && (!i.validTo || i.validTo >= today));
+    const values = [['Vigentes', active.filter(i => i.validFrom <= today).length], ['Por empezar', active.filter(i => i.validFrom > today).length],
+      ['Vencen en 30 días', active.filter(i => i.validTo && i.validTo <= soon).length], ['Personas', new Set(active.map(i => i.legajo)).size], ['Revocadas', items.filter(i => i.revokedAt).length]];
+    $('kpis').replaceChildren(...values.map(([label, value], index) => { const card = node('div', undefined, 'tx-kpi'); card.style.setProperty('--tx-i', String(index)); card.append(node('strong', String(value)), node('span', label)); return card; }));
+    $('kpis').hidden = !items.length;
+  }
   function render() {
+    kpis();
     const body = $('rows'); body.replaceChildren();
     for (const item of visible()) {
       const tr = node('tr'), td = label => { const c = node('td'); c.dataset.label = label; tr.append(c); return c; };
