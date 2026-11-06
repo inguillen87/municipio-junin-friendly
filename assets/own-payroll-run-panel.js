@@ -297,7 +297,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     // With «Todos» the engine rejects the whole run when one active legajo lacks its repartición: say which, before
     // trying, and offer every repartición with active people (the «Reparticiones» scope skips the unassigned ones).
     departmentPlan=ownRunDepartmentsForAll(preparationRoster?.rows,catalog?.catalog.items);controls();
-    if(!attempt&&canStart()&&departmentPlan.unsectored.length&&['','all'].includes($('kind').value)){if(applyAllWithoutUnsectored(true))return;status('Antes de calcular a todos, revisá los legajos sin repartición.','warning');return;}
+    if(!attempt&&canStart()&&departmentPlan.unsectored.length&&['','all'].includes($('kind').value)){
+      status('Antes de calcular a todos, revisá los legajos sin repartición.','warning');
+      // This runs inside the busy consultation: apply «Todos» without the unassigned ones as soon as it ends.
+      let tries=0;const later=()=>{if(attempt||!['','all'].includes($('kind').value))return;if(busy&&tries++<20){setTimeout(later,250);return;}applyAllWithoutUnsectored(true);};setTimeout(later,0);return;}
     status(attempt?'Se conserva el intento original. Consultalo o reintentá sin cambiar su contenido.':!canPrepare()?'Consulta disponible. Calcular requiere permisos nominales y un vínculo municipal vigente.':canStart()?'Elegí el período, el tipo y todo el alcance antes de calcular.':canSelect()?'Podés preparar el borrador. Falta registrar la configuración del motor para calcular.':'Preparación pendiente. Continuá con el paso indicado antes de calcular.',canStart()||attempt?'neutral':'warning');
   });}
   async function verifyPreparation(run,valid,required=OWN_RUN_READ){
@@ -465,7 +468,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if([...$('codes').selectedOptions].length!==plan.codes.length){$('kind').value='all';renderKind();status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return false;}
     $('confirm').checked=false;controls();
     const out=plan.unsectored.length===1?'el legajo '+plan.unsectored[0]+', que no tiene repartición':'los legajos '+plan.unsectored.slice(0,8).join(', ')+(plan.unsectored.length>8?' y '+(plan.unsectored.length-8)+' más':'')+', que no tienen repartición';
-    status((automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). Queda fuera '+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
+    status((automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones con personal activo ('+plan.covered+' legajos). '+(plan.unsectored.length===1?'Queda fuera ':'Quedan fuera ')+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
     if(!automatic)$('confirm').focus();
     return true;
   }
