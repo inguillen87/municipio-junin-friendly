@@ -3465,13 +3465,14 @@
         let loading = false;
         let nextPage = 1;
         let selectedYear = '';
+        let trendItems = [];
         let generation = 0;
         let activeController = null;
         let reloadWhenIdle = false;
         function changeYear(value) {
           if (value && !/^(?:19[0-9]{2}|20[0-9]{2}|2100)$/.test(value)) {yearInput.reportValidity();return;}
           generation++;if(activeController)activeController.abort();
-          selectedYear=value;loaded=false;loading=false;reloadWhenIdle=false;nextPage=1;list.replaceChildren();more.hidden=true;
+          selectedYear=value;loaded=false;loading=false;reloadWhenIdle=false;nextPage=1;list.replaceChildren();more.hidden=true;trendItems=[];
           if(section.open)loadPage();
         }
         filter.addEventListener('submit',function(event){event.preventDefault();if(yearInput.checkValidity())changeYear(yearInput.value.trim());});
@@ -3510,8 +3511,10 @@
             const items = payload.data.items;
             const pagination = payload && payload.meta && payload.meta.pagination && typeof payload.meta.pagination === 'object'
               ? payload.meta.pagination : {};
-            if (nextPage === 1) list.replaceChildren();
+            if (nextPage === 1) { list.replaceChildren(); trendItems = []; }
             items.forEach(function (item) { list.appendChild(payrollCard(item || {}, employee, params.toString())); });
+            trendItems = trendItems.concat(items);
+            import('./assets/employee-payroll-chart.js').then(function (module) { if (requestGeneration === generation && section.isConnected) module.drawPayrollTrend(body, trendItems, meta); }).catch(function () { /* The cards keep every amount. */ });
             const total = nonNegativeNumber(pagination.total);
             if (nextPage === 1 && !items.length) {
               list.appendChild(create('div', 'notice warning', 'No hay liquidaciones informadas para este contrato'+(selectedYear?' en '+selectedYear:'')+'.'));

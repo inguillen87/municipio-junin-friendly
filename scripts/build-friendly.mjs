@@ -348,6 +348,7 @@ const shellFiles = [
   'assets/employee-detail-navigation.js',
   'assets/employee-detail-navigation.css',
   'assets/workspace-quickbar.js',
+  'assets/employee-payroll-chart.js',
   'assets/workspace-quickbar.css',
   'assets/payroll-novelty-amount-policy.js',
   'assets/clock-dashboard-zip.js',
