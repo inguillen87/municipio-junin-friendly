@@ -83,6 +83,7 @@ export function mountHomologation(doc, win, fetcher) {
       code===403?'Esta cuenta o este ámbito no tiene acceso. Usá la cuenta propietaria habilitada en la operación municipal.':
       code===409?'Cambió el ámbito o la jornada. Volvé a consultar y revisá la acción antes de confirmarla.':
       code===410?'La jornada venció. Volvé a consultar para iniciar otra.':
+      code===404?'El espacio de pruebas está cerrado: su ventana de habilitación venció o todavía no se abrió. Abrir una nueva requiere la autorización del propietario de la plataforma.':
       code===429?'Hay demasiadas solicitudes. Esperá un momento y volvé a consultar.':
       code===503?'Homologación no está disponible. No se pudo confirmar el estado de la jornada.':
       'No pudimos confirmar esta operación. Volvé a consultar el estado antes de intentar otra vez.';
