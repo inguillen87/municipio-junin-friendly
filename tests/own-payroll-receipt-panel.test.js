@@ -177,3 +177,82 @@ test('multi-type uncertain command retains its original body/key and is not alte
 test('zero closed receipts retains the exact department filter and points to preparation rather than only closing',async t=>{
  const h=harness(t);await h.start();h.state.zero=true;h.q('scope').value='department';await h.act('scope','change');h.q('departmentFrom').value='35';h.q('departmentTo').value='35';await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/Repartición 35/);assert.match(h.q('emptyScope').textContent,/Mensual/);assert.match(h.q('empty').textContent,/preparación y el cálculo/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#calculo');assert.equal(h.q('scope').value,'department');assert.equal(h.q('departmentFrom').value,'35');assert.equal(h.q('departmentTo').value,'35');assert.equal(h.q('type-monthly').checked,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.posts().length,0);
 });
+
+
+// Receipt range intersection: actual public panel and existing v1/v2/v3
+// contracts, synthetic HTTP only. No SQL, quantity-v4 reader or delivery.
+async function chooseReceiptIntersection(h,filters={}){
+ h.q('scope').value='combined';await h.act('scope','change');
+ for(const range of ['employee','department','agreement'])for(const end of ['From','To'])h.q(range+end).value=filters[range+end]??'';
+}
+const receiptIntersectionFixture=()=>receiptPreview(1).snapshot.records[0];
+const exactReceiptIntersection=()=>{
+ const r=receiptIntersectionFixture();
+ return {employeeFrom:r.employeeNumber,employeeTo:r.employeeNumber,departmentFrom:r.departmentCode,departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:r.agreementCode};
+};
+
+test('receipt intersection is an explicit choice and never turns empty filters into all',async t=>{
+ const h=harness(t);assert.equal(h.q('scope').value,'');assert.equal(h.q('combinedHelp').hidden,true);await h.start();const before=h.requests.filter(r=>r.body?.operation==='preview').length;
+ await chooseReceiptIntersection(h);
+ assert.equal(h.q('combinedHelp').hidden,false);assert.match(h.q('combinedHelp').textContent,/cumplan todos los rangos/);
+ for(const range of ['employee','department','agreement']){assert.equal(h.q(range+'Range').hidden,false);assert.equal(h.q(range+'Range').disabled,false);assert.equal(h.q(range+'From').required,false);assert.match(h.q(range+'Help').textContent,/límite abierto/);}
+ await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,before);assert.match(h.q('status').textContent,/Completá al menos un límite/);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection sends all three inclusive ranges with exact original codes',async t=>{
+ const h=harness(t);await h.start();const filters=exactReceiptIntersection();for(const key of Object.keys(filters))filters[key]=filters[key].padStart(5,'0');
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');
+ const sent=h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params;
+ assert.deepEqual(sent.filters,filters);assert.deepEqual(h.state.lastPreview.snapshot.params.filters,filters);assert.ok(!h.q('pdf').disabled);
+ for(const label of ['Legajo','Repartición','Convenio'])assert.match(h.q('summary').textContent,new RegExp(label));
+ assert.deepEqual(Object.keys(sent).sort(),Object.keys(receiptPreview(1).snapshot.params).sort());assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection preserves one-sided bounds instead of closing or broadening them',async t=>{
+ const h=harness(t);await h.start();const r=receiptIntersectionFixture(),filters={employeeFrom:r.employeeNumber,employeeTo:'',departmentFrom:'',departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:''};
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');
+ assert.deepEqual(h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.filters,filters);assert.ok(!h.q('pdf').disabled);assert.match(h.q('summary').textContent,/sin límite inicial/);assert.match(h.q('summary').textContent,/sin límite final/);
+});
+
+for(const range of ['employee','department','agreement'])test('receipt intersection rejects invalid '+range+' bounds before requesting a preview',async t=>{
+ const h=harness(t);await h.start();
+ for(const [from,to]of [['20','10'],['1.5','2'],[' 1','2'],['1000000000',''],['','x']]){
+  const filters=exactReceiptIntersection();filters[range+'From']=from;filters[range+'To']=to;await chooseReceiptIntersection(h,filters);
+  const before=h.requests.filter(r=>r.body?.operation==='preview').length;await h.act('query','submit');
+  assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,before);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+ }
+});
+
+test('receipt intersection rejects a returned record outside the complete requested scope',async t=>{
+ const h=harness(t);await h.start();h.state.count=2;await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');
+ assert.equal(h.q('result').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.match(h.q('status').textContent,/fuera de los límites/);assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection includes every filter in an empty scope and withdraws review when agreement changes',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');
+ for(const label of ['Legajo','Repartición','Convenio'])assert.match(h.q('emptyScope').textContent,new RegExp(label));
+ assert.equal(h.q('empty').hidden,false);h.state.zero=false;await h.act('query','submit');assert.ok(!h.q('pdf').disabled);h.q('confirm').checked=true;
+ h.q('agreementFrom').value='1';for(const handler of h.q('fields').listeners.get('input')??[])await handler({target:h.q('agreementFrom')});await h.settled();
+ assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('result').hidden,true);
+ h.hide();for(const range of ['employee','department','agreement'])for(const end of ['From','To'])assert.equal(h.q(range+end).value,'');
+});
+
+test('receipt intersection correction restores exact filters and leaves the original attempt unchanged',async t=>{
+ const h=harness(t);await h.start();const r=receiptIntersectionFixture(),filters={employeeFrom:r.employeeNumber,employeeTo:'',departmentFrom:'',departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:r.agreementCode};
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');h.q('contracts').options[0].selected=true;await h.act('contracts','change');await h.act('selected');h.q('reason').value='Intersección sintética conservada para revisión';
+ await h.missingAfterRejection();const original=structuredClone(h.posts()[0]);h.state.sourceVersion=hash('c');await h.act('correct');
+ assert.equal(h.q('scope').value,'combined');for(const key of Object.keys(filters))assert.equal(h.q(key).value,filters[key]);assert.deepEqual(h.state.lastPreview.snapshot.params.filters,filters);assert.deepEqual(h.state.lastPreview.snapshot.params.contracts,original.body.payload.params.contracts);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('confirm').checked,false);
+ h.state.postError=null;await h.act('prepare');assert.equal(h.posts().length,2);assert.notEqual(h.posts()[1].key,original.key);assert.deepEqual(h.posts()[1].body.payload.params,original.body.payload.params);assert.deepEqual(h.posts()[0],original);
+});
+
+test('receipt intersection uncertain retry retains its exact original body and key',async t=>{
+ const h=harness(t);await h.start();await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');h.q('reason').value='Intersección con respuesta incierta exclusivamente sintética';h.state.network=true;await h.act('prepare');const original=structuredClone(h.posts()[0]);
+ assert.equal(h.q('fields').disabled,true);h.q('scope').value='all';await h.act('scope','change');h.state.network=false;await h.act('retry');
+ assert.equal(h.posts().length,2);assert.deepEqual(h.posts()[1],original);assert.equal(h.q('recover').hidden,true);
+});
+
+test('receipt intersection filters do not leak into a later explicit all-employees query',async t=>{
+ const h=harness(t);await h.start();await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');h.q('scope').value='all';await h.act('scope','change');await h.act('query','submit');
+ const filters=h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.filters;assert.ok(Object.values(filters).every(value=>value===''));assert.equal(h.q('agreementRange').hidden,true);assert.equal(h.q('agreementRange').disabled,true);assert.equal(h.q('combinedHelp').hidden,true);assert.match(h.q('summary').textContent,/Todos los legajos/);assert.equal(h.posts().length,0);
+});
+

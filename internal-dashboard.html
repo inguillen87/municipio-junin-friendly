@@ -539,6 +539,8 @@
       background: var(--canvas-2);
     }
 
+    .composition-chart { height: 210px; margin: -6px 0 6px; }
+    .composition-chart[data-loading="error"] { display: none; }
     .composition-active { width: 0; background: var(--blue); transition: width .3s ease; }
     .composition-inactive { flex: 1; background: #bdc9c6; }
 
@@ -698,6 +700,14 @@
     .cell-stack small { color: var(--ink-soft); font-size: .71rem; }
 
     .table-message { padding: 34px 18px; text-align: center; color: var(--ink-soft); }
+    .dialog-body[aria-busy="true"] > .table-message { display: grid; gap: 6px; justify-items: center; }
+    .dialog-body[aria-busy="true"] > .table-message::after { content: ""; width: min(560px, 100%); height: 132px; margin-top: 14px; border-radius: 10px;
+      background: linear-gradient(90deg, #eef3f2 0%, #e2ebe9 40%, #eef3f2 80%) 0 0 / 200% 100%, #eef3f2;
+      -webkit-mask: linear-gradient(#000 0 0) 0 0 / 100% 22px no-repeat, linear-gradient(#000 0 0) 0 40px / 82% 16px no-repeat, linear-gradient(#000 0 0) 0 70px / 64% 16px no-repeat, linear-gradient(#000 0 0) 0 100px / 90% 16px no-repeat;
+      mask: linear-gradient(#000 0 0) 0 0 / 100% 22px no-repeat, linear-gradient(#000 0 0) 0 40px / 82% 16px no-repeat, linear-gradient(#000 0 0) 0 70px / 64% 16px no-repeat, linear-gradient(#000 0 0) 0 100px / 90% 16px no-repeat;
+      animation: skeleton-sweep 1.2s linear infinite; }
+    @keyframes skeleton-sweep { to { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .dialog-body[aria-busy="true"] > .table-message::after { animation: none; } }
     .table-message strong { display: block; margin-bottom: 5px; color: var(--ink); }
 
     .pagination {
@@ -788,8 +798,8 @@
     @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
     dialog {
-      width: min(900px, calc(100vw - 32px));
-      max-height: min(860px, calc(100vh - 32px));
+      width: min(1080px, calc(100vw - 32px));
+      max-height: min(920px, calc(100vh - 32px));
       padding: 0;
       overflow: hidden;
       border: 1px solid var(--line-strong);
@@ -799,9 +809,14 @@
       box-shadow: 0 24px 80px rgba(15, 35, 45, .28);
     }
 
-    dialog::backdrop { background: rgba(13, 32, 42, .62); }
+    dialog::backdrop { background: rgba(13, 32, 42, .5); backdrop-filter: blur(3px); }
+    dialog[open] { animation: dialog-in .26s cubic-bezier(.2, .8, .2, 1); }
+    dialog[open]::backdrop { animation: backdrop-in .26s ease-out; }
+    @keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { dialog[open], dialog[open]::backdrop { animation: none; } }
 
-    .dialog-shell { max-height: min(860px, calc(100vh - 32px)); display: flex; flex-direction: column; }
+    .dialog-shell { max-height: min(920px, calc(100vh - 32px)); display: flex; flex-direction: column; }
 
     .dialog-head {
       display: flex;
@@ -1147,6 +1162,8 @@
 <script type="module" src="assets/workforce-operations.js"></script>
 <link rel="stylesheet" href="assets/native-employee-create.css">
 <link rel="stylesheet" href="assets/employee-detail-navigation.css">
+<link rel="stylesheet" href="assets/workspace-quickbar.css">
+<script type="module" src="assets/workspace-quickbar.js"></script>
 <script type="module" src="assets/native-employee-create.js"></script>
 <link rel="stylesheet" href="assets/native-roster.css">
 <link rel="stylesheet" href="assets/employment-adoption-review.css">
@@ -1251,6 +1268,7 @@
               </div>
             </div>
           </header>
+          <nav data-quickbar="inicio"></nav>
 
 <section id="legalWorkToday" class="mc-legal-entry" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read" hidden aria-labelledby="legalEntryTitle"><div><p>JURÍDICA Y LEGISLATIVA</p><h2 id="legalEntryTitle">Normas, documentos y su historial</h2><span>Registrá una norma con su PDF, buscá por tema o artículo y consultá sus versiones. Dentro del portal, sin entrar a liquidaciones.</span></div><a class="button primary" href="juridica-registro.html">Abrir Registro normativo →</a></section>
           <section class="work-today" id="workToday" aria-labelledby="workTodayTitle" hidden>
@@ -1299,6 +1317,7 @@
                 <span class="evidence loading" id="compositionEvidence">Cargando</span>
               </div>
               <div class="composition" id="composition" aria-busy="true">
+                <div class="composition-chart mc-chart" id="compositionChart" data-loading="true" hidden></div>
                 <div class="composition-track" role="img" aria-label="Composición todavía no disponible">
                   <span class="composition-active" id="compositionActive"></span>
                   <span class="composition-inactive"></span>
@@ -1348,13 +1367,17 @@
             <button class="button" type="button" data-employment-catalog data-any-capability="workforce.employee.read" hidden>Catálogo de encuadres</button>
             <a class="button" href="reportes-rrhh.html#certificados-escolares" data-requires-all-capability="workforce.employee.read">Reporte de hijos y certificados</a>
           </header>
+          <nav data-quickbar="legajos" data-requires-all-capability="workforce.employee.read"></nav>
 
           <section class="panel" aria-labelledby="employeeTableTitle">
             <h2 class="sr-only" id="employeeTableTitle">Directorio de personas y legajos</h2>
-            <details class="native-roster" data-native-roster data-requires-all-capability="workforce.employee.read"></details>
+            <details class="native-roster" data-native-roster data-requires-all-capability="workforce.employee.read" open></details>
             <details class="adoption-review" data-adoption-review data-requires-all-capability="workforce.employee.read"></details>
+            <details class="workforce-history employee-history" id="employeeHistory">
+              <summary>Antecedentes e histórico · consulta complementaria</summary>
+              <p>El padrón propio de arriba es la entrada para el trabajo diario. Esta consulta reúne el archivo incorporado y los registros municipales del mismo ámbito; sus indicadores de corrida y corte son referencias, no haberes propios confirmados. Al abrirla se consultan los activos; los filtros actualizan la tabla.</p>
             <section class="workforce-workspace" id="workforceWorkspace" aria-labelledby="workforceTitle">
- <div class="workforce-heading"><div><p class="eyebrow">Operación de personal</p><h2 id="workforceTitle">Trabajá primero con el padrón activo</h2><p>Elegí un grupo para consultar sus legajos. Las bajas y el archivo completo permanecen disponibles sin mezclarse con el trabajo habitual.</p></div></div>
+ <div class="workforce-heading"><div><p class="eyebrow">Antecedentes del archivo</p><h2 id="workforceTitle">Consultar el directorio de referencia</h2><p>Los grupos y sus indicadores corresponden al directorio combinado de esta consulta. La búsqueda y los filtros acotan la tabla; no certifican una liquidación propia.</p></div></div>
  <div class="workforce-grid">
   <button type="button" class="workforce-card" data-workforce-status="administrative_active" aria-pressed="true"><span>Legajos activos</span><strong data-workforce-count="activeContracts">—</strong><small>Consultar el padrón operativo →</small></button>
   <button type="button" class="workforce-card" data-workforce-status="liquidable" aria-pressed="false"><span>Incluidos en corrida informada</span><strong data-workforce-count="payrollIncluded">—</strong><small>Inclusión de origen, no pago confirmado →</small></button>
@@ -1368,7 +1391,7 @@
   <button type="button" class="button" data-workforce-status="inactive" aria-pressed="false">Consultar inactivos / histórico</button>
  </div>
  <p id="workforceClosedLabel">Mes cerrado de referencia: por consultar.</p>
- <p class="workforce-source" id="workforceSource">Consultando el corte de la fuente. La cantidad de legajos no equivale a la cantidad de personas.</p>
+ <p class="workforce-source" id="workforceSource">Consulta sin iniciar. La fecha y los indicadores se mostrarán cuando se verifique el resultado completo.</p>
  <p class="workforce-selection" id="workforceSelection" role="status" aria-live="polite"></p>
 </section>
 
@@ -1434,7 +1457,7 @@
             </form>
 
             <div class="table-meta">
-              <div id="employeeResultCount" role="status" aria-live="polite">Preparando consulta…</div>
+              <div id="employeeResultCount" role="status" aria-live="polite">Consulta complementaria sin iniciar</div>
               <button class="button" id="cancelEmployeeQuery" type="button" hidden>Cancelar consulta</button>
               <span class="evidence source">Fuente</span>
             </div>
@@ -1454,7 +1477,7 @@
                   </tr>
                 </thead>
                 <tbody id="employeeRows">
-                  <tr><td class="table-message" colspan="7">Abrí esta sección para consultar los legajos.</td></tr>
+                  <tr><td class="table-message" colspan="7">Elegí los filtros y pulsá Buscar para consultar los antecedentes.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1464,6 +1487,7 @@
               <span class="pagination-status" id="paginationStatus">Página —</span>
               <button class="button" id="nextPage" type="button" disabled>Siguiente</button>
             </nav>
+            </details>
           </section>
         </section>
 
@@ -1622,6 +1646,7 @@
         user: null,
         summary: null,
         summaryError: null,
+        summaryLoading: false,
         tenantCapabilities: new Set(),
         currentView: 'inicio',
         employeesLoaded: false,
@@ -1631,6 +1656,7 @@
         employeeController: null,
         employeeOperation: null,
         employeeDirectoryWithdrawn: false,
+        employeeHistoryQueried: false,
         employeeReadRevoked: false,
         detailController: null,
         payrollController: null,
@@ -1639,6 +1665,7 @@
         filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
+        directoryScopeLoaded: false,
         sectors: new Set(),
         organizations: new Set(),
         agreements: new Set()
@@ -1688,6 +1715,7 @@
         employeeResultCount: document.getElementById('employeeResultCount'),
         employeeTableWrap: document.getElementById('employeeTableWrap'),
         cancelEmployeeQuery: document.getElementById('cancelEmployeeQuery'),
+        employeeHistory: document.getElementById('employeeHistory'),
         employeeRows: document.getElementById('employeeRows'),
         previousPage: document.getElementById('previousPage'),
         nextPage: document.getElementById('nextPage'),
@@ -2058,8 +2086,6 @@
           const detailRequest = detailRequestFromLocation();
           const initialView = detailRequest ? 'legajos' : viewFromLocation();
           showView(initialView, false, false);
-          loadSummary();
-          if (initialView === 'legajos') loadEmployees(1);
           if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo', detailRequest);
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
@@ -2098,7 +2124,9 @@
         document.title = viewLabel + ' | MuniControl';
 
         if (target !== 'legajos' && (state.employeesLoaded || state.employeesLoading)) withdrawEmployeeDirectory('area');
-        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading && !state.employeeDirectoryWithdrawn && !state.employeeReadRevoked) loadEmployees(1);
+        // Personas abre el padrón municipal; el directorio complementario sólo se consulta mediante Buscar.
+        document.dispatchEvent(new CustomEvent('mc:people-view-changed', { detail: { active: target === 'legajos' } }));
+        if (target !== 'legajos' && state.user && !state.summary && !state.summaryLoading) loadSummary();
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
           if (heading) heading.focus({ preventScroll: true });
@@ -2208,6 +2236,8 @@
       }
 
       async function loadSummary() {
+        if (state.summaryLoading) return { ok: false, resource: 'summary', pending: true };
+        state.summaryLoading = true;
         state.summaryError = null;
         setSummaryLoading();
         try {
@@ -2220,21 +2250,23 @@
           state.summaryError = error;
           setSummaryError(error);
           return { ok: false, resource: 'summary', error: error };
+        } finally {
+          state.summaryLoading = false;
         }
       }
 
       function renderSummary(summary) {
         const metrics = summary.metrics;
         setMetricCard('kpiHistorical', metrics.historical, {
-          source: 'Total informado por el resumen interno.',
+          source: 'Total del respaldo GRH incorporado, a la fecha de corte.',
           unavailable: 'El resumen no informó este total.'
         });
         setMetricCard('kpiActive', metrics.active, {
-          source: 'Estado activo informado por la fuente.',
+          source: 'Activos en el respaldo GRH a la fecha de corte. El padrón propio vigente se consulta en Personas.',
           unavailable: 'El resumen no informó personas activas.'
         });
         setMetricCard('kpiInactive', metrics.inactive, {
-          source: 'Total inactivo informado por la fuente.',
+          source: 'Inactivos en el respaldo GRH a la fecha de corte.',
           derived: 'Calculado como históricos menos activos.',
           unavailable: 'No hay valores suficientes para obtenerlo.'
         });
@@ -2255,6 +2287,17 @@
         renderFactObject(els.catalogFacts, summary.catalogs, 'catalog');
         renderSourceFacts(summary.source);
         collectWorkforceSectors(summary.sectors);
+      }
+
+      // Donut drawn with the shared ECharts loader; the bar and legend stay as the accessible, chart-free reading.
+      function drawCompositionChart(active, inactive, historical, share) {
+        const host = document.getElementById('compositionChart');
+        if (!host || !(historical > 0)) return;
+        host.hidden = false;
+        import('/assets/mc-chart-loader.js').then(({ drawChart }) => drawChart(host, m => m.donutOption({
+          items: [{ name: 'Activos', value: active, itemStyle: { color: '#0f766e' } }, { name: 'Inactivos', value: inactive, itemStyle: { color: '#b8c7c4' } }],
+          total: historical, totalLabel: 'Registros históricos',
+        }), { ariaLabel: percentFormatter.format(share) + ' de los registros históricos están activos' })).catch(() => { host.dataset.loading = 'error'; });
       }
 
       function renderComposition(metrics) {
@@ -2282,6 +2325,7 @@
         els.compositionShare.textContent = percentFormatter.format(share);
         els.composition.querySelector('.composition-track').setAttribute('aria-label', percentFormatter.format(share) + ' de los registros históricos están activos');
         setEvidence(els.compositionEvidence, 'derived');
+        drawCompositionChart(active, inactive === null ? historical - active : inactive, historical, share);
 
         if (inactive !== null && historical === active + inactive) {
           els.reconciliationNotice.className = 'notice';
@@ -2518,7 +2562,8 @@
           pagination: { page: page, limit: limit, total: total, pages: pages },
           operational: payload.operational && typeof payload.operational === 'object' ? payload.operational : {},
           scope: payload && payload.scope && typeof payload.scope === 'object' ? payload.scope : {},
-          facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {}
+          facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {},
+          scopeOmitted: payload.scopeOmitted === true
         };
       }
 
@@ -2532,6 +2577,8 @@
         params.set('status', state.filters.status);
         params.set('crosswalk', state.filters.crosswalk);
         params.set('includeFacets', state.directoryFacetsLoaded ? '0' : '1');
+        // A search reuses the totals already on screen, so the server only builds the matching legajos.
+        if (state.directoryScopeLoaded && state.directoryFacetsLoaded && state.filters.search) params.set('includeScope', '0');
         params.set('page', String(page));
         params.set('limit', String(PAGE_LIMIT));
         return DATA_URL + '?' + params.toString();
@@ -2601,6 +2648,7 @@
         if (state.employeeReadRevoked || !state.tenantCapabilities.has('workforce.employee.read')) return 'permission';
         if (document.hidden) return 'hidden';
         if (state.currentView !== 'legajos') return 'area';
+        if (!els.employeeHistory.open) return 'history';
         return null;
       }
 
@@ -2708,6 +2756,7 @@
       // Retira el catálogo de facetas pero conserva los filtros elegidos (su valor queda como única opción conocida).
       function retireDirectoryFacets() {
         state.directoryFacetsLoaded = false;
+        state.directoryScopeLoaded = false;
         [[state.sectors, state.filters.sector], [state.organizations, state.filters.organization], [state.agreements, state.filters.agreement]].forEach(function (pair) {
           pair[0].clear();
           if (pair[1]) pair[0].add(pair[1]);
@@ -2768,7 +2817,9 @@
             ? { ok: false, resource: 'employees', forbidden: true }
             : { ok: false, resource: 'employees', unavailable: true };
         }
+        if (!explicit && !state.employeeHistoryQueried) return { ok: false, resource: 'employees', notRequested: true };
         if (state.employeeDirectoryWithdrawn && !explicit) return { ok: false, resource: 'employees', withdrawn: true };
+        if (explicit) state.employeeHistoryQueried = true;
         const query = employeeQuery(page);
         if (state.employeesLoading && state.employeeLastQuery === query) {
           return { ok: false, resource: 'employees', pending: true };
@@ -2787,8 +2838,11 @@
           state.employeesLoaded = true;
           collectDirectoryFacets(result.facets);
           if (Object.keys(result.facets).length) state.directoryFacetsLoaded = true;
-          renderDirectoryScope(result.scope);
-          window.dispatchEvent(new CustomEvent('municontrol:workforce-scope', {detail:result.operational}));
+          if (!result.scopeOmitted) {
+            renderDirectoryScope(result.scope);
+            window.dispatchEvent(new CustomEvent('municontrol:workforce-scope', {detail:result.operational}));
+            state.directoryScopeLoaded = true;
+          }
           collectRowSectors(result.rows);
           renderEmployees(result.rows, result.pagination);
           return { ok: true, resource: 'employees' };
@@ -2976,7 +3030,7 @@
         const retry = create('button', 'button', 'Reintentar');
         retry.type = 'button';
         retry.style.margin = '14px auto 0';
-        retry.addEventListener('click', function () { loadEmployees(state.pagination.page || 1); });
+        retry.addEventListener('click', function () { loadEmployees(state.pagination.page || 1, { explicit: true }); });
         cell.appendChild(retry);
         row.appendChild(cell);
         els.employeeRows.appendChild(row);
@@ -3095,6 +3149,14 @@
           if (state.detailController === controller) els.dialogBody.setAttribute('aria-busy', 'false');
         }
       }
+
+      // Lists inside this page (padrón propio) open a record here, without reloading and losing their filters.
+      window.MuniControlOpenEmployee = function (request) {
+        const contractId = text(request && request.contractId);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) return false;
+        openEmployee(contractId, text(request.legajo), '', text(request.name) || 'Ficha de legajo');
+        return true;
+      };
 
       function detailField(label, value, formatter, evidenceType) {
         const field = create('div', 'detail-field');
@@ -3448,13 +3510,14 @@
         let loading = false;
         let nextPage = 1;
         let selectedYear = '';
+        let trendItems = [];
         let generation = 0;
         let activeController = null;
         let reloadWhenIdle = false;
         function changeYear(value) {
           if (value && !/^(?:19[0-9]{2}|20[0-9]{2}|2100)$/.test(value)) {yearInput.reportValidity();return;}
           generation++;if(activeController)activeController.abort();
-          selectedYear=value;loaded=false;loading=false;reloadWhenIdle=false;nextPage=1;list.replaceChildren();more.hidden=true;
+          selectedYear=value;loaded=false;loading=false;reloadWhenIdle=false;nextPage=1;list.replaceChildren();more.hidden=true;trendItems=[];
           if(section.open)loadPage();
         }
         filter.addEventListener('submit',function(event){event.preventDefault();if(yearInput.checkValidity())changeYear(yearInput.value.trim());});
@@ -3493,8 +3556,10 @@
             const items = payload.data.items;
             const pagination = payload && payload.meta && payload.meta.pagination && typeof payload.meta.pagination === 'object'
               ? payload.meta.pagination : {};
-            if (nextPage === 1) list.replaceChildren();
+            if (nextPage === 1) { list.replaceChildren(); trendItems = []; }
             items.forEach(function (item) { list.appendChild(payrollCard(item || {}, employee, params.toString())); });
+            trendItems = trendItems.concat(items);
+            import('./assets/employee-payroll-chart.js').then(function (module) { if (requestGeneration === generation && section.isConnected) module.drawPayrollTrend(body, trendItems, meta); }).catch(function () { /* The cards keep every amount. */ });
             const total = nonNegativeNumber(pagination.total);
             if (nextPage === 1 && !items.length) {
               list.appendChild(create('div', 'notice warning', 'No hay liquidaciones informadas para este contrato'+(selectedYear?' en '+selectedYear:'')+'.'));
@@ -3970,7 +4035,7 @@
         host.textContent = 'Consultando encuadre administrativo…';
         section.append(heading, host);
         const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);
-        import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);loadEmployees(state.pagination.page);}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
+        import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);withdrawEmployeeDirectory('changed');}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
         const leaveSection=document.createElement('section');leaveSection.className='employee-section';const leaveTitle=document.createElement('h3');leaveTitle.textContent='Licencias y saldos propios';const leaveHost=document.createElement('div');leaveSection.append(leaveTitle,leaveHost);
         import('./assets/native-leave.js').then(function(module){if(!leaveHost.isConnected||!els.employeeDialog.open)return;module.mountNativeLeave(leaveHost,{contractId:employee.contractId});}).catch(function(){if(leaveHost.isConnected)leaveHost.textContent='No se pudo abrir la consulta de licencias. Cerrá y volvé a abrir la ficha.';});
         import('./assets/native-employment-change.js').then(function (module) {
@@ -3978,7 +4043,7 @@
           module.mountNativeEmploymentChange(host, { contractId: employee.contractId, onApplied: function () {
             if (!host.isConnected || !els.employeeDialog.open) return;
             openEmployee(employee.contractId, employee.legajo, employee.companyId, employee.nombre);
-            loadEmployees(state.pagination.page);
+            withdrawEmployeeDirectory('changed');
           }});
         }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
         const positionSection=document.createElement('section');positionSection.className='employee-section';const positionHost=document.createElement('div');positionSection.append(positionHost);
@@ -4236,9 +4301,18 @@
       }
 
       function refreshCurrentView() {
+        if (state.currentView === 'legajos') {
+          const ownRoster = document.querySelector('[data-native-roster]');
+          if (ownRoster && (ownRoster.open || !els.employeeHistory.open)) {
+            ownRoster.open = true;
+            document.dispatchEvent(new Event('mc:native-roster-refresh'));
+          } else if (els.employeeHistory.open) {
+            loadEmployees(state.pagination.page || 1, { explicit: true });
+          }
+          return;
+        }
         els.refreshButton.disabled = true;
         const tasks = [loadSummary()];
-        if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
         Promise.allSettled(tasks).then(function (results) {
           const incomplete = results.some(function (result) {
             return result.status === 'rejected' || !result.value || result.value.ok !== true;
@@ -4262,6 +4336,16 @@
       els.retryAuth.addEventListener('click', authenticate);
       els.refreshButton.addEventListener('click', refreshCurrentView);
       els.cancelEmployeeQuery.addEventListener('click', cancelEmployeeQuery);
+      els.employeeHistory.addEventListener('toggle', function () {
+        if (!els.employeeHistory.open) {
+          state.employeeHistoryQueried = false;
+          withdrawEmployeeDirectory('history');
+        } else if (!state.employeeHistoryQueried) {
+          // Opening the archive consults it at once (active roster view); no extra «Buscar».
+          const historyQuery = { explicit: true };
+          loadEmployees(1, historyQuery);
+        }
+      });
       els.logoutButton.addEventListener('click', function () { withdrawEmployeeDirectory('session'); });
       els.logoutButton.addEventListener('click', logout);
       els.closeDialog.addEventListener('click', closeDialog);
@@ -4273,8 +4357,13 @@
       document.addEventListener('municontrol:capabilities-ready',employeeCapabilitiesChanged);
       document.addEventListener('mc:native-employee-created', function(event) {
         if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
-        els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;
-        els.statusFilter.value='all'; applyFilters();
+        const own = document.querySelector('[data-native-roster]');
+        if (!own) return;
+        own.open = true;
+        const search = own.querySelector('input[name="search"]');
+        const status = own.querySelector('select[name="status"]');
+        if (status) status.value = 'all';
+        if (search) { search.value = event.detail.legajo; search.dispatchEvent(new Event('input', { bubbles: true })); search.focus(); }
       });
       els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(true); });
       els.employeeSearch.addEventListener('input', function () {
@@ -4305,7 +4394,10 @@
       });
       els.goToEmployees.addEventListener('click', function () {
         showView('legajos', true, true);
-        window.setTimeout(function () { els.employeeSearch.focus(); }, 0);
+        window.setTimeout(function () {
+          const own = document.querySelector('[data-native-roster]');
+          if (own) { own.open = true; own.querySelector('input[name="search"]')?.focus(); }
+        }, 0);
       });
 
       authenticate();

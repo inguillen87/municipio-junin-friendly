@@ -1,3 +1,4 @@
+import {openFixedNovelties} from './lib/novelty-reference-browser.mjs';
 /** Compiled application, synthetic API only. No municipal reads or writes. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,7 +38,7 @@ try{
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const host=page.locator('[data-fixed-host]'),s=name=>{const [key,...pseudo]=name.split(':');return host.locator('[data-fn-'+key+']'+(pseudo.length?':'+pseudo.join(':'):''));};
  const refresh=async()=>{await s('refresh').click();await s('refresh:enabled').waitFor();};
- const open=async()=>{await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await s('review-group-select:enabled').waitFor();};
+ const open=async()=>{await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await s('review-group-select:enabled').waitFor();};
  const chooseAll=async()=>{await s('review-group-select').click();await s('review-group-approve:enabled').waitFor();};
  const review=async(decision='approve')=>{await s('review-group-'+decision).click();await s('group-reason').waitFor();assert.equal(await s('save').isDisabled(),true);await s('group-reason').fill('Decisión conjunta documentada de ensayo');await s('group-reviewed').check();await s('save:enabled').waitFor();};
  const reset=async()=>{resetFixture();await open();};

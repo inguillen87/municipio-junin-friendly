@@ -1,10 +1,10 @@
 name: Own F931 preparation
 on:
   pull_request:
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-jurisdiction.test.js', 'tests/fixtures/own-f931-jurisdiction-synthetic.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/own-fiscal-correction-context.js', 'assets/own-fiscal-facts-panel.js', 'scripts/verify-own-f931-correction-context-browser.mjs', 'tests/own-fiscal-correction-context.test.js', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-jurisdiction.test.js', 'tests/fixtures/own-f931-jurisdiction-synthetic.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-jurisdiction.test.js', 'tests/fixtures/own-f931-jurisdiction-synthetic.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
+    paths: ['assets/own-fiscal-correction-context.js', 'assets/own-fiscal-facts-panel.js', 'scripts/verify-own-f931-correction-context-browser.mjs', 'tests/own-fiscal-correction-context.test.js', 'assets/own-f931-*', 'assets/payroll-navigation.js', 'scripts/build-friendly.mjs', 'scripts/verify-own-f931-preparation-browser.mjs', 'tests/own-f931-preparation.test.js', 'tests/own-f931-jurisdiction.test.js', 'tests/fixtures/own-f931-jurisdiction-synthetic.js', 'tests/own-f931-fiscal-coverage.test.js', 'tests/fixtures/own-f931-fiscal-coverage-synthetic.js', 'scripts/verify-own-f931-fiscal-coverage-browser.mjs', 'scripts/install-project-chromium.mjs', 'scripts/lib/project-chromium.mjs', 'scripts/lib/patched-chromium-diagnostic-manifest.mjs', 'scripts/verify-source-preview-fragmented-transport.mjs', 'docs/QA_CHROMIUM_VERIFIED_20261011.md', 'tests/project-chromium-workflow.test.js', '.github/workflows/own-f931-preparation.yml']
 permissions:
   contents: read
 concurrency:
@@ -38,6 +38,10 @@ jobs:
         env:
           NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
         run: node scripts/verify-own-f931-fiscal-coverage-browser.mjs
+      - name: Fiscal correction context and complete reread with explicit synthetic proposal recovery
+        env:
+          NODE_OPTIONS: --import ./scripts/lib/project-chromium.mjs
+        run: node scripts/verify-own-f931-correction-context-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -45,6 +49,7 @@ jobs:
           path: |
             verification/own-f931-browser-20261011
             verification/own-f931-coverage-browser-20261011
+            verification/own-f931-correction-context-browser
             verification/payroll-formula-transport/fragmented-regression
             verification/release-chromium-157.0.8098.0/installation.json
           retention-days: 5

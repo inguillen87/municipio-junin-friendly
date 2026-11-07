@@ -366,8 +366,11 @@
   </style>
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="assets/workspace-quickbar.css">
+  <script type="module" src="assets/workspace-quickbar.js"></script>
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/absence-person-panel.css">
+  <script type="module" src="assets/absence-charts.js"></script>
   <script type="module" src="assets/absence-person-panel.js"></script>
   <link rel="stylesheet" href="assets/absence-person-report.css">
 </head>
@@ -449,6 +452,7 @@
             <p id="overallDetail">La disponibilidad se determina desde la respuesta de la API interna.</p>
           </div>
         </header>
+        <nav data-quickbar="ausentismo"></nav>
 
         <div class="notice" role="note">
           <span class="notice-mark" aria-hidden="true">GRH</span>
@@ -1097,6 +1101,7 @@
         renderComparison(analytics.comparison);
         renderRanking('reasonRanking', analytics.reasons);
         renderRanking('sectorRanking', analytics.sectors);
+        window.__mcLastAbsence = analytics; if (window.MuniControlAbsenceCharts) window.MuniControlAbsenceCharts.render(analytics);
 
         var from = analytics.range.from;
         var to = analytics.range.to;
@@ -1250,13 +1255,14 @@
         lastEvents = null; byId('eventRows').replaceChildren(); setText('eventsReadStatus', 'Consultando eventos…');
         byId('eventsRetry').hidden = true; byId('previousPage').disabled = true; byId('nextPage').disabled = true;
         var analyticsQuery = DATA_URL + '?' + buildParams('absenceanalytics').toString();
+        window.__mcAbsenceQuery = analyticsQuery;
         var eventsQuery = DATA_URL + '?' + buildParams('absenceevents').toString();
         function active() { return requestId === loadingRequest && !signal.aborted && !redirectIssued; }
         function failed(error, part) {
           if (!active() || error.unauthorized) return;
           if (error.status === 403) {
             readController.abort(); loadingRequest++; analyticsReady = false; lastAnalytics = lastEvents = null;
-            ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+            ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});window.__mcLastAbsence=null;if(window.MuniControlAbsenceCharts)window.MuniControlAbsenceCharts.clear();
             ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
             document.dispatchEvent(new Event('mc:absence-cleared')); showError('Tu perfil no habilita esta consulta. No se conservan datos nominales en pantalla.'); return;
           }
@@ -1268,7 +1274,7 @@
           analyticsReady = false; analyticsLoading = true; lastAnalytics = null;
           byId('summaryMetrics').setAttribute('aria-busy','true'); setText('analyticsReadStatus','Consultando indicadores…'); byId('analyticsRetry').hidden=true;
           ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
-          ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+          ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});window.__mcLastAbsence=null;if(window.MuniControlAbsenceCharts)window.MuniControlAbsenceCharts.clear();
           byId('comparisonContent').hidden=true; byId('absenceEmpty').hidden=true; setBadge('summaryBadge','warning','Consultando');
           tasks.push(fetchJson(analyticsQuery,signal).then(function(payload){if(!active())return;lastAnalytics=payload;renderAnalytics(normalizeAnalytics(payload));analyticsReady=true;setText('analyticsReadStatus','Indicadores actualizados para los filtros aplicados.');}).catch(function(e){failed(e,'analytics');}).finally(function(){if(active()){analyticsLoading=false;byId('summaryMetrics').setAttribute('aria-busy','false');}}));
         }

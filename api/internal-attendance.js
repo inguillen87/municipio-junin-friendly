@@ -10,6 +10,7 @@ import {
   listAttendanceResources,
 } from '../lib/internal-attendance-gateway.js';
 import { getReportedAttendanceInventory } from '../lib/internal-attendance-reported-inventory.js';
+import { applyAttendanceTimeException, listAttendanceTimeExceptions } from '../lib/internal-attendance-time-exceptions.js';
 import { hasEffectivePlatformOwnerAuthority } from '../lib/internal-platform-owner-policy.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 
@@ -189,6 +190,8 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const clockPreparte = dependencies.getAttendancePreparte ?? getAttendancePreparte;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
+  const timeExceptions = dependencies.listAttendanceTimeExceptions ?? listAttendanceTimeExceptions;
+  const timeExceptionCommand = dependencies.applyAttendanceTimeException ?? applyAttendanceTimeException;
 
   return async function internalAttendanceHandler(req, res) {
     const method = String(req?.method || 'GET').toUpperCase();
@@ -206,10 +209,15 @@ export function createInternalAttendanceHandler(dependencies = {}) {
       const requestedResource = method === 'GET'
         ? queryValue(req, 'resource', 'bootstrap').trim().toLowerCase()
         : '';
+      // Per-legajo time exceptions (221) use their own body key, never the gateway `command`.
+      const timeExceptionAction = method === 'POST' && typeof body?.action === 'string'
+        && body.action.startsWith('time-exception.');
 
       const access = await requireAccess(req, res, {
         env,
-        requiredCapabilities: requestedResource === 'clock-preparte' ? ['attendance.read','workforce.employee.read','payroll.novelty.prepare'] : [requestedResource === 'audit'
+        requiredCapabilities: requestedResource === 'clock-preparte' ? ['attendance.read','workforce.employee.read','payroll.novelty.prepare']
+          : requestedResource === 'time-exceptions' ? ['attendance.read','workforce.employee.read']
+          : timeExceptionAction ? ['attendance.review','workforce.employee.read'] : [requestedResource === 'audit'
           ? 'attendance.audit.read'
           : 'attendance.read'],
         capabilityMode: 'all',
@@ -261,6 +269,14 @@ export function createInternalAttendanceHandler(dependencies = {}) {
         if (resource === 'pm10-reception') {
           assertQueryKeys(req,new Set(['resource']));
           const result=await (dependencies.getPm10Status ?? getPm10Status)(sql,access.principal,tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
+        if (resource === 'time-exceptions') {
+          assertQueryKeys(req,new Set(['resource','legajo','from','to']));
+          const optional=name=>req?.query?.[name]===undefined?undefined:queryValue(req,name);
+          const result=await timeExceptions(sql,access.principal,{
+            legajo:optional('legajo'),from:optional('from'),to:optional('to'),
+          },tenantSession);
           return send(res,200,{ok:true,...result});
         }
         if (resource === 'clock-preparte') {
@@ -327,6 +343,11 @@ export function createInternalAttendanceHandler(dependencies = {}) {
       }
 
       assertQueryKeys(req, new Set());
+      if (timeExceptionAction) {
+        const result = await timeExceptionCommand(sql, access.principal, tenantSession, body);
+        if (result.replayed) res.setHeader('Idempotency-Replayed', 'true');
+        return send(res, 200, { ok: true, item: result.item });
+      }
       const result = await apply(
         sql,
         access.principal,

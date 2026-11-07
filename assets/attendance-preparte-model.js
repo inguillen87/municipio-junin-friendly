@@ -1,5 +1,19 @@
-// Table supplied by Noelia. Exact reference points only; no interpolation or payroll activation.
+// Table supplied by Noelia: kept as the documentary reference (exact points).
 export const MONTHLY_DEDICATION_REFERENCE = Object.freeze([[4,3],[6,5],[12,10],[17,15],[20,17],[24,20],[30,25],[36,30],[48,40],[53,45],[60,50],[96,80],[100,83],[120,100]].map(Object.freeze));
+// Default scale until Liquidación says otherwise (owner decision 2026-11-05): Acta Paritaria 20 (Dto. 2632/04),
+// 30 weekly hours = 120 monthly hours = 100 %, i.e. 5 % per 6 recognized monthly hours, to the nearest 5 % step
+// (half up). It reproduces the 11 payable points of Noelia's table (17 h -> 15 %, 53 h -> 45 % included); concept 44
+// is paid only in 5 % steps (Jul-Oct 2026). The decree ceiling and the person's review still bound the proposal.
+export const DEDICATION_SCALE = Object.freeze({
+  key: 'acta-20-monthly-6h-per-5pct', status: 'default_until_confirmed', hoursPerStep: 6, percentPerStep: 5,
+  rounding: 'nearest_step_half_up', maxPercent: 100,
+  source: 'Acta Paritaria 20 (Dto. 2632/04): 120 h mensuales = 100 %; reproduce los 11 puntos pagables de la tabla de Liquidación',
+});
+export function dedicationPercent(seconds) {
+  if (!Number.isSafeInteger(seconds) || seconds < 0) return null;
+  const stepSeconds = DEDICATION_SCALE.hoursPerStep * 3600;
+  return Math.min(DEDICATION_SCALE.maxPercent, DEDICATION_SCALE.percentPerStep * Math.floor((seconds + stepSeconds / 2) / stepSeconds));
+}
 export const preparteDuration = seconds => Number.isSafeInteger(seconds) && seconds >= 0
   ? String(Math.floor(seconds/3600)).padStart(2,'0')+':'+String(Math.floor(seconds/60)%60).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0') : 'No reconstruido';
 export function reviewedSeconds(value) {
@@ -19,14 +33,17 @@ export function verifyPreparte(data, period, site) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(data.period) || typeof data.site.label!=='string' || data.site.label.length>500 ||
     !['generatedAt','timezone','rulesVersion'].every(key=>typeof data[key]==='string'&&data[key].length<=100) ||
     !Number.isFinite(Date.parse(data.generatedAt)) || data.lastReceiptAt!==null&&!Number.isFinite(Date.parse(data.lastReceiptAt)) ||
-    !number(data.summary.readyForReview) || !number(data.summary.withIncidents)) invalid();
+    !number(data.summary.readyForReview) || !number(data.summary.withIncidents) || !['codes','order'].includes(data.entryProfile)) invalid();
+  const monthDays=new Date(Date.UTC(Number(data.period.slice(0,4)),Number(data.period.slice(5,7)),0)).getUTCDate();
   const ids=new Set();
   for (const row of data.rows) {
     if (!/^[a-f0-9]{64}$/.test(row.evidenceHash||'') || !/^[a-f0-9]{64}$/.test(row.key||'') || ids.has(row.key) || typeof row.name!=='string' || row.name.length>500 ||
       !(row.legajo===null || /^(?:0|[1-9]\d{0,19})$/.test(row.legajo)) || !number(row.daysObserved) || row.daysObserved>31 ||
       !number(row.daysToReview) || row.daysToReview>row.daysObserved || !number(row.extraIntervals) ||
       ![row.ordinarySeconds,row.extraSeconds].every(n=>n===null||number(n)&&n<=31*86400) ||
-      !Array.isArray(row.issues) || row.issues.some(s=>typeof s!=='string'||s.length>200) || typeof row.canPropose!=='boolean') invalid();
+      !Array.isArray(row.issues) || row.issues.some(s=>typeof s!=='string'||s.length>200) || typeof row.canPropose!=='boolean' ||
+      typeof row.entryReady!=='boolean' || !Array.isArray(row.entries) || row.entries.length>monthDays || (row.legajo===null&&row.entries.length) ||
+      row.entries.some((e,i)=>typeof e!=='string'||!/^(0[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(e)||Number(e.slice(0,2))>monthDays||i&&e.slice(0,2)<=row.entries[i-1].slice(0,2))) invalid();
     if (row.canPropose && (!row.legajo || row.issues.length || row.daysToReview || row.extraSeconds===null || !row.extraIntervals || data.observations)) invalid();
     ids.add(row.key);
   }
@@ -63,12 +80,12 @@ export function reviewPreparteSelections(data, decisions, { documentReference, c
     const validPercent=typeof value.percent==='string' && /^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(value.percent);
     if (!validCap) issue(source.key,'cap',prefix+'indicá un tope declarado de 0 a 100.');
     if (!validPercent) issue(source.key,'percent',prefix+'indicá un porcentaje de 3 a 95, o 100 para Full Time.');
-    const percent=Number(value.percent),cap=Number(value.cap),table=seconds===null?null:referencePercentage(seconds);
+    const percent=Number(value.percent),cap=Number(value.cap),table=seconds===null||!seconds||seconds>source.extraSeconds?null:dedicationPercent(seconds);
     if (validPercent && validCap && percent>cap) issue(source.key,'percent',prefix+'el porcentaje supera el tope declarado.');
-    if (validPercent && seconds!==null && percent===100 && table!==100) issue(source.key,'percent',prefix+'Full Time requiere la referencia exacta de 120 horas mensuales reconocidas. Una excepción debe tramitarse por separado.');
-    else if (validPercent && table!==null && percent>table) issue(source.key,'percent',prefix+'el porcentaje supera la referencia de horas informada.');
+    if (validPercent && seconds!==null && percent===100 && table!==100) issue(source.key,'percent',prefix+'Full Time requiere que la escala llegue al 100 %: 120 horas mensuales reconocidas (desde 117 h por redondeo al escalón). Una excepción debe tramitarse por separado.');
+    else if (validPercent && table!==null && percent>table) issue(source.key,'percent',prefix+`el porcentaje supera la escala de horas reconocidas (6 h = 5 %): corresponde hasta ${table} %.`);
     if (issues.length!==initial) continue;
-    const observation=`Preparte ${data.period}; punto ${data.site.key}; evidencia personal ${source.evidenceHash}; extra observado ${preparteDuration(source.extraSeconds)}; reconocido ${value.hours}; tope declarado ${cap}%; propuesto ${percent}%; ${table===null?'valoración documental, sin interpolación':'referencia exacta de tabla '+table+'%'}; pendiente de revisión independiente.`;
+    const observation=`Preparte ${data.period}; punto ${data.site.key}; evidencia personal ${source.evidenceHash}; extra observado ${preparteDuration(source.extraSeconds)}; reconocido ${value.hours}; tope declarado ${cap}%; propuesto ${percent}%; escala 6 h = 5 %: ${table}%; pendiente de revisión independiente.`;
     rows.push(Object.freeze([source.legajo,percent===100?'95':'44','','',String(percent),'','',reference,observation,'NO']));
   }
   if (!selected || selected>500) issue(null,'selected','Seleccioná entre 1 y 500 legajos revisados.');

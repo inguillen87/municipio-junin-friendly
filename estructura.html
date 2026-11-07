@@ -379,6 +379,7 @@
   <link rel="stylesheet" href="assets/annual-position-budget.css">
   <script type="module" src="assets/annual-position-budget-panel.js"></script>
   <script type="module" src="assets/position-comparison-panel.js"></script>
+  <script type="module" src="assets/structure-charts.js"></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/structure-task-entry.css">
@@ -736,6 +737,8 @@
         byId('userLabel').textContent = session.user && (session.user.name || session.user.email) ? (session.user.name || session.user.email) : 'Portal interno';
         byId('hierarchyReason').textContent = payload.hierarchy.reason + ' Registros de catálogo: ' + formatNumber(payload.hierarchy.catalogRows) + '; relaciones padre/hijo: ' + formatNumber(payload.hierarchy.parentLinks) + '.';
         renderMetrics();
+        window.__mcStructure = payload;
+        if (window.MuniControlStructureCharts) window.MuniControlStructureCharts.render(payload);
         renderSource();
         setView('organizations');
       }

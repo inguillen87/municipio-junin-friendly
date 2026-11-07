@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Real workbench and draft parser; all private requests, including POSTs, use synthetic fixtures. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +20,7 @@ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const expected=new Map(),queue=['novedades-nomina.html'];
 while(queue.length){
  const file=queue.shift();if(expected.has(file))continue;
- assert.ok(expected.size<96,'Unexpected page dependency count');
+ assert.ok(expected.size<128,'Unexpected page dependency count');
  const bytes=fs.readFileSync(path.join(root,file));expected.set(file,hash(bytes));
  const source=bytes.toString('utf8'),refs=[];
  if(file.endsWith('.html'))for(const tag of source.matchAll(/<(?:script|link|img)\b[^>]*>/gi)){
@@ -87,7 +88,7 @@ try{
  });
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const preview=page.locator('#previewPanel'),table=page.locator('#previewRows');
- await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#preflightButton:enabled').waitFor();
  await page.locator('#periodMonth').fill('2026-09');await page.locator('[name=sourceMode][value=bulk]').check();
  const validate=async()=>{await page.locator('#bulkSource').fill(csv);await page.locator('#preflightButton').click();await preview.waitFor({state:'visible'});};
  await validate();assert.equal(posts.length,0);assert.equal(await table.locator('[data-review-row]').count(),25);

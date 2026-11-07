@@ -71,8 +71,8 @@ test('policy addition is a real expression change subject to exact precision; re
  const s=source(1),p=ownProgramDefinition(s.programState.program.definition,s.programState.salaryCatalog.items);
  assert.deepEqual(ownProgramDefinition(p,s.programState.salaryCatalog.items),p);
  assert.deepEqual(participationRules(p),participationRules(ownProgramDefinition(p,s.programState.salaryCatalog.items)));
- const after=structuredClone(p);after.rules.find(r=>r.code==='88').rounding.mode='half_up';
- assert.throws(()=>requireExactProgramChanges(auxiliarySources(1).programState.program.definition,after),/precisión exacta/);
+ const after=structuredClone(p);after.rules.find(r=>r.code==='88').rounding={precision:4,mode:'half_up'};
+ assert.throws(()=>requireExactProgramChanges(auxiliarySources(1).programState.program.definition,after),/redondeo municipal/);
 });
 test('partial fixed validity blocks by default; an explicit decision consumes approved cents without multiplying or inferring dates',()=>{
  const s=approvedSources(1),p=s.programState.program.definition;

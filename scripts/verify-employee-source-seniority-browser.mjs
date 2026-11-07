@@ -6,9 +6,11 @@ import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import '../assets/app-routes.js';
 
-assert.ok(process.argv.slice(2).every(arg => arg === '--published'), 'UNKNOWN_ARGUMENT');
+const outputArgs=process.argv.slice(2).filter(arg=>arg.startsWith('--output='));
+assert.ok(outputArgs.length<=1&&process.argv.slice(2).every(arg=>arg==='--published'||arg.startsWith('--output=')), 'UNKNOWN_ARGUMENT');
 const published = process.argv.includes('--published');
-const base = path.resolve('public'), out = path.resolve('verification/employee-source-seniority' + (published ? '-published' : ''));
+const base = path.resolve('public'), out = path.resolve(outputArgs[0]?.slice(9)||('verification/employee-source-seniority' + (published ? '-published' : '')));
+assert.ok(out.startsWith(path.resolve('verification')+path.sep));if(outputArgs.length)assert.ok(!fs.existsSync(out),'PRESERVE_EARLIER_EVIDENCE');
 const origin = published ? 'https://municipio-junin-friendly.vercel.app' : 'https://municontrol.test';
 for (const file of ['internal-dashboard.html', 'assets/employee-source-seniority-model.js', 'assets/civil-date.js']) {
   assert.ok(fs.existsSync(path.join(base, file)), 'BUILD_REQUIRED:' + file);
@@ -66,6 +68,12 @@ try {
   await context.routeWebSocket('**/*', socket => { routeFailures.push('UNEXPECTED_WEBSOCKET'); socket.close(); });
   const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/personal#legajos');
+  const history=page.locator('#employeeHistory'),directoryReads=()=>requests.filter(r=>r.resource==='employees').length;
+  assert.equal(await history.evaluate(n=>n.open),false);assert.equal(directoryReads(),0);
+  // Owner decision 2026-11-05 (ce7eb9cc): opening «Antecedentes» is the explicit entry and consults once.
+  await history.locator('summary').first().click();
+  await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).first().waitFor();assert.equal(directoryReads(),1);
+  checks.push('source seniority enters the voluntary reference directory through its real entry, which consults exactly once');
   const open = async () => { await page.locator('#employeeRows button').first().click(); await page.locator('#employeeDialog[open] #employeeSourceSeniority').waitFor(); };
   const close = async () => { await page.locator('#closeDialog').click(); };
   const field = label => page.locator('#employeeSourceSeniority .detail-field').filter({ has: page.locator('dt', { hasText: new RegExp('^' + label + '$') }) }).locator('dd');

@@ -85,6 +85,24 @@ class MultirunExtractionTests(unittest.TestCase):
         with self.assertRaisesRegex(core.ExtractionError,'identities/closures'):self.extract(mutate_profile=lambda p:p['core']['currentRuns'][0].update(closureStatus='closed'))
     def test_profile_monthly_closure_cannot_be_moved_to_vacations(self):
         with self.assertRaisesRegex(core.ExtractionError,'Monthly payroll closure'):self.extract(mutate_profile=lambda p:p['source'].update(latestClosedMonthlyPayrollDate='2026-09-30'))
+    def test_final_settlement_of_exited_legajo_is_declared_not_rejected(self):
+        tables=fixtures();run={**tables['histocal'][0],'TIPO_31':'F','CIER_31':'1'};tables['histocal'].append(run)
+        tables['legajo'].append({'CODI_01':'101','LEGA_12':'3','FING_12':'2020-01-01','FEGR_12':'2026-09-15'})
+        tables['histolegajo'].append({**run,'ID':'3','LEGA_12':'3'})
+        def declare(p):
+            p['core']['currentRunTypes']=['F','M','O','V'];p['core']['expectedClosureStatusCounts']={'open':2,'closed':3}
+            p['core']['currentRuns'].insert(0,{'companyCode':'101','payrollDate':'2026-09-30','period':2026,'month':9,'payrollType':'F','closureStatus':'closed'})
+            p['core']['snapshotCohorts'].insert(0,{'period':2026,'month':9,'payrollDate':'2026-09-30','payrollType':'F','rows':1})
+            p['core']['expectedReconciliation']={'administrativeActive':2,'liquidatedCurrent':2,'activeAndLiquidated':1,'activeNotLiquidated':1,'liquidatedNotActive':1}
+        m,outputs=self.extract(tables,declare)
+        self.assertEqual(m['reconciliation']['liquidatedNotActive'],1)
+        exited=[r for r in outputs['employmentReconciliation'] if r['sourceKey']['employeeNumber']=='3'][0]
+        self.assertFalse(exited['administrativeActive']);self.assertTrue(exited['liquidatedCurrent']);self.assertEqual(exited['evidenceStatus'],'administrative_inactive')
+        # The same exited legajo inside a monthly run is still rejected.
+        tables2=fixtures();tables2['legajo'].append({'CODI_01':'101','LEGA_12':'3','FING_12':'2020-01-01','FEGR_12':'2026-09-15'})
+        tables2['histolegajo'].append({**tables2['histocal'][0],'ID':'3','LEGA_12':'3'})
+        with self.assertRaisesRegex(core.ExtractionError,'administratively inactive'):
+            self.extract(tables2,lambda p:(p['core']['snapshotCohorts'].__setitem__(0,{'period':2026,'month':9,'payrollDate':'2026-09-30','payrollType':'M','rows':2}),p['core']['expectedReconciliation'].update({'liquidatedCurrent':2,'liquidatedNotActive':1})))
     def test_unassigned_run_does_not_increase_snapshot_headcount(self):
         m,rows=self.extract();self.assertEqual(len(m['source']['currentPayrollRuns']),3)
         self.assertEqual(m['reconciliation']['liquidatedCurrent'],1)

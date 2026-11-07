@@ -49,14 +49,20 @@
     },
     payroll: {
       sectionId: 'nomina', title: 'Control de nómina',
+      // Monthly flow, in the order the work happens. Sidebar entries exist on every Liquidaciones screen;
+      // steps whose entry is folded or not allowed for the account are skipped automatically.
       tour: [
-        ['.page-head', 'Regla principal', 'La pantalla distingue claramente control operativo y publicación ejecutiva.'],
-        ['.notice', 'Advertencia de cierre', 'Una fecha reciente no implica que la liquidación esté cerrada.'],
-        ['#runsTitle', 'Corridas', 'Compará el último cierre con el período actualmente abierto.'],
-        ['#reconciliationTitle', 'Conciliación', 'Validá componentes y diferencia antes de usar el neto.'],
-        ['#auditTitle', 'Trazabilidad', 'Conservá fuente, regla y limitaciones junto con cada cifra.']
+        ['a[href="/novedades"], a[href^="/novedades-nomina"]', '1 · Novedades del mes', 'Cargá horas, adicionales, descuentos y licencias. Elegí el concepto de la lista y buscá a la persona por legajo o nombre.'],
+        ['[data-task="calculo"]', '2 · Calcular', 'Elegí período, tipo y alcance. Si falta algo, la pantalla te muestra qué y dónde resolverlo antes de calcular.'],
+        ['[data-task="decisiones"]', '3 · Revisar y confirmar', 'Revisá el resultado por persona y por concepto. Si hay un error, anulá y volvé a calcular; nada se pierde.'],
+        ['[data-task="cierre"]', '4 · Cerrar la liquidación', 'Al cerrar, el período queda firme y se habilitan recibos, banco y reportes oficiales.'],
+        ['[data-task="recibos"]', '5 · Recibos', 'Generá y descargá los recibos del período cerrado.'],
+        ['[data-task="banco"]', '6 · Archivo para el banco', 'Prepará el archivo de acreditación con el formato del banco, listo para subir.'],
+        ['[data-task="reportes"]', '7 · Reportes y exportes', 'Descargá reportes, aportes y descuentos por entidad en Excel o en el formato que pide cada organismo.'],
+        ['[data-task="parametros"], [data-task="reglas"]', 'Configuración', 'Maestro salarial y reglas de cálculo: los prepara quien administra y los aprueba otra persona antes de usarse.']
       ],
       explain: [
+        ['[data-own-coverage]', 'Qué falta para calcular', 'Lista en orden lo que falta (maestro, reglas, aprobación) con el botón al lugar exacto.'],
         ['.notice', 'Estado de corrida', 'Evita tratar una preliquidación como resultado financiero definitivo.'],
         ['#reconciliationTitle', 'Conciliación', 'Comprueba que los totales explícitos de GRH cierren dentro de tolerancia.'],
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
@@ -64,12 +70,13 @@
     },
     'payroll-novelties': {
       sectionId: 'novedades', title: 'Novedades de nómina',
+      // Current Novedades layout: three tabs; the guided form asks «¿A quién?» and «¿Qué novedad?».
       tour: [
-        ['.page-head', 'Alcance seguro', 'La aprobación sólo habilita una salida exportable; no calcula haberes ni escribe en GRH.'],
-        ['#entrySection', 'Carga y preflight', 'Prepará una fila o un CSV y corregí su estructura antes de crear un lote trazable.'],
-        ['#previewPanel', 'Previsualización', 'Revisá legajo, concepto, unidades, importe y observación antes de guardar.'],
-        ['#batchesTitle', 'Circuito de aprobación', 'Los comandos dependen del estado del lote y de las capacidades efectivas informadas por el backend.'],
-        ['#detailPanel', 'Detalle y exportación', 'Consultá validaciones y descargá únicamente lotes aprobados para exportar.']
+        ['#mcTab-cargar', 'Cargar novedades', 'La carga del mes: elegís personas y concepto, y queda lista para revisar y aprobar.'],
+        ['[data-n-search]', '1 · ¿A quién?', 'Escribí un legajo o un apellido. También podés pegar varios legajos separados por coma.'],
+        ['[data-n-concept]', '2 · ¿Qué novedad?', 'Buscá el concepto por código o por nombre en la lista de GRH; no hace falta saberlo de memoria.'],
+        ['#mcTab-fijas', 'Novedades fijas', 'Las que se repiten todos los meses hasta su vencimiento: altas, vigencias y bajas.'],
+        ['#mcTab-otras', 'Archivos y lotes anteriores', 'Importar planilla o TXT/CSV, preparte de relojes, y anular o corregir lotes ya cargados.']
       ],
       explain: [
         ['.boundary', 'Límite operativo', 'Esta etapa no modifica GRH, cálculo de haberes ni movimientos laborales.'],
@@ -311,6 +318,7 @@
     style.textContent = [
       '.mc-guide-button{min-height:44px;padding:8px 12px;border:1px solid #9fb1c1;border-radius:8px;background:#fff;color:#0b2940;font:750 12px/1.1 system-ui,sans-serif;cursor:pointer}',
       '.mc-guide-button:hover,.mc-guide-button:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.16);outline-offset:2px}',
+      '@media(min-width:521px){.mc-guide-button{white-space:nowrap}}',
       '.mc-guide-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:18px 0;padding:14px 16px;border:1px solid #b9d8d3;border-left:4px solid #0f766e;border-radius:10px;background:#f3faf8;color:#102f3f;font:500 13px/1.45 system-ui,sans-serif}',
       '.mc-guide-banner strong{display:block;margin-bottom:2px;color:#082b3d;font-size:14px}.mc-guide-banner-actions{display:flex;gap:8px;flex:0 0 auto}.mc-guide-banner button{min-height:42px;padding:8px 12px;border:1px solid #8ca8a4;border-radius:7px;background:#fff;color:#0b2940;font-weight:750;cursor:pointer}.mc-guide-banner button:first-child{border-color:#0f766e;background:#0f766e;color:#fff}',
       '.mc-guide-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(5,22,34,.42)}',
@@ -351,7 +359,8 @@
 
   function insertFirstVisitBanner() {
     state.seen = state.seen || {};
-    if (state.seen[PAGE_KEY]) return;
+    // «Ahora no» on any screen silences the first-visit banner for the rest of the session; the header help stays.
+    if (state.seen[PAGE_KEY] || state.bannersMuted) return;
     var main = document.querySelector('main');
     if (!main) return;
     var banner = document.createElement('section');
@@ -365,6 +374,7 @@
       startTour();
     });
     banner.querySelector('[data-mc-dismiss]').addEventListener('click', function () {
+      state.bannersMuted = true;
       acknowledgePage();
       banner.remove();
     });

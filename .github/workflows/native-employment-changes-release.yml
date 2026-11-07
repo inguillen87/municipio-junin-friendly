@@ -19,6 +19,8 @@ on:
       - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - 'vercel.json'
       - '.github/workflows/native-employment-changes-release.yml'
@@ -41,6 +43,8 @@ on:
       - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.github/workflows/native-employment-changes-release.yml'
 permissions:
   contents: read

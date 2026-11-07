@@ -1,5 +1,6 @@
 import './app-routes.js';
 import { createEmployeePicker } from './employee-picker.js';
+import { batchDecisionHint } from './payroll-novelty-batch-hint.js';
 import { noveltySelectionIssue } from './employee-picker-model.js';
 import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
@@ -173,6 +174,8 @@ function applyMonthlyLocks() {
   monthlyCorrection?.update();
   byId('refreshButton').disabled = busy || Boolean(monthlyDecisions?.inFlight()) || Boolean(monthlyAnnul?.inFlight()) || Boolean(monthlyCorrection?.inFlight());
   renderPreparationGuide();
+  // Releasing a lock restores the snapshot taken while it was active; the clock pre-report recomputes its own controls.
+  if (!busy && !pendingWrite && !monthlyLocked()) attendancePreparte?.refreshAccess?.();
 }
 function renderPreparationGuide() {
   const help = byId('prepareHelp');
@@ -617,6 +620,15 @@ function stateClass(status) {
     ? status : 'unknown';
 }
 
+function appendBatchHint(host, batch) {
+  const hint = batchDecisionHint(batch, bootstrapState?.principal);
+  if (!hint) return;
+  const note = document.createElement('small');
+  note.className = 'batch-hint' + (hint.yours ? ' is-yours' : '');
+  note.textContent = hint.text;
+  host.appendChild(note);
+}
+
 function renderBatches() {
   const batches = monthlyDecisions && !readBlocked ? monthlyDecisions.view()
     : Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
@@ -647,6 +659,7 @@ function renderBatches() {
     badge.className = `status ${stateClass(batch.status)}`;
     badge.textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status || 'Sin estado';
     status.appendChild(badge);
+    appendBatchHint(status, batch);
     tr.appendChild(status);
     const actionCell = document.createElement('td');
     if (hasCapability('payroll.novelty.nominal.read')) {
@@ -719,6 +732,7 @@ function renderBatchDetail(payload) {
   actions.replaceChildren();
   const commands = Array.isArray(batch.allowedCommands) ? batch.allowedCommands : [];
   byId('rejectReasonField').hidden = !commands.includes('reject');
+  appendBatchHint(actions, batch);
   for (const command of commands) actions.appendChild(createActionButton(batch, command));
   if (batch.canExport === true) {
     const excelButton = document.createElement('button');
@@ -734,7 +748,7 @@ function renderBatchDetail(payload) {
     csvButton.addEventListener('click', () => exportBatch(batch.id, 'csv'));
     actions.appendChild(csvButton);
   }
-  if (!actions.childElementCount) {
+  if (!actions.querySelector('button')&&!actions.querySelector('.batch-hint')) {
     const note = document.createElement('span');
     note.className = 'muted';
     note.textContent = 'No hay acciones habilitadas para esta sesión y estado.';
@@ -781,7 +795,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     }
     if (payload.sourceFeatures?.attendancePreparte !== true) attendancePreparte?.clear();
     fixedNovelties?.setAccess({capabilities:[...capabilitySet(payload.principal)],principalKey:principalKey(payload.principal)});
-    byId('sessionScope').textContent = capabilityText(payload.principal);
+    byId('sessionScope').textContent = capabilityText(payload.principal); byId('sessionScope').title = byId('sessionScope').textContent;
     byId('entrySection').hidden = !canPrepare || !mayRestore;
     byId('readOnlySection').hidden = canPrepare;
     byId('maxRows').textContent = String(payload.limits.maxRows);
@@ -796,8 +810,8 @@ async function loadBootstrap({ quiet = false } = {}) {
     if ([...select.options].some(option=>option.value===current)) select.value=current;
     if (handoffRequiresPayrollTypeSelection&&!current) select.value='';
     if (nativeSelected()) select.value='monthly';
-    renderBatches(); renderMonthlySubject();
-    renderAgileRows();sheetEditor?.render();
+    renderBatches(); renderMonthlySubject(); revealReviewableLegacyBatches();
+    renderAgileRows();sheetEditor?.render();attendancePreparte?.refreshAccess?.();
     byId('pageContent').hidden=false;byId('loadingState').hidden=true;
     if (selectedBatchId && hasCapability('payroll.novelty.nominal.read')) await openBatch(selectedBatchId,{quiet:true});
     if (changed) showMessage('info','La sesión o el ámbito cambió','Se descartó el borrador de la sesión anterior. Elegí nuevamente la persona antes de preparar.');
@@ -805,7 +819,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     if (!error.stale) {
       clearConsulted();
       byId('pageContent').hidden=false;byId('loadingState').hidden=true;
-      showMessage('error','No pudimos cargar novedades de nómina',errorMessage(error));
+      showMessage('error','No pudimos consultar los lotes anteriores',errorMessage(error));
     }
   } finally { if (!quiet) setBusy(false); }
 }
@@ -1359,6 +1373,54 @@ function syncAmountEntry() {
   applyMonthlyLocks();
 }
 
+function legacyNoveltyOperationPending() {
+  // Each tool seals pending before its mutating POST and retains it until an acknowledged or definitive outcome.
+  // busy/locked/inFlight also include GET, comparison and preview-only work; they do not identify an unconfirmed write.
+  return Boolean(pendingWrite)
+    || [monthlyDecisions, monthlyAnnul, monthlyCorrection].some(tool => Boolean(tool?.hasPending?.()));
+}
+
+function revealReviewableLegacyBatches() {
+  if (document.hidden || readBlocked || !['payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.approve'].every(capability => hasCapability(capability))) return false;
+  const batches = Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
+  const reviewable = batches.some(batch => batch.status === 'submitted' && Array.isArray(batch.allowedCommands)
+    && batch.allowedCommands.some(command => command === 'approve' || command === 'reject'));
+  if (reviewable) byId('noveltyReferenceWorkspace').open = true;
+  return reviewable;
+}
+
+// Links from «Pendientes de aprobación» land on the list itself: the page loads above it, so wait for the bootstrap.
+function revealBatchList() {
+  const section = byId('lotes'); if (!section) return;
+  byId('noveltyReferenceWorkspace').open = true;
+  requestAnimationFrame(() => {
+    section.scrollIntoView({ behavior: 'auto', block: 'start' });
+    section.classList.remove('is-arrived'); void section.offsetWidth; section.classList.add('is-arrived');
+    byId('batchesTitle')?.setAttribute('tabindex', '-1'); byId('batchesTitle')?.focus({ preventScroll: true });
+  });
+}
+
+function refreshNoveltyWorkspace() {
+  const reference = byId('noveltyReferenceWorkspace');
+  const ownPending = Boolean(ownBulkNovelties?.hasPending?.()), legacyPending = legacyNoveltyOperationPending();
+  if (ownPending && legacyPending) {
+    reference.open = true;
+    showMessage('info', 'Hay envíos pendientes en ambos espacios', 'Ambos intentos conservan su contenido y clave. No se actualizó ni reenvió ninguno: revisá y recuperá cada uno desde su espacio antes de iniciar otro envío.');
+    return;
+  }
+  // refresh only rechecks access and reads the own bootstrap; recovery/retry remains a separate explicit action.
+  if (ownPending) return ownBulkNovelties.refresh();
+  if (legacyPending) reference.open = true;
+  return reference.open ? loadBootstrap() : ownBulkNovelties?.refresh();
+}
+
+function keepPendingLegacyVisible(event) {
+  const disclosure = event.currentTarget;
+  if (disclosure.open || !legacyNoveltyOperationPending()) return;
+  disclosure.open = true;
+  showMessage('info', 'Hay una operación pendiente', 'Usá Detener o Recuperar según corresponda. Plegar no cancela la operación ni modifica el envío original.');
+}
+
 function initialize() {
   txtOptions = mountNoveltyTxtOptions(byId('bulkImportOptions'), ({encodingChanged}) => {
     invalidatePreparedDraft();
@@ -1402,6 +1464,7 @@ function initialize() {
   attendancePreparte = mountAttendancePreparte(byId('attendancePreparte'), {
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden &&
       hasCapability('payroll.novelty.prepare') && bootstrapState?.sourceFeatures?.attendancePreparte===true,
+    unavailableReason: () => hasCapability('payroll.novelty.prepare') && bootstrapState && bootstrapState.sourceFeatures?.attendancePreparte!==true ? 'source' : null,
     period: () => byId('periodMonth').value,
     payrollType: () => byId('payrollType').value,
     onDenied: error => { if(error.status===401){sheetEditor.clear();invalidatePreparedDraft();location.replace(LOGIN_URL);} },
@@ -1526,7 +1589,10 @@ function initialize() {
     const button = event.target.closest('button[data-agile-remove]');
     if (button) removeAgileRow(Number(button.dataset.agileRemove));
   });
-  byId('refreshButton').addEventListener('click', () => loadBootstrap());
+  byId('refreshButton').addEventListener('click', refreshNoveltyWorkspace);
+  const legacyDisclosures = new Set(['noveltyReferenceWorkspace', 'monthlyDecisions', 'monthlyAnnul', 'monthlyCorrection']
+    .map(id => byId(id)?.closest('details')).filter(Boolean));
+  for (const disclosure of legacyDisclosures) disclosure.addEventListener('toggle', keepPendingLegacyVisible);
   byId('logoutButton').addEventListener('click', logout);
   byId('closeDetail').addEventListener('click', () => {
     selectedBatchId = null;
@@ -1536,9 +1602,23 @@ function initialize() {
   byId('forced').addEventListener('change',syncAmountEntry);
   syncAmountEntry();
   updateMode();
-  if (!requestedMonthlyContract && !hasRequestedBatch) consumePayrollNoveltyHandoff();
-  loadBootstrap().then(()=> {
+  const handoffRestored = !requestedMonthlyContract && !hasRequestedBatch && consumePayrollNoveltyHandoff();
+  // The native daily workspace has its own access and full bootstrap. A legacy read must not block it.
+  byId('pageContent').hidden=false;byId('loadingState').hidden=true;
+  if (requestedMonthlyContract || hasRequestedBatch || handoffRestored) byId('noveltyReferenceWorkspace').open=true;
+  // Shortcuts open a folded section (and the sections around it) and bring it into view.
+  for (const jump of document.querySelectorAll('[data-novelty-jump]')) jump.addEventListener('click', () => {
+    const target = byId(jump.dataset.noveltyJump); if (!target) return;
+    for (let node = target; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+    target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    target.querySelector('summary')?.focus({ preventScroll: true });
+  });
+  // Owner decision 2026-11-05: the own roster and batches load on open and again when the page becomes visible.
+  const ownAutoRefresh=()=>{if(!document.hidden&&!ownBulkNovelties?.hasPending?.())ownBulkNovelties?.refresh();};
+  ownAutoRefresh();document.addEventListener('visibilitychange',ownAutoRefresh);
+  loadBootstrap({ quiet: true }).then(()=> {
     if (hasRequestedBatch) return openRequestedBatch();
+    if (['#lotes','#monthlyDecisions'].includes(location.hash)) revealBatchList();
     if (requestedMonthlyContract && CONTRACT_UUID.test(requestedMonthlyContract)) return chooseMonthlySubject(requestedMonthlyContract);
     if (requestedMonthlyContract) showMessage('error','El enlace no identifica un vínculo válido','Volvé a abrir la ficha de la persona y usá Preparar novedad mensual.');
   });

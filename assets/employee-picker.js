@@ -66,9 +66,11 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   document.body.append(dialog);
   const $=s=>dialog.querySelector(s),input=$('#'+instanceId+'Search'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]'),searchButton=$('[data-picker-form] button[type=submit]');
   let requestVersion=0,controller=null,selected=[],options=null,view=null,query='',busy=false,pendingPage=null,scopeKey=null,opener=null;
+  // Own roster read for searches inside this open window (up to one minute). Applying a selection always reads it again.
+  let rosterCache=null;const ROSTER_REUSE_MS=60000;
   function stop(){requestVersion++;controller?.abort();controller=null;busy=false;pendingPage=null;}
   function clearResults(){view=null;$('[data-picker-source]').hidden=true;$('[data-picker-source]').textContent='';results.replaceChildren();$('[data-picker-adoption-help]').hidden=true;$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}
-  function reset(){stop();selected=[];options=null;view=null;scopeKey=null;query='';input.value='';status.textContent='';clearResults();$('[data-picker-source]').textContent='';$('[data-picker-source]').hidden=true;$('[data-picker-login]').hidden=true;renderSelection();}
+  function reset(){stop();rosterCache=null;selected=[];options=null;view=null;scopeKey=null;query='';input.value='';status.textContent='';clearResults();$('[data-picker-source]').textContent='';$('[data-picker-source]').hidden=true;$('[data-picker-login]').hidden=true;renderSelection();}
   function close(){if(dialog.open)dialog.close();reset();if(opener?.isConnected&&!opener.disabled)opener.focus();opener=null;}
   function renderSelection(){
     searchButton.disabled=busy||!options||!canUse();searchButton.textContent=busy?'Buscando…':'Buscar';
@@ -96,7 +98,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   }
   function requireCurrentAccess(){
     if(canUse())return;
-    scopeKey=null;onDirectoryInvalidated();
+    scopeKey=null;rosterCache=null;onDirectoryInvalidated();
     throw Error('El acceso a esta carga cambió. Cerrá la búsqueda y revisá tu sesión.');
   }
   async function search(page=1){
@@ -109,7 +111,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     controller=new AbortController();const activeController=controller;const timer=native?null:setTimeout(()=>activeController.abort(),20000);
     try{
       let next;
-      if(native){const payload=await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();next=nativePayrollPickerView(payload,text,page);}
+      if(native){const reuse=rosterCache&&Date.now()-rosterCache.at<ROSTER_REUSE_MS;const payload=reuse?rosterCache.payload:await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;if(!reuse)rosterCache={at:Date.now(),payload};if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();next=nativePayrollPickerView(payload,text,page);}
       else{const response=await fetch(pickerQuery(text,page),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:activeController.signal});
       if(version!==requestVersion||!dialog.open||!options)return;
       if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');
@@ -129,6 +131,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
       $('[data-picker-pages]').hidden=p.pages<=1;$('[data-picker-previous]').disabled=p.page<=1;$('[data-picker-next]').disabled=p.page>=p.pages;
       status.textContent=(changed?'Cambió el corte de datos. Volvé a seleccionar los legajos. ':'')+(next.rows.length?`${p.total} coincidencia${p.total===1?'':'s'}. Elegí los legajos que necesitás.`:'No hay coincidencias activas para esta búsqueda. Revisá el nombre o legajo; no se agregaron históricos.');
     }catch(error){
+      if(native)rosterCache=null;
       if(version!==requestVersion||!dialog.open)return;
       selected=[];clearResults();status.textContent=error.name==='AbortError'?(native?'La consulta del padrón propio se interrumpió. Volvé a buscar; no se inició ningún cálculo.':'La consulta demoró demasiado. Volvé a buscar.'):error instanceof TypeError?'No se pudo consultar el directorio. Revisá la conexión y reintentá.':error.message;
     }finally{clearTimeout(timer);if(version===requestVersion){busy=false;pendingPage=null;controller=null;results.removeAttribute('aria-busy');renderSelection();renderRows();}}
@@ -147,7 +150,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     try{
       let items=[...selected];
       if(native){busy=true;controller=new AbortController();const activeController=controller;renderSelection();renderRows();status.textContent='Verificando el padrón completo y el acceso antes de usar la selección…';
-        const payload=await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();items=nativePayrollPickerSelection(payload,items,options);
+        const payload=await readNativeRoster({signal:activeController.signal});if(version!==requestVersion||!dialog.open||!options)return;rosterCache={at:Date.now(),payload};if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');requireCurrentAccess();items=nativePayrollPickerSelection(payload,items,options);
       }
       for(const item of items){const issue=selectionIssue(item);if(issue)throw Error(issue);}const use=options.onUse;use(items);close();
     }catch(error){if(version!==requestVersion||!dialog.open)return;if(native){selected=[];clearResults();}status.textContent=native&&error.name==='AbortError'?'La verificación se interrumpió. Volvé a buscar; no se inició ningún cálculo.':error.message;}

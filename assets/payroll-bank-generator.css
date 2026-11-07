@@ -7,3 +7,13 @@
 .pbg-reconcile summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px;font-weight:700;color:#164f48}.pbg-reconcile summary:before{content:'›';margin-right:10px;font-size:20px}.pbg-reconcile details[open]>summary:before{transform:rotate(90deg)}.pbg-reconcile details{padding-top:6px;border-top:1px solid #d1e0de}
 .pbg-reconcile :is(summary,[tabindex]):focus-visible{outline:3px solid #147b73;outline-offset:3px}.pbg-status{overflow-wrap:anywhere}.payroll-bank-generator .rc-downloads{flex-wrap:wrap;gap:10px}
 @media(max-width:650px){.pbg-reconcile{padding:14px}.pbg-review-grid{grid-template-columns:1fr;gap:8px}.pbg-review-grid>div{padding:13px}.pbg-review-grid strong{font-size:25px}.pbg-reconcile h3{font-size:17px}.payroll-bank-generator [data-pbg-export=package]{width:100%}}
+
+/* Planilla por banco: una tarjeta por banco con cantidad de cuentas y neto del filtro. */
+.payroll-bank-generator .pbg-banks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0 6px}
+.payroll-bank-generator .pbg-bank{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border:1px solid #c9dadd;border-radius:10px;background:#fff;color:#123c46;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}
+.payroll-bank-generator .pbg-bank strong{font-size:1rem}
+.payroll-bank-generator .pbg-bank span{font-size:.88rem;color:#4d6973}
+.payroll-bank-generator .pbg-bank:hover:not(:disabled){border-color:#1d6b78;box-shadow:0 2px 8px rgba(18,60,70,.12);transform:translateY(-1px)}
+.payroll-bank-generator .pbg-bank[aria-pressed="true"]{border-color:#0f5a66;background:#e9f4f5;box-shadow:inset 0 0 0 2px #0f5a66}
+.payroll-bank-generator .pbg-bank:disabled{opacity:.55;cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){.payroll-bank-generator .pbg-bank{transition:none}.payroll-bank-generator .pbg-bank:hover:not(:disabled){transform:none}}

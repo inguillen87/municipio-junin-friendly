@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 // Compiled local pages with synthetic API/SQL only. This does not replace the
 // existing published-route gate or certify a municipal session or calculation.
 import assert from 'node:assert/strict';
@@ -60,6 +61,7 @@ try{
   page.on('dialog',async dialog=>{dialogs.push(dialog.message());await dialog.accept();});
   await page.goto(origin+'/novedades-nomina.html?batchId='+saved.id);
   await page.locator('#savedReviewPanel:visible').waitFor();
+  assert.notEqual(await page.locator('#noveltyReferenceWorkspace').getAttribute('open'),null,'batch deep-link must open references without helper');
   assert.equal(await page.locator('#detailRows tr').count(),25);
   await page.locator('#savedReviewNext').click();await page.locator('#savedReviewNext').click();
   assert.match(await page.locator('#savedReviewRange').innerText(),/51–60 de 60/);
@@ -86,7 +88,7 @@ try{
   assert.equal(await page.locator('#detailRows tr').count(),0);assert.equal(posts.length,1);
   checks.push('nominal permission revocation retires every saved row and prevents another decision');
 
-  access=bootstrap();await page.goto(origin+'/novedades-nomina.html');
+  access=bootstrap();await page.goto(origin+'/novedades-nomina.html');await openNoveltyReferences(page);
   await page.locator('#preflightButton:enabled').waitFor();await page.locator('#periodMonth').fill('2026-09');
   const panel=page.locator('#attendancePreparte');await panel.locator('summary').click();await panel.locator('[data-ap-load]').click();
   await panel.locator('[data-ap-result]:visible').waitFor();
@@ -173,7 +175,10 @@ try{
   await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));await page.locator('#recheckAccess').click();await page.locator('#entryFields:enabled').waitFor();
   assert.equal(await page.locator('#savedBatchReview').isVisible(),false);assert.equal(await page.locator('#savedBatchLink').getAttribute('href'),null);assert.equal(writePosts().length,4);
   checks.push('pagehide recovery requires a fresh selection, withdraws the receipt link and never creates a new import automatically');
-  assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+  assert.deepEqual(errors,[]);
+  // No data persists in the browser. The only allowed entry is the Novedades tab the real tab click remembers (a UI preference).
+  const stored=await page.evaluate(()=>({local:Object.entries(localStorage),session:sessionStorage.length}));assert.equal(stored.session,0);
+  assert.ok(stored.local.every(([key,value])=>key==='mc.novedades.tab'&&['cargar','fijas','otras'].includes(value)),'unexpected browser storage: '+stored.local.map(([key])=>key).join(','));
   const result={ok:true,mode:'compiled-local',checksPassed:checks.length,checks,errors,syntheticApiOnly:true,municipalWrites:0,interceptedDecisions:1,importSyntheticCommits:syntheticImportCommits,importPostAttempts:writePosts().length,publishedRouteGateReplaced:false};
   fs.writeFileSync(out+'/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }catch(error){fs.writeFileSync(out+'/error.txt',String(error.stack));await page?.screenshot({path:out+'/failure.png',fullPage:true});throw error;}

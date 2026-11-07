@@ -8,7 +8,7 @@ const pinnedNode=fs.readFileSync(new URL('../.nvmrc',import.meta.url),'utf8').tr
 const input=()=>({pkg:structuredClone(pkg),lock:structuredClone(lock),pinnedNode,nodeVersion:'v24.21.0'});
 test('checked-in platform is stable, exact, integrity-pinned and reproducible',()=>{
   const r=verifyPlatformBaseline(input());assert.deepEqual(r.findings,[]);assert.equal(r.ok,true);
-  assert.equal(r.checkedDependencies,11);assert.equal(r.networkRequests,0);assert.equal(r.databaseWrites,0);
+  assert.equal(r.checkedDependencies,12);assert.equal(r.networkRequests,0);assert.equal(r.databaseWrites,0);
 });
 test('unsupported and prerelease runtimes fail closed',()=>{
   for(const nodeVersion of ['v20.20.0','v22.22.0','v26.9.0','v24.21.0-rc.1','latest',null,24])

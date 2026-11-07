@@ -16,6 +16,8 @@ MuniControl_Codex_Handoff*/
 *.sql.gz
 *.backup*
 *.txt
+!assets/vendor/fflate-0.8.3-LICENSE.txt
+!assets/fonts/inter-LICENSE.txt
 lookups.json
 transcripts_audios.json
 backend/
@@ -125,6 +127,7 @@ test_prisma.js
 !calidad-operativa.html
 !asistente.html
 !centro-ayuda.html
+!homologacion-desarrollo.html
 !assets/identity-security.css
 !scripts/migrations/005-tenant-identity-gateway.sql
 
@@ -402,3 +405,11 @@ local-agents/
 !scripts/migrations/189-own-monthly-participation-source.sql
 
 !scripts/migrations/190-municipal-owner-program-decision.sql
+
+# Schooling set-based reader (internal SQL implementation, HTTP v5 unchanged).
+!scripts/migrations/191-schooling-set-based-read.sql
+# Municipal rounding policy for new programme rules (owner decision 2026-11-05).
+!scripts/migrations/192-own-program-rounding-policy.sql
+!scripts/migrations/221-attendance-time-exception.sql
+!scripts/migrations/222-own-run-scope-fixes.sql
+!scripts/migrations/223-payroll-entity-export.sql

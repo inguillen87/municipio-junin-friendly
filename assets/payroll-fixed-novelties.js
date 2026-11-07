@@ -496,5 +496,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
+    // Already opened before this module listened (a #fixedNovelties link, or its tab): the toggle event is gone, mount now.
+    else if(shell.open&&!mounted){mount();if(!data&&!editor&&!busy)refresh();}
   }};
 }

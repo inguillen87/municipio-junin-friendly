@@ -62,7 +62,8 @@ test('new integration includes every old run, adoption and monthly check, preser
   for(const serverMajor of [17,18]){
     const qa=await buildAdoptedOwnRunQa({serverMajor});
     assert.equal(qa.report.ownRunChecksPassed,36);assert.equal(qa.report.adoptedMonthlyChecksPassed,30);
-    assert.equal(qa.report.checksPassed,919+qa.report.adoptedOwnRunChecksPassed);
+    assert.equal(qa.report.nativeCurrentDirectoryChecksPassed,35); // Original22 plus13 exact-legajo checks remain in the composed suite.
+    assert.equal(qa.report.checksPassed,919+13+qa.report.adoptedOwnRunChecksPassed);
     assert.ok(qa.sql.includes("current_database()<>'"+(serverMajor===17?'fixed_novelties_qa':'own_payroll_run_qa')+"'"));
     assert.ok(qa.sql.includes("current_setting('neon.project_id',true)"));assert.ok(qa.sql.trimEnd().endsWith('ROLLBACK;'));
     assert.ok(qa.sql.includes("SET LOCAL statement_timeout='300s';"));assert.ok(qa.sql.includes("SET LOCAL lock_timeout='2s';"));

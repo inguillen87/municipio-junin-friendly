@@ -75,8 +75,13 @@ on:
       - 'assets/workforce-*'
       - 'internal-dashboard.html'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/verify-workforce-operations-browser.mjs'
       - 'tests/internal-data-*'
+      - 'scripts/verify-management-analytics-postgres.mjs'
+      - 'tests/fixtures/management-analytics-*'
+      - 'tests/internal-management-analytics.test.js'
       - 'tests/internal-employees.test.js'
       - 'tests/employee-picker-api-058.test.js'
       - 'tests/native-employee.test.js'
@@ -112,6 +117,10 @@ on:
       - 'assets/payroll-document-catalog-filters.js'
       - 'tests/payroll-document-periods.test.js'
       - 'scripts/verify-payroll-document-filters-browser.mjs'
+      - 'api/internal-data.js'
+      - 'scripts/verify-management-analytics-postgres.mjs'
+      - 'tests/fixtures/management-analytics-*'
+      - 'tests/internal-management-analytics.test.js'
       - '.github/workflows/internal-read-recovery.yml'
   workflow_dispatch:
 permissions:
@@ -129,6 +138,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: selection-qa-only
           POSTGRES_DB: payroll_selection_qa
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d payroll_selection_qa"
           --health-interval 5s --health-timeout 5s --health-retries 8
@@ -157,6 +167,11 @@ jobs:
           set -euo pipefail
           node scripts/verify-absence-window-postgres.mjs --write-sql=verification/absence-window-qa.sql
           docker exec -e PGPASSWORD=selection-qa-only -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres -d payroll_selection_qa -v ON_ERROR_STOP=1 < verification/absence-window-qa.sql 2>&1 | tee verification/absence-window-qa.log
+      - name: Isolated PostgreSQL management comparison (single evaluation of the effective views)
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD=selection-qa-only ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres management_qa
+          node scripts/verify-management-analytics-postgres.mjs --dsn=postgresql://postgres:selection-qa-only@127.0.0.1:5432/management_qa --load=true --expected=tests/fixtures/management-analytics-expected.json | tee verification/management-analytics-qa.log
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Workforce browser acceptance with intercepted synthetic APIs

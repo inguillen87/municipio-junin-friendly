@@ -16,12 +16,15 @@
       "maxDuration": 20
     },
     "api/internal-data.js": {
-      "maxDuration": 20
+      "maxDuration": 60
     },
     "api/internal-employment-catalog.js": {
       "maxDuration": 20
     },
     "api/internal-actions.js": {
+      "maxDuration": 20
+    },
+    "api/internal-developer-homologation.js": {
       "maxDuration": 20
     },
     "api/internal-admin.js": {
@@ -37,7 +40,7 @@
       "maxDuration": 20
     },
     "api/internal-family-certificates.js": {
-      "maxDuration": 30,
+      "maxDuration": 60,
       "includeFiles": "{lib/internal-family-certificates.js,node_modules/pdfjs-dist/legacy/build/pdf*.mjs,node_modules/@napi-rs/canvas*/**}"
     },
     "api/internal-family-members.js": {
@@ -487,6 +490,10 @@
     {
       "source": "/tiempo",
       "destination": "/fuentes-tiempo.html"
+    },
+    {
+      "source": "/homologacion",
+      "destination": "/homologacion-desarrollo.html"
     },
     {
       "source": "/administracion",
@@ -1190,6 +1197,18 @@
       ]
     },
     {
+      "source": "/homologacion",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/homologacion-desarrollo.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
       "source": "/administracion",
       "headers": [
         {
@@ -1436,6 +1455,16 @@
     {
       "source": "/fuentes-tiempo",
       "destination": "/tiempo",
+      "permanent": false
+    },
+    {
+      "source": "/homologacion-desarrollo.html",
+      "destination": "/homologacion",
+      "permanent": false
+    },
+    {
+      "source": "/homologacion-desarrollo",
+      "destination": "/homologacion",
       "permanent": false
     },
     {

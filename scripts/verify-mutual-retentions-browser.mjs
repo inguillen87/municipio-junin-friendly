@@ -73,7 +73,7 @@ try {
     await page.screenshot({ path: path.join(out, name + '.png') });
   }
   await page.goto(origin + '/reportes-rrhh.html#resumen-mensual');
-  await panel.locator('[data-ms-catalog]').waitFor(); assert.equal(calls.filter(call => call.resource).length, 0);
+  await panel.locator('[data-ms-catalog]').waitFor(); assert.deepEqual(calls.filter(call => call.resource).map(call => call.resource + ':' + call.method), ['catalog:GET']); // 0b89ec09: only the catalog on entry
   await available(); await open(); assert.equal(await panel.locator('[data-mr-code]:checked').count(), 0); assert.equal(await panel.locator('[data-mr-export="xlsx"]').isDisabled(), true);
   checks.push('explicit source consultation; no monthly read on mount and no mutual concepts autoselected');
   await preset(); assert.equal(await panel.locator('[data-mr-code]:checked').count(), 10);
@@ -139,8 +139,12 @@ try {
   await preset(); await cancelledExport(() => panel.locator('[data-ms-id]:checked').first().uncheck());
   assert.equal(await panel.locator('[data-ms-result]').isVisible(), false); await consult();
   checks.push('changing mutual concepts or source datasets cancels an in-flight export and prevents late downloads');
+  const catalogsBefore = calls.filter(call => call.resource === 'catalog').length;
   await cancelledExport(() => page.evaluate(() => document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready'))));
-  assert.equal(await panel.locator('[data-ms-result]').isVisible(), false); assert.equal(await panel.locator('[data-ms-selection]').isVisible(), false);
+  assert.equal(await panel.locator('[data-ms-result]').isVisible(), false);
+  // 0b89ec09: a confirmed access re-reads the catalog at once, so the selection comes back from a fresh catalog, never the cached one.
+  await panel.locator('[data-ms-selection]').waitFor();
+  assert.ok(calls.filter(call => call.resource === 'catalog').length > catalogsBefore);
   checks.push('capability or tenant refresh cancels export and clears the cached report and catalog');
   await available(); await panel.locator('[data-mr-clear]').click(); assert.equal(await panel.locator('[data-mr-rows] tr').count(), 0); assert.equal(await panel.locator('[data-mr-export="pdf"]').isDisabled(), true);
   checks.push('clearing all concepts removes totals and disables downloads');

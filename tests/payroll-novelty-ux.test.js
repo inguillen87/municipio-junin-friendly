@@ -29,8 +29,8 @@ test('Novedades ofrece carga individual, rápida y masiva con preflight, circuit
   assert.match(html, /Excel de revisión/);
   assert.match(html, /CSV es la salida técnica/);
   assert.match(html, /assets\/payroll-novelty-workbench\.js/);
-  assert.match(html, /no escribe <code>GRH<\/code>/i);
-  assert.match(html, /no toca <code>calculo<\/code> ni <code>employment_movement<\/code>/i);
+  assert.doesNotMatch(html, /Límite operativo explícito|<code>calculo<\/code>|<code>employment_movement<\/code>/);
+  assert.match(html, /id="pageTitle">Cargar novedades de nómina/);
   assert.doesNotMatch(html, /datos\s+(?:mock|simulados)|modo\s+demo/i);
 });
 

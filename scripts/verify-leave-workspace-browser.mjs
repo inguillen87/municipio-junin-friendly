@@ -70,6 +70,7 @@ try {
   await input.fill('antiguedad');
   assert.equal(await workspace.locator('.lr-rule').count(), 1);
   await workspace.locator('summary').click();
+  await workspace.locator('.lr-detail').filter({ hasText: /Referencia informada\s*0/ }).waitFor(); // sections open with a short animation
   assert.match(await workspace.locator('.lr-detail').innerText(), /Referencia informada\s*0/);
   await categories.getByRole('button', { name: 'Requieren validación', exact: true }).click();
   assert.equal(await workspace.locator('.lr-rule').count(), 0);

@@ -53,10 +53,27 @@ const atoms=v=>{need(typeof v==='string'&&/^(0|[1-9][0-9]{0,17})(\.[0-9]{1,18})?
 const amount=v=>{const sign=v<0n?'-':'';if(v<0n)v=-v;const digits=v.toString().padStart(19,'0'),tail=digits.slice(-18).replace(/0+$/,'');return sign+digits.slice(0,-18)+(tail?'.'+tail:'');};
 function selectedNorm(v){return v.annual.proposals.find(p=>p.status==='approved'&&p.decision.revision===v.revision);}
 export function positionComparisonSummary(v,filters=emptyPositionComparisonFilters()){
- const f=positionComparisonFilters(filters),norm=selectedNorm(v),rows=positionComparisonRows(v,f),codes=new Set(norm.body.definition.rows.map(r=>r.code)),globalIncomplete=!v.groups.length||rows.some(r=>r.rowCode===null||!codes.has(r.rowCode)||f.active!=='all'&&r.activeInPeriod===null);
- return norm.body.definition.rows.map(n=>{const selected=rows.filter(r=>r.rowCode===n.code);
-  const exact=selected.filter(r=>r.coverage==='full'&&r.budgetRevision===v.revision&&r.normative?.approvalId===norm.decision.id&&r.normative?.proposalId===norm.id&&r.normative?.row.unit===n.unit&&(f.active==='all'||r.activeInPeriod===(f.active==='yes')));
-  const complete=!globalIncomplete&&selected.length===exact.length,creditedAtoms=exact.reduce((sum,r)=>sum+atoms(r.quantity),0n),credited=amount(creditedAtoms);return {code:n.code,label:n.label,unit:n.unit,budgeted:n.quantity,credited,difference:complete?amount(atoms(n.quantity)-creditedAtoms):null,complete,observations:selected.length-exact.length};
+ const f=positionComparisonFilters(filters);
+ const norm=v.annual.proposals.find(p=>p.status==='approved'&&p.decision.revision===v.revision);
+ const rows=positionComparisonRows(v,f);
+ const normativeRows=norm.body.definition.rows;
+ const normByCode=new Map(normativeRows.map(n=>[n.code,n]));
+ const grouped=new Map();let globalIncomplete=!v.groups.length;
+ for(const r of rows){
+  if(r.rowCode===null||!normByCode.has(r.rowCode)||(f.active!=='all'&&r.activeInPeriod===null))globalIncomplete=true;
+  // Rows outside the chosen normative version still affect global completeness.
+  const n=normByCode.get(r.rowCode);if(!n)continue;
+  let slot=grouped.get(r.rowCode);
+  if(!slot){slot={selected:0,exact:0,creditedAtoms:0n};grouped.set(r.rowCode,slot);}
+  slot.selected++;
+  if(r.coverage==='full'&&r.budgetRevision===v.revision&&r.normative?.approvalId===norm.decision.id&&r.normative?.proposalId===norm.id&&r.normative?.row.unit===n.unit&&(f.active==='all'||r.activeInPeriod===(f.active==='yes'))){
+   slot.exact++;slot.creditedAtoms+=atoms(r.quantity);
+  }
+ }
+ return normativeRows.map(n=>{
+  const s=grouped.get(n.code),selected=s?.selected??0,exact=s?.exact??0,creditedAtoms=s?.creditedAtoms??0n;
+  const complete=!globalIncomplete&&selected===exact;
+  return {code:n.code,label:n.label,unit:n.unit,budgeted:n.quantity,credited:amount(creditedAtoms),difference:complete?amount(atoms(n.quantity)-creditedAtoms):null,complete,observations:selected-exact};
  });
 }
 const state=r=>r.activeInPeriod===null?'No conservado':r.activeInPeriod?'Sí':'No';

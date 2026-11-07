@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Full workbench acceptance. Every API call, including writes, is intercepted in this test browser. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,7 +43,7 @@ try{
    return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream',body:fs.readFileSync(file)});
  });
  const page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));
- await page.goto(origin+(live?build.url('novedades-nomina.html').pathname:'/novedades-nomina.html'));await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
+ await page.goto(origin+(live?build.url('novedades-nomina.html').pathname:'/novedades-nomina.html'));await openNoveltyReferences(page);await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
  await page.locator('[name=sourceMode][value=agile]').check();
  await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('44');
  assert.equal(await page.locator('input[type=file]:visible').count(),0);

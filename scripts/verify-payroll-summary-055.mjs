@@ -7,10 +7,32 @@ import {syntheticEmployee as employee, syntheticSummaries} from './payroll-summa
 
 const live=process.env.SUMMARY_LIVE_ASSETS==='1';
 const origin=live?'https://municipio-junin-friendly.vercel.app':(process.env.SUMMARY_TEST_ORIGIN||'https://municontrol.test');
-const root=path.resolve(process.env.SUMMARY_ROOT||'public'),out=path.resolve('verification/summary-055'+(live?'-published':''));
-fs.mkdirSync(out,{recursive:true});
+const outputArgs=process.argv.slice(2);assert.ok(outputArgs.length<=1&&outputArgs.every(arg=>arg.startsWith('--output=')),'UNKNOWN_ARGUMENT');
+function freshOutput(relative){
+ assert.ok(/^verification\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?\/)*[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$/.test(relative),'--output must be verification/<fresh relative path>');
+ const parts=relative.split('/');
+ assert.ok(parts.every(part=>!(/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(part))),'Windows device names are not output directories');
+ const repo=fs.realpathSync(new URL('../',import.meta.url));
+ const within=p=>{const location=path.relative(repo,fs.realpathSync(p));assert.ok(location!==''&&!path.isAbsolute(location)&&location!=='..'&&!location.startsWith('..'+path.sep),'Output escapes repository');};
+ let parent=repo;
+ for(const part of parts.slice(0,-1)){
+  const next=path.join(parent,part);let entry;
+  try{entry=fs.lstatSync(next);}catch(error){if(error.code!=='ENOENT')throw error;}
+  if(entry)assert.ok(entry.isDirectory()&&!entry.isSymbolicLink(),'Output parent must be a regular directory, without symlinks');
+  else fs.mkdirSync(next);
+  const current=fs.lstatSync(next);assert.ok(current.isDirectory()&&!current.isSymbolicLink(),'Output parent cannot be replaced with a symlink');within(next);parent=next;
+ }
+ const target=path.join(parent,parts.at(-1));let existing;
+ try{existing=fs.lstatSync(target);}catch(error){if(error.code!=='ENOENT')throw error;}
+ assert.equal(existing,undefined,'Preserve prior browser evidence: output already exists');
+ fs.mkdirSync(target);
+ assert.ok(fs.lstatSync(target).isDirectory()&&!fs.lstatSync(target).isSymbolicLink(),'Output must be a fresh regular directory');within(target);
+ return target;
+}
+const root=path.resolve(process.env.SUMMARY_ROOT||'public'),out=outputArgs.length?freshOutput(outputArgs[0].slice(9)):path.resolve('verification/summary-055'+(live?'-published':''));
+if(!outputArgs.length)fs.mkdirSync(out,{recursive:true});
 const items=syntheticSummaries(),requests=[],checks=[],errors=[];
-let transient=true,drift=false,denied=false,slow=false,downloads=0,slowResponse=null,releaseSlowResponse=null;
+let directoryReads=0,transient=true,drift=false,denied=false,slow=false,downloads=0,slowResponse=null,releaseSlowResponse=null;
 const operational={version:'workforce-operational.v1',selectedStatus:'administrative_active',totalContracts:1,totalPeople:1,activeContracts:1,activePeople:1,payrollIncluded:1,activeOutsidePayroll:0,inactiveContracts:0,stateErrorContracts:0,unknownContracts:0,multipleActiveContracts:0,multipleActivePeople:0,lastClosedContracts:1,lastClosedMonth:'2026-07-01',sourceCutoffFrom:'2026-08-06T18:15:21Z',sourceCutoffTo:'2026-08-06T18:15:21Z',snapshotFrom:'2026-08-31',snapshotTo:'2026-08-31'};
 const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
 try {
@@ -27,7 +49,7 @@ try {
     const resource=url.searchParams.get('resource');
     let payload={ok:true,data:[]};
     if(url.pathname==='/api/internal-auth')payload={ok:true,authenticated:true,user:{name:'Operador sintético QA',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['workforce.employee.read','workforce.summary.read','payroll.read'],platformCapabilities:[],platformRoles:[]}};
-    else if(resource==='employees')payload={ok:true,data:[employee],pagination:{page:1,limit:25,total:1,pages:1},scope:{totalContracts:1,totalPeople:1,matched:1,ambiguous:0,unmatched:0},operational,facets:{sectors:[],organizations:[],agreements:[]}};
+    else if(resource==='employees'){directoryReads++;payload={ok:true,data:[employee],pagination:{page:1,limit:25,total:1,pages:1},scope:{totalContracts:1,totalPeople:1,matched:1,ambiguous:0,unmatched:0},operational,facets:{sectors:[],organizations:[],agreements:[]}};}
     else if(resource==='employee')payload={ok:true,data:{...employee,employmentHistory:[],ausencias:[],licencias:[],familiares:[],movements:[],personas:{available:false}},meta:{}};
     else if(resource==='employeepayroll') {
       const query=Object.fromEntries(url.searchParams);requests.push(query);
@@ -45,6 +67,11 @@ try {
   const page=await context.newPage();page.setDefaultTimeout(20000);
   page.on('pageerror',error=>errors.push(error.message));page.on('download',()=>downloads++);
   await page.goto(origin+'/internal-dashboard.html#legajos');
+  const directory=page.locator('#employeeHistory');assert.equal(await directory.evaluate(n=>n.open),false);assert.equal(directoryReads,0);
+  await directory.locator('summary').first().click();assert.equal(directoryReads,0);
+  await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).first().waitFor();assert.equal(directoryReads,1);
+  checks.push('payroll history starts from one explicit reference-directory query and never loads the archive automatically');
   await page.locator('#employeeRows button').first().click();
   await page.getByRole('button',{name:'Ver liquidaciones',exact:true}).click();
   const history=page.locator('#employeePayrollHistory'),cards=history.locator('.payroll-card');

@@ -60,8 +60,10 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
   if(draft?.entity)for(const key of ['reasonCode','durationUnit']){const n=$('[data-nleave-field="'+key+'"]');if(n)n.disabled=true;}
   if(draft?.kind==='profile'){const n=$('[data-nleave-field="entitledUnits"]');if(n)n.disabled=busy||!!pending||draft.values.mode!=='confirmed';}
  }
- async function request(url,options={}){
+ async function request(url,options={},attempt=0){
   const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});let d;try{d=await r.json();}catch{throw issue('CONTRACT_INVALID',503);}
+  // A read that meets another operation on the same legajo (BUSY) is repeated a few times before showing an error.
+  const code=String(d?.code??'');if(r.status===409&&/BUSY$/.test(code)&&(!options.method||options.method==='GET')&&attempt<3){await new Promise(done=>setTimeout(done,400+600*attempt));if(controller.signal.aborted)throw new DOMException('Consulta descartada','AbortError');return request(url,options,attempt+1);}
   if(!r.ok||d?.ok!==true)throw issue(String(d?.code??'UNAVAILABLE').replace(/^NATIVE_LEAVE_/,''),r.status,typeof d?.error==='string'?d.error:null);return d.data??d;
  }
  async function authority(seq){
@@ -71,8 +73,15 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
   if(state.actor&&state.actor!==actor){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
   state.actor=actor;authorityCaps=caps;
  }
+ // A read that meets another section's short lock (55P03/40001 → BUSY) is retried quietly; only a persistent conflict is shown.
+ async function readBootstrap(seq){
+  for(let attempt=0;;attempt++){
+   try{return await request(api+'?'+new URLSearchParams({resource:'bootstrap',contractId}));}
+   catch(error){if(error?.code!=='BUSY'||attempt>=3||!valid(seq))throw error;await new Promise(done=>setTimeout(done,350*(attempt+1)+Math.floor(Math.random()*200)));if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');}
+  }
+ }
  async function fresh(seq){
-  const b=validateNativeLeaveBootstrap(await request(api+'?'+new URLSearchParams({resource:'bootstrap',contractId})),contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
+  const b=validateNativeLeaveBootstrap(await readBootstrap(seq),contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
   if(selfService&&(b.permissions.canProposeProfile||[...b.requests,...b.profileProposals].some(row=>row.canReview)))throw issue('CONTRACT_INVALID',503);
   if(state.scope&&state.scope!==b.scopeVersion){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
   state.scope=b.scopeVersion;bootstrap=b;return b;

@@ -1,0 +1,22 @@
+/* MuniControl chart cards: shared by every screen that draws with assets/mc-charts.js. */
+.mc-chart-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;margin:16px 0}
+.mc-chart-card{margin:0;display:flex;flex-direction:column;gap:6px;padding:16px 18px 12px;border:1px solid var(--line,#d7dfdc);border-radius:16px;
+ background:linear-gradient(180deg,var(--surface,#fff) 0%,var(--surface-2,#f7f8f7) 100%);box-shadow:0 1px 2px rgba(18,50,71,.05),0 10px 28px -18px rgba(18,50,71,.35);
+ transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease;animation:mc-card-in .5s cubic-bezier(.2,.8,.2,1) both}
+.mc-chart-card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(18,50,71,.06),0 18px 36px -20px rgba(18,50,71,.45)}
+.mc-chart-card figcaption{display:flex;flex-direction:column;gap:2px}
+.mc-chart-card figcaption strong{font-size:14px;font-weight:700;color:var(--navy,#123247);letter-spacing:-.01em}
+.mc-chart-card figcaption strong::before{content:'';display:inline-block;width:8px;height:8px;margin:0 8px 1px 0;border-radius:50%;background:linear-gradient(135deg,#0f766e,#69d3c5);box-shadow:0 0 0 3px rgba(15,118,110,.12);vertical-align:middle}
+.mc-chart-card figcaption span{font-size:12px;color:var(--muted,#5d6f78)}
+.mc-chart{position:relative;width:100%;height:260px;border-radius:12px}
+.mc-chart-card[data-size=sm] .mc-chart{height:200px}.mc-chart-card[data-size=lg] .mc-chart{height:340px}.mc-chart-card[data-size=xl] .mc-chart{height:420px}
+.mc-chart[data-loading=true]{background:linear-gradient(100deg,rgba(15,118,110,.05) 20%,rgba(15,118,110,.14) 40%,rgba(15,118,110,.05) 60%);background-size:220% 100%;animation:mc-shimmer 1.3s linear infinite}
+.mc-chart[data-loading=error]::after{content:'El gráfico no pudo cargarse; los datos siguen disponibles en la tabla.';position:absolute;inset:0;display:grid;place-items:center;padding:16px;text-align:center;font-size:12px;color:var(--muted,#5d6f78)}
+@keyframes mc-shimmer{to{background-position:-120% 0}}
+@keyframes mc-card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mc-chart-card,.mc-chart[data-loading=true]{animation:none}.mc-chart-card:hover{transform:none}}
+/* The shell is light-only: dark cards only when a page opts in explicitly. */
+:root[data-theme=dark] .mc-chart-card{background:linear-gradient(180deg,#14232b 0%,#101c22 100%);border-color:#2c3e46}
+:root[data-theme=dark] .mc-chart-card figcaption strong{color:#e6eef0}
+@media (max-width:640px){.mc-chart{height:230px}.mc-chart-card{padding:14px 12px 10px}}
+.nr-charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));margin:12px 0 16px}
