@@ -47,6 +47,10 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   globalThis.mcSectionTabsReveal = node => reveal(node, true);
   document.addEventListener('click', e => { const jump = e.target.closest?.('[data-novelty-jump],[data-tab-jump]'); if (!jump) return; const target = document.getElementById(jump.dataset.noveltyJump || jump.dataset.tabJump); if (target) globalThis.mcSectionTabsReveal(target); }, true);
   const observer = new MutationObserver(refresh); for (const t of items) for (const n of t.nodes()) observer.observe(n, { attributes: true, attributeFilter: ['hidden'] });
+  // Modules that mount later may replace a panel's whole className (e.g. the own-novelties shell): keep the tab state on it,
+  // or a block from another tab shows under the selected one.
+  const keep = new MutationObserver(() => { if (current === null) return; for (const t of items) for (const n of t.nodes()) { const off = t.id !== current; if (n.classList.contains('mc-tab-off') !== off) n.classList.toggle('mc-tab-off', off); } });
+  for (const t of items) for (const n of t.nodes()) keep.observe(n, { attributes: true, attributeFilter: ['class'] });
   addEventListener('resize', place, { passive: true });
   const asked = typeof initial === 'function' ? initial() : null; if (asked && items.some(t => t.id === asked)) wanted = asked;
   if (!wanted) restore = memory.get();
