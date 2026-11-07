@@ -63,9 +63,13 @@ try {
     await page.locator('#task-biblioteca').waitFor({ state: 'visible' });
   }
   await page.getByRole('tab', { name: 'Biblioteca', exact: true }).focus();
-  await page.keyboard.press('ArrowRight');
+  // Since e7726ebe the index is one vertical tablist per area: arrows move inside an area, Tab reaches the next
+  // area (its summary, then its reachable tab). Biblioteca stands alone, so Tab leads to «Nómina».
+  let nextPanel = null;
+  for (let step = 0; step < 4 && !nextPanel; step++) { await page.keyboard.press('Tab'); nextPanel = await page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab' ? document.activeElement.getAttribute('aria-controls') : null); }
+  assert.ok(nextPanel && nextPanel !== 'task-biblioteca', 'keyboard reaches the next report tab: ' + nextPanel);
   await page.keyboard.press('Enter');
-  assert.equal(await page.locator('#task-analizar').isVisible(), true);
+  await page.locator('#' + nextPanel).waitFor({ state: 'visible' });
   await page.goBack();
   await page.locator('#task-biblioteca').waitFor({ state: 'visible' });
   checks.push('schooling, bank and monthly summary cards keep hashes, browser back and existing keyboard tabs');
