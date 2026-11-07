@@ -139,7 +139,8 @@ try{
   await page.waitForFunction(()=>{const n=document.querySelector('#employeeDialog'),r=n?.getBoundingClientRect();return r&&r.left>=0&&r.right<=innerWidth+1&&n.scrollWidth<=n.clientWidth+1;});
   await page.evaluate(()=>window.__nativeFamilyFrame={stable:0});
   await page.waitForFunction(()=>{const card=document.querySelector('[data-family-schooling-ficha] .fs-child'),body=card?.closest('.dialog-body');if(!body)return false;
-   const nav=body.querySelector('.employee-section-nav'),top=Math.max(body.getBoundingClientRect().top,nav?.getBoundingClientRect().bottom??0)+12;
+   // The ficha's floating section dock (a90ddcfc) overlays the top of the scrolled body: read the card below it.
+   const nav=body.querySelector('.employee-section-nav'),dock=body.querySelector('.esn-dock.is-on .esn-dock-bar'),top=Math.max(body.getBoundingClientRect().top,nav?.getBoundingClientRect().bottom??0,dock?.getBoundingClientRect().bottom??0)+12;
    const wanted=body.scrollTop+card.getBoundingClientRect().top-top,max=Math.max(0,body.scrollHeight-body.clientHeight);body.scrollTo({top:Math.max(0,Math.min(max,wanted)),behavior:'instant'});
    const r=card.getBoundingClientRect(),state=window.__nativeFamilyFrame,geometry=[r.top,r.width,r.height,body.scrollTop,top];
    const visible=r.top>=top-1&&r.top+30<Math.min(body.getBoundingClientRect().bottom,innerHeight)&&card.contains(document.elementFromPoint(r.left+r.width/2,r.top+20));
@@ -149,7 +150,7 @@ try{
   const geometry=await family.evaluate(n=>({width:n.clientWidth,scrollWidth:n.scrollWidth,overflow:[...n.querySelectorAll('*')].filter(x=>x.getBoundingClientRect().right>n.getBoundingClientRect().right+1).map(x=>({tag:x.tagName,cls:x.className,width:x.clientWidth,scrollWidth:x.scrollWidth})).slice(0,8)}));
   await page.locator('#employeeDialog').screenshot({path:path.join(out,'family-'+width+'-synthetic.png')});assert.ok(geometry.scrollWidth<=geometry.width+1,JSON.stringify({viewport:width,...geometry}));}
 
- await page.goto(origin+'/personal#legajos');await page.getByRole('button',{name:'Nuevo legajo',exact:true}).click();
+ await page.goto(origin+'/personal#legajos');await page.locator('button[data-employee-create]').click();/* the floating «Gestión» bar repeats «Nuevo legajo» */
  const create=page.locator('dialog.native-employee-dialog');await create.locator('[name="fullName"]:enabled').waitFor();const values=draft({jurisdictionCode:'42',fullName:subject.employeeName,startDate:'2026-09-22'});
  for(const name of ['fullName','dni','cuil','birthDate','legajo','startDate','jobTitle','legalReference'])await create.locator('[name="'+name+'"]').fill(values[name]);
  for(const name of ['agreementCode','categoryCode','organizationId','sectorCode','jurisdictionCode'])await create.locator('[name="'+name+'"]').selectOption(values[name]);
