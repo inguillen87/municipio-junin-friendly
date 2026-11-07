@@ -3151,12 +3151,30 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, searchSql = '') {
+function mixedStatusCanaryEnabled(env, before, principal) {
+  // Explicit single managed tenant only. No frontend switch and no default when the tenant pin is absent.
+  const tenant=env.MUNICONTROL_MIXED_DIRECTORY_STATUS_TENANT_ID;
+  return env.MUNICONTROL_MIXED_DIRECTORY_STATUS_BATCH==='1'
+    && typeof tenant==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(tenant)
+    && tenant===before?.scope?.tenantId && tenant===principal?.tenant?.id && principal.tenant.source==='membership'
+    && typeof before.scope.membershipId==='string' && before.scope.membershipId===principal.tenant.membershipId;
+}
+
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, searchSql = '', mixedStatusBatch = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
       FROM grh_effective_employees_v1
-    ), ${searchSql ? `search_contracts AS MATERIALIZED (
+    ), ${mixedStatusBatch ? `mixed_native_ids AS MATERIALIZED (
+      SELECT ARRAY(SELECT c.id FROM employment_contract c JOIN person_identity i ON i.id=c.person_id
+        WHERE c.tenant_id=$3::uuid AND c.legacy_company_id=$2::bigint AND c.source_system='MUNICONTROL'
+        ORDER BY c.id LIMIT 2049) AS ids
+    ), mixed_native_work AS MATERIALIZED (
+      SELECT ids FROM mixed_native_ids WHERE cardinality(ids) BETWEEN 1 AND 2048
+    ), mixed_native_status AS MATERIALIZED (
+      SELECT s.contract_id,s.administrative_status FROM mixed_native_work w
+      CROSS JOIN LATERAL public.native_employee_mixed_status_by_ids_v1($4::jsonb,w.ids) s
+    ), ` : ''}${searchSql ? `search_contracts AS MATERIALIZED (
       -- Search fast path: the expensive per-contract projections run only for the contracts whose
       -- name, legajo, DNI or CUIL match (the same expressions the directory exposes).
       SELECT contract.id FROM employment_contract contract
@@ -3225,7 +3243,12 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
-      ${lifecycleBound ? "LEFT JOIN LATERAL (SELECT "+(currentNativeRead?"public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract'":"public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id)")+" AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
+      ${mixedStatusBatch ? `LEFT JOIN mixed_native_status mx ON mx.contract_id=contract.id
+      LEFT JOIN LATERAL (SELECT CASE WHEN mx.contract_id IS NOT NULL
+         THEN jsonb_build_object('status',mx.administrative_status)
+         ELSE public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract' END AS data
+        WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true` :
+      lifecycleBound ? "LEFT JOIN LATERAL (SELECT "+(currentNativeRead?"public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract'":"public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id)")+" AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN directory_employees employee
         ON employee.company_id = contract.legacy_company_id
@@ -3336,7 +3359,11 @@ export async function employees(sql, req, binding = null, options = {}) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),searchSql));
+  // Only the ordinary full mixed opening. Search, picker and diagnostics keep their deployed SQL.
+  const mixedStatusBatch = options.mixedStatusBatch === true && options.currentNativeRead === true && !options.nativeOnly
+    && Boolean(binding?.lifecycleContext && binding?.tenantId) && !picker && !search && !sector && !organization && !agreement
+    && status === 'administrative_active' && crosswalk === 'all' && includeFacets && includeScope && page === 1 && limit === 25;
+  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),searchSql,mixedStatusBatch));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -4222,7 +4249,7 @@ export function createInternalDataHandler(dependencies = {}) {
           return await respond(probed.status===200?200:probed.status,probed.status===200?{ok:true,probe:{query:probe,durationMs,total}}:probed.payload);
         }
         const before=nativeRead?await readPhase('native_before', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding)):null;
-        const result = await readPhase('directory', () => employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'}));
+        const result = await readPhase('directory', () => employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed',mixedStatusBatch:mixedStatusCanaryEnabled(env,before,access.principal)}));
         if(nativeRead){const after=await readPhase('native_after', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding));if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
         return await respond( result.status, result.payload);
       }
