@@ -165,12 +165,11 @@ try{
  const directoryReads=()=>requests.filter(r=>r.path==='/api/internal-data'&&r.method==='GET'&&r.resource==='employees').length;
  const historyEntry=page.locator('#employeeHistory'),beforeDirectory=directoryReads();
  assert.equal(beforeDirectory,0);assert.equal(await historyEntry.evaluate(n=>n.open),false);
+ // Owner decision 2026-11-05 (ce7eb9cc): opening «Antecedentes» is the explicit entry and consults once.
  await historyEntry.locator('summary').first().click();
- assert.equal(directoryReads(),beforeDirectory,'OPENING_HISTORY_MUST_NOT_QUERY');
- await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Hijos y certificados'));
- assert.equal(directoryReads(),beforeDirectory+1,'ONE_EXPLICIT_DIRECTORY_QUERY');
- checks.push('native family reopen uses the real complementary entry and one explicit search, with no automatic directory read');
+ assert.equal(directoryReads(),beforeDirectory+1,'ONE_DIRECTORY_QUERY_PER_ENTRY');
+ checks.push('native family reopen uses the real complementary entry, which consults the directory exactly once');
  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await ready();
  // Closing the dialog retains the uncertain attempt in memory. Recovery is a
  // scoped GET; if the UI already resolved it on reopen no extra click is needed.
