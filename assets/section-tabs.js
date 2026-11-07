@@ -12,7 +12,7 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   const nav = document.createElement('nav'); nav.className = 'mc-section-tabs'; nav.setAttribute('aria-label', label);
   const list = document.createElement('div'); list.setAttribute('role', 'tablist'); nav.append(list);
   const indicator = document.createElement('span'); indicator.className = 'mc-section-tabs-ink'; indicator.setAttribute('aria-hidden', 'true'); list.append(indicator);
-  let current = null, wanted = null, chosen = false;
+  let current = null, wanted = null, chosen = false, restore = null;
   const buttons = items.map((t, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'mcTab-' + t.id; b.dataset.tab = t.id;
     const name = document.createElement('span'); name.textContent = t.label; b.append(name);
@@ -28,7 +28,7 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   function place() { const b = buttons.find(x => x.dataset.tab === current); if (!b || b.hidden) { indicator.style.opacity = '0'; return; } indicator.style.opacity = '1'; indicator.style.width = b.offsetWidth + 'px'; indicator.style.transform = `translateX(${b.offsetLeft}px)`; }
   function activate(id, remember) {
     const tab = items.find(t => t.id === id && usable(t)) ?? items.find(t => t.id === memory.get() && usable(t)) ?? items.find(usable); if (!tab) return;
-    current = tab.id; if (current === wanted) wanted = null;
+    current = tab.id; if (current === wanted) wanted = null; if (current === restore) restore = null;
     for (const t of items) for (const n of t.nodes()) { n.classList.toggle('mc-tab-off', t.id !== current); if (t.id === current) n.classList.add('mc-tab-in'); }
     for (const b of buttons) { const on = b.dataset.tab === current; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on) delete b.dataset.attention; }
     if (remember) memory.set(current);
@@ -37,6 +37,8 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   function refresh() {
     for (const [i, t] of items.entries()) buttons[i].hidden = !usable(t);
     if (wanted && items.find(t => t.id === wanted && usable(t))) activate(wanted, false);
+    // The remembered tab may only become usable once permissions load: return to it unless the person already moved.
+    else if (!chosen && restore && restore !== current && items.find(t => t.id === restore && usable(t))) activate(restore, false);
     else if (!items.find(t => t.id === current && usable(t))) activate(memory.get() ?? items[0].id, false); else place();
   }
   host.after(nav);
@@ -47,6 +49,7 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   const observer = new MutationObserver(refresh); for (const t of items) for (const n of t.nodes()) observer.observe(n, { attributes: true, attributeFilter: ['hidden'] });
   addEventListener('resize', place, { passive: true });
   const asked = typeof initial === 'function' ? initial() : null; if (asked && items.some(t => t.id === asked)) wanted = asked;
+  if (!wanted) restore = memory.get();
   activate(wanted ?? memory.get() ?? items[0].id, false); refresh();
   // Deep links (e.g. «Revisar» from the approvals bandeja: /novedades#fixedNovelties) open the tab that holds the target.
   const followHash = () => { const id = decodeURIComponent(location.hash.slice(1)); if (!id) return; const target = document.getElementById(id); if (!target) return; reveal(target, false); for (let d = target; d; d = d.parentElement?.closest('details')) if (d.tagName === 'DETAILS') d.open = true; requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })); };

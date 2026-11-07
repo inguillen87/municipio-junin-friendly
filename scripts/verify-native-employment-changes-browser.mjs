@@ -126,11 +126,11 @@ try{
  const directoryReads=()=>calls.filter(c=>c.path==='/api/internal-data'&&c.resource==='employees'&&c.method==='GET').length;
  async function consultDirectory(){
   const beforeReads=directoryReads(),history=page.locator('#employeeHistory');
+  // Owner decision 2026-11-05 (ce7eb9cc): opening «Antecedentes» consults at once; when it is already open, «Buscar» does.
   if(!await history.evaluate(n=>n.open))await history.locator('summary').first().click();
-  assert.equal(directoryReads(),beforeReads,'OPENING_HISTORY_MUST_NOT_QUERY');
-  await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  else await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
-  assert.equal(directoryReads(),beforeReads+1,'ONE_EXPLICIT_DIRECTORY_QUERY');
+  assert.equal(directoryReads(),beforeReads+1,'ONE_DIRECTORY_QUERY_PER_ENTRY');
  }
  async function open(index=0){
   const history=page.locator('#employeeHistory'),buttons=page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true});

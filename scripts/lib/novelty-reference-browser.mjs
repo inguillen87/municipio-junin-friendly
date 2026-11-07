@@ -19,3 +19,12 @@ export async function openNoveltyReferenceTool(page,id){
  if(await disclosure.getAttribute('open')===null)await summary.click();
  assert.notEqual(await disclosure.getAttribute('open'),null,'monthly disclosure must actually open');
 }
+// «Novedades fijas» lives in its own tab, shown once the screen grants it: reach it through that real tab.
+export async function openFixedNovelties(page){
+ await page.waitForLoadState('domcontentloaded');
+ const root=page.locator('#fixedNovelties'),tab=page.locator('.mc-section-tabs [role=tab][data-tab="fijas"]');
+ await tab.waitFor();if(await tab.getAttribute('aria-selected')!=='true')await tab.click();
+ await page.waitForFunction(()=>{const node=document.getElementById('fixedNovelties');return node&&!node.hidden&&!node.classList.contains('mc-tab-off');});
+ if(await root.getAttribute('open')===null)await root.locator(':scope > summary').click();
+ assert.notEqual(await root.getAttribute('open'),null,'fixed novelties must actually open');
+}

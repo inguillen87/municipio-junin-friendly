@@ -7,7 +7,7 @@ const start = () => {
   const tabs = mountSectionTabs({
     host, storageKey: 'mc.novedades.tab', label: 'Secciones de Novedades',
     // Links that name a vínculo or a lote (ficha → «Novedad mensual», bandeja → «Revisar lote») land on the tab that holds them.
-    initial: () => { const q = new URL(location.href).searchParams; return q.has('monthlyContractId') || q.has('batchId') ? 'otras' : null; },
+    initial: () => { const q = new URL(location.href).searchParams; return q.has('fixedContractId') ? 'fijas' : q.has('monthlyContractId') || q.has('batchId') ? 'otras' : null; },
     tabs: [
       { id: 'cargar', label: 'Cargar novedades', hint: 'Legajos, concepto y unidades', panels: ['#ownNativeBulkNovelties'] },
       { id: 'fijas', label: 'Novedades fijas', hint: 'Altas, vigencias y vencimientos', panels: ['#fixedNovelties'] },

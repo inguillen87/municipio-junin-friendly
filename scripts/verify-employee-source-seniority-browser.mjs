@@ -70,10 +70,10 @@ try {
   await page.goto(origin + '/personal#legajos');
   const history=page.locator('#employeeHistory'),directoryReads=()=>requests.filter(r=>r.resource==='employees').length;
   assert.equal(await history.evaluate(n=>n.open),false);assert.equal(directoryReads(),0);
-  await history.locator('summary').first().click();assert.equal(directoryReads(),0);
-  await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  // Owner decision 2026-11-05 (ce7eb9cc): opening «Antecedentes» is the explicit entry and consults once.
+  await history.locator('summary').first().click();
   await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).first().waitFor();assert.equal(directoryReads(),1);
-  checks.push('source seniority enters the voluntary reference directory with one explicit search and no automatic history query');
+  checks.push('source seniority enters the voluntary reference directory through its real entry, which consults exactly once');
   const open = async () => { await page.locator('#employeeRows button').first().click(); await page.locator('#employeeDialog[open] #employeeSourceSeniority').waitFor(); };
   const close = async () => { await page.locator('#closeDialog').click(); };
   const field = label => page.locator('#employeeSourceSeniority .detail-field').filter({ has: page.locator('dt', { hasText: new RegExp('^' + label + '$') }) }).locator('dd');

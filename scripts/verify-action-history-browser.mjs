@@ -106,6 +106,8 @@ try {
   assert.equal(await guide.evaluate(e=>e.open),false);
   await guide.locator('summary').focus();await page.keyboard.press('Enter');
   assert.equal(await guide.evaluate(e=>e.open),true);assert.equal(await guide.locator('[data-workflow-step]').count(),4);
+  // Sections open with a short height animation (shell UX): measure once it has settled.
+  await page.waitForFunction(min=>document.querySelector('#actionWorkflow').getBoundingClientRect().height>min,closedHeight+100);
   const openHeight=await page.locator('#actionWorkflow').evaluate(e=>e.getBoundingClientRect().height);assert.ok(openHeight>closedHeight+100);
   await guide.locator('summary').focus();await page.keyboard.press('Enter');assert.equal(await guide.evaluate(e=>e.open),false);
   assert.equal(apiReads(),beforeGuideReads);checks.push('collapsible workflow retains four existing steps, opens by keyboard and makes no API request');
