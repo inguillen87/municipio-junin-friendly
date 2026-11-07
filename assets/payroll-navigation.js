@@ -91,7 +91,10 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
    if(period&&!period.value)set(period,lastMonth());
    if(date&&!date.value&&/^\d{4}-\d{2}$/.test(period?.value??'')){const [y,m]=period.value.split('-').map(Number);set(date,y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'));}
    if(type&&!type.value){if([...type.options].some(o=>o.value==='monthly'))set(type,'monthly');else if(retries-->0)setTimeout(preload,700);}}
-  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&!input.disabled){input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
+  // Wait until the panel has verified access (its fieldset is disabled meanwhile): writing the month earlier fired
+  // «change», which F.931 treats as new criteria and aborted its own access check, leaving it locked with
+  // «Cambió el período…». F.931 reads the month when consulting, so it only needs «input».
+  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value){if(input.matches(':disabled')){if(retries-->0)setTimeout(preload,700);continue;}input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));if(id!=='f931')input.dispatchEvent(new Event('change',{bubbles:true}));}
   if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;let changed=false;if(period&&!period.value&&!period.disabled){changed=true;period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){changed=true;type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
    // A panel may invalidate its view shortly after a field changes: consult on the next pass, not in the same tick.
