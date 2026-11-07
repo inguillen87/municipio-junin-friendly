@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 export async function openNoveltyReferences(page){
  const root=page.locator('#noveltyReferenceWorkspace');await root.waitFor({state:'attached'});
  const summary=root.locator(':scope > summary');assert.equal(await summary.count(),1,'reference disclosure needs one explicit summary');
+ // Novedades shows its blocks in tabs: reach the workspace the way a person does, through its real tab.
+ await page.waitForLoadState('domcontentloaded');
+ if(await root.evaluate(node=>node.classList.contains('mc-tab-off'))){const tab=page.locator('.mc-section-tabs [role=tab][data-tab="otras"]');assert.equal(await tab.count(),1,'reference workspace sits behind its own tab');await tab.click();assert.equal(await tab.getAttribute('aria-selected'),'true');}
  if(await root.getAttribute('open')===null)await summary.click();
  assert.notEqual(await root.getAttribute('open'),null,'reference disclosure must actually open');
 }

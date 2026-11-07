@@ -21,7 +21,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  contractId=contractId.toLowerCase();host.dataset.nlcMounted='true';host.classList.add('nlc-panel');
  const state=contexts.get(contractId)||{actor:null,scope:null,draft:null,pending:null};contexts.set(contractId,state);
  let bootstrap=null,detail=null,detailScope=null,busy=false,epoch=0,controller=null,closed=false;
- host.innerHTML=`<div class="nlc-top"><p class="nlc-note nlc-lead">Bajas y reingresos con su respaldo. Los aprueba otra persona; se conserva el legajo y todo su historial. No calcula haberes ni pagos.</p><button type="button" class="nlc-ghost" data-nlc-refresh>Actualizar</button></div>
+ host.innerHTML=`<div class="nlc-top"><p class="nlc-note nlc-lead">Bajas y reingresos con su respaldo; los aprueba otra persona. Se conserva el mismo legajo, contrato y todos los períodos laborales. La baja indica el último día de vigencia, inclusive. No calcula haberes ni pagos.</p><button type="button" class="nlc-ghost" data-nlc-refresh>Actualizar</button></div>
  <p role="status" aria-live="polite" class="nlc-status" data-nlc-status></p>
  <div class="nlc-card" data-nlc-content hidden><div class="nlc-card-head" data-nlc-source></div><div class="nlc-current" data-nlc-current></div><div class="nlc-actions nlc-card-actions"><button type="button" class="nlc-primary" data-nlc-create hidden>Dar de baja o reingresar</button></div></div>
  <p class="nlc-note nlc-why" data-nlc-why hidden></p>

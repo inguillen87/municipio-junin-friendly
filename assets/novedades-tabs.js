@@ -4,14 +4,20 @@ import { GRH_CONCEPTS, CONCEPT_GROUPS, conceptInfo, conceptLabel } from './grh-c
 const start = () => {
   const host = document.querySelector('nav[data-quickbar="novedades"]');
   if (!host || document.querySelector('.mc-section-tabs')) return;
-  mountSectionTabs({
+  const tabs = mountSectionTabs({
     host, storageKey: 'mc.novedades.tab', label: 'Secciones de Novedades',
+    // Links that name a vínculo or a lote (ficha → «Novedad mensual», bandeja → «Revisar lote») land on the tab that holds them.
+    initial: () => { const q = new URL(location.href).searchParams; return q.has('monthlyContractId') || q.has('batchId') ? 'otras' : null; },
     tabs: [
       { id: 'cargar', label: 'Cargar novedades', hint: 'Legajos, concepto y unidades', panels: ['#ownNativeBulkNovelties'] },
       { id: 'fijas', label: 'Novedades fijas', hint: 'Altas, vigencias y vencimientos', panels: ['#fixedNovelties'] },
       { id: 'otras', label: 'Archivos, relojes y lotes anteriores', hint: 'Planilla, TXT/CSV, preparte, anular y corregir', panels: ['#noveltyReferenceWorkspace'] },
     ],
   });
+  // The workbench opens the reference block itself when something there needs the person: a lote to review, a
+  // handoff, an unconfirmed send. Opening a block that sits in a hidden tab must also bring that tab forward.
+  const reference = document.getElementById('noveltyReferenceWorkspace');
+  if (tabs && reference) new MutationObserver(() => { if (reference.open && reference.classList.contains('mc-tab-off')) tabs.attention(reference); }).observe(reference, { attributes: true, attributeFilter: ['open'] });
   // A folded block opens when its tab is shown, so the tab never lands on a closed summary.
   for (const id of ['fixedNovelties', 'noveltyReferenceWorkspace']) {
     const node = document.getElementById(id); if (!node) continue;

@@ -117,6 +117,8 @@ try{
   await compare();assert.equal(await page.locator('[data-monthly-decision-batch]').count(),26);assert.equal(await page.locator('[data-monthly-decision-row]').count(),793);
   assert.equal(await page.locator('#monthlyDecisionSend').isDisabled(),true);checks.push('26 batches across two pages and an empty filter review all 793 rows without a POST or automatic confirmation');
   const last=page.locator('[data-monthly-decision-batch]').nth(24);await last.locator('summary').first().click();await last.locator('[data-monthly-decision-row="60"] summary').click();
+  // Sections open with a short height animation (shell UX); read once the opened row is actually rendered.
+  await last.locator('[data-monthly-decision-row="60"] dd').filter({hasText:'Última fila sintética'}).waitFor();
   assert.match(await last.innerText(),/Última fila sintética/);assert.equal(await page.evaluate(()=>window.__injected),undefined);
   assert.equal(await page.locator('#monthlyDecisionBatches dd').filter({hasText:'92233720368547758,07'}).count(),13);checks.push('all source fields, native origin, null and zero, exact extreme cents and escaped free text remain readable');
   await page.locator('#monthlyDecisionConfirm').focus();await page.keyboard.press('Space');assert.equal(await page.locator('#monthlyDecisionSend').isEnabled(),true);

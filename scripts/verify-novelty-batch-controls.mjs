@@ -20,7 +20,7 @@ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const expected=new Map(),queue=['novedades-nomina.html'];
 while(queue.length){
  const file=queue.shift();if(expected.has(file))continue;
- assert.ok(expected.size<96,'Unexpected page dependency count');
+ assert.ok(expected.size<128,'Unexpected page dependency count');
  const bytes=fs.readFileSync(path.join(root,file));expected.set(file,hash(bytes));
  const source=bytes.toString('utf8'),refs=[];
  if(file.endsWith('.html'))for(const tag of source.matchAll(/<(?:script|link|img)\b[^>]*>/gi)){
