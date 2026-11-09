@@ -108,7 +108,7 @@ if(root){
   for(const [k,v]of Object.entries(extra))if(v!=null)q.set(k,String(v));return q;
  }
  async function read(query,signal){
-  const r=await fetch('/api/internal-attendance?'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:AbortSignal.any([signal,AbortSignal.timeout(25000)])});
+  const r=await fetch('/api/internal-attendance?'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'},signal:AbortSignal.any([signal,AbortSignal.timeout(25000)])});
   if(r.status===401||r.status===403){
    state.denied=true;clearInterval(state.timer);clearData();
    if(r.status===401)location.replace('login.html?next='+encodeURIComponent('relojes-marcaciones.html'));
