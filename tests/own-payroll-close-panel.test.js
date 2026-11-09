@@ -89,3 +89,12 @@ test('a roster or source that the server could not verify reads as «could not v
  assert.doesNotMatch(h.q('status').textContent,/resultado histórico/);
  assert.equal(h.q('detail').hidden,true);assert.equal(h.q('unconfirmed').hidden,true);assert.equal(h.q('send').disabled,true);
 });
+
+test('returning to the tab reads the closing again by itself; while hidden nothing is shown',async t=>{
+ const h=harness(t);h.state.detail=closeDetail(2);await h.start();assert.equal(h.q('detail').hidden,false);
+ const before=h.requests.filter(r=>r.method==='GET').length;
+ h.hide();assert.equal(h.q('detail').hidden,true);assert.match(h.q('status').textContent,/Al volver se consultan de nuevo/);
+ h.show();await h.settled();
+ assert.ok(h.requests.filter(r=>r.method==='GET').length>before,'the same period is consulted again on return');
+ assert.equal(h.q('detail').hidden,false);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
