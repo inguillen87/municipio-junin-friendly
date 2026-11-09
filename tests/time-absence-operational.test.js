@@ -5,7 +5,7 @@ import {compareWorkdayReference,referenceDuration,clockCodeSummary} from '../ass
 import {continuousWorkdayFixture,workdayQuery} from './fixtures/continuous-workdays-synthetic.js';
 import {clockDashboardFixture} from './fixtures/clock-dashboard-v3-synthetic.js';
 const source={importId:6,sourceCutoff:'2026-09-10T15:17:30',status:'completed'};
-function db(){const calls=[];return {calls,query:async(text,values=[])=>{calls.push({text,values});const marker=/absence:([^* ]+)/.exec(text)?.[1];if(marker==='source')return[source];if(marker==='events')return[{eventDate:'2026-09-08',untilDate:'2033-08-08',sourceDeclaredDays:'1',sourceQuantity:'1'}];if(marker==='facet-reasons')return[];if(marker==='facet-sectors')return[];if(['events-summary','analytics-summary','comparison'].includes(marker))return[{events:0,affectedContracts:0,sourceDeclaredDays:0}];if(marker==='quality')return[{}];return[];}};}
+function db(){const calls=[];return {calls,query:async(text,values=[])=>{calls.push({text,values});const marker=/absence:([^* ]+)/.exec(text)?.[1];if(marker==='source')return[source];if(marker==='events')return[{eventDate:'2026-09-08',untilDate:'2033-08-08',sourceDeclaredDays:'1',sourceQuantity:'1'}];if(marker==='facets-quality-once')return[{sourceRows:0,excludedBeforeMinimum:0,excludedAfterCutoff:0,missingReasonCode:0,invertedDateRanges:0,missingSourceDeclaredDays:0,unlinkedEvents:0,reasonOptions:[],sectorOptions:[]}];if(['events-summary','analytics-summary','comparison'].includes(marker))return[{events:0,affectedContracts:0,sourceDeclaredDays:0}];return[];}};}
 test('absence date review preserves dates while flagging an extended range, not its legality',()=>{
  assert.equal(absenceRangeIntegrity('2026-09-08','2033-08-08'),'extended_source_range');assert.equal(absenceRangeIntegrity('2026-09-08','2026-09-13'),'valid_source_range');
  assert.equal(absenceRangeIntegrity('2026-09-08','2026-09-07'),'inverted_source_range');assert.equal(absenceRangeIntegrity('2026-09-08',null),'until_date_not_reported');
@@ -21,8 +21,9 @@ test('invalid search and contract identifiers fail before touching the data sour
 });
 test('zero baseline yields unknown variation, not a mathematical zero',async()=>{
  const sql=db(),r=await absenceAnalytics(sql,{query:{from:'2026-08-01',to:'2026-09-10',reasonCode:'20'}});assert.deepEqual(r.payload.data.comparison.changePercent,{events:null,affectedContracts:null,sourceDeclaredDays:null});
- const facets=sql.calls.filter(c=>/absence:facet-/.test(c.text));assert.equal(facets.length,2);assert.ok(facets.every(c=>c.text.includes('MATERIALIZED')));
- const quality=sql.calls.find(c=>c.text.includes('absence:quality'));assert.doesNotMatch(quality.text,/grh_effective_catalog_rows|grh_effective_employees/);
+ // Root AUSENTISMO_FACETAS_CALIDAD_R1: reasons, sectors and quality share one read that materializes the events once.
+ const once=sql.calls.filter(c=>/absence:facets-quality-once/.test(c.text));assert.equal(once.length,1);assert.ok(once[0].text.includes('MATERIALIZED'));
+ assert.equal(sql.calls.some(c=>/absence:(facet-|quality\b)/.test(c.text)),false,'the separate facet and quality reads are gone');
 });
 test('duration reference means HH:MM, never decimal hours',()=>{
  assert.equal(referenceDuration('01:30'),5400);assert.equal(referenceDuration('24:00'),86400);for(const v of ['1.30','1,30','25:00','24:01','02:60','-1:00',''])assert.equal(referenceDuration(v),null);
