@@ -647,6 +647,11 @@ console.log(`MuniControl charts: ${(charts.gzipBytes / 1024).toFixed(1)} KB gzip
 buildClockFleet(root, output);
 buildDocumentReader(root, output);
 
+// Cold first visits (phones, new PCs) used to discover the module graph one import level at a time: Novedades chains
+// up to 11 levels and Nómina 15. Each page now announces every statically imported module up front with
+// <link rel="modulepreload">, so the browser fetches them in parallel. Nothing extra executes: dynamic import() stays lazy.
+addModulePreloads(output);
+
 const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {
   versionHash.update(file);
@@ -689,4 +694,40 @@ function applyCleanRouteLinks(html, file) {
   });
   const linked = withReturns.replace(/(<a\b[^>]*?\bhref\s*=\s*)(["'])([^"']*)\2/gi, (_, prefix, quote, href) => prefix + quote + routes.canonicalHref(href, base) + quote);
   return linked.includes('src="/assets/app-routes.js"') ? linked : linked.replace(/<head([^>]*)>/i, '<head$1>\n  <script src="/assets/app-routes.js"></script>');
+}
+
+function addModulePreloads(outputRoot) {
+  const importPattern = /(?:^|[;\s}])(?:import\s[^'"()]*?from\s*|import\s*|export\s[^'"()]*?from\s*)(['"])(\.{0,2}\/[^'"?#]+\.js)\1/g;
+  const cache = new Map();
+  const importsOf = file => {
+    if (cache.has(file)) return cache.get(file);
+    let source = '';
+    try { source = fs.readFileSync(file, 'utf8'); } catch { cache.set(file, []); return []; }
+    const found = [];
+    for (const match of source.matchAll(importPattern)) found.push(path.resolve(path.dirname(file), match[2]));
+    cache.set(file, found);
+    return found;
+  };
+  for (const page of fs.readdirSync(outputRoot).filter(name => name.endsWith('.html'))) {
+    const pagePath = path.join(outputRoot, page);
+    const html = fs.readFileSync(pagePath, 'utf8');
+    if (html.includes('rel="modulepreload"')) continue;
+    const entries = [];
+    for (const match of html.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"'?#]+\.js)["'][^>]*>/gi)) entries.push(match[1]);
+    for (const match of html.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+      for (const inner of match[1].matchAll(importPattern)) entries.push(inner[2]);
+    }
+    const seen = new Set();
+    const queue = entries.map(entry => path.resolve(outputRoot, entry.replace(/^\//, '')));
+    while (queue.length) {
+      const file = queue.shift();
+      if (seen.has(file) || !file.startsWith(outputRoot + path.sep) || !fs.existsSync(file)) continue;
+      seen.add(file);
+      queue.push(...importsOf(file));
+    }
+    const hrefs = [...seen].map(file => '/' + path.relative(outputRoot, file).split(path.sep).join('/')).sort().slice(0, 300);
+    if (!hrefs.length) continue;
+    const links = hrefs.map(href => `<link rel="modulepreload" href="${href}">`).join('');
+    fs.writeFileSync(pagePath, html.replace('</head>', links + '</head>'));
+  }
 }
