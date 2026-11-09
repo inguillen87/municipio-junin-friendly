@@ -54,7 +54,7 @@ const FUNCTIONS = ['text', 'finiteNumber', 'nonNegativeNumber', 'normalizeBoolea
   'startEmployeeOperation', 'finishEmployeeOperation', 'invalidateEmployeeOperation', 'cancelEmployeeQuery',
   'employeeUnavailableReason', 'ensureEmployeeOperationCurrent', 'employeeHttpFailure',
   'requestEmployeeDirectory', 'renderEmployeesNotice', 'retireDirectoryFacets', 'withdrawEmployeeDirectory',
-  'employeeVisibilityChanged', 'employeeCapabilitiesChanged', 'loadEmployees', 'statusDisplay', 'crosswalkDisplay',
+  'employeeVisibilityChanged', 'resumeEmployeeDirectory', 'employeeCapabilitiesChanged', 'loadEmployees', 'statusDisplay', 'crosswalkDisplay',
   'controlStateLabel', 'appendCell', 'detailButton', 'renderEmployees', 'renderEmployeesError', 'applyFilters', 'showView'];
 const BINDINGS = [
   line('let searchTimer = null;'),
@@ -378,13 +378,13 @@ for (const [settle, finish] of Object.entries(SETTLE_A)) {
 }
 // Retiro por las funciones/eventos reales del harness mientras el cuerpo 403 de A está en lectura; volver/restaurar.
 const WITHDRAW_A = {
-  ocultación: { lose: h => { h.document.hidden = true; h.api.employeeVisibilityChanged(); }, back: h => { h.document.hidden = false; h.api.employeeVisibilityChanged(); h.api.showView('legajos', false, false); }, notice: /Consulta retirada/ },
-  'salida de área': { lose: h => h.api.showView('inicio', false, false), back: h => h.api.showView('legajos', false, false), notice: /Consulta retirada/ },
+  ocultación: { resumes: true, lose: h => { h.document.hidden = true; h.api.employeeVisibilityChanged(); }, back: h => { h.document.hidden = false; h.api.employeeVisibilityChanged(); h.api.showView('legajos', false, false); }, notice: /Consulta retirada/ },
+  'salida de área': { resumes: true, lose: h => h.api.showView('inicio', false, false), back: h => h.api.showView('legajos', false, false), notice: /Consulta retirada/ },
   permisos: { lose: h => h.api.employeeCapabilitiesChanged({ detail: { tenantCapabilities: ['payroll.read'] } }), back: h => h.api.employeeCapabilitiesChanged({ detail: { tenantCapabilities: ['workforce.employee.read'] } }), notice: /Consulta de legajos no disponible/ },
 };
-for (const [cause, { lose, back, notice }] of Object.entries(WITHDRAW_A)) {
+for (const [cause, { lose, back, notice, resumes = false }] of Object.entries(WITHDRAW_A)) {
   for (const [settle, finish] of Object.entries(SETTLE_A)) {
-    test(`cuerpo 403 de A ya en lectura, retiro por ${cause}, cuerpo A ${settle} antes de volver: retiro intacto, sin redirect, sin GET al volver`, async () => {
+    test(`cuerpo 403 de A ya en lectura, retiro por ${cause}, cuerpo A ${settle} antes de volver: retiro intacto, sin redirect; ${resumes ? 'al volver reconsulta sola la misma consulta' : 'sin GET al volver'}`, async () => {
       const h = fresh();
       const { a, requestA, bodyA } = await startedForbiddenBody(h);
       lose(h);
@@ -397,17 +397,28 @@ for (const [cause, { lose, back, notice }] of Object.entries(WITHDRAW_A)) {
       assert.equal(h.redirects.length, 0); assert.equal(h.clock.pending(), 0); assert.equal(h.events.length, eventsAfterWithdrawal);
       assert.equal(h.state.employeesLoaded, false); assert.equal(h.state.employeesLoading, false);
       back(h); await h.flush();
+      if (resumes) {
+        // Returning is the person looking again: the same query is read anew (permission re-checked by the server).
+        assert.equal(h.requests.length, 2, 'volver reconsulta una vez'); assert.equal(h.requests[1].url, requestA.url);
+        assert.equal(h.clock.pending(), 1); assert.match(h.rows(), /Consultando legajos/);
+        assert.doesNotMatch(h.rows(), /Prohibido de A|No pudimos cargar|Consulta retirada/);
+        h.requests[1].resolve(h.json(200, PAGE([EMPLOYEE(11, 'REANUDADA')]))); await h.flush();
+        assert.match(h.rows(), /REANUDADA/); assert.equal(h.clock.pending(), 0); assert.equal(h.redirects.length, 0);
+        return;
+      }
       assert.equal(h.requests.length, 1, 'volver/restaurar no consulta solo'); assert.equal(h.clock.pending(), 0);
       assert.match(h.rows(), /Consulta retirada/); assert.ok(h.action());
     });
-    test(`cuerpo 403 de A ya en lectura, retiro por ${cause}, consulta explícita B y luego cuerpo A ${settle}: B no se altera`, async () => {
+    test(`cuerpo 403 de A ya en lectura, retiro por ${cause}, ${resumes ? 'consulta B al volver' : 'consulta explícita B'} y luego cuerpo A ${settle}: B no se altera`, async () => {
       const h = fresh();
       const { a, bodyA } = await startedForbiddenBody(h);
       lose(h);
       assert.deepEqual(plain(await a), STALE);
       back(h); await h.flush();
-      assert.equal(h.requests.length, 1);
-      h.action().click();
+      if (!resumes) {
+        assert.equal(h.requests.length, 1);
+        h.action().click();
+      }
       assert.equal(h.requests.length, 2); const requestB = h.requests[1];
       assert.equal(h.clock.pending(), 1); assert.equal(h.state.employeeLastQuery, requestB.url);
       finish(bodyA); await h.flush();
@@ -514,7 +525,7 @@ test('plazo vencido o falla de red con el documento ya oculto (sin evento): no p
   }
 });
 
-test('ocultar documento (evento real) con respuesta retenida: invalida primero, retira lista/contadores/facetas/evidencia, conserva filtros; al volver no hay GET', async () => {
+test('ocultar documento (evento real) con respuesta retenida: invalida primero, retira lista/contadores/facetas/evidencia, conserva filtros; al volver reconsulta una vez con esos filtros', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
   h.submit();
@@ -532,10 +543,11 @@ test('ocultar documento (evento real) con respuesta retenida: invalida primero, 
   retained.resolve(h.json(401, { ok: false })); await h.flush();
   assert.equal(h.redirects.length, 0); assert.match(h.rows(), /Consulta retirada/);
   h.document.hidden = false; h.api.employeeVisibilityChanged(); h.api.showView('legajos', false, false);
-  assert.deepEqual(plain(await h.api.loadEmployees(1)), { ok: false, resource: 'employees', withdrawn: true });
-  assert.equal(h.requests.length, 2, 'sin GET automático al volver');
-  h.action().click();
-  assert.equal(h.requests.length, 3); assert.match(h.requests[2].url, /search=PERS&sector=Sector\+A/);
+  assert.equal(h.requests.length, 3, 'una sola reconsulta al volver, aunque también se muestre Personas');
+  assert.match(h.requests[2].url, /search=PERS&sector=Sector\+A/); assert.match(h.requests[2].url, /page=1(&|$)/);
+  assert.equal(h.redirects.length, 0); assert.doesNotMatch(h.rows(), /PERSONA A|Consulta retirada/);
+  h.requests[2].resolve(h.json(200, PAGE([EMPLOYEE(43, 'PERSONA B')]))); await h.flush();
+  assert.match(h.rows(), /PERSONA B/);
 });
 
 test('Buscar (submit real) tras retiro es una consulta nueva con filtros conservados; debounce y cambios de filtro no consultan solos', async () => {
@@ -543,7 +555,7 @@ test('Buscar (submit real) tras retiro es una consulta nueva con filtros conserv
   h.api.showView('legajos', false, false);
   h.submit();
   h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
-  h.document.hidden = true; h.api.employeeVisibilityChanged(); h.document.hidden = false; h.api.employeeVisibilityChanged();
+  h.api.withdrawEmployeeDirectory('changed');
   h.els.employeeSearch.value = '  PERS  ';
   h.els.employeeSearch.emit('input'); h.clock.advance(380); await h.flush();
   h.els.statusFilter.value = 'all'; h.els.statusFilter.emit('change'); await h.flush();
@@ -572,7 +584,7 @@ test('Buscar con permiso retirado no consulta; restaurar no consulta; Buscar pos
   assert.equal(h.requests.length, 1);
 });
 
-test('salir del área retira la lista; volver muestra la acción explícita y no consulta sola', async () => {
+test('salir del área retira la lista; volver a Personas la reconsulta una vez con los mismos filtros', async () => {
   const h = fresh();
   h.api.showView('legajos', false, false);
   h.submit();
@@ -580,7 +592,42 @@ test('salir del área retira la lista; volver muestra la acción explícita y no
   h.api.showView('inicio', false, false);
   assert.match(h.rows(), /Consulta retirada/); assert.doesNotMatch(h.rows(), /PERSONA A/);
   h.api.showView('legajos', false, false);
-  assert.equal(h.requests.length, 1); assert.ok(h.action());
+  assert.equal(h.requests.length, 2); assert.equal(h.requests[1].url, h.requests[0].url);
+  h.api.showView('legajos', false, false);
+  assert.equal(h.requests.length, 2, 'mostrar Personas otra vez no duplica la consulta');
+  h.requests[1].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
+  assert.match(h.rows(), /PERSONA A/);
+});
+
+test('ocultar la pestaña con la página 2 a la vista: al volver reconsulta la página 2; si al volver se está en otra área, espera a Personas', async () => {
+  const h = fresh();
+  h.api.showView('legajos', false, false);
+  h.submit();
+  h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')], { pagination: { page: 2, limit: 25, total: 30, pages: 2 } }))); await h.flush();
+  h.document.hidden = true; h.api.employeeVisibilityChanged();
+  assert.match(h.rows(), /Consulta retirada/);
+  h.api.showView('inicio', false, false);
+  h.document.hidden = false; h.api.employeeVisibilityChanged();
+  assert.equal(h.requests.length, 1, 'fuera de Personas no consulta');
+  h.api.showView('legajos', false, false);
+  assert.equal(h.requests.length, 2); assert.match(h.requests[1].url, /page=2(&|$)/);
+});
+
+test('cerrar el archivo, perder el permiso o cerrar sesión no se reanudan solos al volver', async () => {
+  for (const lose of [
+    h => { h.els.employeeHistory.open = false; h.els.employeeHistory.emit('toggle'); h.els.employeeHistory.open = true; },
+    h => { h.api.employeeCapabilitiesChanged({ detail: { tenantCapabilities: ['payroll.read'] } }); h.api.employeeCapabilitiesChanged({ detail: { tenantCapabilities: ['workforce.employee.read'] } }); },
+    h => h.api.withdrawEmployeeDirectory('session'),
+  ]) {
+    const h = fresh();
+    h.api.showView('legajos', false, false);
+    h.submit();
+    h.requests[0].resolve(h.json(200, PAGE([EMPLOYEE(42, 'PERSONA A')]))); await h.flush();
+    lose(h);
+    h.document.hidden = true; h.api.employeeVisibilityChanged(); h.document.hidden = false; h.api.employeeVisibilityChanged();
+    h.api.showView('legajos', false, false);
+    assert.equal(h.requests.length, 1); assert.doesNotMatch(h.rows(), /PERSONA A/);
+  }
 });
 
 test('cerrar sesión con consulta pendiente: la continuación no publica', async () => {

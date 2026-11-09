@@ -1663,6 +1663,9 @@
         employeeController: null,
         employeeOperation: null,
         employeeDirectoryWithdrawn: false,
+        employeeResumePage: null,
+        employeeDetailArgs: null,
+        employeeDetailReopen: null,
         employeeHistoryQueried: false,
         employeeReadRevoked: false,
         detailController: null,
@@ -2133,6 +2136,7 @@
         if (target !== 'legajos' && (state.employeesLoaded || state.employeesLoading)) withdrawEmployeeDirectory('area');
         // Personas abre el padrón municipal; el directorio complementario sólo se consulta mediante Buscar.
         document.dispatchEvent(new CustomEvent('mc:people-view-changed', { detail: { active: target === 'legajos' } }));
+        if (target === 'legajos') resumeEmployeeDirectory();
         if (target !== 'legajos' && state.user && !state.summary && !state.summaryLoading) loadSummary();
         if (focusHeading !== false) {
           const heading = document.querySelector('#view-' + target + ' h1');
@@ -2791,6 +2795,12 @@
       // Invalida primero la operación (ninguna continuación vieja publica ni redirige) y después retira la lista.
       function withdrawEmployeeDirectory(kind) {
         const hadDirectory = state.employeesLoaded || state.employeesLoading || state.employeeOperation !== null || state.employeeDirectoryWithdrawn;
+        // Leaving the tab or the Personas area only pauses a consulted archive: on return the same query (filters and
+        // page) is read again with the permission in force. Any other cause (permission, session, closing the archive,
+        // a change of record) keeps it withdrawn until the person consults it again.
+        const pausing = kind === 'hidden' || kind === 'area';
+        if (!pausing) state.employeeResumePage = null;
+        else if (state.employeeHistoryQueried && (state.employeesLoaded || state.employeesLoading)) state.employeeResumePage = state.pagination.page || 1;
         invalidateEmployeeOperation('withdrawn');
         state.employeesLoading = false;
         els.employeeTableWrap.setAttribute('aria-busy', 'false');
@@ -2810,7 +2820,18 @@
         if (document.hidden) {
           withdrawEmployeeDetail();
           withdrawEmployeeDirectory('hidden');
+        } else {
+          resumeEmployeeDirectory();
         }
+      }
+
+      // Reads again the archive paused by leaving the tab or the area, once Personas is usable again. Nothing is shown
+      // from before: it is a new explicit query of the same filters and page, with the usual loading state.
+      function resumeEmployeeDirectory() {
+        if (state.employeeResumePage === null || !state.employeeDirectoryWithdrawn || employeeUnavailableReason()) return null;
+        const page = state.employeeResumePage;
+        state.employeeResumePage = null;
+        return loadEmployees(page, { explicit: true });
       }
 
       function employeeCapabilitiesChanged(event) {
@@ -2847,6 +2868,7 @@
           return { ok: false, resource: 'employees', pending: true };
         }
         state.employeeDirectoryWithdrawn = false;
+        state.employeeResumePage = null;
         const operation = startEmployeeOperation();
         state.employeeLastQuery = query;
         const hasRows = state.employeesLoaded && els.employeeRows.querySelector('[data-legajo]');
@@ -3113,6 +3135,8 @@
 
       async function openEmployee(contractId, legajo, companyId, fallbackName, destination = {}) {
         if (!text(contractId) && !text(legajo)) return;
+        state.employeeDetailArgs = { contractId, legajo, companyId, fallbackName, destination };
+        state.employeeDetailReopen = null;
         document.dispatchEvent(new Event('mc:family-schooling-close'));
         document.dispatchEvent(new Event('mc:native-employment-change-close'));
         if (state.detailController) state.detailController.abort();
@@ -4373,9 +4397,19 @@
       els.closeDialog.addEventListener('click', closeDialog);
       els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
       function withdrawEmployeeDetail() {
-        closeDialog();els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
+        // A ficha open when the tab is hidden is read again on return (same legajo, fresh request); any other
+        // withdrawal, or closing it, leaves it closed.
+        const reopen = document.hidden && els.employeeDialog.open ? state.employeeDetailArgs : null;
+        closeDialog();state.employeeDetailReopen=reopen;els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
       }
       document.addEventListener('visibilitychange',employeeVisibilityChanged);
+      document.addEventListener('visibilitychange',function(){
+        const reopen=state.employeeDetailReopen;
+        if(document.hidden||!reopen)return;
+        state.employeeDetailReopen=null;
+        if(state.currentView!=='legajos'||state.employeeReadRevoked||!state.tenantCapabilities.has('workforce.employee.read'))return;
+        openEmployee(reopen.contractId,reopen.legajo,reopen.companyId,reopen.fallbackName,reopen.destination);
+      });
       document.addEventListener('municontrol:capabilities-ready',employeeCapabilitiesChanged);
       document.addEventListener('mc:native-employee-created', function(event) {
         if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
