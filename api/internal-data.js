@@ -1009,7 +1009,7 @@ export async function payrollControl(sql) {
     };
   }
 
-  const [monthlyRows, runRows, [quality = {}], [source = null]] = await Promise.all([
+  const [monthlyRows, runAndQualityRows, [source = null]] = await Promise.all([
     sql.query(`
       SELECT month,
              closure_status AS "closureStatus",
@@ -1028,7 +1028,15 @@ export async function payrollControl(sql) {
       LIMIT 36
     `),
     sql.query(`
-      SELECT payroll_run_id AS "payrollRunId",
+      /* payroll:window-runs */
+      SELECT
+             (count(*) OVER ())::int AS "__totalRuns",
+             (count(*) FILTER (WHERE closure_status='closed') OVER ())::int AS "__closedRuns",
+             (count(*) FILTER (WHERE closure_status='open') OVER ())::int AS "__openRuns",
+             (count(*) FILTER (WHERE closure_status='unknown') OVER ())::int AS "__unknownRuns",
+             (count(*) FILTER (WHERE closure_status='closed' AND NOT executive_publishable) OVER ())::int AS "__closedRunsBlocked",
+             (count(*) FILTER (WHERE closure_status<>'closed' AND executive_publishable) OVER ())::int AS "__openRunsPublished",
+             payroll_run_id AS "payrollRunId",
              payroll_date AS month,
              payroll_type AS "payrollType",
              closure_status AS "closureStatus",
@@ -1047,19 +1055,6 @@ export async function payrollControl(sql) {
       LIMIT 24
     `),
     sql.query(`
-      SELECT count(*)::int AS "totalRuns",
-             (count(*) FILTER (WHERE closure_status = 'closed'))::int AS "closedRuns",
-             (count(*) FILTER (WHERE closure_status = 'open'))::int AS "openRuns",
-             (count(*) FILTER (WHERE closure_status = 'unknown'))::int AS "unknownRuns",
-             (count(*) FILTER (
-               WHERE closure_status = 'closed' AND NOT executive_publishable
-             ))::int AS "closedRunsBlocked",
-             (count(*) FILTER (
-               WHERE closure_status <> 'closed' AND executive_publishable
-             ))::int AS "openRunsPublished"
-      FROM vw_nomina_totales
-    `),
-    sql.query(`
       SELECT source_file_name AS "fileName",
              source_sha256 AS sha256,
              source_cutoff AS cutoff,
@@ -1070,6 +1065,18 @@ export async function payrollControl(sql) {
       LIMIT 1
     `)
   ]);
+
+  // Window counts cover every canonical run before the 24-row page is selected.
+  // For an empty source the previous count query returned zeros; keep that contract below.
+  const firstRun = runAndQualityRows[0] || {};
+  const quality = {
+    totalRuns: firstRun.__totalRuns, closedRuns: firstRun.__closedRuns,
+    openRuns: firstRun.__openRuns, unknownRuns: firstRun.__unknownRuns,
+    closedRunsBlocked: firstRun.__closedRunsBlocked, openRunsPublished: firstRun.__openRunsPublished,
+  };
+  const runRows = runAndQualityRows.map(({
+    __totalRuns, __closedRuns, __openRuns, __unknownRuns, __closedRunsBlocked, __openRunsPublished, ...run
+  }) => run);
 
   const monthly = monthlyRows.map(payrollMetricRow);
   const latestClosed = monthly.find((row) => row.closureStatus === 'closed') || null;
@@ -1304,7 +1311,6 @@ export async function absenceAnalytics(sql, req) {
   const { from, to } = request.range.effective;
   const filters = { from, to, sector: request.sector, reasonCode: request.reasonCode };
   const scope = absenceFilter(filters);
-  const validScope = absenceFilter({ from: ABSENCE_MIN_DATE, to: source.cutoff });
   const interval = request.bucket === 'month' ? '1 month - 1 day' : request.bucket === 'day' ? '0 days' : '1 year - 1 day';
   const priorRange = comparisonFor(request.range);
   const comparisonPromise = priorRange
@@ -1316,8 +1322,6 @@ export async function absenceAnalytics(sql, req) {
     seriesRows,
     reasonRows,
     sectorRows,
-    facetReasonRows,
-    facetSectorRows,
     [qualityRow = {}],
     previous
   ] = await Promise.all([
@@ -1360,43 +1364,48 @@ export async function absenceAnalytics(sql, req) {
       GROUP BY 1 ORDER BY events DESC, label
     `, scope.values),
     sql.query(`
-      /* absence:facet-reasons */
-      WITH codes AS MATERIALIZED (
-        SELECT DISTINCT absence.motivo_code ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
+      /* absence:facets-quality-once */
+      WITH raw AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.fecha_hasta,
+               absence.dias, absence.motivo_code, contract.id AS linked_contract
+        ${absenceFromSql(false, { employee: false, reason: false })}
+      ), within_coverage AS MATERIALIZED (
+        SELECT company_id, legajo, motivo_code FROM raw WHERE fecha BETWEEN $1::date AND $2::date
+      ), reason_dim AS MATERIALIZED (
+        SELECT source_payload #>> '{sourceKey,reasonCode}' AS code, label
+        FROM grh_effective_catalog_rows_v1 WHERE catalog='absence_reasons'
+      ), employee_dim AS MATERIALIZED (
+        SELECT company_id,legajo,sector FROM grh_effective_employees_v1
+      ), codes AS (
+        SELECT DISTINCT motivo_code FROM within_coverage
+      ), people AS (
+        SELECT DISTINCT company_id, legajo FROM within_coverage
+      ), reason_options AS (
+        SELECT codes.motivo_code AS code, COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
+        FROM codes LEFT JOIN reason_dim reason ON reason.code=codes.motivo_code
+        ORDER BY label
+      ), sector_options AS (
+        SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
+        FROM people LEFT JOIN employee_dim employee
+          ON employee.company_id=people.company_id AND employee.legajo=people.legajo
+        ORDER BY value
       )
-      SELECT codes.motivo_code AS code, COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
-      FROM codes LEFT JOIN grh_effective_catalog_rows_v1 reason ON reason.catalog='absence_reasons'
-       AND reason.source_payload #>> '{sourceKey,reasonCode}'=codes.motivo_code
-      ORDER BY label
-    `, validScope.values),
-    sql.query(`
-      /* absence:facet-sectors */
-      WITH people AS MATERIALIZED (
-        SELECT DISTINCT absence.company_id, absence.legajo ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
-      )
-      SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
-      FROM people LEFT JOIN grh_effective_employees_v1 employee
-       ON employee.company_id=people.company_id AND employee.legajo=people.legajo
-      ORDER BY value
-    `, validScope.values),
-    sql.query(`
-      /* absence:quality */
       SELECT count(*)::int AS "sourceRows",
-             count(*) FILTER (WHERE absence.fecha < $1::date)::int AS "excludedBeforeMinimum",
-             count(*) FILTER (WHERE absence.fecha > $2::date)::int AS "excludedAfterCutoff",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND (absence.motivo_code IS NULL OR btrim(absence.motivo_code) = ''))::int AS "missingReasonCode",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND absence.fecha_hasta < absence.fecha)::int AS "invertedDateRanges",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND absence.dias IS NULL)::int AS "missingSourceDeclaredDays",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND contract.id IS NULL)::int AS "unlinkedEvents"
-      ${absenceFromSql(false, { employee: false, reason: false })}
+             count(*) FILTER (WHERE fecha < $1::date)::int AS "excludedBeforeMinimum",
+             count(*) FILTER (WHERE fecha > $2::date)::int AS "excludedAfterCutoff",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND (motivo_code IS NULL OR btrim(motivo_code)=''))::int AS "missingReasonCode",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND fecha_hasta < fecha)::int AS "invertedDateRanges",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND dias IS NULL)::int AS "missingSourceDeclaredDays",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND linked_contract IS NULL)::int AS "unlinkedEvents",
+             coalesce((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.label) FROM reason_options f),'[]'::jsonb) AS "reasonOptions",
+             coalesce((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.value) FROM sector_options f),'[]'::jsonb) AS "sectorOptions"
+      FROM raw
     `, [ABSENCE_MIN_DATE, source.cutoff]),
     comparisonPromise
   ]);
 
+  const facetReasonRows = qualityRow.reasonOptions;
+  const facetSectorRows = qualityRow.sectorOptions;
   const comparison = previous ? {
     available: true,
     basis: 'previous_year_same_calendar_window',
