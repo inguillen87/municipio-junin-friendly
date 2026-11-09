@@ -441,7 +441,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(registered){if(!registered.saved&&/^OWN_RUN_(PAY_RULE_MISSING|RULE_MISSING|RULE_OVERLAP|RULE_CYCLE)$/.test(error.code??''))computeBlocked=error.code;showCapture(registered);if(computeBlocked===error.code){status(error.message+' La captura quedó registrada sin resultado.','warning');controls();}return;}
       if(!missing||attempt!==rejected)throw error;
       attempt=null;notFound=false;$('confirm').checked=false;
-      const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones o cargá su repartición o su baja en Personas.':'';
+      const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones; su repartición la indica RR. HH. con la documentación del mes.':'';
       throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
     }
     const value=await verifiedWorkspaceCapture(response.data,attempt);
@@ -503,7 +503,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if([...$('codes').selectedOptions].length!==plan.codes.length){$('kind').value='all';renderKind();status('Una repartición del padrón no está en el catálogo vigente. Actualizá la consulta.','warning');controls();return false;}
     $('confirm').checked=false;controls();
     const out=plan.unsectored.length===1?'el legajo '+plan.unsectored[0]+', que no tiene repartición':'los legajos '+plan.unsectored.slice(0,8).join(', ')+(plan.unsectored.length>8?' y '+(plan.unsectored.length-8)+' más':'')+', que no tienen repartición';
-    status((plan.codes.length===1?(automatic?'«Todos» quedó como la repartición':'Elegida la repartición'):(automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones')+' con personal activo ('+plan.covered+(plan.covered===1?' legajo). ':' legajos). ')+(plan.unsectored.length===1?'Queda fuera ':'Quedan fuera ')+out+' (pendientes de baja en Personas). Revisá y marcá la confirmación para calcular.','neutral');
+    status((plan.codes.length===1?(automatic?'«Todos» quedó como la repartición':'Elegida la repartición'):(automatic?'«Todos» quedó como las ':'Elegidas las ')+plan.codes.length+' reparticiones')+' con personal activo ('+plan.covered+(plan.covered===1?' legajo). ':' legajos). ')+(plan.unsectored.length===1?'Queda fuera ':'Quedan fuera ')+out+' (RR. HH. tiene que indicar su repartición con la documentación del mes). Revisá y marcá la confirmación para calcular.','neutral');
     if(!automatic)$('confirm').focus();
     return true;
   }
