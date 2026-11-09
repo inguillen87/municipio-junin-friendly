@@ -2051,43 +2051,47 @@ export async function leaveNormative(sql) {
   const [[readiness = {}], reasonRows] = await Promise.all([
     sql.query(`
       /* leave-normative:readiness */
-      SELECT
-        (SELECT count(*)::int FROM grh_effective_employees_v1) AS "employmentRecords",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo) AS "activeRecords",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NOT NULL) AS "activeWithHireDate",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NULL) AS "activeWithoutHireDate",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND fecha_ingreso IS NOT NULL
-            AND fecha_ingreso <= $1::date - interval '5 years'
-            AND COALESCE(
-              CASE
-                WHEN NULLIF(source_payload #>> '{employment,seniorityYears}', '') ~ '^-?[0-9]+(?:\\.[0-9]+)?$'
-                  THEN (source_payload #>> '{employment,seniorityYears}')::numeric
-                ELSE NULL
-              END,
-              0
-            ) = 0
-        ) AS "activeOldHireDateZeroSourceSeniority",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND NULLIF(source_payload #>> '{employment,dailyHours}', '') IS NOT NULL
-        ) AS "activeWithDeclaredDailyHours",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND NULLIF(source_payload #>> '{employment,monthlyHours}', '') IS NOT NULL
-        ) AS "activeWithDeclaredMonthlyHours",
-        (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceSourceRows",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date) AS "absenceRowsWithinCoverage",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceRowsBeforeMinimum",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceRowsAfterCutoff",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha) AS "absenceInvertedRanges",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')) AS "absenceMissingReason",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 absence
-          LEFT JOIN grh_effective_employees_v1 employee USING (company_id, legajo)
-          WHERE absence.fecha BETWEEN DATE '1990-01-01' AND $1::date AND employee.legajo IS NULL
-        ) AS "absenceUnlinkedRows",
-        (SELECT count(*)::int FROM grh_effective_leaves_v1) AS "legacyLeaveRows",
-        (SELECT min(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
-        (SELECT max(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate",
-        (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'absence_reasons') AS "reasonCatalogRows"
+      WITH employees AS MATERIALIZED (
+        SELECT company_id, legajo, activo, fecha_ingreso,
+               source_payload #>> '{employment,seniorityYears}' AS seniority,
+               source_payload #>> '{employment,dailyHours}' AS daily_hours,
+               source_payload #>> '{employment,monthlyHours}' AS monthly_hours
+        FROM grh_effective_employees_v1
+      ), employee_counts AS (
+        SELECT count(*)::int AS "employmentRecords",
+               (count(*) FILTER (WHERE activo))::int AS "activeRecords",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NOT NULL))::int AS "activeWithHireDate",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NULL))::int AS "activeWithoutHireDate",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NOT NULL
+                  AND fecha_ingreso <= $1::date - interval '5 years'
+                  AND COALESCE(CASE WHEN NULLIF(seniority, '') ~ '^-?[0-9]+(?:\\.[0-9]+)?$'
+                                    THEN seniority::numeric ELSE NULL END, 0) = 0))::int AS "activeOldHireDateZeroSourceSeniority",
+               (count(*) FILTER (WHERE activo AND NULLIF(daily_hours, '') IS NOT NULL))::int AS "activeWithDeclaredDailyHours",
+               (count(*) FILTER (WHERE activo AND NULLIF(monthly_hours, '') IS NOT NULL))::int AS "activeWithDeclaredMonthlyHours"
+        FROM employees
+      ), absence_counts AS (
+        SELECT count(*)::int AS "absenceSourceRows",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date))::int AS "absenceRowsWithinCoverage",
+               (count(*) FILTER (WHERE fecha < DATE '1990-01-01'))::int AS "absenceRowsBeforeMinimum",
+               (count(*) FILTER (WHERE fecha > $1::date))::int AS "absenceRowsAfterCutoff",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha))::int AS "absenceInvertedRanges",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')))::int AS "absenceMissingReason",
+               -- Only existence matters: duplicate employee keys must not multiply events.
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (a.company_id IS NULL OR a.legajo IS NULL OR (a.company_id, a.legajo) NOT IN (
+                 SELECT company_id, legajo FROM employees WHERE company_id IS NOT NULL AND legajo IS NOT NULL
+               ))))::int AS "absenceUnlinkedRows"
+        FROM grh_effective_absences_v1 a
+      ), leave_counts AS (
+        SELECT count(*)::int AS "legacyLeaveRows",
+               min(fecha_inicio) FILTER (WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
+               max(fecha_inicio) FILTER (WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate"
+        FROM grh_effective_leaves_v1
+      ), reason_count AS (
+        SELECT count(*)::int AS "reasonCatalogRows"
+        FROM grh_effective_catalog_rows_v1 WHERE catalog = 'absence_reasons'
+      )
+      SELECT e.*, a.*, l.*, c.*
+      FROM employee_counts e CROSS JOIN absence_counts a CROSS JOIN leave_counts l CROSS JOIN reason_count c
     `, [source.cutoff]),
     sql.query(`
       /* leave-normative:reason-mapping */
@@ -2100,7 +2104,8 @@ export async function leaveNormative(sql) {
              catalog.source_payload ->> 'affectsAttendanceBonus' AS "affectsAttendanceBonus",
              catalog.source_payload ->> 'generatesDiscountedDays' AS "generatesDiscountedDays",
              catalog.source_payload ->> 'calculationMethod' AS "calculationMethod",
-             count(absence.*)::int AS events,
+             -- The equality join guarantees a nonnull motivo_code only on matched absences.
+             count(absence.motivo_code)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
       FROM grh_effective_catalog_rows_v1 catalog
