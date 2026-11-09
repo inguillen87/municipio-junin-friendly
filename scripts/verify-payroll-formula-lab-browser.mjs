@@ -712,6 +712,7 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-evidence-summary]').innerText(), /2 fuentes identificadas · \d+ y \d+ bytes · huellas diferentes/);
     assert.equal(await postClose.locator('[data-post-close-observed-hash]').isVisible(), false);
     await evidenceDetails.locator('summary').click();
+    await postClose.locator('[data-post-close-observed-hash]').waitFor({ state: 'visible' }); // sections open with a short animation
     assert.match(await postClose.locator('[data-post-close-observed-hash]').innerText(), /^sha256:[a-f0-9]{64}$/);
     assert.equal(await postClose.locator('[data-post-close-observed-hash]').isVisible(), true);
     await evidenceDetails.locator('summary').click();
@@ -1075,6 +1076,8 @@ async function inspectModule7(viewport, label) {
     assert.deepEqual(module7Transitions, ['approve', 'close', 'annul']);
     const traceDetails = workflow.locator('details.post-close-evidence');
     if ((await traceDetails.getAttribute('open')) === null) await traceDetails.locator(':scope > summary').click();
+    // The section opens with a short animation: read the trace once it is rendered, not while it unfolds.
+    await page.waitForFunction(() => /Anular liquidación/.test(document.querySelector('[data-monthly-workflow-events]')?.innerText ?? ''));
     const timeline = await workflow.locator('[data-monthly-workflow-events]').innerText();
     assert.match(timeline, /Confirmar liquidación/);
     assert.match(timeline, /Cerrar liquidación/);
