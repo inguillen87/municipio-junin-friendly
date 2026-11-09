@@ -32,6 +32,7 @@
 .mc-quick-tab[aria-expanded=true] .mc-quick-caret{transform:rotate(180deg)}
 
 .mc-quickdock{position:fixed;z-index:60;top:12px;left:var(--mc-dock-center,50%);transform:translateX(-50%);max-width:min(var(--mc-dock-max,960px),calc(100vw - 24px));display:flex;align-items:center;gap:4px;padding:5px;border:1px solid #cfe2dc;border-radius:14px;background:rgba(255,255,255,.92);-webkit-backdrop-filter:saturate(1.5) blur(12px);backdrop-filter:saturate(1.5) blur(12px);box-shadow:0 14px 34px #0f3f3b29;animation:mc-dock-in .24s cubic-bezier(.2,.7,.2,1)}
+.mc-quickdock{transition:transform .2s ease,opacity .2s ease}.mc-quickdock[data-tucked=true]{transform:translate(-50%,calc(-100% - 16px));opacity:0;pointer-events:none}
 .mc-quickdock-top{flex:none;display:inline-grid;place-items:center;width:38px;height:38px;margin-left:2px;border:0;border-radius:10px;background:#0f766e;color:#fff;cursor:pointer;transition:background .16s}
 .mc-quickdock-top:hover{background:#0b5f58}
 
@@ -60,14 +61,14 @@
  .mc-quick-tabs-inline .mc-quick-tab{border-color:#e1eeea;background:#f3f9f7}
  .mc-quick-tab svg{width:20px;height:20px}
  .mc-quick-tab .mc-quick-caret{display:none}
- .mc-quickdock{top:auto;bottom:0;left:0;right:0;transform:none;max-width:none;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));border-width:1px 0 0;border-radius:16px 16px 0 0;animation-name:mc-dock-up}
+ .mc-quickdock,.mc-quickdock[data-tucked=true]{opacity:1;pointer-events:auto}.mc-quickdock[data-tucked=true]{transform:none}.mc-quickdock{top:auto;bottom:0;left:0;right:0;transform:none;max-width:none;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));border-width:1px 0 0;border-radius:16px 16px 0 0;animation-name:mc-dock-up}
  .mc-quickdock .mc-quick-tabs{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr))}
  .mc-quickdock-top{width:44px;height:52px}
  body.mc-quickdock-on{padding-bottom:76px}
  .mc-quickmenu{top:auto;left:8px;right:8px;bottom:var(--mc-menu-bottom,12px);width:auto;border-radius:18px;animation-name:mc-sheet-in}
  .mc-quickmenu-item{min-height:48px;font-size:15px}
 }
-@media(prefers-reduced-motion:reduce){.mc-quick,.mc-quickdock,.mc-quickmenu{animation:none}.mc-quick,.mc-quick-tab,.mc-quick-caret{transition:none}}
+@media(prefers-reduced-motion:reduce){.mc-quickdock{transition:none}.mc-quick,.mc-quickdock,.mc-quickmenu{animation:none}.mc-quick,.mc-quick-tab,.mc-quick-caret{transition:none}}
 @media print{.mc-quickbar,.mc-quickdock,.mc-quickmenu{display:none!important}
  body.mc-print-scope *{visibility:hidden}
  body.mc-print-scope .mc-print-target,body.mc-print-scope .mc-print-target *{visibility:visible}

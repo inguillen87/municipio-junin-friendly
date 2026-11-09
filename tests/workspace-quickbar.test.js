@@ -67,3 +67,12 @@ test('quick actions are grouped and wrap: no row scrolls sideways, and a compact
   assert.match(source, /setAttribute\('aria-haspopup', 'menu'\)/);
   assert.match(source, /event\.key === 'Escape'/);
 });
+
+test('the desktop dock tucks away while scrolling down and never on the phone bottom bar', () => {
+  const js = fs.readFileSync(new URL('../assets/workspace-quickbar.js', import.meta.url), 'utf8');
+  const style = fs.readFileSync(new URL('../assets/workspace-quickbar.css', import.meta.url), 'utf8');
+  assert.match(style, /\.mc-quickdock\[data-tucked=true\]\{transform:translate\(-50%,calc\(-100% - 16px\)\);opacity:0;pointer-events:none\}/);
+  assert.match(style, /@media\(max-width:760px\)\{[^@]*\.mc-quickdock\[data-tucked=true\]\{transform:none\}/);
+  assert.match(js, /matchMedia\('\(max-width:760px\)'\)\.matches\) return tuck\(false\)/);
+  assert.match(js, /dock\.addEventListener\('focusin', \(\) => tuck\(false\)\)/);
+});

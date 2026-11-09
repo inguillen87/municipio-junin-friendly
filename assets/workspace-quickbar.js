@@ -292,6 +292,18 @@ export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar])
     new IntersectionObserver(([entry]) => { above = !entry.isIntersecting && entry.boundingClientRect.bottom < 0; place(); }).observe(host);
   }
   addEventListener('resize', place);
+  // Desktop: the floating dock tucks away while the person scrolls down reading (it used to cover the text under it)
+  // and comes back on the first scroll up, near the top, or when focus or an open menu is inside it.
+  let lastY = scrollY;
+  const tuck = value => { if ((dock.dataset.tucked === 'true') !== value) dock.dataset.tucked = String(value); };
+  addEventListener('scroll', () => {
+    const y = scrollY, delta = y - lastY;
+    if (Math.abs(delta) < 6) return;
+    lastY = y;
+    if (dock.hidden || matchMedia('(max-width:760px)').matches) return tuck(false);
+    tuck(delta > 0 && y > 160 && !dock.contains(document.activeElement) && !(opener && dock.contains(opener)));
+  }, { passive: true });
+  dock.addEventListener('focusin', () => tuck(false));
 
   // Offer only actions whose control exists and is usable right now (permissions, loading, empty results).
   const refresh = () => {
