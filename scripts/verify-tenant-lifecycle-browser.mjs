@@ -293,6 +293,24 @@ function routeApiRequest(route, evidence) {
     return route.fulfill(jsonResponse(buildTenantLifecycleAuthFixture()));
   }
 
+  // The page now confirms the platform scope through the identity bootstrap before loading administration.
+  if (url.pathname === IDENTITY_PATH && method === 'GET'
+      && hasOnlyExpectedQuery(url, 'bootstrap', false)) {
+    evidence.identityGets += 1;
+    return route.fulfill(jsonResponse({ ok: true, access: {
+      authorized: true, tenant: null, sessionVersion: 2,
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.tenants.manage', 'platform.users.manage', 'platform.roles.manage'] },
+      session: { mfa: true, authLevel: 'mfa', version: 2 },
+    } }));
+  }
+
+  // Selecting the tenant asks for its source onboarding; this synthetic tenant has none configured.
+  if (url.pathname === IDENTITY_PATH && method === 'GET'
+      && hasOnlyExpectedQuery(url, 'source_onboarding', true) && url.searchParams.get('tenantId') === FIXTURE.tenantId) {
+    evidence.identityGets += 1;
+    return route.fulfill(jsonResponse({ ok: true, allowedCommands: [], sourceBinding: null, canonicalEvidence: null }));
+  }
+
   if (url.pathname === IDENTITY_PATH && method === 'GET'
       && hasOnlyExpectedQuery(url, 'invitations', false)) {
     evidence.identityGets += 1;
