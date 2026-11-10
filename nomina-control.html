@@ -573,6 +573,7 @@
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/report-centre.css">
+<link rel="stylesheet" href="assets/section-tabs.css">
 <link rel="stylesheet" href="assets/payroll-comparison.css">
 <script type="module" src="assets/payroll-navigation.js"></script>
 </head>
@@ -1699,7 +1700,7 @@
 
         <section class="section" aria-labelledby="historyTitle">
           <header class="section-head"><div><span class="section-index">11 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Importes nominales; los períodos no publicables se ocultan.</p></div></header>
-          <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
+          <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows" data-mc-pager="12" data-mc-pager-noun="corridas" data-mc-pager-search="off"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
@@ -2027,6 +2028,7 @@
       load();
     }());
   </script>
+  <script type="module" src="assets/list-pager.js"></script>
   <script type="module" src="assets/payroll-formula-linter.js"></script>
   <script type="module" src="assets/grh-source-preview.js"></script>
   <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
