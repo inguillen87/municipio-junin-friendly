@@ -22,6 +22,9 @@ function list(v, maximum, empty = true) {
 function size(v) { need(salaryJsonbBytes(v) <= FAMILY_PAYROLL_FACTS_MAX_BYTES, 'El conjunto completo supera su capacidad. No se recortaron filas.', 'LIMIT'); }
 
 export const FAMILY_PAYROLL_FACT_QUANTITIES = Object.freeze(['spouse', 'children', 'childrenWithDisability', 'prenatal', 'largeFamily', 'preschool', 'preschoolWithDisability', 'primary', 'primaryWithDisability', 'secondary', 'secondaryWithDisability', 'dependants']);
+// Unidad de cada hecho para una entrada del programa (misma idea que CONDITION_FIELD_UNITS): cantidades y meses en
+// unidades, región como código y promedio semestral en dinero.
+export const FAMILY_PAYROLL_FACT_FIELD_UNITS = Object.freeze({...Object.fromEntries(FAMILY_PAYROLL_FACT_QUANTITIES.map(k => [k, 'units'])), prenatalAdjustmentMonths: 'units', tariffRegion: 'code', semesterAverage: 'money'});
 const quantityValid = v => v === null || typeof v === 'string' && /^(0|[1-9][0-9]?)$/.test(v);
 const monthsValid = v => v === null || typeof v === 'string' && /^(0|[1-9]|1[0-9]|2[0-4])$/.test(v);
 const averageValid = v => v === null || typeof v === 'string' && /^(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$/.test(v);

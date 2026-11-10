@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {FAMILY_PAYROLL_FACTS_VERSION,FAMILY_PAYROLL_FACT_QUANTITIES,familyPayrollFactsDefinition,familyPayrollFactsItems,familyPayrollFactsBootstrap,familyPayrollFactsCommand,familyPayrollFactsCapture,prepareFamilyPayrollFacts,decideFamilyPayrollFacts} from '../assets/own-contract-family-payroll-facts-model.js';
+import {FAMILY_PAYROLL_FACTS_VERSION,FAMILY_PAYROLL_FACT_QUANTITIES,FAMILY_PAYROLL_FACT_FIELD_UNITS,familyPayrollFactsDefinition,familyPayrollFactsItems,familyPayrollFactsBootstrap,familyPayrollFactsCommand,familyPayrollFactsCapture,prepareFamilyPayrollFacts,decideFamilyPayrollFacts} from '../assets/own-contract-family-payroll-facts-model.js';
 import {FAMILY_FACT_FIELDS,FAMILY_FACTS_CSV_HEADER,familyFactsDraft,familyFactsView,familyFactsTotals,familyFactsCsv,familyFactsFile,familyFactsComparison,familyFactsPreparationFile} from '../assets/own-contract-family-payroll-facts-workspace.js';
 import {syntheticFamilyBootstrap as boot,syntheticFamilyItems as items,syntheticFamilyDefinition as definition,syntheticFamilyDetail as detail,familyReason as reason,familyId,familyHash} from './fixtures/own-contract-family-payroll-facts-synthetic.js';
 
@@ -10,6 +10,8 @@ test('the contract names the thirteen GRH quantities once each and keeps tariffs
  assert.deepEqual(FAMILY_FACT_FIELDS.map(f=>f.key),[...FAMILY_PAYROLL_FACT_QUANTITIES]);
  assert.deepEqual(FAMILY_FACT_FIELDS.map(f=>f.variable),['L60','L61','L62','L63','L64','L65','L66','L67','L68','L69','L70','L75']);
  assert.equal(new Set(FAMILY_FACTS_CSV_HEADER).size,FAMILY_FACTS_CSV_HEADER.length);
+ assert.deepEqual(Object.keys(FAMILY_PAYROLL_FACT_FIELD_UNITS),[...FAMILY_PAYROLL_FACT_QUANTITIES,'prenatalAdjustmentMonths','tariffRegion','semesterAverage']);
+ assert.deepEqual([...new Set(Object.values(FAMILY_PAYROLL_FACT_FIELD_UNITS))],['units','code','money']);assert.equal(FAMILY_PAYROLL_FACT_FIELD_UNITS.semesterAverage,'money');assert.ok(Object.isFrozen(FAMILY_PAYROLL_FACT_FIELD_UNITS));
  assert.deepEqual(Object.keys(definition()).sort(),['asOfDate','documentReference','prenatalAdjustmentMonths','quantities','tariffSelection']);
  assert.ok(!JSON.stringify(definition()).match(/amount|tariff"|importe/i),'los importes de tarifa no son un hecho del legajo');
 });

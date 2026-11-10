@@ -24,6 +24,8 @@
 .own-program [data-program-rule-editor]>fieldset:not(.own-program-expression-node)>.own-program-check{margin:6px 0}
 @media(max-width:820px){.own-program .own-program-expression-node{grid-template-columns:minmax(0,1fr);margin-left:0!important}}
 @media print{.own-program-formula{border-left-color:#000}}
+/* Avisos de «próximo paso» más compactos: mismo texto, menos aire entre párrafos. */
+.own-program .own-program-guidance>p{margin:6px 0}.own-program .own-program-guidance>.own-program-actions{margin:10px 0 6px}
 /* Pasos de la preparación: un tramo del formulario por vez (assets/own-program-steps.js). */
 .own-program .own-program-step-off{display:none!important}
 .own-program-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:8px;margin:18px 0 0;align-items:stretch}
