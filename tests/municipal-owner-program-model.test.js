@@ -17,4 +17,34 @@ test('wire validators reject accessors without invoking them, sparse arrays, cyc
 test('recovery preserves the original full preview and session under a newly verified MFA identity version',async()=>{const v=await stored();v.authorization.authority.actor.sessionId=id(13);v.authorization.authority.actor.sessionVersion++;v.authorization.authority.actor.identityVersion++;assert.deepEqual(await ownerProgramAttempt(v,{key:v.receipt.requestKey,command:v.command}),v);assert.equal(ownerProgramReceipt(v.receipt,{preview:v.preview}).rulesTotal,2);assert.notEqual(v.authorization.authority.actor.sessionId,v.preview.context.authority.actor.sessionId);});
 for(const[label,change]of [['other key',v=>v.receipt.requestKey=id(14)],['other body',v=>v.command.reason+=' changed'],['missing rule',v=>v.receipt.rulesTotal--],['missing binding',v=>v.receipt.bindingsTotal--],['other person',v=>v.authorization.authority.actor.personId=id(15)],['other binding',v=>v.authorization.scope.bindingId=id(16)],['other account',v=>v.authorization.authority.actor.email='other@example.invalid'],['owner as independent',v=>v.receipt.independence=true]])test('recovery rejects '+label,async()=>{const v=clone(await stored()),key=v.receipt.requestKey,command=clone(v.command);change(v);await assert.rejects(ownerProgramAttempt(v,{key,command}));});
 test('native and owner request hash domains cannot substitute one another',async()=>{const v=await stored();assert.notEqual(v.receipt.requestSha256,v.receipt.canonicalRequestSha256);for(const key of['requestSha256','canonicalRequestSha256']){const x=clone(v);x.receipt[key]=key==='requestSha256'?v.receipt.canonicalRequestSha256:v.receipt.requestSha256;await assert.rejects(ownerProgramAttempt(x));}});
-test('the full1000-binding/rule limit is never clipped and final content participates in verification',async()=>{const v=await preview(),rule=v.proposal.definition.rules[1],item=v.proposal.salaryItems.find(r=>r.kind==='auxiliary'),binding=v.proposal.definition.bindings[0];v.proposal.baseDefinition=null;v.proposal.definition.rules=Array.from({length:1000},(_,n)=>({...rule,code:String(n+1000),expression:{...rule.expression,key:'month'+n}}));v.proposal.definition.bindings=Array.from({length:1000},(_,n)=>({...binding,key:'month'+n}));v.proposal.salaryItems=Array.from({length:1000},(_,n)=>({...item,code:String(n+1000)}));v.proposal.definition=ownProgramStructure(v.proposal.definition);await reseal(v);const verified=await ownerProgramPreview(v);assert.equal(verified.proposal.definition.rules.length,1000);assert.equal(verified.proposal.definition.bindings.length,1000);const x=clone(v);x.proposal.definition.bindings.at(-1).ruleReference+=' altered';await assert.rejects(ownerProgramPreview(x));});
+async function capacityPreview(total, agreementFor, {normalize=true}={}){
+  const v=await preview(),rule=v.proposal.definition.rules[1],item=v.proposal.salaryItems.find(r=>r.kind==='auxiliary'),binding=v.proposal.definition.bindings[0];
+  v.proposal.baseDefinition=null;
+  v.proposal.definition.rules=Array.from({length:total},(_,n)=>({...rule,agreementCode:agreementFor(n),code:String(n+1000),expression:{...rule.expression,key:'month'+n}}));
+  v.proposal.definition.bindings=Array.from({length:total},(_,n)=>({...binding,agreementCode:agreementFor(n),key:'month'+n}));
+  v.proposal.salaryItems=Array.from({length:total},(_,n)=>({...item,agreementCode:agreementFor(n),code:String(n+1000)}));
+  if(normalize)v.proposal.definition=ownProgramStructure(v.proposal.definition);
+  return reseal(v);
+}
+test('the global 1000-binding/rule limit preserves both complete agreement scopes and verifies final content',async()=>{
+  const v=await capacityPreview(1000,n=>n<500?'1':'2'),verified=await ownerProgramPreview(v);
+  assert.equal(verified.proposal.definition.rules.length,1000);
+  assert.equal(verified.proposal.definition.bindings.length,1000);
+  assert.equal(verified.proposal.salaryItems.length,1000);
+  for(const agreementCode of ['1','2']){
+    assert.equal(verified.proposal.definition.rules.filter(r=>r.agreementCode===agreementCode).length,500);
+    assert.equal(verified.proposal.definition.bindings.filter(b=>b.agreementCode===agreementCode).length,500);
+    assert.equal(verified.proposal.salaryItems.filter(i=>i.agreementCode===agreementCode).length,500);
+  }
+  const x=clone(v);x.proposal.definition.bindings.at(-1).ruleReference+=' altered';
+  await assert.rejects(ownerProgramPreview(x));
+});
+test('owner preview accepts all 512 inputs for a single agreement without clipping',async()=>{
+  const verified=await ownerProgramPreview(await capacityPreview(512,()=>'1'));
+  assert.equal(verified.proposal.definition.rules.length,512);
+  assert.equal(verified.proposal.definition.bindings.length,512);
+});
+test('resealing an owner preview cannot exceed the 512-input capacity of one agreement',async()=>{
+  const v=await capacityPreview(513,()=>'1',{normalize:false});
+  await assert.rejects(ownerProgramPreview(v),e=>e.code==='BINDING_LIMIT');
+});

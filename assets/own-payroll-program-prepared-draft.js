@@ -105,7 +105,7 @@ async function reviewParsed(salaryValue,programmeValue,currentDraft,file){
  for(const edge of file.dependencies){
   require(salaryExact(edge,['from','path','to','stage'])&&['from','path','to','stage'].every(k=>typeof edge[k]==='string'));
   if(edge.stage==='declared_input_binding'&&inputs.has(edge.to)){
-   const d=definitions.get(edge.to);require(program.bindings.some(b=>b.agreementCode===d.catalogue.agreementCode&&b.sourceCode===d.catalogue.code&&(d.catalogue.kind==='auxiliary'?b.sourceKind==='auxiliary_parameter':['parameter','monthly_quantity','monthly_amount','fixed_quantity','fixed_amount'].includes(b.sourceKind))));
+   const d=definitions.get(edge.to);require(program.bindings.some(b=>b.agreementCode===d.catalogue.agreementCode&&b.sourceCode===d.catalogue.code&&(d.catalogue.kind==='auxiliary'?b.sourceKind==='auxiliary_parameter':['parameter','monthly_quantity','monthly_amount','fixed_quantity','fixed_amount','monthly_presence','fixed_presence'].includes(b.sourceKind))));
    consumed.add(edge.to);
   }
   if(edge.stage==='declared_quantity_phase'){

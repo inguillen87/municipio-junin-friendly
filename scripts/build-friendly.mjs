@@ -49,6 +49,7 @@ const shellFiles = [
   'assets/own-contract-working-time-collective-panel.js',
   'assets/own-contract-working-time-panel.css',
   'assets/own-payroll-period-context.js',
+  'assets/own-payroll-novelty-presence.js',
   'assets/own-agreement-working-time-model.js',
   'assets/own-agreement-working-time-program.js',
   'assets/own-agreement-working-time-workspace.js',
