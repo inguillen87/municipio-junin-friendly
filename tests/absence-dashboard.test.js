@@ -128,6 +128,8 @@ test('el ranking conserva la fuente al abrir el historial; sin contrato vinculad
   assert.match(source, /searchParams\.set\('companyId', String\(row\.companyId\)\); url\.searchParams\.set\('legajo', String\(row\.legajo\)\)/);
   assert.match(source, /JSON\.stringify\(payload\.meta\?\.snapshot \?\? null\) !== JSON\.stringify\(expected\)/, 'no mezcla cortes');
   assert.doesNotMatch(source, /eventSearch/, 'ya no usa la búsqueda parcial del listado para el historial');
+  assert.match(source, /if \(response\.status === 401\) \{ withdraw\(/); assert.match(source, /if \(response\.status === 403\) \{ withdraw\(/);
+  assert.match(source, /const withdraw = message => \{ body\.replaceChildren\(\); more\.hidden = true;/, 'al perder sesión o permiso se retiran filas y nombre, también en «Ver más»');
   assert.doesNotMatch(source, /Math\.round\((?:r|i)\.(?:sourceDeclaredDays|declaredDays)/);
 });
 

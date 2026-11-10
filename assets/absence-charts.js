@@ -286,6 +286,8 @@ function openLegajoHistory(row) {
  document.body.append(dialog);
  let page = 0, total = 0, shown = 0, alive = true, busy = false;
  const done = () => { alive = false; dialog.remove(); if (legajoDialog?.dialog === dialog) legajoDialog = null; if (origin?.isConnected) origin.focus(); };
+ // Sin sesión o sin permiso (también al pedir «Ver más») no queda nada nominal a la vista: ni filas ni nombre.
+ const withdraw = message => { body.replaceChildren(); more.hidden = true; shown = 0; dialog.querySelector('#abHistoryTitle').textContent = 'Licencias del legajo'; dialog.querySelector('header p').textContent = ''; status.textContent = message; };
  async function load() {
   if (busy || !alive) return; busy = true; more.disabled = true;
   try {
@@ -293,7 +295,8 @@ function openLegajoHistory(row) {
    url.searchParams.set('companyId', String(row.companyId)); url.searchParams.set('legajo', String(row.legajo)); url.searchParams.set('page', String(page + 1)); url.searchParams.set('limit', '50');
    const response = await fetch(url.pathname + url.search, {credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}}), payload = response.ok ? await response.json() : null;
    if (!alive) return;
-   if (response.status === 403) { status.textContent = 'Tu usuario no tiene permiso para ver el detalle por persona.'; return; }
+   if (response.status === 401) { withdraw('La sesión venció. Cerrá esta ventana y volvé a ingresar.'); return; }
+   if (response.status === 403) { withdraw('Tu usuario no tiene permiso para ver el detalle por persona.'); return; }
    if (!payload?.ok || !Array.isArray(payload.data)) { status.textContent = 'No se pudo leer el historial ahora. Cerrá y volvé a intentar.'; return; }
    // Otra fuente que la del ranking: no se mezclan cortes.
    if (expected && JSON.stringify(payload.meta?.snapshot ?? null) !== JSON.stringify(expected)) { body.replaceChildren(); more.hidden = true; status.textContent = 'Los datos se actualizaron desde que se armó el ranking. Cerrá esta ventana y tocá «Actualizar» para ver todo con la misma fuente.'; return; }
