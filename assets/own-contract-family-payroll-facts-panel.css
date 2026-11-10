@@ -35,3 +35,10 @@
 .own-family-facts .family-facts-pending p{flex:1 1 18rem;margin:0;font-weight:650;color:#4d2c00;overflow-wrap:anywhere}
 .own-family-facts .family-facts-pending button{width:auto;background:#15776f;border-color:#15776f;color:#fff}
 @media print{.own-family-facts .family-facts-pending{display:none}}
+/* Estado del período y, a su lado, «Traer lo aprobado el mes anterior». */
+.own-family-facts .family-facts-carry{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:0}
+.own-family-facts .family-facts-carry+p{margin-top:.3rem}
+.own-family-facts .family-facts-carry p{flex:1 1 18rem;margin:0}
+.own-family-facts .family-facts-carry button{width:auto}
+@media (max-width:480px){.own-family-facts .family-facts-carry button{width:100%}}
+@media print{.own-family-facts .family-facts-carry button{display:none}}

@@ -14,11 +14,16 @@ const origin = 'https://fact-panels.invalid', period = '2026-10', checks = [], e
 const check = (ok, name) => { assert.ok(ok, name); checks.push(name); };
 const conditions = syntheticConditionsBootstrap(60); conditions.source.subjects.forEach((s, i) => { s.employeeName = 'Agente exclusivamente sintético ' + (i + 1); });
 const agreements = syntheticAgreementTimeBootstrap(14);
+// Lo aprobado el mes anterior, para «Traer lo aprobado»: en condiciones faltan dos contratos y uno cambió de identidad.
+const approved = (boot, items) => ({...structuredClone(boot), period: '2026-09', configuration: {version: '9'.repeat(64), revision: 1, items, proposalId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', approvalId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'}});
+const evidence = {asOfDate: '2026-09-01', documentReference: 'Constancia exclusivamente sintética de septiembre'};
+const previousConditions = approved(conditions, conditions.source.subjects.slice(0, 58).map((s, i) => ({contractId: s.contractId, identityToken: i === 1 ? 'f'.repeat(64) : s.identityToken, definition: {partialSeniorityYears: '5', title: {status: 'none', code: null, percentage: null}, unhealthyWork: true, ...evidence}})));
+const previousAgreements = approved(agreements, agreements.source.agreements.map(a => ({agreementCode: a.agreementCode, agreementToken: a.agreementToken, definition: {monthlyHours: '180', ...evidence}})));
 const CASES = [
-  {id: 'condiciones', name: 'Condiciones salariales', module: 'own-contract-salary-conditions-panel.js', mount: 'mountOwnContractSalaryConditions', host: '.own-salary-conditions', prefix: 'conditions', endpoint: '/api/internal-own-contract-salary-conditions', boot: conditions, detail: () => syntheticConditionsDetail(60), approve: /^Aprobar /, total: 60, shown: 25, noun: 'contratos',
+  {id: 'condiciones', name: 'Condiciones salariales', module: 'own-contract-salary-conditions-panel.js', mount: 'mountOwnContractSalaryConditions', host: '.own-salary-conditions', prefix: 'conditions', endpoint: '/api/internal-own-contract-salary-conditions', boot: conditions, previous: previousConditions, carried: 'Se trajeron 57 de 60 filas de lo aprobado en septiembre de 2026, con su fecha y su constancia. 3 quedan como estaban porque no figuran en ese mes o cambió su identidad. Revisá, corregí lo que cambió y compará. Todavía no se registró nada.', detail: () => syntheticConditionsDetail(60), approve: /^Aprobar /, total: 60, shown: 25, noun: 'contratos',
     closed: 'Antigüedad parcial: sin informar · Título: sin informar · Insalubridad: sin informar', edit: {label: 'Antigüedad parcial en años (vacío: sin informar)', value: '3'}, edited: 'Antigüedad parcial: 3 · Título: sin informar · Insalubridad: sin informar', changed: 'Antigüedad parcial|Fecha|Constancia', unchanged: 'Fecha|Constancia', perPage: 6, budget: 3.1},
-  {id: 'horas-convenio', name: 'Horas mensuales por convenio', module: 'own-agreement-working-time-panel.js', mount: 'mountOwnAgreementWorkingTime', host: '.own-agreement-time', prefix: 'agreement-time', endpoint: '/api/internal-own-agreement-working-time', boot: agreements, detail: () => syntheticAgreementTimeDetail(agreements), approve: /^Aprobar /, total: 14, shown: 14, noun: 'convenios',
-    closed: 'Horas mensuales: sin informar', edit: {label: 'Horas mensuales del convenio (vacío: sin informar)', value: '180'}, edited: '180 horas mensuales', changed: 'Horas mensuales del convenio|Fecha|Constancia', unchanged: 'Fecha|Constancia', perPage: 6, budget: 2.2},
+  {id: 'horas-convenio', name: 'Horas mensuales por convenio', module: 'own-agreement-working-time-panel.js', mount: 'mountOwnAgreementWorkingTime', host: '.own-agreement-time', prefix: 'agreement-time', endpoint: '/api/internal-own-agreement-working-time', boot: agreements, previous: previousAgreements, carried: 'Se trajeron 14 de 14 filas de lo aprobado en septiembre de 2026, con su fecha y su constancia. Revisá, corregí lo que cambió y compará. Todavía no se registró nada.', detail: () => syntheticAgreementTimeDetail(agreements), approve: /^Aprobar /, total: 14, shown: 14, noun: 'convenios',
+    closed: 'Horas mensuales: sin informar', edit: {label: 'Horas mensuales del convenio (vacío: sin informar)', value: '180'}, edited: '180 horas mensuales', changed: 'Horas mensuales del convenio|Fecha|Constancia', unchanged: 'Fecha|Constancia', perPage: 6, budget: 2.25}, // 2,2 antes de «Traer lo aprobado»: el botón junto al estado suma unos 10 px
 ];
 const page0 = c => `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QA sintético · ${c.name}</title>
 <body style="margin:0;font:16px system-ui;background:#f4f7f6"><main style="max-width:1180px;margin:0 auto;padding:16px"><div id="host"></div></main>
@@ -34,7 +39,7 @@ try {
     const page = CASES.find(c => u.pathname === '/' + c.id); if (page) return route.fulfill({status: 200, contentType: 'text/html', body: page0(page)});
     if (u.pathname === '/api/internal-auth') return route.fulfill({json: {ok: true, authenticated: true, sessionVersion: 2, user: {id: 'qa', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '50000000-0000-4000-8000-000000000001', roleKey: 'QA'}, tenantCapabilities: ['workforce.employee.read', 'payroll.parameter.read', 'payroll.calculation.nominal.read', 'payroll.parameter.prepare', 'payroll.parameter.approve'], platformCapabilities: [], platformRoles: []}, expiresAt: new Date(Date.now() + 3600000).toISOString()}});
     const api = CASES.find(c => u.pathname === c.endpoint);
-    if (api) { if (req.method() !== 'GET') { writes++; return route.fulfill({status: 405, json: {ok: false, error: 'Esta verificación no envía nada.'}}); } return route.fulfill({json: {ok: true, data: reviewing ? (u.searchParams.get('resource') === 'detail' ? reviewing.detail : reviewing.boot) : api.boot}}); }
+    if (api) { if (req.method() !== 'GET') { writes++; return route.fulfill({status: 405, json: {ok: false, error: 'Esta verificación no envía nada.'}}); } return route.fulfill({json: {ok: true, data: u.searchParams.get('period') === '2026-09' ? api.previous : reviewing ? (u.searchParams.get('resource') === 'detail' ? reviewing.detail : reviewing.boot) : api.boot}}); }
     if (u.pathname.startsWith('/api/')) return route.fulfill({status: 403, json: {ok: false, error: 'API ajena a esta prueba sintética.'}});
     const file = path.resolve(root, u.pathname.slice(1));
     if (req.method() !== 'GET' || !file.startsWith(path.join(root, 'assets') + path.sep) || !fs.existsSync(file)) return route.fulfill({status: 404, body: ''});
@@ -113,6 +118,14 @@ try {
     await s('decision-reason').fill('Otro fundamento exclusivamente sintético QA');
     check(await s('comparison').isVisible() && await s('confirm').isHidden() && await s('send').isHidden() && (await note.innerText()).startsWith('Cambiaste la decisión o el fundamento'), tag + 'si cambia el fundamento, se retira la confirmación y la pantalla dice que hay que volver a comparar');
     reviewing = null;
+
+    // Cada mes se parte de lo aprobado el mes anterior, en vez de cargar todo de nuevo.
+    await page.goto(origin + '/' + c.id); await page.waitForFunction(prefix => window.listo === true && document.querySelector(`[data-${prefix}-target]`)?.disabled === false, c.prefix); await idle();
+    await s('period').fill(period); await s('refresh').click(); await idle(); await s('content').waitFor({state: 'visible'});
+    check((await s('carry').innerText()) === 'Traer lo aprobado en septiembre de 2026' && await s('pending').isHidden(), tag + 'quien prepara ve de qué mes puede traer lo aprobado');
+    await s('carry').click(); await idle();
+    check((await s('status').innerText()) === c.carried, tag + 'al traerlo, la pantalla dice cuántas filas vinieron y cuáles quedaron como estaban');
+    check((await rows.first().locator('summary span').innerText()) !== c.closed && await s('comparison').isHidden() && writes === 0, tag + 'lo traído queda en el borrador, a la vista, y nada se registró');
   }
   assert.equal(writes, 0); assert.deepEqual(errors, []);
   const report = {passed: true, checks: checks.length, names: checks, syntheticOnly: true, municipalApisCalled: 0, writes: 0};
