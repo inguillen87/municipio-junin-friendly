@@ -128,8 +128,8 @@ test('el ranking conserva la fuente al abrir el historial; sin contrato vinculad
   assert.match(source, /searchParams\.set\('companyId', String\(row\.companyId\)\); url\.searchParams\.set\('legajo', String\(row\.legajo\)\)/);
   assert.match(source, /JSON\.stringify\(payload\.meta\?\.snapshot \?\? null\) !== JSON\.stringify\(expected\)/, 'no mezcla cortes');
   assert.doesNotMatch(source, /eventSearch/, 'ya no usa la búsqueda parcial del listado para el historial');
-  assert.match(source, /if \(response\.status === 401\) \{ withdraw\(/); assert.match(source, /if \(response\.status === 403\) \{ withdraw\(/);
-  assert.match(source, /const withdraw = message => \{ body\.replaceChildren\(\); more\.hidden = true;/, 'al perder sesión o permiso se retiran filas y nombre, también en «Ver más»');
+  // Revocation and snapshot withdrawal are exercised with the real DOM by
+  // scripts/verify-absence-exact-history-browser.mjs, including a second page.
   assert.doesNotMatch(source, /Math\.round\((?:r|i)\.(?:sourceDeclaredDays|declaredDays)/);
 });
 
@@ -150,7 +150,7 @@ test('absenceEvents con legajo exacto filtra por igualdad en conteo y filas; el 
     if (marker === 'events') return [{ contractId: null, companyId: 101, legajo: '27', name: 'PERSONA QA', sector: 'OBRERO', eventDate: '2026-07-10', untilDate: '2026-07-12', reasonCode: '10', reason: 'LICENCIA', sourceDeclaredDays: '2.5', sourceQuantity: '1' }];
     throw new Error('consulta no simulada ' + marker);
   } };
-  const result = await absenceEvents(sql, { query: { from: '2026-01-01', to: '2026-09-10', companyId: '101', legajo: '27', limit: '50' } });
+  const result = await absenceEvents(sql, { query: { from: '2026-01-01', to: '2026-09-10', companyId: '101', legajo: '27', limit: '50' } }, { sourceBinding: { companyId: 101 } });
   assert.equal(result.status, 200); assert.equal(result.payload.meta.detailScope, 'exact_source_legajo'); assert.equal(result.payload.data[0].sourceDeclaredDays, 2.5);
   for (const marker of ['events-summary', 'events']) {
     const call = calls.find(c => c.marker === marker);
@@ -159,4 +159,18 @@ test('absenceEvents con legajo exacto filtra por igualdad en conteo y filas; el 
   }
   const rejected = await absenceEvents({ async query() { throw new Error('no debe consultar'); } }, { query: { legajo: '27' } });
   assert.equal(rejected.status, 400);
+});
+
+test('el historial exacto rechaza otra empresa o un vínculo ausente antes de consultar datos', async () => {
+  for (const [companyId, sourceBinding] of [
+    ['102', { companyId: 101 }], ['101', undefined], ['101', {}],
+    ['101', { companyId: 0 }], ['101', { companyId: '101' }], ['00101', { companyId: 101 }]
+  ]) {
+    let queries = 0;
+    const sql = { async query() { queries++; return []; } };
+    const result = await absenceEvents(sql, { query: { companyId, legajo: '27' } }, { sourceBinding });
+    assert.equal(result.status, 403);
+    assert.equal(result.payload.code, 'ABSENCE_DETAIL_SCOPE_FORBIDDEN');
+    assert.equal(queries, 0, 'el rechazo de ámbito no consulta la fuente ni sus personas');
+  }
 });

@@ -32,7 +32,8 @@
 .ab-seg button{white-space:nowrap;min-height:36px;padding:6px 14px;border:0;border-radius:999px;background:transparent;color:#33454f;font:700 12.5px/1 inherit;cursor:pointer}
 .ab-seg button[aria-pressed=true]{background:#0f766e;color:#fff}
 .ab-people-status{margin:0 0 10px;color:var(--muted,#5d6f78);font-size:13px}
-.ab-people{display:grid;grid-template-columns:1fr;gap:16px}
+.ab-people{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
+.ab-people>div{min-width:0}
 .ab-people-table td{vertical-align:middle}
 .ab-people-table .ab-rank{width:34px;color:#0f766e;font-weight:850;font-size:15px}
 .ab-people-table td strong{white-space:nowrap}

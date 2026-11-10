@@ -1548,11 +1548,17 @@ export async function absencePeople(sql, req) {
   };
 }
 
-export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
+export async function absenceEvents(sql, req, { rangeMode = 'starts', sourceBinding = null } = {}) {
   absenceWindowMode(rangeMode);
   let detailScope;
   try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search',''),legajo:queryValue(req,'legajo',''),companyId:queryValue(req,'companyId','')}); }
   catch { return {status:400,payload:{ok:false,code:'ABSENCE_DETAIL_FILTER_INVALID',error:'Filtro de detalle inválido'}}; }
+  // The source view may contain several companies. A browser-supplied company
+  // never expands the certified binding obtained by the authenticated route.
+  if (detailScope.legajo && (!Number.isSafeInteger(sourceBinding?.companyId)
+      || sourceBinding.companyId < 1 || detailScope.companyId !== String(sourceBinding.companyId))) {
+    return { status: 403, payload: { ok: false, code: 'ABSENCE_DETAIL_SCOPE_FORBIDDEN', error: 'El ámbito del historial no está autorizado para esta fuente municipal.' } };
+  }
   const source = await absenceSourceContext(sql);
   if (!source) {
     return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
@@ -4290,7 +4296,7 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond(result.status,result.payload);
       }
       if (resource === 'absenceevents') {
-        const result = await absenceEvents(sql, req);
+        const result = await absenceEvents(sql, req, { sourceBinding });
         if(result.status===200)result.payload.meta={...result.payload.meta,snapshot:sourceSnapshot,tenantId:sourceBinding.tenantId};
         return await respond( result.status, result.payload);
       }
