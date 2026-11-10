@@ -285,9 +285,9 @@ function openLegajoHistory(row) {
   el('div', {class: 'mc-zoom-body'}, status, el('div', {class: 'mc-zoom-scroll'}, table), more));
  document.body.append(dialog);
  let page = 0, total = 0, shown = 0, alive = true, busy = false;
- const done = () => { alive = false; dialog.remove(); if (legajoDialog?.dialog === dialog) legajoDialog = null; if (origin?.isConnected) origin.focus(); };
- // Sin sesión o sin permiso (también al pedir «Ver más») no queda nada nominal a la vista: ni filas ni nombre.
- const withdraw = message => { body.replaceChildren(); more.hidden = true; shown = 0; dialog.querySelector('#abHistoryTitle').textContent = 'Licencias del legajo'; dialog.querySelector('header p').textContent = ''; status.textContent = message; };
+ const done = () => { if (!alive) return; alive = false; dialog.replaceChildren(); dialog.remove(); if (legajoDialog?.dialog === dialog) legajoDialog = null; if (origin?.isConnected) origin.focus(); };
+ // La pérdida de acceso retira también el ranking y cualquier ampliación nominal.
+ const withdrawHistory = message => { clearPeople(message); closeChartZoom(); done(); };
  async function load() {
   if (busy || !alive) return; busy = true; more.disabled = true;
   try {
@@ -295,11 +295,10 @@ function openLegajoHistory(row) {
    url.searchParams.set('companyId', String(row.companyId)); url.searchParams.set('legajo', String(row.legajo)); url.searchParams.set('page', String(page + 1)); url.searchParams.set('limit', '50');
    const response = await fetch(url.pathname + url.search, {credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}}), payload = response.ok ? await response.json() : null;
    if (!alive) return;
-   if (response.status === 401) { withdraw('La sesión venció. Cerrá esta ventana y volvé a ingresar.'); return; }
-   if (response.status === 403) { withdraw('Tu usuario no tiene permiso para ver el detalle por persona.'); return; }
+   if (response.status === 401 || response.status === 403) { withdrawHistory(response.status === 401 ? 'La sesión venció. Volvé a ingresar para consultar el historial.' : 'Tu usuario no tiene permiso para ver el detalle por persona.'); return; }
    if (!payload?.ok || !Array.isArray(payload.data)) { status.textContent = 'No se pudo leer el historial ahora. Cerrá y volvé a intentar.'; return; }
    // Otra fuente que la del ranking: no se mezclan cortes.
-   if (expected && JSON.stringify(payload.meta?.snapshot ?? null) !== JSON.stringify(expected)) { body.replaceChildren(); more.hidden = true; status.textContent = 'Los datos se actualizaron desde que se armó el ranking. Cerrá esta ventana y tocá «Actualizar» para ver todo con la misma fuente.'; return; }
+   if (expected && JSON.stringify(payload.meta?.snapshot ?? null) !== JSON.stringify(expected)) { withdrawHistory('Los datos se actualizaron desde que se armó el ranking. Tocá «Actualizar» para ver todo con la misma fuente.'); return; }
    page++; total = payload.pagination?.total ?? payload.data.length;
    for (const e of payload.data) body.append(el('tr', {}, el('td', {text: shortDate(isoDay(String(e.eventDate || '').slice(0, 10)))}), el('td', {text: e.untilDate ? shortDate(isoDay(String(e.untilDate).slice(0, 10))) : 'No informada'}), el('td', {text: readableLabel(e.reason || '—')}), el('td', {class: 'num', text: e.sourceDeclaredDays === null || e.sourceDeclaredDays === undefined ? 'Sin informar' : days(e.sourceDeclaredDays)})));
    shown += payload.data.length; more.hidden = shown >= total;

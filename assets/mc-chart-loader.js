@@ -28,20 +28,49 @@ export function chartSlot(title, {subtitle = '', size = 'md', key = '', expand =
  }
  return slot;
 }
+
+// A zoom belongs to one drawn source, not merely to a DOM element that may be
+// reused after a new query. Panels remain responsible for authorizing their data.
+const sourceDraws = new WeakMap();
+let contextRevision = 0, openZoom = null;
+function retireDraw(host, draw) {
+ if (!draw || sourceDraws.get(host) !== draw) return;
+ sourceDraws.delete(host);
+ const button = host.closest('.mc-chart-card')?.querySelector('.mc-chart-expand'); if (button) button.hidden = true;
+ if (openZoom?.source === draw) closeChartZoom();
+}
+function sourceIsCurrent(slot, draw) {
+ if (!draw || document.hidden || draw.contextRevision !== contextRevision || sourceDraws.get(slot.host) !== draw
+  || !slot.figure.isConnected || !slot.host.isConnected || !slot.figure.contains(slot.host)
+  || !draw.mounted || draw.mounted.chart.isDisposed() || !slot.host.querySelector('canvas,svg')
+  || slot.host.closest('[hidden],[aria-hidden="true"],[inert]')) return false;
+ const style = getComputedStyle(slot.host), rect = slot.host.getBoundingClientRect();
+ return style.visibility !== 'hidden' && style.visibility !== 'collapse' && rect.width > 0 && rect.height > 0;
+}
 /** Draws build(module, {zoom}) into host once the module is ready. Returns the mounted chart or null. */
 export async function drawChart(host, build, {ariaLabel = '', onClick = null} = {}) {
  if (!host?.isConnected) return null;
+ const zoom = host.dataset.mcZoom === 'true';
+ const source = zoom ? null : {build, ariaLabel, onClick, contextRevision, mounted: null};
+ if (source) { retireDraw(host, sourceDraws.get(host)); sourceDraws.set(host, source); }
  try {
-  const m = await loadCharts(); if (!host.isConnected) return null;
-  const mounted = m.mountChart(host, build(m, {zoom: host.dataset.mcZoom === 'true'}), {ariaLabel}); host.dataset.loading = 'false';
+  const m = await loadCharts();
+  if (!host.isConnected || source && (sourceDraws.get(host) !== source || source.contextRevision !== contextRevision)) { retireDraw(host, source); return null; }
+  const mounted = m.mountChart(host, build(m, {zoom}), {ariaLabel}); host.dataset.loading = 'false';
   if (onClick) { mounted.chart.off('click'); mounted.chart.on('click', onClick); }
   // Lo último dibujado es lo que «Ampliar» vuelve a dibujar en grande.
-  if (host.dataset.mcZoom !== 'true') { host.__mcDraw = {build, ariaLabel, onClick}; const button = host.closest('.mc-chart-card')?.querySelector('.mc-chart-expand'); if (button) button.hidden = false; }
+  if (source) {
+   source.mounted = mounted;
+   for (const method of ['dispose', 'update']) {
+    const original = mounted[method];
+    mounted[method] = (...args) => { const current = sourceDraws.get(host); if (current?.mounted?.chart === mounted.chart) retireDraw(host, current); return original.apply(mounted, args); };
+   }
+   const button = host.closest('.mc-chart-card')?.querySelector('.mc-chart-expand'); if (button) button.hidden = false;
+  }
   return mounted;
- } catch { host.dataset.loading = 'error'; return null; }
+ } catch { retireDraw(host, source); host.dataset.loading = 'error'; return null; }
 }
 
-let openZoom = null;
 const make = (tag, props = {}, ...children) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else n.setAttribute(k, v); } n.append(...children.filter(Boolean)); return n; };
 const fileName = text => (String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'grafico');
 /** Closes the enlarged chart, if any (screens that withdraw private data call it). */
@@ -51,7 +80,7 @@ export function closeChartZoom() { openZoom?.close(); }
  * The card may provide figure.__mcRows = () => ({head: [...], body: [[...]]}) to list its numbers.
  */
 export function openChartZoom(slot) {
- const draw = slot?.host?.__mcDraw; if (!draw || typeof document === 'undefined') return;
+ const draw = sourceDraws.get(slot?.host); if (typeof document === 'undefined' || !sourceIsCurrent(slot, draw)) return;
  openZoom?.close();
  const title = slot.caption?.querySelector('strong')?.textContent || 'Gráfico', subtitle = slot.caption?.querySelector('strong + span')?.textContent || '';
  const save = make('button', {type: 'button', class: 'button', text: 'Descargar imagen'}), close = make('button', {type: 'button', class: 'button', text: 'Cerrar'});
@@ -65,11 +94,47 @@ export function openChartZoom(slot) {
  const dialog = make('dialog', {class: 'mc-zoom', 'aria-label': title}, make('header', {}, make('div', {}, make('h2', {text: title}), subtitle ? make('p', {text: subtitle}) : null), make('div', {class: 'mc-zoom-actions'}, save, close)), body);
  document.body.append(dialog);
  const from = slot.figure.getBoundingClientRect(); dialog.style.setProperty('--mc-from-x', (from.left + from.width / 2 - innerWidth / 2) + 'px'); dialog.style.setProperty('--mc-from-y', (from.top + from.height / 2 - innerHeight / 2) + 'px');
- let mounted = null;
- const done = () => { try { mounted?.dispose(); } catch { /* ya liberado */ } dialog.remove(); if (openZoom?.dialog === dialog) openZoom = null; if (slot.expand?.isConnected) slot.expand.focus(); };
- close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', done); dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
+ let mounted = null, observer = null, closed = false;
+ const current = () => !closed && sourceIsCurrent(slot, draw);
+ const done = () => {
+  if (closed) return; closed = true;
+  observer?.disconnect(); window.removeEventListener('resize', verifySource);
+  save.disabled = true; save.removeEventListener('click', download); close.removeEventListener('click', done);
+  dialog.removeEventListener('close', done); dialog.removeEventListener('click', backdrop);
+  const previous = mounted; mounted = null; try { previous?.dispose(); } catch { /* ya liberado */ }
+  if (dialog.open) dialog.close();
+  // Clear even detached DOM handles: no nominal table, canvas or live exporter remains.
+  dialog.replaceChildren(); dialog.remove();
+  if (openZoom?.dialog === dialog) openZoom = null;
+  if (slot.expand?.isConnected && sourceIsCurrent(slot, draw)) slot.expand.focus();
+ };
+ const verifySource = () => { if (!current()) done(); };
+ const backdrop = event => { if (event.target === dialog) done(); };
+ const download = () => {
+  // Also guard the same event turn, before MutationObserver can report withdrawal.
+  if (!current()) { done(); return; }
+  if (!mounted || mounted.chart.isDisposed()) return;
+  const a = make('a', {href: mounted.chart.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'}), download: fileName(title) + '.png'});
+  document.body.append(a); a.click(); a.remove();
+ };
+ close.addEventListener('click', done); dialog.addEventListener('close', done); dialog.addEventListener('click', backdrop);
  save.disabled = true;
- save.addEventListener('click', () => { if (!mounted) return; const a = make('a', {href: mounted.chart.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'}), download: fileName(title) + '.png'}); document.body.append(a); a.click(); a.remove(); });
- dialog.showModal(); openZoom = {dialog, close: () => dialog.open && dialog.close()};
- requestAnimationFrame(async () => { mounted = await drawChart(host, draw.build, {ariaLabel: draw.ariaLabel, onClick: draw.onClick ? p => { dialog.close(); draw.onClick(p); } : null}); save.disabled = !mounted; });
+ save.addEventListener('click', download);
+ observer = new MutationObserver(records => { if (records.some(record => !dialog.contains(record.target))) verifySource(); });
+ observer.observe(document.documentElement, {subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'aria-hidden', 'inert', 'style', 'class', 'open']});
+ window.addEventListener('resize', verifySource);
+ dialog.showModal(); openZoom = {dialog, source: draw, close: done};
+ requestAnimationFrame(async () => {
+  if (!current()) { done(); return; }
+  const next = await drawChart(host, draw.build, {ariaLabel: draw.ariaLabel, onClick: draw.onClick ? p => { if (!current()) { done(); return; } done(); draw.onClick(p); } : null});
+  if (!current()) { next?.dispose(); done(); return; }
+  mounted = next; save.disabled = !mounted;
+ });
+}
+
+if (typeof document !== 'undefined') {
+ document.addEventListener('visibilitychange', () => { if (document.hidden) closeChartZoom(); });
+ document.addEventListener('municontrol:capabilities-ready', () => { contextRevision++; closeChartZoom(); });
+ document.addEventListener('taskchange', closeChartZoom);
+ window.addEventListener('pagehide', closeChartZoom);
 }
