@@ -10,3 +10,9 @@
 .own-agreement-time [data-agreement-time-target]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.4rem 1rem}.own-agreement-time [data-agreement-time-target]>label{flex:0 1 280px;margin:.2rem 0}.own-agreement-time [data-agreement-time-target]>button{margin:.2rem 0}
 /* Mientras se revisa la comparación, el listado de convenios se retira de la vista: una cosa por vez, sin página larga. */
 .own-agreement-time:has([data-agreement-time-comparison]:not([hidden])) :is([data-agreement-time-rows],[data-agreement-time-count],label:has(>[data-agreement-time-search]),.agreement-time-pages:has(>[data-agreement-time-prev])){display:none}
+/* Flecha de «se puede abrir»: el renglón plegado usa flex y pierde el triángulo del navegador. */
+.own-agreement-time .agreement-time-fold>summary{list-style:none}.own-agreement-time .agreement-time-fold>summary::-webkit-details-marker{display:none}
+.own-agreement-time .agreement-time-fold>summary::before{content:'';flex:none;width:8px;height:8px;margin:0 .35rem 0 .1rem;border-right:2px solid #15776f;border-bottom:2px solid #15776f;transform:rotate(-45deg);transition:transform .15s ease}
+.own-agreement-time .agreement-time-fold[open]>summary::before{transform:rotate(45deg)}
+.own-agreement-time .agreement-time-fold>summary>h4{flex:1 1 12rem;min-width:0}
+@media(prefers-reduced-motion:reduce){.own-agreement-time .agreement-time-fold>summary::before{transition:none}}

@@ -13,3 +13,9 @@
 @media(max-width:900px){.family-facts-grid,.family-facts-totals{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.own-family-facts{padding:1rem}.family-facts-long{display:none}.family-facts-short{display:inline}.family-facts-total{padding:.45rem .55rem}.family-facts-total h4{font-size:.85rem}.family-facts-pair{grid-template-columns:minmax(0,1fr)}.family-facts-grid .family-facts-wide{grid-column:1/-1}.family-facts-pages button,.family-facts-actions button{width:100%}.own-family-facts button{width:100%}.own-family-facts h2{font-size:1.35rem}.family-facts-row{padding:.8rem}}
 /* Mientras se revisa la comparación, la preparación se retira de la vista: una cosa por vez, sin página larga. */
 .own-family-facts:has([data-family-facts-comparison]:not([hidden])) :is([data-family-facts-fields],[data-family-facts-totals],.family-facts-legend){display:none}
+/* Flecha de «se puede abrir»: el renglón plegado usa flex y pierde el triángulo del navegador. */
+.own-family-facts .family-facts-row>summary{list-style:none}.own-family-facts .family-facts-row>summary::-webkit-details-marker{display:none}
+.own-family-facts .family-facts-row>summary::before{content:'';flex:none;width:8px;height:8px;margin:0 .35rem 0 .1rem;border-right:2px solid #15776f;border-bottom:2px solid #15776f;transform:rotate(-45deg);transition:transform .15s ease}
+.own-family-facts .family-facts-row[open]>summary::before{transform:rotate(45deg)}
+.own-family-facts .family-facts-row>summary>strong{flex:1 1 12rem;min-width:0}
+@media(prefers-reduced-motion:reduce){.own-family-facts .family-facts-row>summary::before{transition:none}}

@@ -10,3 +10,9 @@
 .own-salary-conditions [data-conditions-target]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.4rem 1rem}.own-salary-conditions [data-conditions-target]>label{flex:0 1 280px;margin:.2rem 0}.own-salary-conditions [data-conditions-target]>button{margin:.2rem 0}
 /* Mientras se revisa la comparación, el listado de personas se retira de la vista: una cosa por vez, sin página larga. */
 .own-salary-conditions:has([data-conditions-comparison]:not([hidden])) :is([data-conditions-rows],[data-conditions-count],label:has(>[data-conditions-search]),.conditions-pages:has(>[data-conditions-prev])){display:none}
+/* Flecha de «se puede abrir»: el renglón plegado usa flex y pierde el triángulo del navegador. */
+.own-salary-conditions .conditions-fold>summary{list-style:none}.own-salary-conditions .conditions-fold>summary::-webkit-details-marker{display:none}
+.own-salary-conditions .conditions-fold>summary::before{content:'';flex:none;width:8px;height:8px;margin:0 .35rem 0 .1rem;border-right:2px solid #15776f;border-bottom:2px solid #15776f;transform:rotate(-45deg);transition:transform .15s ease}
+.own-salary-conditions .conditions-fold[open]>summary::before{transform:rotate(45deg)}
+.own-salary-conditions .conditions-fold>summary>h4{flex:1 1 12rem;min-width:0}
+@media(prefers-reduced-motion:reduce){.own-salary-conditions .conditions-fold>summary::before{transition:none}}
