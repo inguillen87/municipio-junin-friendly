@@ -1167,7 +1167,7 @@ function absenceReasonFlags(row = {}) {
   };
 }
 
-function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '', rangeMode = 'starts' }) {
+function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '', legajo = '', companyId = '', rangeMode = 'starts' }) {
   const values = [from, to];
   const conditions = [absenceWindowSql('absence', rangeMode)];
   const parameter = (value) => {
@@ -1179,6 +1179,8 @@ function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = ''
   }
   if (reasonCode) conditions.push(`absence.motivo_code = ${parameter(reasonCode)}`);
   if (contractId) conditions.push(`contract.id = ${parameter(contractId)}::uuid`);
+  // Legajo de origen exacto (empresa + legajo): igualdad, nunca coincidencia parcial.
+  if (legajo) conditions.push(`absence.company_id::text = ${parameter(companyId)} AND absence.legajo = ${parameter(legajo)}`);
   if (search) { const p=parameter(absenceSearchPattern(search)); conditions.push(`(COALESCE(identity.full_name, employee.nombre, '') ILIKE ${p} OR absence.legajo ILIKE ${p})`); }
   return { where: conditions.join(' AND '), values };
 }
@@ -1549,7 +1551,7 @@ export async function absencePeople(sql, req) {
 export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
   absenceWindowMode(rangeMode);
   let detailScope;
-  try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search','')}); }
+  try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search',''),legajo:queryValue(req,'legajo',''),companyId:queryValue(req,'companyId','')}); }
   catch { return {status:400,payload:{ok:false,code:'ABSENCE_DETAIL_FILTER_INVALID',error:'Filtro de detalle inválido'}}; }
   const source = await absenceSourceContext(sql);
   if (!source) {
@@ -1629,6 +1631,7 @@ export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
           sector: request.sector || null,
           reasonCode: request.reasonCode || null
         },
+        detailScope: detailScope.legajo ? 'exact_source_legajo' : detailScope.contractId ? 'contract' : detailScope.search ? 'search' : 'all',
         containsPersonalIdentifiers: true,
         externalSharingAllowed: false,
         excludedFields: [

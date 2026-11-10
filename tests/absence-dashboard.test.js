@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
-import { absencePeople } from '../api/internal-data.js';
+import { absencePeople, absenceEvents } from '../api/internal-data.js';
+import { normalizeAbsenceDetailScope } from '../lib/absence-event-context.js';
 import { capabilitiesForInternalDataResource, TENANT_DATA_CAPABILITIES } from '../lib/internal-resource-access.js';
 import { absenceInsights, personDays, quickRange, readableLabel, readableName, topWithOthers, weekdayTotals } from '../assets/absence-charts.js';
 import { createReportPdf, winAnsi } from '../assets/absence-report-pdf.js';
@@ -121,9 +122,39 @@ test('días de una persona: precisión declarada y cobertura de eventos con día
   assert.equal(personDays({ events: 4, sourceDeclaredDays: 12 }), '12');
 });
 
-test('el ranking conserva la fuente al abrir el historial y no llama «historial» a una búsqueda por legajo', async () => {
+test('el ranking conserva la fuente al abrir el historial; sin contrato vinculado el historial es exacto por empresa y legajo', async () => {
   const source = await readFile(new URL('../assets/absence-charts.js', import.meta.url), 'utf8');
   assert.match(source, /snapshot: peopleSnapshot/); assert.match(source, /peopleSnapshot = payload\.meta\?\.snapshot \?\? null/);
-  assert.match(source, /linked \? 'Ver historial' : 'Buscar en el listado'/);
+  assert.match(source, /searchParams\.set\('companyId', String\(row\.companyId\)\); url\.searchParams\.set\('legajo', String\(row\.legajo\)\)/);
+  assert.match(source, /JSON\.stringify\(payload\.meta\?\.snapshot \?\? null\) !== JSON\.stringify\(expected\)/, 'no mezcla cortes');
+  assert.doesNotMatch(source, /eventSearch/, 'ya no usa la búsqueda parcial del listado para el historial');
   assert.doesNotMatch(source, /Math\.round\((?:r|i)\.(?:sourceDeclaredDays|declaredDays)/);
+});
+
+test('alcance exacto por legajo: empresa y legajo juntos, sin comodines y sin combinar con búsqueda o contrato', () => {
+  assert.deepEqual(normalizeAbsenceDetailScope({ legajo: ' 27 ', companyId: '101' }), { contractId: '', search: '', legajo: '27', companyId: '101' });
+  assert.deepEqual(normalizeAbsenceDetailScope({ search: 'perez' }), { contractId: '', search: 'perez', legajo: '', companyId: '' });
+  for (const bad of [{ legajo: '27' }, { companyId: '101' }, { legajo: '2%7', companyId: '101' }, { legajo: '2_7', companyId: '101' }, { legajo: '27', companyId: '1e3' },
+    { legajo: '27', companyId: '101', search: 'x' }, { legajo: '27', companyId: '101', contractId: '00000000-0000-4000-8000-000000000001' }, { legajo: 'x'.repeat(65), companyId: '1' }])
+    assert.throws(() => normalizeAbsenceDetailScope(bad), /ABSENCE_DETAIL_FILTER_INVALID/, JSON.stringify(bad));
+});
+
+test('absenceEvents con legajo exacto filtra por igualdad en conteo y filas; el legajo 27 no trae 127 ni 270', async () => {
+  const calls = [];
+  const sql = { async query(statement, values = []) {
+    const marker = String(statement).match(/\/\* absence:([^*]+) \*\//)?.[1]; calls.push({ marker, sql: String(statement), values });
+    if (marker === 'source') return [SOURCE];
+    if (marker === 'events-summary') return [{ events: 2, affectedContracts: 0, affectedPeople: 1, sourceDeclaredDays: '5' }];
+    if (marker === 'events') return [{ contractId: null, companyId: 101, legajo: '27', name: 'PERSONA QA', sector: 'OBRERO', eventDate: '2026-07-10', untilDate: '2026-07-12', reasonCode: '10', reason: 'LICENCIA', sourceDeclaredDays: '2.5', sourceQuantity: '1' }];
+    throw new Error('consulta no simulada ' + marker);
+  } };
+  const result = await absenceEvents(sql, { query: { from: '2026-01-01', to: '2026-09-10', companyId: '101', legajo: '27', limit: '50' } });
+  assert.equal(result.status, 200); assert.equal(result.payload.meta.detailScope, 'exact_source_legajo'); assert.equal(result.payload.data[0].sourceDeclaredDays, 2.5);
+  for (const marker of ['events-summary', 'events']) {
+    const call = calls.find(c => c.marker === marker);
+    assert.match(call.sql, /absence\.company_id::text = \$3 AND absence\.legajo = \$4/); assert.doesNotMatch(call.sql, /ILIKE/);
+    assert.deepEqual(call.values.slice(0, 4), ['2026-01-01', '2026-09-10', '101', '27']);
+  }
+  const rejected = await absenceEvents({ async query() { throw new Error('no debe consultar'); } }, { query: { legajo: '27' } });
+  assert.equal(rejected.status, 400);
 });

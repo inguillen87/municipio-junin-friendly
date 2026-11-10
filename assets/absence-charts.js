@@ -299,18 +299,54 @@ function openPerson(row) {
  const range = last?.range || {};
  // El historial se abre con la misma fuente (snapshot) que usó el ranking.
  if (row.contractId && range.from && range.to) { document.dispatchEvent(new CustomEvent('mc:absence-person-open', {detail: {contractId: row.contractId, from: range.from.slice(0, 10), to: range.to.slice(0, 10), snapshot: peopleSnapshot}})); return; }
- // Sin contrato vinculado no hay historial exacto: se busca el legajo en el listado (la búsqueda puede traer otros legajos que contengan ese número).
- const input = document.getElementById('eventSearch'), form = document.getElementById('eventSearchForm'); if (!input || !form) return;
- input.value = row.legajo || row.name || ''; form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', {cancelable: true}));
- document.getElementById('eventsPanel')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+ // Sin contrato vinculado: historial exacto por legajo de origen (empresa + legajo), sin coincidencias parciales.
+ if (row.legajo && row.companyId !== null && row.companyId !== undefined) openLegajoHistory(row);
+}
+
+// Historial exacto de un legajo de origen dentro del período y filtros del ranking, con la misma fuente (snapshot).
+let legajoDialog = null;
+function openLegajoHistory(row) {
+ const query = window.__mcAbsenceQuery; if (!query) return;
+ legajoDialog?.close();
+ const who = row.name ? readableName(row.name) : 'Legajo ' + row.legajo, origin = document.activeElement, expected = peopleSnapshot;
+ const dialog = el('dialog', {class: 'ab-zoom ab-history', 'aria-labelledby': 'abHistoryTitle'});
+ const close = el('button', {type: 'button', class: 'button', text: 'Cerrar'}), status = el('p', {class: 'ab-history-status', role: 'status', 'aria-live': 'polite', text: 'Buscando las licencias de este legajo…'});
+ const body = el('tbody'), more = el('button', {type: 'button', class: 'button', text: 'Ver más', hidden: true});
+ const table = el('table', {class: 'ab-zoom-table'}, el('thead', {}, el('tr', {}, ...['Desde', 'Hasta', 'Motivo', 'Días declarados'].map((h, i) => el('th', {text: h, class: i === 3 ? 'num' : ''})))), body);
+ dialog.append(el('header', {}, el('div', {}, el('h2', {id: 'abHistoryTitle', text: 'Licencias de ' + who}), el('p', {text: 'Legajo ' + row.legajo + ' · sólo este legajo, en el período y filtros elegidos'})), close),
+  el('div', {class: 'ab-zoom-body'}, status, el('div', {class: 'ab-zoom-scroll'}, table), more));
+ document.body.append(dialog);
+ let page = 0, total = 0, shown = 0, alive = true, busy = false;
+ const done = () => { alive = false; dialog.remove(); if (legajoDialog?.dialog === dialog) legajoDialog = null; if (origin?.isConnected) origin.focus(); };
+ async function load() {
+  if (busy || !alive) return; busy = true; more.disabled = true;
+  try {
+   const url = new URL(query, location.origin); url.searchParams.set('resource', 'absenceevents'); url.searchParams.delete('bucket');
+   url.searchParams.set('companyId', String(row.companyId)); url.searchParams.set('legajo', String(row.legajo)); url.searchParams.set('page', String(page + 1)); url.searchParams.set('limit', '50');
+   const response = await fetch(url.pathname + url.search, {credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}}), payload = response.ok ? await response.json() : null;
+   if (!alive) return;
+   if (response.status === 403) { status.textContent = 'Tu usuario no tiene permiso para ver el detalle por persona.'; return; }
+   if (!payload?.ok || !Array.isArray(payload.data)) { status.textContent = 'No se pudo leer el historial ahora. Cerrá y volvé a intentar.'; return; }
+   // Otra fuente que la del ranking: no se mezclan cortes.
+   if (expected && JSON.stringify(payload.meta?.snapshot ?? null) !== JSON.stringify(expected)) { body.replaceChildren(); more.hidden = true; status.textContent = 'Los datos se actualizaron desde que se armó el ranking. Cerrá esta ventana y tocá «Actualizar» para ver todo con la misma fuente.'; return; }
+   page++; total = payload.pagination?.total ?? payload.data.length;
+   for (const e of payload.data) body.append(el('tr', {}, el('td', {text: shortDate(isoDay(String(e.eventDate || '').slice(0, 10)))}), el('td', {text: e.untilDate ? shortDate(isoDay(String(e.untilDate).slice(0, 10))) : 'No informada'}), el('td', {text: readableLabel(e.reason || '—')}), el('td', {class: 'num', text: e.sourceDeclaredDays === null || e.sourceDeclaredDays === undefined ? 'Sin informar' : days(e.sourceDeclaredDays)})));
+   shown += payload.data.length; more.hidden = shown >= total;
+   status.textContent = total === 0 ? 'Este legajo no tiene licencias en el período y filtros elegidos.' : 'Mostrando ' + fmt(shown) + ' de ' + fmt(total) + ' licencias de este legajo, de la más reciente a la más antigua.';
+  } catch { if (alive) status.textContent = 'No se pudo leer el historial ahora. Cerrá y volvé a intentar.'; }
+  finally { busy = false; more.disabled = false; }
+ }
+ close.addEventListener('click', () => dialog.close()); more.addEventListener('click', load);
+ dialog.addEventListener('close', done); dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
+ dialog.showModal(); legajoDialog = {dialog, close: () => dialog.open && dialog.close()}; load();
 }
 function renderPeople(p) {
  const rows = people || [], byDays = peopleOrder === 'days';
  if (!rows.length) { clearPeople('No hay personas con licencias para estos filtros.'); return; }
- p.status.textContent = (byDays ? 'Ordenado por días declarados en GRH.' : 'Ordenado por cantidad de licencias.') + ' «Ver historial» abre todas las licencias de la persona; «Buscar en el listado» busca su legajo en la tabla de eventos de abajo y puede traer otros legajos que contengan ese número.';
+ p.status.textContent = (byDays ? 'Ordenado por días declarados en GRH.' : 'Ordenado por cantidad de licencias.') + ' Tocá «Ver historial» para ver las licencias de esa persona, y sólo las de ella.';
  const name = r => r.name ? readableName(r.name) : 'Legajo ' + (r.legajo || '—');
  p.body.replaceChildren(...rows.map((r, i) => {
-  const linked = !!r.contractId, button = el('button', {type: 'button', class: 'button ab-person-open', text: linked ? 'Ver historial' : 'Buscar en el listado', 'aria-label': (linked ? 'Ver historial de ' : 'Buscar en el listado el legajo de ') + name(r)}); button.addEventListener('click', () => openPerson(r));
+  const button = el('button', {type: 'button', class: 'button ab-person-open', text: 'Ver historial', 'aria-label': 'Ver historial de ' + name(r)}); button.addEventListener('click', () => openPerson(r));
   return el('tr', {}, el('td', {class: 'ab-rank', text: String(i + 1)}), el('td', {}, el('strong', {text: name(r)}), el('span', {class: 'ab-sub', text: 'Legajo ' + (r.legajo || '—')})), el('td', {text: readableLabel(r.sector)}),
    el('td', {class: 'num', text: fmt(r.events)}), el('td', {class: 'num', text: personDays(r)}), el('td', {text: readableLabel(r.topReason || '—')}), el('td', {text: shortDate(r.lastEventDate)}), el('td', {}, button));
  }));
@@ -376,12 +412,12 @@ async function downloadPdf(event) {
  finally { if (button) button.disabled = false; }
 }
 
-function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); } dayData = null; dailyToken++; clearPeople(''); zoom?.close(); }
+function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); } dayData = null; dailyToken++; clearPeople(''); zoom?.close(); legajoDialog?.close(); }
 if (typeof document !== 'undefined') {
  // Cada consulta (también al pasar de página en el listado) avisa «cleared»: los nombres se borran siempre y, si los
  // indicadores siguen siendo los mismos (sólo cambió la página de eventos), el ranking se vuelve a pedir.
  document.addEventListener('mc:absence-cleared', () => {
-  const kept = last; clearPeople(''); zoom?.close();
+  const kept = last; clearPeople(''); zoom?.close(); legajoDialog?.close();
   setTimeout(() => { if (kept && window.__mcLastAbsence === kept && !document.getElementById('mainContent')?.hidden && !document.hidden) loadPeople(); }, 0);
  });
  window.MuniControlAbsenceCharts = Object.freeze({render, clear});
