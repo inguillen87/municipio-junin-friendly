@@ -490,6 +490,8 @@
     .quality-list li[data-state="ok"] { border-left: 3px solid var(--green); }
     .quality-list li[data-state="warning"] { border-left: 3px solid var(--amber); }
     .limit-list li { color: #5c4b31; background: #fbf8f0; border-left: 3px solid var(--amber); }
+    /* Los controles de calidad van en dos columnas cuando hay lugar: mismo contenido, la mitad de alto. */
+    .quality-list { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: start; }
     .method-note { margin-top: 12px; padding: 12px; color: var(--blue); background: var(--blue-soft); border: 1px solid #c9d8e2; border-radius: 4px; font-size: 12px; }
     footer { margin-top: 30px; padding-top: 16px; color: #718087; border-top: 1px solid var(--line); font-size: 10px; }
 
