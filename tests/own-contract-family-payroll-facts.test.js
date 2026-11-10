@@ -124,12 +124,13 @@ test('a preparation emitted from the municipal source is matched by contract and
  assert.throws(()=>familyFactsPreparationFile(b,'{'),/JSON válido/);
 });
 
-// Guarda de estado: mientras sea una propuesta de contrato sin backend, no llega a ninguna pantalla. Al conectar la
-// API y la tarea de Liquidaciones, esta prueba se reemplaza por las de la pantalla.
-test('the proposal stays unwired: no screen, route or build entry ships it before its backend exists',()=>{
+// Guarda de estado: la ruta y el SQL 226 existen como propuesta, pero la pantalla no se conecta (ni tarea, ni página,
+// ni entrada de armado) hasta que el SQL esté instalado. Al conectarla, esta prueba se reemplaza por las de la pantalla.
+test('the backend proposal stays unwired: no screen, navigation or build entry ships it before its SQL is installed',()=>{
  const build=fs.readFileSync('scripts/build-friendly.mjs','utf8'),page=fs.readFileSync('nomina-control.html','utf8'),navigation=fs.readFileSync('assets/payroll-navigation.js','utf8');
  for(const source of [build,page,navigation])assert.ok(!source.includes('own-contract-family-payroll-facts'));
- assert.ok(!fs.existsSync('api/internal-own-contract-family-payroll-facts.js'));
+ assert.ok(fs.existsSync('api/internal-own-contract-family-payroll-facts.js'));
+ assert.ok(fs.existsSync('scripts/migrations/226-own-contract-family-payroll-facts.sql'));
 });
 
 test('the proposed screen keeps an empty box as not reported and folds people ten per page',()=>{

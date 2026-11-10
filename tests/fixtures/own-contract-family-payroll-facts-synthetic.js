@@ -12,3 +12,7 @@ export async function syntheticFamilyDetail(count=1) {
  const body=syntheticFamilyCommand(count);
  return {version:FAMILY_PAYROLL_FACTS_VERSION,period:'2026-10',scopeVersion:familyHash,body,baseItems:[],source:syntheticFamilySource(count),current:true,proposal:{id:familyId(10001),requestSha256:await familyPayrollFactsHash(body),baseVersion:familyHash,sourceVersion:familyHash,itemCount:count,reason:body.reason,createdAt:'2026-10-10T12:00:00Z',authorLabel:'Preparador exclusivamente sintético',canReview:true,status:'pending',decision:null}};
 }
+export async function syntheticFamilyReceipt(count=1) {
+ const body=syntheticFamilyCommand(count);
+ return {version:FAMILY_PAYROLL_FACTS_VERSION,eventId:familyId(10001),proposalId:familyId(10001),requestKey:familyId(10002),requestSha256:await familyPayrollFactsHash(body),body,status:'pending',revision:0,configurationVersion:familyHash,replayed:false,payrollCalculated:false,payrollPosted:false};
+}

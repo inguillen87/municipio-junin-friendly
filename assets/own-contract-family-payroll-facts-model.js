@@ -34,7 +34,7 @@ export function familyPayrollFactsDefinition(v, period) {
  need(salaryExact(v.quantities, FAMILY_PAYROLL_FACT_QUANTITIES) && Object.values(v.quantities).every(quantityValid), 'Cada cantidad familiar es un entero declarado de 0 a 99 o queda sin informar. No se cuenta desde vínculos ni certificados, y sin informar no equivale a cero.');
  need(monthsValid(v.prenatalAdjustmentMonths), 'Los meses de ajuste prenatal son un entero declarado de 0 a 24. No se deducen de fechas ni de la cantidad corriente.');
  need(salaryExact(v.tariffSelection, ['region', 'semesterAverage']) && (v.tariffSelection.region === null || codeValid(v.tariffSelection.region)) && averageValid(v.tariffSelection.semesterAverage), 'La región es un código declarado y el promedio semestral un importe exacto con hasta dos decimales; ambos pueden quedar sin informar.');
- need(civilDay(v.asOfDate) && v.asOfDate.slice(0, 7) <= period && text(v.documentReference, 3, 180), 'Informá una fecha válida hasta el período elegido y su constancia municipal.');
+ need(civilDay(v.asOfDate) && /^(19|20)/.test(v.asOfDate) && v.asOfDate.slice(0, 7) <= period && text(v.documentReference, 3, 180), 'Informá una fecha válida hasta el período elegido y su constancia municipal.');
  return {...v, quantities:{...v.quantities}, tariffSelection:{...v.tariffSelection}};
 }
 
