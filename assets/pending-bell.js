@@ -1,5 +1,5 @@
 // Campanita de pendientes (pantalla). Recibe quién lee y cómo se consulta; no conoce ninguna API municipal.
-// Mientras no exista la lectura liviana del servidor, ninguna página la monta.
+// La monta pending-bell-mount.js, que es quien conoce las consultas livianas del servidor.
 import {bellState, rememberedKeys, ago, periodText} from './pending-bell-model.js';
 
 const node = (tag, text, className) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e; };

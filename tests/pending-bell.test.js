@@ -50,7 +50,7 @@ test('tiempos y períodos en palabras', () => {
  assert.equal(ago('2026-11-09T12:00:00Z', now), 'ayer'); assert.equal(ago('2026-11-05T12:00:00Z', now), 'hace 5 días'); assert.equal(ago('no', now), '');
  assert.equal(periodText('2026-10'), 'octubre de 2026'); assert.equal(periodText(null), '');
 });
-test('la pantalla no decide nada, no guarda datos de personas y todavía no se monta en ninguna página', () => {
+test('la pantalla no decide nada, no guarda datos de personas y sólo la conecta su módulo de montaje', () => {
  const ui = fs.readFileSync('assets/pending-bell.js', 'utf8'), model = fs.readFileSync('assets/pending-bell-model.js', 'utf8');
  assert.ok(!/fetch\(|\/api\//.test(ui + model), 'no conoce ninguna API: recibe las lecturas por parámetro');
  assert.ok(ui.includes("const key = 'mc.pendientes.visto.' + accountKey") && ui.includes('remember(rememberedKeys(state, seen()))'), 'sólo guarda identificadores de eventos ya mostrados');
@@ -58,7 +58,10 @@ test('la pantalla no decide nada, no guarda datos de personas y todavía no se m
  assert.equal(ui.split('innerHTML').length - 1, 1, 'el único HTML fijo es el ícono; todo lo demás entra como texto');
  assert.ok(ui.includes("if (loading || document.hidden) return;") && ui.includes("document.addEventListener('mc:pending-refresh', () => load());"));
  assert.ok(ui.includes("'Por ahora avisa de: '") && ui.includes("No se cuentan como cero."), 'la cobertura parcial se dice');
- for (const page of fs.readdirSync('.').filter(f => f.endsWith('.html'))) assert.ok(!fs.readFileSync(page, 'utf8').includes('pending-bell'), page);
- assert.ok(!fs.readFileSync('scripts/build-friendly.mjs', 'utf8').includes('pending-bell'), 'no se publica hasta que la lectura del servidor esté instalada');
+ const pages = fs.readdirSync('.').filter(f => f.endsWith('.html')).filter(f => fs.readFileSync(f, 'utf8').includes('pending-bell'));
+ assert.deepEqual(pages, ['nomina-control.html'], 'por ahora sólo Liquidaciones la muestra');
+ assert.equal(fs.readFileSync('nomina-control.html', 'utf8').split('<script type="module" src="assets/pending-bell-mount.js"></script>').length - 1, 1);
+ const build = fs.readFileSync('scripts/build-friendly.mjs', 'utf8');
+ for (const file of ['assets/own-contract-salary-conditions-pending.js', 'assets/pending-bell-model.js', 'assets/pending-bell.js', 'assets/pending-bell.css', 'assets/pending-bell-mount.js']) assert.equal(build.split("'" + file + "'").length - 1, 1, file);
  assert.ok(!fs.readFileSync('assets/internal-guide.js', 'utf8').includes('pending-bell'));
 });
