@@ -160,7 +160,7 @@ export function mountOwnPayrollProgram(container){
   const area=node('div');area.className='own-program-expression';const size=expressionSize(rule.expression);area.append(node('p',`Fórmula: ${size.nodes} operaciones. Las unidades y conversiones se declaran expresamente.`));
   // La misma fórmula en una línea, para leerla de un vistazo; se actualiza con cada cambio del editor de abajo.
   const sentence=node('p');sentence.className='own-program-formula';sentence.dataset.programFormula='';const said=node('span');sentence.append(node('strong','En una línea: '),said);
-  const say=()=>{said.textContent=programFormulaText(rule.expression);};say();area.addEventListener('input',say);area.addEventListener('change',say);area.append(sentence);
+  const catalogName=(kind,code)=>boot?.salaryCatalog.items.find(i=>i.active&&i.agreementCode===rule.agreementCode&&i.code===code&&(kind==='auxiliary'?i.kind==='auxiliary'||i.nature==='auxiliary':i.kind==='concept'&&i.nature!=='auxiliary'))?.label??null;const say=()=>{said.textContent=programFormulaText(rule.expression,{names:catalogName});};say();area.addEventListener('input',say);area.addEventListener('change',say);area.append(sentence);
   const labels={left:'Primer valor',right:'Segundo valor',value:'Valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple'};
   function walk(value,path,level){
    const card=node('fieldset');card.className='own-program-expression-node';card.style.setProperty('--program-depth',String(Math.min(level,6)));card.append(node('legend',path.length?path.map(p=>labels[p]).join(' · '):'Resultado de la fórmula'));

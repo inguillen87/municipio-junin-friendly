@@ -6,8 +6,15 @@ const COMPARE = Object.freeze({ lt: '<', le: '≤', eq: '=', ne: '≠', ge: '≥
 const UNIT = Object.freeze({ money: 'pesos', hours: 'horas', minutes: 'minutos', days: 'días', percent: 'porcentaje', units: 'unidades', coefficient: 'coeficiente' });
 const filled = value => typeof value === 'string' ? value.trim() !== '' : value !== null && value !== undefined;
 
-export function programFormulaText(expression, { limit = 256 } = {}) {
+// names(kind, code) → nombre del concepto o auxiliar en el maestro aprobado, o nada si no figura. Con nombre se lee
+// «Sueldo básico (100)»; sin nombre queda «concepto 100». El nombre es sólo una etiqueta: no cambia la referencia.
+export function programFormulaText(expression, { limit = 256, names = null } = {}) {
   let count = 0;
+  const named = (kind, word, code) => {
+    if (!filled(code)) return word + ' sin código';
+    const label = typeof names === 'function' ? names(kind, String(code)) : null;
+    return typeof label === 'string' && label.trim() ? label.trim() + ' (' + (kind === 'auxiliary' ? 'aux. ' : '') + code + ')' : word + ' ' + code;
+  };
   const show = (node, top = false) => {
     if (!node || typeof node !== 'object') return 'paso pendiente';
     if (++count > limit) return '…';
@@ -15,8 +22,8 @@ export function programFormulaText(expression, { limit = 256 } = {}) {
     switch (node.op) {
       case 'input': return filled(node.key) ? String(node.key) : 'entrada sin nombre';
       case 'literal': return filled(node.value) ? String(node.value).replace('.', ',') : 'valor pendiente';
-      case 'concept': return 'concepto ' + (filled(node.code) ? node.code : 'sin código');
-      case 'auxiliary': return 'auxiliar ' + (filled(node.code) ? node.code : 'sin código');
+      case 'concept': return named('concept', 'concepto', node.code);
+      case 'auxiliary': return named('auxiliary', 'auxiliar', node.code);
       case 'match': return (filled(node.key) ? node.key : 'condición sin nombre') + ' ' + (node.operator === 'ne' ? '≠' : '=') + ' '
         + (typeof node.value === 'boolean' ? (node.value ? 'sí' : 'no') : filled(node.value) ? node.value : 'valor pendiente');
       case 'compare': return wrap(show(node.left) + ' ' + (COMPARE[node.operator] ?? '?') + ' ' + show(node.right));

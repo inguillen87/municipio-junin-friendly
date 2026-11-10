@@ -50,10 +50,21 @@ test('el editor muestra la fórmula en una línea y la mantiene al día', () => 
   const panel = fs.readFileSync(new URL('../assets/own-payroll-program-panel.js', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../assets/own-payroll-program-panel.css', import.meta.url), 'utf8');
   assert.match(panel, /import \{programFormulaText\} from '\.\/own-program-formula-text\.js';/);
-  assert.match(panel, /const say=\(\)=>\{said\.textContent=programFormulaText\(rule\.expression\);\};say\(\);area\.addEventListener\('input',say\);area\.addEventListener\('change',say\);/);
+  assert.match(panel, /const say=\(\)=>\{said\.textContent=programFormulaText\(rule\.expression,\{names:catalogName\}\);\};say\(\);area\.addEventListener\('input',say\);area\.addEventListener\('change',say\);/);
+  assert.ok(panel.includes("const catalogName=(kind,code)=>boot?.salaryCatalog.items.find(i=>i.active&&i.agreementCode===rule.agreementCode&&i.code===code"), 'los nombres salen del maestro aprobado del mismo convenio');
   assert.match(panel, /Fórmula: \$\{size\.nodes\} operaciones\. Las unidades y conversiones se declaran expresamente\./); // la leyenda anterior se conserva
   assert.match(css, /\.own-program \.own-program-expression-node\{[^}]*grid-template-columns:minmax\(210px,\.9fr\) minmax\(0,2fr\)/);
   assert.match(css, /\.own-program \.own-program-expression-node :is\(select,input\)\{min-height:44px/); // objetivo táctil intacto
   assert.match(css, /@media\(max-width:820px\)\{\.own-program \.own-program-expression-node\{grid-template-columns:minmax\(0,1fr\);margin-left:0!important\}\}/);
   assert.ok(fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8').includes("'assets/own-program-formula-text.js'"));
+});
+
+test('con el maestro a mano la fórmula nombra cada concepto y auxiliar; sin nombre conserva el código', () => {
+  const expression = { op: 'multiply', left: { op: 'add', left: { op: 'concept', code: '100' }, right: { op: 'concept', code: '110' } }, right: { op: 'auxiliary', code: '27' } };
+  const names = (kind, code) => ({ 'concept:100': 'Sueldo básico', 'auxiliary:27': ' Valor hora ' })[kind + ':' + code] ?? null;
+  assert.equal(programFormulaText(expression, { names }), '(Sueldo básico (100) + concepto 110) × Valor hora (aux. 27)');
+  assert.equal(programFormulaText(expression), '(concepto 100 + concepto 110) × auxiliar 27');
+  assert.equal(programFormulaText(expression, { names: () => '' }), '(concepto 100 + concepto 110) × auxiliar 27');
+  assert.equal(programFormulaText({ op: 'concept', code: '' }, { names }), 'concepto sin código');
+  assert.equal(programFormulaText({ op: 'concept', code: '100' }, { names: 'no es función' }), 'concepto 100');
 });
