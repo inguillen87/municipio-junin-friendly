@@ -38,9 +38,22 @@ export function monthlyBatches(p) {
       href: typeof b.id === 'string' && /^[0-9a-f-]{36}$/i.test(b.id) ? '/novedades?batchId=' + b.id + '#lotes' : undefined })) };
 }
 
+// Salary master: only pending versions prepared on the catalog in force can be approved; older ones are named apart.
+export function salaryMaster(p) {
+  const d = p?.data ?? {}, current = d?.catalog?.version;
+  const pending = list(d.proposals).filter(x => x && x.status === 'pending');
+  const live = pending.filter(x => typeof current === 'string' && x.baseVersion === current), stale = pending.length - live.length;
+  const base = proposals(live, x => text((Array.isArray(x.items) ? x.items.length + ' definiciones · ' : '') + text(x.reason, 80)));
+  if (!stale) return base;
+  const who = !live.length ? '' : base.reviewable === live.length ? 'Podés revisarla vos.' : base.reviewable ? base.reviewable + ' podés revisarlas vos.' : 'La revisa otra persona: no podés aprobar lo propio ni sin el permiso.';
+  return { ...base, note: [who, plural(stale, 'propuesta vieja quedó', 'propuestas viejas quedaron') + ' sobre una versión anterior: no se pueden aprobar; se rechazan desde Parámetros.'].filter(Boolean).join(' ') };
+}
+
 export const APPROVAL_SOURCES = Object.freeze([
   { key: 'program', area: 'Liquidaciones', title: 'Programa de cálculo', href: '/nomina#reglas', caps: ['workforce.employee.read', 'payroll.parameter.read'],
     url: () => '/api/internal-own-payroll-program?resource=bootstrap', pick: p => proposals(p?.data?.proposals) },
+  { key: 'salary-master', area: 'Liquidaciones', title: 'Maestro salarial', href: '/nomina#parametros', caps: ['workforce.employee.read', 'payroll.parameter.read'],
+    url: () => '/api/internal-native-salary?resource=bootstrap', pick: salaryMaster },
   { key: 'parameters', area: 'Liquidaciones', title: 'Parámetros salariales', href: '/nomina#parametros', caps: ['payroll.parameter.read'],
     url: () => '/api/internal-payroll-parameters?resource=list&status=submitted&page=1&limit=50',
     pick: p => { const rows = list(p?.proposals).filter(r => r?.status === 'submitted'); const total = Number.isSafeInteger(p?.total) ? p.total : rows.length;
@@ -78,7 +91,6 @@ export const APPROVAL_SOURCES = Object.freeze([
 // Reviewed inside each person's record or per period+contract: no municipality-wide list exists to count them.
 export const APPROVAL_ELSEWHERE = Object.freeze([
   { title: 'Bajas, reingresos y cambios de encuadre', where: 'en la ficha de cada persona', href: '/personal#legajos' },
-  { title: 'Maestro salarial', where: 'en Parámetros', href: '/nomina#parametros' },
   { title: 'Encuadre por período, jornada, antigüedad y datos fiscales', where: 'en su pantalla, eligiendo legajo y mes', href: '/nomina#encuadre' },
   { title: 'Confirmar liquidaciones calculadas', where: 'en Confirmar y anular', href: '/nomina#decisiones' },
 ]);

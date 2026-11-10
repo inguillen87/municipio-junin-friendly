@@ -53,9 +53,12 @@ test('totals exclude failed reads and unknown reviewable counts', () => {
   assert.equal(periodLabel('2026-10-01'), 'octubre 2026');
 });
 
-test('bandeja lives at the top of Resumen and never posts', () => {
+test('bandeja sits right under the monthly cycle in Resumen and never posts', () => {
   const nav = fs.readFileSync(new URL('../assets/payroll-navigation.js', import.meta.url), 'utf8');
-  assert.match(nav, /nodes:\[publicationNotice,approvals,summary,/);
+  assert.match(nav, /label:'Resumen',nodes:\[summary,/);
+  assert.match(nav, /summary\.querySelector\('\[data-own-summary-slot\]'\)\?\.append\(approvals\);/);
+  const panel = fs.readFileSync(new URL('../assets/own-payroll-summary-panel.js', import.meta.url), 'utf8');
+  assert.ok(panel.indexOf('own-summary-cycle') < panel.indexOf('data-own-summary-slot') && panel.indexOf('data-own-summary-slot') < panel.indexOf('ownSummaryRuns'), 'cycle, then bandeja, then calculated runs');
   const ui = fs.readFileSync(new URL('../assets/approvals-inbox.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ui, /method:\s*'POST'|method:\s*"POST"/);
   assert.match(ui, /const worker = async/); assert.match(ui, /Promise\.all\(\[worker\(\), worker\(\)\]\)/);
@@ -83,3 +86,28 @@ test('monthly batches explain own batches and an account not linked to a legajo,
   assert.equal(monthlyBatches({ batches: [{ status: 'submitted', rowCount: 1, allowedCommands: ['approve'] }] }).note, 'Podés aprobarlo o rechazarlo.');
 });
 
+
+test('maestro salarial: pending versions on the catalog in force are counted; older ones are named apart and never counted', async () => {
+  const { salaryMaster } = await import('../assets/approvals-inbox-model.js');
+  const p = (status, baseVersion, extra = {}) => ({ status, baseVersion, authorLabel: 'Autor', createdAt: '2026-11-09T21:45:00-03:00', reason: 'Maestro parcial de octubre', items: Array(409).fill({}), canReview: false, ...extra });
+  const data = { ok: true, data: { catalog: { version: 'now' }, proposals: [p('pending', 'now', { canReview: true }), p('pending', 'old'), p('pending', 'old'), p('approved', 'old')] } };
+  const r = salaryMaster(data);
+  assert.equal(r.count, 1); assert.equal(r.reviewable, 1);
+  assert.equal(r.items[0].what, '409 definiciones · Maestro parcial de octubre');
+  assert.equal(r.note, 'Podés revisarla vos. 2 propuestas viejas quedaron sobre una versión anterior: no se pueden aprobar; se rechazan desde Parámetros.');
+  const own = salaryMaster({ data: { catalog: { version: 'now' }, proposals: [p('pending', 'now')] } });
+  assert.equal(own.count, 1); assert.equal(own.reviewable, 0); assert.equal(own.note, undefined);
+  assert.equal(salaryMaster({ data: { catalog: { version: 'now' }, proposals: [p('pending', 'old')] } }).count, 0);
+  assert.equal(salaryMaster(null).count, 0);
+  assert.ok(byKey['salary-master'] && byKey['salary-master'].url({}) === '/api/internal-native-salary?resource=bootstrap');
+  assert.ok(!APPROVAL_ELSEWHERE.some(x => x.title === 'Maestro salarial'));
+});
+
+test('when nothing waits for this account, pending items decided by others fold under one line', () => {
+  const ui = fs.readFileSync(new URL('../assets/approvals-inbox.js', import.meta.url), 'utf8');
+  assert.match(ui, /const quiet = t\.waiting > 0 && t\.reviewable === 0 && t\.unknown === 0;/);
+  assert.match(ui, /\$\('others-grid'\)\.replaceChildren\(\.\.\.others\.map/);
+  assert.match(ui, /'Ver ' \+ \(t\.waiting === 1 \? 'el pendiente que decide otra persona' : 'los ' \+ t\.waiting \+ ' pendientes que decide otra persona'\)/);
+  // Errors and anything this account can decide stay in the main grid.
+  assert.match(ui, /\$\('grid'\)\.replaceChildren\(\.\.\.shown\.filter\(s => !others\.includes\(s\)\)/);
+});

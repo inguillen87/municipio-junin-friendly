@@ -17,6 +17,7 @@ export function mountApprovalsInbox(host) {
     + '<div class="mc-approvals-actions"><span class="mc-approvals-total" data-approvals-total hidden></span><button type="button" class="button" data-approvals-refresh>Actualizar</button></div></header>'
     + '<p class="mc-approvals-status" role="status" aria-live="polite" data-approvals-status></p>'
     + '<div class="mc-approvals-grid" data-approvals-grid></div>'
+    + '<details class="mc-approvals-others" data-approvals-others hidden><summary data-approvals-others-title></summary><div class="mc-approvals-grid" data-approvals-others-grid></div></details>'
     + '<details class="mc-approvals-empty" data-approvals-empty hidden><summary data-approvals-empty-title></summary><ul data-approvals-empty-list></ul></details>'
     + '<details class="mc-approvals-elsewhere"><summary>Otras aprobaciones que se revisan en su pantalla</summary><ul data-approvals-elsewhere></ul></details>';
   const $ = s => host.querySelector('[data-approvals-' + s + ']');
@@ -50,7 +51,7 @@ export function mountApprovalsInbox(host) {
   }
   async function load() {
     const mine = ++run; loadedAt = Date.now(); controller?.abort(); controller = new AbortController(); const signal = controller.signal;
-    $('refresh').disabled = true; $('status').textContent = 'Consultando pendientes…'; $('total').hidden = true; $('empty').hidden = true;
+    $('refresh').disabled = true; $('status').textContent = 'Consultando pendientes…'; $('total').hidden = true; $('empty').hidden = true; $('others').hidden = true; $('others-grid').replaceChildren();
     let caps;
     try { caps = ownRunWorkspaceAccess(await getJson('/api/internal-auth', signal)).caps; }
     catch (e) { if (mine !== run) return; $('status').textContent = e.status === 401 ? 'La sesión venció. Volvé a ingresar.' : 'No se pudo verificar la sesión.'; $('refresh').disabled = false; return; }
@@ -71,10 +72,17 @@ export function mountApprovalsInbox(host) {
     // Waiting items first; modules with nothing pending fold into one line.
     const zero = sources.filter(s => results.find(r => r.key === s.key)?.count === 0);
     const order = r => r?.error ? 1 : r?.count > 0 ? 0 : 2;
-    $('grid').replaceChildren(...sources.filter(s => !zero.includes(s)).sort((a, b) => order(results.find(r => r.key === a.key)) - order(results.find(r => r.key === b.key))).map(s => cards.get(s.key)));
+    const shown = sources.filter(s => !zero.includes(s)).sort((a, b) => order(results.find(r => r.key === a.key)) - order(results.find(r => r.key === b.key)));
+    const t = approvalTotals(results);
+    // Nothing waits for this account: the items other people decide fold under one line, so the page stays short.
+    const quiet = t.waiting > 0 && t.reviewable === 0 && t.unknown === 0;
+    const others = quiet ? shown.filter(s => results.find(r => r.key === s.key)?.count > 0) : [];
+    $('grid').replaceChildren(...shown.filter(s => !others.includes(s)).map(s => cards.get(s.key)));
+    $('others-grid').replaceChildren(...others.map(s => cards.get(s.key)));
+    $('others').hidden = !others.length; $('others').open = false;
+    $('others-title').textContent = 'Ver ' + (t.waiting === 1 ? 'el pendiente que decide otra persona' : 'los ' + t.waiting + ' pendientes que decide otra persona');
     $('empty').hidden = !zero.length; $('empty-title').textContent = 'Sin pendientes en ' + zero.length + (zero.length === 1 ? ' circuito' : ' circuitos');
     $('empty-list').replaceChildren(...zero.map(s => { const li = el('li'); const a = el('a', null, s.title); a.href = s.href; li.append(a); return li; }));
-    const t = approvalTotals(results);
     $('total').hidden = false; $('total').textContent = t.waiting ? t.waiting + (t.waiting === 1 ? ' pendiente' : ' pendientes') : 'Al día';
     $('total').classList.toggle('is-clear', !t.waiting);
     const failed = results.filter(r => r.error).length;
