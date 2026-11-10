@@ -497,6 +497,7 @@ const shellFiles = [
   'assets/page-tabs.js',
   'assets/role-label.js',
   'assets/list-pager.js',
+  'assets/text-tidy.js',
   'assets/approvals-inbox-model.js',
   'assets/approvals-inbox.js',
   'assets/approvals-inbox.css',
