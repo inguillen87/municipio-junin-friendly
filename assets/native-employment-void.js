@@ -28,6 +28,8 @@ export function mountNativeEmploymentVoid(host,{contractId,onApplied}={}){
  if(!host||host.dataset.nevMounted||!voidUuid(contractId))return null;
  contractId=contractId.toLowerCase();host.dataset.nevMounted='true';host.classList.add('nlc-panel','nev-panel');host.hidden=true;
  let boot=null,detail=null,busy=false,seq=0,closed=false,controller=null;
+ // What the person typed survives every re-render (validation messages, busy state), so one click is enough.
+ const typed={reason:VOID_DEFAULT_REASON,ack:false,decision:''};
  const live=()=>!closed&&host.isConnected&&!document.hidden;
  async function call(url,options={}){
   controller?.abort();controller=new AbortController();
@@ -63,11 +65,11 @@ export function mountNativeEmploymentVoid(host,{contractId,onApplied}={}){
   for(const[label,a,b]of[['Padrón activo',before.status==='active'?'Sí':'No',after.status==='active'?'Sí':'No (retirado por corrección de alta)'],['Ingreso',day(before.startDate),day(after.startDate)],['Egreso',before.endDate?day(before.endDate):'sin fecha',after.endDate?day(after.endDate):'sin fecha (no se registra)']]){const r=el('tr');r.append(el('th',label),el('td',a),el('td',b));t.append(r);}return t;}
  function renderForm(){
   const s=boot.subject,form=el('form',undefined,'nev-form');form.append(el('h4','Preparar la corrección'),compare({status:s.status,startDate:s.startDate,endDate:s.endDate},{status:'inactive',startDate:s.startDate,endDate:s.endDate}));
-  const reason=el('textarea');reason.required=true;reason.minLength=10;reason.maxLength=1000;reason.rows=3;reason.value=VOID_DEFAULT_REASON;const rl=el('label','Motivo');rl.append(reason);
-  const ack=el('input');ack.type='checkbox';ack.required=true;const al=el('label',undefined,'nlc-reviewed');al.append(ack,document.createTextNode('Confirmo que es un alta histórica sin relación laboral vigente con el municipio.'));
+  const reason=el('textarea');reason.required=true;reason.minLength=10;reason.maxLength=1000;reason.rows=3;reason.value=typed.reason;reason.addEventListener('input',()=>{typed.reason=reason.value;});const rl=el('label','Motivo');rl.append(reason);
+  const ack=el('input');ack.type='checkbox';ack.required=true;ack.checked=typed.ack;ack.addEventListener('change',()=>{typed.ack=ack.checked;});const al=el('label',undefined,'nlc-reviewed');al.append(ack,document.createTextNode('Confirmo que es un alta histórica sin relación laboral vigente con el municipio.'));
   const go=el('button','Enviar a revisión','nlc-primary');go.type='submit';const actions=el('div',undefined,'nlc-actions');actions.append(go);
   form.append(rl,al,actions);
-  form.addEventListener('submit',e=>{e.preventDefault();if(busy||!ack.checked)return;let payload;try{payload=voidProposalInput({contractId,scopeVersion:boot.scopeVersion,baseVersion:boot.baseVersion,reason:reason.value,acknowledgement:VOID_ACKNOWLEDGEMENT});}catch(err){render(err.message);return;}
+  form.addEventListener('submit',e=>{e.preventDefault();if(busy)return;if(!ack.checked){render('Marcá la confirmación de que es un alta histórica sin relación vigente.');return;}let payload;try{payload=voidProposalInput({contractId,scopeVersion:boot.scopeVersion,baseVersion:boot.baseVersion,reason:reason.value,acknowledgement:VOID_ACKNOWLEDGEMENT});}catch(err){render(err.message);return;}
    const a={operation:'propose',payload,key:crypto.randomUUID()};attempts.set(contractId,a);send(a);});
   return form;
  }
@@ -77,7 +79,7 @@ export function mountNativeEmploymentVoid(host,{contractId,onApplied}={}){
   if(p.pendingOperations.length)box.append(el('p',voidPendingText(p.pendingOperations),'nlc-note'));
   if(p.review)box.append(el('p',(p.review.decision==='approve'?'Aprobó ':'Rechazó ')+p.review.reviewerLabel+' el '+when(p.review.reviewedAt)+'. Motivo: '+p.review.reason));
   if(p.status==='pending'&&!p.canReview)box.append(el('p','La decide otra persona con permiso de aprobación: no se puede aprobar una propuesta propia.','nlc-note'));
-  if(p.status==='pending'&&p.canReview){const reason=el('textarea');reason.minLength=10;reason.maxLength=1000;reason.rows=3;const rl=el('label','Motivo de la decisión');rl.append(reason);
+  if(p.status==='pending'&&p.canReview){const reason=el('textarea');reason.minLength=10;reason.maxLength=1000;reason.rows=3;reason.value=typed.decision;reason.addEventListener('input',()=>{typed.decision=reason.value;});const rl=el('label','Motivo de la decisión');rl.append(reason);
    const actions=el('div',undefined,'nlc-actions'),approve=el('button','Aprobar corrección','nlc-primary'),reject=el('button','Rechazar');approve.type=reject.type='button';approve.disabled=reject.disabled=busy;
    const decide=decision=>{if(busy)return;let payload;try{payload=voidReviewInput({contractId,proposalId:p.id,scopeVersion:v.scopeVersion,proposalVersion:p.proposalVersion,decision,reason:reason.value});}catch(err){render(err.message);return;}
     const a={operation:'review',payload,key:crypto.randomUUID()};attempts.set(contractId,a);send(a);};
@@ -88,7 +90,7 @@ export function mountNativeEmploymentVoid(host,{contractId,onApplied}={}){
  async function run(work){if(busy||!live())return;const mine=++seq;busy=true;render();try{await work(()=>mine===seq&&live());}catch(e){if(mine===seq&&!closed){if(e.name==='AbortError')return;if(NOT_APPLICABLE.test(e.code)&&!boot){host.hidden=true;host.replaceChildren();return;}render(errorText(e));}}finally{if(mine===seq){busy=false;if(host.isConnected&&!closed&&boot)render(host.querySelector('.nlc-status')?.textContent??'');}}}
  function load(message=''){return run(async valid=>{const data=validateVoidBootstrap(await get('bootstrap'),contractId);if(!valid())return;boot=data;if(detail)detail=null;render(message);});}
  function consult(id){return run(async valid=>{const data=validateVoidProposal(await get('proposal','&id='+id),contractId,id.toLowerCase());if(valid()){detail=data;render();}});}
- function finish(receipt){attempts.delete(contractId);detail=null;
+ function finish(receipt){attempts.delete(contractId);detail=null;typed.decision='';typed.ack=false;
   const text=receipt.operation==='propose'?'Propuesta enviada a revisión. La decide otra persona.':receipt.status==='approved'?'Corrección aprobada: el legajo salió del padrón activo y conserva su historia.'+(receipt.supersededProposals.length?' '+plural(receipt.supersededProposals.length,'baja pendiente ya no se puede aprobar','bajas pendientes ya no se pueden aprobar')+'; se pueden rechazar.':''):'Corrección rechazada: el legajo sigue en el padrón activo.';
   boot=null;return {text,applied:receipt.operation==='review'&&receipt.status==='approved'};}
  // A definite refusal (4xx other than BUSY) recorded nothing: the attempt is dropped. Network or server doubt keeps it.

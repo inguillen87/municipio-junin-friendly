@@ -52,7 +52,7 @@ const host=p=>p.locator('#host');
 {const s=await scenario('approve',A,[{expect:'bootstrap',file:'responses/bootstrap-A-pending-independent-review.json'},{expect:'proposal',file:'responses/proposal-A-pending-reviewer.json'},{expect:'POST',status:201,file:'responses/receipt-A-approved.json'},{expect:'bootstrap',file:'responses/bootstrap-A-withdrawn.json'}]);
  const h=host(s.page);await h.getByRole('button',{name:'Ver y decidir'}).click();await h.getByRole('button',{name:'Aprobar corrección'}).waitFor();
  await h.getByRole('button',{name:'Aprobar corrección'}).click();check(s.posts.length===0,'approve: a decision needs its reason first');
- await h.getByLabel('Motivo de la decisión').fill(read('requests/approve-A.json').payload.reason);await h.getByRole('button',{name:'Aprobar corrección'}).click();
+ await h.getByLabel('Motivo de la decisión').fill('corto');await h.getByRole('button',{name:'Aprobar corrección'}).click();check(await h.getByLabel('Motivo de la decisión').inputValue()==='corto','approve: a validation message keeps what was typed');await h.getByLabel('Motivo de la decisión').fill(read('requests/approve-A.json').payload.reason);await h.getByRole('button',{name:'Aprobar corrección'}).click();
  await h.getByText(/^Corrección aprobada: el legajo salió del padrón activo/).waitFor();
  check(JSON.stringify(s.posts[0].body)===JSON.stringify(read('requests/approve-A.json')),'approve: body equals Root\'s request fixture exactly');
  check(await h.getByText('2 bajas pendientes ya no se pueden aprobar; se pueden rechazar.',{exact:false}).isVisible(),'approve: the receipt names the bajas that can no longer be approved');
