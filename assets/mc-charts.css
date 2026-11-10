@@ -20,3 +20,33 @@
 :root[data-theme=dark] .mc-chart-card figcaption strong{color:#e6eef0}
 @media (max-width:640px){.mc-chart{height:230px}.mc-chart-card{padding:14px 12px 10px}}
 .nr-charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));margin:12px 0 16px}
+/* «Ampliar»: every chart card opens in a large dialog with its numbers and an image download. */
+.mc-chart-caption{position:relative;padding-right:104px;min-height:34px}
+.mc-chart-expand{position:absolute;top:-2px;right:0;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 12px;border:1px solid #b9d8d3;border-radius:999px;background:#fff;color:#0b554f;font:750 12px/1 inherit;cursor:pointer;transition:background .15s,transform .15s}
+.mc-chart-expand[hidden]{display:none}
+.mc-chart-expand:hover,.mc-chart-expand:focus-visible{background:#e8f5f2;transform:scale(1.04);outline:3px solid rgba(15,118,110,.18);outline-offset:1px}
+.mc-chart-expand span[aria-hidden]{font-size:15px}
+.mc-chart-card[data-size=sm] .mc-chart-expand span:not([aria-hidden]){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.mc-chart-card[data-size=sm] .mc-chart-caption{padding-right:44px}
+.mc-zoom{width:min(1200px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:0;border-radius:18px;background:#fff;color:#18252d;box-shadow:0 30px 80px rgba(7,29,45,.35);overflow:auto}
+.mc-zoom[open]{animation:mc-zoom-in .32s cubic-bezier(.2,.8,.2,1) both}
+.mc-zoom::backdrop{background:rgba(5,22,34,.5);backdrop-filter:blur(2px);animation:mc-zoom-fade .25s ease both}
+.mc-zoom header{position:sticky;top:0;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid #e3e9e7;background:#fff}
+.mc-zoom h2{margin:0;color:var(--navy,#123247);font-size:21px;letter-spacing:-.01em}.mc-zoom header p{margin:3px 0 0;color:var(--muted,#5d6f78);font-size:13px}
+.mc-zoom-actions{display:flex;flex-wrap:wrap;gap:8px;flex:0 0 auto}
+.mc-zoom .button{min-height:40px;padding:8px 14px;border:1px solid #b9c7c3;border-radius:10px;background:#fff;color:#123247;font:750 13px/1.1 inherit;cursor:pointer}
+.mc-zoom .button:hover:not(:disabled),.mc-zoom .button:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.16);outline-offset:1px}
+.mc-zoom .button:disabled{opacity:.55;cursor:default}
+.mc-zoom-body{padding:16px 22px 22px}
+.mc-zoom-chart{height:min(62vh,560px)}
+.mc-zoom-data{margin-top:14px}.mc-zoom-data summary{cursor:pointer;font-weight:750;color:#0b554f}
+.mc-zoom-scroll{max-height:320px;overflow:auto;margin-top:8px;border:1px solid #e3e9e7;border-radius:10px}
+.mc-zoom-table{width:100%;border-collapse:collapse;font-size:13px}
+.mc-zoom-table th,.mc-zoom-table td{padding:8px 12px;border-bottom:1px solid #eef2f1;text-align:left}
+.mc-zoom-table th{position:sticky;top:0;background:#f6f8f7;color:#33454f;font-size:12px}
+.mc-zoom-table .num{text-align:right;font-variant-numeric:tabular-nums}
+@keyframes mc-zoom-in{from{opacity:0;transform:translate(var(--mc-from-x,0),var(--mc-from-y,0)) scale(.6)}to{opacity:1;transform:none}}
+@keyframes mc-zoom-fade{from{opacity:0}}
+@media (max-width:640px){.mc-chart-caption{padding-right:0}.mc-chart-expand{position:static;margin-top:6px;align-self:flex-start}.mc-zoom header{flex-direction:column}}
+@media (prefers-reduced-motion:reduce){.mc-zoom[open],.mc-zoom::backdrop{animation:none}.mc-chart-expand:hover{transform:none}}
+@media print{.mc-chart-expand{display:none!important}}

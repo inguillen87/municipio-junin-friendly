@@ -5,7 +5,7 @@
 // - Personas con más licencias (recurso nominal propio; se borra al salir o cambiar de filtros).
 // - Cada gráfico se amplía con un clic y todo se descarga en un PDF con gráficos.
 // Las tablas accesibles y los rankings originales siguen en la página; nada se proyecta ni se convierte en tasa.
-import {chartSlot, drawChart, loadCharts} from './mc-chart-loader.js';
+import {chartSlot, drawChart, loadCharts, closeChartZoom} from './mc-chart-loader.js';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -81,11 +81,11 @@ function ensureLayout() {
  if (ui?.root.isConnected) return ui;
  const root = el('div', {class: 'ab-dash', 'data-absence-charts': 'true'});
  const toolbar = el('div', {class: 'ab-toolbar'},
-  el('p', {class: 'ab-toolbar-copy', text: 'Tocá «Ampliar» en cualquier gráfico para verlo grande con sus números. Tocá una barra de motivo o sector para filtrar por ella.'}),
+  el('p', {class: 'ab-toolbar-copy', text: 'Tocá «Ampliar» en cualquier gráfico para verlo grande, con sus números, y descargarlo como imagen. Tocá una barra de motivo o sector para filtrar por ella.'}),
   el('button', {type: 'button', class: 'button primary ab-pdf', text: 'Descargar informe en PDF', 'data-absence-pdf': 'true'}));
  const insights = el('ul', {class: 'ab-insights', 'aria-label': 'Conclusiones principales', role: 'list'});
  const cards = el('div', {class: 'ab-grid'});
- const make = (key, title, subtitle, wide = false) => { const slot = chartSlot(title, {subtitle, size: wide ? 'lg' : 'md', key}); slot.figure.classList.add('ab-card'); if (wide) slot.figure.classList.add('ab-wide'); addExpand(slot, key, title, subtitle); cards.append(slot.figure); return slot; };
+ const make = (key, title, subtitle, wide = false) => { const slot = chartSlot(title, {subtitle, size: wide ? 'lg' : 'md', key}); slot.figure.classList.add('ab-card'); if (wide) slot.figure.classList.add('ab-wide'); slot.figure.__mcRows = () => slotSpecs[key]?.rows?.() ?? null; cards.append(slot.figure); return slot; };
  const trend = make('absence-trend', 'Licencias por mes', 'Cantidad de eventos y de personas por mes · * mes todavía incompleto', true);
  const reasons = make('absence-reasons', 'Motivos más frecuentes', 'Cuántas licencias hubo por cada motivo');
  const sectors = make('absence-sectors', 'Sectores con más eventos', 'Los diez sectores con más licencias');
@@ -101,38 +101,6 @@ function ensureLayout() {
  section.insertBefore(root, grid);
  toolbar.querySelector('[data-absence-pdf]').addEventListener('click', downloadPdf);
  ui = {root, grid, insights, trend, reasons, sectors, calendar, weekday, daysByMonth, help}; return ui;
-}
-
-// ---------- Ampliar ----------
-let zoom = null;
-function addExpand(slot, key, title, subtitle) {
- const button = el('button', {type: 'button', class: 'ab-expand', 'aria-label': 'Ampliar ' + title, title: 'Ampliar'}, el('span', {'aria-hidden': 'true', text: '⤢'}), el('span', {text: 'Ampliar'}));
- button.addEventListener('click', () => openZoom(key, title, subtitle, slot.figure));
- slot.caption.append(button); slot.caption.classList.add('ab-caption');
-}
-function openZoom(key, title, subtitle, origin) {
- const spec = slotSpecs[key]; if (!spec) return;
- zoom?.close();
- const dialog = el('dialog', {class: 'ab-zoom', 'aria-labelledby': 'abZoomTitle'});
- const close = el('button', {type: 'button', class: 'button', text: 'Cerrar'});
- const head = el('header', {}, el('div', {}, el('h2', {id: 'abZoomTitle', text: title}), el('p', {text: subtitle})), close);
- const host = el('div', {class: 'mc-chart ab-zoom-chart', role: 'img', 'aria-label': title});
- const body = el('div', {class: 'ab-zoom-body'}, host);
- if (spec.rows) {
-  const rows = spec.rows();
-  if (rows?.body?.length) {
-   const table = el('table', {class: 'ab-zoom-table'}, el('thead', {}, el('tr', {}, ...rows.head.map((h, i) => el('th', {text: h, class: i ? 'num' : ''})))), el('tbody', {}, ...rows.body.map(r => el('tr', {}, ...r.map((c, i) => el('td', {text: c, class: i ? 'num' : ''}))))));
-   body.append(el('details', {class: 'ab-zoom-data', open: rows.body.length <= 14}, el('summary', {text: 'Ver los números (' + rows.body.length + ' filas)'}), el('div', {class: 'ab-zoom-scroll'}, table)));
-  }
- }
- dialog.append(head, body); document.body.append(dialog);
- if (origin) { const r = origin.getBoundingClientRect(); dialog.style.setProperty('--ab-from-x', (r.left + r.width / 2 - innerWidth / 2) + 'px'); dialog.style.setProperty('--ab-from-y', (r.top + r.height / 2 - innerHeight / 2) + 'px'); }
- const done = () => { dialog.remove(); if (zoom?.dialog === dialog) zoom = null; origin?.querySelector('.ab-expand')?.focus(); };
- close.addEventListener('click', () => dialog.close());
- dialog.addEventListener('close', done);
- dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
- dialog.showModal(); zoom = {dialog, close: () => dialog.open && dialog.close()};
- requestAnimationFrame(() => drawChart(host, m => spec.build(m, {zoom: true}), {ariaLabel: title, onClick: spec.onClick ? p => { dialog.close(); spec.onClick(p); } : null}));
 }
 
 // ---------- Filtros desde los gráficos y atajos de período ----------
@@ -270,7 +238,7 @@ async function drawDaily(s, monthly = []) {
 function peopleUi() {
  const panel = document.getElementById('peoplePanel'); if (!panel) return null;
  if (!panel.__ab) {
-  const slot = chartSlot('Top 10 de personas', {subtitle: 'Cantidad en el período y filtros elegidos', key: 'absence-people'}); slot.figure.classList.add('ab-card'); addExpand(slot, 'absence-people', 'Personas con más licencias', 'Top 10 en el período y filtros elegidos');
+  const slot = chartSlot('Top 10 de personas', {subtitle: 'Cantidad en el período y filtros elegidos', key: 'absence-people'}); slot.figure.classList.add('ab-card'); slot.figure.__mcRows = () => slotSpecs['absence-people']?.rows?.() ?? null;
   panel.querySelector('[data-people-chart]').append(slot.figure);
   panel.querySelectorAll('[data-order]').forEach(b => b.addEventListener('click', () => { peopleOrder = b.dataset.order; panel.querySelectorAll('[data-order]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); loadPeople(); }));
   panel.__ab = {panel, slot, status: panel.querySelector('[data-people-status]'), body: panel.querySelector('[data-people-rows]')};
@@ -309,12 +277,12 @@ function openLegajoHistory(row) {
  const query = window.__mcAbsenceQuery; if (!query) return;
  legajoDialog?.close();
  const who = row.name ? readableName(row.name) : 'Legajo ' + row.legajo, origin = document.activeElement, expected = peopleSnapshot;
- const dialog = el('dialog', {class: 'ab-zoom ab-history', 'aria-labelledby': 'abHistoryTitle'});
+ const dialog = el('dialog', {class: 'mc-zoom ab-history', 'aria-labelledby': 'abHistoryTitle'});
  const close = el('button', {type: 'button', class: 'button', text: 'Cerrar'}), status = el('p', {class: 'ab-history-status', role: 'status', 'aria-live': 'polite', text: 'Buscando las licencias de este legajo…'});
  const body = el('tbody'), more = el('button', {type: 'button', class: 'button', text: 'Ver más', hidden: true});
- const table = el('table', {class: 'ab-zoom-table'}, el('thead', {}, el('tr', {}, ...['Desde', 'Hasta', 'Motivo', 'Días declarados'].map((h, i) => el('th', {text: h, class: i === 3 ? 'num' : ''})))), body);
+ const table = el('table', {class: 'mc-zoom-table'}, el('thead', {}, el('tr', {}, ...['Desde', 'Hasta', 'Motivo', 'Días declarados'].map((h, i) => el('th', {text: h, class: i === 3 ? 'num' : ''})))), body);
  dialog.append(el('header', {}, el('div', {}, el('h2', {id: 'abHistoryTitle', text: 'Licencias de ' + who}), el('p', {text: 'Legajo ' + row.legajo + ' · sólo este legajo, en el período y filtros elegidos'})), close),
-  el('div', {class: 'ab-zoom-body'}, status, el('div', {class: 'ab-zoom-scroll'}, table), more));
+  el('div', {class: 'mc-zoom-body'}, status, el('div', {class: 'mc-zoom-scroll'}, table), more));
  document.body.append(dialog);
  let page = 0, total = 0, shown = 0, alive = true, busy = false;
  const done = () => { alive = false; dialog.remove(); if (legajoDialog?.dialog === dialog) legajoDialog = null; if (origin?.isConnected) origin.focus(); };
@@ -412,12 +380,12 @@ async function downloadPdf(event) {
  finally { if (button) button.disabled = false; }
 }
 
-function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); } dayData = null; dailyToken++; clearPeople(''); zoom?.close(); legajoDialog?.close(); }
+function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); } dayData = null; dailyToken++; clearPeople(''); closeChartZoom(); legajoDialog?.close(); }
 if (typeof document !== 'undefined') {
  // Cada consulta (también al pasar de página en el listado) avisa «cleared»: los nombres se borran siempre y, si los
  // indicadores siguen siendo los mismos (sólo cambió la página de eventos), el ranking se vuelve a pedir.
  document.addEventListener('mc:absence-cleared', () => {
-  const kept = last; clearPeople(''); zoom?.close(); legajoDialog?.close();
+  const kept = last; clearPeople(''); closeChartZoom(); legajoDialog?.close();
   setTimeout(() => { if (kept && window.__mcLastAbsence === kept && !document.getElementById('mainContent')?.hidden && !document.hidden) loadPeople(); }, 0);
  });
  window.MuniControlAbsenceCharts = Object.freeze({render, clear});
