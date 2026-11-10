@@ -124,13 +124,17 @@ test('a preparation emitted from the municipal source is matched by contract and
  assert.throws(()=>familyFactsPreparationFile(b,'{'),/JSON válido/);
 });
 
-// Guarda de estado: la ruta y el SQL 226 existen como propuesta, pero la pantalla no se conecta (ni tarea, ni página,
-// ni entrada de armado) hasta que el SQL esté instalado. Al conectarla, esta prueba se reemplaza por las de la pantalla.
-test('the backend proposal stays unwired: no screen, navigation or build entry ships it before its SQL is installed',()=>{
- const build=fs.readFileSync('scripts/build-friendly.mjs','utf8'),page=fs.readFileSync('nomina-control.html','utf8'),navigation=fs.readFileSync('assets/payroll-navigation.js','utf8');
- for(const source of [build,page,navigation])assert.ok(!source.includes('own-contract-family-payroll-facts'));
- assert.ok(fs.existsSync('api/internal-own-contract-family-payroll-facts.js'));
- assert.ok(fs.existsSync('scripts/migrations/226-own-contract-family-payroll-facts.sql'));
+// La tarea «Asignaciones familiares» está conectada en Liquidaciones. Este commit sólo se integra después de
+// instalar el SQL 226: sin él la consulta responde «no se confirmó la operación».
+test('the family task is wired into Liquidaciones: navigation, month preload and build', ()=>{
+ const build=fs.readFileSync('scripts/build-friendly.mjs','utf8'),navigation=fs.readFileSync('assets/payroll-navigation.js','utf8');
+ for(const asset of ['model.js','workspace.js','panel.js','panel.css'])assert.ok(build.includes("'assets/own-contract-family-payroll-facts-"+asset+"'"),asset);
+ assert.ok(build.includes("'assets/period-carry-forward.js'"));
+ assert.ok(navigation.includes("import {mountOwnContractFamilyPayrollFacts} from './own-contract-family-payroll-facts-panel.js';"));
+ assert.ok(navigation.includes("const familyFacts=document.createElement('div');mountOwnContractFamilyPayrollFacts(familyFacts);"));
+ assert.ok(navigation.includes("{id:'condiciones',label:'Condiciones salariales',nodes:[salaryConditions]},{id:'familia',label:'Asignaciones familiares',nodes:[familyFacts]},"));
+ assert.ok(navigation.includes("'horas-convenio','encuadre','condiciones','familia']}")&&navigation.includes("const monthOnly=['art','f931','horas-convenio','condiciones','familia','reglas'];"));
+ assert.ok(fs.existsSync('api/internal-own-contract-family-payroll-facts.js')&&fs.existsSync('scripts/migrations/226-own-contract-family-payroll-facts.sql'));
 });
 
 test('the proposed screen keeps an empty box as not reported and folds people ten per page',()=>{

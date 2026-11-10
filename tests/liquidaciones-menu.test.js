@@ -10,7 +10,7 @@ test('each payroll task anchor already exists',()=>{const source=fs.readFileSync
 test('the payroll workspace registers for this menu and every task sits in exactly one section, Anular período before Confirmar y anular',()=>{
  const source=fs.readFileSync('assets/payroll-navigation.js','utf8');
  assert.ok(source.includes("sections:PAYROLL_TASK_SECTIONS,menu:'liquidaciones'"));assert.doesNotMatch(source,/^export /m,'payroll-navigation stays a side-effect module (vm sandboxes strip only imports)');
- const ids=[...source.matchAll(/\{id:'([a-z0-9-]+)',label:'[^']+',nodes:\[/g)].map(m=>m[1]);assert.equal(ids.length,29);assert.equal(new Set(ids).size,29);
+ const ids=[...source.matchAll(/\{id:'([a-z0-9-]+)',label:'[^']+',nodes:\[/g)].map(m=>m[1]);assert.equal(ids.length,30);assert.equal(new Set(ids).size,30);
  const literal=/PAYROLL_TASK_SECTIONS=Object\.freeze\((\[[^\n]*\])\);/.exec(source)?.[1];assert.ok(literal);
  const sections=JSON.parse(literal.replace(/'/g,'"').replace(/([{,])(label|tasks):/g,'$1"$2":'));
  const tasks=sections.flatMap(s=>s.tasks);assert.deepEqual([...tasks].sort(),[...ids].sort(),'every workspace task belongs to a section and no section names an unknown task');assert.equal(new Set(tasks).size,tasks.length);
