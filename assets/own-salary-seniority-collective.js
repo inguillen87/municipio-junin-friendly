@@ -80,12 +80,13 @@ export function createCollectiveSeniorityWorkspace(io){
   fail(['propose','approve','reject'].includes(command)&&typeof why==='string'&&why===why.trim()&&why===why.normalize('NFC')&&why.length>=10&&why.length<=1000&&!/[<>\u0000-\u001f\u007f]/.test(why),'Elegí una operación y fundamento explícitos.');
   if(context&&(confirmed.size||attempt))fail(context.fileHash===h&&context.mode===command&&context.reasonHash===await seniorityHash(why),'El avance parcial pertenece al mismo conjunto y fundamento. No se reasignó.','PROGRESS_CHANGED');
   file=f;fileHash=h;mode=command;reason=why;plan=null;reviewHash=null;preparedCount=0;phase='preparing';await auth(mode,epoch);const before=await roster(file,epoch),next=[];
-  for(const row of file.records){
-   const saved=confirmed.get(lower(row.contractId));
-   if(saved){const r=await receipt(await io.readAttempt(saved.key,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(r.requestKey===saved.key&&r.proposalId===saved.proposalId&&r.requestSha256===saved.bodySha256&&r.body.command===mode&&r.body.period===file.period&&r.body.contractId===row.contractId&&(mode!=='propose'||salarySerialized(r.body.definition)===salarySerialized(row.definition)),'El avance no coincide con el mismo comprobante original.','PROGRESS_CHANGED');const d=await seniorityDetail(await io.readDetail(saved.proposalId,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(d.proposal.id===saved.proposalId&&d.body.contractId===row.contractId&&d.body.period===file.period&&salarySerialized(d.body.definition)===salarySerialized(row.definition),'El detalle original no coincide con la declaración del avance.','PROGRESS_CHANGED');next.push({row,body:r.body,before:d.baseDefinition,after:d.body.definition,alreadyConfirmed:true});}
-   else next.push(await readEntry(row,epoch));
-   preparedCount=next.length;publish();
-  }
+  // Read-only checks run four at a time (each still verifies session and epoch); order of the plan is the file order.
+  const one=async row=>{const saved=confirmed.get(lower(row.contractId));
+   if(saved){const r=await receipt(await io.readAttempt(saved.key,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(r.requestKey===saved.key&&r.proposalId===saved.proposalId&&r.requestSha256===saved.bodySha256&&r.body.command===mode&&r.body.period===file.period&&r.body.contractId===row.contractId&&(mode!=='propose'||salarySerialized(r.body.definition)===salarySerialized(row.definition)),'El avance no coincide con el mismo comprobante original.','PROGRESS_CHANGED');const d=await seniorityDetail(await io.readDetail(saved.proposalId,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(d.proposal.id===saved.proposalId&&d.body.contractId===row.contractId&&d.body.period===file.period&&salarySerialized(d.body.definition)===salarySerialized(row.definition),'El detalle original no coincide con la declaración del avance.','PROGRESS_CHANGED');return {row,body:r.body,before:d.baseDefinition,after:d.body.definition,alreadyConfirmed:true};}
+   return readEntry(row,epoch);};
+  {const rows=file.records,out=new Array(rows.length);let cursor=0,done=0,stop=false;
+   await Promise.all(Array.from({length:Math.min(4,rows.length)},async()=>{while(!stop&&cursor<rows.length){const i=cursor++;try{out[i]=await one(rows[i]);}catch(e){stop=true;throw e;}done++;preparedCount=done;publish();}}));
+   next.push(...out);}
   const after=await roster(file,epoch);await auth(mode,epoch);fail(salarySerialized(before)===salarySerialized(after),'Cambió el padrón durante la revisión completa.','POPULATION_CHANGED');
   ensure(epoch);rosterPin=before;plan=freeze(structuredClone(next));reviewHash=await seniorityHash({fileHash,mode,reason,rosterPin,plan});phase=attempt?'uncertain':'prepared';context={fileHash,mode,period:file.period,reasonHash:await seniorityHash(reason),accessKey};publish();return view();
  });}
