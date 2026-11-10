@@ -273,6 +273,7 @@ const shellFiles = [
   'assets/position-comparison-panel.js',
   'assets/position-comparison.css',
   'assets/own-payroll-program-panel.js',
+  'assets/own-program-formula-text.js', 'assets/own-program-steps.js',
   'assets/own-bank-accounts-panel.js',
   'assets/own-bank-accounts-panel.css',
   'assets/own-bank-accounts-model.js',

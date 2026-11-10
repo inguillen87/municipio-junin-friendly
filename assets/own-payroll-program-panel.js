@@ -7,6 +7,8 @@ import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {ownPayrollConditions as ownProgramConditions,CONDITION_FIELD_UNITS,CLASSIFICATION_FIELD_UNITS,OWN_PAYROLL_CONDITIONS_VERSION} from './own-payroll-conditions.js';
 import {programWorkspaceOperations,PROGRAM_CONDITION_TYPES,PROGRAM_CONDITION_FIELDS,PROGRAM_CLASSIFICATION_FIELDS} from './own-payroll-program-workspace-model.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
+import {programFormulaText} from './own-program-formula-text.js';
+import {mountProgramSteps} from './own-program-steps.js';
 import {readSalaryBootstrap} from './native-salary-stream-model.js';
 import {reviewPreparedProgramDraft,applyPreparedProgramDraft,OWN_PROGRAM_PREPARED_MAX_BYTES} from './own-payroll-program-prepared-draft.js';
 import {mountProgramCoverage} from './own-program-coverage-panel.js';
@@ -64,6 +66,7 @@ export function mountOwnPayrollProgram(container){
  <section data-program-send-box hidden><h3>Confirmar la operación revisada</h3><p data-program-operation></p><label class="own-program-check"><input type="checkbox" data-program-confirm>Revisé el conjunto completo, sus fuentes, vigencias y el fundamento.</label></section></div>
  <div class="own-program-actions"><button type="button" data-program-send hidden>Registrar propuesta</button><button type="button" data-program-recover hidden>Consultar el mismo intento</button><button type="button" data-program-new hidden>Nueva preparación</button><button type="button" data-program-revise hidden>Revisar intento no registrado</button></div><p data-program-receipt hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-program-'+key+']');
+ mountProgramSteps($('fields'));
  const coverage=mountProgramCoverage($('content'));$('content').insertBefore($('content').lastElementChild,$('form'));
  let owner=null,ownerLocked=false,ownerPublication=false;
  let openPending=true,active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null,scalePlan=null,filePlan=null,fileEpoch=0;
@@ -155,6 +158,9 @@ export function mountOwnPayrollProgram(container){
  }
  function renderExpression(rule){
   const area=node('div');area.className='own-program-expression';const size=expressionSize(rule.expression);area.append(node('p',`Fórmula: ${size.nodes} operaciones. Las unidades y conversiones se declaran expresamente.`));
+  // La misma fórmula en una línea, para leerla de un vistazo; se actualiza con cada cambio del editor de abajo.
+  const sentence=node('p');sentence.className='own-program-formula';sentence.dataset.programFormula='';const said=node('span');sentence.append(node('strong','En una línea: '),said);
+  const say=()=>{said.textContent=programFormulaText(rule.expression);};say();area.addEventListener('input',say);area.addEventListener('change',say);area.append(sentence);
   const labels={left:'Primer valor',right:'Segundo valor',value:'Valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple'};
   function walk(value,path,level){
    const card=node('fieldset');card.className='own-program-expression-node';card.style.setProperty('--program-depth',String(Math.min(level,6)));card.append(node('legend',path.length?path.map(p=>labels[p]).join(' · '):'Resultado de la fórmula'));

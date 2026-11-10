@@ -45,7 +45,7 @@ const server=http.createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
 try {
- browser=await chromium.launch({...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ browser=await chromium.launch({...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});page.on('pageerror',e=>errors.push(e.message));
  const $=key=>page.locator('[data-program-'+key+']');
  const settled=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
  const load=async()=>{await page.goto(origin+'/qa.html');await $('content').waitFor({state:'visible'});await settled();await $('copy').locator('summary').click();};

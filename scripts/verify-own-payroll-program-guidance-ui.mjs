@@ -36,7 +36,7 @@ let browser,page,report;
 const check=(value,label)=>{assert.ok(value,label);checks.push(label);};
 try{
  browser=await chromium.launch({headless:true,...(args.executable?{executablePath:args.executable}:{})});
- const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,sessionVersion:2,user:{id:'guidance-qa',email:session.email,role:'QA'},expiresAt:new Date(Date.now()+3600000).toISOString(),access:{context:'tenant',tenant:{id:uid(1),roleKey:'QA'},tenantCapabilities:denied?[]:caps,platformCapabilities:[],platformRoles:[]}}});

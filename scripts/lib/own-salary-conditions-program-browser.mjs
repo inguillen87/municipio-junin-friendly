@@ -13,7 +13,7 @@ export async function verifyConditionsProgramBrowser({handlers,env,actors,setAct
  let driverName;
  try{
   ({browser,driverName}=await launchOwnSyntheticBrowser());
-  const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
+  const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
    if(u.pathname==='/api/internal-own-payroll-program'){
