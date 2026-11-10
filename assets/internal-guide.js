@@ -48,7 +48,7 @@
       ]
     },
     payroll: {
-      sectionId: 'nomina', title: 'Control de nómina',
+      sectionId: 'nomina', title: 'Liquidaciones',
       // Monthly flow, in the order the work happens. Sidebar entries exist on every Liquidaciones screen;
       // steps whose entry is folded or not allowed for the account are skipped automatically.
       tour: [
