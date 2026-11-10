@@ -416,5 +416,11 @@ local-agents/
 
 # Durable collective job code and synthetic verification inputs; no municipal files.
 !scripts/migrations/225-own-collective-jobs.sql
+# Reviewed pending reader facade (227); read by its installation tests in the build gate. No municipal data.
+!scripts/migrations/227-own-salary-conditions-pending.sql
+# Reviewed family payroll facts backend (226), read by its SQL and installation tests in the build gate. No municipal data.
+!scripts/migrations/226-own-contract-family-payroll-facts.sql
+# Current source of two 226 installation prerequisites (224), read by the 226 installation tests. No municipal data.
+!scripts/migrations/224-native-employment-void.sql
 !tests/fixtures/own-collective-jobs-qa.sql.txt
 !tests/fixtures/own-collective-installed-roster.sql.txt

@@ -44,8 +44,15 @@ test('the route and its SQL calls are the conditions ones under the same rename'
  const rename = s => s.replaceAll('salaryConditions', 'familyPayrollFacts').replaceAll('SalaryConditions', 'FamilyPayrollFacts').replaceAll('SALARY_CONDITIONS', 'FAMILY_PAYROLL_FACTS')
   .replaceAll('own_salary_conditions_', 'own_family_payroll_facts_').replaceAll('own-contract-salary-conditions', 'own-contract-family-payroll-facts');
  const api = fs.readFileSync('api/internal-own-contract-family-payroll-facts.js', 'utf8'), lib = fs.readFileSync('lib/internal-own-contract-family-payroll-facts.js', 'utf8');
- assert.equal(api, rename(fs.readFileSync('api/internal-own-contract-salary-conditions.js', 'utf8')).replace('La membresía no permite consultar condiciones salariales nominales.', 'La membresía no permite consultar datos familiares de liquidación nominales.'));
- assert.equal(lib, rename(fs.readFileSync('lib/internal-own-contract-salary-conditions.js', 'utf8'))
+ // El circuito de condiciones sumó después su lectura liviana de pendientes (227). Familia todavía no tiene la suya,
+ // así que la comparación se hace contra condiciones sin esas líneas. Cada reemplazo debe ocurrir exactamente una vez.
+ const once = (text, from, to) => { assert.equal(text.split(from).length - 1, 1, from); return text.replace(from, to); };
+ const apiWithoutPending = text => once(once(text, "   }else if(q.resource==='pending'&&Object.keys(q).join('|')==='resource'){operation='pending';input={};}\n   else if(q.resource==='bootstrap'", "   }else if(q.resource==='bootstrap'"), "method==='GET'&&operation!=='pending'?", "method==='GET'?");
+ const libWithoutPending = text => once(once(once(text, "import {salaryConditionsPending} from '../assets/own-contract-salary-conditions-pending.js';\n", ''),
+  "  if(operation==='pending'){\n   query='SELECT public.own_salary_conditions_pending_v1($1::jsonb) AS result';values=[ctx];\n  }else if(operation==='bootstrap'){", "  if(operation==='bootstrap'){"),
+  "   if(operation==='pending'){\n    salaryConditionsPending(result);\n   }else if(operation==='bootstrap'){", "   if(operation==='bootstrap'){");
+ assert.equal(api, rename(apiWithoutPending(fs.readFileSync('api/internal-own-contract-salary-conditions.js', 'utf8'))).replace('La membresía no permite consultar condiciones salariales nominales.', 'La membresía no permite consultar datos familiares de liquidación nominales.'));
+ assert.equal(lib, rename(libWithoutPending(fs.readFileSync('lib/internal-own-contract-salary-conditions.js', 'utf8')))
   .replace('Revisá antigüedad parcial, título, porcentaje, insalubridad, período y constancia.', 'Revisá cantidades familiares, meses de ajuste prenatal, región, promedio semestral, período y constancia.')
   .replace('Tu cuenta no permite esta operación sobre condiciones salariales.', 'Tu cuenta no permite esta operación sobre datos familiares de liquidación.'));
  for (const name of ['bootstrap', 'detail', 'attempt', 'command']) assert.ok(lib.includes('public.own_family_payroll_facts_' + name + '_v1(') && family.includes('CREATE FUNCTION public.own_family_payroll_facts_' + name + '_v1('));

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {previousPeriod, periodName, carryForward, carrySummary} from '../assets/period-carry-forward.js';
+import {previousPeriod, periodName, carryForward, carrySummary, carryAvailable} from '../assets/period-carry-forward.js';
 
 test('el mes anterior cruza el año y un período inválido no se adivina', () => {
  assert.equal(previousPeriod('2026-11'), '2026-10'); assert.equal(previousPeriod('2027-01'), '2026-12'); assert.equal(previousPeriod('2026-10'), '2026-09');
@@ -49,6 +49,13 @@ for (const [file, prefix, bootstrap, keysText] of PANELS) test(file + ': traer l
  assert.ok(handler.includes(`carryForward(draft,value.configuration.items,${keysText});draft=result.draft;page=1;invalidate();rows();status(carrySummary(result,draft.length,from));`));
  assert.ok(!/method:'POST'|prepared=|\$\('confirm'\)|\$\('send'\)/.test(handler), 'no envía, no prepara y no confirma');
  assert.ok(handler.startsWith(" $('carry').addEventListener('click',()=>perform(async valid=>{await session(capsFor('propose'));"), 'sólo para quien puede preparar');
- assert.ok(js.includes("$('carry').hidden=value.configuration.revision>0;"), 'si el período ya tiene una revisión aprobada, el borrador parte de ella');
+ assert.ok(js.includes("$('carry').hidden=value.configuration.revision>0||!carryAvailable(value.period);"), 'si el período ya tiene una revisión aprobada, el borrador parte de ella; y en enero de 1900 no hay mes anterior');
+ assert.ok(handler.includes("if(!boot||!draft||attempt||!carryAvailable(boot.period))return;"));
 });
 test('el armado publica el ayudante', () => { assert.ok(fs.readFileSync('scripts/build-friendly.mjs', 'utf8').includes("'assets/period-carry-forward.js'")); });
+
+// Observación de Root sobre 2676803f: en enero de 1900 el mes anterior cae fuera del dominio de las consultas.
+test('en el primer período válido no se ofrece traer el mes anterior', () => {
+ assert.equal(carryAvailable('1900-01'), false); assert.equal(carryAvailable('1900-02'), true); assert.equal(carryAvailable('2026-11'), true); assert.equal(carryAvailable('2027-01'), true);
+ for (const bad of ['', null, undefined, '2026-13', '1900-1']) assert.equal(carryAvailable(bad), false);
+});

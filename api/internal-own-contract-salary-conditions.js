@@ -24,7 +24,8 @@ export function createOwnContractSalaryConditionsHandler(deps={}){
     schoolCertificateHttp.assertOrigin(req,env);
     if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')salaryConditionsFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');
     schoolCertificateHttp.checkLength(req,SALARY_CONDITIONS_MAX_BYTES);
-   }else if(q.resource==='bootstrap'&&Object.keys(q).sort().join('|')==='period|resource'){operation='bootstrap';input={period:q.period};}
+   }else if(q.resource==='pending'&&Object.keys(q).join('|')==='resource'){operation='pending';input={};}
+   else if(q.resource==='bootstrap'&&Object.keys(q).sort().join('|')==='period|resource'){operation='bootstrap';input={period:q.period};}
    else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='id|resource'){operation='detail';input={id:q.id};}
    else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
    else salaryConditionsFail('QUERY_INVALID',400,'Consulta inválida.');
@@ -44,7 +45,7 @@ export function createOwnContractSalaryConditionsHandler(deps={}){
     operation='command';input={body:command,key:schoolCertificateHttp.header(req,'idempotency-key')};
    }
    const sql=await getSql(env),read=()=>salaryConditionsOperation(sql,access.principal,session,operation,input),scope=method==='GET'?ownPeriodReadScopeKey(access.principal,session):null;
-   const data=method==='GET'?await recoverOwnPeriodRead({method,operation,busyCode:'SALARY_CONDITIONS_BUSY',read,reauthorize:async()=>{
+   const data=method==='GET'&&operation!=='pending'?await recoverOwnPeriodRead({method,operation,busyCode:'SALARY_CONDITIONS_BUSY',read,reauthorize:async()=>{
     const next=await authorize(req,res,accessOptions);if(!next)return false;assertAccess(next);const nextSession=sessionFor(next,env);
     if(ownPeriodReadScopeKey(next.principal,nextSession)!==scope)salaryConditionsFail('SCOPE_CHANGED',409,'Cambió la cuenta, la sesión o el ámbito municipal. Volvé a abrir la consulta.');
     access=next;session=nextSession;return true;
