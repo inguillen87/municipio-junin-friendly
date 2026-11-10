@@ -14,7 +14,7 @@ const DYNAMIC = new Set(['estructura.html #contenido > .mc-chart-row', 'relojes-
 
 test('las pantallas largas declaran pestañas en lenguaje llano en lugar de una página interminable', () => {
   assert.deepEqual(pages.sort(), ['ausentismo-control.html', 'calidad-datos.html', 'calidad-operativa.html', 'centro-ayuda.html', 'control-horario-homologacion.html', 'control-horario-readiness.html',
-    'estructura.html', 'gestion-comparativa.html', 'licencias-control.html', 'modulos.html', 'presupuesto-control.html', 'relojes-marcaciones.html']);
+    'estructura.html', 'gestion-comparativa.html', 'integracion-datos.html', 'licencias-control.html', 'modulos.html', 'presupuesto-control.html', 'relojes-marcaciones.html']);
   const keys = new Set();
   for (const file of pages) {
     const { html, tabs, key, label } = config(file);
