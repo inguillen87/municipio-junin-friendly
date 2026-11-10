@@ -69,13 +69,19 @@ export function reportXlsx(d){checked(d);
 }
 const chars={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149};
 function hex(s){return '<'+[...String(s)].map(c=>{const n=c.codePointAt(0);return(n<=255?n:(chars[n]??63)).toString(16).padStart(2,'0')}).join('')+'>'}
+// «→» (vigencias «desde → hasta», cambios «antes → después») no existe en WinAnsi y salía como «?». Se dibuja con la
+// flecha real de la fuente estándar Symbol; un texto sin flechas produce exactamente los mismos bytes que antes.
+const PDF_ARROW='\u2192',PDF_ARROW_WIDTH=987;
+function show(s,font,size){return String(s).split(PDF_ARROW).map(part=>hex(part)+' Tj').join(` /F3 ${size} Tf <ae> Tj /${font} ${size} Tf `)}
+const usesSymbol=pages=>pages.some(page=>page.some(op=>typeof op==='string'&&op.includes(' /F3 ')));
+const SYMBOL_FONT='<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>';
 function lines(s,max){const out=[];let current='';for(const word0 of String(s).split(/\s+/)){const words=word0.match(new RegExp('.{1,'+max+'}','g'))||[''];for(const w of words){if((current+' '+w).trim().length>max&&current){out.push(current);current=w}else current=(current+' '+w).trim()}}if(current)out.push(current);return out.length?out:['']}
 // Widths in 1/1000 em for the embedded standard WinAnsi Type1 fonts.
 // Keep existing line breaks; only split a line further when its actual glyph width exceeds the cell.
 const REPORT_PDF_FONT_WIDTHS=[[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500],[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556]];
 function fitPdfCellLines(parts,width,size,bold=false){
  const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0],limit=width*1000/size;
- const advance=character=>{const point=character.codePointAt(0),code=point<=255?point:(chars[point]??63);return metrics[code-32]??metrics[63-32];};
+ const advance=character=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return metrics[code-32]??metrics[63-32];};
  return parts.flatMap(part=>{
   const points=[...part];if(points.reduce((n,c)=>n+advance(c),0)<=limit)return [part];
   const fitted=[];let start=0;
@@ -93,7 +99,7 @@ function fitPdfCellLines(parts,width,size,bold=false){
 function statementCoverPage(d){
  const W=595,H=842,left=36,width=W-72,ops=[],s=d.payrollStatement;
  ops.width=W;ops.height=H;
- const text=(x,y,value,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-y} Tm ${hex(value)} Tj ET`);
+ const text=(x,y,value,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-y} Tm ${show(value,bold?'F2':'F1',size)} ET`);
  const rect=(x,y,w,h,color)=>ops.push(`${color} rg ${x} ${H-y-h} ${w} ${h} re f`);
  const metadata=k=>d.metadata.find(row=>row[0]===k)?.[1]??'No informado';
  rect(0,0,W,88,'0.045 0.15 0.20');rect(0,88,W,3,'0.0 0.50 0.46');
@@ -129,7 +135,7 @@ function statementCoverPage(d){
  text(W-101,H-31,'Página 1',8);return ops;
 }
 export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y,pageHasData=false;
- const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${hex(s)} Tj ET`);
+ const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
  const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-109,H-31,'Página '+pages.length,8);if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5)};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
@@ -167,7 +173,9 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
  });
  if(!d.rows.length){if(y+25>H-62)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
- for(const page of pages){const id=objects.length;const content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width??W} ${page.height??H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)}objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n'});const pos=out.length;out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;return new TextEncoder().encode(out);
+ // La fuente Symbol sólo se declara si alguna hoja usa la flecha, después de las hojas: los demás objetos no cambian de número.
+ const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
+ for(const page of pages){const id=objects.length;const content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width??W} ${page.height??H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${symbol} >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)}if(symbol)objects.push(SYMBOL_FONT);objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n'});const pos=out.length;out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;return new TextEncoder().encode(out);
 }
 export function saveReport(d,format){checked(d);if(!['pdf','xlsx','csv'].includes(format))throw Error('Formato inválido');const bytes=format==='pdf'?reportPdf(d):format==='xlsx'?reportXlsx(d):reportCsv(d);return saveReportBytes(d,format,bytes)}
 export function saveReportBytes(d,format,bytes){checked(d);if(!['pdf','xlsx','csv'].includes(format)||(format==='csv'?typeof bytes!=='string':!(bytes instanceof Uint8Array)))throw Error('Archivo no válido');const mime={pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',csv:'text/csv;charset=utf-8'}[format];const url=URL.createObjectURL(new Blob([bytes],{type:mime})),a=document.createElement('a');a.href=url;a.download=d.filename+'.'+format;a.rel='noopener';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);return a.download}
@@ -217,7 +225,7 @@ function costSheet(c) {
 function compactConceptPdf(d) {
   const W=595, H=842, left=36, width=W-72, widths=[36,207,105,64,111], pages=[];
   let ops, y;
-  const text=(x,top,s,size=8.5,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${hex(s)} Tj ET`);
+  const text=(x,top,s,size=8.5,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
   const rect=(x,top,w,h,color)=>ops.push(`${color} rg ${x} ${H-top-h} ${w} ${h} re f`);
   const wrap=(s,w,size=8.5)=>lines(s,Math.max(7,Math.floor(w/(size*.52))));
   const meta=key=>d.metadata.find(r=>r[0]===key)?.[1];
@@ -256,7 +264,9 @@ function compactConceptPdf(d) {
   const saved=ops;
   for(let i=0;i<pages.length;i++){ops=pages[i];text(left,H-27,'MuniControl · Consulta interna · Sin firma ni presentación oficial',7.2);text(W-110,H-27,`Página ${i+1} de ${pages.length}`,7.2);text(left,H-14,String(meta('SHA-256')||''),6.2);}ops=saved;
   const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
-  for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);}
+  const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
+  for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${symbol} >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);}
+  if(symbol)objects.push(SYMBOL_FONT);
   objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];
   objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n';});const pos=out.length;
   out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;
