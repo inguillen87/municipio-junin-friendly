@@ -129,3 +129,15 @@ test('the proposal stays unwired: no screen, route or build entry ships it befor
  for(const source of [build,page,navigation])assert.ok(!source.includes('own-contract-family-payroll-facts'));
  assert.ok(!fs.existsSync('api/internal-own-contract-family-payroll-facts.js'));
 });
+
+test('the proposed screen keeps an empty box as not reported and folds people ten per page',()=>{
+ const panel=fs.readFileSync('assets/own-contract-family-payroll-facts-panel.js','utf8'),css=fs.readFileSync('assets/own-contract-family-payroll-facts-panel.css','utf8');
+ assert.ok(panel.includes("onChange:v=>{d.quantities[f.key]=v===''?null:v;changed();}"));
+ assert.ok(panel.includes("familyFactsView(boot,draft,$('search').value,page,10)"));
+ assert.ok(panel.includes("const endpoint='/api/internal-own-contract-family-payroll-facts'"));
+ assert.ok(panel.includes("e.detail?.id==='familia'"));
+ assert.ok(!/Number\(|parseInt|parseFloat|\|\|0\b/.test(panel),'la pantalla no convierte ni completa valores');
+ assert.equal((panel.match(/innerHTML/g)||[]).length,1,'sólo la plantilla fija usa innerHTML');
+ assert.match(css,/:has\(\[data-family-facts-comparison\]:not\(\[hidden\]\)\)/);
+ assert.ok(!/conditions/.test(css)&&!/data-conditions-|salaryConditions/.test(panel));
+});
