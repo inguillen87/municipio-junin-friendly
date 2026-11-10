@@ -16,3 +16,14 @@
 .own-salary-conditions .conditions-fold[open]>summary::before{transform:rotate(45deg)}
 .own-salary-conditions .conditions-fold>summary>h4{flex:1 1 12rem;min-width:0}
 @media(prefers-reduced-motion:reduce){.own-salary-conditions .conditions-fold>summary::before{transition:none}}
+/* Barra de confirmación: el tilde y el botón quedan a la vista mientras se recorre la comparación. */
+.own-salary-conditions .conditions-actions:has(>:not([hidden])){position:sticky;bottom:0;z-index:3;margin:1rem -.5rem 0;padding:.75rem 1rem;background:#fff;border:1px solid #c9d8d5;border-radius:12px 12px 0 0;box-shadow:0 -8px 20px rgba(16,42,48,.12)}
+.own-salary-conditions .conditions-actions .conditions-check{flex:1 1 22rem;margin:0}
+.own-salary-conditions .conditions-next{margin:.6rem 0 0;font-size:.92rem;color:#4a5d61}
+.own-salary-conditions .conditions-next.conditions-warn{padding:.55rem .75rem;border-left:4px solid #b25e00;background:#fff5e6;color:#5f3200;font-weight:650}
+@media print{.own-salary-conditions .conditions-actions{position:static;box-shadow:none;border:0}.own-salary-conditions .conditions-next{display:none}}
+.own-salary-conditions .conditions-example{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .8rem;font-size:.92rem;color:#4a5d61}
+.own-salary-conditions .conditions-example button{width:auto;min-height:44px;padding:.45rem .9rem;font-weight:650;border-style:dashed}
+.own-salary-conditions .conditions-example span{flex:1 1 16rem}
+.own-salary-conditions textarea::placeholder{color:#6b7f83;font-weight:400;opacity:1}
+@media print{.own-salary-conditions .conditions-example{display:none}}

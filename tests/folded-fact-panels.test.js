@@ -40,3 +40,42 @@ test('los textos y controles que usan las verificaciones existentes siguen en su
   assert.ok(conditions.includes('data-conditions-' + key), 'condiciones: ' + key); assert.ok(agreements.includes('data-agreement-time-' + key), 'horas: ' + key);
  }
 });
+
+// Revisión de una propuesta (10/11): quien revisaba no encontraba el tilde «Revisé…» (quedaba debajo de la
+// comparación) y un Enter o un espacio al final del fundamento hacían que «Comparar decisión» no hiciera nada: el
+// motivo se escribía arriba de todo, fuera de la vista.
+const REVIEW = [...PANELS, {file: 'own-contract-family-payroll-facts-panel', prefix: 'family-facts', host: 'own-family-facts'}];
+for (const p of REVIEW) test(p.file + ': el tilde y el botón de confirmar viajan juntos en una barra que queda a la vista', () => {
+ const js = read(p.file + '.js'), css = read(p.file + '.css');
+ assert.match(js, new RegExp(`</section></div>\\s*<div class="${p.prefix}-actions"><label class="${p.prefix}-check" data-${p.prefix}-confirm-row hidden><input type="checkbox" data-${p.prefix}-confirm>Revisé `), 'el tilde está en la barra de acciones, no al final de la comparación');
+ assert.ok(js.includes("$('confirm-row').hidden=$('send').hidden=!prepared||!!attempt||!!receipt;"), 'el tilde aparece exactamente cuando aparece el botón que habilita');
+ assert.ok(js.includes("$('send').disabled=busy||!$('confirm').checked||"), 'sin tilde no se confirma');
+ assert.ok(css.includes(`.${p.host} .${p.prefix}-actions:has(>:not([hidden])){position:sticky;bottom:0;`));
+ assert.match(css, new RegExp(`@media print\\{\\.${p.host} \\.${p.prefix}-actions\\{position:static`));
+});
+
+for (const p of REVIEW) test(p.file + ': los avisos de la decisión salen al lado del botón y el fundamento se limpia solo', () => {
+ const js = read(p.file + '.js');
+ assert.ok(js.includes(`<button type="button" data-${p.prefix}-review>Comparar decisión</button><p class="${p.prefix}-next" data-${p.prefix}-review-note role="status" aria-live="polite">Al comparar se abre la revisión completa.`));
+ assert.ok(js.includes("const tidy=input=>{const value=input.value.normalize('NFC').replace(/[\\u0000-\\u001f\\u007f]+/g,' ').trim();if(value!==input.value)input.value=value;return value;};"));
+ assert.ok(js.includes("const reason=tidy($('decision-reason'));if(/[<>]/.test(reason)){note('El fundamento no admite los signos < ni >.');return;}if(reason.length<10){note('Escribí el fundamento de la decisión: al menos 10 caracteres.');return;}"));
+ assert.ok(js.includes("if(!$('decision').value){note('Elegí primero la decisión.');return;}"));
+ assert.ok(js.includes("if(!prepared&&!attempt)note($('status').textContent);"), 'si la comparación no se abre, el motivo se repite al lado del botón');
+ assert.ok(js.includes("note(open?'Cambiaste la decisión o el fundamento. Apretá «Comparar decisión» otra vez.':'');"));
+ assert.ok(js.includes("tidy($('reason')))") && js.includes("reference=tidy($('common-reference'));"), 'el fundamento de la preparación y la constancia común se limpian igual');
+ assert.ok(js.includes("$('decision').addEventListener('change',redo);$('decision-reason').addEventListener('input',redo);"));
+ // El tilde nunca se marca solo y la confirmación sigue siendo un acto de la persona.
+ assert.ok(!/\$\('confirm'\)\.checked=true/.test(js));
+});
+
+for (const p of REVIEW) test(p.file + ': el fundamento trae un ejemplo en gris y un botón que lo carga listo', () => {
+ const js = read(p.file + '.js'), css = read(p.file + '.css');
+ assert.ok(js.includes(`data-${p.prefix}-decision-reason placeholder="Elegí la decisión: acá vas a ver un ejemplo que podés usar."></textarea></label><p class="${p.prefix}-example"><button type="button" data-${p.prefix}-example>Usar el ejemplo</button>`));
+ assert.match(js, /const example=\(\)=>\$\('decision'\)\.value==='approve'\?'Aprobado por revisión independiente de [^']+ de '\+month\(\):\$\('decision'\)\.value==='reject'\?'Rechazado por revisión independiente: corregir [^']+ de '\+month\(\)\+' y volver a presentar':'';/);
+ assert.ok(js.includes("$('decision-reason').placeholder=example()?'Ejemplo: '+example():"), 'el ejemplo en gris es el mismo que carga el botón');
+ assert.ok(js.includes("if(!example()){note('Elegí primero la decisión.');return;}$('decision-reason').value=example();redo();note();"), 'cargar el ejemplo cierra una comparación abierta: hay que volver a comparar');
+ assert.match(js, new RegExp(`data-${p.prefix}-reason placeholder="De dónde salen [^"]+ Ejemplo: [^"]+"></textarea>`), 'la preparación también muestra un ejemplo');
+ // El ejemplo nunca se envía solo: sólo entra al campo cuando la persona aprieta el botón.
+ assert.equal(js.split("$('decision-reason').value=example()").length - 1, 1);
+ assert.ok(css.includes(`.${p.host} textarea::placeholder{color:#6b7f83;`));
+});
