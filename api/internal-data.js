@@ -1503,6 +1503,7 @@ export async function absencePeople(sql, req) {
            COALESCE(NULLIF(btrim(max(employee.sector)), ''), 'Sin sector informado') AS sector,
            count(*)::int AS events,
            COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+           count(absence.dias)::int AS "reportedDaysEvents",
            count(DISTINCT absence.motivo_code)::int AS "distinctReasons",
            mode() WITHIN GROUP (ORDER BY COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado')) AS "topReason",
            max(absence.fecha) AS "lastEventDate"
@@ -1524,6 +1525,7 @@ export async function absencePeople(sql, req) {
         sector: row.sector,
         events: absenceNumber(row.events),
         sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays),
+        reportedDaysEvents: absenceNumber(row.reportedDaysEvents),
         distinctReasons: absenceNumber(row.distinctReasons),
         topReason: row.topReason ?? null,
         lastEventDate: isoDate(row.lastEventDate)

@@ -13,6 +13,16 @@ const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado
 const nf = new Intl.NumberFormat('es-AR', {maximumFractionDigits: 0});
 const pf = new Intl.NumberFormat('es-AR', {maximumFractionDigits: 1});
 const fmt = v => nf.format(Number(v) || 0);
+// Días declarados: se conserva la precisión informada por GRH (hasta dos decimales), sin redondear a enteros.
+const df = new Intl.NumberFormat('es-AR', {maximumFractionDigits: 2});
+const days = v => df.format(Number(v) || 0);
+/** Días de una persona con su cobertura: «Sin informar» si ningún evento trae días; aclara cuando sólo algunos los traen. */
+export function personDays(row) {
+ const events = Number(row?.events) || 0, reported = row?.reportedDaysEvents;
+ if (reported === 0) return 'Sin informar';
+ const text = days(row?.sourceDeclaredDays);
+ return Number.isInteger(reported) && reported < events ? text + ' (en ' + fmt(reported) + ' de ' + fmt(events) + ')' : text;
+}
 const pct = (part, total) => total > 0 ? pf.format(part / total * 100) + ' %' : '—';
 const monthParts = value => { const m = /^(\d{4})-(\d{2})/.exec(String(value || '')); return m ? {y: Number(m[1]), m: Number(m[2])} : null; };
 const monthLabel = value => { const p = monthParts(value); return p ? MONTHS[p.m - 1] + ' ' + String(p.y).slice(2) : String(value || ''); };
@@ -63,7 +73,7 @@ export function absenceInsights({analytics, days = null} = {}) {
 }
 
 // ---------- Estado de la vista ----------
-let ui = null, last = null, dayData = null, people = null, peopleOrder = 'events', peopleToken = 0, dailyToken = 0;
+let ui = null, last = null, dayData = null, people = null, peopleSnapshot = null, peopleOrder = 'events', peopleToken = 0, dailyToken = 0;
 const slotSpecs = {};
 
 function ensureLayout() {
@@ -190,7 +200,7 @@ async function render(analytics) {
    option.legend = {top: 0, left: 0}; option.grid = {left: 8, right: 16, top: 44, bottom: 8, containLabel: true}; option.tooltip = {trigger: 'axis', valueFormatter: v => fmt(v)};
    return option;
   },
-  rows: () => ({head: ['Mes', 'Eventos', 'Personas', 'Días declarados'], body: monthly.map(i => [monthLong(i.month) + (i.partial ? ' (incompleto)' : ''), fmt(i.events), fmt(i.contracts), fmt(i.declaredDays)])}),
+  rows: () => ({head: ['Mes', 'Eventos', 'Personas', 'Días declarados'], body: monthly.map(i => [monthLong(i.month) + (i.partial ? ' (incompleto)' : ''), fmt(i.events), fmt(i.contracts), days(i.declaredDays)])}),
  };
  const reasonItems = topWithOthers(reasons, 9);
  slotSpecs['absence-reasons'] = {
@@ -205,8 +215,8 @@ async function render(analytics) {
   onClick: p => { const item = sectorItems[p.dataIndex]; if (item) applyFilter('sectorSelect', item.label); },
  };
  slotSpecs['absence-days'] = {
-  build: m => { const o = m.barOption({categories: monthly.map(i => monthLabel(i.month) + (i.partial ? ' *' : '')), values: monthly.map(i => Math.round(i.declaredDays || 0)), name: 'Días declarados', color: '#d08c2f'}); o.series[0].label.show = monthly.length <= 12; return o; },
-  rows: () => ({head: ['Mes', 'Días declarados'], body: monthly.map(i => [monthLong(i.month), fmt(i.declaredDays)])}),
+  build: m => { const o = m.barOption({categories: monthly.map(i => monthLabel(i.month) + (i.partial ? ' *' : '')), values: monthly.map(i => Number(i.declaredDays) || 0), name: 'Días declarados', color: '#d08c2f', format: days}); o.series[0].label.show = monthly.length <= 12; return o; },
+  rows: () => ({head: ['Mes', 'Días declarados'], body: monthly.map(i => [monthLong(i.month), days(i.declaredDays)])}),
  };
  s.reasons.host.style.height = heightFor(reasonItems.length); s.sectors.host.style.height = heightFor(sectorItems.length);
  s.reasons.figure.hidden = !reasonItems.length; s.sectors.figure.hidden = !sectorItems.length;
@@ -268,7 +278,7 @@ function peopleUi() {
  return panel.__ab;
 }
 function clearPeople(message = '') {
- people = null; peopleToken++; const p = peopleUi(); if (!p) return;
+ people = null; peopleSnapshot = null; peopleToken++; const p = peopleUi(); if (!p) return;
  p.body.replaceChildren(); p.status.textContent = message; p.slot.figure.hidden = true; delete slotSpecs['absence-people'];
 }
 async function loadPeople() {
@@ -281,13 +291,15 @@ async function loadPeople() {
   if (response.status === 403) { clearPeople('Tu usuario no tiene permiso para ver nombres de personas. Pedilo a quien administra la plataforma.'); return; }
   const payload = response.ok ? await response.json() : null; if (token !== peopleToken) return;
   if (!payload?.ok || !Array.isArray(payload.data)) { clearPeople('No se pudo leer el ranking ahora. Tocá «Actualizar» arriba para reintentar.'); return; }
-  people = payload.data; renderPeople(p);
+  people = payload.data; peopleSnapshot = payload.meta?.snapshot ?? null; renderPeople(p);
  } catch { if (token === peopleToken) clearPeople('No se pudo leer el ranking ahora. Tocá «Actualizar» arriba para reintentar.'); }
  finally { if (token === peopleToken) p.panel.setAttribute('aria-busy', 'false'); }
 }
 function openPerson(row) {
  const range = last?.range || {};
- if (row.contractId && range.from && range.to) { document.dispatchEvent(new CustomEvent('mc:absence-person-open', {detail: {contractId: row.contractId, from: range.from.slice(0, 10), to: range.to.slice(0, 10)}})); return; }
+ // El historial se abre con la misma fuente (snapshot) que usó el ranking.
+ if (row.contractId && range.from && range.to) { document.dispatchEvent(new CustomEvent('mc:absence-person-open', {detail: {contractId: row.contractId, from: range.from.slice(0, 10), to: range.to.slice(0, 10), snapshot: peopleSnapshot}})); return; }
+ // Sin contrato vinculado no hay historial exacto: se busca el legajo en el listado (la búsqueda puede traer otros legajos que contengan ese número).
  const input = document.getElementById('eventSearch'), form = document.getElementById('eventSearchForm'); if (!input || !form) return;
  input.value = row.legajo || row.name || ''; form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', {cancelable: true}));
  document.getElementById('eventsPanel')?.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -295,16 +307,16 @@ function openPerson(row) {
 function renderPeople(p) {
  const rows = people || [], byDays = peopleOrder === 'days';
  if (!rows.length) { clearPeople('No hay personas con licencias para estos filtros.'); return; }
- p.status.textContent = byDays ? 'Ordenado por días declarados en GRH. Tocá «Ver historial» para ver todas sus licencias.' : 'Ordenado por cantidad de licencias. Tocá «Ver historial» para ver todas sus licencias.';
+ p.status.textContent = (byDays ? 'Ordenado por días declarados en GRH.' : 'Ordenado por cantidad de licencias.') + ' «Ver historial» abre todas las licencias de la persona; «Buscar en el listado» busca su legajo en la tabla de eventos de abajo y puede traer otros legajos que contengan ese número.';
  const name = r => r.name ? readableName(r.name) : 'Legajo ' + (r.legajo || '—');
  p.body.replaceChildren(...rows.map((r, i) => {
-  const button = el('button', {type: 'button', class: 'button ab-person-open', text: 'Ver historial', 'aria-label': 'Ver historial de ' + name(r)}); button.addEventListener('click', () => openPerson(r));
+  const linked = !!r.contractId, button = el('button', {type: 'button', class: 'button ab-person-open', text: linked ? 'Ver historial' : 'Buscar en el listado', 'aria-label': (linked ? 'Ver historial de ' : 'Buscar en el listado el legajo de ') + name(r)}); button.addEventListener('click', () => openPerson(r));
   return el('tr', {}, el('td', {class: 'ab-rank', text: String(i + 1)}), el('td', {}, el('strong', {text: name(r)}), el('span', {class: 'ab-sub', text: 'Legajo ' + (r.legajo || '—')})), el('td', {text: readableLabel(r.sector)}),
-   el('td', {class: 'num', text: fmt(r.events)}), el('td', {class: 'num', text: fmt(r.sourceDeclaredDays)}), el('td', {text: readableLabel(r.topReason || '—')}), el('td', {text: shortDate(r.lastEventDate)}), el('td', {}, button));
+   el('td', {class: 'num', text: fmt(r.events)}), el('td', {class: 'num', text: personDays(r)}), el('td', {text: readableLabel(r.topReason || '—')}), el('td', {text: shortDate(r.lastEventDate)}), el('td', {}, button));
  }));
  slotSpecs['absence-people'] = {
-  build: (m, o = {}) => { const items = rows.map(r => ({label: name(r), count: byDays ? Math.round(r.sourceDeclaredDays) : r.events})); const opt = hbar(m, items, {name: byDays ? 'Días declarados' : 'Licencias', zoomed: o.zoom, color: '#6b5ca5'}); opt.tooltip.formatter = q => { const r = rows[q.dataIndex]; return `<b>${name(r)}</b> · legajo ${r.legajo || '—'}<br>${fmt(r.events)} licencias · ${fmt(r.sourceDeclaredDays)} días declarados<br>Motivo más frecuente: ${readableLabel(r.topReason || '—')}`; }; return opt; },
-  rows: () => ({head: ['Persona', 'Licencias', 'Días declarados'], body: rows.map(r => [name(r) + ' (leg. ' + (r.legajo || '—') + ')', fmt(r.events), fmt(r.sourceDeclaredDays)])}),
+  build: (m, o = {}) => { const items = rows.map(r => ({label: name(r), count: byDays ? Number(r.sourceDeclaredDays) || 0 : r.events})); const opt = hbar(m, items, {name: byDays ? 'Días declarados' : 'Licencias', zoomed: o.zoom, color: '#6b5ca5'}); if (byDays) opt.series[0].label.formatter = q => days(q.value); opt.tooltip.formatter = q => { const r = rows[q.dataIndex]; return `<b>${name(r)}</b> · legajo ${r.legajo || '—'}<br>${fmt(r.events)} licencias · días declarados: ${personDays(r)}<br>Motivo más frecuente: ${readableLabel(r.topReason || '—')}`; }; return opt; },
+  rows: () => ({head: ['Persona', 'Licencias', 'Días declarados'], body: rows.map(r => [name(r) + ' (leg. ' + (r.legajo || '—') + ')', fmt(r.events), personDays(r)])}),
   onClick: q => rows[q.dataIndex] && openPerson(rows[q.dataIndex]),
  };
  p.slot.figure.hidden = false; p.slot.host.style.height = heightFor(rows.length);
@@ -339,7 +351,7 @@ async function downloadPdf(event) {
   doc.heading('Informe de ausentismo', {size: 20, space: 4});
   doc.text('Período: ' + shortDate(isoDay(String(range.from || '').slice(0, 10))) + ' al ' + shortDate(isoDay(String(range.to || '').slice(0, 10))) + (filters ? ' · ' + filters : ''), {size: 9.5});
   doc.text('Generado el ' + new Intl.DateTimeFormat('es-AR', {dateStyle: 'long', timeStyle: 'short'}).format(new Date()) + '.', {size: 8.5, color: '#5d6f78'});
-  doc.kpis([{label: 'Licencias registradas', value: fmt(last.summary?.events), note: 'Eventos que cumplen los filtros'}, {label: 'Personas con licencias', value: fmt(last.summary?.contracts), note: 'Personas distintas'}, {label: 'Días declarados en GRH', value: fmt(last.summary?.declaredDays), note: 'No son jornadas perdidas'}]);
+  doc.kpis([{label: 'Licencias registradas', value: fmt(last.summary?.events), note: 'Eventos que cumplen los filtros'}, {label: 'Personas con licencias', value: fmt(last.summary?.contracts), note: 'Personas distintas'}, {label: 'Días declarados en GRH', value: days(last.summary?.declaredDays), note: 'No son jornadas perdidas'}]);
   const insights = absenceInsights({analytics: last, days: dayData});
   if (insights.length) { doc.heading('Lo más importante', {size: 13}); insights.forEach(i => doc.text('• ' + i.label + ': ' + i.value + ' (' + i.detail + ')', {size: 9.5, color: '#18252d'})); }
   const add = async (key, title, note, size) => { const spec = slotSpecs[key]; if (!spec) return; const img = await chartImage(m, spec.build, size); if (!img) return; doc.keep(Math.min(290, 511 * img.px.h / img.px.w) + 60); doc.heading(title, {size: 13}); doc.image(img.jpeg, {px: img.px, caption: note, maxHeight: 290}); };
@@ -352,7 +364,7 @@ async function downloadPdf(event) {
   if (people?.length) {
    await add('absence-people', 'Personas con más licencias (top 10)', peopleOrder === 'days' ? 'Ordenado por días declarados.' : 'Ordenado por cantidad de licencias.', {w: 1100, h: 440});
    doc.table([{label: '#', weight: 0.35}, {label: 'Persona', weight: 2.3}, {label: 'Legajo', weight: 0.7}, {label: 'Sector', weight: 1.4}, {label: 'Licencias', weight: 0.8, align: 'right'}, {label: 'Días', weight: 0.6, align: 'right'}, {label: 'Motivo más frecuente', weight: 2.2}],
-    people.map((r, i) => [String(i + 1), r.name ? readableName(r.name) : '—', r.legajo || '—', readableLabel(r.sector), fmt(r.events), fmt(r.sourceDeclaredDays), readableLabel(r.topReason || '—')]));
+    people.map((r, i) => [String(i + 1), r.name ? readableName(r.name) : '—', r.legajo || '—', readableLabel(r.sector), fmt(r.events), personDays(r), readableLabel(r.topReason || '—')]));
   }
   doc.heading('Cómo leer este informe', {size: 12});
   doc.text('Los datos son registros administrativos de GRH. «Días declarados» es la cantidad que informa GRH y no equivale a jornadas perdidas. Los rankings describen cantidades: no evalúan el desempeño de personas o sectores ni indican si una licencia estuvo justificada.', {size: 8.8});

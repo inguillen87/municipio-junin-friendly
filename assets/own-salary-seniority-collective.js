@@ -66,10 +66,21 @@ export function createCollectiveSeniorityWorkspace(io){
  let generation=0,running=false,controller=null,accessKey=null,file=null,fileHash=null,mode=null,reason=null,rosterPin=null,plan=null,reviewHash=null,attempt=null,notFound=false,phase='empty';
  const confirmed=new Map();let context=null,preparedCount=0;
  const live=()=>io.isVisible()===true;
+ // «Adjunto»: el panel sigue montado y con su cuenta aunque la ventana quede tapada o minimizada. Una verificación o un
+ // registro en curso continúan; lo nominal sólo se muestra cuando además está a la vista (live). Sin isAttached, vale isVisible.
+ const attached=()=>(io.isAttached??io.isVisible)()===true;
+ const authWindow=Number.isFinite(io.authWindowMs)&&io.authWindowMs>0?io.authWindowMs:0,clock=io.now??(()=>Date.now()),width=n=>Number.isInteger(n)?Math.max(1,Math.min(8,n)):1;
+ let authMemo=null;
  const view=()=>freeze({phase,working:running,masked:!live()||phase==='suspended',total:plan?.length??(phase==='preparing'?file?.total??0:0),preparedCount,changed:plan?.filter(r=>r.body!==null).length??0,unchanged:plan?.filter(r=>r.body===null).length??0,confirmed:confirmed.size,pending:!!attempt,canRetry:!!attempt&&notFound,reviewHash:plan?reviewHash:null,complete:phase==='complete',hasProgress:confirmed.size>0||!!attempt});
  const publish=()=>notify(view());
- function ensure(epoch){fail(live()&&epoch===generation,'Se retiró la vista o cambió la preparación.','SUSPENDED');}
- async function auth(command,epoch){ensure(epoch);const a=ownRunWorkspaceAccess(await io.authorize({signal:controller.signal}));ensure(epoch);fail(required(command).every(c=>a.caps.has(c)),'Tu cuenta no permite esta operación.','FORBIDDEN');fail((accessKey===null||a.key===accessKey)&&(!context||context.accessKey===a.key),'Cambió la cuenta o el ámbito; el intento conserva su contenido.','SCOPE_CHANGED');accessKey=a.key;return a;}
+ function ensure(epoch){fail(attached()&&epoch===generation,'Se retiró la vista o cambió la preparación.','SUSPENDED');}
+ // Con authWindowMs, las comprobaciones de cuenta simultáneas o separadas por pocos segundos comparten una misma consulta
+ // (el servidor igual valida sesión y permisos en cada lectura y en cada envío). Sin authWindowMs se consulta siempre.
+ async function auth(command,epoch){ensure(epoch);
+  if(authMemo&&authMemo.command===command&&authMemo.epoch===epoch&&clock()-authMemo.at<authWindow){const a=await authMemo.promise;ensure(epoch);return a;}
+  const promise=(async()=>{const a=ownRunWorkspaceAccess(await io.authorize({signal:controller.signal}));ensure(epoch);fail(required(command).every(c=>a.caps.has(c)),'Tu cuenta no permite esta operación.','FORBIDDEN');fail((accessKey===null||a.key===accessKey)&&(!context||context.accessKey===a.key),'Cambió la cuenta o el ámbito; el intento conserva su contenido.','SCOPE_CHANGED');accessKey=a.key;return a;})();
+  if(authWindow>0){authMemo={command,epoch,at:clock(),promise};promise.catch(()=>{if(authMemo?.promise===promise)authMemo=null;});}
+  return promise;}
  async function roster(f,epoch){ensure(epoch);const pin=collectiveSeniorityRoster(f,await io.readRoster({signal:controller.signal}));ensure(epoch);return pin;}
  async function readEntry(row,epoch){const boot=await io.readBootstrap(row.contractId,file.period,{signal:controller.signal});ensure(epoch);if(mode!=='propose'&&row.proposalId===null){const waiting=(Array.isArray(boot?.proposals)?boot.proposals:[]).filter(p=>p?.status==='pending');fail(waiting.length<=1,'Hay más de una propuesta pendiente para el legajo '+row.legajo+'. Revisalas una por una en su pantalla.','PENDING');if(waiting.length===1)row={...row,proposalId:waiting[0].id};}const detail=mode!=='propose'&&row.proposalId!==null?await io.readDetail(row.proposalId,{signal:controller.signal}):null;ensure(epoch);await auth(mode,epoch);return entry(row,boot,detail,file.period,mode,reason);}
  async function receipt(raw,expected){const r=seniorityReceipt(raw,expected);fail(r.requestSha256===await seniorityHash(r.body),'No se verificó el comprobante original.','RECEIPT_INVALID');return r;}
@@ -80,21 +91,24 @@ export function createCollectiveSeniorityWorkspace(io){
   fail(['propose','approve','reject'].includes(command)&&typeof why==='string'&&why===why.trim()&&why===why.normalize('NFC')&&why.length>=10&&why.length<=1000&&!/[<>\u0000-\u001f\u007f]/.test(why),'Elegí una operación y fundamento explícitos.');
   if(context&&(confirmed.size||attempt))fail(context.fileHash===h&&context.mode===command&&context.reasonHash===await seniorityHash(why),'El avance parcial pertenece al mismo conjunto y fundamento. No se reasignó.','PROGRESS_CHANGED');
   file=f;fileHash=h;mode=command;reason=why;plan=null;reviewHash=null;preparedCount=0;phase='preparing';await auth(mode,epoch);const before=await roster(file,epoch),next=[];
-  // Read-only checks run four at a time (each still verifies session and epoch); order of the plan is the file order.
+  // Read-only checks run a few at a time (io.readWidth, four by default); order of the plan is the file order.
   const one=async row=>{const saved=confirmed.get(lower(row.contractId));
    if(saved){const r=await receipt(await io.readAttempt(saved.key,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(r.requestKey===saved.key&&r.proposalId===saved.proposalId&&r.requestSha256===saved.bodySha256&&r.body.command===mode&&r.body.period===file.period&&r.body.contractId===row.contractId&&(mode!=='propose'||salarySerialized(r.body.definition)===salarySerialized(row.definition)),'El avance no coincide con el mismo comprobante original.','PROGRESS_CHANGED');const d=await seniorityDetail(await io.readDetail(saved.proposalId,{signal:controller.signal}));ensure(epoch);await auth(mode,epoch);fail(d.proposal.id===saved.proposalId&&d.body.contractId===row.contractId&&d.body.period===file.period&&salarySerialized(d.body.definition)===salarySerialized(row.definition),'El detalle original no coincide con la declaración del avance.','PROGRESS_CHANGED');return {row,body:r.body,before:d.baseDefinition,after:d.body.definition,alreadyConfirmed:true};}
    return readEntry(row,epoch);};
   {const rows=file.records,out=new Array(rows.length);let cursor=0,done=0,stop=false;
-   await Promise.all(Array.from({length:Math.min(4,rows.length)},async()=>{while(!stop&&cursor<rows.length){const i=cursor++;try{out[i]=await one(rows[i]);}catch(e){stop=true;throw e;}done++;preparedCount=done;publish();}}));
+   await Promise.all(Array.from({length:Math.min(width(io.readWidth??4),rows.length)},async()=>{while(!stop&&cursor<rows.length){const i=cursor++;try{out[i]=await one(rows[i]);}catch(e){stop=true;throw e;}done++;preparedCount=done;publish();}}));
    next.push(...out);}
   const after=await roster(file,epoch);await auth(mode,epoch);fail(salarySerialized(before)===salarySerialized(after),'Cambió el padrón durante la revisión completa.','POPULATION_CHANGED');
   ensure(epoch);rosterPin=before;plan=freeze(structuredClone(next));reviewHash=await seniorityHash({fileHash,mode,reason,rosterPin,plan});phase=attempt?'uncertain':'prepared';context={fileHash,mode,period:file.period,reasonHash:await seniorityHash(reason),accessKey};publish();return view();
  });}
  async function send(confirmation){return run(async epoch=>{
   fail(phase==='prepared'&&plan&&!attempt&&exact(confirmation,['confirmed','reviewHash'])&&confirmation.confirmed===true&&salaryHash(confirmation.reviewHash)&&confirmation.reviewHash===reviewHash,'Revisá y confirmá el conjunto completo vigente antes de registrar.','REVIEW_REQUIRED');await auth(mode,epoch);fail(salarySerialized(await roster(file,epoch))===salarySerialized(rosterPin),'Cambió el padrón desde la comparación.','POPULATION_CHANGED');phase='sending';
-  for(const item of plan){
-   if(item.body===null||confirmed.has(lower(item.row.contractId)))continue;
-   const fresh=await readEntry(item.row,epoch);fail(salarySerialized(fresh.body)===salarySerialized(item.body),'Cambió una revisión, fuente o propuesta. Se conservó el avance anterior.','BASE_CHANGED');
+  // La relectura previa a cada envío se adelanta para los próximos contratos (io.sendLookahead; uno por defecto = leer y enviar).
+  // Los envíos siguen de a uno, en el orden del archivo y con un único intento pendiente.
+  const todo=plan.filter(item=>item.body!==null&&!confirmed.has(lower(item.row.contractId))),ahead=width(io.sendLookahead??1),early=new Map();let queued=0;
+  const prefetch=()=>{while(queued<todo.length&&early.size<ahead){const item=todo[queued++],reading=readEntry(item.row,epoch);reading.catch(()=>{});early.set(item,reading);}};
+  for(const item of todo){
+   prefetch();const fresh=await early.get(item);early.delete(item);fail(salarySerialized(fresh.body)===salarySerialized(item.body),'Cambió una revisión, fuente o propuesta. Se conservó el avance anterior.','BASE_CHANGED');
    await auth(mode,epoch);const key=newKey();fail(salaryKey(key),'No se identificó el intento.');attempt=freeze({key,body:structuredClone(item.body),accessKey});notFound=false;publish();
    const r=await receipt(await io.sendCommand(attempt,{signal:controller.signal}),attempt);ensure(epoch);await auth(mode,epoch);mark(r);
   }
@@ -110,7 +124,7 @@ export function createCollectiveSeniorityWorkspace(io){
   fail(salarySerialized(await roster(file,epoch))===salarySerialized(rosterPin),'Cambió el padrón desde la comparación; no se reintentó el envío.','POPULATION_CHANGED');const row=file.records.find(r=>r.contractId===attempt.body.contractId);const fresh=await readEntry(row,epoch);fail(salarySerialized(fresh.body)===salarySerialized(attempt.body),'Cambió la revisión del envío pendiente.','BASE_CHANGED');
   const r=await receipt(await io.sendCommand(attempt,{signal:controller.signal}),attempt);ensure(epoch);await auth(attempt.body.command,epoch);mark(r);phase='prepared';return r;
  });}
- function suspend(){generation++;controller?.abort();controller=null;running=false;file=null;plan=null;reviewHash=null;preparedCount=0;rosterPin=null;accessKey=null;if(!attempt&&!confirmed.size)context=null;phase='suspended';publish();}
+ function suspend(){generation++;controller?.abort();controller=null;running=false;authMemo=null;file=null;plan=null;reviewHash=null;preparedCount=0;rosterPin=null;accessKey=null;if(!attempt&&!confirmed.size)context=null;phase='suspended';publish();}
  function comparisons(){fail(live()&&plan&&['prepared','sending','complete','uncertain','blocked'].includes(phase),'No hay comparación visible vigente.');return freeze(structuredClone(plan.map(r=>({contractId:r.row.contractId,legajo:r.row.legajo,before:r.before,after:r.after,action:r.body?.command??'unchanged',confirmed:confirmed.has(lower(r.row.contractId))}))));}
  function reviewFile(){fail(live()&&phase==='complete'&&mode==='propose'&&file,'Completá todas las propuestas antes de descargar su revisión.');return collectiveSeniorityFile({...file,records:file.records.map(r=>({...r,proposalId:confirmed.get(lower(r.contractId))?.proposalId??null}))});}
  async function resumeHint(){return run(async epoch=>{fail(context,'No hay un conjunto anterior para continuar.');await auth(context.mode,epoch);return freeze({command:context.mode,reason,period:context.period});});}

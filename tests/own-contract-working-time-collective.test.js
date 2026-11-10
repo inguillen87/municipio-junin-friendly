@@ -168,3 +168,33 @@ test('the reviewer can use the same declarations file: each contract\'s single p
  // A different declaration in the file than the pending proposal is refused before any write.
  const g=collectiveFixture(),m2=createCollectiveWorkingTimeWorkspace(g.io);await m2.prepare(g.file,'propose',reason);await m2.send(confirm(m2));g.setActor('checker');const changed=structuredClone(g.file);changed.records[1].definition.monthlyHours='9';const c2=createCollectiveWorkingTimeWorkspace(g.io);await assert.rejects(c2.prepare(changed,'approve',reason));assert.equal(g.writes.length,3);
 });
+
+test('a covered window that stays attached lets a running verification and registration finish; nominal data stays masked until visible',async()=>{
+ const f=collectiveFixture(57),w=createCollectiveWorkingTimeWorkspace({...f.io,isAttached:()=>true,readWidth:6,sendLookahead:6,authWindowMs:60000});
+ let first=true;f.hooks.bootstrap=()=>{if(first){first=false;f.setVisible(false);}};
+ await w.prepare(f.file,'propose',reason);assert.equal(w.view().total,57);assert.equal(w.view().masked,true);assert.throws(()=>w.comparisons());
+ f.setVisible(true);assert.equal(w.view().masked,false);assert.equal(w.comparisons().length,57);
+ const ack=confirm(w);let sent=0;f.hooks.beforeSend=()=>{if(++sent===2)f.setVisible(false);};
+ await w.send(ack);assert.equal(f.writes.length,57);assert.equal(w.view().complete,true);assert.equal(w.view().masked,true);
+ assert.deepEqual(f.writes.map(a=>a.body.contractId),f.file.records.map(r=>r.contractId),'commands keep the file order, one at a time');
+ assert.equal(new Set(f.writes.map(a=>a.key)).size,57);
+});
+
+test('without an attached scope a hidden view still stops the run before any write',async()=>{
+ const f=collectiveFixture(),w=createCollectiveWorkingTimeWorkspace(f.io);let first=true;f.hooks.bootstrap=()=>{if(first){first=false;f.setVisible(false);}};
+ await assert.rejects(w.prepare(f.file,'propose',reason));assert.equal(f.writes.length,0);assert.equal(w.view().reviewHash,null);
+});
+
+test('shared account checks and read-ahead change no command: same bodies and order, far fewer account reads; a conflict still stops at its row',async()=>{
+ const runSet=async extra=>{const f=collectiveFixture(57);let auths=0;f.hooks.auth=()=>{auths++;};const w=createCollectiveWorkingTimeWorkspace({...f.io,...extra});await w.prepare(f.file,'propose',reason);await w.send(confirm(w));return {auths,bodies:f.writes.map(a=>a.body)};};
+ const plain=await runSet({}),fast=await runSet({authWindowMs:60000,readWidth:6,sendLookahead:6});
+ assert.deepEqual(fast.bodies,plain.bodies);assert.ok(fast.auths*10<plain.auths,`account reads ${fast.auths} vs ${plain.auths}`);
+ const f=collectiveFixture(12),w=createCollectiveWorkingTimeWorkspace({...f.io,authWindowMs:60000,readWidth:6,sendLookahead:6});await w.prepare(f.file,'propose',reason);f.boots.get(id(5)).source.version='e'.repeat(64);
+ await assert.rejects(w.send(confirm(w)));assert.equal(f.writes.length,4,'rows after the changed one are never sent even if they were read ahead');assert.equal(w.view().confirmed,4);assert.equal(w.view().phase,'blocked');
+});
+
+test('a revoked account is detected inside the shared window as soon as the next real check runs, and nothing else is sent',async()=>{
+ let now=0;const f=collectiveFixture(12),w=createCollectiveWorkingTimeWorkspace({...f.io,authWindowMs:3000,now:()=>now,sendLookahead:6});await w.prepare(f.file,'propose',reason);
+ f.hooks.afterSend=()=>{now+=4000;if(f.writes.length===3)f.hooks.caps=['workforce.employee.read','payroll.parameter.read'];};
+ await assert.rejects(w.send(confirm(w)));assert.equal(f.writes.length,3);assert.equal(w.view().masked,true);
+});

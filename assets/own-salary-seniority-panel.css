@@ -14,3 +14,12 @@
 .collective-chip{display:inline-block;border-radius:999px;padding:.15rem .6rem;font-size:.8rem;font-weight:700;white-space:nowrap}
 .collective-chip.is-ok{background:#e3f4ec;color:#11714a}.collective-chip.is-idle{background:#eef1f4;color:#55636f}.collective-chip.is-todo{background:#e6f0fb;color:#1d5c99}.collective-chip.is-warn{background:#fbe7e6;color:#a1332b}
 @media(max-width:700px){.collective-table thead{display:none}.collective-table,.collective-table tbody,.collective-table tr,.collective-table td{display:block;width:100%}.collective-table tr{border:1px solid #d8e6e3;border-radius:10px;margin:.6rem 0;padding:.3rem .2rem}.collective-table td{border:0;padding:.35rem .6rem}.collective-table td[data-label]::before{content:attr(data-label);display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#5d7380}}
+/* Avance de la carga por lote: barra y minutos restantes. */
+.collective-meter{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .9rem;margin:.1rem 0 .9rem}
+.collective-meter[hidden]{display:none}
+.collective-meter progress{flex:1 1 240px;height:14px;border:0;border-radius:999px;overflow:hidden;background:#dfeae7;accent-color:#0f766e}
+.collective-meter progress::-webkit-progress-bar{background:#dfeae7;border-radius:999px}
+.collective-meter progress::-webkit-progress-value{background:linear-gradient(90deg,#0f766e,#45a99a);border-radius:999px;transition:width .4s ease}
+.collective-meter progress::-moz-progress-bar{background:#0f766e;border-radius:999px}
+.collective-meter span{font-weight:700;color:#0b554f;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.collective-meter progress::-webkit-progress-value{transition:none}}

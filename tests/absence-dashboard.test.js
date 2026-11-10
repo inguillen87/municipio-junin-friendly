@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import { absencePeople } from '../api/internal-data.js';
 import { capabilitiesForInternalDataResource, TENANT_DATA_CAPABILITIES } from '../lib/internal-resource-access.js';
-import { absenceInsights, quickRange, readableLabel, readableName, topWithOthers, weekdayTotals } from '../assets/absence-charts.js';
+import { absenceInsights, personDays, quickRange, readableLabel, readableName, topWithOthers, weekdayTotals } from '../assets/absence-charts.js';
 import { createReportPdf, winAnsi } from '../assets/absence-report-pdf.js';
 
 const SOURCE = { importId: 7, name: 'grh', sha256: 'A'.repeat(64), sourceCutoff: '2026-09-10T00:00:00.000Z', importedAt: '2026-09-11T00:00:00.000Z', status: 'completed' };
@@ -24,11 +24,12 @@ test('el ranking de personas exige permiso nominal, no sólo analítico', () => 
 });
 
 test('absencePeople agrupa por legajo de origen, ordena, limita a 50 y parametriza filtros', async () => {
-  const sql = peopleSql([{ contractId: null, companyId: 1, legajo: '274', name: 'ALANIZ, ELENA', sector: 'ADMINISTRATIVO', events: 9, sourceDeclaredDays: '31', distinctReasons: 3, topReason: 'LICENCIA ANUAL ORDINARIA', lastEventDate: '2026-09-08', dni: '1' }]);
+  const sql = peopleSql([{ contractId: null, companyId: 1, legajo: '274', name: 'ALANIZ, ELENA', sector: 'ADMINISTRATIVO', events: 9, sourceDeclaredDays: '31.5', reportedDaysEvents: 7, distinctReasons: 3, topReason: 'LICENCIA ANUAL ORDINARIA', lastEventDate: '2026-09-08', dni: '1' }]);
   const result = await absencePeople(sql, { query: { from: '2026-01-01', to: '2026-12-31', sector: "X' OR 1=1", reasonCode: '10', limit: '500', order: 'days' } });
   assert.equal(result.status, 200);
-  assert.deepEqual(Object.keys(result.payload.data[0]), ['contractId', 'companyId', 'legajo', 'name', 'sector', 'events', 'sourceDeclaredDays', 'distinctReasons', 'topReason', 'lastEventDate']);
-  assert.equal(result.payload.data[0].sourceDeclaredDays, 31);
+  assert.deepEqual(Object.keys(result.payload.data[0]), ['contractId', 'companyId', 'legajo', 'name', 'sector', 'events', 'sourceDeclaredDays', 'reportedDaysEvents', 'distinctReasons', 'topReason', 'lastEventDate']);
+  assert.equal(result.payload.data[0].sourceDeclaredDays, 31.5); assert.equal(result.payload.data[0].reportedDaysEvents, 7);
+  assert.match(sql.calls.find(c => c.marker === 'people').sql, /count\(absence\.dias\)::int AS "reportedDaysEvents"/);
   assert.equal(result.payload.limit, 50); assert.equal(result.payload.order, 'days');
   assert.equal(result.payload.meta.containsPersonalIdentifiers, true);
   const call = sql.calls.find(c => c.marker === 'people');
@@ -111,4 +112,18 @@ test('la página de ausentismo tiene ranking de personas, tablero y estilos', as
   assert.match(page, /Personas con licencias/); assert.doesNotMatch(page, /<span class="kpi-label">Legajos afectados/);
   const build = await readFile(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
   for (const asset of ['assets/absence-report-pdf.js', 'assets/absence-dashboard.css']) assert.ok(build.includes(`'${asset}'`), asset);
+});
+
+test('días de una persona: precisión declarada y cobertura de eventos con días informados', () => {
+  assert.equal(personDays({ events: 9, sourceDeclaredDays: 31.5, reportedDaysEvents: 9 }), '31,5');
+  assert.equal(personDays({ events: 9, sourceDeclaredDays: 31.5, reportedDaysEvents: 7 }), '31,5 (en 7 de 9)');
+  assert.equal(personDays({ events: 4, sourceDeclaredDays: 0, reportedDaysEvents: 0 }), 'Sin informar');
+  assert.equal(personDays({ events: 4, sourceDeclaredDays: 12 }), '12');
+});
+
+test('el ranking conserva la fuente al abrir el historial y no llama «historial» a una búsqueda por legajo', async () => {
+  const source = await readFile(new URL('../assets/absence-charts.js', import.meta.url), 'utf8');
+  assert.match(source, /snapshot: peopleSnapshot/); assert.match(source, /peopleSnapshot = payload\.meta\?\.snapshot \?\? null/);
+  assert.match(source, /linked \? 'Ver historial' : 'Buscar en el listado'/);
+  assert.doesNotMatch(source, /Math\.round\((?:r|i)\.(?:sourceDeclaredDays|declaredDays)/);
 });
