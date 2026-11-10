@@ -256,3 +256,40 @@ test('el módulo es local y no usa red, storage, HTML dinámico, logs ni evaluac
   assert.doesNotMatch(sourceCode, /localStorage|sessionStorage|indexedDB|\.innerHTML|\beval\s*\(|new Function\s*\(|console\./);
   assert.doesNotMatch(sourceCode, /importe|salary|sueldo|remuneraci[oó]n/i);
 });
+
+test('el PDF muestra cada límite completo, sin pisar el pie, y continúa en otra hoja cuando no entra', () => {
+  const lines = (bytes) => [...Buffer.from(bytes).toString('latin1').matchAll(/BT \/F[12] ([0-9.]+) Tf [0-9. ]+ rg 1 0 0 1 ([0-9.]+) ([0-9.]+) Tm \((.*?)\) Tj ET/g)]
+    .map(([, size, x, y, value]) => ({ size: Number(size), x: Number(x), y: Number(y), value }));
+  const single = createRrhhReportPack(copyFixture(), { generatedAt: GENERATED_AT });
+  const drawn = lines(single.pdf.bytes);
+  const limits = drawn.filter((line) => line.size === 6.5);
+  assert.ok(limits.length >= single.snapshot.source.limitations.length);
+  assert.ok(limits.every((line) => line.y >= 84), 'ningún renglón de límites llega al pie (y = 66)');
+  assert.deepEqual([...new Set(limits.map((line) => line.x))].sort((a, b) => a - b), [44, 304]); // dos columnas
+  for (const [index, limitation] of single.snapshot.source.limitations.entries()) {
+    const joined = limits.map((line) => line.value).join(' ');
+    assert.ok(joined.includes(`${index + 1}. ${limitation.split(' ').slice(0, 3).join(' ')}`), 'empieza el límite ' + (index + 1));
+    assert.ok(joined.includes(limitation.split(' ').slice(-2).join(' ')), 'termina el límite ' + (index + 1)); // antes se cortaba a dos renglones
+  }
+  assert.match(Buffer.from(single.pdf.bytes).toString('latin1'), /\/Kids \[3 0 R\] \/Count 1 >>/);
+
+  const long = copyFixture();
+  long.source.limitations = Array.from({ length: 12 }, (_, index) => `Límite extenso número ${index + 1}: `
+    + 'esta advertencia ocupa varios renglones para comprobar que el informe la conserva entera y no la recorta ni la superpone con el pie de la hoja final '.repeat(2).trim()
+    + ` fin ${index + 1}.`);
+  const paged = createRrhhReportPack(long, { generatedAt: GENERATED_AT });
+  const pdf = Buffer.from(paged.pdf.bytes).toString('latin1');
+  assert.match(pdf, /\/Kids \[3 0 R 8 0 R\] \/Count 2 >>/);
+  assert.match(pdf, /Página 1 de 2 - A4/); assert.match(pdf, /Página 2 de 2 - A4/);
+  assert.match(pdf, /Límites de interpretación \\\(continuación\\\)/); // los paréntesis van escapados dentro del PDF
+  const all = lines(paged.pdf.bytes).filter((line) => line.size === 6.5);
+  assert.ok(all.every((line) => line.y >= 84));
+  const text = all.map((line) => line.value).join(' ');
+  for (let index = 1; index <= 12; index += 1) assert.ok(text.includes(`fin ${index}.`), 'el límite ' + index + ' llega completo');
+  assert.match(pdf, /startxref\n[0-9]+\n%%EOF/);
+  // La tabla de referencias cruzadas apunta a cada objeto declarado.
+  const xref = pdf.slice(pdf.lastIndexOf('\nxref\n') + 1);
+  const count = Number(/^xref\n0 ([0-9]+)\n/.exec(xref)[1]);
+  assert.equal(count, 10); // entrada libre + 7 objetos de la primera hoja + (hoja, contenido) de la segunda
+  for (const [index, row] of [...xref.matchAll(/([0-9]{10}) 00000 n /g)].entries()) assert.equal(pdf.slice(Number(row[1]), Number(row[1]) + `${index + 1} 0 obj`.length), `${index + 1} 0 obj`);
+});

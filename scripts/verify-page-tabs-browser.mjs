@@ -28,6 +28,8 @@ try {
     return route.fulfill({status: 200, contentType: path.extname(file) === '.css' ? 'text/css' : 'text/javascript', body: fs.readFileSync(file)});
   });
   const page = await context.newPage(); page.setDefaultTimeout(8000);
+  // La impresión real no se abre en la prueba: se registra con qué estado de pestañas la pide la pantalla.
+  await page.addInitScript(() => { window.print = () => { window.__printedAll = document.documentElement.classList.contains('mc-tabs-all') && [...document.querySelectorAll('main > section')].every(node => node.getClientRects().length); }; });
   page.on('pageerror', error => errors.push(error.message));
   const visible = () => page.locator('main > section').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).map(node => node.id || node.className));
   const selected = () => page.locator('[role=tab][aria-selected=true]').getAttribute('data-tab');
@@ -99,7 +101,12 @@ try {
   await page.setViewportSize({width: 390, height: 800});
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'sin desborde a 390 px');
   await page.screenshot({path: path.join(output, 'page-tabs-390.png')});
-  checks.push('el buscador de la pantalla muestra todas las pestañas; al imprimir sale todo; 390 px sin desborde');
+  await page.evaluate(() => window.print());
+  await page.waitForFunction(() => window.__printedAll !== undefined);
+  assert.equal(await page.evaluate(() => window.__printedAll), true, 'la impresión se abre con todas las secciones ya mostradas');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('mc-tabs-all'));
+  assert.deepEqual(await visible(), ['c', 'tardio']);
+  checks.push('el buscador de la pantalla muestra todas las pestañas; al imprimir sale todo, también cuando la pantalla llama a imprimir; 390 px sin desborde');
 
   // Sin elección recordada, la primera pestaña es el inicio aunque sus bloques aparezcan después de cargar permisos o datos.
   await page.evaluate(() => localStorage.removeItem('mc.sintetica.tab'));

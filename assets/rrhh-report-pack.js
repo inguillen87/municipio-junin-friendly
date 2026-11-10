@@ -735,7 +735,9 @@ function wrapText(value, limit) {
 }
 
 function pdfDocument(snapshot) {
-  const commands = [];
+  // Una lista de comandos por página; los ayudantes escriben siempre en la página vigente.
+  let commands = [];
+  const pages = [commands];
   const color = {
     navy: '0.071 0.196 0.278', green: '0.075 0.486 0.447', ink: '0.094 0.145 0.176',
     muted: '0.380 0.443 0.478', line: '0.843 0.875 0.863', soft: '0.969 0.976 0.973',
@@ -819,28 +821,63 @@ function pdfDocument(snapshot) {
   text(50, 243, snapshot.source.sha256.slice(47), 6, 'F1', color.muted);
   text(342, 243, 'Grano agregado - sin filas personales', 7, 'F2', color.navy);
 
+  // Límites con su texto completo, en dos columnas. Antes cada límite se cortaba a dos renglones y la lista pisaba el
+  // pie de página; lo que no entra en la primera hoja continúa en otra en lugar de perderse.
+  const LIMIT = { size: 6.5, leading: 8.4, gap: 3, wrap: 72, floor: 84 };
+  const limitBlocks = snapshot.source.limitations.map((limitation, index) => wrapText(`${index + 1}. ${limitation}`, LIMIT.wrap));
+  const blockHeight = (lines) => lines.length * LIMIT.leading + LIMIT.gap;
+  const drawLimitColumns = (blocks, top) => {
+    const capacity = top - LIMIT.floor;
+    const total = blocks.reduce((sum, lines) => sum + blockHeight(lines), 0);
+    const firstColumn = total <= capacity * 2 ? total / 2 : capacity;
+    const rest = [];
+    let column = 0;
+    let y = top;
+    for (const lines of blocks) {
+      const height = lines.length * LIMIT.leading;
+      if (rest.length) { rest.push(lines); continue; }
+      if (column === 0 && y !== top && ((top - y) + height / 2 > firstColumn || y - height < LIMIT.floor)) { column = 1; y = top; }
+      if (y - height < LIMIT.floor && y !== top) { rest.push(lines); continue; }
+      for (const line of lines) { text(column ? 304 : 44, y, line, LIMIT.size); y -= LIMIT.leading; }
+      y -= LIMIT.gap;
+    }
+    return rest;
+  };
   text(38, 198, 'Límites de interpretación', 12, 'F2', color.navy);
-  let y = 181;
-  snapshot.source.limitations.forEach((limitation, index) => {
-    const lines = wrapText(`${index + 1}. ${limitation}`, 104);
-    lines.slice(0, 2).forEach((line) => { text(44, y, line, 7); y -= 10; });
-    y -= 3;
+  let pendingLimits = drawLimitColumns(limitBlocks, 181);
+  while (pendingLimits.length) {
+    commands = [];
+    pages.push(commands);
+    rect(0, 792, 595, 50, color.navy);
+    text(38, 812, 'INFORME EJECUTIVO DE RECURSOS HUMANOS', 10, 'F2', color.white);
+    text(38, 762, 'Límites de interpretación (continuación)', 12, 'F2', color.navy);
+    pendingLimits = drawLimitColumns(pendingLimits, 742);
+  }
+  pages.forEach((pageCommands, index) => {
+    commands = pageCommands;
+    text(38, 66, `Generado: ${snapshot.generatedAt} - reloj del cliente no verificado`, 7, 'F1', color.muted);
+    text(38, 51, `Contrato ${snapshot.contractVersion}`, 7, 'F1', color.muted);
+    rightText(557, 51, `Página ${index + 1} de ${pages.length} - A4`, 7, 'F1', color.muted);
   });
 
-  text(38, 66, `Generado: ${snapshot.generatedAt} - reloj del cliente no verificado`, 7, 'F1', color.muted);
-  text(38, 51, `Contrato ${snapshot.contractVersion}`, 7, 'F1', color.muted);
-  rightText(557, 51, 'Página 1 de 1 - A4', 7, 'F1', color.muted);
-
-  const content = `${commands.join('\n')}\n`;
-  const contentBytes = pdfLatinBytes(content);
+  // Objetos: 1 catálogo, 2 páginas, 3 primera hoja, 4–5 fuentes, 6 su contenido, 7 información; cada hoja extra agrega
+  // su par (hoja, contenido) a continuación, de modo que el informe de una sola hoja conserva su estructura.
+  const stream = (pageCommands) => {
+    const contentBytes = pdfLatinBytes(`${pageCommands.join('\n')}\n`);
+    return joinBytes([pdfLatinBytes(`<< /Length ${contentBytes.byteLength} >>\nstream\n`), contentBytes, pdfLatinBytes('endstream')]);
+  };
+  const pageObject = (contentId) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents ${contentId} 0 R >>`;
+  const extraPages = pages.slice(1);
+  const kids = [3, ...extraPages.map((_, index) => 8 + index * 2)];
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    `<< /Type /Pages /Kids [${kids.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`,
+    pageObject(6),
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
-    joinBytes([pdfLatinBytes(`<< /Length ${contentBytes.byteLength} >>\nstream\n`), contentBytes, pdfLatinBytes('endstream')]),
+    stream(pages[0]),
     `<< /Title (${pdfLiteral(`Informe ejecutivo RRHH - ${snapshot.source.cutoffDate}`)}) /Author (MuniControl) /Subject (Datos agregados sin filas personales) /Creator (MuniControl) /Producer (MuniControl) >>`,
+    ...extraPages.flatMap((pageCommands, index) => [pageObject(9 + index * 2), stream(pageCommands)]),
   ];
   const header = pdfLatinBytes('%PDF-1.4\n%âãÏÓ\n');
   const parts = [header];
