@@ -4,6 +4,7 @@
 // y resuelve un importe; no consulta nada, no calcula una liquidación y no registra.
 import {SalaryInputError, salaryExact as salaryShape, salaryJsonbBytes} from './native-salary-catalog-model.js';
 import {civilDay} from './employment-adoption-review-model.js';
+import {evidenceText} from './evidence-text.js';
 import {FAMILY_PAYROLL_FACT_QUANTITIES} from './own-contract-family-payroll-facts-model.js';
 
 export const FAMILY_ALLOWANCE_TARIFF_VERSION = 'own-family-allowance-tariff.v1';
@@ -25,11 +26,7 @@ const moneyValid = v => typeof v === 'string' && /^(0|[1-9][0-9]{0,14})(\.[0-9]{
 const exact = (v, keys) => salaryShape(v, keys) && Object.getPrototypeOf(v) === Object.prototype && Reflect.ownKeys(v).length === keys.length && Object.values(Object.getOwnPropertyDescriptors(v)).every(d => Object.hasOwn(d, 'value') && d.enumerable);
 // Centavos exactos: los importes nunca pasan por un número de punto flotante.
 const cents = v => { const [whole, fraction = ''] = v.split('.'); return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0')); };
-// La constancia sigue la misma regla explícita por puntos de código que el contrato de hechos familiares.
-const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
-const EVIDENCE_FORBIDDEN = /[\u0000-\u001F\u007F-\u009F\u2028\u2029<>]/u;
-const EVIDENCE_EDGE = /^[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]|[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]$/u;
-const evidence = v => typeof v === 'string' && !LONE_SURROGATE.test(v) && v === v.normalize('NFC') && !EVIDENCE_FORBIDDEN.test(v) && !EVIDENCE_EDGE.test(v) && [...v].length >= 3 && [...v].length <= 180;
+const evidence = v => evidenceText(v, 3, 180);
 const typeOrder = new Map(FAMILY_ALLOWANCE_TARIFF_TYPES.map((k, i) => [k, i]));
 const freeze = v => { if (v && typeof v === 'object') { Object.values(v).forEach(freeze); Object.freeze(v); } return v; };
 
