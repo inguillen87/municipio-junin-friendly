@@ -69,7 +69,7 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   if (!wanted) restore = memory.get() ?? items[0].id;
   activate(wanted ?? memory.get() ?? items[0].id, false); refresh();
   // Deep links (e.g. «Revisar» from the approvals bandeja: /novedades#fixedNovelties) open the tab that holds the target.
-  const followHash = () => { const id = decodeURIComponent(location.hash.slice(1)); if (!id) return; const target = document.getElementById(id); if (!target) return; reveal(target, false); for (let d = target; d; d = d.parentElement?.closest('details')) if (d.tagName === 'DETAILS') d.open = true; requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })); };
+  const followHash = () => { let id = location.hash.slice(1); try { id = decodeURIComponent(id); } catch { /* a malformed anchor is looked up as written */ } if (!id) return; const target = document.getElementById(id); if (!target) return; reveal(target, false); for (let d = target; d; d = d.parentElement?.closest('details')) if (d.tagName === 'DETAILS') d.open = true; requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })); };
   addEventListener('hashchange', followHash); followHash();
   // Something in another tab needs the person (a lote to review, a pending send): show it for this visit if they have
   // not picked a tab yet; otherwise never pull them away mid-work — mark that tab instead.

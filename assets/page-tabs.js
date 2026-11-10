@@ -31,7 +31,7 @@ const start = () => {
   const usable = tabs.filter(t => t.panels.length);
   if (usable.length < 2) return;
   // Un enlace que llega con un ancla propia de la pantalla (p. ej. #preview desde la ficha) abre su pestaña en esa visita.
-  const initial = () => { const hash = decodeURIComponent(location.hash.slice(1)); if (!hash) return null; const i = defs.findIndex(d => String(d.hash || '').split(' ').includes(hash)); return i < 0 ? null : tabs[i].id; };
+  const initial = () => { let hash = location.hash.slice(1); try { hash = decodeURIComponent(hash); } catch { /* ancla mal escrita: se compara tal cual */ } if (!hash) return null; const i = defs.findIndex(d => String(d.hash || '').split(' ').includes(hash)); return i < 0 ? null : tabs[i].id; };
   const api = mountSectionTabs({ host, tabs, initial, skipEmpty: true, storageKey: host.dataset.mcTabsKey || 'mc.tabs.' + location.pathname, label: host.dataset.mcTabsLabel || 'Secciones de la pantalla' });
   if (!api) return;
   document.documentElement.classList.add('mc-page-tabs-on');
@@ -66,7 +66,8 @@ const start = () => {
   // Un enlace interno a un bloque de otra pestaña (aunque el ancla ya esté en la dirección) la trae al frente.
   document.addEventListener('click', e => {
     const link = e.target.closest?.('a[href^="#"]'); if (!link) return;
-    const target = document.getElementById(decodeURIComponent(link.getAttribute('href').slice(1))); if (target) globalThis.mcSectionTabsReveal?.(target);
+    let id = link.getAttribute('href').slice(1); try { id = decodeURIComponent(id); } catch { /* un ancla mal escrita se busca tal cual */ }
+    const target = id && document.getElementById(id); if (target) globalThis.mcSectionTabsReveal?.(target);
   }, true);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();

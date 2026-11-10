@@ -207,7 +207,7 @@
     quality: {
       sectionId: 'calidad', title: 'Calidad operativa de datos',
       tour: [
-        ['#summaryPanel', 'Incidencias registradas', 'Separá total, abiertas y severidad sin convertirlas en un puntaje sintético.'],
+        ['#summaryPanel', 'Problemas encontrados', 'Mirá el total, cuántos siguen abiertos y su gravedad. No se resumen en un puntaje.'],
         ['#domainsPanel', 'Controles materializados', 'Cada bloque explica qué control existe y qué parte todavía no fue evaluada.'],
         ['#lineagePanel', 'Fuente y corte', 'Confirmá lote, fecha de corte, validación y filas informadas antes de interpretar un cero.'],
         ['#issuesPanel', 'Bandeja priorizada', 'Filtrá por severidad, estado, fuente, entidad o código sin exponer valores observados ni datos personales.'],
