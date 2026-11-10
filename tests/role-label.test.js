@@ -22,7 +22,8 @@ test('los encabezados usan el nombre legible y la pantalla de seguridad conserva
   assert.doesNotMatch(source, /fetch\s*\(|localStorage|sessionStorage|innerHTML|capabilit/i); // sólo texto: no decide permisos
   for (const file of ['centro-ayuda.html', 'asistente.html', 'calidad-operativa.html', 'ausentismo-control.html', 'gestion-comparativa.html', 'licencias-control.html', 'presupuesto-control.html', 'seguridad-cuenta.html']) {
     const html = read(file);
-    assert.match(html, /<script src="assets\/role-label\.js"><\/script>\n<\/head>/, file);
+    // Va en el <head> (script clásico): queda definido antes de que la pantalla dibuje el encabezado. El orden respecto de otras hojas no importa.
+    assert.ok(html.slice(0, html.indexOf('</head>')).includes('<script src="assets/role-label.js"></script>'), file);
     assert.match(html, /\(window\.MuniControlRoleLabel \|\| function \(value\) \{ return value; \}\)\(/, file);
   }
   const security = read('seguridad-cuenta.html');
