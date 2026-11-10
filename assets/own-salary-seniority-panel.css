@@ -23,3 +23,16 @@
 .collective-meter progress::-moz-progress-bar{background:#0f766e;border-radius:999px}
 .collective-meter span{font-weight:700;color:#0b554f;font-variant-numeric:tabular-nums;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.collective-meter progress::-webkit-progress-value{transition:none}}
+/* Panel de lotes en servidor (own-collective-jobs-panel): sólo presentación. Casilla junto a su texto, estado y legajo sin
+   cortes, barra de avance legible y botones separados. */
+.seniority-collective label:has(> input[type=checkbox]){display:flex!important;flex-direction:row!important;align-items:flex-start;gap:.6rem;margin:.9rem 0 .6rem;font-weight:600}
+.seniority-collective label:has(> input[type=checkbox]) input{width:24px;height:24px;min-height:24px;flex:0 0 24px;margin:2px 0 0;accent-color:#0f766e}
+.seniority-collective .collective-table td[data-label="Estado"]{white-space:nowrap;overflow-wrap:normal;font-weight:700}
+.seniority-collective .collective-table td:first-child{white-space:nowrap;overflow-wrap:normal;font-weight:700}
+.seniority-collective progress{display:block;width:min(100%,560px);height:14px;margin:.5rem 0;border:0;border-radius:999px;overflow:hidden;background:#dfeae7;accent-color:#0f766e}
+.seniority-collective progress::-webkit-progress-bar{background:#dfeae7;border-radius:999px}
+.seniority-collective progress::-webkit-progress-value{background:linear-gradient(90deg,#0f766e,#45a99a);border-radius:999px;transition:width .4s ease}
+.seniority-collective progress::-moz-progress-bar{background:#0f766e;border-radius:999px}
+.seniority-collective section>button+button,.seniority-collective section>div>button+button{margin-left:.5rem}
+@media (max-width:640px){.seniority-collective .collective-table td[data-label="Estado"],.seniority-collective .collective-table td:first-child{white-space:normal}}
+@media (prefers-reduced-motion:reduce){.seniority-collective progress::-webkit-progress-value{transition:none}}
