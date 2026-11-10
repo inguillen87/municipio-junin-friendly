@@ -1009,7 +1009,7 @@ export async function payrollControl(sql) {
     };
   }
 
-  const [monthlyRows, runAndQualityRows, [source = null]] = await Promise.all([
+  const [monthlyRows, runRows, [quality = {}], [source = null]] = await Promise.all([
     sql.query(`
       SELECT month,
              closure_status AS "closureStatus",
@@ -1028,15 +1028,7 @@ export async function payrollControl(sql) {
       LIMIT 36
     `),
     sql.query(`
-      /* payroll:window-runs */
-      SELECT
-             (count(*) OVER ())::int AS "__totalRuns",
-             (count(*) FILTER (WHERE closure_status='closed') OVER ())::int AS "__closedRuns",
-             (count(*) FILTER (WHERE closure_status='open') OVER ())::int AS "__openRuns",
-             (count(*) FILTER (WHERE closure_status='unknown') OVER ())::int AS "__unknownRuns",
-             (count(*) FILTER (WHERE closure_status='closed' AND NOT executive_publishable) OVER ())::int AS "__closedRunsBlocked",
-             (count(*) FILTER (WHERE closure_status<>'closed' AND executive_publishable) OVER ())::int AS "__openRunsPublished",
-             payroll_run_id AS "payrollRunId",
+      SELECT payroll_run_id AS "payrollRunId",
              payroll_date AS month,
              payroll_type AS "payrollType",
              closure_status AS "closureStatus",
@@ -1055,6 +1047,19 @@ export async function payrollControl(sql) {
       LIMIT 24
     `),
     sql.query(`
+      SELECT count(*)::int AS "totalRuns",
+             (count(*) FILTER (WHERE closure_status = 'closed'))::int AS "closedRuns",
+             (count(*) FILTER (WHERE closure_status = 'open'))::int AS "openRuns",
+             (count(*) FILTER (WHERE closure_status = 'unknown'))::int AS "unknownRuns",
+             (count(*) FILTER (
+               WHERE closure_status = 'closed' AND NOT executive_publishable
+             ))::int AS "closedRunsBlocked",
+             (count(*) FILTER (
+               WHERE closure_status <> 'closed' AND executive_publishable
+             ))::int AS "openRunsPublished"
+      FROM vw_nomina_totales
+    `),
+    sql.query(`
       SELECT source_file_name AS "fileName",
              source_sha256 AS sha256,
              source_cutoff AS cutoff,
@@ -1065,18 +1070,6 @@ export async function payrollControl(sql) {
       LIMIT 1
     `)
   ]);
-
-  // Window counts cover every canonical run before the 24-row page is selected.
-  // For an empty source the previous count query returned zeros; keep that contract below.
-  const firstRun = runAndQualityRows[0] || {};
-  const quality = {
-    totalRuns: firstRun.__totalRuns, closedRuns: firstRun.__closedRuns,
-    openRuns: firstRun.__openRuns, unknownRuns: firstRun.__unknownRuns,
-    closedRunsBlocked: firstRun.__closedRunsBlocked, openRunsPublished: firstRun.__openRunsPublished,
-  };
-  const runRows = runAndQualityRows.map(({
-    __totalRuns, __closedRuns, __openRuns, __unknownRuns, __closedRunsBlocked, __openRunsPublished, ...run
-  }) => run);
 
   const monthly = monthlyRows.map(payrollMetricRow);
   const latestClosed = monthly.find((row) => row.closureStatus === 'closed') || null;
