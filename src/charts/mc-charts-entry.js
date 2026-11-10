@@ -60,16 +60,22 @@ export function mountChart(host, option, {renderer = 'canvas', ariaLabel = ''} =
  return {chart, update: next => chart.setOption({...base, ...next}, {notMerge: true}), dispose() { host.__mcObserved?.disconnect(); delete host.__mcObserved; chart.dispose(); }};
 }
 
-/** Donut with the total in the centre. items: [{name, value}] */
+/**
+ * Donut with the total in the centre. items: [{name, value}]
+ * La leyenda nunca tapa la torta: va en una sola fila con paginado (flechas) y nombres largos recortados; el nombre
+ * completo, el valor y el porcentaje se leen al pasar por cada porción o por su leyenda.
+ */
 export function donutOption({items, total, totalLabel = 'Total', format = formatNumber, title}) {
+ const sum = total ?? items.reduce((s, i) => s + (i.value || 0), 0), brief = name => String(name).length > 26 ? String(name).slice(0, 25) + '…' : String(name);
  return {
   title: title ? {text: title, left: 0, top: 0} : undefined,
-  tooltip: {trigger: 'item', formatter: p => `<b>${p.name}</b><br>${format(p.value)} · ${formatNumber(p.percent, 1)} %`},
-  legend: {bottom: 0, left: 'center'},
-  graphic: [{type: 'text', left: 'center', top: '38%', style: {text: totalLabel, fill: '#5d6f78', fontSize: 12, fontFamily: FONT, align: 'center'}},
-   {type: 'text', left: 'center', top: '46%', style: {text: format(total ?? items.reduce((s, i) => s + (i.value || 0), 0)), fill: dark() ? '#e6eef0' : '#123247', fontSize: 18, fontWeight: 700, fontFamily: FONT, align: 'center'}}],
-  series: [{type: 'pie', radius: ['56%', '78%'], center: ['50%', '45%'], avoidLabelOverlap: true, label: {show: false}, labelLine: {show: false},
-   emphasis: {scale: true, scaleSize: 6, itemStyle: {shadowBlur: 18, shadowColor: 'rgba(18,50,71,.25)'}}, data: items,
+  tooltip: {trigger: 'item', confine: true, formatter: p => `<b>${p.name}</b><br>${format(p.value)} · ${formatNumber(p.percent, 1)} %`},
+  legend: {type: 'scroll', bottom: 0, left: 'center', width: '92%', formatter: brief, tooltip: {show: true},
+   pageIconColor: '#0f766e', pageIconInactiveColor: '#b9c7c3', pageIconSize: 11, pageTextStyle: {color: '#5d6f78', fontSize: 11}},
+  graphic: [{type: 'text', left: 'center', top: '34%', style: {text: totalLabel, fill: '#5d6f78', fontSize: 12, fontFamily: FONT, align: 'center'}},
+   {type: 'text', left: 'center', top: '42%', style: {text: format(sum), fill: dark() ? '#e6eef0' : '#123247', fontSize: 18, fontWeight: 700, fontFamily: FONT, align: 'center'}}],
+  series: [{type: 'pie', radius: ['52%', '74%'], center: ['50%', '42%'], avoidLabelOverlap: true, label: {show: false}, labelLine: {show: false},
+   emphasis: {scale: true, scaleSize: 7, itemStyle: {shadowBlur: 18, shadowColor: 'rgba(18,50,71,.25)'}}, data: items,
    animationType: 'scale', animationEasing: 'elasticOut', animationDelay: i => i * 90}],
  };
 }
