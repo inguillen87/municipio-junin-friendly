@@ -79,3 +79,17 @@ for (const p of REVIEW) test(p.file + ': el fundamento trae un ejemplo en gris y
  assert.equal(js.split("$('decision-reason').value=example()").length - 1, 1);
  assert.ok(css.includes(`.${p.host} textarea::placeholder{color:#6b7f83;`));
 });
+
+for (const p of REVIEW) test(p.file + ': quien revisa abre la propuesta pendiente con un botón y su contenido no desaparece al decidir', () => {
+ const js = read(p.file + '.js'), css = read(p.file + '.css');
+ assert.ok(js.includes(`<div data-${p.prefix}-content hidden><div class="${p.prefix}-pending" data-${p.prefix}-pending hidden><p data-${p.prefix}-pending-text></p><button type="button" data-${p.prefix}-pending-open>Revisar ahora</button></div>`));
+ assert.ok(js.includes("const waiting=boot?.permissions.canReview?boot.proposals.filter(x=>x.status==='pending'&&x.canReview):[];$('pending').hidden=!waiting.length;"), 'sólo se avisa lo que esta cuenta puede revisar');
+ assert.ok(js.includes("$('proposal').value=waiting[0].id;$('proposal').dispatchEvent(new Event('change',{bubbles:true}));$('open').click();"), 'el botón recorre el mismo camino que la persona: elegir y abrir');
+ assert.ok(js.includes("(value.proposal.canReview&&boot.permissions.canReview?$('decision-fields'):$('comparison')).scrollIntoView({block:'start'});"), 'al abrir, queda a la vista dónde se decide');
+ assert.ok(js.includes(' function reshow(){if(!detail||attempt)return;changes=') && js.includes('invalidate();reshow();if(!attempt)note('));
+ assert.match(js, /prepared=null;\$\('pending'\)\.hidden=true;/, 'una vez registrada la decisión, el aviso se retira');
+ // El botón no decide nada: no elige la decisión, no escribe el fundamento y no tilda.
+ const handler = js.slice(js.indexOf("$('pending-open').addEventListener"), js.indexOf("$('pending-open').addEventListener") + 420);
+ assert.ok(!/\$\('decision'\)\.value=|\$\('decision-reason'\)\.value=|checked=/.test(handler));
+ assert.ok(css.includes(`.${p.host} .${p.prefix}-pending{display:flex;`));
+});

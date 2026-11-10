@@ -89,12 +89,16 @@ try {
     await page.setViewportSize({width: 1366, height: 900}); await page.goto(origin + '/' + c.id);
     await page.waitForFunction(prefix => window.listo === true && document.querySelector(`[data-${prefix}-target]`)?.disabled === false, c.prefix); await idle();
     await s('period').fill(period); await s('refresh').click(); await idle(); await s('content').waitFor({state: 'visible'});
-    await panel.locator('summary', {hasText: 'Propuestas y decisiones anteriores'}).click(); await s('proposal').selectOption(detail.proposal.id); await s('open').click(); await idle();
+    check(await s('pending').isVisible() && (await s('pending-text').innerText()).startsWith('Hay una propuesta esperando tu revisión: '), tag + 'al consultar, quien revisa ve arriba que hay una propuesta esperándolo');
+    await s('pending').screenshot({path: path.join(output, c.id + '-pendiente.png')});
+    await s('pending-open').click(); await idle();
+    check(await s('proposal').inputValue() === detail.proposal.id && await s('comparison').isVisible() && await page.evaluate(prefix => { const r = document.querySelector(`[data-${prefix}-decision-fields]`).getBoundingClientRect(); return r.top >= -1 && r.top < innerHeight / 2; }, c.prefix) && !(await s('decision-fields').evaluate(e => e.disabled)), tag + '«Revisar ahora» abre la propuesta y deja a la vista dónde se decide');
     const note = s('review-note');
     check((await note.innerText()).startsWith('Al comparar se abre la revisión completa') && await s('confirm').isHidden(), tag + 'antes de comparar, la pantalla dice qué va a pasar y no muestra un tilde suelto');
     await s('example').click(); check((await note.innerText()) === 'Elegí primero la decisión.' && await s('decision-reason').inputValue() === '', tag + 'sin decisión no hay ejemplo que cargar, y se avisa');
     await s('review').click(); check((await note.innerText()) === 'Elegí primero la decisión.' && await note.evaluate(e => e.getBoundingClientRect().top < innerHeight), tag + 'sin decisión, el aviso aparece al lado del botón');
-    await s('decision').selectOption('approve'); await s('review').click(); check((await note.innerText()).startsWith('Escribí el fundamento de la decisión'), tag + 'sin fundamento, el aviso dice qué falta');
+    await s('decision').selectOption('approve'); check(await s('comparison').isVisible() && await s('confirm').isHidden(), tag + 'al elegir la decisión, el contenido de la propuesta sigue a la vista');
+    await s('review').click(); check((await note.innerText()).startsWith('Escribí el fundamento de la decisión'), tag + 'sin fundamento, el aviso dice qué falta');
     await s('example').click(); const sample = await s('decision-reason').inputValue();
     check(/^Aprobado por revisión independiente de .+ de octubre de 2026$/.test(sample) && (await s('decision-reason').getAttribute('placeholder')) === 'Ejemplo: ' + sample, tag + '«Usar el ejemplo» carga un fundamento válido, el mismo que se lee en gris');
     await s('review').click(); await idle(); check(await s('comparison').isVisible() && await inView('confirm'), tag + 'con el ejemplo, «Comparar decisión» abre la revisión al primer intento');
@@ -107,7 +111,7 @@ try {
     await s('confirm').check(); check(await s('send').isEnabled() && writes === 0, tag + 'con el tilde se habilita aprobar, y nada se envió todavía');
     await panel.screenshot({path: path.join(output, c.id + '-revision.png')});
     await s('decision-reason').fill('Otro fundamento exclusivamente sintético QA');
-    check(await s('comparison').isHidden() && await s('confirm').isHidden() && (await note.innerText()).startsWith('Cambiaste la decisión o el fundamento'), tag + 'si cambia el fundamento, la revisión se cierra y la pantalla lo dice');
+    check(await s('comparison').isVisible() && await s('confirm').isHidden() && await s('send').isHidden() && (await note.innerText()).startsWith('Cambiaste la decisión o el fundamento'), tag + 'si cambia el fundamento, se retira la confirmación y la pantalla dice que hay que volver a comparar');
     reviewing = null;
   }
   assert.equal(writes, 0); assert.deepEqual(errors, []);

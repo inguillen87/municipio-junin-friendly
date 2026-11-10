@@ -30,3 +30,8 @@
 .own-family-facts .family-facts-example span{flex:1 1 16rem}
 .own-family-facts textarea::placeholder{color:#6b7f83;font-weight:400;opacity:1}
 @media print{.own-family-facts .family-facts-example{display:none}}
+/* Aviso de propuesta pendiente para quien revisa. */
+.own-family-facts .family-facts-pending{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 1rem;padding:.8rem 1rem;border:1px solid #e3c184;border-left:5px solid #b25e00;border-radius:8px;background:#fff8ea}
+.own-family-facts .family-facts-pending p{flex:1 1 18rem;margin:0;font-weight:650;color:#4d2c00;overflow-wrap:anywhere}
+.own-family-facts .family-facts-pending button{width:auto;background:#15776f;border-color:#15776f;color:#fff}
+@media print{.own-family-facts .family-facts-pending{display:none}}
