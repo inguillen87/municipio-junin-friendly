@@ -55,6 +55,7 @@ test('pestañas y paginador son sólo presentación: sin pedidos, sin HTML crudo
   assert.match(core, /show: id => \{ if \(!items\.some\(t => t\.id === id\)\) return; wanted = id; activate\(id, false\); \}/);
   assert.match(core, /globalThis\.mcSectionTabsShow = node => reveal\(node, false\);/);
   assert.match(core, /new ResizeObserver\(place\)\.observe\(list\)/); // la barra puede montarse con la pantalla todavía oculta
+  assert.match(core, /if \(lost && items\.find\(t => t\.id === lost && usable\(t\)\)\) \{ const back = lost; lost = null; activate\(back, false\); return; \}/); // un bloque que vuelve trae su pestaña
   assert.match(core, /const filled = n => !skipEmpty \|\| n\.childElementCount > 0 \|\| Boolean\(n\.textContent\.trim\(\)\);/);
   assert.match(tabs, /mountSectionTabs\(\{ host, tabs, initial, skipEmpty: true,/); // un contenedor sin llenar no ofrece pestaña
   assert.match(pager, /classList\.toggle\('mc-page-off', !shown\.has\(n\)\)/);

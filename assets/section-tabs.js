@@ -12,15 +12,15 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   const nav = document.createElement('nav'); nav.className = 'mc-section-tabs'; nav.setAttribute('aria-label', label);
   const list = document.createElement('div'); list.setAttribute('role', 'tablist'); nav.append(list);
   const indicator = document.createElement('span'); indicator.className = 'mc-section-tabs-ink'; indicator.setAttribute('aria-hidden', 'true'); list.append(indicator);
-  let current = null, wanted = null, chosen = false, restore = null;
+  let current = null, wanted = null, chosen = false, restore = null, lost = null;
   const buttons = items.map((t, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'mcTab-' + t.id; b.dataset.tab = t.id;
     const name = document.createElement('span'); name.textContent = t.label; b.append(name);
     if (t.hint) { const hint = document.createElement('small'); hint.textContent = t.hint; b.append(hint); }
-    b.addEventListener('click', () => { wanted = null; chosen = true; activate(t.id, true); });
+    b.addEventListener('click', () => { wanted = null; lost = null; chosen = true; activate(t.id, true); });
     b.addEventListener('keydown', e => { const n = visibleButtons(), at = n.indexOf(b); let next = null;
       if (e.key === 'ArrowRight') next = n[(at + 1) % n.length]; else if (e.key === 'ArrowLeft') next = n[(at - 1 + n.length) % n.length]; else if (e.key === 'Home') next = n[0]; else if (e.key === 'End') next = n[n.length - 1];
-      if (next) { e.preventDefault(); wanted = null; chosen = true; next.focus(); activate(next.dataset.tab, false); } });
+      if (next) { e.preventDefault(); wanted = null; lost = null; chosen = true; next.focus(); activate(next.dataset.tab, false); } });
     list.append(b); return b;
   });
   const visibleButtons = () => buttons.filter(b => !b.hidden);
@@ -40,14 +40,17 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   }
   function refresh() {
     for (const [i, t] of items.entries()) buttons[i].hidden = !usable(t);
+    // A block that went away for a moment (a reload, a session check) brings its tab back when it returns, unless the
+    // person moved to another tab in the meantime.
+    if (lost && items.find(t => t.id === lost && usable(t))) { const back = lost; lost = null; activate(back, false); return; }
     if (wanted && items.find(t => t.id === wanted && usable(t))) activate(wanted, false);
     // The remembered tab may only become usable once permissions load: return to it unless the person already moved.
     else if (!chosen && restore && restore !== current && items.find(t => t.id === restore && usable(t))) activate(restore, false);
-    else if (!items.find(t => t.id === current && usable(t))) activate(memory.get() ?? items[0].id, false); else place();
+    else if (!items.find(t => t.id === current && usable(t))) { if (current !== null) lost = lost ?? current; activate(memory.get() ?? items[0].id, false); } else place();
   }
   host.after(nav);
   // remember=false (deep links): this visit only; if the block is still hidden by permissions, it opens once it shows.
-  const reveal = (node, remember) => { if (!node?.isConnected) return; const tab = items.find(t => t.nodes().some(n => n.contains(node))); if (!tab) return; wanted = remember ? null : tab.id; restore = null; if (remember) chosen = true; if (tab.id !== current) activate(tab.id, remember); };
+  const reveal = (node, remember) => { if (!node?.isConnected) return; const tab = items.find(t => t.nodes().some(n => n.contains(node))); if (!tab) return; wanted = remember ? null : tab.id; restore = null; lost = null; if (remember) chosen = true; if (tab.id !== current) activate(tab.id, remember); };
   globalThis.mcSectionTabsReveal = node => reveal(node, true);
   // Guided tours and other visits show a block without changing the remembered tab.
   globalThis.mcSectionTabsShow = node => reveal(node, false);

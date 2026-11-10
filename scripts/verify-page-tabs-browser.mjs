@@ -67,6 +67,14 @@ try {
   assert.notEqual(await selected(), 'tres');
   await page.evaluate(() => { document.getElementById('c').hidden = false; document.querySelector('.tardio').hidden = false; });
   await page.waitForFunction(() => !document.querySelector('[role=tab][data-tab=tres]').hidden);
+  await page.waitForFunction(() => document.querySelector('.mc-section-tabs [role=tab][aria-selected=true]').dataset.tab === 'tres'); // vuelve sola a donde estaba la persona
+  await page.evaluate(() => { document.getElementById('c').hidden = true; document.querySelector('.tardio').hidden = true; });
+  await page.waitForFunction(() => document.querySelector('[role=tab][data-tab=tres]').hidden);
+  await tab(/Segunda/); // si mientras tanto la persona eligió otra pestaña, no se la mueve cuando el bloque vuelve
+  await page.evaluate(() => { document.getElementById('c').hidden = false; document.querySelector('.tardio').hidden = false; });
+  await page.waitForFunction(() => !document.querySelector('[role=tab][data-tab=tres]').hidden);
+  assert.equal(await selected(), 'dos');
+  await tab(/Tercera/);
   // Un contenedor que otro módulo todavía no llenó (sin permiso o sin datos) no ofrece pestaña; aparece cuando se llena.
   assert.equal(await page.locator('[role=tab][data-tab=modulo]').isHidden(), true);
   await page.evaluate(() => { const card = document.createElement('article'); card.textContent = 'Contenido del módulo'; document.getElementById('modulo').append(card); });
