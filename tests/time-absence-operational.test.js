@@ -20,7 +20,7 @@ test('invalid search and contract identifiers fail before touching the data sour
  for(const query of [{search:'x'.repeat(121)},{search:'a\nb'},{contractId:'invalid'}]){const sql=db();assert.equal((await absenceEvents(sql,{query})).status,400);assert.equal(sql.calls.length,0);}
 });
 test('zero baseline yields unknown variation, not a mathematical zero',async()=>{
- const sql=db(),r=await absenceAnalytics(sql,{query:{from:'2026-08-01',to:'2026-09-10',reasonCode:'20'}});assert.deepEqual(r.payload.data.comparison.changePercent,{events:null,affectedContracts:null,sourceDeclaredDays:null});
+ const sql=db(),r=await absenceAnalytics(sql,{query:{from:'2026-08-01',to:'2026-09-10',reasonCode:'20'}});assert.deepEqual(r.payload.data.comparison.changePercent,{events:null,affectedContracts:null,affectedPeople:null,sourceDeclaredDays:null});
  // Root AUSENTISMO_FACETAS_CALIDAD_R1: reasons, sectors and quality share one read that materializes the events once.
  const once=sql.calls.filter(c=>/absence:facets-quality-once/.test(c.text));assert.equal(once.length,1);assert.ok(once[0].text.includes('MATERIALIZED'));
  assert.equal(sql.calls.some(c=>/absence:(facet-|quality\b)/.test(c.text)),false,'the separate facet and quality reads are gone');
