@@ -22,7 +22,9 @@ function search(view, label) {
  if (!tab || !input || !label) return;
  if (tab.getAttribute('aria-selected') !== 'true') tab.click();
  input.value = label; input.dispatchEvent(new Event('input', {bubbles: true}));
- document.getElementById('panel-' + view)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
+ // El explorador vive en otra pestaña de la pantalla: tocar un gráfico la trae al frente antes de buscar.
+ const panel = document.getElementById('panel-' + view); if (panel) globalThis.mcSectionTabsReveal?.(panel);
+ panel?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
 }
 
 function render(payload) {

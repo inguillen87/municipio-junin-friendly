@@ -28,8 +28,10 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   function place() { const b = buttons.find(x => x.dataset.tab === current); if (!b || b.hidden) { indicator.style.opacity = '0'; return; } indicator.style.opacity = '1'; indicator.style.width = b.offsetWidth + 'px'; indicator.style.transform = `translateX(${b.offsetLeft}px)`; }
   function activate(id, remember) {
     const tab = items.find(t => t.id === id && usable(t)) ?? items.find(t => t.id === memory.get() && usable(t)) ?? items.find(usable); if (!tab) return;
+    // Maps and other size-aware widgets inside a block that was not displayed need to measure again once it shows.
+    if (current !== null && current !== tab.id) requestAnimationFrame(() => dispatchEvent(new Event('resize')));
     current = tab.id; if (current === wanted) wanted = null; if (current === restore) restore = null;
-    for (const t of items) for (const n of t.nodes()) { n.classList.toggle('mc-tab-off', t.id !== current); if (t.id === current) n.classList.add('mc-tab-in'); }
+    for (const t of items) for (const n of t.nodes()) { n.classList.toggle('mc-tab-off', t.id !== current); if (t.id === current && !n.classList.contains('mc-tab-in')) n.classList.add('mc-tab-in'); }
     for (const b of buttons) { const on = b.dataset.tab === current; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on) delete b.dataset.attention; }
     if (remember) memory.set(current);
     requestAnimationFrame(place);
@@ -43,8 +45,10 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   }
   host.after(nav);
   // remember=false (deep links): this visit only; if the block is still hidden by permissions, it opens once it shows.
-  const reveal = (node, remember) => { if (!node?.isConnected) return; const tab = items.find(t => t.nodes().some(n => n.contains(node))); if (!tab) return; wanted = remember ? null : tab.id; if (remember) chosen = true; if (tab.id !== current) activate(tab.id, remember); };
+  const reveal = (node, remember) => { if (!node?.isConnected) return; const tab = items.find(t => t.nodes().some(n => n.contains(node))); if (!tab) return; wanted = remember ? null : tab.id; restore = null; if (remember) chosen = true; if (tab.id !== current) activate(tab.id, remember); };
   globalThis.mcSectionTabsReveal = node => reveal(node, true);
+  // Guided tours and other visits show a block without changing the remembered tab.
+  globalThis.mcSectionTabsShow = node => reveal(node, false);
   document.addEventListener('click', e => { const jump = e.target.closest?.('[data-novelty-jump],[data-tab-jump]'); if (!jump) return; const target = document.getElementById(jump.dataset.noveltyJump || jump.dataset.tabJump); if (target) globalThis.mcSectionTabsReveal(target); }, true);
   const observer = new MutationObserver(refresh); for (const t of items) for (const n of t.nodes()) observer.observe(n, { attributes: true, attributeFilter: ['hidden'] });
   // Modules that mount later may replace a panel's whole className (e.g. the own-novelties shell): keep the tab state on it,
@@ -52,8 +56,12 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   const keep = new MutationObserver(() => { if (current === null) return; for (const t of items) for (const n of t.nodes()) { const off = t.id !== current; if (n.classList.contains('mc-tab-off') !== off) n.classList.toggle('mc-tab-off', off); } });
   for (const t of items) for (const n of t.nodes()) keep.observe(n, { attributes: true, attributeFilter: ['class'] });
   addEventListener('resize', place, { passive: true });
+  // The bar may mount while its screen is still hidden (loading state): place the marker once it gets a size.
+  if (typeof ResizeObserver === 'function') new ResizeObserver(place).observe(list);
   const asked = typeof initial === 'function' ? initial() : null; if (asked && items.some(t => t.id === asked)) wanted = asked;
-  if (!wanted) restore = memory.get();
+  // Without a remembered choice the first tab is the home: if it only shows up after permissions/data load, the bar
+  // returns to it (unless the person already picked one) instead of staying on whichever block happened to be visible.
+  if (!wanted) restore = memory.get() ?? items[0].id;
   activate(wanted ?? memory.get() ?? items[0].id, false); refresh();
   // Deep links (e.g. «Revisar» from the approvals bandeja: /novedades#fixedNovelties) open the tab that holds the target.
   const followHash = () => { const id = decodeURIComponent(location.hash.slice(1)); if (!id) return; const target = document.getElementById(id); if (!target) return; reveal(target, false); for (let d = target; d; d = d.parentElement?.closest('details')) if (d.tagName === 'DETAILS') d.open = true; requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })); };
@@ -62,5 +70,7 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
   // not picked a tab yet; otherwise never pull them away mid-work — mark that tab instead.
   const attention = node => { const tab = node?.isConnected && items.find(t => t.nodes().some(n => n.contains(node))); if (!tab || tab.id === current) return;
     if (!chosen) return reveal(node, false); const b = buttons.find(x => x.dataset.tab === tab.id); if (b) b.dataset.attention = 'true'; };
-  return { activate: id => activate(id, true), refresh, attention };
+  // sync(): re-applies the current tab to blocks registered after mounting, without changing the remembered choice.
+  // show(id): opens a tab for this visit only (deep links), like `initial`, without touching the remembered choice.
+  return { activate: id => activate(id, true), refresh, attention, sync: () => { if (current !== null) activate(current, false); }, show: id => { if (!items.some(t => t.id === id)) return; wanted = id; activate(id, false); } };
 }

@@ -21,9 +21,11 @@ test('Ausentismo and Relojes quickbars only target ids their pages define', () =
     const page = fs.readFileSync(file, 'utf8');
     assert.match(page, new RegExp(`<nav data-quickbar="${screen}"></nav>`)); assert.match(page, /src="assets\/workspace-quickbar\.js"/);
     for (const action of QUICKBARS[screen].actions) for (const selector of [action.target, action.before, action.reveal].filter(Boolean)) {
-      const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], chart = /data-mc-chart="([a-z-]+)"/.exec(selector)?.[1];
+      const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], chart = /data-mc-chart="([a-z-]+)"/.exec(selector)?.[1], view = /^\[data-ab-view="([a-z]+)"\]$/.exec(selector)?.[1];
       if (id) assert.ok(page.includes(`id="${id}"`), screen + ' → ' + selector);
       else if (chart) assert.ok(fs.readFileSync('assets/absence-charts.js', 'utf8').includes(`'${chart}'`), selector);
+      // Los gráficos de Ausentismo se ven de a un grupo: la acción abre antes la vista donde está su gráfico.
+      else if (view) assert.match(fs.readFileSync('assets/absence-charts.js', 'utf8'), new RegExp("const VIEWS = \\[.*\\['" + view + "', "), selector);
       else assert.fail('unexpected selector ' + selector);
     }
   }

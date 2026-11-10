@@ -384,6 +384,8 @@
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/structure-task-entry.css">
   <link rel="stylesheet" href="assets/structure-people.css">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body data-mc-page="structure">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -459,6 +461,7 @@
           </div>
         </section>
 
+        <div data-mc-tabs='[{"id":"resumen","label":"Resumen","hint":"Cuánta gente hay y dónde","sel":"section.metrics,#contenido > .mc-chart-row,#hierarchyNotice"},{"id":"explorar","label":"Áreas y sectores","hint":"Buscá una oficina o un sector","sel":"section.workspace"},{"id":"cargos","label":"Cargos y personas","hint":"Quién ocupa cada cargo","sel":"section.structure-task"},{"id":"planta","label":"Planta y presupuesto","hint":"Cargos aprobados para el año","sel":"[data-annual-position-budget],[data-position-comparison]"},{"id":"ayuda","label":"Cómo leer","hint":"Qué significa cada dato","sel":"section.source-section"}]' data-mc-tabs-key="mc.estructura.tab" data-mc-tabs-label="Secciones de Estructura"></div>
         <div data-annual-position-budget></div>
         <div data-position-comparison></div>
         <section class="structure-task" aria-labelledby="structureNominalTitle">
@@ -500,13 +503,13 @@
 
           <section class="panel" id="panel-organizations" role="tabpanel" aria-labelledby="tab-organizations">
             <div class="table-status"><span><strong id="organizationResultCount">0</strong> asignaciones organizacionales</span><span>Orden: legajos activos</span></div>
-            <div class="table-wrap"><table><thead><tr><th scope="col">Asignación GRH</th><th scope="col">ID de fuente</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Sectores</th><th scope="col">Personas</th></tr></thead><tbody id="organizationRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th scope="col">Asignación GRH</th><th scope="col">ID de fuente</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Sectores</th><th scope="col">Personas</th></tr></thead><tbody id="organizationRows" data-mc-pager="12" data-mc-pager-noun="asignaciones" data-mc-pager-search="off"></tbody></table></div>
             <div class="empty" id="organizationEmpty" hidden><strong>Sin resultados</strong>Ajustá la búsqueda o el filtro de situación.</div>
           </section>
 
           <section class="panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" hidden>
             <div class="table-status"><span><strong id="sectorResultCount">0</strong> sectores agrupados</span><span>Orden: legajos activos</span></div>
-            <div class="table-wrap"><table><thead><tr><th scope="col">Sector GRH</th><th scope="col">Código</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Organizaciones</th><th scope="col">Personas</th></tr></thead><tbody id="sectorRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th scope="col">Sector GRH</th><th scope="col">Código</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Organizaciones</th><th scope="col">Personas</th></tr></thead><tbody id="sectorRows" data-mc-pager="12" data-mc-pager-noun="sectores" data-mc-pager-search="off"></tbody></table></div>
             <div class="empty" id="sectorEmpty" hidden><strong>Sin resultados</strong>Ajustá la búsqueda o el filtro de situación.</div>
           </section>
 
@@ -515,17 +518,17 @@
             <details open>
               <summary>Catálogo de cargos <small id="jobRoleCount"></small></summary>
               <p class="catalog-note" id="roleCoverageNote">Los cargos del catálogo sólo se vinculan cuando el legajo informa cargoName.</p>
-              <div class="table-wrap"><table><thead><tr><th scope="col">Cargo literal</th><th scope="col">ID</th><th scope="col">Parent ID de fuente</th><th scope="col">Reporta a</th></tr></thead><tbody id="jobRoleRows"></tbody></table></div>
+              <div class="table-wrap"><table><thead><tr><th scope="col">Cargo literal</th><th scope="col">ID</th><th scope="col">Parent ID de fuente</th><th scope="col">Reporta a</th></tr></thead><tbody id="jobRoleRows" data-mc-pager="12" data-mc-pager-noun="cargos" data-mc-pager-search="off"></tbody></table></div>
             </details>
             <details>
               <summary>Catálogo de organizaciones <small id="organizationCatalogCount"></small></summary>
               <p class="catalog-note">Catálogo completo de la tabla organiza. Sus filas no se presentan como jerarquía porque parentId no está poblado.</p>
-              <div class="table-wrap"><table><thead><tr><th scope="col">Organización literal</th><th scope="col">ID</th><th scope="col">Código</th><th scope="col">Abreviatura</th><th scope="col">Parent ID</th></tr></thead><tbody id="organizationCatalogRows"></tbody></table></div>
+              <div class="table-wrap"><table><thead><tr><th scope="col">Organización literal</th><th scope="col">ID</th><th scope="col">Código</th><th scope="col">Abreviatura</th><th scope="col">Parent ID</th></tr></thead><tbody id="organizationCatalogRows" data-mc-pager="12" data-mc-pager-noun="organizaciones" data-mc-pager-search="off"></tbody></table></div>
             </details>
             <details>
               <summary>Catálogo de sectores <small id="sectorCatalogCount"></small></summary>
               <p class="catalog-note">Identidad compuesta por empresa y sector; se conserva sin fusionar códigos.</p>
-              <div class="table-wrap"><table><thead><tr><th scope="col">Sector literal</th><th scope="col">Empresa</th><th scope="col">Sector</th><th scope="col">Abreviatura</th><th scope="col">Actividad presupuestaria</th></tr></thead><tbody id="sectorCatalogRows"></tbody></table></div>
+              <div class="table-wrap"><table><thead><tr><th scope="col">Sector literal</th><th scope="col">Empresa</th><th scope="col">Sector</th><th scope="col">Abreviatura</th><th scope="col">Actividad presupuestaria</th></tr></thead><tbody id="sectorCatalogRows" data-mc-pager="12" data-mc-pager-noun="sectores" data-mc-pager-search="off"></tbody></table></div>
             </details>
           </section>
         </section>

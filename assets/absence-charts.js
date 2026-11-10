@@ -85,22 +85,42 @@ function ensureLayout() {
   el('button', {type: 'button', class: 'button primary ab-pdf', text: 'Descargar informe en PDF', 'data-absence-pdf': 'true'}));
  const insights = el('ul', {class: 'ab-insights', 'aria-label': 'Conclusiones principales', role: 'list'});
  const cards = el('div', {class: 'ab-grid'});
- const make = (key, title, subtitle, wide = false) => { const slot = chartSlot(title, {subtitle, size: wide ? 'lg' : 'md', key}); slot.figure.classList.add('ab-card'); if (wide) slot.figure.classList.add('ab-wide'); slot.figure.__mcRows = () => slotSpecs[key]?.rows?.() ?? null; cards.append(slot.figure); return slot; };
- const trend = make('absence-trend', 'Licencias por mes', 'Cantidad de eventos y de personas por mes · * mes todavía incompleto', true);
- const reasons = make('absence-reasons', 'Motivos más frecuentes', 'Cuántas licencias hubo por cada motivo');
- const sectors = make('absence-sectors', 'Sectores con más eventos', 'Los diez sectores con más licencias');
- const calendar = make('absence-calendar', 'Mapa de calor: en qué días empiezan las licencias', 'Cada cuadrito es un día · más oscuro = más licencias ese día', true);
+ // Los gráficos se ven de a un grupo por vez (en lugar de seis seguidos): cada tarjeta declara a qué vista pertenece.
+ const views = el('div', {class: 'ab-views', role: 'tablist', 'aria-label': 'Qué gráficos ver'},
+  ...VIEWS.map(([id, label, hint]) => el('button', {type: 'button', role: 'tab', class: 'ab-view', 'data-ab-view': id, 'aria-selected': 'false'}, el('span', {text: label}), el('small', {text: hint}))));
+ const make = (key, title, subtitle, view, size = 'lg') => { const slot = chartSlot(title, {subtitle, size, key}); slot.figure.classList.add('ab-card'); slot.figure.dataset.abCardView = view; slot.figure.__mcRows = () => slotSpecs[key]?.rows?.() ?? null; cards.append(slot.figure); return slot; };
+ const trend = make('absence-trend', 'Licencias por mes', 'Cantidad de eventos y de personas por mes · * mes todavía incompleto', 'evolucion');
+ const reasons = make('absence-reasons', 'Motivos más frecuentes', 'Cuántas licencias hubo por cada motivo', 'motivos', 'md');
+ const sectors = make('absence-sectors', 'Sectores con más eventos', 'Los diez sectores con más licencias', 'motivos', 'md');
+ const calendar = make('absence-calendar', 'Mapa de calor: en qué días empiezan las licencias', 'Cada cuadrito es un día · más oscuro = más licencias ese día', 'calendario');
  const help = el('div', {class: 'ab-help'},
   el('strong', {text: 'Cómo leerlo'}),
   el('p', {text: 'Las columnas son las semanas del año y las filas los días (L = lunes … D = domingo). Un cuadrito claro casi no tuvo licencias; uno oscuro tuvo muchas. Pasá el mouse o tocá un cuadrito para ver la fecha exacta y la cantidad.'}),
   el('p', {class: 'ab-help-peak', 'data-absence-peak': 'true'}));
  calendar.figure.append(help);
- const weekday = make('absence-weekday', 'Licencias según el día de la semana', 'Suma de inicios de licencia de cada día, mismo período que el mapa');
- const daysByMonth = make('absence-days', 'Días declarados por mes', 'Suma de días informados en GRH (no son jornadas perdidas)');
- root.append(toolbar, insights, cards);
+ const weekday = make('absence-weekday', 'Licencias según el día de la semana', 'Suma de inicios de licencia de cada día, mismo período que el mapa', 'calendario', 'md');
+ const daysByMonth = make('absence-days', 'Días declarados por mes', 'Suma de días informados en GRH (no son jornadas perdidas)', 'evolucion', 'md');
+ for (const slot of [trend, calendar, weekday, daysByMonth]) slot.figure.classList.add('ab-wide');
+ root.append(toolbar, insights, views, cards);
  section.insertBefore(root, grid);
  toolbar.querySelector('[data-absence-pdf]').addEventListener('click', downloadPdf);
- ui = {root, grid, insights, trend, reasons, sectors, calendar, weekday, daysByMonth, help}; return ui;
+ views.addEventListener('click', event => { const button = event.target.closest('[data-ab-view]'); if (button) showView(button.dataset.abView); });
+ views.addEventListener('keydown', event => { const all = [...views.querySelectorAll('[data-ab-view]')], at = all.indexOf(document.activeElement); if (at < 0) return;
+  const next = event.key === 'ArrowRight' ? all[(at + 1) % all.length] : event.key === 'ArrowLeft' ? all[(at - 1 + all.length) % all.length] : event.key === 'Home' ? all[0] : event.key === 'End' ? all.at(-1) : null;
+  if (next) { event.preventDefault(); next.focus(); showView(next.dataset.abView); } });
+ ui = {root, grid, insights, views, cards, trend, reasons, sectors, calendar, weekday, daysByMonth, help}; showView(view); return ui;
+}
+
+// Una vista por vez. «Comparar» muestra la lectura del período y la comparación con el año anterior, que ya traía la
+// pantalla. Se usa la misma clase que las pestañas de pantalla: al imprimir (o exportar) se ve todo.
+const VIEWS = [['evolucion', 'Evolución', 'Mes a mes'], ['motivos', 'Motivos y sectores', 'Dónde se concentran'], ['calendario', 'Calendario', 'Qué días hay más'], ['comparar', 'Comparar', 'Contra el año anterior']];
+let view = 'evolucion';
+function showView(id) {
+ if (!VIEWS.some(([key]) => key === id)) return; view = id; if (!ui) return;
+ for (const button of ui.views.querySelectorAll('[data-ab-view]')) { const on = button.dataset.abView === id; button.setAttribute('aria-selected', String(on)); button.tabIndex = on ? 0 : -1; }
+ for (const card of ui.cards.children) card.classList.toggle('mc-tab-off', card.dataset.abCardView !== id);
+ ui.cards.classList.toggle('mc-tab-off', id === 'comparar');
+ for (const node of [ui.grid, document.getElementById('comparisonPanel')]) node?.classList.toggle('mc-tab-off', id !== 'comparar' && !ui.root.hidden);
 }
 
 // ---------- Filtros desde los gráficos y atajos de período ----------
@@ -158,7 +178,7 @@ async function render(analytics) {
  const s = ensureLayout(); if (!s) return;
  const monthly = Array.isArray(analytics.monthly) ? analytics.monthly : [], reasons = Array.isArray(analytics.reasons) ? analytics.reasons : [], sectors = Array.isArray(analytics.sectors) ? analytics.sectors : [];
  const total = analytics.summary?.events || 0, empty = !monthly.length || !(total > 0);
- s.root.hidden = empty; s.grid.classList.toggle('ab-charts-on', !empty); renderInsights(); if (empty) return;
+ s.root.hidden = empty; s.grid.classList.toggle('ab-charts-on', !empty); showView(view); renderInsights(); if (empty) return;
 
  slotSpecs['absence-trend'] = {
   build: m => {
@@ -382,7 +402,7 @@ async function downloadPdf(event) {
  finally { if (button) button.disabled = false; }
 }
 
-function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); } dayData = null; dailyToken++; clearPeople(''); closeChartZoom(); legajoDialog?.close(); }
+function clear() { if (ui?.root) { ui.root.hidden = true; ui.grid.classList.remove('ab-charts-on'); showView(view); } dayData = null; dailyToken++; clearPeople(''); closeChartZoom(); legajoDialog?.close(); }
 if (typeof document !== 'undefined') {
  // Cada consulta (también al pasar de página en el listado) avisa «cleared»: los nombres se borran siempre y, si los
  // indicadores siguen siendo los mismos (sólo cambió la página de eventos), el ranking se vuelve a pedir.

@@ -19,6 +19,8 @@ const checks = [], errors = [], requests = [], layoutFailures = [];
 try {
   for (const denial of [null, 401, 403, 'snapshot']) {
     const context = await browser.newContext({viewport: {width: 1366, height: 1000}, locale: 'es-AR', reducedMotion: 'reduce', serviceWorkers: 'block'});
+    // La pantalla tiene pestañas: el ranking de personas y su historial viven en «Personas».
+    await context.addInitScript(() => { try { localStorage.setItem('mc.ausentismo.tab', 'personas'); } catch {} });
     let exactReads = 0;
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url()), q = url.searchParams;

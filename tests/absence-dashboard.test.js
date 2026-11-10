@@ -174,3 +174,22 @@ test('el historial exacto rechaza otra empresa o un vínculo ausente antes de co
     assert.equal(queries, 0, 'el rechazo de ámbito no consulta la fuente ni sus personas');
   }
 });
+
+test('los gráficos se ven de a un grupo y las acciones rápidas abren la vista de su gráfico', async () => {
+  const source = await readFile(new URL('../assets/absence-charts.js', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../assets/absence-dashboard.css', import.meta.url), 'utf8');
+  assert.match(source, /const VIEWS = \[\['evolucion', 'Evolución', 'Mes a mes'\], \['motivos', 'Motivos y sectores', 'Dónde se concentran'\], \['calendario', 'Calendario', 'Qué días hay más'\], \['comparar', 'Comparar', 'Contra el año anterior'\]\];/);
+  for (const [key, view] of [['absence-trend', 'evolucion'], ['absence-days', 'evolucion'], ['absence-reasons', 'motivos'], ['absence-sectors', 'motivos'], ['absence-calendar', 'calendario'], ['absence-weekday', 'calendario']])
+    assert.match(source, new RegExp("make\\('" + key + "', '[^']+', '[^']+', '" + view + "'"), key + ' → ' + view);
+  // Misma clase que las pestañas de pantalla: al imprimir o al buscar se ve todo; con el tablero vacío vuelve la lectura original.
+  assert.match(source, /card\.classList\.toggle\('mc-tab-off', card\.dataset\.abCardView !== id\)/);
+  assert.match(source, /node\?\.classList\.toggle\('mc-tab-off', id !== 'comparar' && !ui\.root\.hidden\)/);
+  assert.match(source, /s\.root\.hidden = empty; s\.grid\.classList\.toggle\('ab-charts-on', !empty\); showView\(view\);/);
+  assert.match(css, /\.ab-view\[aria-selected=true\]\{/); assert.match(css, /@media print\{\.ab-views\{display:none\}\}/);
+  const { QUICKBARS } = await import('../assets/workspace-quickbar.js');
+  const before = Object.fromEntries(QUICKBARS.ausentismo.actions.filter(action => action.before).map(action => [action.text, action.before]));
+  assert.deepEqual(before, {'Evolución': '[data-ab-view="evolucion"]', 'Mapa de calor': '[data-ab-view="calendario"]', 'Motivos y sectores': '[data-ab-view="motivos"]'});
+  const page = await readFile(new URL('../ausentismo-control.html', import.meta.url), 'utf8');
+  assert.match(page, /"id":"resumen","label":"Resumen y gráficos"[^}]*"sel":"#summaryMetrics,#trendPanel"/);
+  assert.match(page, /<details class="ab-more" open>/); // en su propia pestaña la lista ya viene abierta
+});

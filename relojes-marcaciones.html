@@ -41,6 +41,8 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body data-mc-page="attendance">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -65,6 +67,7 @@
         <header class="page-head"><div><p class="eyebrow">Control horario · preparación operativa</p><h1>Relojes y marcaciones</h1><p class="page-lead">Consultá puntos, equipos y marcaciones conservadas. Las fechas de captura y recepción permiten distinguir cuándo se leyó el reloj y cuándo llegaron los datos. La pantalla no almacena plantillas de huella.</p></div><div class="head-actions"><button class="button primary" id="refreshButton" type="button">Actualizar datos</button></div></header>
         <nav data-quickbar="relojes"></nav>
 
+        <div data-mc-tabs='[{"id":"uso","label":"Reloj en uso","hint":"Jornadas y marcaciones","sel":"#clockOperations"},{"id":"parque","label":"Todos los relojes","hint":"Estado de cada equipo","sel":"#clockFleetReception"},{"id":"excepciones","label":"Excepciones de horario","hint":"Permisos por legajo","sel":"#timeExceptions"},{"id":"tecnico","label":"Datos técnicos","hint":"Recepción, cobertura y equipos","sel":"#pm10Reception,.content > details.ck-infrastructure,.content > .attendance-insights,.content > p.live-note","on":"mc:clock-fleet-map-focus"}]' data-mc-tabs-key="mc.relojes.tab" data-mc-tabs-label="Secciones de Relojes"></div>
         <div class="error-banner" id="errorBanner" role="alert" hidden><div><strong>No pudimos actualizar marcaciones</strong><p id="errorMessage">El servicio interno no respondió.</p></div><button class="button" id="retryData" type="button">Reintentar</button></div>
         <div class="operation-banner" id="operationBanner" role="status" hidden><div><strong id="operationTitle">Datos físicos registrados</strong><p id="operationMessage">La información quedó guardada sin declarar una conexión que todavía no fue verificada.</p></div></div>
 

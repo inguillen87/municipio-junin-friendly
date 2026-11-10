@@ -526,6 +526,8 @@
     var step = tour.steps[tourIndex];
     var target = document.querySelector(step[0]);
     if (!target) return nextTour();
+    // En pantallas con pestañas, el paso trae al frente la pestaña donde está el bloque (sin cambiar la recordada).
+    if (typeof window.mcSectionTabsShow === 'function') window.mcSectionTabsShow(target);
     activeTarget = target;
     target.classList.add('mc-guide-highlight');
     target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });

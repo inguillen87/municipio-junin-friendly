@@ -825,7 +825,10 @@
     }
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <script src="assets/role-label.js"></script>
 </head>
 <body data-mc-page="leave">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -915,8 +918,8 @@
             <header class="page-head">
               <div>
                 <span class="eyebrow">Gestión de personas · respaldo normativo</span>
-                <h1>Licencias con reglas y evidencia separadas</h1>
-                <p class="page-lead">Una vista interna para distinguir qué permite calcular la norma, qué exige documentación o intervención humana y qué todavía no puede automatizarse con GRH.</p>
+                <h1>Licencias</h1>
+                <p class="page-lead">Consultá cuántos días de licencia anual le corresponden a una persona y revisá qué reglas el sistema puede calcular solo y cuáles necesitan que alguien las valide.</p>
               </div>
               <div class="head-actions">
                 <a class="button-secondary" href="ausentismo-control.html">Ver ausentismo operativo</a>
@@ -928,18 +931,20 @@
             <div class="scope-notice" role="note">
               <span class="scope-symbol" aria-hidden="true">!</span>
               <div>
-                <strong>Alcance de esta herramienta</strong>
-                <p>El preview es orientativo: no informa saldo disponible, no aprueba licencias y no reemplaza el acto administrativo. Las horas efectivamente trabajadas no son calculables con la evidencia GRH disponible.</p>
+                <strong>Para qué sirve y para qué no</strong>
+                <p>El cálculo es orientativo: no muestra el saldo disponible, no aprueba licencias y no reemplaza el acto administrativo. Las horas realmente trabajadas todavía no se pueden calcular con los datos de GRH.</p>
               </div>
             </div>
+
+            <div data-mc-tabs='[{"id":"resumen","label":"Resumen","hint":"Qué está vigente","sel":"#overallPanel,#legalPanel"},{"id":"persona","label":"Consultar una persona","hint":"Días por legajo","sel":"#previewPanel","hash":"preview previewPanel"},{"id":"reglas","label":"Reglas de licencias","hint":"Qué se puede calcular","sel":"#matrixPanel"},{"id":"motivos","label":"Motivos de GRH","hint":"Su regla relacionada","sel":"#mappingPanel"},{"id":"normas","label":"Normas","hint":"Leyes de respaldo","sel":"#sourcesPanel"},{"id":"limites","label":"Datos y límites","hint":"Qué falta revisar","sel":"#readinessPanel,#limitationsPanel"}]' data-mc-tabs-key="mc.licencias.tab" data-mc-tabs-label="Secciones de Licencias"></div>
 
             <section class="section" id="overallPanel" aria-labelledby="overallHeading">
               <div class="section-head">
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">01</span>
                   <div>
-                    <h2 id="overallHeading">Estado de aplicación</h2>
-                    <p>Lectura conjunta del marco legal, su instrumentación municipal y la evidencia requerida para aplicarlo.</p>
+                    <h2 id="overallHeading">Cómo está hoy</h2>
+                    <p>Resumen de la norma vigente, de cómo la aplica el municipio y de los datos que hacen falta para usarla.</p>
                   </div>
                 </div>
                 <span class="status-pill is-neutral" id="overallStatus">Evaluando</span>
@@ -963,8 +968,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">02</span>
                   <div>
-                    <h2 id="legalHeading">Marco y vigencia</h2>
-                    <p>La existencia de una regla provincial no prueba por sí sola que el municipio la haya instrumentado ni que el legajo reúna los hechos necesarios.</p>
+                    <h2 id="legalHeading">Qué norma se aplica</h2>
+                    <p>Que exista una regla provincial no alcanza: también hay que confirmar que el municipio la adoptó y que la persona cumple las condiciones.</p>
                   </div>
                 </div>
               </div>
@@ -992,8 +997,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">03</span>
                   <div>
-                    <h2 id="sourcesHeading">Fuentes normativas</h2>
-                    <p>Normas, artículos, actos municipales y versiones que respaldan las reglas publicadas.</p>
+                    <h2 id="sourcesHeading">Normas de respaldo</h2>
+                    <p>Leyes, artículos y actos municipales en los que se apoya cada regla, con su versión.</p>
                   </div>
                 </div>
                 <span class="status-pill is-neutral" id="sourceCount">Sin fuentes</span>
@@ -1007,8 +1012,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">04</span>
                   <div>
-                    <h2 id="matrixHeading">Matriz de calculabilidad</h2>
-                    <p>Cada regla se clasifica por el nivel de automatización defendible, no por conveniencia operativa.</p>
+                    <h2 id="matrixHeading">Qué se puede calcular</h2>
+                    <p>Cada regla indica si el sistema la puede calcular sola, si antes alguien tiene que validar algo o si no se puede calcular.</p>
                   </div>
                 </div>
               </div>
@@ -1046,8 +1051,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">05</span>
                   <div>
-                    <h2 id="mappingHeading">Catálogo GRH y conflictos</h2>
-                    <p>Mapeo entre motivos registrados en GRH y políticas normativas. Los conflictos permanecen visibles para saneamiento.</p>
+                    <h2 id="mappingHeading">Motivos de GRH y su regla</h2>
+                    <p>Cada motivo que se usa en GRH, con la regla de licencias que le corresponde. Los que no coinciden quedan a la vista para corregirlos.</p>
                   </div>
                 </div>
                 <span class="status-pill is-neutral" id="mappingSummary">Sin mapeos</span>
@@ -1063,7 +1068,7 @@
                       <th scope="col">Evidencia / conflicto</th>
                     </tr>
                   </thead>
-                  <tbody id="mappingTableBody"></tbody>
+                  <tbody id="mappingTableBody" data-mc-pager="8" data-mc-pager-noun="motivos"></tbody>
                 </table>
               </div>
               <div class="empty-inline" id="mappingEmpty" hidden>No hay un catálogo de mapeos publicado. Los motivos GRH no deben asociarse automáticamente.</div>
@@ -1074,8 +1079,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">06</span>
                   <div>
-                    <h2 id="readinessHeading">Preparación de datos</h2>
-                    <p>Disponibilidad real de los hechos necesarios para ejecutar reglas y explicar resultados.</p>
+                    <h2 id="readinessHeading">Datos que hacen falta</h2>
+                    <p>Qué información ya está disponible y cuál falta para poder aplicar cada regla y explicar el resultado.</p>
                   </div>
                 </div>
                 <span class="status-pill is-neutral" id="readinessSummary">Sin evaluación</span>
@@ -1089,8 +1094,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">07</span>
                   <div>
-                    <h2 id="previewHeading">Preview individual orientativo</h2>
-                    <p>Consulta acotada por empresa y legajo. Sólo estima licencia anual cuando existen regla aplicable y hechos suficientes.</p>
+                    <h2 id="previewHeading">Consultar una persona</h2>
+                    <p>Buscá por empresa y legajo. El sistema estima la licencia anual sólo cuando hay una regla aplicable y los datos alcanzan.</p>
                   </div>
                 </div>
                 <span class="status-pill is-partial">Revisión humana obligatoria</span>
@@ -1184,8 +1189,8 @@
                 <div class="section-title-wrap">
                   <span class="section-index" aria-hidden="true">08</span>
                   <div>
-                    <h2 id="limitationsHeading">Límites de interpretación</h2>
-                    <p>Lo que el sistema no debe afirmar aunque exista un dato parcial o una regla general.</p>
+                    <h2 id="limitationsHeading">Qué no se puede afirmar</h2>
+                    <p>Conclusiones que el sistema no debe dar por ciertas aunque haya un dato parcial o una regla general.</p>
                   </div>
                 </div>
               </div>
@@ -1892,7 +1897,7 @@
         var root = asObject(payload);
         var user = asObject(firstValue(root.user, root.data, root.session));
         var name = text(firstValue(user.name, user.displayName, user.email), 'Sesión municipal');
-        var role = text(firstValue(user.role, user.profile, user.type), 'Acceso interno');
+        var role = (window.MuniControlRoleLabel || function (value) { return value; })(text(firstValue(user.role, user.profile, user.type), 'Acceso interno'));
         el.userName.textContent = name;
         el.userRole.textContent = role;
         var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');

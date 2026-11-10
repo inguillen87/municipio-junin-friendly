@@ -27,6 +27,8 @@
     @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.index a,.plan-detail{transition:none}}
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body>
   <a class="skip" href="#contenido">Saltar al contenido</a>
@@ -36,11 +38,11 @@
   </header>
   <main id="contenido">
     <section class="intro" aria-labelledby="title">
-      <div><div class="eyebrow">Arquitectura funcional</div><h1 id="title">Mapa completo de la plataforma</h1><p>Las áreas que existían siguen registradas. Esta vista separa lo operativo de lo parcial y de los prototipos históricos para que el producto crezca sin esconder trabajo previo ni simular funciones terminadas.</p></div>
+      <div><div class="eyebrow">Mapa de la plataforma</div><h1 id="title">Mapa completo de la plataforma</h1><p>Elegí un área para ver qué funciones ya se pueden usar, cuáles funcionan en parte y cuáles quedaron anotadas para más adelante. Nada se muestra como terminado si todavía no lo está.</p></div>
       <div class="legend" aria-label="Estados de los módulos">
-        <div class="legend-row"><span class="state live">Operativo</span><span>Función conectada a una fuente y disponible en la versión actual.</span></div>
-        <div class="legend-row"><span class="state partial">Parcial</span><span>Parte útil habilitada; el resto requiere integración.</span></div>
-        <div class="legend-row"><span class="state history">Preservado</span><span>Prototipo inventariado, sin publicación como función operativa.</span></div>
+        <div class="legend-row"><span class="state live">Operativo</span><span>Funciona con datos reales y se puede usar hoy.</span></div>
+        <div class="legend-row"><span class="state partial">Parcial</span><span>Una parte ya se puede usar; el resto está en desarrollo.</span></div>
+        <div class="legend-row"><span class="state history">Preservado</span><span>Todavía no funciona; queda anotado para más adelante.</span></div>
       </div>
     </section>
 
@@ -48,6 +50,7 @@
       <a href="#direccion">Dirección</a><a href="#personas">Personas y RRHH</a><a href="#liquidaciones">Liquidaciones</a><a href="#hacienda">Hacienda</a><a href="#juridica">Jurídica y Legislativa</a><a href="#servicios">Servicios y obras</a><a href="#compras">Compras</a><a href="#inteligencia">Inteligencia</a><a href="#administracion">Administración</a>
     </nav>
 
+    <div data-mc-tabs='[{"id":"direccion","label":"Dirección","hint":"","sel":"#direccion"},{"id":"personas","label":"Personas y RRHH","hint":"","sel":"#personas"},{"id":"liquidaciones","label":"Liquidaciones","hint":"","sel":"#liquidaciones"},{"id":"hacienda","label":"Hacienda","hint":"","sel":"#hacienda"},{"id":"juridica","label":"Jurídica y Legislativa","hint":"","sel":"#juridica"},{"id":"servicios","label":"Servicios y obras","hint":"","sel":"#servicios"},{"id":"compras","label":"Compras","hint":"","sel":"#compras"},{"id":"inteligencia","label":"Reportes","hint":"","sel":"#inteligencia"},{"id":"administracion","label":"Administración","hint":"","sel":"#administracion"}]' data-mc-tabs-key="mc.modulos.tab" data-mc-tabs-label="Áreas de la plataforma" data-mc-tabs-hide="nav.index"></div>
     <div class="area-list">
       <section class="area live" id="direccion">
         <header class="area-title"><span class="area-code">CE</span><h2>Dirección</h2><p>Lectura ejecutiva transversal y estado de las fuentes.</p></header>
@@ -131,7 +134,7 @@
       <section class="area partial" id="administracion">
         <header class="area-title"><span class="area-code">AD</span><h2>Administración</h2><p>Control de plataforma, identidades y permisos con alcance explícito y auditoría.</p></header>
         <div class="capabilities">
-          <article class="capability"><div class="cap-head"><h3>Gobiernos, usuarios y permisos</h3><span class="state partial">Sprint en validación</span></div><p>Separa el control global de plataforma de los roles operativos de cada gobierno. Las cuentas se preparan por invitación, sin contraseñas compartidas.</p><a class="button" href="administracion-plataforma.html">Abrir administración</a><div class="history-files">Junín es el único tenant real inicial · nuevas cuentas sin acceso hasta completar los gates tenant-aware</div></article>
+          <article class="capability"><div class="cap-head"><h3>Gobiernos, usuarios y permisos</h3><span class="state partial">Sprint en validación</span></div><p>Separa el control global de plataforma de los roles operativos de cada gobierno. Las cuentas se preparan por invitación, sin contraseñas compartidas.</p><a class="button" href="administracion-plataforma.html">Abrir administración</a><div class="history-files">Junín es el único municipio activo · las cuentas nuevas no tienen acceso hasta que un administrador las habilita</div></article>
           <article class="capability"><div class="cap-head"><h3>Acceso interno</h3><span class="state live">Operativo</span></div><p>Autenticación y consulta nominal separada del tablero agregado.</p><a class="button" href="internal-dashboard.html">Abrir portal</a></article>
           <article class="capability"><div class="cap-head"><h3>Importación y exportación</h3><span class="state history">Preservado</span></div><p>Flujos históricos pendientes de validación, vista previa y reversión.</p><div class="history-files">importar.html · exportar.html · ingest.html · upload.html · forms.html</div></article>
           <article class="capability"><div class="cap-head"><h3>Configuración y soporte</h3><span class="state history">Preservado</span></div><p>Administración general, contingencia y superficies auxiliares.</p><div class="history-files">admin.html · configuracion.html · datos-personales.html · offline.html · 404.html · index_loaded.html · landing.html</div></article>
