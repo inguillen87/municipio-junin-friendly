@@ -28,10 +28,10 @@ function fixtureSql({ noFilteredEvents = false, globalEmpty = false } = {}) {
       }
       if ((noFilteredEvents || globalEmpty) && ['comparison','analytics-summary','series','reasons','sectors'].includes(marker)) return [];
       if (marker === 'analytics-summary') {
-        return [{ events: 1559, affectedContracts: 590, sourceDeclaredDays: '17400' }];
+        return [{ events: 1559, affectedContracts: 590, affectedPeople: 612, sourceDeclaredDays: '17400' }];
       }
       if (marker === 'comparison') {
-        return [{ events: 1331, affectedContracts: 567, sourceDeclaredDays: '16576' }];
+        return [{ events: 1331, affectedContracts: 567, affectedPeople: 600, sourceDeclaredDays: '16576' }];
       }
       if (marker === 'series') {
         return [{ period: '2026-08-01', events: 20, affectedContracts: 19, sourceDeclaredDays: '170', partial: true }];
@@ -105,7 +105,7 @@ test('absenceAnalytics acota el rango al snapshot y parametriza sector/motivo', 
     clamped: { from: true, to: true }
   });
   assert.deepEqual(result.payload.data.summary, {
-    events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400
+    events: 1559, affectedContracts: 590, affectedPeople: 612, sourceDeclaredDays: 17400
   });
   assert.equal(result.payload.data.series[0].partial, true);
   assert.equal(result.payload.data.reasons[0].flags.isLeave, true);
@@ -165,6 +165,7 @@ test('absenceAnalytics compara sólo la misma ventana calendario del año previo
   assert.deepEqual(comparison.changePercent, {
     events: 17.1,
     affectedContracts: 4.1,
+    affectedPeople: 2,
     sourceDeclaredDays: 5
   });
   const call = sql.calls.find((item) => item.marker === 'comparison');

@@ -202,6 +202,8 @@ const shellFiles = [
   'assets/aggregate-chart-view.js',
   'assets/aggregate-charts.css',
   'assets/absence-charts.js',
+  'assets/absence-report-pdf.js',
+  'assets/absence-dashboard.css',
   'assets/quality-charts.js',
   'assets/structure-charts.js',
   'assets/own-run-charts.js',

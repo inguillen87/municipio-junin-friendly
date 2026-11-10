@@ -1153,6 +1153,7 @@ function absenceSummaryRow(row = {}) {
   return {
     events: absenceNumber(row.events),
     affectedContracts: absenceNumber(row.affectedContracts),
+    affectedPeople: absenceNumber(row.affectedPeople),
     sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays)
   };
 }
@@ -1271,6 +1272,7 @@ async function queryAbsenceSummary(sql, filters, marker = 'summary') {
     /* absence:${marker} */
     SELECT count(*)::int AS events,
            count(DISTINCT contract.id)::int AS "affectedContracts",
+           count(DISTINCT (absence.company_id, absence.legajo))::int AS "affectedPeople",
            COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
     ${absenceFromSql(Boolean(filters.search), { employee: Boolean(filters.sector || filters.search), reason: false })}
     WHERE ${scope.where}
@@ -1325,11 +1327,12 @@ export async function absenceAnalytics(sql, req) {
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+             count(DISTINCT (absence.company_id, absence.legajo))::int AS "affectedPeople",
              (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
                OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
       ${absenceFromSql(false, { employee: Boolean(filters.sector), reason: false })}
       WHERE ${scope.where}
-      GROUP BY 1, 5 ORDER BY 1
+      GROUP BY 1, 6 ORDER BY 1
     `, scope.values),
     sql.query(`
       /* absence:reasons */
@@ -1407,6 +1410,7 @@ export async function absenceAnalytics(sql, req) {
     changePercent: {
       events: percentChange(summary.events, previous.events),
       affectedContracts: percentChange(summary.affectedContracts, previous.affectedContracts),
+      affectedPeople: percentChange(summary.affectedPeople, previous.affectedPeople),
       sourceDeclaredDays: percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays)
     }
   } : {
@@ -1467,6 +1471,74 @@ export async function absenceAnalytics(sql, req) {
           importedAt: source.importedAt,
           status: source.status
         }
+      }
+    }
+  };
+}
+
+// Ranking descriptivo de personas con más eventos (o más días declarados) dentro del mismo alcance de filtros.
+// Agrupa por legajo de origen (no por contrato vinculado) para no perder eventos sin vínculo laboral homologado.
+const ABSENCE_PEOPLE_ORDER = new Set(['events', 'days']);
+export async function absencePeople(sql, req) {
+  const order = boundedQueryValue(req, 'order', 8).toLowerCase() || 'events';
+  if (!ABSENCE_PEOPLE_ORDER.has(order)) {
+    return { status: 400, payload: { ok: false, code: 'ABSENCE_PEOPLE_ORDER_INVALID', error: 'Orden del ranking inválido' } };
+  }
+  const source = await absenceSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
+  }
+  const request = absenceRequest(req, source);
+  if (request.error) return request.error;
+  const limit = positiveInteger(queryValue(req, 'limit', '10'), 10, 50);
+  const filters = { from: request.range.effective.from, to: request.range.effective.to, sector: request.sector, reasonCode: request.reasonCode };
+  const scope = absenceFilter(filters);
+  const values = [...scope.values, limit];
+  const orderSql = order === 'days' ? '"sourceDeclaredDays" DESC, events DESC' : 'events DESC, "sourceDeclaredDays" DESC';
+  const rows = await sql.query(`
+    /* absence:people */
+    SELECT absence.company_id AS "companyId", absence.legajo,
+           (array_agg(contract.id::text ORDER BY contract.id) FILTER (WHERE contract.id IS NOT NULL))[1] AS "contractId",
+           max(COALESCE(identity.full_name, employee.nombre)) AS name,
+           COALESCE(NULLIF(btrim(max(employee.sector)), ''), 'Sin sector informado') AS sector,
+           count(*)::int AS events,
+           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+           count(DISTINCT absence.motivo_code)::int AS "distinctReasons",
+           mode() WITHIN GROUP (ORDER BY COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado')) AS "topReason",
+           max(absence.fecha) AS "lastEventDate"
+    ${absenceFromSql(true)}
+    WHERE ${scope.where}
+    GROUP BY absence.company_id, absence.legajo
+    ORDER BY ${orderSql}, absence.legajo
+    LIMIT $${values.length}
+  `, values);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: rows.map((row) => ({
+        contractId: row.contractId ?? null,
+        companyId: row.companyId ?? null,
+        legajo: row.legajo ?? null,
+        name: row.name ?? null,
+        sector: row.sector,
+        events: absenceNumber(row.events),
+        sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays),
+        distinctReasons: absenceNumber(row.distinctReasons),
+        topReason: row.topReason ?? null,
+        lastEventDate: isoDate(row.lastEventDate)
+      })),
+      order,
+      limit,
+      range: request.range,
+      quality: { sourceCutoff: source.cutoff, unitSemantics: ABSENCE_UNIT_SEMANTICS, sectorSemantics: ABSENCE_SECTOR_SEMANTICS },
+      meta: {
+        authority: 'GRH',
+        grain: 'absence_person_ranking',
+        filters: { sector: request.sector || null, reasonCode: request.reasonCode || null },
+        containsPersonalIdentifiers: true,
+        externalSharingAllowed: false,
+        interpretation: 'Ranking descriptivo de registros administrativos; no evalúa desempeño ni justifica ausencias.'
       }
     }
   };
@@ -4205,6 +4277,11 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'absenceperson') {
         const result = await internalAbsencePerson(sql,req,sourceBinding,sourceSnapshot,{readEvents:absenceEvents});
+        return await respond(result.status,result.payload);
+      }
+      if (resource === 'absencepeople') {
+        const result = await absencePeople(sql, req);
+        if(result.status===200)result.payload.meta={...result.payload.meta,snapshot:sourceSnapshot,tenantId:sourceBinding.tenantId};
         return await respond(result.status,result.payload);
       }
       if (resource === 'absenceevents') {

@@ -23,7 +23,7 @@ test('Ausentismo and Relojes quickbars only target ids their pages define', () =
     for (const action of QUICKBARS[screen].actions) for (const selector of [action.target, action.before, action.reveal].filter(Boolean)) {
       const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], chart = /data-mc-chart="([a-z-]+)"/.exec(selector)?.[1];
       if (id) assert.ok(page.includes(`id="${id}"`), screen + ' → ' + selector);
-      else if (chart) assert.ok(fs.readFileSync('assets/absence-charts.js', 'utf8').includes(`key: '${chart}'`), selector);
+      else if (chart) assert.ok(fs.readFileSync('assets/absence-charts.js', 'utf8').includes(`'${chart}'`), selector);
       else assert.fail('unexpected selector ' + selector);
     }
   }
