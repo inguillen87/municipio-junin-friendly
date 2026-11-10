@@ -5,7 +5,7 @@ const el=(tag,text,id)=>{const node=document.createElement(tag);if(text!==undefi
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
 const field=(text,input)=>{const n=el('label',text);n.append(input);return n;};
 const short=id=>id.slice(0,8).toUpperCase()+'…'+id.slice(-6).toUpperCase();
-const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'SAC',vacation:'Vacaciones',supplementary:'Complementaria',final:'Final',other:'Otra'};
+const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo (SAC)',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra'};
 const states={pending:'Propuesta pendiente',approved:'Anulación aprobada',rejected:'Anulación rechazada'};
 
 export function mountMonthlyAnnul(host,{request,onLockChange,onChanged,onAccessInvalidated,externalLocked}){

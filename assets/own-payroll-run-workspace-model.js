@@ -8,7 +8,7 @@ import {ownProgramPeriodContext,verifiedPeriodContextCapture} from './own-payrol
 export const OWN_RUN_READ = Object.freeze(['workforce.employee.read','payroll.parameter.read','payroll.calculation.read']);
 export const OWN_RUN_NOMINAL = Object.freeze([...OWN_RUN_READ,'payroll.calculation.nominal.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export']);
 export const OWN_RUN_PREPARE = Object.freeze([...OWN_RUN_NOMINAL,'payroll.calculation.prepare']);
-export const OWN_RUN_TYPES = Object.freeze({monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo',vacation:'Vacaciones',supplementary:'Suplementaria',final:'Final',other:'Otra'});
+export const OWN_RUN_TYPES = Object.freeze({monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo',vacation:'Vacaciones',supplementary:'Suplementaria',final:'Liquidación final',other:'Otra'});
 export const OWN_RUN_NATURES = Object.freeze({remuneration:'Remunerativo',non_remuneration:'No remunerativo',deduction:'Retención',employer_contribution:'Aporte patronal',auxiliary:'Auxiliar'});
 const fail = message => { throw Error(message); };
 export const hasOwnRunAccess = (caps, required) => required.every(c => caps?.has(c));
