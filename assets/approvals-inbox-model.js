@@ -91,7 +91,9 @@ export const APPROVAL_SOURCES = Object.freeze([
 // Reviewed inside each person's record or per period+contract: no municipality-wide list exists to count them.
 export const APPROVAL_ELSEWHERE = Object.freeze([
   { title: 'Bajas, reingresos y cambios de encuadre', where: 'en la ficha de cada persona', href: '/personal#legajos' },
-  { title: 'Encuadre por período, jornada, antigüedad y datos fiscales', where: 'en su pantalla, eligiendo legajo y mes', href: '/nomina#encuadre' },
+  { title: 'Jornada de todo el padrón (aprobación por lote)', where: 'en Reglas y parámetros › Jornada contractual, sección «Jornada para varios legajos»', href: '/nomina#jornada' },
+  { title: 'Antigüedad de todo el padrón (aprobación por lote)', where: 'en Reglas y parámetros › Antigüedad salarial, sección «Antigüedad para varios legajos»', href: '/nomina#antiguedad' },
+  { title: 'Encuadre por período, jornada, antigüedad y datos fiscales de un legajo', where: 'en su pantalla, eligiendo legajo y mes', href: '/nomina#encuadre' },
   { title: 'Confirmar liquidaciones calculadas', where: 'en Confirmar y anular', href: '/nomina#decisiones' },
 ]);
 

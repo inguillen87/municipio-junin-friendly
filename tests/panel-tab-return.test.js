@@ -14,8 +14,11 @@ const REOPEN = {
 // Edit forms (encuadre, participación, antigüedad, jornada, condiciones, horas de convenio, días ART, datos fiscales, ART)
 // keep their explicit «Verificar acceso» step after hiding: their tests hold that the person re-verifies on purpose.
 const EXPLICIT_RECHECK = ['own-art-report-panel', 'own-agreement-working-time-panel', 'own-art-days-panel',
-  'own-contract-salary-conditions-panel', 'own-contract-working-time-panel', 'own-fiscal-facts-panel',
-  'own-period-classification-panel', 'own-period-participation-panel', 'own-salary-seniority-panel'];
+  'own-contract-salary-conditions-panel', 'own-fiscal-facts-panel',
+  'own-period-classification-panel', 'own-period-participation-panel'];
+// Jornada y antigüedad además alojan la carga por lote: su vista individual se retira igual y espera «Verificar acceso»,
+// pero un conjunto cargado, verificado o en marcha no se retira al tapar la ventana ni al mirar otra tarea.
+const BATCH_HOSTS = ['own-contract-working-time-panel', 'own-salary-seniority-panel'];
 
 const handler = source => {
   const start = source.indexOf("visibility=()=>{if(document.hidden)suspend('");
@@ -49,5 +52,19 @@ test('panels that check the session on opening check it again on return, with th
   for (const name of EXPLICIT_RECHECK) {
     const { back } = handler(read(name));
     assert.equal(back, 'else controls();', `${name} waits for the explicit access check`);
+  }
+});
+
+test('the two batch hosts withdraw their single-legajo view while hidden but keep a held batch working; closing the page withdraws everything', () => {
+  for (const name of BATCH_HOSTS) {
+    const source = read(name);
+    assert.ok(source.includes("const visibility=()=>{if(document.hidden){const keep=!!bulk?.holding();suspend(keep?'La carga por lote sigue trabajando aunque la ventana no esté a la vista.':'Se retiraron los datos al ocultar la página. Actualizá el acceso para consultar.',{keepBulk:keep});}else controls();},"), name + ' visibility');
+    assert.ok(source.includes("function suspend(message,{keepBulk=false}={}){seq++;controller?.abort();controller=null;busy=false;access=null;if(!keepBulk)bulk?.suspend();clearViews();"), name + ' keeps clearing the single view');
+    assert.ok(source.includes("isAttached:()=>!stopped&&host.isConnected,"), name + ' attached scope ends with the page');
+    assert.match(source, /window\.addEventListener\('pagehide',\(\)=>\{stopped=true;active=false;suspend\('Página cerrada\.'\);/, name + ' page close is a full withdrawal');
+    assert.match(source, /capabilities=\(\)=>\{suspend\('Cambió el acceso\. Verificá la cuenta antes de consultar\.'\);/, name + ' capability change is a full withdrawal');
+    const collective = read(name.replace(/-panel$/, '-collective-panel'));
+    assert.ok(collective.includes("action(()=>workspace.revalidate())"), 'returning to view re-checks the account before showing nominal rows');
+    assert.ok(collective.includes("if(v.masked){$('rows').replaceChildren();"), 'nominal rows are not rendered while masked');
   }
 });
