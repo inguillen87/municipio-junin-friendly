@@ -334,6 +334,23 @@
     .funding-reconciliation strong { color: var(--navy); font-size: 11px; }
     .funding-reconciliation span { color: var(--muted); font-size: 10px; }
     .funding-total { flex: 0 0 auto; color: var(--navy) !important; font-weight: 850; font-variant-numeric: tabular-nums; }
+    /* Ayuda visual: tramos y barras proporcionales a importes publicados; no agrega cifras ni porcentajes. */
+    .funding-bar { margin: 0; padding: 14px 17px 16px; border: 1px solid var(--line-strong); border-top: 0; background: #fff; }
+    .funding-bar figcaption { margin-bottom: 9px; color: var(--navy); font-size: 11px; font-weight: 800; }
+    .funding-bar-track { display: flex; gap: 3px; height: 30px; overflow: hidden; border-radius: 9px; background: #e6eeec; }
+    .funding-bar-part { flex: 1 1 0; min-width: 6px; transform-origin: left; animation: funding-grow .7s cubic-bezier(.2, .8, .2, 1); }
+    .funding-bar-part.is-resources { background: linear-gradient(90deg, #0f766e, #14a08f); }
+    .funding-bar-part.is-financing { background: linear-gradient(90deg, #c98a1b, #e0a023); }
+    .funding-bar-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 9px 0 0; padding: 0; list-style: none; color: var(--navy); font-size: 11px; font-weight: 700; }
+    .funding-bar-legend li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; background: #0f766e; }
+    .funding-bar-legend li.is-financing::before { background: #e0a023; }
+    .funding-bar-note { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
+    .breakdown-row > .breakdown-label { flex-direction: column; align-items: stretch; gap: 7px; }
+    .breakdown-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #e6eeec; }
+    .breakdown-bar i { display: block; width: calc(var(--share, 0) * 100%); min-width: 3px; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0f766e, #14a08f); transform-origin: left; animation: funding-grow .7s cubic-bezier(.2, .8, .2, 1); }
+    @keyframes funding-grow { from { transform: scaleX(.15); opacity: .4; } to { transform: none; opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .funding-bar-part, .breakdown-bar i { animation: none; } }
+    @media print { .funding-bar-part, .breakdown-bar i { animation: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 
     .breakdown-stack { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
     .breakdown-domain + .breakdown-domain { border-top: 1px solid var(--line-strong); }
@@ -572,6 +589,18 @@
                 <div><strong>Recursos + financiamiento</strong><br><span id="reconciliationSummary">La conciliación se muestra únicamente si la API publica su control.</span></div>
                 <span class="funding-total" id="fundingTotalValue">No informado</span>
               </div>
+              <figure class="funding-bar" id="fundingBar" hidden aria-labelledby="fundingBarCaption">
+                <figcaption id="fundingBarCaption">Con qué se cubre el gasto aprobado</figcaption>
+                <div class="funding-bar-track" id="fundingBarTrack" role="img">
+                  <span class="funding-bar-part is-resources" id="fundingBarResources"></span>
+                  <span class="funding-bar-part is-financing" id="fundingBarFinancing"></span>
+                </div>
+                <ul class="funding-bar-legend">
+                  <li class="is-resources">Recursos estimados</li>
+                  <li class="is-financing">Financiamiento estimado</li>
+                </ul>
+                <p class="funding-bar-note">Ayuda visual: cada tramo es proporcional a su importe. Los importes exactos son los de arriba.</p>
+              </figure>
             </section>
 
             <section class="section" aria-labelledby="breakdownsTitle">
@@ -1020,15 +1049,39 @@
           host.append(create('div', 'breakdown-empty', 'Sin desglose publicado para este dominio.'));
           return;
         }
-        rows.forEach(function (row) {
+        // Barra proporcional al renglón más grande del mismo bloque. Sólo se dibuja si todos los importes son válidos:
+        // un renglón sin importe no se muestra como barra vacía.
+        var amounts = rows.map(function (row) { var exact = canonicalDecimal(row.amount); return exact ? Number(exact) : NaN; });
+        var largest = amounts.every(function (value) { return Number.isFinite(value) && value >= 0; }) ? Math.max.apply(null, amounts) : 0;
+        rows.forEach(function (row, index) {
           var item = create('div', 'breakdown-row');
+          var label = create('div', 'breakdown-label');
+          label.append(create('span', '', row.label || 'Denominación no informada'));
+          if (largest > 0 && rows.length > 1) {
+            var bar = create('span', 'breakdown-bar'); bar.setAttribute('aria-hidden', 'true');
+            var fill = create('i'); fill.style.setProperty('--share', String(amounts[index] / largest)); bar.append(fill); label.append(bar);
+          }
           item.append(
             create('div', 'breakdown-code', row.code || 'Sin código'),
-            create('div', 'breakdown-label', row.label || 'Denominación no informada'),
+            label,
             create('div', 'breakdown-amount', formatMoney(row.amount))
           );
           host.append(item);
         });
+      }
+
+      // «Con qué se cubre el gasto»: dos tramos proporcionales a recursos y financiamiento aprobados. Sin esos dos
+      // importes válidos la figura no se muestra; no se estima ni se completa nada.
+      function renderFundingBar(resources, financing) {
+        var figure = byId('fundingBar');
+        var a = canonicalDecimal(resources), b = canonicalDecimal(financing);
+        var ok = Boolean(a && b) && Number(a) > 0 && Number(b) >= 0;
+        figure.hidden = !ok;
+        if (!ok) return;
+        byId('fundingBarResources').style.flexGrow = String(Number(a) / (Number(a) + Number(b)) * 1000);
+        byId('fundingBarFinancing').style.flexGrow = String(Number(b) / (Number(a) + Number(b)) * 1000);
+        byId('fundingBarFinancing').hidden = Number(b) === 0;
+        byId('fundingBarTrack').setAttribute('aria-label', 'Recursos estimados ' + formatMoney(resources) + ' y financiamiento estimado ' + formatMoney(financing) + '.');
       }
 
       function coverageText(rows, fallback) {
@@ -1046,6 +1099,7 @@
         byId('resourcesValue').textContent = formatMoney(model.approved.resources);
         byId('financingValue').textContent = formatMoney(model.approved.financing);
         byId('fundingTotalValue').textContent = formatMoney(model.approved.fundingTotal);
+        renderFundingBar(model.approved.resources, model.approved.financing);
         byId('expenseDomainTotal').textContent = formatMoney(model.approved.expenditures);
         byId('resourceDomainTotal').textContent = formatMoney(model.approved.resources);
         byId('financingDomainTotal').textContent = formatMoney(model.approved.financing);
