@@ -95,20 +95,34 @@ test('readiness checklist: master in force, rules in force and approval, in plai
   const r = ownRunPeriodReadiness(data, { period: '2026-10', liquidationType: 'monthly', agreements });
   assert.equal(r.ready, false);
   assert.deepEqual(r.master.withoutMaster, ['4']);
-  assert.deepEqual(r.master.missingDefinitions.map(d => d.kind + ':' + d.code), ['concept:1', 'concept:700', 'auxiliary:980']);
+  // September's rules are not October's inventory: nothing is counted as «missing» from them.
+  assert.deepEqual(r.master.missingDefinitions, []);
   assert.equal(ownRunReadinessTitle(r), 'Octubre 2026 todavía no se puede calcular');
   const [master, program, approval, calc] = ownRunReadinessSteps(r);
   assert.equal(master.state, 'todo');
-  assert.equal(master.text, 'Tiene valores vigentes para 1 de 2 convenios del alcance. Además, al convenio 1 le faltan 2 conceptos y 1 auxiliar con versión de octubre 2026.');
+  assert.equal(master.text, 'Tiene valores vigentes para 1 de 2 convenios del alcance.');
   assert.equal(master.href, '/nomina#parametros');
   assert.equal(program.text, 'Ningún convenio del alcance tiene reglas vigentes. El programa aprobado (revisión 1) tiene reglas de convenio 1 para septiembre 2026.');
   assert.equal(approval.state, 'todo');
   assert.match(approval.text, /^Todavía no hay una versión propuesta para octubre 2026\. La prepara una persona con permiso de preparar y la aprueba otra distinta\.$/);
   assert.equal(calc.state, 'todo');
-  // A pending proposal with October rules moves approval to «wait».
-  const pending = { ...data, proposals: [{ status: 'pending', definition: { rules: [{ code: '1', agreementCode: '1', nature: 'remuneration', validFrom: '2026-10', validUntil: null, liquidationTypes: ['monthly'] }] } }] };
-  const w = ownRunReadinessSteps(ownRunPeriodReadiness(pending, { period: '2026-10', liquidationType: 'monthly', agreements }))[2];
+  // A pending proposal with October rules moves approval to «wait», and its rules are the ones checked against the master.
+  const pending = { ...data, proposals: [{ status: 'pending', definition: { namespaceVersion: 'own-payroll-namespaces.v2', rules: [
+    { code: '1', agreementCode: '1', nature: 'remuneration', validFrom: '2026-10', validUntil: null, liquidationTypes: ['monthly'] },
+    { code: '980', agreementCode: '1', nature: 'auxiliary', validFrom: '2026-10', validUntil: null, liquidationTypes: ['monthly'] },
+    { code: '5', agreementCode: '9', nature: 'remuneration', validFrom: '2026-10', validUntil: null, liquidationTypes: ['monthly'] },
+  ] } }] };
+  const pr = ownRunPeriodReadiness(pending, { period: '2026-10', liquidationType: 'monthly', agreements });
+  assert.deepEqual(pr.master.missingDefinitions.map(d => d.kind + ':' + d.agreementCode + ':' + d.code), ['concept:1:1', 'auxiliary:1:980']);
+  const [pm, , w] = ownRunReadinessSteps(pr);
+  assert.equal(pm.text, 'Tiene valores vigentes para 1 de 2 convenios del alcance. Además, las reglas de octubre 2026 usan definiciones sin versión de ese mes: al convenio 1 le faltan 1 concepto y 1 auxiliar.');
   assert.equal(w.state, 'wait'); assert.equal(w.text, '1 versión espera aprobación. La revisa otra persona con permiso de aprobar.');
+  // Every convenio has values but October has no rules yet: the master is not called complete nor «missing N».
+  const valued = { ...data, salaryCatalog: { items: [...data.salaryCatalog.items, { kind: 'scale', agreementCode: '4', code: '1', categoryCode: '1', validFrom: '2026-10', validUntil: null, active: true }] } };
+  const [vm] = ownRunReadinessSteps(ownRunPeriodReadiness(valued, { period: '2026-10', liquidationType: 'monthly', agreements }));
+  assert.equal(vm.state, 'info');
+  assert.equal(vm.text, 'Tiene valores vigentes para 2 convenios del alcance. Qué conceptos y auxiliares necesita octubre 2026 lo define su programa de cálculo, todavía pendiente: se controla cuando ese programa se proponga.');
+  assert.doesNotMatch(vm.text, /faltan/);
   // September, convenio 1 only: everything in force.
   const sep = ownRunPeriodReadiness(data, { period: '2026-09', liquidationType: 'monthly', agreements: agreements.slice(0, 1) });
   assert.equal(sep.ready, true); assert.equal(ownRunReadinessTitle(sep), 'Septiembre 2026: listo para calcular');

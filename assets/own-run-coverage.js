@@ -131,18 +131,22 @@ export function ownRunPeriodReadiness(programData, { period, liquidationType, ag
   const masterFor = new Map();
   for (const item of items) if (inForceAt(item, period)) masterFor.set(String(item.agreementCode), (masterFor.get(String(item.agreementCode)) ?? 0) + 1);
   const withoutMaster = scope.filter(code => !masterFor.get(code));
-  // Definitions that the approved rules of these convenios use and that have no version in force for the period.
-  const namespaced = definition?.namespaceVersion === 'own-payroll-namespaces.v2';
-  const have = new Set(items.filter(i => inForceAt(i, period)).map(i => i.kind + ':' + i.agreementCode + ':' + i.code));
-  const missingDefinitions = new Map();
-  for (const rule of Array.isArray(definition?.rules) ? definition.rules : []) {
-    if (!scope.includes(String(rule.agreementCode))) continue;
-    const kind = namespaced && rule.nature === 'auxiliary' ? 'auxiliary' : 'concept', id = kind + ':' + rule.agreementCode + ':' + rule.code;
-    if (!have.has(id)) missingDefinitions.set(id, { kind, agreementCode: String(rule.agreementCode), code: String(rule.code) });
-  }
   const proposals = Array.isArray(programData?.proposals) ? programData.proposals : [];
   const pending = proposals.filter(p => p?.status === 'pending');
   const forPeriod = pending.filter(p => (Array.isArray(p?.definition?.rules) ? p.definition.rules : []).some(r => PAY.has(r.nature) && inForceAt(r, period) && Array.isArray(r.liquidationTypes) && r.liquidationTypes.includes(liquidationType) && scope.includes(String(r.agreementCode))));
+  // Definitions that the rules of THIS period use (approved, or proposed and waiting) and that have no version in force.
+  // Rules of another month are not the inventory of this one: counting them would show a misleading «faltan N».
+  const have = new Set(items.filter(i => inForceAt(i, period)).map(i => i.kind + ':' + i.agreementCode + ':' + i.code));
+  const missingDefinitions = new Map();
+  const sources = [definition, ...forPeriod.map(p => p.definition)].filter(Boolean);
+  for (const source of sources) {
+    const namespaced = source.namespaceVersion === 'own-payroll-namespaces.v2';
+    for (const rule of Array.isArray(source.rules) ? source.rules : []) {
+      if (!scope.includes(String(rule.agreementCode)) || !inForceAt(rule, period)) continue;
+      const kind = namespaced && rule.nature === 'auxiliary' ? 'auxiliary' : 'concept', id = kind + ':' + rule.agreementCode + ':' + rule.code;
+      if (!have.has(id)) missingDefinitions.set(id, { kind, agreementCode: String(rule.agreementCode), code: String(rule.code) });
+    }
+  }
   const registered = history && history.period === period && history.after > 0 ? history : null;
   // Per-person and per-convenio facts the approved programme reads; each one is declared and approved for the month.
   const facts = FACTS.filter(f => definition && definition[f.key] != null).map(f => f.label);
@@ -166,15 +170,18 @@ export function ownRunReadinessSteps(r) {
     return 'al convenio ' + code + ' le faltan ' + [concepts ? plural(concepts, 'concepto', 'conceptos') : '', aux ? plural(aux, 'auxiliar', 'auxiliares') : ''].filter(Boolean).join(' y ');
   }).join('; ');
   const masterDone = !r.master.withoutMaster.length && !r.master.missingDefinitions.length;
+  // Values for every convenio, but no rules for this month yet: what the month needs is defined by its programme.
+  const masterPartial = masterDone && !rules && !r.approval.forPeriod;
   const history = r.program.history.length
     ? ' El programa aprobado' + (r.program.revision ? ' (revisión ' + r.program.revision + ')' : '') + ' tiene reglas de ' + r.program.history.map(a => 'convenio ' + a.code + ' para ' + a.validity.map(validityLabel).join(', ')).join('; ') + '.'
     : ' Todavía no hay un programa aprobado.';
   const approvalState = rules ? 'done' : r.approval.forPeriod ? 'wait' : 'todo';
   const h = r.history, day = d => d.split('-').reverse().join('/');
   const steps = [
-    { key: 'master', state: masterDone ? 'done' : 'todo', title: 'Maestro salarial de ' + when,
-      text: masterDone ? 'Tiene valores vigentes para ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.'
-        : 'Tiene valores vigentes para ' + r.master.withMaster + ' de ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.' + (missingText ? ' Además, ' + missingText + ' con versión de ' + when + '.' : ''),
+    { key: 'master', state: masterPartial ? 'info' : masterDone ? 'done' : 'todo', title: 'Maestro salarial de ' + when,
+      text: masterPartial ? 'Tiene valores vigentes para ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance. Qué conceptos y auxiliares necesita ' + when + ' lo define su programa de cálculo, todavía pendiente: se controla cuando ese programa se proponga.'
+        : masterDone ? 'Tiene valores vigentes para ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.'
+        : 'Tiene valores vigentes para ' + r.master.withMaster + ' de ' + plural(r.master.scope, 'convenio', 'convenios') + ' del alcance.' + (missingText ? ' Además, las reglas de ' + when + ' usan definiciones sin versión de ese mes: ' + missingText + '.' : ''),
       href: '/nomina#parametros', action: 'Abrir Parámetros' },
     { key: 'program', state: rules ? 'done' : 'todo', title: 'Reglas de cálculo vigentes para ' + when,
       text: (r.program.covered ? r.program.covered + ' de ' + plural(total, 'convenio tiene', 'convenios tienen') + ' reglas vigentes.' : (total === 1 ? 'El convenio del alcance no tiene' : 'Ningún convenio del alcance tiene') + ' reglas vigentes.') + (rules ? '' : history),
