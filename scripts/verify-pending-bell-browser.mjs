@@ -14,12 +14,12 @@ const html = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="v
 <script type="module">
 import {mountPendingBell} from '/assets/pending-bell.js';
 const at = m => new Date(Date.now() - m * 60000).toISOString();
-const review = (n, m, title, href) => ({source: 's' + n, title, period: '2026-10', proposalId: '${id(0)}'.slice(0, -2) + String(n).padStart(2, '0'), authorLabel: 'Preparadora sintética', createdAt: at(m), reason: 'Propuesta exclusivamente sintética para revisar', href});
-window.qa = {reads: 0, fail: false, data: {version: 'pending-work.v1', generatedAt: at(0),
-  toReview: [review(1, 25, 'Condiciones salariales', '/nomina#condiciones'), review(2, 190, 'Horas por convenio', '/nomina#horas-convenio')],
-  decided: [{source: 's3', title: 'Antigüedad salarial', period: '2026-10', proposalId: '${id(3)}', status: 'rejected', actorLabel: 'Revisora sintética', recordedAt: at(8), reason: 'Falta la constancia exclusivamente sintética', href: '/nomina#antiguedad'}],
-  counts: {toReview: 2, decided: 1}}, review};
-window.bell = mountPendingBell({host: document.getElementById('bar'), accountKey: 'qa', everyMs: 15000, read: async () => { window.qa.reads++; if (window.qa.fail) throw new Error('sintético'); return structuredClone(window.qa.data); }});
+const review = (n, m) => ({proposalId: '${id(0)}'.slice(0, -2) + String(n).padStart(2, '0'), period: '2026-10', authorLabel: 'Preparadora sintética', createdAt: at(m), canReview: true});
+const pending = (toReview, decided) => ({version: 'own-contract-salary-conditions.pending.v1', generatedAt: at(0), complete: true, decisionWindowDays: 30, toReview, decided, counts: {toReview: toReview.length, decided: decided.length}, payrollCalculated: false, payrollPosted: false});
+window.qa = {reads: 0, fail: false, review, pending, sources: [
+  {key: 'condiciones', title: 'Condiciones salariales', href: '/nomina#condiciones', pending: pending([review(1, 25)], [{eventId: '${id(103)}', proposalId: '${id(3)}', period: '2026-10', status: 'rejected', actorLabel: 'Revisora sintética', recordedAt: at(8)}])},
+  {key: 'horas-convenio', title: 'Horas por convenio', href: '/nomina#horas-convenio', pending: pending([review(2, 190)], [])}]};
+window.bell = mountPendingBell({host: document.getElementById('bar'), accountKey: 'qa', everyMs: 15000, read: async () => { window.qa.reads++; if (window.qa.fail) throw new Error('sintético'); return structuredClone(window.qa.sources); }});
 window.listo = true;
 </script></body></html>`;
 
@@ -47,7 +47,8 @@ try {
   const items = panel.locator('.mc-bell-item');
   check(await items.count() === 3 && (await items.nth(0).locator('strong').innerText()) === 'Horas por convenio · octubre de 2026' && /lo pidió hace 3 h$/.test(await items.nth(0).locator('.mc-bell-who').innerText()), 'primero lo que espera hace más tiempo, con quién lo pidió y cuándo');
   check((await items.nth(0).locator('a').getAttribute('href')) === '/nomina#horas-convenio' && (await items.nth(0).locator('a').innerText()) === 'Revisar ahora', '«Revisar ahora» lleva directo a la tarea');
-  check(/^Rechazado por Revisora sintética hace 8 min$/.test(await items.nth(2).locator('.mc-bell-who').innerText()) && (await items.nth(2).locator('.mc-bell-why').innerText()).startsWith('Falta la constancia'), 'lo rechazado llega con quién lo decidió y su motivo');
+  check(/^Rechazado por Revisora sintética hace 8 min$/.test(await items.nth(2).locator('.mc-bell-who').innerText()) && (await items.nth(2).locator('strong').innerText()) === 'Condiciones salariales · octubre de 2026', 'lo rechazado llega con quién lo decidió y cuándo');
+  check((await panel.innerText()).includes('Por ahora avisa de: Condiciones salariales, Horas por convenio.') && !(await panel.innerText()).includes('Propuesta exclusivamente'), 'dice qué circuitos cubre y no muestra fundamentos');
   check((await badge.innerText()) === '2', 'abrir la lista marca vistas las novedades; lo que espera decisión sigue contando');
   check(await page.evaluate(() => [...document.querySelectorAll('.mc-bell-go')].every(a => a.getBoundingClientRect().height >= 44)), 'los botones de la lista miden 44px o más');
   await page.screenshot({path: path.join(output, 'campanita-abierta.png'), clip: {x: 866, y: 0, width: 500, height: 620}});
@@ -55,16 +56,18 @@ try {
   check(await panel.isHidden() && await button.evaluate(e => e === document.activeElement), 'Escape cierra y devuelve el foco a la campanita');
   await button.click(); await page.locator('#otro').click(); check(await panel.isHidden(), 'un clic afuera cierra la lista');
 
-  await page.evaluate(() => { window.qa.data.toReview.push(window.qa.review(4, 0, 'Asignaciones familiares', '/nomina#familia')); window.qa.data.counts.toReview = 3; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
+  await page.evaluate(() => { const p = window.qa.sources[1].pending; p.toReview.push(window.qa.review(4, 0)); p.counts.toReview = 2; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
   await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '3');
   check((await page.locator('.mc-bell-live').innerText()).startsWith('Nuevo pendiente: 3 pendientes te esperan'), 'cuando llega algo nuevo se actualiza sola y lo anuncia para lectores de pantalla');
   await page.reload(); await page.waitForFunction(() => window.listo === true && window.qa.reads >= 1); await badge.waitFor({state: 'visible'});
-  check((await badge.innerText()) === '2', 'al volver a entrar, la novedad ya vista no se cuenta otra vez');
+  check((await badge.innerText()) === '2', 'al volver a entrar, la decisión ya mostrada no se cuenta otra vez');
+  await page.evaluate(() => { window.qa.sources[0] = {key: 'condiciones', title: 'Condiciones salariales', href: '/nomina#condiciones', error: true}; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); }); await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '1'); await button.click();
+  check((await panel.innerText()).includes('Sin respuesta de: Condiciones salariales. No se cuentan como cero.'), 'un circuito sin respuesta se nombra y no se cuenta como cero'); await page.keyboard.press('Escape'); await page.reload(); await page.waitForFunction(() => window.listo === true && window.qa.reads >= 1); await badge.waitFor({state: 'visible'});
 
   await page.evaluate(() => { window.qa.fail = true; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); }); await page.waitForFunction(() => window.qa.reads >= 2);
   await button.click(); check((await badge.innerText()) === '2' && (await panel.innerText()).includes('La última consulta falló; esto es lo anterior.'), 'si una consulta falla conserva lo anterior y lo dice, sin inventar un cero');
   await page.keyboard.press('Escape');
-  await page.evaluate(() => { window.qa.fail = false; window.qa.data.toReview = []; window.qa.data.decided = []; window.qa.data.counts = {toReview: 0, decided: 0}; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
+  await page.evaluate(() => { window.qa.fail = false; for (const s of window.qa.sources) s.pending = window.qa.pending([], []); document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
   await page.waitForFunction(() => document.querySelector('.mc-bell-badge').hidden === true); await button.click();
   check((await button.getAttribute('aria-label')) === 'Pendientes: Sin pendientes' && (await panel.innerText()).includes('No hay nada esperándote.'), 'sin pendientes no hay número y la lista lo dice');
   await page.keyboard.press('Escape');

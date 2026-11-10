@@ -7,6 +7,8 @@ export function previousPeriod(period) {
   const year = Number(match[1]), month = Number(match[2]);
   return month === 1 ? String(year - 1).padStart(4, '0') + '-12' : match[1] + '-' + String(month - 1).padStart(2, '0');
 }
+// Los períodos válidos empiezan en enero de 1900: desde ahí no hay mes anterior que traer.
+export const carryAvailable = period => /^([0-9]{4})-(0[1-9]|1[0-2])$/.test(period ?? '') && previousPeriod(period) >= '1900-01';
 export function periodName(period) {
   const match = /^([0-9]{4})-(0[1-9]|1[0-2])$/.exec(period ?? '');
   if (!match) throw new TypeError('PERIOD_INVALID');
