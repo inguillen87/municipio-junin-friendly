@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "scopeVersion": "8c678519909d0bdf3a7754b8f1a1ecb1858c95d41fca1a54a04224b03836a54d",
+    "baseVersion": "73fca45a1951d869c5e5f0e1dec5c71399129e7d8ecd4d15d4ec8ecc85992b95",
+    "subject": {
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "registrationId": "f1000000-0000-4000-8000-000000000103",
+      "legajo": "990003",
+      "employeeName": "Persona sintética C — fixture UI",
+      "status": "active",
+      "startDate": "2000-01-01",
+      "endDate": null
+    },
+    "state": {
+      "voided": false,
+      "version": null,
+      "approvalId": null,
+      "approvedAt": null
+    },
+    "dependencies": [],
+    "pendingOperations": [
+      {
+        "kind": "lifecycle",
+        "id": "f1000000-0000-4000-8000-000000000404",
+        "version": "31bbb83dd24f2a057f524fc26b3adb3c0f8d69f2f492e31877171e1623581758"
+      }
+    ],
+    "proposals": [],
+    "permissions": {
+      "canPropose": true,
+      "canReview": true
+    },
+    "complete": true
+  }
+}

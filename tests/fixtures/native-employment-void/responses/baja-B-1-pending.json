@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-lifecycle.v2",
+    "proposal": {
+      "id": "f1000000-0000-4000-8000-000000000403",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "subject": {
+        "contractId": "f1000000-0000-4000-8000-000000000002",
+        "legajo": "990002",
+        "employeeName": "Persona sintética B — fixture UI",
+        "identityToken": "03b78de204a401395d061c09c9f47116b306098c2f01038150258906c438d7eb",
+        "sourceCutoff": null,
+        "origin": "MUNICONTROL",
+        "registrationId": "f1000000-0000-4000-8000-000000000102",
+        "registeredAt": "2026-10-16T00:00:00Z",
+        "recordKind": "adopted"
+      },
+      "status": "pending",
+      "movement": "terminate",
+      "date": "2026-11-06",
+      "reason": "Solicitud de baja sintética para probar antecedentes y enlaces de la interfaz.",
+      "legalReference": "Documento sintético QA sin efecto administrativo",
+      "createdAt": "2026-11-06T12:00:00Z",
+      "authorLabel": "Preparador sintético QA",
+      "baseVersion": "e6a6cd2dcdfacb89ff8f7ecb2d0739cc2dc37e3d1a3b0e55451f0e0ae43a053b",
+      "canReview": true,
+      "before": {
+        "intervals": [
+          {
+            "startDate": "2000-01-01",
+            "endDate": null
+          }
+        ]
+      },
+      "after": {
+        "intervals": [
+          {
+            "startDate": "2000-01-01",
+            "endDate": "2026-11-06"
+          }
+        ]
+      },
+      "review": null
+    }
+  }
+}

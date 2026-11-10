@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "code": "NATIVE_EMPLOYMENT_VOID_SESSION_INVALID",
+  "error": "La sesión venció o cambió. Volvé a ingresar."
+}

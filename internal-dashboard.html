@@ -4094,6 +4094,9 @@
         }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
         const positionSection=document.createElement('section');positionSection.className='employee-section';const positionHost=document.createElement('div');positionSection.append(positionHost);
         import('./assets/position-assignment-panel.js').then(function(module){if(!positionHost.isConnected||!els.employeeDialog.open)return;module.mountPositionAssignment(positionHost,{contractId:employee.contractId});}).catch(function(){if(positionHost.isConnected)positionHost.textContent='No se pudo abrir la asignación presupuestaria. Cerrá y volvé a consultar la ficha.';});
+        // Corregir alta histórica: only contracts the server accepts for it show the section (others answer ORIGIN_NOT_SUPPORTED).
+        const voidHost=document.createElement('div');lifecycleSection.append(voidHost);
+        import('./assets/native-employment-void.js').then(function(module){if(!voidHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentVoid(voidHost,{contractId:employee.contractId,onApplied:function(){withdrawEmployeeDirectory('changed');}});}).catch(function(){});
         const fragment=document.createDocumentFragment();fragment.append(section,lifecycleSection,leaveSection,positionSection);return fragment;
       }
 

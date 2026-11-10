@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "operation": "propose",
+    "contractId": "f1000000-0000-4000-8000-000000000001",
+    "proposalId": "f1000000-0000-4000-8000-000000000201",
+    "status": "pending",
+    "proposalVersion": "5b0e4da228343f7205fe87bc56f18ea8f688c71a37301c44ad2c496bbba5da6e",
+    "approvalId": null,
+    "reviewVersion": null,
+    "supersededProposals": [],
+    "replayed": false,
+    "payrollModified": false,
+    "datesModified": false
+  }
+}

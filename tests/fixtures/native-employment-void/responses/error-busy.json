@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "code": "NATIVE_EMPLOYMENT_VOID_BUSY",
+  "error": "Hay otra operación en curso. Reintentá el mismo intento en un momento."
+}

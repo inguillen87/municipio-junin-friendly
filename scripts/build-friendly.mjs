@@ -356,6 +356,8 @@ const shellFiles = [
   'assets/native-employment-lifecycle.css',
   'assets/native-employment-lifecycle-model.js',
   'assets/native-employment-lifecycle-review.js',
+  'assets/native-employment-void.js',
+  'assets/native-employment-void-model.js',
   'assets/employee-detail-navigation.js',
   'assets/employee-detail-navigation.css',
   'assets/workspace-quickbar.js',
