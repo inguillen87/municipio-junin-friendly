@@ -6,7 +6,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {randomUUID, createHash} from 'node:crypto';
 import {chromium} from 'playwright';
-import {FAMILY_PAYROLL_FACTS_VERSION, familyPayrollFactsCommand, familyPayrollFactsHash, familyPayrollFactsBootstrap} from '../assets/own-contract-family-payroll-facts-model.js';
+import {FAMILY_PAYROLL_FACTS_VERSION, familyPayrollFactsCommand, familyPayrollFactsHash, familyPayrollFactsBootstrap, familyEvidenceText} from '../assets/own-contract-family-payroll-facts-model.js';
 import {familyFactsDraft, familyFactsCsv, familyFactsFile} from '../assets/own-contract-family-payroll-facts-workspace.js';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -97,6 +97,22 @@ try {
 
   // 3. Constancia común y búsqueda (la búsqueda no recorta el conjunto)
   await panel.getByText('Usar una constancia común para todas las filas', {exact: true}).click();
+  // 3a. Constancia con caracteres fuera del plano básico (revisión R7 de Root): al escribir y al pegar, el control
+  // conserva el texto completo; 181 no se recorta a 180, y lo que el navegador recorte queda rechazado por el modelo.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const astral = n => String.fromCodePoint(0x1F600).repeat(n), points = async l => [...await l.inputValue()].length;
+  const typeInto = async (l, text) => { await l.fill(''); await l.focus(); await page.keyboard.insertText(text); };
+  const pasteInto = async (l, text) => { await l.fill(''); await page.evaluate(t => navigator.clipboard.writeText(t), text); await l.focus(); await page.keyboard.press('Control+V'); };
+  for (const [name, l] of [['común', s('common-reference')], ['de la persona', first.locator('label.family-facts-wide input')]]) {
+   check(await l.evaluate(e => e.maxLength) === 362, 'la constancia ' + name + ' admite 362 unidades en el control');
+   for (const n of [91, 180, 181]) {
+    await typeInto(l, astral(n)); check(await points(l) === n, 'constancia ' + name + ': ' + n + ' caracteres astrales escritos quedan completos');
+    await pasteInto(l, astral(n)); check(await points(l) === n, 'constancia ' + name + ': ' + n + ' caracteres astrales pegados quedan completos');
+   }
+   await pasteInto(l, astral(300)); const kept = await l.inputValue();
+   check([...kept].length >= 181 && !familyEvidenceText(kept, 3, 180), 'constancia ' + name + ': un pegado más largo que el control queda rechazado, nunca aceptado recortado');
+  }
+  check(familyEvidenceText(astral(91), 3, 180) && familyEvidenceText(astral(180), 3, 180) && !familyEvidenceText(astral(181), 3, 180), 'el modelo acepta 91 y 180 caracteres astrales y rechaza 181');
   await s('common-date').fill(period + '-01'); await s('common-reference').fill('Constancia común exclusivamente sintética QA'); await s('evidence').click();
   check((await s('status').innerText()).includes('Constancia aplicada a ' + count + ' filas'), 'la constancia común se aplica al conjunto completo sin tocar cantidades');
   await s('search').fill('QA-37'); check(await s('rows').locator('details').count() === 1 && (await s('count').innerText()).startsWith('1 visibles'), 'la búsqueda encuentra a una persona de la última página');
