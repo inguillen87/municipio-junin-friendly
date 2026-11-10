@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
+import {ownInstallationFunctionPin} from '../scripts/lib/own-payroll-installation.mjs';
 import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
 import {buildOwnContractFamilyPayrollFactsInstallation as build,
   prepareOwnContractFamilyPayrollFactsInstallation as prepare,
@@ -254,4 +256,98 @@ test('durability receipt must come from independent backend connections', () => 
   const b = receipts();b.repeated.backendPid = 0;assert.throws(() => durability(b));
   assert.match(batch.installation.at(-1), /'backendPid',pg_backend_pid\(\)/);
   assert.match(batch.rollbackVerification.at(-1), /'backendPid',pg_backend_pid\(\)/);
+});
+
+const source224File = 'scripts/migrations/224-native-employment-void.sql';
+const source224 = read(source224File).replace(/\r\n?/g, '\n');
+const source224Definition = name => {
+  const marker = 'CREATE OR REPLACE FUNCTION public.' + name + '(';
+  assert.equal(source224.split(marker).length, 2);
+  const remaining = source224.slice(source224.indexOf(marker));
+  const tag = /\bAS\s+(\$[a-z_0-9]*\$)/i.exec(remaining);
+  const closing = remaining.indexOf(tag[1], tag.index + tag[0].length);
+  assert.equal(remaining[closing + tag[1].length], ';');
+  return remaining.slice(0, closing + tag[1].length + 1);
+};
+const currentSubject = batch.prerequisitePins.find(pin => pin.name === 'payroll_fixed_registry_subject_v2');
+const currentRange = batch.prerequisitePins.find(pin => pin.name === 'payroll_fixed_registry_range_v2');
+
+test('current224 authority is the exact complete E416 source by SHA256 and Git blob', () => {
+  const bytes = Buffer.from(source224);
+  assert.equal(bytes.length, 102089);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), 'ad708d03348188a09d26ebb22980133e6be96cc5ef9cc3e156f90601362ce384');
+  assert.equal(createHash('sha1').update(Buffer.from('blob ' + bytes.length + '\0')).update(bytes).digest('hex'), '80c85232ea744740bc88a24a92608f8b90ad9bee');
+  assert.equal(sourcePins[source224File], 'ad708d03348188a09d26ebb22980133e6be96cc5ef9cc3e156f90601362ce384');
+  assert.equal(Object.keys(sourcePins).length, 15);
+  assert.equal(splitPostgresStatements(source224).length, 1);
+});
+
+test('subject successor has complete source-derived current224 metadata', () => {
+  assert.deepEqual(currentSubject, {name: 'payroll_fixed_registry_subject_v2',
+    signature: 'public.payroll_fixed_registry_subject_v2(jsonb,uuid,boolean)',
+    sha256: '394dade4020058b50f37d6cef28427dd0e3920a894062d4e175b013b61f4a8c9',
+    argNames: ['ctx', 'target', 'hold_lock'], defaults: 'false', resultType: 'jsonb',
+    language: 'plpgsql', returnsSet: false, strict: false, definer: true, volatility: 'v',
+    config: ['search_path=pg_catalog, public, pg_temp'], runtime: false});
+});
+
+test('range successor has complete source-derived current224 metadata', () => {
+  assert.deepEqual(currentRange, {name: 'payroll_fixed_registry_range_v2',
+    signature: 'public.payroll_fixed_registry_range_v2(jsonb,uuid,date,date,boolean)',
+    sha256: 'b7e8305da7038cbd6519ac16765fb57213286b51451983b10f3935eccca7b1fd',
+    argNames: ['ctx', 'target', 'first_date', 'last_date', 'continuous'], defaults: 'false', resultType: 'boolean',
+    language: 'plpgsql', returnsSet: false, strict: false, definer: true, volatility: 'v',
+    config: ['search_path=pg_catalog, public, pg_temp'], runtime: false});
+});
+
+test('predecessor138 bodies remain excluded from this fixed current224 preflight', () => {
+  const statements = splitPostgresStatements(read('scripts/migrations/138-adopted-fixed-novelties.sql'));
+  for (const current of [currentSubject, currentRange]) {
+    const definition = statements.find(statement => statement.startsWith('CREATE FUNCTION public.' + current.name + '('));
+    const predecessor = ownInstallationFunctionPin(definition);
+    assert.notEqual(current.sha256, predecessor.sha256);
+    assert.ok(batch.prerequisiteCheck.includes(current.sha256));
+    assert.ok(!batch.prerequisiteCheck.includes(predecessor.sha256));
+  }
+  assert.match(batch.prerequisiteCheck, /FAMILY_INSTALL_PREREQUISITE_CHANGED/);
+});
+
+test('changed224 withdrawal body or substituted138 source is rejected before SQL construction', () => {
+  const changed = source224.replace("RAISE EXCEPTION 'NATIVE_EMPLOYMENT_VOID_WITHDRAWN'", "RAISE EXCEPTION 'SYNTHETIC_CHANGED_GUARD'");
+  assert.notEqual(changed, source224);
+  assert.throws(() => build({read: file => file === source224File ? changed : read(file), sourceCommit}), /FAMILY_INSTALL_SOURCE_CHANGED/);
+  assert.throws(() => build({read: file => file === source224File ? read('scripts/migrations/138-adopted-fixed-novelties.sql') : read(file), sourceCommit}), /FAMILY_INSTALL_SOURCE_CHANGED/);
+});
+
+test('the224 original preflight and private core remain source only, never226 installation mutations', () => {
+  for (const marker of ['DO $preflight$', 'VOID_LEDGER_REQUIRED',
+    'VOID_READER_BASE_CHANGED: payroll_fixed_registry_subject_v2',
+    'VOID_READER_BASE_CHANGED: payroll_fixed_registry_range_v2']) assert.ok(source224.includes(marker));
+  assert.equal(batch.migration.length, 25);
+  assert.doesNotMatch(batch.apply, /native_employment_void_|migration_224|VOID_LEDGER_REQUIRED|VOID_READER_BASE_CHANGED/);
+  assert.equal(batch.newPins.length, 15);
+  assert.equal(batch.newPins.filter(pin => pin.runtime).length, 4);
+});
+
+test('both successor pins retain strict owner/private ACL/body/config checks', () => {
+  assert.equal(currentSubject.runtime, false);
+  assert.equal(currentRange.runtime, false);
+  for (const token of ['p.proowner<>current_user::regrole', "p.prokind<>'f'", 'p.prosecdef',
+    'p.proconfig', 'p.prosrc', 'has_function_privilege', 'NOT a.is_grantable'])
+    assert.ok(batch.prerequisiteCheck.includes(token), token);
+  for (const stage of [batch.installation, batch.repetition, batch.durableVerification, batch.rollbackVerification])
+    assert.ok(stage.includes(batch.prerequisiteCheck));
+});
+
+test('canonicalizing only224 headers preserves each exact published body SHA', () => {
+  for (const expected of [currentSubject, currentRange]) {
+    const definition = source224Definition(expected.name);
+    const match = /\bAS\s+(\$[a-z_0-9]*\$)([\s\S]*)\1\s*;$/i.exec(definition);
+    assert.ok(match);
+    assert.equal(createHash('sha256').update(match[2]).digest('hex'), expected.sha256);
+    const normalized = definition.slice(0, match.index)
+      .replace("SET search_path TO 'pg_catalog', 'public', 'pg_temp'", 'SET search_path=pg_catalog,public,pg_temp')
+      .replace(/\s+/g, ' ') + definition.slice(match.index);
+    assert.deepEqual({...ownInstallationFunctionPin(normalized), runtime: false}, expected);
+  }
 });

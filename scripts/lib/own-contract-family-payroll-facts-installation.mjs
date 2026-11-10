@@ -14,6 +14,7 @@ export const FAMILY_PAYROLL_FACTS_SHA256 = 'f2f46695a84dee098471e515d964fe0f9523
 export const FAMILY_PAYROLL_FACTS_SOURCE_COMMIT = 'e41680a110d1aa253ddad5fd026eb4e8facdd0b8';
 export const FAMILY_PAYROLL_FACTS_SOURCE_PINS = Object.freeze({
   [FAMILY_PAYROLL_FACTS_FILE]: FAMILY_PAYROLL_FACTS_SHA256,
+  'scripts/migrations/224-native-employment-void.sql': 'ad708d03348188a09d26ebb22980133e6be96cc5ef9cc3e156f90601362ce384',
   'scripts/migrations/171-own-contract-salary-conditions.sql': '42c253a0395abf7abe326804cdd1a641d6936df84c960728c1e6a6aa6319c8ee',
   'scripts/migrations/007-action-center-read-facades.sql': 'd0e04ca20e3b67518d1340fe38d409fc3c7b339da4dee20e7a6850ebadbc8a1e',
   'scripts/migrations/112-native-salary-definitions.sql': 'da72986b8eb8b834f8f11f0cdfd793708eba90c96de59c399ff063fe31a95cd3',
@@ -151,13 +152,34 @@ export function buildOwnContractFamilyPayrollFactsInstallation({read, sourceComm
     assert.equal(found.length, 1, 'FAMILY_INSTALL_PREREQUISITE_SOURCE_MISSING: ' + name);
     return {...ownInstallationFunctionPin(found[0]), runtime: false};
   };
+  // The fixed current profile consumes the existing224 successor definitions.
+  // Only metadata is derived here. Its atomic migration is never appended to226.
+  const current224 = texts['scripts/migrations/224-native-employment-void.sql'];
+  assert.equal(splitPostgresStatements(current224).length, 1, 'FAMILY_INSTALL_224_ATOMIC_SOURCE_CHANGED');
+  const current224Blob = createHash('sha1').update('blob ' + Buffer.byteLength(current224) + '\0').update(current224).digest('hex');
+  assert.equal(current224Blob, '80c85232ea744740bc88a24a92608f8b90ad9bee', 'FAMILY_INSTALL_224_GIT_BLOB_CHANGED');
+  assert.ok(current224.includes('DO $preflight$') && current224.includes('VOID_LEDGER_REQUIRED') && current224.includes('VOID_READER_BASE_CHANGED: payroll_fixed_registry_subject_v2') && current224.includes('VOID_READER_BASE_CHANGED: payroll_fixed_registry_range_v2'), 'FAMILY_INSTALL_224_SOURCE_GUARDS_CHANGED');
+  const current224Function = name => {
+    const marker = 'CREATE OR REPLACE FUNCTION public.' + name + '(';
+    assert.equal(current224.split(marker).length, 2, 'FAMILY_INSTALL_224_DEFINITION_COUNT: ' + name);
+    const remaining = current224.slice(current224.indexOf(marker));
+    const tag = /\bAS\s+(\$[a-z_0-9]*\$)/i.exec(remaining);
+    assert.ok(tag, 'FAMILY_INSTALL_224_DEFINITION_BODY: ' + name);
+    const closing = remaining.indexOf(tag[1], tag.index + tag[0].length);
+    assert.ok(closing > tag.index && remaining[closing + tag[1].length] === ';', 'FAMILY_INSTALL_224_DEFINITION_END: ' + name);
+    const definition = remaining.slice(0, closing + tag[1].length + 1);
+    const header = definition.slice(0, tag.index)
+      .replace("SET search_path TO 'pg_catalog', 'public', 'pg_temp'", 'SET search_path=pg_catalog,public,pg_temp')
+      .replace(/\s+/g, ' ');
+    return {...ownInstallationFunctionPin(header + definition.slice(tag.index)), runtime: false};
+  };
   const administrative = /export const SALARY_ADMINISTRATIVE_CONTEXT=`([^`]+)`;/.exec(texts['scripts/lib/salary-administrative-identity-installation.mjs']);
   assert.ok(administrative, 'FAMILY_INSTALL_ADMINISTRATIVE_SOURCE_MISSING');
   const prerequisitePins = [
     {...ownInstallationFunctionPin(administrative[1]), runtime: false},
     ...['native_salary_lock_v1', 'native_salary_scope_v1', 'native_salary_serialized_v1'].map(name => sourceFunction('scripts/migrations/112-native-salary-definitions.sql', name)),
     ...['own_program_exact_v1', 'own_program_text_v1'].map(name => sourceFunction('scripts/migrations/122-own-payroll-programs.sql', name)),
-    ...['payroll_fixed_registry_subject_v2', 'payroll_fixed_registry_range_v2'].map(name => sourceFunction('scripts/migrations/138-adopted-fixed-novelties.sql', name)),
+    ...['payroll_fixed_registry_subject_v2', 'payroll_fixed_registry_range_v2'].map(current224Function),
     sourceFunction('scripts/migrations/007-action-center-read-facades.sql', 'action_center_context_has_capability'),
   ];
   const directCalls = [...definitions.join('\n').matchAll(/\bpublic\.([a-z0-9_]+)\(/g)].map(match => match[1]);
