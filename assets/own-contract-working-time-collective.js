@@ -60,6 +60,32 @@ async function entry(row,boot,detail,period,command,reason){
  return {row,body:decideWorkingTime(boot,d,command,reason),before:d.baseDefinition,after:d.body.definition};
 }
 
+/**
+ * Conjunto completo para revisar sin archivo: una fila por contrato activo del padrón propio, con su única propuesta
+ * pendiente del período (a decidir) o con su declaración ya aprobada (sin cambios). Si un contrato activo no tiene ni una
+ * cosa ni la otra, el conjunto no se arma: nada se completa con valores supuestos.
+ */
+export async function collectiveWorkingTimePendingFile({period,roster,readBootstrap,readDetail,width=4,progress=()=>{}}){
+ fail(workingTimePeriod(period),'Elegí el mes de las propuestas.','PERIOD');
+ fail(typeof readBootstrap==='function'&&typeof readDetail==='function','Falta un transporte canónico del conjunto.');
+ const source=nativeRoster(roster,nativeRosterFilters({status:'all'}));fail(source.version==='native-roster.v2','Se necesita el padrón propio completo vigente.','ROSTER');
+ const active=source.rows.filter(r=>r.status==='active');fail(active.length>0&&active.length<=COLLECTIVE_WORKING_TIME_MAX_ROWS,'No hay contratos activos para revisar en el padrón propio.','INCOMPLETE');
+ const records=new Array(active.length),missing=[];let cursor=0,done=0,stop=false;
+ await Promise.all(Array.from({length:Math.min(Number.isInteger(width)?Math.max(1,Math.min(8,width)):1,active.length)},async()=>{while(!stop&&cursor<active.length){const i=cursor++,row=active[i];
+  try{
+   const boot=await readBootstrap(row.contractId,period);workingTimeBootstrap(boot);
+   const waiting=boot.proposals.filter(p=>p.status==='pending');fail(waiting.length<=1,'Hay más de una propuesta pendiente para el legajo '+row.legajo+'. Revisalas una por una en su pantalla.','PENDING');
+   const base={contractId:row.contractId,registrationId:row.registrationId,legajo:row.legajo};
+   if(waiting.length===1){const d=await workingTimeDetail(await readDetail(waiting[0].id));fail(d.proposal.id===waiting[0].id&&lower(d.body.contractId)===lower(row.contractId)&&d.body.period===period,'La propuesta pendiente del legajo '+row.legajo+' no coincide con su detalle.','PROPOSAL_CHANGED');records[i]={...base,definition:structuredClone(d.body.definition),proposalId:waiting[0].id};}
+   else if(boot.configuration.definition!==null)records[i]={...base,definition:structuredClone(boot.configuration.definition),proposalId:null};
+   else missing.push(row.legajo);
+  }catch(e){stop=true;throw e;}
+  done++;progress(done,active.length);}}));
+ fail(missing.length===0,(missing.length===1?'El legajo '+missing[0]+' no tiene':missing.length+' legajos activos (por ejemplo, el '+missing[0]+') no tienen')+' propuesta pendiente ni declaración aprobada de jornada para ese mes. Primero hay que preparar esas declaraciones.','INCOMPLETE');
+ fail(records.some(r=>r.proposalId!==null),'No hay propuestas de jornada pendientes de revisión para ese mes.','EMPTY');
+ return collectiveWorkingTimeFile({version:COLLECTIVE_WORKING_TIME_VERSION,period,scope:'all_active',total:records.length,records});
+}
+
 export function createCollectiveWorkingTimeWorkspace(io){
  for(const key of ['authorize','readRoster','readBootstrap','readDetail','sendCommand','readAttempt','isVisible'])fail(typeof io?.[key]==='function','Falta un transporte canónico del workspace.');
  const newKey=io.newKey??(()=>crypto.randomUUID()),notify=io.changed??(()=>{});

@@ -1,4 +1,4 @@
-import {createCollectiveWorkingTimeWorkspace,collectiveWorkingTimeFile,COLLECTIVE_WORKING_TIME_MAX_BYTES} from './own-contract-working-time-collective.js';
+import {createCollectiveWorkingTimeWorkspace,collectiveWorkingTimeFile,collectiveWorkingTimePendingFile,COLLECTIVE_WORKING_TIME_MAX_BYTES} from './own-contract-working-time-collective.js';
 import {createNativeEmployeePickerReader} from './employee-picker.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {WORKING_TIME_READ} from './own-contract-working-time-model.js';
@@ -11,12 +11,12 @@ export function mountCollectiveWorkingTime(container,{isVisible,isAttached=isVis
  host.innerHTML=`<summary>Jornada para varios legajos · carga y aprobación por lote</summary><p>Revisá el padrón activo completo y registrá sus declaraciones con una sola confirmación. Cada contrato conserva su propuesta y revisión independiente. Si una operación se detiene, los comprobantes anteriores se conservan; el conjunto no es una única transacción.</p>
  <p role="status" aria-live="polite" data-collective-time-status>Elegí un archivo completo de declaraciones propias.</p>
  <div class="collective-meter" data-collective-time-meter hidden><progress max="1" value="0" data-collective-time-bar aria-label="Avance del conjunto"></progress><span data-collective-time-eta></span></div>
- <fieldset data-collective-time-inputs><legend>1. Preparar o revisar el conjunto</legend><div class="working-time-grid"><label>Operación<select data-collective-time-mode><option value="propose">Preparar propuestas</option><option value="approve">Aprobar propuestas por otra persona</option><option value="reject">Rechazar propuestas por otra persona</option></select></label><label>Archivo completo de jornadas o propuestas<input type="file" accept="application/json,.json" data-collective-time-file></label></div><p data-collective-time-file-label>Sin archivo.</p><p class="collective-hint">Para aprobar o rechazar podés usar el mismo archivo con el que se prepararon las propuestas: se busca la propuesta pendiente de cada legajo y se compara su contenido completo antes de decidir.</p><label>Fundamento común<textarea minlength="10" maxlength="1000" rows="3" data-collective-time-reason></textarea></label><button type="button" data-collective-time-prepare>Revisar conjunto completo</button></fieldset>
+ <fieldset data-collective-time-inputs><legend>1. Preparar o revisar el conjunto</legend><div class="working-time-grid"><label>Operación<select data-collective-time-mode><option value="propose">Preparar propuestas</option><option value="approve">Aprobar propuestas por otra persona</option><option value="reject">Rechazar propuestas por otra persona</option></select></label><label>Archivo completo de jornadas o propuestas<input type="file" accept="application/json,.json" data-collective-time-file></label></div><p data-collective-time-file-label>Sin archivo.</p><label data-collective-time-period-label hidden>Mes de las propuestas a revisar<input type="month" data-collective-time-period></label><p class="collective-hint" data-collective-time-hint>Para preparar propuestas elegí el archivo completo de declaraciones.</p><label>Fundamento común<textarea minlength="10" maxlength="1000" rows="3" data-collective-time-reason></textarea></label><button type="button" data-collective-time-prepare>Revisar conjunto completo</button></fieldset>
  <section data-collective-time-comparison hidden><h3>2. Comparar todas las declaraciones</h3><p data-collective-time-count></p><label>Buscar legajo en la comparación<input type="search" data-collective-time-search></label><p>Buscar y cambiar de página sólo modifica la vista. El envío conserva el conjunto completo.</p><div data-collective-time-rows></div><nav aria-label="Páginas de comparación de jornadas"><button type="button" data-collective-time-previous>Anterior</button><span data-collective-time-page></span><button type="button" data-collective-time-next>Siguiente</button></nav><label class="working-time-check"><input type="checkbox" data-collective-time-confirm>Revisé el conjunto completo, sus cambios, las declaraciones sin cambios y el fundamento.</label><button type="button" data-collective-time-send>Registrar conjunto revisado</button></section>
  <div class="working-time-actions"><button type="button" data-collective-time-recover hidden>Consultar el mismo intento</button><button type="button" data-collective-time-retry hidden>Reintentar el mismo envío</button><button type="button" data-collective-time-resume hidden>Restaurar preparación del avance</button><button type="button" data-collective-time-progress hidden>Guardar avance para continuar</button><button type="button" data-collective-time-review-file hidden>Descargar propuestas para revisión</button><button type="button" data-collective-time-new>Iniciar otro conjunto</button></div>
  <details><summary>Continuar un avance guardado</summary><p>El archivo de avance conserva las referencias y el contenido de un intento incierto. Su carga vuelve a verificar la cuenta y los comprobantes mediante los canales normales. Después cargá el mismo archivo completo de jornadas para continuar.</p><label>Archivo de avance<input type="file" accept="application/json,.json" data-collective-time-progress-input></label></details>`;
  container.append(host);const $=k=>host.querySelector('[data-collective-time-'+k+']');
- let access=null,loaded=null,operation=false,localSeq=0,page=1,lastHash=null,lastRetry=false,pace=null,workspace;
+ let access=null,loaded=null,operation=false,localSeq=0,page=1,lastHash=null,lastRetry=false,pace=null,warm=null,gather=null,autoReason='',workspace;
  const live=()=>isVisible()&&!document.hidden&&host.isConnected;
  // Montado y vigente aunque la ventana quede tapada: las operaciones en curso siguen; lo nominal se muestra sólo con live().
  const attached=()=>isAttached()&&host.isConnected;
@@ -31,12 +31,21 @@ export function mountCollectiveWorkingTime(container,{isVisible,isAttached=isVis
   finally{clearTimeout(timer);}
  };
  const reader=createNativeEmployeePickerReader({getAccess:()=>access,canUse:()=>attached()&&!otherBlocked()&&WORKING_TIME_READ.every(c=>access?.caps.has(c)),required:WORKING_TIME_READ,onInvalidated:()=>suspend()});
+ // Revisión sin archivo: lo leído al reunir las propuestas pendientes se reutiliza en la verificación inmediata del mismo
+ // conjunto (warm) y se descarta al terminar; la relectura previa a cada envío siempre consulta de nuevo.
+ const viaWarm=(key,read)=>{if(!warm)return read();if(!warm.has(key))warm.set(key,read());return warm.get(key).then(v=>structuredClone(v));};
+ const readBootstrap=(contractId,period,options={})=>viaWarm('b:'+contractId+':'+period,async()=>(await request(endpoint+'?'+new URLSearchParams({resource:'bootstrap',contractId,period}),warm?{}:options)).data);
+ const readDetail=(id,options={})=>viaWarm('d:'+id,async()=>(await request(endpoint+'?'+new URLSearchParams({resource:'detail',id}),warm?{}:options)).data);
+ const fileless=()=>$('mode').value!=='propose'&&!loaded,validMonth=()=>/^\d{4}-(0[1-9]|1[0-2])$/.test($('period').value);
+ const monthText=()=>{const[y,m]=$('period').value.split('-');return m+'/'+y;};
+ // Fundamento sugerido para aprobar (editable); nunca pisa un texto escrito por la persona.
+ function suggestReason(){const mine=$('reason').value===''||$('reason').value===autoReason;autoReason=$('mode').value==='approve'&&validMonth()?'Revisé las propuestas pendientes de jornada de '+monthText()+'.':'';if(mine&&!workspace?.view().hasProgress)$('reason').value=autoReason;}
  workspace=createCollectiveWorkingTimeWorkspace({
   isVisible:live,isAttached:attached,authWindowMs:3000,readWidth:6,sendLookahead:6,
   authorize:async options=>{const payload=await request('/api/internal-auth',options);access=ownRunWorkspaceAccess(payload);return payload;},
   readRoster:async options=>(await reader(options)).data,
-  readBootstrap:async(contractId,period,options)=>(await request(endpoint+'?'+new URLSearchParams({resource:'bootstrap',contractId,period}),options)).data,
-  readDetail:async(id,options)=>(await request(endpoint+'?'+new URLSearchParams({resource:'detail',id}),options)).data,
+  readBootstrap:(contractId,period,options)=>readBootstrap(contractId,period,options),
+  readDetail:(id,options)=>readDetail(id,options),
   sendCommand:async(attempt,options)=>(await request(endpoint,{...options,method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'command',payload:attempt.body})})).data,
   readAttempt:async(key,options)=>(await request(endpoint+'?'+new URLSearchParams({resource:'attempt',key}),options)).data,
   changed:()=>{render();changed();}
@@ -47,7 +56,10 @@ export function mountCollectiveWorkingTime(container,{isVisible,isAttached=isVis
   $('mode').disabled=busy||unavailable||v.hasProgress;
   $('reason').readOnly=v.hasProgress;
   $('file').disabled=busy||unavailable||v.pending&&!v.canRetry;
-  $('prepare').disabled=busy||unavailable||!loaded||v.pending&&!v.canRetry;
+  $('prepare').disabled=busy||unavailable||!(loaded||fileless()&&validMonth())||v.pending&&!v.canRetry;
+  const review=$('mode').value!=='propose';$('period-label').hidden=!review||!!loaded;$('period').disabled=busy||unavailable||v.hasProgress;
+  $('hint').textContent=review?'No hace falta ningún archivo: elegí el mes y tocá «Revisar conjunto completo». Se buscan las propuestas pendientes de todo el padrón activo y se muestra cada una antes de decidir. Si tenés el archivo con el que se prepararon, también podés usarlo para comparar contra él.':'Para preparar propuestas elegí el archivo completo de declaraciones.';
+  $('prepare').textContent=review&&!loaded?'Buscar y revisar las propuestas pendientes':'Revisar conjunto completo';
   $('confirm').disabled=busy||unavailable||!(v.phase==='prepared'||v.phase==='uncertain'&&v.canRetry);
   $('send').disabled=busy||unavailable||!$('confirm').checked||v.phase!=='prepared';
   $('send').textContent=$('mode').value==='propose'?'Registrar todas las propuestas revisadas':$('mode').value==='approve'?'Aprobar todas las propuestas revisadas':'Rechazar todas las propuestas revisadas';
@@ -78,23 +90,38 @@ export function mountCollectiveWorkingTime(container,{isVisible,isAttached=isVis
   $('comparison').hidden=v.masked||!v.reviewHash;$('count').textContent=v.total+' contratos revisados · '+v.changed+' operaciones · '+v.unchanged+' sin cambios · '+v.confirmed+' comprobantes confirmados.';
   if(v.masked){$('rows').replaceChildren();$('search').value='';$('confirm').checked=false;}
   else if(v.reviewHash)rows();
-  const stage=v.phase==='preparing'?{done:v.preparedCount,total:v.total}:v.phase==='sending'?{done:v.confirmed,total:v.changed}:null;
-  if(stage){if(pace?.phase!==v.phase)pace={phase:v.phase,at:Date.now(),from:stage.done};const made=stage.done-pace.from,left=Math.max(0,stage.total-stage.done),minutes=made>=6?Math.ceil((Date.now()-pace.at)/made*left/60000):null;
+  const phase=gather?'gathering':v.phase,stage=gather?gather:v.phase==='preparing'?{done:v.preparedCount,total:v.total}:v.phase==='sending'?{done:v.confirmed,total:v.changed}:null;
+  if(stage){if(pace?.phase!==phase)pace={phase,at:Date.now(),from:stage.done};const made=stage.done-pace.from,left=Math.max(0,stage.total-stage.done),minutes=made>=6?Math.ceil((Date.now()-pace.at)/made*left/60000):null;
    $('bar').max=Math.max(1,stage.total);$('bar').value=Math.min(stage.done,stage.total);$('eta').textContent=Math.floor(stage.done/Math.max(1,stage.total)*100)+' %'+(minutes===null?'':minutes<=1?' · falta menos de un minuto':' · faltan unos '+minutes+' minutos');}
   else pace=null;
   $('meter').hidden=!stage;
-  if(v.phase==='preparing')state('Verificando el conjunto completo: '+v.preparedCount+' de '+v.total+' contratos. Podés seguir usando la computadora: continúa aunque esta ventana quede tapada.');
+  if(gather)state('Buscando las propuestas pendientes: '+gather.done+' de '+gather.total+' contratos activos. Podés seguir usando la computadora: continúa aunque esta ventana quede tapada.');
+  else if(v.phase==='preparing')state('Verificando el conjunto completo: '+v.preparedCount+' de '+v.total+' contratos. Podés seguir usando la computadora: continúa aunque esta ventana quede tapada.');
   else if(v.phase==='sending')state('Registrando en orden: '+v.confirmed+' de '+v.changed+' comprobantes confirmados. Continúa aunque esta ventana quede tapada; no cierres la página.');
   else if(v.phase==='complete')state('Conjunto recorrido por completo. Se conservan los comprobantes individuales; no se calcularon ni pagaron haberes.','success');
   controls();
  }
- function clearNominal(){loaded=null;$('file').value='';$('file-label').textContent='Sin archivo.';$('reason').value='';$('rows').replaceChildren();$('search').value='';$('confirm').checked=false;$('comparison').hidden=true;}
+ function clearNominal(){loaded=null;$('file').value='';$('file-label').textContent='Sin archivo.';$('reason').value='';$('rows').replaceChildren();$('search').value='';$('confirm').checked=false;$('comparison').hidden=true;suggestReason();}
  async function action(work){if(operation||!live()||otherBlocked())return;const epoch=++localSeq;operation=true;controls();changed();try{await hold(work);}catch(e){if(epoch===localSeq&&attached()){if(workspace.view().phase==='suspended'||[401,403].includes(e.status)||/FORBIDDEN|SCOPE_CHANGED|SESSION_INVALID/.test(e.code??'')){access=null;clearNominal();}state(e.name==='AbortError'?'La operación se interrumpió. Consultá el mismo intento antes de continuar.':e.message,'warning');}}finally{if(epoch===localSeq){operation=false;render();changed();}}}
  async function readFile(input){const f=input.files?.[0];if(!f)throw Error('Elegí un archivo.');if(f.size>COLLECTIVE_WORKING_TIME_MAX_BYTES)throw Error('El archivo completo supera4MiB. No se recorta.');return JSON.parse(await f.text());}
  function download(value,name){const blob=new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  $('file').addEventListener('change',()=>action(async()=>{const v=workspace.view();if(!v.hasProgress)workspace.suspend();const epoch=localSeq,value=collectiveWorkingTimeFile(await readFile($('file')));if(epoch!==localSeq||!live())return;loaded=value;$('file-label').textContent=value.total+' contratos · período '+value.period+' · archivo listo para revisar.';state('Archivo completo cargado. Revisá el fundamento y compará todas las declaraciones.');}));
  for(const key of['mode','reason'])$(key).addEventListener('input',()=>{if(workspace.view().hasProgress)return;workspace.suspend();reader.reset();state('Cambió la preparación. Volvé a comparar el conjunto completo.');render();changed();});
- $('prepare').addEventListener('click',()=>action(async()=>{if(!loaded)return;reader.reset();await workspace.prepare(loaded,$('mode').value,$('reason').value);state('Comparación completa verificada. Revisá todas sus páginas y confirmá el conjunto.');}));
+ $('prepare').addEventListener('click',()=>action(async()=>{
+  if(!loaded&&fileless()){
+   if(!validMonth())throw Error('Elegí el mes de las propuestas.');
+   $('reason').value=$('reason').value.trim();
+   if($('reason').value.length<10)throw Error($('mode').value==='reject'?'Escribí el motivo del rechazo (al menos 10 caracteres).':'Escribí el fundamento de la revisión (al menos 10 caracteres).');
+   const epoch=localSeq;warm=new Map();gather={done:0,total:0};render();
+   try{access=ownRunWorkspaceAccess(await request('/api/internal-auth'));reader.reset();const roster=(await reader({})).data;
+    const set=await collectiveWorkingTimePendingFile({period:$('period').value,roster,readBootstrap,readDetail,width:6,progress:(done,total)=>{if(epoch!==localSeq)return;gather={done,total};render();}});
+    if(epoch!==localSeq||!attached())return;loaded=set;$('file-label').textContent=set.total+' contratos activos · período '+set.period+' · propuestas pendientes tomadas del sistema.';gather=null;
+    reader.reset();await workspace.prepare(loaded,$('mode').value,$('reason').value);}
+   finally{warm=null;gather=null;}
+   state('Comparación completa verificada. Revisá todas sus páginas y confirmá el conjunto.');return;}
+  if(!loaded)return;reader.reset();await workspace.prepare(loaded,$('mode').value,$('reason').value);state('Comparación completa verificada. Revisá todas sus páginas y confirmá el conjunto.');}));
+ $('period').addEventListener('input',()=>{suggestReason();controls();});$('mode').addEventListener('change',()=>{suggestReason();controls();});
+ {const now=new Date(),last=new Date(now.getFullYear(),now.getMonth()-1,1);$('period').value=last.getFullYear()+'-'+String(last.getMonth()+1).padStart(2,'0');}
  $('confirm').addEventListener('change',controls);$('send').addEventListener('click',()=>action(()=>workspace.send({confirmed:$('confirm').checked,reviewHash:workspace.view().reviewHash})));
  $('recover').addEventListener('click',()=>action(async()=>{const result=await workspace.recover();state(result?'Comprobante original recuperado. Podés continuar el conjunto revisado.':'El intento aún no está registrado. Sólo se habilita el mismo envío; si se retiró la vista, restaurá antes la preparación.');}));
  $('retry').addEventListener('click',()=>action(()=>workspace.retry({confirmed:$('confirm').checked,reviewHash:workspace.view().reviewHash})));
@@ -112,5 +139,5 @@ export function mountCollectiveWorkingTime(container,{isVisible,isAttached=isVis
  window.addEventListener('pagehide',()=>{clearInterval(poll);document.removeEventListener('visibilitychange',shown);document.removeEventListener('taskchange',shown);},{once:true});
  controls();return {suspend,update:controls,blocking:()=>operation||workspace.view().working||workspace.view().hasProgress||!!workspace.view().reviewHash,
   // Hay un conjunto cargado, verificado o en marcha: ocultar la ventana no debe retirarlo.
-  holding:()=>operation||!!loaded||workspace.view().working||workspace.view().hasProgress||!!workspace.view().reviewHash};
+  holding:()=>operation||!!gather||!!loaded||workspace.view().working||workspace.view().hasProgress||!!workspace.view().reviewHash};
 }

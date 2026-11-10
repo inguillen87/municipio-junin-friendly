@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {collectiveWorkingTimeFile,collectiveWorkingTimeRoster,createCollectiveWorkingTimeWorkspace} from '../assets/own-contract-working-time-collective.js';
+import {collectiveWorkingTimeFile,collectiveWorkingTimeRoster,createCollectiveWorkingTimeWorkspace,collectiveWorkingTimePendingFile} from '../assets/own-contract-working-time-collective.js';
 import {collectiveFixture,id} from './fixtures/own-contract-working-time-collective-synthetic.js';
 import {workingTimeCommand,workingTimeHash} from '../assets/own-contract-working-time-model.js';
 const reason='Constancia y revisión del conjunto exclusivamente sintético QA';
@@ -197,4 +197,39 @@ test('a revoked account is detected inside the shared window as soon as the next
  let now=0;const f=collectiveFixture(12),w=createCollectiveWorkingTimeWorkspace({...f.io,authWindowMs:3000,now:()=>now,sendLookahead:6});await w.prepare(f.file,'propose',reason);
  f.hooks.afterSend=()=>{now+=4000;if(f.writes.length===3)f.hooks.caps=['workforce.employee.read','payroll.parameter.read'];};
  await assert.rejects(w.send(confirm(w)));assert.equal(f.writes.length,3);assert.equal(w.view().masked,true);
+});
+
+test('a reviewer needs no file: the complete set is built from each active contract\'s single pending proposal and approved exactly',async()=>{
+ const f=collectiveFixture(9),maker=createCollectiveWorkingTimeWorkspace(f.io);await maker.prepare(f.file,'propose',reason);await maker.send(confirm(maker));assert.equal(f.writes.length,9);
+ f.setActor('checker');const ticks=[];
+ const set=await collectiveWorkingTimePendingFile({period:f.file.period,roster:await f.io.readRoster(),readBootstrap:f.io.readBootstrap,readDetail:f.io.readDetail,width:6,progress:(done,total)=>ticks.push(done+'/'+total)});
+ assert.equal(set.total,9);assert.equal(ticks.at(-1),'9/9');assert.ok(set.records.every(r=>r.proposalId!==null));
+ assert.deepEqual(set.records.map(r=>[r.contractId,r.definition]),f.file.records.map(r=>[r.contractId,r.definition]),'the proposed content itself, in roster order');
+ const checker=createCollectiveWorkingTimeWorkspace(f.io);await checker.prepare(set,'approve',reason);assert.ok(checker.comparisons().every(r=>r.action==='approve'));await checker.send(confirm(checker));
+ assert.equal(f.writes.length,18);assert.ok(f.writes.slice(9).every(a=>a.body.command==='approve'&&a.body.reviewConfirmed===true&&a.body.definition===null));
+ // Después de aprobar, el mismo recorrido ya no encuentra nada pendiente.
+ await assert.rejects(collectiveWorkingTimePendingFile({period:f.file.period,roster:await f.io.readRoster(),readBootstrap:f.io.readBootstrap,readDetail:f.io.readDetail}),/No hay propuestas/);
+});
+
+test('the file-less set is never completed with assumptions: a contract without proposal or approved declaration, or with two pending, stops it',async()=>{
+ const f=collectiveFixture(4),maker=createCollectiveWorkingTimeWorkspace(f.io);await maker.prepare(f.file,'propose',reason);await maker.send(confirm(maker));f.setActor('checker');
+ const build=()=>collectiveWorkingTimePendingFile({period:f.file.period,roster:f.roster(),readBootstrap:f.io.readBootstrap,readDetail:f.io.readDetail,width:3});
+ const third=f.boots.get(id(3)),kept=third.proposals.splice(0);await assert.rejects(build(),/legajo QA-3 no tiene propuesta pendiente ni declaración aprobada/);
+ third.proposals.push(...kept,{...kept[0],id:id(9000)});await assert.rejects(build(),/más de una propuesta pendiente para el legajo QA-3/);
+ third.proposals.pop();const ok=await build();assert.equal(ok.total,4);
+ await assert.rejects(collectiveWorkingTimePendingFile({period:'2026-13',roster:f.roster(),readBootstrap:f.io.readBootstrap,readDetail:f.io.readDetail}),/Elegí el mes/);
+ // Un detalle que no corresponde a la propuesta pendiente detiene el armado.
+ f.hooks.detail=d=>{if(d.body.contractId===id(2))d.body.period='2026-09';};await assert.rejects(build());
+});
+
+test('partly decided sets resume without a file: approved contracts come back as unchanged and only the rest is sent',async()=>{
+ const f=collectiveFixture(6),maker=createCollectiveWorkingTimeWorkspace(f.io);await maker.prepare(f.file,'propose',reason);await maker.send(confirm(maker));f.setActor('checker');
+ const first=createCollectiveWorkingTimeWorkspace(f.io);await first.prepare(f.file,'approve',reason);let n=0;f.hooks.beforeSend=()=>{if(++n===4)throw Object.assign(Error('Corte sintético'),{status:503});};
+ await assert.rejects(first.send(confirm(first)));f.hooks.beforeSend=undefined;assert.equal(f.writes.length,10);
+ // Página recargada: workspace nuevo, sin avance local. El envío cortado quedó sin registrar (falló antes de guardarse).
+ const set=await collectiveWorkingTimePendingFile({period:f.file.period,roster:f.roster(),readBootstrap:f.io.readBootstrap,readDetail:f.io.readDetail,width:6});
+ assert.equal(set.records.filter(r=>r.proposalId===null).length,3);assert.equal(set.records.filter(r=>r.proposalId!==null).length,3);
+ const next=createCollectiveWorkingTimeWorkspace(f.io);await next.prepare(set,'approve',reason);assert.equal(next.view().unchanged,3);await next.send(confirm(next));
+ assert.equal(f.writes.length,13);assert.equal(next.view().complete,true);
+ assert.equal(new Set(f.writes.slice(6).filter(a=>a.body.command==='approve').map(a=>a.body.contractId)).size,6,'every contract is approved, none twice by this reviewer flow beyond the interrupted attempt');
 });
