@@ -416,5 +416,7 @@ local-agents/
 
 # Durable collective job code and synthetic verification inputs; no municipal files.
 !scripts/migrations/225-own-collective-jobs.sql
+# Exact typed monthly-day declaration source (193), read by its source tests in the build gate. No municipal data.
+!scripts/migrations/193-own-monthly-day-declaration.sql
 !tests/fixtures/own-collective-jobs-qa.sql.txt
 !tests/fixtures/own-collective-installed-roster.sql.txt

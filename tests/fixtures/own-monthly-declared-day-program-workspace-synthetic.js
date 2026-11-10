@@ -1,0 +1,9 @@
+// Invented arithmetic and identities only. No salary or municipal source data.
+import {monthlyDayWorkspaceProgram,monthlyDayWorkspaceDefinitions,monthlyDayWorkspaceBootstrap,hash,uid} from './own-monthly-day-program-workspace-synthetic.js';
+import {ownProgramDefinition} from '../../assets/own-payroll-program-model.js';
+import {salaryItems} from '../../assets/native-salary-catalog-model.js';
+import {MONTHLY_DAY_DECLARATION_FACTS_VERSION} from '../../assets/own-monthly-day-declaration-model.js';
+export {hash,uid};
+export function declaredDayWorkspaceDefinitions(){return salaryItems([...monthlyDayWorkspaceDefinitions(),...['9101','9102'].map(code=>({active:true,agreementCode:'1',categoryCode:null,code,dependencies:[],kind:'concept',label:'Cantidad de novedad exclusivamente sintética '+code,nature:'non_remuneration',precision:2,ruleReference:'Fuente inventada QA, sin equivalencia municipal',unit:'days',validFrom:'2026-10',validUntil:null,value:null}))]);}
+export function declaredDayWorkspaceProgram({enabled=true}={}){const p=monthlyDayWorkspaceProgram();delete p.monthlyDaysVersion;delete p.monthlyDaysPolicy;if(enabled)p.monthlyDayDeclarationVersion=MONTHLY_DAY_DECLARATION_FACTS_VERSION;p.bindings=p.bindings.map((b,i)=>{const{sourceField,...rest}=b;return enabled?{...rest,sourceKind:'monthly_day_declaration_fact',sourceField}:{...rest,sourceKind:'monthly_quantity',sourceCode:i===0?'9101':'9102'};});return ownProgramDefinition(p,declaredDayWorkspaceDefinitions());}
+export function declaredDayWorkspaceBootstrap({enabled=false,...patch}={}){return monthlyDayWorkspaceBootstrap({salaryCatalog:{version:hash('c'),revision:1,items:declaredDayWorkspaceDefinitions()},program:{version:hash('b'),revision:1,definition:declaredDayWorkspaceProgram({enabled}),salaryVersion:hash('c'),proposalId:uid(51),approvalId:uid(52)},...patch});}
