@@ -44,7 +44,7 @@ const isConcept = n => n.matches('#conceptSourceId,[data-n-import-concept]') || 
 const enhance = root => {
   for (const n of root.querySelectorAll ? root.querySelectorAll('input:not([type]),input[type=text],input[inputmode=numeric]') : []) {
     if (n.dataset.mcConceptList || n.hasAttribute('list') && n.getAttribute('list') !== 'mcConceptList') continue;
-    if (n.id === 'movementType') { n.setAttribute('list', 'mcMovementList'); n.dataset.mcConceptList = '1'; continue; }
+    if (n.id === 'movementType') continue; // a select with Spanish labels; the code stays the value
     if (!isConcept(n)) continue;
     n.setAttribute('list', 'mcConceptList'); n.setAttribute('autocomplete', 'off'); n.dataset.mcConceptList = '1';
     const hint = document.createElement('small'); hint.className = 'mc-concept-hint'; hint.setAttribute('aria-live', 'polite');
