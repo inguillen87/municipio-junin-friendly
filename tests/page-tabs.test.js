@@ -49,12 +49,14 @@ test('pestañas y paginador son sólo presentación: sin pedidos, sin HTML crudo
   const tabs = read('assets/page-tabs.js'), pager = read('assets/list-pager.js'), core = read('assets/section-tabs.js'), css = read('assets/section-tabs.css');
   for (const source of [tabs, pager]) assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|innerHTML|insertAdjacentHTML|localStorage|sessionStorage|document\.cookie/);
   assert.match(tabs, /import \{ mountSectionTabs \} from '\.\/section-tabs\.js';\nimport '\.\/list-pager\.js';/);
-  assert.match(tabs, /if \(collect\(\)\) *\{|if \(!collect\(\)\) return;/); // bloques que llegan después
+  assert.match(tabs, /if \(!collect\(\)\) \{ api\.refresh\(\); return; \}/); // bloques que llegan después y contenedores que se llenan más tarde
   assert.doesNotMatch(tabs, /addEventListener\('submit'|focusin/); // un módulo que consulta solo al cargar no debe cambiar la pestaña de la persona
   assert.match(core, /sync: \(\) => \{ if \(current !== null\) activate\(current, false\); \}/);
   assert.match(core, /show: id => \{ if \(!items\.some\(t => t\.id === id\)\) return; wanted = id; activate\(id, false\); \}/);
   assert.match(core, /globalThis\.mcSectionTabsShow = node => reveal\(node, false\);/);
   assert.match(core, /new ResizeObserver\(place\)\.observe\(list\)/); // la barra puede montarse con la pantalla todavía oculta
+  assert.match(core, /const filled = n => !skipEmpty \|\| n\.childElementCount > 0 \|\| Boolean\(n\.textContent\.trim\(\)\);/);
+  assert.match(tabs, /mountSectionTabs\(\{ host, tabs, initial, skipEmpty: true,/); // un contenedor sin llenar no ofrece pestaña
   assert.match(pager, /classList\.toggle\('mc-page-off', !shown\.has\(n\)\)/);
   assert.doesNotMatch(pager, /\bn\.hidden\s*=/); // las filas no usan `hidden`: ese atributo es de la pantalla
   assert.match(css, /html:not\(\.mc-tabs-all\) \.mc-tab-off\{display:none!important\}/);

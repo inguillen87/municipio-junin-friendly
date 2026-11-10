@@ -32,7 +32,7 @@ const start = () => {
   if (usable.length < 2) return;
   // Un enlace que llega con un ancla propia de la pantalla (p. ej. #preview desde la ficha) abre su pestaña en esa visita.
   const initial = () => { const hash = decodeURIComponent(location.hash.slice(1)); if (!hash) return null; const i = defs.findIndex(d => String(d.hash || '').split(' ').includes(hash)); return i < 0 ? null : tabs[i].id; };
-  const api = mountSectionTabs({ host, tabs, initial, storageKey: host.dataset.mcTabsKey || 'mc.tabs.' + location.pathname, label: host.dataset.mcTabsLabel || 'Secciones de la pantalla' });
+  const api = mountSectionTabs({ host, tabs, initial, skipEmpty: true, storageKey: host.dataset.mcTabsKey || 'mc.tabs.' + location.pathname, label: host.dataset.mcTabsLabel || 'Secciones de la pantalla' });
   if (!api) return;
   document.documentElement.classList.add('mc-page-tabs-on');
   addEventListener('hashchange', () => { const id = initial(); if (id) api.show(id); });
@@ -53,13 +53,14 @@ const start = () => {
   const finder = host.dataset.mcTabsAllWhen && document.querySelector(host.dataset.mcTabsAllWhen);
   if (finder) { searching = () => Boolean(finder.value.trim()); const all = () => root.classList.toggle('mc-tabs-all', printing || searching()); finder.addEventListener('input', all); finder.addEventListener('change', all); all(); }
   // Bloques que llegan después (gráficos, paneles propios): quedan en su pestaña en cuanto aparecen.
+  // Un contenedor que otro módulo llena (o vacía) más tarde también cambia qué pestañas se ofrecen.
   const scope = document.querySelector('main') || document.body;
   // Reaplicar la pestaña vigente puede tocar clases que este mismo observador mira: una sola pasada por cambio.
   let settling = false;
   const settle = () => { if (settling) return; settling = true; try { api.sync(); api.refresh(); } finally { queueMicrotask(() => { settling = false; }); } };
   const late = new MutationObserver(settle);
   let queued = false;
-  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; const before = new Set(tabs.flatMap(t => t.panels)); if (!collect()) return;
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; const before = new Set(tabs.flatMap(t => t.panels)); if (!collect()) { api.refresh(); return; }
     for (const sel of tabs.flatMap(t => t.panels)) if (!before.has(sel)) { const node = document.querySelector(sel); if (node) late.observe(node, { attributes: true, attributeFilter: ['hidden', 'class'] }); }
     settle(); }); }).observe(scope, { childList: true, subtree: true });
   // Un enlace interno a un bloque de otra pestaña (aunque el ancla ya esté en la dirección) la trae al frente.

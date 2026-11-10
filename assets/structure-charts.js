@@ -10,7 +10,7 @@ function ensureSlots() {
  const metrics = document.querySelector('section.metrics[aria-label="Cobertura de estructura"]'); if (!metrics) return null;
  if (slots?.row.isConnected) return slots;
  const row = document.createElement('div'); row.className = 'mc-chart-row'; row.dataset.structureCharts = 'true';
- const status = chartSlot('Legajos activos e inactivos', {subtitle: 'Proxy de actividad informado por la fuente', size: 'lg', key: 'structure-status'});
+ const status = chartSlot('Legajos activos e inactivos', {subtitle: 'Según la situación que informa GRH para cada legajo', size: 'lg', key: 'structure-status'});
  const organizations = chartSlot('Organizaciones con más legajos activos', {subtitle: 'Las doce primeras · tocá una para buscarla', size: 'lg', key: 'structure-organizations'});
  const sectors = chartSlot('Sectores por legajos activos', {subtitle: 'Tocá un sector para buscarlo', size: 'lg', key: 'structure-sectors'});
  row.append(status.figure, organizations.figure, sectors.figure); metrics.after(row);

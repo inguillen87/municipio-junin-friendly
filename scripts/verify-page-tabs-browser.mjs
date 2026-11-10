@@ -11,10 +11,10 @@ const rows = Array.from({length: 27}, (_, i) => `<tr><td>${i + 1}</td><td>${i ==
 const html = `<!doctype html><html lang="es"><meta charset="utf-8"><link rel="stylesheet" href="/assets/section-tabs.css"><script type="module" src="/assets/page-tabs.js"></script>
 <style>body{font:16px system-ui;margin:0}main{max-width:1000px;margin:0 auto;padding:20px}section{min-height:300px;border:1px solid #ccd;margin:12px 0;padding:12px}[hidden]{display:none!important}</style>
 <body><main id="pantalla" hidden><h1>Pantalla sintética</h1><nav class="indice"><a href="#b">Ir a B</a></nav><input id="buscador" type="search" aria-label="Buscar">
-<div data-mc-tabs='[{"id":"uno","label":"Primera","hint":"Resumen","sel":"#a,#a2"},{"id":"dos","label":"Segunda","hint":"Tabla","sel":"#b","hash":"atajo"},{"id":"tres","label":"Tercera","sel":"#c,main > .tardio","on":"qa:mapa"},{"id":"vacia","label":"Sin bloques","sel":"#noexiste"}]' data-mc-tabs-key="mc.sintetica.tab" data-mc-tabs-label="Secciones de prueba" data-mc-tabs-all-when="#buscador" data-mc-tabs-hide="nav.indice"></div>
+<div data-mc-tabs='[{"id":"uno","label":"Primera","hint":"Resumen","sel":"#a,#a2"},{"id":"dos","label":"Segunda","hint":"Tabla","sel":"#b","hash":"atajo"},{"id":"tres","label":"Tercera","sel":"#c,main > .tardio","on":"qa:mapa"},{"id":"vacia","label":"Sin bloques","sel":"#noexiste"},{"id":"modulo","label":"Módulo aparte","sel":"#modulo"}]' data-mc-tabs-key="mc.sintetica.tab" data-mc-tabs-label="Secciones de prueba" data-mc-tabs-all-when="#buscador" data-mc-tabs-hide="nav.indice"></div>
 <section id="a"><span class="section-index">01</span><h2>A</h2><a id="enlace" href="#c">Ver C</a></section><section id="a2"><h2>A2</h2></section>
 <section id="b"><h2>B</h2><form id="formulario"><input id="campo" aria-label="Campo"></form><div class="table-wrap"><table><tbody id="filas" data-mc-pager="8" data-mc-pager-noun="motivos">${rows}</tbody></table></div></section>
-<section id="c"><h2>C</h2><div id="tarjetas" data-mc-pager="4" data-mc-pager-search="off"></div></section><p id="pie">Pie siempre visible</p></main></body></html>`;
+<div id="modulo"></div><section id="c"><h2>C</h2><div id="tarjetas" data-mc-pager="4" data-mc-pager-search="off"></div></section><p id="pie">Pie siempre visible</p></main></body></html>`;
 const browser = await chromium.launch({headless: true});
 try {
   const context = await browser.newContext({viewport: {width: 1200, height: 800}, reducedMotion: 'reduce', serviceWorkers: 'block'});
@@ -67,7 +67,15 @@ try {
   assert.notEqual(await selected(), 'tres');
   await page.evaluate(() => { document.getElementById('c').hidden = false; document.querySelector('.tardio').hidden = false; });
   await page.waitForFunction(() => !document.querySelector('[role=tab][data-tab=tres]').hidden);
-  checks.push('un bloque que llega después queda en su pestaña; al ocultarse por permisos la pestaña se retira y vuelve');
+  // Un contenedor que otro módulo todavía no llenó (sin permiso o sin datos) no ofrece pestaña; aparece cuando se llena.
+  assert.equal(await page.locator('[role=tab][data-tab=modulo]').isHidden(), true);
+  await page.evaluate(() => { const card = document.createElement('article'); card.textContent = 'Contenido del módulo'; document.getElementById('modulo').append(card); });
+  await page.waitForFunction(() => !document.querySelector('[role=tab][data-tab=modulo]').hidden);
+  await tab(/Módulo aparte/); assert.equal(await page.locator('#modulo').isVisible(), true);
+  await page.evaluate(() => document.getElementById('modulo').replaceChildren());
+  await page.waitForFunction(() => document.querySelector('[role=tab][data-tab=modulo]').hidden && document.querySelector('.mc-section-tabs [role=tab][aria-selected=true]').dataset.tab !== 'modulo');
+  await tab(/Tercera/);
+  checks.push('un bloque que llega después queda en su pestaña; al ocultarse por permisos la pestaña se retira y vuelve; un contenedor vacío no ofrece pestaña');
 
   await tab(/Segunda/);
   const shown = () => page.locator('#filas tr').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).length);

@@ -5,7 +5,7 @@
 // appears after permissions load, and never overwrites the remembered choice.
 const store = key => ({ get() { try { return localStorage.getItem(key); } catch { return null; } }, set(v) { try { localStorage.setItem(key, v); } catch {} } });
 
-export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de la pantalla', initial = null }) {
+export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de la pantalla', initial = null, skipEmpty = false }) {
   if (!host || !Array.isArray(tabs) || tabs.length < 2) return null;
   const memory = store(storageKey);
   const items = tabs.map(t => ({ ...t, nodes: () => t.panels.map(s => document.querySelector(s)).filter(Boolean) }));
@@ -24,7 +24,9 @@ export function mountSectionTabs({ host, tabs, storageKey, label = 'Secciones de
     list.append(b); return b;
   });
   const visibleButtons = () => buttons.filter(b => !b.hidden);
-  const usable = t => t.nodes().some(n => !n.hidden);
+  // skipEmpty: a container another module has not filled (no permission, nothing to show yet) does not earn a tab.
+  const filled = n => !skipEmpty || n.childElementCount > 0 || Boolean(n.textContent.trim());
+  const usable = t => t.nodes().some(n => !n.hidden && filled(n));
   function place() { const b = buttons.find(x => x.dataset.tab === current); if (!b || b.hidden) { indicator.style.opacity = '0'; return; } indicator.style.opacity = '1'; indicator.style.width = b.offsetWidth + 'px'; indicator.style.transform = `translateX(${b.offsetLeft}px)`; }
   function activate(id, remember) {
     const tab = items.find(t => t.id === id && usable(t)) ?? items.find(t => t.id === memory.get() && usable(t)) ?? items.find(usable); if (!tab) return;
