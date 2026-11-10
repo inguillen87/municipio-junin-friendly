@@ -110,12 +110,26 @@ EXCEPTION WHEN raise_exception THEN IF SQLERRM='FAMILY_PAYROLL_FACTS_INPUT_INVAL
  add(d => { d.dni = 'synthetic'; }); add(d => { d.children = '2'; }); add(() => null); add(() => []); add(() => 'definition'); add(() => 7); add(() => ({}));
  for (const value of ['2026-10-31', '2026-11-01', '2027-01-01', '2026-02-28', '2026-02-29', '2026-02-30', '2024-02-29', '2026-04-31', '2026-13-01', '2026-00-10', '2026-10-00', '2026-10-32', '1899-12-31', '1900-01-01', '2100-01-01', '2026-10-1', '2026-1-01', '20261001', '2026/10/01', '01-10-2026', ' 2026-10-01', '2026-10-01 ', '2026-10-01T00:00:00Z', '', null, 20261001, true]) add(d => { d.asOfDate = value; });
  for (const value of ['ab', 'abc', ' abc', 'abc ', 'a<b', 'a>b', 'x'.repeat(180), 'x'.repeat(181), 'éxx', 'éxx', 'ab\ncd', 'a\tb c', 'abc\u007f', '', null, 123, ['abc'], {text: 'abc'}]) add(d => { d.documentReference = value; });
+ // Constancia por puntos de código (hallazgo de Root): largo en caracteres, blanco ECMAScript en los extremos,
+ // controles C0, DEL y C1, separadores de línea y NFC. Los tres primeros son sus casos concretos.
+ const unicode = ['\u{1F600}a', '\u{1F600}'.repeat(91), '\u00a0abc', '\u{1F600}ab', '\u{1F600}'.repeat(180), '\u{1F600}'.repeat(181), 'x'.repeat(179) + '\u{1F600}', 'x'.repeat(180) + '\u{1F600}',
+  'abc\u00a0', 'a\u00a0bc', '\u2003abc', 'abc\u2003', 'a\u2003bc', '\ufeffabc', 'abc\ufeff', '\u3000abc', 'abc\u3000', '\u1680abc', '\u202fabc', '\u205fabc', '\u2000abc', 'abc\u200a', '\u200babc', 'abc\u200b', '\u180eabc',
+  'ab\u0085cd', 'ab\u0080cd', 'ab\u009fcd', 'ab\u00a0cd', 'ab\u00a1cd', 'ab\u2028cd', 'ab\u2029cd', '\u2028abc', 'abc\u2029', 'ab\u000bcd', 'ab\u000ccd', 'ab\u001fcd', 'ab\u0001cd', 'ab\rcd', 'abc\r\n',
+  'A\u030axx', '\u00c5xx', '\u212bxx', '\ufb01abc', '\u1100\u1161x', '\uac00xx', 'n\u0303o\u0303', '\u00f1\u00f5x', '\u{1F468}\u200d\u{1F469}\u200d\u{1F467}', '\u{20BB7}\u{20BB7}\u{20BB7}', '\u{20BB7}\u{20BB7}', 'a\u0300\u0301\u0302'];
+ for (const value of unicode) add(d => { d.documentReference = value; });
+ const unicodeFrom = corpus.length - unicode.length;
  for (const period of ['2026-10', '2026-09', '2026-11', '2026-9', '1899-12', '1900-01', '2099-12', '2100-01', '2026-13', '2026-00', '', '2026-10-01', 'octubre', null]) add(() => {}, period);
  const model = corpus.map(({d, p}) => { try { familyPayrollFactsDefinition(d, p); return true; } catch { return false; } });
  const stored = JSON.parse(psql(database, `SELECT jsonb_agg(public.mc_local_definition_verdict(c->'d',c->>'p') ORDER BY n) FROM jsonb_array_elements(${literal(JSON.stringify(corpus))}::jsonb) WITH ORDINALITY x(c,n);`));
  const different = corpus.map((c, i) => model[i] === stored[i] ? null : {case: i, model: model[i], sql: stored[i], d: c.d, p: c.p}).filter(Boolean);
  check('definition validator: ' + corpus.length + ' declarations get the same verdict from the screen model and from SQL', different.length === 0 && stored.length === corpus.length);
  if (different.length) console.log(JSON.stringify(different.slice(0, 12)));
+ const verdict = value => model[unicodeFrom + unicode.indexOf(value)];
+ check('evidence text: an emoji counts as one character on both sides (emoji+a refused, 91 emoji admitted) and a leading no-break space is refused', verdict('\u{1F600}a') === false && verdict('\u{1F600}'.repeat(91)) === true && verdict('\u00a0abc') === false && verdict('\u{1F600}'.repeat(180)) === true && verdict('\u{1F600}'.repeat(181)) === false);
+ check('evidence text: C1 controls, line separators and non-NFC forms are refused; inner no-break space and zero-width space are not white space', verdict('ab\u0085cd') === false && verdict('ab\u2028cd') === false && verdict('\u212bxx') === false && verdict('A\u030axx') === false && verdict('a\u00a0bc') === true && verdict('\u200babc') === true && verdict('\u00c5xx') === true);
+ const lone = (() => { try { psql(database, `SELECT public.own_family_payroll_facts_definition_v1('{"documentReference":"\\ud83d"}'::jsonb,'2026-10');`); return ''; } catch (e) { return String(e.message); } })();
+ let loneModel = false; try { familyPayrollFactsDefinition({...valid(), documentReference: 'ab\ud83d'}, '2026-10'); } catch { loneModel = true; }
+ check('evidence text: a lone surrogate is refused by the screen model and never reaches the stored validator', loneModel && /surrogate|invalid input syntax/i.test(lone));
  check('definition validator: the corpus exercises both verdicts', model.filter(Boolean).length > 40 && model.filter(v => !v).length > 400);
  check('a quantity that was not declared stays empty and is not a zero', stored[0] === true && JSON.parse(psql(database, `SELECT public.own_family_payroll_facts_definition_v1(${literal(JSON.stringify(valid()))}::jsonb,'2026-10')->'quantities'->'children';`)) === null);
 

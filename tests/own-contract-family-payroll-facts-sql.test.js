@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {FAMILY_PAYROLL_FACT_QUANTITIES, familyPayrollFactsDefinition} from '../assets/own-contract-family-payroll-facts-model.js';
+import {FAMILY_PAYROLL_FACT_QUANTITIES, familyPayrollFactsDefinition, familyEvidenceText} from '../assets/own-contract-family-payroll-facts-model.js';
 import {syntheticFamilyDefinition} from './fixtures/own-contract-family-payroll-facts-synthetic.js';
 
 const family = fs.readFileSync('scripts/migrations/226-own-contract-family-payroll-facts.sql', 'utf8');
@@ -56,4 +56,22 @@ test('the screen model refuses a date the stored validator refuses', () => {
  const at = asOfDate => { try { familyPayrollFactsDefinition({...syntheticFamilyDefinition(), asOfDate}, '2026-10'); return true; } catch { return false; } };
  assert.equal(at('1900-01-01'), true); assert.equal(at('2026-10-31'), true);
  assert.equal(at('1899-12-31'), false); assert.equal(at('2026-11-01'), false); assert.equal(at('2026-02-30'), false);
+});
+
+// Hallazgo de Root (10/11): el ayudante compartido y el modelo contaban y recortaban distinto fuera de ASCII.
+// La constancia del contrato nuevo usa una sola regla explícita por puntos de código en los dos lados.
+test('the evidence text follows one explicit code-point rule, the same in SQL and in the screen model', () => {
+ assert.ok(!definition.includes('own_program_text_v1'), 'el validador nuevo no se apoya en el ayudante compartido');
+ for (const part of ["char_length(reference_value) NOT BETWEEN 3 AND 180", "reference_value IS NOT NFC NORMALIZED",
+  "reference_value ~ '[\\u0001-\\u001F\\u007F-\\u009F\\u2028\\u2029<>]'", "reference_value ~ '^[ \\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000\\uFEFF]'", "reference_value ~ '[ \\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000\\uFEFF]$'"]) assert.ok(definition.includes(part), part);
+ const model = fs.readFileSync('assets/own-contract-family-payroll-facts-model.js', 'utf8');
+ assert.ok(model.includes("const EVIDENCE_FORBIDDEN = /[\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029<>]/u;") && model.includes("\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000\\uFEFF]$/u;"));
+ const ok = v => familyEvidenceText(v, 3, 180);
+ // Los tres casos de Root.
+ assert.equal(ok('\u{1F600}a'), false, 'emoji+a son dos caracteres'); assert.equal(ok('\u{1F600}'.repeat(91)), true, '91 emoji son 91 caracteres'); assert.equal(ok('\u00a0abc'), false, 'espacio de no separación al inicio');
+ assert.equal(ok('\u{1F600}'.repeat(180)), true); assert.equal(ok('\u{1F600}'.repeat(181)), false); assert.equal(ok('abc\u2003'), false); assert.equal(ok('\ufeffabc'), false); assert.equal(ok('a\u00a0bc'), true); assert.equal(ok('\u200babc'), true);
+ for (const bad of ['ab\u0000cd', 'ab\u0085cd', 'ab\u009fcd', 'ab\u007fcd', 'ab\u2028cd', 'ab\u2029cd', 'ab\ncd', 'a<b>', 'A\u030axx', '\u212bxx', 'ab\ud83d', '\ude00ab', 'ab', '', null, 7]) assert.equal(ok(bad), false, JSON.stringify(bad));
+ for (const good of ['abc', 'Constancia N\u00b0 12/2026', '\u00c5xx', '\uac00xx', 'x'.repeat(180)]) assert.equal(ok(good), true, good);
+ // Los objetos conservados siguen siendo los de condiciones: el fundamento del comando no cambió.
+ assert.ok(family.includes("public.own_program_text_v1(body->'reason',10,1000)"));
 });

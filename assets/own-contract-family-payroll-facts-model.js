@@ -13,6 +13,16 @@ const need = (ok, message, code = 'INPUT_INVALID') => { if (!ok) throw new Salar
 const periodValid = v => typeof v === 'string' && /^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 const codeValid = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
+// Constancia: regla explícita por puntos de código, la misma que aplica el SQL 226. No depende de la configuración
+// regional de la base ni de cómo cuenta cada lado: largo en caracteres (no en unidades UTF-16), sin sustitutos sueltos,
+// NFC, sin controles C0, DEL ni C1, sin separadores de línea, sin < ni >, y sin blanco ECMAScript en los extremos.
+const EVIDENCE_FORBIDDEN = /[\u0000-\u001F\u007F-\u009F\u2028\u2029<>]/u;
+const EVIDENCE_EDGE = /^[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]|[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]$/u;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+export function familyEvidenceText(v, min, max) {
+ if (typeof v !== 'string' || LONE_SURROGATE.test(v) || EVIDENCE_FORBIDDEN.test(v) || EVIDENCE_EDGE.test(v) || v !== v.normalize('NFC')) return false;
+ const length = [...v].length; return length >= min && length <= max;
+}
 const instant = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const identity = v => v.toLowerCase();
 const salaryExact = (v, keys) => salaryShape(v, keys) && Object.getPrototypeOf(v) === Object.prototype && Reflect.ownKeys(v).length === keys.length && Object.values(Object.getOwnPropertyDescriptors(v)).every(d => Object.hasOwn(d, 'value') && d.enumerable);
@@ -34,7 +44,7 @@ export function familyPayrollFactsDefinition(v, period) {
  need(salaryExact(v.quantities, FAMILY_PAYROLL_FACT_QUANTITIES) && Object.values(v.quantities).every(quantityValid), 'Cada cantidad familiar es un entero declarado de 0 a 99 o queda sin informar. No se cuenta desde vínculos ni certificados, y sin informar no equivale a cero.');
  need(monthsValid(v.prenatalAdjustmentMonths), 'Los meses de ajuste prenatal son un entero declarado de 0 a 24. No se deducen de fechas ni de la cantidad corriente.');
  need(salaryExact(v.tariffSelection, ['region', 'semesterAverage']) && (v.tariffSelection.region === null || codeValid(v.tariffSelection.region)) && averageValid(v.tariffSelection.semesterAverage), 'La región es un código declarado y el promedio semestral un importe exacto con hasta dos decimales; ambos pueden quedar sin informar.');
- need(civilDay(v.asOfDate) && /^(19|20)/.test(v.asOfDate) && v.asOfDate.slice(0, 7) <= period && text(v.documentReference, 3, 180), 'Informá una fecha válida hasta el período elegido y su constancia municipal.');
+ need(civilDay(v.asOfDate) && /^(19|20)/.test(v.asOfDate) && v.asOfDate.slice(0, 7) <= period && familyEvidenceText(v.documentReference, 3, 180), 'Informá una fecha válida hasta el período elegido y su constancia municipal.');
  return {...v, quantities:{...v.quantities}, tariffSelection:{...v.tariffSelection}};
 }
 

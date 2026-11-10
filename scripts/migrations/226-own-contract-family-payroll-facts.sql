@@ -58,7 +58,7 @@ END $$;
 
 CREATE FUNCTION public.own_family_payroll_facts_definition_v1(d jsonb,period_value text) RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE q jsonb;t jsonb;date_value text;field text;
+DECLARE q jsonb;t jsonb;date_value text;field text;reference_value text;
 BEGIN
  IF period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
  OR public.own_program_exact_v1(d,ARRAY['quantities','prenatalAdjustmentMonths','tariffSelection','asOfDate','documentReference']) IS NOT TRUE
@@ -85,7 +85,18 @@ BEGIN
  IF t->'semesterAverage' IS DISTINCT FROM 'null'::jsonb AND
  (jsonb_typeof(t->'semesterAverage') IS DISTINCT FROM 'string' OR t->>'semesterAverage'!~'^(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$')
  THEN RAISE EXCEPTION 'FAMILY_PAYROLL_FACTS_INPUT_INVALID';END IF;
- IF public.own_program_text_v1(d->'documentReference',3,180) IS NOT TRUE THEN RAISE EXCEPTION 'FAMILY_PAYROLL_FACTS_INPUT_INVALID';END IF;
+ -- Evidence text uses one explicit code-point rule, identical in the screen model. It does not rely on the shared
+ -- helper, on the database locale or on how either side counts: length in characters, NFC, no C0/DEL/C1 control,
+ -- no line or paragraph separator, no angle bracket, and no ECMAScript white space at either end. A lone
+ -- surrogate never reaches this point: jsonb refuses it.
+ reference_value:=d->>'documentReference';
+ IF jsonb_typeof(d->'documentReference') IS DISTINCT FROM 'string' OR reference_value IS NULL
+ OR char_length(reference_value) NOT BETWEEN 3 AND 180
+ OR reference_value IS NOT NFC NORMALIZED
+ OR reference_value ~ '[\u0001-\u001F\u007F-\u009F\u2028\u2029<>]'
+ OR reference_value ~ '^[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]'
+ OR reference_value ~ '[ \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]$'
+ THEN RAISE EXCEPTION 'FAMILY_PAYROLL_FACTS_INPUT_INVALID';END IF;
  date_value:=d->>'asOfDate';
  IF jsonb_typeof(d->'asOfDate') IS DISTINCT FROM 'string' OR date_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
  OR NOT pg_input_is_valid(date_value,'date')
