@@ -68,3 +68,13 @@ test('con el maestro a mano la fórmula nombra cada concepto y auxiliar; sin nom
   assert.equal(programFormulaText({ op: 'concept', code: '' }, { names }), 'concepto sin código');
   assert.equal(programFormulaText({ op: 'concept', code: '100' }, { names: 'no es función' }), 'concepto 100');
 });
+
+test('el editor sugiere las entradas y los conceptos que existen, sin dejar de ser texto libre', () => {
+  const panel = fs.readFileSync(new URL('../assets/own-payroll-program-panel.js', import.meta.url), 'utf8');
+  assert.ok(panel.includes("function suggest(parent,input,options){const seen=new Set(),list=node('datalist');"));
+  assert.ok(panel.includes("input.setAttribute('list',list.id);parent.append(list);"), 'la lista cuelga del mismo grupo y el campo conserva su tipo');
+  assert.ok(panel.includes("draft.bindings.filter(b=>b.agreementCode===rule.agreementCode&&(!value.unit||b.unit===value.unit))"), 'sólo entradas del mismo convenio y de la unidad elegida');
+  assert.ok(panel.includes("(boot?.salaryCatalog.items??[]).filter(i=>i.active&&i.agreementCode===rule.agreementCode&&(value.op==='auxiliary'?i.kind==='auxiliary'||i.nature==='auxiliary':i.kind==='concept'&&i.nature!=='auxiliary'))"), 'sólo definiciones activas del mismo convenio');
+  assert.ok(panel.includes("if(!seen.size)return;"), 'sin opciones no se agrega nada');
+  assert.ok(!/suggest\([^)]*\)\s*;\s*value\.(key|code)\s*=/.test(panel), 'una sugerencia nunca completa el valor por su cuenta');
+});
