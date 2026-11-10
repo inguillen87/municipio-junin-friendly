@@ -25,6 +25,8 @@ const shellFiles = [
   'assets/own-f931-preparation-panel.js',
   'assets/own-f931-preparation-panel.css',
   'assets/own-period-participation-model.js',
+  'assets/own-monthly-day-declaration-model.js',
+  'assets/own-monthly-day-declaration-panel.js',
   'assets/own-art-days-model.js',
   'assets/own-art-days-panel.js',
   'assets/own-art-days-panel.css',
