@@ -76,6 +76,21 @@
     "api/internal-legal-registry.js": {
       "maxDuration": 30,
       "includeFiles": "{lib/internal-family-certificates.js,node_modules/pdfjs-dist/legacy/build/pdf*.mjs,node_modules/@napi-rs/canvas*/**}"
+    },
+    "api/internal-own-collective-jobs.js": {
+      "maxDuration": 60
+    },
+    "api/internal-own-collective-worker.js": {
+      "maxDuration": 60,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "own-collective-jobs"
+        }
+      ]
+    },
+    "api/internal-own-collective-dispatch.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -1677,5 +1692,11 @@
     "deploymentEnabled": {
       "internal-*": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/internal-own-collective-dispatch",
+      "schedule": "* * * * *"
+    }
+  ]
 }

@@ -86,6 +86,7 @@
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
     "@tesseract.js-data/spa": "1.0.0",
+    "@vercel/queue": "0.11.0",
     "echarts": "6.1.0",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",

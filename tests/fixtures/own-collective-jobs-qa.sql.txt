@@ -1,0 +1,99 @@
+-- Invented identities/source only. Canonical readers and writers are installed
+-- separately from their unchanged migration text by verify-own-collective-jobs.
+CREATE TABLE public.platform_tenant(id uuid PRIMARY KEY);
+CREATE TABLE public.platform_tenant_source_binding(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,UNIQUE(tenant_id,id));
+CREATE TABLE public.person_identity(id uuid PRIMARY KEY);
+CREATE TABLE public.tenant_membership(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,UNIQUE(id,tenant_id));
+CREATE TABLE public.tenant_identity_session(id uuid PRIMARY KEY,session_version integer NOT NULL,status text NOT NULL,
+ expires_at timestamptz NOT NULL,last_seen_at timestamptz NOT NULL);
+CREATE TABLE public.employment_contract(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,person_id uuid NOT NULL,
+ legacy_company_id bigint NOT NULL DEFAULT 99,legacy_legajo text NOT NULL,source_system text NOT NULL DEFAULT 'MUNICONTROL',
+ source_batch_id uuid,status text NOT NULL DEFAULT 'active',source_revision integer NOT NULL DEFAULT 1,
+ start_date date NOT NULL DEFAULT '2020-01-01',end_date date);
+CREATE TABLE public.native_employee_registration(id uuid PRIMARY KEY,contract_id uuid NOT NULL,person_id uuid NOT NULL,
+ tenant_id uuid NOT NULL,source_binding_id uuid NOT NULL);
+CREATE TABLE public.qa_actor(label text PRIMARY KEY,p jsonb NOT NULL,ctx jsonb NOT NULL,enabled boolean NOT NULL DEFAULT true);
+CREATE FUNCTION public.native_salary_administrative_context_v1(p jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE a public.qa_actor;s public.tenant_identity_session;
+BEGIN
+ SELECT * INTO a FROM public.qa_actor WHERE qa_actor.p=$1 AND enabled;
+ IF NOT FOUND THEN RAISE EXCEPTION 'ACTION_CONTEXT_INVALID'; END IF;
+ SELECT * INTO s FROM public.tenant_identity_session WHERE id=(p->>'actorSessionId')::uuid;
+ IF NOT FOUND OR s.status<>'active' OR s.session_version<>(p->>'actorSessionVersion')::integer
+  OR s.expires_at<=clock_timestamp() OR s.last_seen_at<=clock_timestamp()-interval '1 hour' THEN RAISE EXCEPTION 'ACTION_SESSION_INVALID'; END IF;
+ RETURN a.ctx;
+END $$;
+CREATE FUNCTION public.action_center_context_has_capability(ctx jsonb,k text) RETURNS boolean
+LANGUAGE sql IMMUTABLE AS $$ SELECT coalesce(ctx->'capabilities' ? k,false) $$;
+CREATE FUNCTION public.native_employment_catalog_lock_v1(ctx jsonb) RETURNS void
+LANGUAGE plpgsql AS $$ BEGIN
+ IF current_setting('collective_qa.force_busy',true)='on' THEN RAISE EXCEPTION 'NATIVE_SALARY_BUSY'; END IF;
+ RETURN;
+END $$;
+CREATE FUNCTION public.payroll_fixed_registry_subject_v2(ctx jsonb,target uuid,hold_lock boolean DEFAULT true) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE c public.employment_contract;r public.native_employee_registration;
+BEGIN
+ SELECT * INTO c FROM public.employment_contract WHERE id=target AND tenant_id=(ctx->>'tenantId')::uuid;
+ SELECT * INTO r FROM public.native_employee_registration WHERE contract_id=target AND source_binding_id=(ctx->>'sourceBindingId')::uuid;
+ IF c.id IS NULL OR r.id IS NULL THEN RAISE EXCEPTION 'OWN_REGISTRY_SOURCE_REQUIRED'; END IF;
+ RETURN jsonb_build_object('subject',jsonb_build_object('origin','MUNICONTROL','contractId',c.id,'registrationId',r.id,
+  'legajo',c.legacy_legajo,'personId',c.person_id,'identityToken',encode(public.digest((c.id::text||':'||c.source_revision),'sha256'),'hex'),
+  'startDate',c.start_date,'endDate',c.end_date));
+END $$;
+CREATE FUNCTION public.native_employee_roster_projection_batch_v1(p jsonb) RETURNS TABLE(contract_id uuid,data jsonb)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE ctx jsonb;
+BEGIN
+ ctx:=public.native_salary_administrative_context_v1(p);
+ RETURN QUERY SELECT c.id,jsonb_build_object('status',c.status,'startDate',c.start_date,'endDate',c.end_date,
+  'recordKind','native','readVersion','fixed-roster-v1','identityReadVersion','fixed-identity-v1')
+ FROM public.employment_contract c WHERE c.tenant_id=(ctx->>'tenantId')::uuid;
+END $$;
+
+-- Deterministic UUIDs represent invented records, not municipal identifiers.
+CREATE FUNCTION public.qa_uuid(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
+ SELECT ('10000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
+$$;
+INSERT INTO public.platform_tenant VALUES(public.qa_uuid(1));
+INSERT INTO public.platform_tenant_source_binding VALUES(public.qa_uuid(1),public.qa_uuid(2));
+DO $actors$
+DECLARE n integer;member uuid;person uuid;session_id uuid;email text;label_value text;context_value jsonb;
+BEGIN
+ FOR n IN 1..5 LOOP
+  member:=public.qa_uuid(10+n);person:=public.qa_uuid(CASE WHEN n=3 THEN 21 ELSE 20+n END);session_id:=public.qa_uuid(30+n);
+  email:=CASE WHEN n=4 THEN 'maker@qa.invalid' ELSE 'actor'||n||'@qa.invalid' END;
+  IF n=1 THEN email:='maker@qa.invalid'; END IF;
+  label_value:=(ARRAY['maker','checker','samePerson','sameEmail','third'])[n];
+  INSERT INTO public.person_identity VALUES(person) ON CONFLICT DO NOTHING;
+  INSERT INTO public.tenant_membership VALUES(member,public.qa_uuid(1));
+  INSERT INTO public.tenant_identity_session VALUES(session_id,1,'active',clock_timestamp()+interval '1 day',clock_timestamp());
+  context_value:=jsonb_build_object('tenantId',public.qa_uuid(1),'sourceBindingId',public.qa_uuid(2),'membershipId',member,
+   'actorPersonId',person,'actorEmail',email,'actorLabel','SYNTHETIC '||label_value,'sourceCompanyId',99,'sourceDatabase','COLLECTIVE_QA',
+   'parameterActorVerified',true,'areaScopes',jsonb_build_array('*'),'capabilities',jsonb_build_array('workforce.employee.read',
+    'payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve'));
+  INSERT INTO public.qa_actor VALUES(label_value,jsonb_build_object('actorEmail',email,'actorSessionId',session_id,
+   'actorSessionVersion',1,'membershipId',member,'releaseSha',repeat('a',40),'tenantId',public.qa_uuid(1)),context_value,true);
+ END LOOP;
+END $actors$;
+
+CREATE FUNCTION public.qa_seed(count_value integer) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ INSERT INTO public.person_identity SELECT public.qa_uuid(100000+n) FROM generate_series(1,count_value) n ON CONFLICT DO NOTHING;
+ INSERT INTO public.employment_contract(id,tenant_id,person_id,legacy_legajo)
+ SELECT public.qa_uuid(200000+n),public.qa_uuid(1),public.qa_uuid(100000+n),(500000+n)::text FROM generate_series(1,count_value) n ON CONFLICT DO NOTHING;
+ INSERT INTO public.native_employee_registration SELECT public.qa_uuid(300000+n),public.qa_uuid(200000+n),public.qa_uuid(100000+n),public.qa_uuid(1),public.qa_uuid(2)
+ FROM generate_series(1,count_value) n ON CONFLICT DO NOTHING;
+END $$;
+CREATE FUNCTION public.qa_manifest(family_value text,period_value text,variant integer DEFAULT 1) RETURNS jsonb
+LANGUAGE sql AS $$
+ SELECT jsonb_build_object('version',CASE family_value WHEN 'working-time' THEN 'own-contract-working-time-collective.v1' ELSE 'own-salary-seniority-collective.v1' END,
+  'period',period_value,'scope','all_active','total',count(*),'records',jsonb_agg(jsonb_build_object('contractId',c.id,'registrationId',r.id,
+   'legajo',c.legacy_legajo,'proposalId',NULL,'definition',CASE family_value WHEN 'working-time' THEN
+    jsonb_build_object('dailyHours',CASE WHEN variant=1 THEN '0.00' ELSE '7.50' END,'monthlyHours',NULL,'asOfDate',period_value||'-01','documentReference','Invented QA document')
+   ELSE jsonb_build_object('years',CASE WHEN variant=1 THEN '0' ELSE '12' END,'months',NULL,'asOfDate',period_value||'-01','documentReference','Invented QA document') END) ORDER BY c.id))
+ FROM public.employment_contract c JOIN public.native_employee_registration r ON r.contract_id=c.id WHERE c.status='active'
+$$;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC,municontrol_actions_runtime_app;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC,municontrol_actions_runtime_app;

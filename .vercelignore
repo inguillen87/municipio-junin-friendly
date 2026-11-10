@@ -413,3 +413,8 @@ local-agents/
 !scripts/migrations/221-attendance-time-exception.sql
 !scripts/migrations/222-own-run-scope-fixes.sql
 !scripts/migrations/223-payroll-entity-export.sql
+
+# Durable collective job code and synthetic verification inputs; no municipal files.
+!scripts/migrations/225-own-collective-jobs.sql
+!tests/fixtures/own-collective-jobs-qa.sql.txt
+!tests/fixtures/own-collective-installed-roster.sql.txt
