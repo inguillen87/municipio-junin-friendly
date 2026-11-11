@@ -563,12 +563,18 @@ const vendorFiles = [
     source: 'node_modules/fflate/LICENSE',
     destination: 'assets/vendor/fflate.LICENSE.txt',
   },
+  // PDF.js publica dos compilaciones de la misma versión. La de `build/` supone el navegador más nuevo: llama sin definirlos
+  // a Map.prototype.getOrInsertComputed, Math.sumPrecise, Promise.try o Uint8Array.prototype.toHex, y en un Chrome o Edge
+  // desactualizado la lectura de PDF falla entera («getOrInsertComputed is not a function»). La de `legacy/build/` es la que
+  // el propio paquete indica para navegadores sin esos métodos: los trae y los define sólo si faltan, en la página y en el
+  // worker. Es la que se publica. tests/pdf-reader-old-browsers.test.js lo fija, junto con los verificadores que sirven
+  // estos dos archivos desde node_modules en vez de public/.
   {
-    source: 'node_modules/pdfjs-dist/build/pdf.min.mjs',
+    source: 'node_modules/pdfjs-dist/legacy/build/pdf.min.mjs',
     destination: 'assets/vendor/pdf.min.mjs',
   },
   {
-    source: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+    source: 'node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs',
     destination: 'assets/vendor/pdf.worker.min.mjs',
   },
   {

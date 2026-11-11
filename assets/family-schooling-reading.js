@@ -4,6 +4,9 @@ import {certificateInputFile} from './family-schooling-photo.js';
 import {schoolingReading,schoolingReadingSelection,SCHOOL_READING_FIELDS} from './family-schooling-reading-model.js';
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const button=text=>{const e=node('button',text);e.type='button';e.className='fs-button';return e;};
+// El lector ya entrega sus errores en palabras de usuario. Cuando lo que falló es la lectura misma (archivo dañado o navegador
+// sin soporte), acá se agrega lo que esta pantalla sí permite: seguir a mano.
+const readingError=error=>error.code==='READING_FAILED'?error.message+' La carga manual sigue disponible: podés completar los datos a mano.':error.message||'No se pudo leer el archivo. Completá los datos manualmente.';
 export function mountSchoolingReading({host,input,fields,context,raster,onApplied,openSource=openReadingSource,recognize=readRasterPage}){
  const details=node('details');details.className='fs-reading';details.dataset.fsReading='';const summary=node('summary','Leer datos del archivo y revisar');
  const note=node('p','La lectura ocurre en este dispositivo. Revisá cada dato junto al original antes de usarlo. No identifica al hijo ni completa la presentación municipal. PDF estático de hasta 30 páginas; si no puede leerse, la carga manual sigue disponible.');note.className='fs-note';
@@ -42,10 +45,10 @@ export function mountSchoolingReading({host,input,fields,context,raster,onApplie
   if(!allowed()||busy)return;clear();file=input.files[0];target=state().key;const token=++seq;abort=new AbortController();busy=true;controls();status.textContent='Abriendo el archivo en este dispositivo…';let opened;
   const operation=abort,timer=setTimeout(()=>operation.abort(),30000);
   try{certificateInputFile(file);opened=await openSource(file,{signal:operation.signal,onProgress:message=>{if(valid(token))status.textContent=message;}});if(!valid(token)){await opened.destroy();return;}source=opened;opened=null;for(const p of source.pages){const option=node('option','Página '+p.number);option.value=String(p.number);page.append(option);}page.value='1';await render(token);}
-  catch(error){void opened?.destroy();if(valid(token))clear(error.name==='AbortError'?'La lectura se canceló. Podés completar los datos manualmente.':error.message||'No se pudo leer el archivo. Completá los datos manualmente.');}
+  catch(error){void opened?.destroy();if(valid(token))clear(error.name==='AbortError'?'La lectura se canceló. Podés completar los datos manualmente.':readingError(error));}
   finally{clearTimeout(timer);if(valid(token)){busy=false;controls();}}
  });
- page.addEventListener('change',async()=>{if(!allowed()||busy||!source)return;const token=++seq;busy=true;controls();try{await render(token);}catch(error){if(valid(token))clear(error.message);}finally{if(valid(token)){busy=false;controls();}}});
+ page.addEventListener('change',async()=>{if(!allowed()||busy||!source)return;const token=++seq;busy=true;controls();try{await render(token);}catch(error){if(valid(token))clear(readingError(error));}finally{if(valid(token)){busy=false;controls();}}});
  ocr.addEventListener('click',async()=>{
   if(!allowed()||busy||!canvas||!source||selected.method==='native')return;const token=++seq;busy=true;reading=null;choices=[];proposals.replaceChildren();text.textContent='';controls();status.textContent='Leyendo imagen en este dispositivo…';
   try{const result=await recognize(canvas,{sha256:source.sha256,page:Number(page.value),signal:abort.signal,onProgress:v=>{if(valid(token))status.textContent='Leyendo imagen · '+v+' %';}});if(!valid(token))return;proposalsFor({sha256:source.sha256,page:Number(page.value),text:result.text,method:'ocr',confidence:result.confidence});status.textContent='Lectura lista. Puede contener errores: compará los campos con la imagen antes de seleccionarlos.';}
