@@ -69,6 +69,19 @@ test('primer y último mes propuestos según cómo está cargada la vigencia',()
  assert.equal(salarySharedFirstMonth(quarter),'2026-10');assert.equal(salarySharedLastMonth(quarter,'2026-10'),'2026-12');
 });
 
+test('períodos de distinta duración con el mismo fin requieren declarar el nuevo mes final',()=>{
+ const items=salaryItems([scale('1','3','100.00',monthly('2026-10')),scale('4','3','100.00',{validFrom:'2026-09',validUntil:'2026-10'})]),before=salarySerialized(items);
+ const [group]=salarySharedGroups(items),first=salarySharedFirstMonth(group);
+ assert.equal(group.mode,'closed');assert.equal(group.validUntil,'2026-10');assert.equal(first,'2026-11');
+ assert.equal(group.periodMonths,null);assert.equal(salarySharedLastMonth(group,first),null,'no prolonga ambos convenios con la mayor duración de origen');
+ assert.throws(()=>salarySharedPeriodPlan(items,selected(group.rows),change(),first,salarySharedLastMonth(group,first)),/mes final/);
+ const plan=salarySharedPeriodPlan(items,selected(group.rows),change(),first,'2026-11');
+ assert.equal(plan.preparationMode,'closed_period');assert.equal(plan.newDefinitionsCount,2);
+ assert.deepEqual(plan.items.filter(item=>item.validFrom===first).map(item=>[item.agreementCode,item.validFrom,item.validUntil]),[['1','2026-11','2026-11'],['4','2026-11','2026-11']]);
+ for(const original of items)assert.deepEqual(plan.items.find(item=>salaryRowKey(item)===salaryRowKey(original)),original);
+ assert.equal(salarySerialized(items),before);
+});
+
 test('vigencia abierta: el grupo pasa completo por el plan de nueva vigencia',()=>{
  const items=salaryItems([scale('1','3','100.00'),scale('4','3','100.00'),scale('6','3','100.00'),scale('1','4','107.00')]);
  const [group]=salarySharedGroups(items);

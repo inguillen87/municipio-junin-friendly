@@ -46,7 +46,7 @@ export function salarySharedGroups(raw,{minAgreements=2}={}){
    // open: every row has no end and can start a new validity; closed: every row ended in the same month and a new period is prepared from it.
    mode:open===rows.length?'open':open===0&&untils.length===1?'closed':'mixed',
    latestValidFrom:rows.reduce((last,row)=>row.validFrom>last?row.validFrom:last,''),validUntil:untils.length===1?untils[0]:null,
-   periodMonths:open===0&&untils.length===1?Math.max(...rows.map(row=>monthsBetween(row.validFrom,row.validUntil))):null,
+   periodMonths:open===0&&untils.length===1&&rows.every(row=>row.validFrom===rows[0].validFrom)?monthsBetween(rows[0].validFrom,rows[0].validUntil):null,
    hasDependencies:rows.some(row=>row.dependencies.length>0),others};
  }).filter(group=>group.agreements.length>=minAgreements)
   .sort((a,b)=>KIND_ORDER[a.kind]-KIND_ORDER[b.kind]||natural.compare(a.code,b.code)||natural.compare(a.categoryCode??'',b.categoryCode??'')||natural.compare(a.value,b.value));
@@ -54,8 +54,8 @@ export function salarySharedGroups(raw,{minAgreements=2}={}){
 
 // First month the new value can start in every agreement of the group.
 export function salarySharedFirstMonth(group){return nextMonth(group.mode==='closed'?group.validUntil:group.latestValidFrom);}
-// A period prepared from a finished one keeps its length (a month stays a month).
-export function salarySharedLastMonth(group,firstMonth){return group.mode==='closed'?addMonths(firstMonth,group.periodMonths):null;}
+// Only a common finished duration suggests an end (a month stays a month).
+export function salarySharedLastMonth(group,firstMonth){return group.mode==='closed'&&Number.isInteger(group.periodMonths)?addMonths(firstMonth,group.periodMonths):null;}
 
 export function salarySharedTitle(group){
  const kind=group.kind==='scale'?'Escala':group.kind==='auxiliary'?'Valor':'Concepto';
