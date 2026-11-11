@@ -4,7 +4,7 @@ import {reportFixture,historicalReportFixture,reportGroup,rehashReportFixture} f
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {ownReportQuery,ownReportPeriods,ownReportFilters,emptyOwnReportFilters,ownReportBundle,verifiedOwnReportBundle,ownReportDocument} from '../assets/own-payroll-report-model.js';
-import {reportCsv,reportXlsx,reportPdf} from '../assets/report-document.js';
+import {reportCsv,reportXlsx,reportPdf,reportExactShown} from '../assets/report-document.js';
 import {OWN_RUN_TYPES} from '../assets/own-payroll-run-workspace-model.js';
 const bundle=f=>ownReportBundle(f.query,f.details,f.receipts),filters=patch=>({...emptyOwnReportFilters(),...patch});
 
@@ -63,7 +63,8 @@ test('CSV, Excel y PDF preservan precisión exacta como texto y no publican traz
 });
 test('PDF propio informa rango, tipos, filtros, cantidades y totales originales',()=>{
  const f=reportFixture(2),d=ownReportDocument(bundle(f),filters({employeeFrom:'1001'})),pdf=Buffer.from(reportPdf(d)).toString('latin1'),text=[...pdf.matchAll(/<([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1')).join(' ');
- assert.match(text,/2026-10 a 2026-10/);assert.match(text,/Tipos: Mensual/);assert.match(text,/Legajos: 1001 a fin/);assert.match(text,/Participaciones: 2/);assert.ok(text.includes('Neto: '+f.receipts[0].snapshot.totals.net));
+ assert.match(text,/2026-10 a 2026-10/);assert.match(text,/Tipos: Mensual/);assert.match(text,/Legajos: 1001 a fin/);assert.match(text,/Participaciones: 2/);// El PDF es para leer: el neto exacto se muestra con separadores es-AR, sin perder ni redondear un dígito. El documento conserva el texto original.
+ assert.ok(text.includes('Neto: '+reportExactShown(f.receipts[0].snapshot.totals.net)));assert.equal(reportExactShown(f.receipts[0].snapshot.totals.net).replaceAll('.','').replace(',','.'),f.receipts[0].snapshot.totals.net);assert.equal(d.metadata.find(r=>r[0]==='Neto exacto del alcance')[1],f.receipts[0].snapshot.totals.net);
 });
 test('el CSV neutraliza fórmulas de texto del campo unidad y Excel usa texto sin fórmula',()=>{
  const f=historicalReportFixture('2026-10','monthly'),r=f.receipts[0].snapshot.concepts.find(r=>r.nature==='auxiliary');r.unit='  =HYPERLINK("sintetico")';rehashReportFixture(f);const d=ownReportDocument(bundle(f),filters(),'concepts');assert.match(reportCsv(d),/'  =HYPERLINK/);const xlsx=Buffer.from(reportXlsx(d)).toString('utf8');assert.match(xlsx,/  =HYPERLINK\(&quot;sintetico&quot;\)/);assert.doesNotMatch(xlsx,/<f>\s*=HYPERLINK/);
