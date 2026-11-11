@@ -25,3 +25,15 @@ test('un mes preseleccionado reinicia la apertura; lo que escribe la persona apa
  // «Revisar recibos completos» still needs the municipal data; the fix is to load it, not to drop the requirement.
  assert.match(panel,/\$\('consult'\)\.disabled=locked\|\|!!attempt\|\|!issuerProfile;/);
 });
+
+test('la navegación sólo preselecciona el mes por el que consulta cada panel, nunca el «hasta» de una regla',()=>{
+ // Filling every empty month field of «Reglas» closed an open-ended rule («Hasta el período (vacío: sin término)») with last
+ // month and the engine then answered «Falta una regla referenciada vigente». verify-own-payroll-program-ui covers it end to end.
+ assert.ok(navigation.includes("const isPeriodSelector=input=>[...input.attributes].some(attribute=>/^data-[a-z0-9-]+-period$/.test(attribute.name));"));
+ assert.ok(navigation.includes("querySelectorAll('input[type=month]')??[])if(!input.value&&isPeriodSelector(input)){"));
+ const selector=/^data-[a-z0-9-]+-period$/;
+ for(const name of ['data-conditions-period','data-agreement-time-period','data-family-facts-period','data-own-art-period','data-own-f931-period','data-coverage-period'])assert.ok(selector.test(name),name);
+ for(const name of ['data-program-field','data-program-copy-from','data-program-copy-until','data-program-scale-from','data-program-scale-until'])assert.ok(!selector.test(name),name);
+ const program=read('assets/own-payroll-program-panel.js');
+ assert.ok(program.includes("'Hasta el período (vacío: sin término)',r.validUntil,null,v=>r.validUntil=v||null,{key:'validUntil',type:'month'}"));
+});

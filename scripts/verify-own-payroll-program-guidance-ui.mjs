@@ -205,7 +205,7 @@ try{
  check(await $('content').isHidden()&&await $('file-result').isHidden()&&await $('file-input').inputValue()===''&&posts===beforeRejects,'late file read cannot restore data or propose after revocation');
  preparedSalary=null;
 
- check(await page.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'no private browser storage');
+ /* The only key is the «Ver todo junto» view this verifier sets for itself; the page stores nothing else. */check(await page.evaluate(()=>Object.keys(localStorage).every(key=>key==='mc.nomina.reglas.paso')&&sessionStorage.length===0),'no private browser storage');
  check(errors.length===0,'no page errors');
  report={passed:true,checks:checks.length,labels:checks,layoutMeasurements,builtProductPage:true,realReadHandler:true,sqlResponsesSynthetic:true,posts,reads,productiveWrites:0,externalRequests:0,mobileWidths:[390,320],acceptanceCertified:false};
 }catch(e){process.exitCode=1;report={passed:false,message:e.message,checks:checks.length,labels:checks,layoutMeasurements,errors,posts};if(page)await page.screenshot({path:output.replace(/\.json$/,'')+'-failure.png',fullPage:true}).catch(()=>{});}

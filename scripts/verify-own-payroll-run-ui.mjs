@@ -15,7 +15,7 @@ import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
-import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
+import {installOwnPayrollReadinessUiQa,installOwnRosterBatchQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {RUN_CALCULATE,ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
@@ -32,7 +32,7 @@ let report;
 try{
   const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
   await db.run(ownPayrollFullQaInstallation(qa.schema));
-  const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa),readinessSql=createOwnPayrollReadinessSql(db,qa);
+  const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa);await installOwnRosterBatchQa(db,qa);const readinessSql=createOwnPayrollReadinessSql(db,qa);
   const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
   const actor=qa.actors.maker,principal={user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:[...RUN_CALCULATE,'payroll.read']}},session={email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha},env={};
   const deps={env,requireAccess:async()=>({mode:'managed',principal}),sessionFor:()=>session,getSql:async()=>({query:async(query,values)=>{

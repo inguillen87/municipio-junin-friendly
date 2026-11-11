@@ -90,6 +90,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  // operation. A click sent from here could arrive late and clear what the person had already consulted.
  // Tasks whose consult needs more choices (presentation, jurisdiction, codes): only the month is preselected.
  const monthOnly=['art','f931','horas-convenio','condiciones','familia','reglas'];
+ const isPeriodSelector=input=>[...input.attributes].some(attribute=>/^data-[a-z0-9-]+-period$/.test(attribute.name));
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
   if(id==='calculo'){const field=key=>calculation.querySelector('[data-own-'+key+']'),set=(input,value)=>{input.value=value;input.dispatchEvent(new Event('change',{bubbles:true}));};
    const period=field('period'),date=field('date'),type=field('type'),kind=field('kind');
@@ -100,7 +101,10 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
   // Wait until the panel has verified access (its fieldset is disabled meanwhile): writing the month earlier fired
   // «change», which F.931 treats as new criteria and aborted its own access check, leaving it locked with
   // «Cambió el período…». F.931 reads the month when consulting, so it only needs «input».
-  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value){if(input.matches(':disabled')){if(retries-->0)setTimeout(preload,700);continue;}input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));if(id!=='f931')input.dispatchEvent(new Event('change',{bubbles:true}));}
+  // Only the month a panel consults by (its «…-period» selector) is preselected. Every other month field of the task — the end
+  // of a rule's validity, the months of a copy, a scale reference — stays as the person left it: an empty «hasta» means «sin
+  // término», and filling it from here closed the rule without anyone asking.
+  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&isPeriodSelector(input)){if(input.matches(':disabled')){if(retries-->0)setTimeout(preload,700);continue;}input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));if(id!=='f931')input.dispatchEvent(new Event('change',{bubbles:true}));}
   if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;let changed=false;if(period&&!period.value&&!period.disabled){changed=true;period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){changed=true;type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
    // A panel may invalidate its view shortly after a field changes: consult on the next pass, not in the same tick.

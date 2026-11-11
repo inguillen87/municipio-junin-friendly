@@ -16,7 +16,7 @@ import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
-import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
+import {installOwnPayrollReadinessUiQa,installOwnRosterBatchQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {PROGRAM_READ,PROGRAM_CAPS} from '../lib/internal-own-payroll-program.js';
 import {RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
 import {exactProgram as syntheticProgram} from '../tests/fixtures/own-payroll-exact-program-synthetic.js';
@@ -53,7 +53,7 @@ const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(ac
 try{
  const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
  await db.run(ownPayrollFullQaInstallation(qa.schema));
- const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa),readinessSql=createOwnPayrollReadinessSql(db,qa);
+ const readinessFixture=await installOwnPayrollReadinessUiQa(db,qa);await installOwnRosterBatchQa(db,qa);const readinessSql=createOwnPayrollReadinessSql(db,qa);
  const precision=buildExactProgramPrecisionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit:'a'.repeat(40)});
  await db.run(precision.changed.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replace('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${qa.schema},public,pg_temp`)+"; SELECT '{}'::jsonb");
  let referenceInstallation=null;

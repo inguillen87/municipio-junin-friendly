@@ -15,7 +15,7 @@ import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {createOwnLiquidationHandler} from '../api/internal-own-payroll-liquidation.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
-import {installOwnPayrollReadinessUiQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
+import {installOwnPayrollReadinessUiQa,installOwnRosterBatchQa,createOwnPayrollReadinessSql} from './lib/own-payroll-readiness-ui-qa.mjs';
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createInternalDataHandler} from '../api/internal-data.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
@@ -47,7 +47,7 @@ const responseDiagnostic=(event,value)=>{if(event){event.ok=value?.ok===true;eve
 try{
  const r=await execute(executable,[...db.args,'-f',seed],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});installed=true;fs.writeFileSync(prefix+'-seed.log',r.stdout+r.stderr);
  await db.run(ownPayrollFullQaInstallation(qa.schema));
- const readinessInstallation=await installOwnPayrollReadinessUiQa(db,qa),canonicalReadinessSql=createOwnPayrollReadinessSql(db,qa),readinessSql={query:(query,values)=>tracedSql('readiness',query,()=>canonicalReadinessSql.query(query,values))};
+ const readinessInstallation=await installOwnPayrollReadinessUiQa(db,qa);await installOwnRosterBatchQa(db,qa);const canonicalReadinessSql=createOwnPayrollReadinessSql(db,qa),readinessSql={query:(query,values)=>tracedSql('readiness',query,()=>canonicalReadinessSql.query(query,values))};
  const maker=identity(qa.actors.maker,RUN_CALCULATE),reviewer=identity(qa.actors.checker,OWN_LIQ_REVIEW);let current=reviewer;
  const run=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),boot=await run('bootstrap'),period=await db.run("SELECT to_jsonb(greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const body={period,liquidationType:'monthly',selection:{kind:'all',values:[]},scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'};let capture,original;
@@ -110,7 +110,7 @@ try{
  await decide('annul','all');await select('send').click();await settled();
  check((await individual.locator('[data-individual-state]').innerText()).includes('Histórico anulado')&&(await individual.locator('[data-individual-amount="net"]').innerText())===originalNet,'annulled individual result keeps its exact original net, never a fictitious zero');
  await select('recalculate').click();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled,{},{timeout:20000});
- check((await page.locator('[data-own-readiness]').getAttribute('data-state'))==='success'&&(await page.locator('[data-own-readiness-facts]').innerText()).includes(capture.saved.input.employees.length+' legajos propios'),'voluntary recalculation verifies the complete canonical own roster and approved programme through current HTTP and SQL');
+ check((await page.locator('[data-own-readiness]').getAttribute('data-state'))==='success'&&(await page.locator('[data-own-readiness-facts]').textContent()).includes(capture.saved.input.employees.length+' legajos propios'),'voluntary recalculation verifies the complete canonical own roster and approved programme through current HTTP and SQL');
  const calc=key=>page.locator('[data-own-'+key+']'),beforeCalculation=posts;
  check((await calc('period').inputValue())===body.period&&(await calc('type').inputValue())==='monthly'&&(await calc('kind').inputValue())==='contracts'&&await calc('chips').locator('span>button').count()===1,'all of a one-person partial run prepares exactly its one annulled contract with original period/type');
  check(!(await calc('confirm').isChecked())&&calculationWrites.length===0,'continuation revalidates source/session and prepares only; calculation remains voluntary');
@@ -128,7 +128,7 @@ try{
  check((await select('status').innerText()).includes('cálculo pendiente')&&calculationWrites.length===1,'another preparation cannot replace a pending calculation body/key');
  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');await calc('recover').click();await calc('result').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  assert.deepEqual(calculationWrites,[pendingCalculation]);checks++;check((await calc('date').inputValue())===chosenDate&&(await calc('result-summary').innerText()).includes(chosenDate.split('-').reverse().join('/')),'recovery reinstates original signed date despite a DOM change during lost acknowledgement');check(pendingCalculation.body.selection.kind==='contracts'&&pendingCalculation.body.selection.values.length===1&&pendingCalculation.body.selection.values[0]===firstId,'new calculation preserves the exact annulled legajo and cannot widen to six source contracts');
- await calc('search').fill('no-match');await calc('totals').locator('[data-own-individual-open]').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
+ /* the result search lives under «Detalle por concepto», folded by default */await page.locator('[data-own-concept-details]').evaluate(e=>{if(!e.open)e.querySelector('summary').click();});await calc('search').fill('no-match');await calc('totals').locator('[data-own-individual-open]').click();await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');
  check(await calc('individual').locator('[data-individual-concepts] li').count()===6&&(await calc('individual').locator('[data-individual-state]').innerText()).includes('Pendiente de confirmación'),'recovered new result has complete concepts and fresh pending state through the actual detail handler');
  const beforeReview=posts;await calc('review').click();await settled();check(await select('values').locator('option:checked').count()===1&&(await individual.locator('[data-individual-state]').innerText()).includes('Pendiente de confirmación')&&posts===beforeReview,'explicit review opens the same saved result and selected legajo without confirming or calculating');
  for(const width of [390,320]){await page.setViewportSize({width,height:844});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'individual summary has no document overflow at'+width);check(await individual.locator('[data-individual-close]').evaluate(el=>el.getBoundingClientRect().height>=44),'individual close control meets44px at'+width);await page.screenshot({path:prefix+'-individual-'+width+'.png',fullPage:true});}
