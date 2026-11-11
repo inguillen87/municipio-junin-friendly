@@ -1,7 +1,6 @@
 // Real product page + real HTTP handlers + committed isolated PostgreSQL.
 // Auth gateway and unavailable historical dashboard are QA fixtures; the own picker uses the real SQL-backed roster handler.
 import {openQaPayrollSidebarTask} from './lib/qa-payroll-sidebar-navigation.mjs';
-import {qaBrowserJsonSnapshot} from './lib/qa-browser-json-snapshot.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -26,7 +25,7 @@ const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(roo
 const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
-let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
+let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;const runReplies=[];
 const writes=[],sqlDiagnostics=[],nativeRosterRequests=[],nativeRosterResponses=[],legacyDirectoryRequests=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 let report;
 try{
@@ -75,7 +74,9 @@ try{
         res.write=(...values)=>{chunks.push(values);return true;};
         res.end=(...values)=>{held=()=>{if(!res.destroyed){res.write=write;res.end=end;for(const c of chunks)write(...c);end(...values);}};return res;};
       }
-      res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
+      // The exact JSON the real handler writes for each calculation POST, numbered like «posts»: the rejection oracle reads it here.
+      const post=req.method==='POST'?posts+1:null;
+      res.json=value=>{if(post!==null&&url.pathname==='/api/internal-own-payroll-run')runReplies.push({post,status:res.statusCode,body:structuredClone(value)});res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};
       if(req.method==='POST')posts++;
       handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
     }
@@ -227,10 +228,14 @@ try{
   const rs=k=>reviewPage.locator('[data-own-'+k+']'),idle=()=>reviewPage.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');
   await reviewPage.goto(origin+'/nomina-control.html#calculo');await reviewPage.waitForFunction(()=>!document.querySelector('[data-own-fields]').disabled);
   await rs('period').fill(sources.period);await rs('period-end').click();await rs('type').selectOption('monthly');await rs('kind').selectOption('all');await rs('confirm').check();
-  const failedResponsePromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run').then(qaBrowserJsonSnapshot);
-  const [failedResponse]=await Promise.all([failedResponsePromise,rs('send').click()]);await idle();
-  const failed=structuredClone(writes.at(-1)),reviewPosts=posts;
-  check(failedResponse.status===422&&failedResponse.body.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
+  // Calcular reads every response through a stream. Chromium reports a «no-store» response read that way as aborted most of
+  // the time, although the page received it whole, and CDP then has no body for it: asking the browser for that JSON failed
+  // more often than not. The browser gives the status it received; this server gives the JSON the real handler wrote for
+  // that same POST.
+  const failedStatusPromise=reviewPage.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/internal-own-payroll-run').then(r=>r.status());
+  const [failedStatus]=await Promise.all([failedStatusPromise,rs('send').click()]);await idle();
+  const failed=structuredClone(writes.at(-1)),reviewPosts=posts,failedReply=runReplies.at(-1);
+  check(failedStatus===422&&failedReply?.post===reviewPosts&&failedReply.status===422&&failedReply.body.code==='OWN_RUN_SOURCE_AMBIGUOUS'&&!(await rs('result').isVisible()),'actual adapter rejects repeated unique sources without a fake result');
   await rs('recover').click();await idle();check(await rs('source-review-button').isVisible()&&!(await rs('result').isVisible()),'original persisted capture is recovered without fake result');
   await rs('source-review-button').click();await rs('source-report').waitFor({state:'visible'});await idle();
   check((await rs('source-summary').innerText()).includes('31 novedades')&&(await rs('source-summary').innerText()).includes('31 registros'),'source review inspects all 31 actual approved SQL novelties');
