@@ -478,7 +478,10 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }
-  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
+  // Opened before the access is known (the tab or a #fixedNovelties link can open it first): nothing may be read yet;
+  // setAccess consults when the permission arrives, so the section never stays open and empty.
+  let openedWithoutAccess=false;
+  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!hasRead(access))openedWithoutAccess=true;else if(!data&&!editor&&!busy)refresh();}else if(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
   const groupVisibility=()=>{if(document.hidden&&(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)))deny();};
   document.addEventListener('visibilitychange',groupVisibility);
   function acceptDirectoryGate(detail){const current=new Set(detail?.tenantCapabilities||[]);directoryAllowed=current.has('workforce.employee.read');if(!directoryAllowed)picker?.close();groupGateAllowed=current.has('payroll.fixed.prepare');reviewGroupGateAllowed=current.has('payroll.fixed.approve');
@@ -496,7 +499,8 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
-    // Already opened before this module listened (a #fixedNovelties link, or its tab): the toggle event is gone, mount now.
-    else if(shell.open&&!mounted){mount();if(!data&&!editor&&!busy)refresh();}
+    // Already opened before this module listened (a #fixedNovelties link, or its tab: the toggle event is gone), or opened
+    // before the access was known (the toggle could not read): mount if needed and consult now.
+    else if(shell.open&&(!mounted||openedWithoutAccess)){openedWithoutAccess=false;mount();if(!data&&!editor&&!busy)refresh();}
   }};
 }
