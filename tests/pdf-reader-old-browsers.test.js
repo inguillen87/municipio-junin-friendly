@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
-import {spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
+import {spawnSync} from 'node:child_process';import {fileURLToPath,pathToFileURL} from 'node:url';
 import {openReadingSource,READING_FAILED,READER_UNAVAILABLE} from '../assets/document-reader-source.js';
 
 // PDF.js 6.3 llama a métodos que sólo traen los navegadores más nuevos. En un Chrome o Edge desactualizado la lectura de
@@ -58,7 +58,8 @@ assert.equal(Math.sumPrecise([1,2,3]),6);assert.equal(await Promise.try(()=>7),7
 process.stdout.write('ok');
 `;
 for(const name of vendored)test(name+' define getOrInsert y getOrInsertComputed de Map y WeakMap cuando el navegador no los trae',()=>{
- const run=spawnSync(process.execPath,['--input-type=module','-e',semantics,path.join(root,shipped(name))],{encoding:'utf8'});
+ // import() recibe una URL: en Windows una ruta «C:\\…» no es un especificador válido y la carga fallaba antes de probar nada.
+ const run=spawnSync(process.execPath,['--input-type=module','-e',semantics,pathToFileURL(path.join(root,shipped(name))).href],{encoding:'utf8'});
  assert.equal(run.status,0,run.stderr.slice(-2000));assert.equal(run.stdout,'ok');
 });
 
