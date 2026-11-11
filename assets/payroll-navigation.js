@@ -85,7 +85,9 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const enabled=(root,selector)=>{const button=root.querySelector(selector);return button&&!button.disabled&&!button.hidden?button:null;};
  const periodTasks={anulacion:{root:annulment,period:'[data-annul-period]',type:'[data-annul-type]',load:'[data-annul-load]'},cierre:{root:close,period:'[data-close-period]',type:'[data-close-type]',load:'[data-close-consult]'},
   imputacion:{root:imputation,period:'[data-imputation-period]',type:'[data-imputation-type]',load:'[data-imputation-consult]'},asientos:{root:journal,period:'[data-journal-period]',type:'[data-journal-type]',load:'[data-journal-consult]'},
-  conciliacion:{root:reconciliationDocuments,period:'[data-rec-period]',type:'[data-rec-type]',load:'[data-rec-consult]'},recibos:{root:receipts,period:'[data-receipt-period]',type:null,load:'[data-receipt-history]'}};
+  conciliacion:{root:reconciliationDocuments,period:'[data-rec-period]',type:'[data-rec-type]',load:'[data-rec-consult]'},recibos:{root:receipts,period:'[data-receipt-period]',type:null,load:null}};
+ // Recibos only gets its month here: the panel itself then loads the municipal data and the emissions of that month, in one
+ // operation. A click sent from here could arrive late and clear what the person had already consulted.
  // Tasks whose consult needs more choices (presentation, jurisdiction, codes): only the month is preselected.
  const monthOnly=['art','f931','horas-convenio','condiciones','familia','reglas'];
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
@@ -103,7 +105,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){changed=true;type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
    // A panel may invalidate its view shortly after a field changes: consult on the next pass, not in the same tick.
    if(changed&&!task.loaded&&retries-->0){setTimeout(preload,700);}
-   else if(!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
+   else if(task.load&&!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
   if(id==='comparar'&&ownComparison.querySelector('[data-oc-query]')?.hidden)enabled(ownComparison,'[data-oc-refresh]')?.click();};
  for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type].filter(Boolean))task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
  const schedule=()=>{retries=20;setTimeout(preload,0);};document.addEventListener('taskchange',event=>{if(event.detail?.id!==workspaceHost.dataset.activeTask)return;for(const task of Object.values(periodTasks))task.loaded=false;schedule();});
