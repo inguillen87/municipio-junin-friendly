@@ -55,8 +55,11 @@ await context.route('**/*',async route=>{
 });
 try{
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ // Since be09ae15 Ausentismo shows one group of sections at a time: the nominal list is the «Eventos» tab; the indicators
+ // and the «sin coincidencias» notice are «Resumen y gráficos». The verifier moves between them the way a person does.
+ const showTab=async id=>{const tab=page.locator('.mc-section-tabs [role=tab][data-tab="'+id+'"]');await tab.click();assert.equal(await tab.getAttribute('aria-selected'),'true');};
  await page.goto(origin+'/ausentismo-control.html?from=2026-08-01&to=2026-09-10');
- await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).waitFor();
+ await showTab('eventos');await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).waitFor();
  assert.equal(await page.locator('#mainContent').isVisible(),true);assert.equal(await page.locator('#eventsValue').textContent(),'—');
  assert.equal(await page.locator('#filterPanel button[type=submit]').isEnabled(),true);
  checks.push('The event list and filters remain usable while the independent analytics request is delayed.');
@@ -64,8 +67,10 @@ try{
  delayAnalytics=false;releaseAnalytics();await page.waitForFunction(()=>document.getElementById('eventsValue').textContent==='52');
  assert.equal(await page.locator('#fromInput').inputValue(),'2026-08-05');assert.equal(await page.locator('#toInput').inputValue(),'2026-09-10');await page.locator('#fromInput').fill('2026-08-01');
  checks.push('Late analytics preserves edited dates while filling untouched defaults.');
- assert.doesNotMatch(await page.locator('#eventsChange').innerText(),/0%/);
+ // The year-on-year comparison is the «Comparar» view of the summary charts: read the variation where it is shown.
+ await showTab('resumen');await page.locator('[data-ab-view="comparar"]').click();assert.equal(await page.locator('#eventsChange').isVisible(),true);assert.doesNotMatch(await page.locator('#eventsChange').innerText(),/0%/);
  checks.push('A zero prior baseline is not displayed as zero percent variation.');
+ await page.locator('[data-ab-view="evolucion"]').click();await showTab('eventos');
  // The daily heatmap reads bucket=day asynchronously after the analytics render; opening a case must still add no request.
  const caseCalls=()=>calls.filter(c=>c.query.get('bucket')!=='day').length;
  const before=caseCalls(),url=page.url();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).click();
@@ -83,11 +88,11 @@ try{
  checks.push('Search covers the full filtered event list via the server and never places the person query in browser history.');
  await page.locator('#eventSearchClear').click();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).waitFor();
  await page.locator('#reasonSelect').selectOption('20');await page.locator('#filterPanel button[type=submit]').click();
- await page.locator('#absenceEmpty').waitFor();assert.equal(await page.locator('#summaryBadge').textContent(),'Sin coincidencias');assert.match(await page.locator('#filterSummary').innerText(),/Inasistencias/);
+ await showTab('resumen');await page.locator('#absenceEmpty').waitFor();assert.equal(await page.locator('#summaryBadge').textContent(),'Sin coincidencias');assert.match(await page.locator('#filterSummary').innerText(),/Inasistencias/);
  await page.locator('#removeReason').click();await page.waitForFunction(()=>document.getElementById('eventsValue').textContent==='52');
  assert.equal(new URL(page.url()).searchParams.get('from'),'2026-08-01');assert.equal(new URL(page.url()).searchParams.get('reasonCode'),null);
  checks.push('Empty results identify the active reason and removing it keeps the date range.');
- eventsMode='fail';await page.locator('#refreshButton').click();await page.locator('#eventsRetry').waitFor();assert.equal(await page.locator('#mainContent').isVisible(),true);
+ await showTab('eventos');eventsMode='fail';await page.locator('#refreshButton').click();await page.locator('#eventsRetry').waitFor();assert.equal(await page.locator('#mainContent').isVisible(),true);
  await page.waitForFunction(()=>document.getElementById('eventsValue').textContent==='52');eventsMode='ok';await page.locator('#eventsRetry').click();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).waitFor();
  checks.push('A failed event request can be retried without blanking available analytics.');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(out,'absence-mobile.png'),fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
