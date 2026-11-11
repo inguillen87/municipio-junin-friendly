@@ -43,6 +43,9 @@ test('DNIs link to exactly one active own contract; none or several are left out
 test('concept suggestions follow the file name only when the format admits it; the panel wires the import', () => {
   assert.equal(entityConceptSuggestion('DESCUENTOS/A.M.A.R.U/638082026.txt', entityFormat(1)), '638');
   assert.equal(entityConceptSuggestion('678 082026.txt', entityFormat(9)), '678');
+  // Módulo 3.4 de Noelia: 614, 638, 639, 641, 650, 651, 665 y 675 usan Formato Junín.
+  assert.deepEqual(entityFormat(1).concepts, ['614', '638', '639', '641', '650', '651', '665', '675']);
+  assert.equal(entityConceptSuggestion('641102026.txt', entityFormat(1)), '641');
   assert.equal(entityConceptSuggestion('MAYORES44082026.TXT', entityFormat(4)), '');
   assert.equal(entityConceptSuggestion('999082026.txt', entityFormat(1)), '');
   assert.equal(GRH_ENTITY_FORMATS.length, 20);

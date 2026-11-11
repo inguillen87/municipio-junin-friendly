@@ -6,7 +6,7 @@ const freeze = v => { if (v && typeof v === 'object') { Object.values(v).forEach
 const f = (id, label, items, concepts = []) => ({ id, label, items, concepts });
 // [kind, position (0-based), length, tipodato]
 export const GRH_ENTITY_FORMATS = freeze([
-  f(1, 'Formato Junín · DNI e importe (55)', [['dni', 5, 8, 0], ['amount', 44, 11, 3]], ['614', '638', '639', '650', '651', '665', '675']),
+  f(1, 'Formato Junín · DNI e importe (55)', [['dni', 5, 8, 0], ['amount', 44, 11, 3]], ['614', '638', '639', '641', '650', '651', '665', '675']),
   f(4, 'MAYOR y FULL · DNI y porcentaje/horas (13)', [['dni', 0, 8, 0], ['quantity', 8, 5, 5]], ['44', '95']),
   f(7, 'OSEP CUOTA % (185)', [['dni', 7, 8, 0], ['quantity', 62, 5, 5]], ['601']),
   f(16, 'OSEP · VOLUN. PUROS (185)', [['dni', 7, 8, 0], ['quantity', 82, 3, 0], ['amount', 83, 10, 5]], ['602']),
