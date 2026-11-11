@@ -1,5 +1,5 @@
 import {OWN_JURISDICTIONS,ownJurisdictionChoice,ownJurisdictionSelect,ownClosedJurisdiction,ownJurisdictionLabel} from './own-payroll-jurisdiction-model.js';
-import {salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
+import {SALARY_UNITS,salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownCloseDetail,ownCloseReceipt,verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {OWN_REPORT_CENSUS_VERSION,ownReportCensus,verifiedOwnReportCensus} from './own-payroll-report-census-model.js';
@@ -7,6 +7,8 @@ import {decimal,rational,exactAdd,exactCompare,quantize} from './own-payroll-exa
 import {ownReportVariableSources,OWN_VARIABLE_UNITS,ownVariableDisplayValue} from './own-payroll-report-variables.js';
 import {ownReportStatement} from './own-payroll-report-statement.js';
 import {ownLegajoReportRows} from './own-payroll-report-legajo.js';
+// The unit of a concept in words, the same ones the other report views use; an unknown unit is shown as it was saved.
+const unitLabel=unit=>OWN_VARIABLE_UNITS[unit]??SALARY_UNITS[unit]??unit;
 
 export const OWN_REPORT_MAX_ROWS=250000;
 export const OWN_REPORT_MAX_BYTES=256*1024*1024;
@@ -131,7 +133,7 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
   rows=[...groups.values()].map(group=>{const item=group[0],precision=group.reduce((p,r)=>Math.max(p,r.employee.precision),0);return [item.period,OWN_RUN_TYPES[item.type],item.employee.agreementCode,item.employee.departmentCode,group.length,...['gross','deduction','net'].map(k=>sum(group.map(r=>r.employee.totals[k]),precision)),...jurisdictionCell(item.source,item.employee)];});
  }else if(view==='concepts'){
   title='Conceptos propios por legajo';columns=['Período','Tipo','Legajo','Concepto','Naturaleza','Unidad','Importe / valor exacto','Versión',...(jurisdictionColumns?['Jurisdicción conservada']:[])].map(text);
-  rows=chosen.flatMap(({period,type,source,employee:e})=>source.snapshot.concepts.filter(r=>r.contractId===e.contractId).map(r=>[period,OWN_RUN_TYPES[type],e.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,String(e.liquidationVersion),...jurisdictionCell(source,e)]));
+  rows=chosen.flatMap(({period,type,source,employee:e})=>source.snapshot.concepts.filter(r=>r.contractId===e.contractId).map(r=>[period,OWN_RUN_TYPES[type],e.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],unitLabel(r.unit),r.amount,String(e.liquidationVersion),...jurisdictionCell(source,e)]));
  }else if(view==='statistics'){
   payrollStatement=ownReportStatement(chosen,b.sources,b.details,'concept').cover;
   variableMetadata.push(['Concepto elegido',statistics.concept||'Todos']);
@@ -141,7 +143,7 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
    const dimension=grouping==='department'?e.departmentCode:grouping==='agreement'?e.agreementCode:grouping==='agreement_department'?e.agreementCode+' / '+e.departmentCode:grouping==='jurisdiction'?ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version)):'Todos los seleccionados',id=salarySerialized([type,dimension,r.conceptCode,r.nature,r.unit]);
    const g=groups.get(id)??{type,dimension,code:r.conceptCode,nature:r.nature,unit:r.unit,amounts:[],precision:0};g.amounts.push(r.amount);g.precision=Math.max(g.precision,r.amount.split('.')[1]?.length??0);groups.set(id,g);
   }
-  rows=[...groups.values()].sort((a,b)=>a.type.localeCompare(b.type)||a.dimension.localeCompare(b.dimension)||compare(a.code,b.code)||a.nature.localeCompare(b.nature)||a.unit.localeCompare(b.unit)).map(g=>[OWN_RUN_TYPES[g.type],g.dimension,g.code,OWN_RUN_NATURES[g.nature],g.unit,g.amounts.length,sum(g.amounts,g.precision),b.query.from+' a '+b.query.to]);
+  rows=[...groups.values()].sort((a,b)=>a.type.localeCompare(b.type)||a.dimension.localeCompare(b.dimension)||compare(a.code,b.code)||a.nature.localeCompare(b.nature)||a.unit.localeCompare(b.unit)).map(g=>[OWN_RUN_TYPES[g.type],g.dimension,g.code,OWN_RUN_NATURES[g.nature],unitLabel(g.unit),g.amounts.length,sum(g.amounts,g.precision),b.query.from+' a '+b.query.to]);
  }else if(['variables','variable_usage','variable_sources'].includes(view)){
   const originals=ownReportVariableSources(b,bundle.captures,OWN_REPORT_MAX_ROWS);
   const variables=chosen.flatMap(item=>originals.participations.get(item.identity).variables);
