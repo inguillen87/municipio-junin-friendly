@@ -263,6 +263,9 @@ export async function runOwnPeriodClassificationQa(h,{browser='none',finalAdopte
   const browserNative=await db.run('SELECT native_employee_create_v1('+j(browserActors.maker)+','+j(browserDraft)+','+q(browserHire.catalog.version)+','+q(randomUUID())+'::uuid)',true),definition={...declaration,agreementCode:category.agreementCode,categoryCode:category.code,organizationId:organization.code,sectorCode:sector.code,jurisdictionCode:'42',startDate:browserPeriod+'-01',effectiveFrom:browserPeriod+'-01',effectiveUntil:currentLast};
   Object.assign(h.env,{FRIENDLY_GRH_SOURCE_DATABASE:'qa_fixed_source',FRIENDLY_GRH_COMPANY_ID:'101'});
   h.handlers.directory=createInternalDataHandler({env:h.env,requireCompatibleInternalAccess:actualAccess,actionMutationSession:h.deps.sessionFor,getInternalSql:()=>h.adapter,getActionCenterSql:()=>h.adapter});
+  // The picker reads the whole own roster through a function installed in production outside the numbered migrations; this
+  // older fixture gets the same exact definition (pinned by hash) before the browser opens the picker.
+  {const {installRosterBatchForQa}=await import('./roster-batch-qa.mjs');await installRosterBatchForQa({sql,schema:qa.schema,relocate});}
   const {verifyOwnPeriodClassificationBrowser}=await import('./own-period-classification-browser.mjs');
   await verifyOwnPeriodClassificationBrowser({handlers:h.handlers,env:h.env,actors:browserActors,setActor,period:browserPeriod,contractId:browserNative.contractId,employeeNumber:browserNative.legajo,definition,bootstrap:async()=>{setActor(browserActors.maker);return api('classification',{query:{resource:'bootstrap',contractId:browserNative.contractId,period:browserPeriod}});},output:h.destination,check:h.ok,browserName:browser});done('browser');
  }
