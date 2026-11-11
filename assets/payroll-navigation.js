@@ -112,6 +112,9 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
    else if(task.load&&!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
   if(id==='comparar'&&ownComparison.querySelector('[data-oc-query]')?.hidden)enabled(ownComparison,'[data-oc-refresh]')?.click();};
  for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type].filter(Boolean))task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
+ // Quien consulta por su cuenta ya tiene su lectura. La consulta automática que quedó esperando (el botón estaba ocupado, o
+ // el mes se acababa de completar) se da por hecha: si llegara después, vaciaría lo que la persona ya consultó o estaba eligiendo.
+ for(const task of Object.values(periodTasks))if(task.load)task.root.querySelector(task.load)?.addEventListener('click',()=>{task.loaded=true;});
  const schedule=()=>{retries=20;setTimeout(preload,0);};document.addEventListener('taskchange',event=>{if(event.detail?.id!==workspaceHost.dataset.activeTask)return;for(const task of Object.values(periodTasks))task.loaded=false;schedule();});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){for(const task of Object.values(periodTasks))task.loaded=false;schedule();}});document.addEventListener('municontrol:capabilities-ready',schedule);schedule();
 }
