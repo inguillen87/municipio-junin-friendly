@@ -187,9 +187,12 @@ try {
   async function consultReferenceDirectory() {
     assert.equal(await page.locator('#employeeDialog[open]').count(),0,'CLOSE_SHEET_BEFORE_REFERENCE_SEARCH');
     const before=directoryRequests,history=page.locator('#employeeHistory');
-    if(await history.getAttribute('open')===null)await history.locator(':scope > summary').click();
-    assert.equal(directoryRequests,before,'OPENING_REFERENCE_HISTORY_MUST_NOT_QUERY');
-    await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+    // Since ce7eb9cc opening «Antecedentes» is itself the consultation (one read, no extra «Buscar»); when the archive is
+    // already open the person asks with «Buscar». Either way it is one explicit action and exactly one read.
+    if(await history.getAttribute('open')===null){
+      assert.equal(await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true,includeHidden:true}).count(),0,'CLOSED_REFERENCE_HISTORY_MUST_NOT_HOLD_ROWS');
+      await history.locator(':scope > summary').click();
+    } else await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
     assert.equal(directoryRequests,before+1,'ONE_EXPLICIT_REFERENCE_QUERY');
   }
@@ -221,8 +224,10 @@ try {
         if (!form || !body || !dialog?.open) return false;
         const state = window.__schoolingEditorFrame; state.frames++;
         dialog.scrollTop = 0;
-        const bodyRect = body.getBoundingClientRect(), nav = body.querySelector('.employee-section-nav');
-        const navBottom = nav ? nav.getBoundingClientRect().bottom : bodyRect.top;
+        const bodyRect = body.getBoundingClientRect(), nav = body.querySelector('.employee-section-nav'), dock = body.querySelector('.esn-dock.is-on .esn-dock-bar');
+        // Since 06/11 the full navigator scrolls away with the ficha and a compact dock floats over the top of the body once
+        // it has left the view: whichever of the two covers the top is what the editor must clear.
+        const navBottom = Math.max(nav ? nav.getBoundingClientRect().bottom : bodyRect.top, dock ? dock.getBoundingClientRect().bottom : bodyRect.top);
         const targetTop = Math.max(bodyRect.top, navBottom) + 12;
         const desired = body.scrollTop + form.getBoundingClientRect().top - targetTop;
         const maxScroll = Math.max(0, body.scrollHeight - body.clientHeight), targetScroll = Math.max(0, Math.min(maxScroll, desired));
