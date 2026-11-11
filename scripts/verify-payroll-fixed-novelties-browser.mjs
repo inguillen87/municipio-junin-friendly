@@ -1,3 +1,4 @@
+import {openFixedNovelties} from './lib/novelty-reference-browser.mjs';
 /** Actual compiled UI. Every private API and POST is synthetic and intercepted. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -98,7 +99,7 @@ try{
   const save=async()=>{await host.locator('[data-fn-preview]').click();await host.locator('[data-fn-save]:enabled').waitFor();await host.locator('[data-fn-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();};
   const role=async name=>{state.role=name;await refresh();await refresh();};
   const review=async(id,decision='approve')=>{await openRecord(id);await host.locator(`[data-fn-${decision}]`).click();await host.locator('[data-fn-decision-reason]').fill('Revisión independiente de evidencia sintética');assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);assert.equal(await host.locator('[data-fn-change-field]').count(),10);await host.locator('[data-fn-reviewed]').check();await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();};
-  await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-new]:enabled').waitFor();
+  await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await host.locator('[data-fn-new]:enabled').waitFor();
   assert.equal(posts.length,0);assert.equal(state.records.length,0);checks.push('actual monthly workbench exposes a lazy fixed-novelty workspace without writing or inventing employees');
   assert.equal(await host.locator('[data-fn-junin638]').getAttribute('aria-describedby'),'fixedTxt638Availability');assert.match(await host.locator('[data-fn-txt638-availability]').innerText(),/Elegí el período/);checks.push('638 disabled state explains the missing period next to the associated button');
   await fill();assert.equal(await field('amountArs').inputValue(),'');assert.equal(await field('forced').isChecked(),false);checks.push('exact employee lookup pins contract identity; amount absent and force disabled remain explicit');
@@ -130,7 +131,7 @@ try{
     failNext={status:403,code:'PAYROLL_FIXED_CAPABILITY_REQUIRED'};await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(await host.locator('[data-fn-cancel]').isDisabled(),true);assert.equal(await field('quantityDecimal').isDisabled(),true);await refresh();
   }
   await host.locator('[data-fn-record]').first().waitFor();assert.equal(state.records.filter(r=>r.subject.legajo==='1004').length,1);checks.push('closing during a POST cannot turn an ignored acknowledgement into permission for a new payload or duplicate');
-  await role('reader');assert.equal(await host.locator('[data-fn-new]:visible:enabled').count(),0);assert.equal(await host.locator('[data-fn-csv]:visible:enabled').count(),0);checks.push('read-only operator sees records without prepare, review or export controls');assert.match(await host.locator('[data-fn-txt638-availability]').innerText(),/falta el permiso de exportación/);checks.push('638 read-only access explains missing export capability without granting it');
+  await role('reader');assert.equal(await host.locator('[data-fn-new]:visible:enabled').count(),0);assert.equal(await host.locator('[data-fn-csv]:visible:enabled').count(),0);checks.push('read-only operator sees records without prepare, review or export controls');await host.locator('[data-fn-txt638-availability]').filter({hasText:/falta el permiso de exportación/}).waitFor();assert.match(await host.locator('[data-fn-txt638-availability]').innerText(),/falta el permiso de exportación/);checks.push('638 read-only access explains missing export capability without granting it');
   await role('preparer');await openRecord(id);denyResource='detail';await host.locator('[data-fn-refresh]').click();await page.waitForTimeout(150);denyResource=null;
   state.denied=true;await host.locator('[data-fn-refresh]').click();await page.waitForTimeout(150);assert.doesNotMatch(await host.innerText(),/AGENTE SINTÉTICO|Acto administrativo sintético|preparer@example\.invalid/);checks.push('revoked read authority removes consulted names, values and historical actors from the DOM');
   state.denied=false;await refresh();state.records=Array.from({length:61},(_,i)=>fixedApprovedRecord(i,{conceptSourceId:i===0?'638':'80',quantityDecimal:i===0?null:'1',amountCents:i===0?'250000':i===1?'0':null,legalInstrument:i===60?'=QA fórmula prohibida':'Acto administrativo sintético QA'}));for(const row of state.records)state.histories.set(row.id,[row.latest]);
@@ -196,7 +197,7 @@ try{
   // Restore the original one-choice directory fixture for the separate chooser
   // revocation tests below. The saved opaque record and its history remain.
   state.subjects.delete(opaque.contractId);
-  await page.setViewportSize({width:1440,height:1050});await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-new]:enabled').waitFor();
+  await page.setViewportSize({width:1440,height:1050});await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await host.locator('[data-fn-new]:enabled').waitFor();
   directoryAllowed=true;await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),[...fixture.cap(),'workforce.employee.read']);
   await host.locator('[data-fn-search]').fill('');await host.locator('[data-fn-new]').click();await host.locator('[data-fn-choose]').click();const chooser=page.locator('#fixedEmployeePicker');await chooser.waitFor();assert.equal(await page.locator('#employeePicker').count(),1);await chooser.locator('input[type=search]').fill('9001');await chooser.getByRole('button',{name:'Buscar',exact:true}).click();await chooser.locator('input[type=radio]').check();await chooser.locator('[data-picker-apply]').click();await host.locator('[data-fn-subject]').filter({hasText:'Registro propio de MuniControl'}).waitFor();assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});
   checks.push('assisted selection has a separate accessible modal and verifies the selected native UUID rather than joining by legajo');
@@ -217,7 +218,7 @@ try{
       const r=fixture.mutate('propose',{...base,expectedVersion:row.version},fixedUuid(91000+row.version));state.role='reviewer';fixture.mutate('review',{recordId:row.id,proposalId:r.data.proposalId,expectedVersion:row.version,decision,reason:'Decisión histórica sintética independiente'},fixedUuid(92000+row.version));state.role='preparer';
     }
     fixture.mutate('propose',{...base,expectedVersion:row.version,operation,values:operation==='annul'?null:base.values},fixedUuid(93000+row.version));state.role='reviewer';
-    await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-record]').waitFor();return row;
+    await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await host.locator('[data-fn-record]').waitFor();return row;
   }
   async function decide(row,decision='approve'){
     await openRecord(row.id);await host.locator(`[data-fn-${decision}]`).click();await host.locator('[data-fn-decision-reason]').fill('Revisión completa sintética antes de decidir');
@@ -259,7 +260,7 @@ try{
   state.role='reviewer';await page.locator('#refreshButton').click();await page.locator('#refreshButton:enabled').waitFor();hideAttempt=true;await refresh();await host.locator('[data-fn-retry]:enabled').waitFor();await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();hideAttempt=false;
   assert.deepEqual(posts.at(-1),originalDecision);assert.equal(reviewRow.version,4);assert.equal(posts.length,beforePosts+1);
   checks.push('an uncertain decision survives a changed membership; only the original scope can recover its exact body/key without a second decision');
-  state.role='preparer';await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-new]:enabled').waitFor();
+  state.role='preparer';await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await host.locator('[data-fn-new]:enabled').waitFor();
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:width===1440?1050:844});await page.emulateMedia({reducedMotion:'reduce'});await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;bottom:5px;right:5px;z-index:99999;background:#123649;color:white;padding:6px;font:11px sans-serif}'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await host.screenshot({path:path.join(out,'fixed-list-'+width+'-qa.png')});}
   checks.push('desktop and 390/320px mobile keep the real list and primary controls inside the viewport');
   await page.setViewportSize({width:390,height:844});await fill('2001');await host.locator('[data-fn-editor]').screenshot({path:path.join(out,'fixed-editor-390-qa.png')});

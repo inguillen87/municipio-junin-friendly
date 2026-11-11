@@ -3,3 +3,48 @@
 .own-program [data-program-copy-sources] .own-program-check{align-items:flex-start;overflow-wrap:anywhere}.own-program [data-program-copy-sources] input{margin-top:3px}.own-program [data-program-copy-page]{align-self:center;font-size:14px}.own-program [data-program-copy-summary]{border-left:3px solid #32884e;padding:12px;background:#edf8ef}
 .own-program-guidance{padding:16px;border:1px solid #b8ccc6;border-left:4px solid #167869;border-radius:8px;background:#f3f8f6;margin:18px 0}.own-program-guidance h3{margin:0 0 8px}.own-program-guidance[data-state=catalog_required],.own-program-guidance[data-state=catalog_changed]{border-left-color:#a87520;background:#fff8eb}.own-program-guidance a{display:inline-flex;align-items:center;min-height:44px;padding:10px 12px;border-radius:6px;background:#167869;color:#fff;font-weight:650;text-decoration:none;overflow-wrap:anywhere}.own-program-guidance a:focus-visible{outline:3px solid #2789b8;outline-offset:3px}@media(max-width:640px){.own-program-guidance{padding:12px}.own-program-guidance .own-program-actions>*{flex:1 1 100%;justify-content:center}}
 .own-program .own-coverage-cards{display:none}.own-program [data-program-coverage] th,.own-program [data-program-coverage] td{height:auto;vertical-align:top;white-space:normal;overflow-wrap:anywhere}.own-program .own-coverage-cards article{border:1px solid #cbded8;border-radius:8px;padding:12px}.own-program .own-coverage-cards h4{margin:0 0 10px;font-size:16px}.own-program .own-coverage-cards dl{margin:0;display:grid;gap:4px}.own-program .own-coverage-cards dt{font-weight:650;font-size:12px;color:#32665e}.own-program .own-coverage-cards dd{margin:0 0 8px;font-size:14px;overflow-wrap:anywhere}@media(max-width:640px){.own-program .own-coverage-desktop{display:none}.own-program .own-coverage-cards{display:grid;gap:12px}.own-program [data-coverage-page]{font-size:14px;overflow-wrap:anywhere}.own-program [data-program-coverage] button{width:100%}}
+/* Editor de fórmulas compacto: cada paso en un renglón (operación a la izquierda, sus datos a la derecha) en lugar de una
+   tarjeta alta; la fórmula completa se lee arriba en una línea. Mismos controles, mismas etiquetas, mismo orden. */
+.own-program-formula{margin:8px 0 12px;padding:12px 14px;border:1px solid #cbded8;border-left:4px solid #167869;border-radius:8px;background:#f3faf7;font-size:14.5px;line-height:1.65;overflow-wrap:anywhere}
+.own-program-formula strong{color:#0f5f58}
+.own-program-expression{display:grid;gap:8px}
+.own-program-expression>p{margin:0}
+.own-program .own-program-expression-node{margin:0 0 0 calc(var(--program-depth)*14px)!important;padding:6px 12px 10px;display:grid;grid-template-columns:minmax(210px,.9fr) minmax(0,2fr);gap:0 14px;align-items:start;border-left:3px solid #9ccfc4}
+.own-program .own-program-expression-node>legend{font-size:12.5px;color:#3d6362}
+.own-program .own-program-expression-node>label{margin:4px 0}
+.own-program .own-program-expression-node>.own-program-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px;align-content:start}
+.own-program .own-program-expression-node>.own-program-grid>label{margin:4px 0}
+.own-program .own-program-expression-node>:not(legend):not(label):not(.own-program-grid){grid-column:1/-1}
+.own-program .own-program-expression-node :is(select,input){min-height:44px;padding:8px 10px}
+.own-program .own-program-expression-node label :is(select,input){margin-top:4px}
+/* Encabezado de la regla y de la entrada: los datos van en tantas columnas como entren, y los tipos de liquidación en
+   una grilla en lugar de una pila de casillas. */
+.own-program :is([data-program-rule-editor],[data-program-binding-editor])>.own-program-grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.own-program [data-program-rule-editor]>fieldset:not(.own-program-expression-node){display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px;margin:12px 0}
+.own-program [data-program-rule-editor]>fieldset:not(.own-program-expression-node)>.own-program-check{margin:6px 0}
+@media(max-width:820px){.own-program .own-program-expression-node{grid-template-columns:minmax(0,1fr);margin-left:0!important}}
+@media print{.own-program-formula{border-left-color:#000}}
+/* Avisos de «próximo paso» más compactos: mismo texto, menos aire entre párrafos. */
+.own-program .own-program-guidance>p{margin:6px 0}.own-program .own-program-guidance>.own-program-actions{margin:10px 0 6px}
+/* Pasos de la preparación: un tramo del formulario por vez (assets/own-program-steps.js). */
+.own-program .own-program-step-off{display:none!important}
+.own-program-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:8px;margin:18px 0 0;align-items:stretch}
+.own-program .own-program-steps button{display:grid;gap:2px;align-content:center;text-align:left;min-height:56px;padding:8px 12px;background:#f5f9f7;color:#16594f;border:1px solid #cbded8;border-radius:8px;transition:background .15s,border-color .15s,box-shadow .15s}
+.own-program .own-program-steps button:hover{border-color:#167869}
+.own-program-steps strong{font-size:14px;line-height:1.25;overflow-wrap:anywhere}
+.own-program-steps small{font-size:12px;font-weight:500;color:#4c6f6c;line-height:1.3;overflow-wrap:anywhere}
+.own-program .own-program-steps button[aria-current=step]{background:#167869;color:#fff;border-color:#167869;box-shadow:0 2px 8px rgb(22 120 105/.25)}
+.own-program-steps button[aria-current=step] small{color:#d7efe8}
+.own-program .own-program-steps button.own-program-steps-all{display:block;min-height:56px;background:#fff;font-size:13px;text-align:center}
+.own-program .own-program-steps button.own-program-steps-all[aria-pressed=true]{background:#e7f3ef;border-color:#167869}
+.own-program-steps+fieldset{margin-top:12px}
+/* Cada fuente con su explicación pegada debajo, en lugar de párrafos sueltos. */
+.own-program [data-program-fields]>.own-program-check[data-program-step=fuentes]{margin:8px 0 0}
+.own-program [data-program-fields]>.own-program-check[data-program-step=fuentes]+p{margin:0 0 6px 32px;font-size:13.5px;color:#4c6f6c}
+.own-program-steps-foot{display:flex;justify-content:space-between;gap:10px;margin:-6px 0 18px}
+.own-program .own-program-steps-foot button{background:#f5f9f7;color:#16594f;border:1px solid #cbded8}
+.own-program .own-program-steps-foot button[data-program-step-next]{margin-left:auto;background:#167869;color:#fff;border-color:#167869}
+@media(max-width:980px){.own-program-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.own-program-steps small{display:none}.own-program .own-program-steps button,.own-program .own-program-steps button.own-program-steps-all{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.own-program .own-program-steps button{transition:none}}
+@media print{.own-program .own-program-step-off{display:revert!important}.own-program-steps,.own-program-steps-foot{display:none!important}}

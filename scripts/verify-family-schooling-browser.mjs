@@ -16,7 +16,10 @@ import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'SCHOOLING_PUBLISHED_ORIGIN_NOT_ALLOWED');
-const base = path.resolve('public'), out = path.resolve('verification'), origin = publishedOrigin ?? 'https://municontrol.test';
+const args=process.argv.slice(2);assert.ok(args.every(arg=>arg.startsWith('--output=')),'UNKNOWN_ARGUMENT');
+const outputArg=args.find(arg=>arg.startsWith('--output='));
+const base = path.resolve('public'), out = path.resolve(outputArg?.slice(9)||'verification'), origin = publishedOrigin ?? 'https://municontrol.test';
+if(outputArg){assert.ok(out.startsWith(path.resolve('verification')+path.sep),'OUTPUT_OUTSIDE_VERIFICATION');assert.ok(!fs.existsSync(out),'Preserve earlier browser evidence');}
 for (const asset of ['assets/family-schooling.js','assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css']) {
   assert.ok(fs.existsSync(path.join(base, asset)) && fs.readFileSync(path.join(base, asset)).equals(fs.readFileSync(asset)), 'STALE_OR_MISSING_BUILD_ASSET: ' + asset);
 }
@@ -50,11 +53,13 @@ async function publicAsset(url, expected) {
 const schoolAttempts = new Map(), schoolHistories = new WeakMap();
 let dropSchoolAck = false;
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
-let reportRequests = 0, authRequests = 0, downloadRequests = 0;
+let reportRequests = 0, authRequests = 0, downloadRequests = 0, directoryRequests = 0;
 let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
 let delayedEmployee = null, alternateEmployee = false;
 let canDeclare = true, proposeCapability = true, childError = null, dropChildAck = false, contractToken = 'd'.repeat(64);
 let failFamilyContext = 0, delayFamilyContext = null;
+let failFamilyAttempt = 0, familyAttemptRequests = 0, delayFamilyHistory = null, historyReadStarted = null;
+let familyContextRequests = 0, contextReadStarted = null, familyContextWrong = false, authActor = 'qa@example.invalid';
 const declarations = [], declaredByKey = new Map();
 const employee = { contractId: syntheticUuid(1), legajo: '000001', nombre: 'AGENTE SINTÉTICO 0001', companyId: 7,
   activo: true, liquidable: false, administrativeStatus: 'active', payrollStatus: 'not_liquidated', controlState: 'activo_no_incluido',
@@ -86,6 +91,7 @@ try {
     if (u.pathname === '/api/internal-family-certificates') {
       assert.equal(u.searchParams.get('version'), ['report','family'].includes(resource) ? '5' : '3', 'UNIFIED_API_VERSION_REQUIRED');
       if (resource === 'download') downloadRequests++;
+      if (resource === 'history' && delayFamilyHistory) { const pending = delayFamilyHistory; delayFamilyHistory = null; historyReadStarted?.(); historyReadStarted = null; await pending; }
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
         if (postError) { const next = postError; postError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code, error: 'Fallo sintético controlado' } }); }
@@ -123,16 +129,21 @@ try {
     if (u.pathname === '/api/internal-family-members') {
       assert.equal(u.searchParams.get('version'), '2');
       if (request.method() === 'GET') {
-        if (resource === 'attempt') { const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}}); }
+        if (resource === 'attempt') {
+          familyAttemptRequests++;
+          if (failFamilyAttempt) return route.fulfill({status:failFamilyAttempt,json:{ok:false,code:'EMPLOYEE_FAMILY_CAPABILITY_REQUIRED'}});
+          const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}});
+        }
         assert.equal(resource, 'context');
+        familyContextRequests++; contextReadStarted?.(); contextReadStarted = null;
         if (delayFamilyContext) { const pending = delayFamilyContext; delayFamilyContext = null; await pending; }
         if (failFamilyContext) return route.fulfill({ status: failFamilyContext, json: { ok: false, code: failFamilyContext === 403 ? 'EMPLOYEE_FAMILY_CAPABILITY_REQUIRED' : 'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE' } });
         const subjectEmployee = u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee;
         return route.fulfill({ status: 200, json: { ok: true, data: { version: 'employee-family-context.v2', canDeclare,
-          subject: { contractId: subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
+          subject: { contractId: familyContextWrong ? syntheticUuid(99999) : subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
             sourceCutoff: '2026-08-06T18:15:21Z', identityToken: contractToken } } } });
       }
-      const body = request.postDataJSON(), key = request.headers()['idempotency-key']; declarations.push({ body, key });
+      const body = request.postDataJSON(), key = request.headers()['idempotency-key']; declarations.push({ body, key, json: request.postData(), actor: authActor });
       assert.deepEqual(Object.keys(body).sort(), ['birthDate','contractId','contractIdentityToken','dni','familyName','validFrom','validTo']);
       if (childError) { const next = childError; childError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code } }); }
       assert.equal(body.contractIdentityToken, contractToken);
@@ -155,11 +166,11 @@ try {
     if (u.pathname === '/api/internal-auth') {
       authRequests++;
       if (authDenied) return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
-      payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' },
+      payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: authActor, role: 'ADMIN_INTERNO' },
         access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', ...(proposeCapability ? ['employee.record.propose'] : []), ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
     } else if (resource === 'payrollControl') payload = {ok:true,status:'ready',sourcePolicy:{label:'QA sintética'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:['Datos sintéticos para verificar la navegación']};
-    else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
-      scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } };
+    else if (resource === 'employees') { directoryRequests++; payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
+      scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } }; }
     else if (resource === 'employee') payload = { ok: true, data: { ...(alternateEmployee && u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee), ...(wrongEmployee ? { contractId: syntheticUuid(2) } : {}), employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
     return route.fulfill({ status: 200, json: payload });
   });
@@ -170,6 +181,17 @@ try {
   async function consulted() {
     await report.locator('[data-fs-consult]').click();
     await page.waitForFunction(() => document.querySelector('[data-fs-status]')?.textContent.includes('Reporte consultado'));
+  }
+  // Reference-only scenarios enter Antecedentes through its real summary and explicit search.
+  // Keep the document alive when reopening a volatile certificate/declaration attempt.
+  async function consultReferenceDirectory() {
+    assert.equal(await page.locator('#employeeDialog[open]').count(),0,'CLOSE_SHEET_BEFORE_REFERENCE_SEARCH');
+    const before=directoryRequests,history=page.locator('#employeeHistory');
+    if(await history.getAttribute('open')===null)await history.locator(':scope > summary').click();
+    assert.equal(directoryRequests,before,'OPENING_REFERENCE_HISTORY_MUST_NOT_QUERY');
+    await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
+    assert.equal(directoryRequests,before+1,'ONE_EXPLICIT_REFERENCE_QUERY');
   }
   async function familyReady() {
     await family.locator('[data-fs-family-refresh]').waitFor();
@@ -382,8 +404,9 @@ try {
   await family.locator('[data-fs-register]').first().click(); await fillCertificate();
   const postsBeforeBack = posts.length, authBeforeBack = authRequests;
   const navigation = page.waitForEvent('load'); await page.evaluate(() => { window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); }); await navigation;
-  await page.waitForFunction(() => document.querySelector('#employeeRows button'));
+  await familyReady();
   assert.ok(authRequests > authBeforeBack); assert.equal(posts.length, postsBeforeBack); assert.equal(await page.locator('[data-fs-file]').count(), 0);
+  await page.keyboard.press('Escape');assert.equal(await page.locator('dialog[open]').count(),0);await consultReferenceDirectory();
   checks.push('bfcache restore restarts normal session checks and never replays or retains an upload draft');
 
   dataset = schoolingFixture(); const postsBeforeNavigation = posts.length;
@@ -423,7 +446,7 @@ try {
     assert.equal(await missing.evaluate(n => n === document.activeElement), true);
     assert.equal(await family.locator('[data-fs-file]').count(), 0);
   }
-  await page.goto(targetUrl.replace('familyId=2', 'familyId=2&familyId=1')); await page.locator('#employeeRows button').first().waitFor();
+  await page.goto(targetUrl.replace('familyId=2', 'familyId=2&familyId=1')); await consultReferenceDirectory(); await page.locator('#employeeRows button').first().waitFor();
   assert.equal(await page.locator('dialog[open]').count(), 0);
   checks.push('missing, other-contract and invalid child references show a clear notice; ambiguous query parameters never open a selection');
   wrongEmployee = true; const beforeWrongEmployee = familyRequests;
@@ -439,7 +462,7 @@ try {
   employee.contractId = syntheticUuid(1); dataset = schoolingFixture();
   checks.push('valid uppercase PostgreSQL UUID links reach the same canonical employee and exact child');
 
-  alternateEmployee = true; await page.goto(origin + '/internal-dashboard.html#legajos');
+  alternateEmployee = true; await page.goto(origin + '/internal-dashboard.html#legajos');await consultReferenceDirectory();
   await page.locator('#employeeRows').getByRole('button', { name: 'Ver ficha', exact: true }).nth(1).waitFor();
   let releaseOldEmployee; delayedEmployee = new Promise(resolve => releaseOldEmployee = resolve);
   const oldRequest = page.waitForRequest(r => new URL(r.url()).searchParams.get('resource') === 'employee');
@@ -460,7 +483,7 @@ try {
   authDenied = false; await page.goto(next.href); await exactChildVisible();
   checks.push('an expired session preserves the validated child destination and rechecks access before reopening it');
 
-  await page.goto(origin + '/internal-dashboard.html#legajos'); await page.locator('#employeeRows button').first().waitFor();
+  await page.goto(origin + '/internal-dashboard.html#legajos');await consultReferenceDirectory(); await page.locator('#employeeRows button').first().waitFor();
   await page.locator('#employeeSearch').fill('000001'); await page.locator('#employeeFilters').evaluate(n => n.requestSubmit());
   await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
   assert.equal(await page.locator('#employeeFamilyTitle').evaluate(n => n === document.activeElement), true);
@@ -488,36 +511,120 @@ try {
     assert.equal(await add.getAttribute('aria-disabled'), String(disabled));
     assert.equal(await add.getAttribute('aria-describedby'), await notice.getAttribute('id'));
     assert.equal(await notice.getAttribute('role'), 'status'); assert.equal(await notice.getAttribute('aria-live'), 'polite');
-    const text = await notice.innerText(); if (reason) assert.match(text, reason); else assert.equal(text, '');
+    const text = await notice.innerText(); if (reason) assert.match(text, reason); else assert.match(text, /^(?:|Al elegir Agregar hijo\/a se verificarán el permiso y la identidad del legajo antes de abrir el formulario\.)$/);
   }
   proposeCapability = false; await page.goto(ownUrl); await familyReady();
   await childAccess(true, /requiere permiso para proponer datos del legajo/);
   assert.equal(await family.locator('[data-fs-register]').count(), 0);
-  proposeCapability = true; canDeclare = false; await page.reload(); await familyReady();
+  proposeCapability = true; canDeclare = false;
+  const contextBeforeRead = familyContextRequests;
+  await page.reload(); await familyReady();
+  assert.equal(familyContextRequests, contextBeforeRead, 'reading certificates must not request declaration authority');
+  assert.ok(await family.locator('.fs-child').count() > 0);
+  await childAccess(false, /Al elegir Agregar/);
+  await family.locator('[data-fs-add-child]').click(); await savedOrFailed();
   await childAccess(true, /No permite agregar hijos/);
-  canDeclare = true;
+  assert.equal(await childField('familyName').count(), 0);
+  canDeclare = true; await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  const pendingReadCount = familyContextRequests, pendingWriteCount = declarations.length;
   let releaseFamilyContext;
   delayFamilyContext = new Promise(resolve => { releaseFamilyContext = resolve; });
+  const startedContext = new Promise(resolve => { contextReadStarted = resolve; });
   try {
-    await page.reload(); await family.locator('[data-fs-create-status]').waitFor();
-    await childAccess(true, /Verificando permiso/);
-  } finally { releaseFamilyContext(); }
-  await familyReady(); await childAccess(false);
-  checks.push('visible declaration button has an accessible live reason during permission loading and explicit capability/context denial');
-  const writesBeforeAccessFailures = declarations.length;
-  for (const failure of ['schooling', 'context-service', 'context-permission']) {
-    failRead = failure === 'schooling' ? 503 : 0; failFamilyContext = failure === 'context-service' ? 503 : failure === 'context-permission' ? 403 : 0;
     await page.reload(); await familyReady();
-    await childAccess(true, failure === 'context-permission' ? /no tiene permiso vigente/ : /reintentar/);
-    assert.doesNotMatch(await family.locator('[data-fs-create-status]').innerText(), /Verificando permiso/);
-    failRead = 0; failFamilyContext = 0;
-    await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed(); await childAccess(false);
+    assert.equal(familyContextRequests, pendingReadCount);
+    assert.ok(await family.locator('.fs-child').count() > 0);
+    await family.locator('[data-fs-add-child]').click(); await startedContext;
+    await childAccess(true, /Verificando permiso e identidad/);
+    assert.equal(await childField('familyName').count(), 0);
+    assert.ok(await family.locator('.fs-child').count() > 0);
+    await family.locator('[data-fs-add-child]').evaluate(n => n.click());
+    assert.equal(familyContextRequests, pendingReadCount + 1);
+    assert.equal(declarations.length, pendingWriteCount);
+  } finally { releaseFamilyContext(); }
+  await childField('familyName').waitFor(); await savedOrFailed();
+  assert.equal(await childField('familyName').evaluate(n => n === document.activeElement), true);
+  await family.locator('[data-fs-child-cancel]').click();
+  checks.push('complete certificate reading makes zero optional context requests; explicit double click has one delayed authorized context and no automatic POST');
+  const writesBeforeAccessFailures = declarations.length;
+  failRead = 503; await page.reload(); await familyReady();
+  await childAccess(true, /reintentar/); failRead = 0;
+  await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  await childAccess(false, /Al elegir Agregar/);
+  for (const failure of [503, 401, 403]) {
+    failFamilyContext = failure;
+    const beforeContext = familyContextRequests;
+    await page.reload(); await familyReady();
+    assert.equal(familyContextRequests, beforeContext);
+    assert.ok(await family.locator('.fs-child').count() > 0);
+    await family.locator('[data-fs-add-child]').click(); await savedOrFailed();
+    assert.equal(await childField('familyName').count(), 0);
+    if (failure === 503) {
+      await childAccess(false, /certificados siguen disponibles/);
+      assert.ok(await family.locator('.fs-child').count() > 0);
+      let releaseHistory; delayFamilyHistory = new Promise(resolve => { releaseHistory = resolve; });
+      const historyStarted = new Promise(resolve => { historyReadStarted = resolve; });
+      try {
+        await family.locator('[data-fs-history]').first().click(); await historyStarted;
+        await childAccess(true, /Esperá a que termine la operación en curso/);
+        assert.doesNotMatch(await family.locator('[data-fs-create-status]').innerText(), /elegí Agregar hijo\/a para reintentar|Al elegir Agregar/);
+        assert.equal(declarations.length, writesBeforeAccessFailures);
+      } finally { releaseHistory(); }
+      await savedOrFailed(); await childAccess(false, /certificados siguen disponibles/);
+      checks.push('history busy status remains neutral after a context503 instead of inviting a disabled Add-child retry');
+    } else {
+      await childAccess(true, failure === 401 ? /sesión venció/ : /no tiene permiso vigente/);
+      assert.equal(await family.locator('.fs-child').count(), 0);
+    }
+    failFamilyContext = 0;
+    if (failure === 503) {
+      await family.locator('[data-fs-add-child]').click(); await childField('familyName').waitFor(); await savedOrFailed();
+      await family.locator('[data-fs-child-cancel]').click();
+    } else {
+      await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+    }
   }
   assert.equal(declarations.length, writesBeforeAccessFailures);
-  checks.push('initial record/context failures replace the loading reason and recover through refresh without an accidental declaration');
+  checks.push('context service errors preserve complete certificates and retry from Add child; context401/403 withdraw records and never open a form or write');
+  familyContextWrong = true;
+  await family.locator('[data-fs-add-child]').click(); await savedOrFailed();
+  assert.equal(await childField('familyName').count(), 0);
+  assert.ok(await family.locator('.fs-child').count() > 0);
+  familyContextWrong = false;
+  checks.push('a context for another contract cannot open a declaration or replace the consulted family');
+  for (const interruption of ['close', 'capability', 'actor']) {
+    await page.reload(); await familyReady();
+    let release; delayFamilyContext = new Promise(resolve => { release = resolve; });
+    const started = new Promise(resolve => { contextReadStarted = resolve; });
+    await family.locator('[data-fs-add-child]').click(); await started;
+    const failedContext = interruption === 'actor' ? null : page.waitForEvent('requestfailed', request => {
+      const url = new URL(request.url());
+      return url.pathname === '/api/internal-family-members' && url.searchParams.get('resource') === 'context';
+    });
+    if (interruption === 'close') await page.keyboard.press('Escape');
+    if (interruption === 'capability') {
+      proposeCapability = false;
+      await page.evaluate(() => document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready', { detail:{ tenantCapabilities:['workforce.employee.read','workforce.summary.read'] } })));
+    }
+    if (interruption === 'actor') authActor = 'other-operator@example.invalid';
+    release();
+    if (failedContext) await failedContext;
+    if (interruption !== 'close') await savedOrFailed();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await childField('familyName').count(), 0);
+    assert.equal(declarations.length, writesBeforeAccessFailures);
+    if (interruption !== 'close') assert.equal(await family.locator('.fs-child').count(), 0);
+    proposeCapability = true; authActor = 'qa@example.invalid';
+  }
+  // Reset the document after the actor-change case; navigating to the same
+  // fragment can preserve its old authority key and must not stand in for reopen.
+  await page.reload(); await familyReady();
+  await childAccess(false, /Al elegir Agregar/);
+  assert.ok(await family.locator('.fs-child').count() > 0);
+  checks.push('late declaration context is discarded after dialog close, capability withdrawal or an actor change detected by the second auth check');
   dataset.data.storage.capacityBytes = 0; dataset.data.storage.remainingBytes = 0; dataset.data.canRegister = false;
   await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
-  await family.locator('[data-fs-add-child]').click();
+  await family.locator('[data-fs-add-child]').click(); await childField('familyName').waitFor(); await savedOrFailed();
   await childAccess(true, /Terminá o cancelá el alta abierta/);
   assert.equal(await childField('familyName').evaluate(n => n === document.activeElement), true);
   await childField('familyName').fill('Hija Declarada QA');
@@ -552,7 +659,7 @@ try {
   await page.reload(); await familyReady();
   assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
   await page.keyboard.press('Escape'); assert.equal(await page.locator('dialog[open]').count(), 0);
-  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
   assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
   assert.equal(declarations.length, confirmedDeclarationCount);
   checks.push('confirmed child survives reload and dialog reopen from the synthetic persisted response without replaying its declaration');
@@ -681,7 +788,7 @@ try {
   assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
   const writesBeforeClose=posts.length; await page.keyboard.press('Escape');
   assert.equal(await page.locator('dialog[open]').count(),0);
-  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
   assert.equal(posts.length,writesBeforeClose); assert.equal(await schoolField('course').inputValue(),'6.º C'); assert.equal(await schoolField('course').isDisabled(),true);
   assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
 
@@ -731,6 +838,110 @@ try {
   assert.equal(await schoolCard.locator('[data-fs-register]').count(),0); assert.match(await schoolCard.innerText(),/Coincidencia por revisar/);
   checks.push('an ambiguous family remains consultable with a visible warning but cannot open a new schooling registration');
 
+
+  // A restored uncertain declaration must require its original-key recovery,
+  // even though the certificate read deliberately fetched no declaration context.
+  await page.goto(ownUrl); await familyReady();
+  await family.locator('[data-fs-add-child]').click(); await childField('familyName').waitFor(); await savedOrFailed();
+  await childField('familyName').fill('Hijo Pendiente Restaurado QA');
+  dropChildAck = true; await childSubmit.click(); await savedOrFailed();
+  const restoredAttempt = structuredClone(declarations.at(-1)), writesBeforeRestore = declarations.length;
+  await page.keyboard.press('Escape');
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  assert.equal(await childField('familyName').inputValue(), restoredAttempt.body.familyName);
+  assert.equal(await childSubmit.isDisabled(), true);
+  await childAccess(true, /alta pendiente quedó guardada/);
+  await family.locator('[data-fs-child-recheck]').click(); await savedOrFailed();
+  assert.equal(declarations.length, writesBeforeRestore);
+  assert.deepEqual(declaredByKey.get(restoredAttempt.key).body, restoredAttempt.body);
+  assert.equal(await childField('familyName').count(), 0);
+  checks.push('closing and reopening an uncertain declaration restores its exact locked body/key and recovers the original acknowledgement without another POST');
+
+  // Reopen the same document with Escape. Reloading would erase the volatile
+  // attempt and would not exercise restoration of the original intention.
+  async function restoreUnstoredDeclaration(label) {
+    await page.goto(ownUrl); await familyReady();
+    await family.locator('[data-fs-add-child]').click(); await childField('familyName').waitFor(); await savedOrFailed();
+    await childField('familyName').fill(label);
+    const persisted = declaredByKey.size, ownRows = dataset.data.rows.filter(row => row.familyRef.kind === 'own').length;
+    childError = {status:503,code:'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE'};
+    await childSubmit.click(); await savedOrFailed();
+    const attempt = structuredClone(declarations.at(-1)), submitted = declarations.length, contexts = familyContextRequests;
+    assert.equal(declaredByKey.has(attempt.key), false); assert.equal(declaredByKey.size, persisted);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own').length, ownRows);
+    assert.equal(await childField('familyName').isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('dialog[open]').count(), 0);
+    await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button', {name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+    assert.equal(declarations.length, submitted); assert.equal(familyContextRequests, contexts, 'reopen reads certificates without obtaining declaration authority');
+    assert.equal(await childField('familyName').inputValue(), label); assert.equal(await childField('familyName').isDisabled(), true);
+    assert.equal(await childSubmit.isDisabled(), true); assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
+    assert.match(await childStatus.innerText(), /Elegí Verificar si quedó guardado; si no se registró, se habilitará reintentar el mismo envío/);
+    return {attempt,submitted,persisted,ownRows};
+  }
+  async function retryRestoredSameAttempt(saved) {
+    assert.equal(await childSubmit.isEnabled(), true); assert.equal(await childField('familyName').isDisabled(), true);
+    await childSubmit.click(); await savedOrFailed();
+    assert.equal(declarations.length, saved.submitted + 1);
+    assert.equal(declarations.at(-1).key, saved.attempt.key); assert.equal(declarations.at(-1).json, saved.attempt.json);
+    assert.deepEqual(declarations.at(-1).body, saved.attempt.body); assert.equal(declarations.at(-1).actor, saved.attempt.actor);
+    assert.equal(declaredByKey.size, saved.persisted + 1); assert.deepEqual(declaredByKey.get(saved.attempt.key).body, saved.attempt.body);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own').length, saved.ownRows + 1);
+    assert.equal(dataset.data.rows.filter(row => row.familyRef.kind === 'own' && row.familyName === saved.attempt.body.familyName).length, 1);
+    assert.equal(await childField('familyName').count(), 0);
+  }
+
+  const missingRestored = await restoreUnstoredDeclaration('Restaurado sin registro QA');
+  const beforeMissing = {attempts:familyAttemptRequests,contexts:familyContextRequests,reads:familyRequests,auth:authRequests};
+  const missingResponse = page.waitForResponse(response => { const url=new URL(response.url()); return url.pathname==='/api/internal-family-members' && url.searchParams.get('resource')==='attempt' && url.searchParams.get('key')===missingRestored.attempt.key; });
+  await family.locator('[data-fs-child-recheck]').click(); assert.equal((await missingResponse).status(),404); await savedOrFailed();
+  assert.equal(familyAttemptRequests,beforeMissing.attempts+1); assert.equal(familyContextRequests,beforeMissing.contexts+1); assert.equal(familyRequests,beforeMissing.reads+1); assert.ok(authRequests>beforeMissing.auth);
+  assert.equal(declarations.length,missingRestored.submitted); assert.equal(declaredByKey.has(missingRestored.attempt.key),false);
+  assert.match(await childStatus.innerText(),/sólo reintentá el mismo alta o volvé a verificar su estado/);
+  await retryRestoredSameAttempt(missingRestored);
+  checks.push('restored attempt404 obtains current authority, contract context and complete family read, then one explicit retry preserves exact key/JSON and creates exactly one synthetic record');
+
+  for (const denialStage of ['attempt','context']) {
+    const deniedRestored = await restoreUnstoredDeclaration('Restaurado con retiro '+denialStage+' QA');
+    const beforeDenial = {attempts:familyAttemptRequests,contexts:familyContextRequests,reads:familyRequests};
+    if(denialStage==='attempt')failFamilyAttempt=403;else failFamilyContext=403;
+    const refusal = page.waitForResponse(response => {const url=new URL(response.url());return url.pathname==='/api/internal-family-members'&&url.searchParams.get('resource')===denialStage&&response.status()===403;});
+    const siblingRead = denialStage==='context' ? page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/internal-family-certificates'&&url.searchParams.get('resource')==='family';}) : Promise.resolve();
+    await family.locator('[data-fs-child-recheck]').click(); await refusal; await siblingRead; await savedOrFailed();
+    assert.equal(declarations.length,deniedRestored.submitted);assert.equal(declaredByKey.has(deniedRestored.attempt.key),false);
+    assert.equal(familyAttemptRequests,beforeDenial.attempts+1);
+    assert.equal(familyContextRequests,beforeDenial.contexts+(denialStage==='context'?1:0));assert.equal(familyRequests,beforeDenial.reads+(denialStage==='context'?1:0));
+    assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-document],[data-fs-history]').count(),0);assert.equal(await family.locator('[data-fs-storage]').isVisible(),false);
+    assert.equal(await childField('familyName').inputValue(),deniedRestored.attempt.body.familyName);assert.equal(await childField('familyName').isDisabled(),true);
+    assert.equal(await childSubmit.isDisabled(),true);assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(),true);
+    const authBeforeForcedRestoredSubmit=authRequests;
+    await childSubmit.evaluate(n=>n.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await savedOrFailed();
+    assert.equal(authRequests,authBeforeForcedRestoredSubmit,'forced submit cannot begin reauthorization while restored authority is withdrawn');
+    assert.equal(declarations.length,deniedRestored.submitted,'forced submit cannot bypass withdrawn authority');
+    failFamilyAttempt=0;failFamilyContext=0;
+    await family.locator('[data-fs-child-recheck]').click();await savedOrFailed();
+    assert.equal(declarations.length,deniedRestored.submitted);assert.equal(await childField('familyName').inputValue(),deniedRestored.attempt.body.familyName);
+    await retryRestoredSameAttempt(deniedRestored);
+    checks.push('restored '+denialStage+'403 withdraws consulted metadata and locks the original draft; renewed read permits only its exact same-key/JSON retry without a new declaration intention');
+  }
+
+  await page.goto(ownUrl);await familyReady();
+  await family.locator('[data-fs-add-child]').click();await childField('familyName').waitFor();await savedOrFailed();
+  await childField('familyName').fill('Intento del actor anterior QA');
+  childError={status:503,code:'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE'};await childSubmit.click();await savedOrFailed();
+  const actorRestored=structuredClone(declarations.at(-1)),actorSubmitted=declarations.length,actorPersisted=declaredByKey.size,actorOwnRows=dataset.data.rows.filter(row=>row.familyRef.kind==='own').length;
+  await page.keyboard.press('Escape');authActor='restored-other-operator@example.invalid';
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  assert.equal(await childField('familyName').count(),0);assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-add-child]').isDisabled(),true);
+  assert.match(await family.locator('[data-fs-family-status]').innerText(),/Cambió la sesión/);
+  assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);assert.equal(declaredByKey.size,actorPersisted);
+  assert.equal(dataset.data.rows.filter(row=>row.familyRef.kind==='own').length,actorOwnRows);
+  await page.keyboard.press('Escape');authActor='qa@example.invalid';
+  await consultReferenceDirectory();await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click();await familyReady();
+  assert.equal(await childField('familyName').count(),0);assert.equal(declarations.length,actorSubmitted);assert.equal(declaredByKey.has(actorRestored.key),false);
+  checks.push('reopening under another actor discards the old volatile intention, opens no declaration form and sends no old-actor POST; restoring the original actor does not resurrect it');
 
   assert.deepEqual(errors, []);
   assert.equal(publishedFailures.size, 0, 'PUBLISHED_ASSET_VERIFICATION_FAILED');

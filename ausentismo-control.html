@@ -366,10 +366,17 @@
   </style>
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="assets/workspace-quickbar.css">
+  <script type="module" src="assets/workspace-quickbar.js"></script>
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/absence-person-panel.css">
+  <script type="module" src="assets/absence-charts.js"></script>
   <script type="module" src="assets/absence-person-panel.js"></script>
   <link rel="stylesheet" href="assets/absence-person-report.css">
+  <link rel="stylesheet" href="assets/absence-dashboard.css">
+  <script src="assets/role-label.js"></script>
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body data-mc-page="absence">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -440,15 +447,16 @@
       <main id="mainContent" hidden>
         <header class="page-head">
           <div>
-            <p class="eyebrow">Eventos administrativos · GRH como autoridad</p>
-            <h1>Control operativo de ausentismo</h1>
-            <p class="lead">Explorá eventos por período, motivo y sector. Cada cifra conserva su fuente y evita transformar registros administrativos en conclusiones laborales no homologadas.</p>
+            <p class="eyebrow">Tiempo y asistencia · licencias registradas en GRH</p>
+            <h1>Ausentismo y licencias</h1>
+            <p class="lead">Mirá cuántas licencias hubo, por qué motivo, en qué sector y quiénes las tomaron. Elegí el período y, si querés, filtrá por sector o motivo.</p>
           </div>
           <div class="status-panel" id="overallPanel" data-state="warning">
             <strong id="overallTitle">Consultando cobertura</strong>
             <p id="overallDetail">La disponibilidad se determina desde la respuesta de la API interna.</p>
           </div>
         </header>
+        <nav data-quickbar="ausentismo"></nav>
 
         <div class="notice" role="note">
           <span class="notice-mark" aria-hidden="true">GRH</span>
@@ -457,7 +465,7 @@
 
         <section class="section" aria-labelledby="filtersTitle">
           <div class="section-head">
-            <div><span class="section-index">01 · Alcance</span><h2 id="filtersTitle">Período y filtros</h2><p>Los mismos filtros gobiernan indicadores, serie, rankings y eventos.</p></div>
+            <div><span class="section-index">01 · Alcance</span><h2 id="filtersTitle">Período y filtros</h2><p>Lo que elijas acá se aplica a todas las pestañas: números, gráficos, personas y eventos.</p></div>
             <span class="state-badge warning" id="periodBadge">Período no informado</span>
           </div>
           <form class="filter-panel" id="filterPanel">
@@ -474,19 +482,20 @@
           </form>
         </section>
 
+        <div data-mc-tabs='[{"id":"resumen","label":"Resumen y gráficos","hint":"Cómo vienen las licencias","sel":"#summaryMetrics,#trendPanel"},{"id":"personas","label":"Personas","hint":"Quiénes tienen más licencias","sel":"#peoplePanel"},{"id":"motivos","label":"Motivos y sectores","hint":"Las listas completas","sel":"section[aria-labelledby=rankingsTitle]"},{"id":"eventos","label":"Eventos","hint":"Cada licencia registrada","sel":"#eventsPanel"},{"id":"fuente","label":"Fuente y límites","hint":"De dónde salen los datos","sel":"#qualityPanel"}]' data-mc-tabs-key="mc.ausentismo.tab" data-mc-tabs-label="Secciones de Ausentismo"></div>
         <section class="section" id="summaryMetrics" aria-labelledby="summaryTitle">
           <div class="section-head"><div><span class="section-index">02 · Resumen</span><h2 id="summaryTitle">Indicadores del período</h2><p>Todos los valores corresponden al alcance seleccionado.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
           <div class="table-tools"><p id="analyticsReadStatus" role="status">Esperando consulta.</p><button id="analyticsRetry" class="button" type="button" hidden>Reintentar indicadores</button></div>
           <div class="notice absence-empty" id="absenceEmpty" hidden><div><strong>Sin coincidencias para estos filtros</strong><p>No equivale a ausencia de información en todo el sistema. Conservá el período y quitá un filtro para ampliar la consulta.</p></div><button id="removeReason" type="button" class="button">Quitar motivo</button><button id="removeSector" type="button" class="button">Quitar sector</button></div>
           <div class="kpi-grid">
             <article class="kpi"><span class="kpi-label">Eventos registrados</span><strong class="kpi-value" id="eventsValue">—</strong><span class="kpi-note">Registros administrativos que cumplen los filtros.</span></article>
-            <article class="kpi"><span class="kpi-label">Legajos afectados</span><strong class="kpi-value" id="contractsValue">—</strong><span class="kpi-note">Legajos distintos con al menos un evento.</span></article>
+            <article class="kpi"><span class="kpi-label">Personas con licencias</span><strong class="kpi-value" id="contractsValue">—</strong><span class="kpi-note">Personas (legajos) distintas con al menos una licencia.</span></article>
             <article class="kpi"><span class="kpi-label">Días declarados en GRH</span><strong class="kpi-value" id="daysValue">—</strong><span class="kpi-note">Suma de cantidades informadas; no representa jornadas perdidas.</span></article>
           </div>
         </section>
 
         <section class="section" id="trendPanel" aria-labelledby="evolutionTitle">
-          <div class="section-head"><div><span class="section-index">03 · Evolución</span><h2 id="evolutionTitle">Serie mensual de eventos</h2><p>Comparación por mes dentro del período disponible, sin proyectar meses incompletos.</p></div><span class="state-badge" id="seriesBadge">Fuente</span></div>
+          <div class="section-head"><div><span class="section-index">03 · Panorama</span><h2 id="evolutionTitle">Cómo vienen las licencias</h2><p>Gráficos simples del período elegido: por mes, por motivo, por sector y por día. No se proyectan meses incompletos.</p></div><span class="state-badge" id="seriesBadge">Fuente</span></div>
           <div class="analysis-grid">
             <article class="panel">
               <h3>Eventos por mes</h3>
@@ -512,23 +521,42 @@
             <div class="comparison-unavailable" id="comparisonUnavailable">La API todavía no informó una comparación válida para este rango.</div>
             <div class="comparison-grid" id="comparisonContent" hidden>
               <article class="comparison-card"><h4>Eventos registrados</h4><div class="comparison-values"><div><span id="eventsCurrentLabel">Actual</span><strong id="eventsCurrent">—</strong></div><div><span id="eventsPreviousLabel">Previo</span><strong id="eventsPrevious">—</strong></div></div><p class="comparison-change" id="eventsChange">Variación: —</p></article>
-              <article class="comparison-card"><h4>Legajos afectados</h4><div class="comparison-values"><div><span id="contractsCurrentLabel">Actual</span><strong id="contractsCurrent">—</strong></div><div><span id="contractsPreviousLabel">Previo</span><strong id="contractsPrevious">—</strong></div></div><p class="comparison-change" id="contractsChange">Variación: —</p></article>
+              <article class="comparison-card"><h4>Personas con licencias</h4><div class="comparison-values"><div><span id="contractsCurrentLabel">Actual</span><strong id="contractsCurrent">—</strong></div><div><span id="contractsPreviousLabel">Previo</span><strong id="contractsPrevious">—</strong></div></div><p class="comparison-change" id="contractsChange">Variación: —</p></article>
               <article class="comparison-card"><h4>Días declarados GRH</h4><div class="comparison-values"><div><span id="daysCurrentLabel">Actual</span><strong id="daysCurrent">—</strong></div><div><span id="daysPreviousLabel">Previo</span><strong id="daysPrevious">—</strong></div></div><p class="comparison-change" id="daysChange">Variación: —</p></article>
             </div>
             <p class="panel-note" style="margin-top:12px">La variación es descriptiva: no constituye una tasa, una evaluación de desempeño ni evidencia de causalidad.</p>
           </article>
         </section>
 
+        <section class="section" id="peoplePanel" aria-labelledby="peopleTitle">
+          <div class="section-head"><div><span class="section-index">04 · Personas</span><h2 id="peopleTitle">Personas con más licencias</h2><p>Las 10 personas con más licencias en el período y filtros elegidos. Sirve para detectar casos a revisar; no evalúa el desempeño ni dice si una licencia estuvo justificada.</p></div>
+            <div class="ab-seg" role="group" aria-label="Ordenar el ranking"><button type="button" data-order="events" aria-pressed="true">Por cantidad de licencias</button><button type="button" data-order="days" aria-pressed="false">Por días declarados</button></div></div>
+          <p class="ab-people-status" data-people-status role="status" aria-live="polite">Esperando consulta.</p>
+          <div class="ab-people">
+            <div data-people-chart></div>
+            <div class="table-wrap ab-people-table" tabindex="0" role="region" aria-labelledby="peopleTitle">
+              <table>
+                <caption class="visually-hidden">Personas con más licencias en el alcance elegido.</caption>
+                <thead><tr><th>#</th><th>Persona</th><th>Sector</th><th class="numeric">Licencias</th><th class="numeric">Días declarados</th><th>Motivo más frecuente</th><th>Última licencia</th><th>Historial</th></tr></thead>
+                <tbody data-people-rows></tbody>
+              </table>
+            </div>
+          </div>
+          <p class="panel-note ab-private-note">Contiene nombres: es de uso interno. Si descargás el PDF, no lo compartas fuera del municipio.</p>
+        </section>
+
         <section class="section" aria-labelledby="rankingsTitle">
-          <div class="section-head"><div><span class="section-index">04 · Distribución</span><h2 id="rankingsTitle">Principales motivos y sectores</h2><p>Ranking por cantidad de eventos dentro del filtro actual; no mide desempeño individual ni sectorial.</p></div></div>
+          <div class="section-head"><div><span class="section-index">05 · Listados</span><h2 id="rankingsTitle">Todos los motivos y sectores</h2><p>Las mismas cantidades de los gráficos, en forma de lista. No miden desempeño individual ni sectorial.</p></div></div>
+          <details class="ab-more" open><summary>Ver la lista de motivos y sectores</summary>
           <div class="ranking-grid">
             <article class="panel"><h3>Motivos informados</h3><p class="panel-note">Se preservan las etiquetas recibidas desde GRH.</p><ol class="ranking" id="reasonRanking"></ol></article>
             <article class="panel"><h3>Sectores observados</h3><p class="panel-note">Se usa el sector actual del legajo al corte; no reconstruye la asignación histórica del evento.</p><ol class="ranking rank-sector" id="sectorRanking"></ol></article>
           </div>
+          </details>
         </section>
 
         <section class="section" id="eventsPanel" aria-labelledby="eventsTitle">
-          <div class="section-head"><div><span class="section-index">05 · Detalle interno</span><h2 id="eventsTitle">Eventos del período</h2><p>Listado nominal autorizado. Abrí el caso para revisar fechas, motivo e historial de la persona sin perder el período ni los filtros.</p></div><span class="state-badge" id="eventsBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">06 · Detalle interno</span><h2 id="eventsTitle">Eventos del período</h2><p>Listado nominal autorizado. Abrí el caso para revisar fechas, motivo e historial de la persona sin perder el período ni los filtros.</p></div><span class="state-badge" id="eventsBadge">Consultando</span></div>
           <form id="eventSearchForm" class="filter-panel table-tools"><div class="field" style="flex:1;min-width:200px"><label for="eventSearch">Buscar persona o legajo en todo el período</label><input id="eventSearch" type="search" maxlength="120" autocomplete="off" placeholder="Nombre o legajo"></div><button class="button primary" type="submit">Buscar eventos</button><button id="eventSearchClear" class="button" type="button">Quitar búsqueda</button></form>
           <div class="table-tools"><p id="eventsReadStatus" role="status">Esperando consulta.</p><button id="eventsRetry" class="button" type="button" hidden>Reintentar eventos</button></div>
           <div class="table-tools">
@@ -547,7 +575,7 @@
         </section>
 
         <section class="section" id="qualityPanel" aria-labelledby="auditTitle">
-          <div class="section-head"><div><span class="section-index">06 · Evidencia</span><h2 id="auditTitle">Fuente, calidad y limitaciones</h2><p>Estos datos deben acompañar cualquier lectura o comparación.</p></div><span class="state-badge" id="qualityBadge">Verificando</span></div>
+          <div class="section-head"><div><span class="section-index">07 · Evidencia</span><h2 id="auditTitle">Fuente, calidad y limitaciones</h2><p>Estos datos deben acompañar cualquier lectura o comparación.</p></div><span class="state-badge" id="qualityBadge">Verificando</span></div>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad</h3><p class="panel-note">Identificación recibida en el contrato de la API.</p><dl class="definition-list"><div><dt>Fuente</dt><dd id="sourceLabel">No informada</dd></div><div><dt>Corte</dt><dd id="cutoffLabel">No informado</dd></div><div><dt>Lote o versión</dt><dd id="batchLabel">No informado</dd></div><div><dt>Estado</dt><dd id="statusLabel">No informado</dd></div></dl></article>
             <article class="panel"><h3>Controles de calidad</h3><p class="panel-note">Los pendientes permanecen visibles y no se convierten en aprobaciones.</p><ul class="quality-list" id="qualityList"></ul></article>
@@ -659,7 +687,7 @@
           return {
             month: text(first(row, [['month'], ['period'], ['mes'], ['date']])),
             events: nonNegative(first(row, [['events'], ['totalEvents'], ['count'], ['total'], ['cantidad']])),
-            contracts: nonNegative(first(row, [['affectedContracts'], ['contracts'], ['people'], ['persons'], ['legajos']])),
+            contracts: nonNegative(first(row, [['affectedPeople'], ['affectedContracts'], ['contracts'], ['people'], ['persons'], ['legajos']])),
             declaredDays: nonNegative(first(row, [['sourceDeclaredDays'], ['declaredDays'], ['days'], ['diasDeclarados'], ['durationDays']])),
             partial: first(row, [['partial'], ['isPartial']]) === true
           };
@@ -714,7 +742,7 @@
           },
           summary: {
             events: nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) !== null ? nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) : nonNegative(first(data, [['totalEvents'], ['eventsCount']])),
-            contracts: nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) !== null ? nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) : nonNegative(first(data, [['affectedContracts'], ['uniqueContracts']])),
+            contracts: nonNegative(first(summary, [['affectedPeople'], ['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) !== null ? nonNegative(first(summary, [['affectedPeople'], ['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) : nonNegative(first(data, [['affectedPeople'], ['affectedContracts'], ['uniqueContracts']])),
             declaredDays: nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) !== null ? nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) : nonNegative(first(data, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared']]))
           },
           monthly: normalizeMonthly(first(data, [['monthly'], ['series'], ['monthlySeries'], ['trends', 'monthly']])),
@@ -772,17 +800,17 @@
           previousLabel: comparisonLabel(previous, 'Año previo'),
           current: {
             events: metric(current, [['events'], ['totalEvents']]),
-            contracts: metric(current, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            contracts: metric(current, [['affectedPeople'], ['affectedContracts'], ['contracts'], ['uniqueContracts']]),
             days: metric(current, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
           },
           previous: {
             events: metric(previous, [['events'], ['totalEvents']]),
-            contracts: metric(previous, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            contracts: metric(previous, [['affectedPeople'], ['affectedContracts'], ['contracts'], ['uniqueContracts']]),
             days: metric(previous, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
           },
           change: {
             events: change([['events'], ['totalEvents']]),
-            contracts: change([['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            contracts: change([['affectedPeople'], ['affectedContracts'], ['contracts'], ['uniqueContracts']]),
             days: change([['sourceDeclaredDays'], ['declaredDays'], ['days']])
           }
         };
@@ -1097,6 +1125,7 @@
         renderComparison(analytics.comparison);
         renderRanking('reasonRanking', analytics.reasons);
         renderRanking('sectorRanking', analytics.sectors);
+        window.__mcLastAbsence = analytics; if (window.MuniControlAbsenceCharts) window.MuniControlAbsenceCharts.render(analytics);
 
         var from = analytics.range.from;
         var to = analytics.range.to;
@@ -1250,13 +1279,14 @@
         lastEvents = null; byId('eventRows').replaceChildren(); setText('eventsReadStatus', 'Consultando eventos…');
         byId('eventsRetry').hidden = true; byId('previousPage').disabled = true; byId('nextPage').disabled = true;
         var analyticsQuery = DATA_URL + '?' + buildParams('absenceanalytics').toString();
+        window.__mcAbsenceQuery = analyticsQuery;
         var eventsQuery = DATA_URL + '?' + buildParams('absenceevents').toString();
         function active() { return requestId === loadingRequest && !signal.aborted && !redirectIssued; }
         function failed(error, part) {
           if (!active() || error.unauthorized) return;
           if (error.status === 403) {
             readController.abort(); loadingRequest++; analyticsReady = false; lastAnalytics = lastEvents = null;
-            ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+            ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});window.__mcLastAbsence=null;if(window.MuniControlAbsenceCharts)window.MuniControlAbsenceCharts.clear();
             ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
             document.dispatchEvent(new Event('mc:absence-cleared')); showError('Tu perfil no habilita esta consulta. No se conservan datos nominales en pantalla.'); return;
           }
@@ -1268,7 +1298,7 @@
           analyticsReady = false; analyticsLoading = true; lastAnalytics = null;
           byId('summaryMetrics').setAttribute('aria-busy','true'); setText('analyticsReadStatus','Consultando indicadores…'); byId('analyticsRetry').hidden=true;
           ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
-          ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+          ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});window.__mcLastAbsence=null;if(window.MuniControlAbsenceCharts)window.MuniControlAbsenceCharts.clear();
           byId('comparisonContent').hidden=true; byId('absenceEmpty').hidden=true; setBadge('summaryBadge','warning','Consultando');
           tasks.push(fetchJson(analyticsQuery,signal).then(function(payload){if(!active())return;lastAnalytics=payload;renderAnalytics(normalizeAnalytics(payload));analyticsReady=true;setText('analyticsReadStatus','Indicadores actualizados para los filtros aplicados.');}).catch(function(e){failed(e,'analytics');}).finally(function(){if(active()){analyticsLoading=false;byId('summaryMetrics').setAttribute('aria-busy','false');}}));
         }
@@ -1288,7 +1318,7 @@
           if (redirectIssued) return;
           var user = normalizeUser(payload);
           setText('userName', user.name);
-          setText('userRole', user.role);
+          setText('userRole', (window.MuniControlRoleLabel || function (value) { return value; })(user.role));
           authenticated = true;
           await loadData();
         } catch (error) {

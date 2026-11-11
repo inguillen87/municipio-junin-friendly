@@ -39,12 +39,15 @@ const css = `
 [data-parameter-workspace] .pp-scope{font-size:12px;border-top:1px solid #d8e4e4;padding-top:12px;color:#49646f}
 @media(max-width:1000px){[data-parameter-workspace] .pp-grid{grid-template-columns:1fr}}
 @media(max-width:600px){[data-parameter-workspace] .pp-panel,[data-parameter-workspace] .pp-hero{padding:16px}[data-parameter-workspace] .pp-filter{grid-template-columns:1fr}[data-parameter-workspace] .pp-meta{grid-template-columns:1fr;gap:3px}[data-parameter-workspace] .pp-meta dd{margin-bottom:9px}[data-parameter-workspace] .pp-actions button{flex:1 1 150px}}
+[data-parameter-workspace] .pp-fold{margin:20px 0;border:1px solid #d3e4e3;border-radius:12px;background:#fff}[data-parameter-workspace] .pp-fold>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;padding:12px 18px;font-weight:700;color:#0f5f58}[data-parameter-workspace] .pp-fold[open]>summary{border-bottom:1px solid #e3ecec}[data-parameter-workspace] .pp-fold>.pp-hero{margin:16px}[data-parameter-workspace] .pp-fold>:not(summary):not(.pp-hero){margin-left:16px;margin-right:16px}
 `;
 const blank = () => ({ ruleId: '', amount: '', validFrom: '', sourceReference: '', rounding: 'exact_cent', agreementIds: [] });
 function draftFrom(form) { return { ruleId: form.ruleId, baseAmountCents: parseParameterMoney(form.amount), validFrom: form.validFrom, sourceReference: form.sourceReference.trim(), rounding: form.rounding, agreementIds: [...form.agreementIds].sort((a, b) => a - b) }; }
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('es-AR') : 'No informada';
 function Values({ draft }) { return <div className="pp-preview">{parameterPreview(draft).map(row => <div className="pp-preview-row" key={row.agreementId}><span>{row.agreementId} · {AGREEMENT_LABELS[row.agreementId]}<small>Auxiliar {row.auxiliaryId} · clase {row.baseClass}</small></span><strong>{parameterMoney(row.newValueCents)}</strong></div>)}</div>; }
 export default function PayrollParameters({ request = parameterRequest }) {
+  // The 88/90 helper is a secondary tool: folded unless an attempt or a selected change needs it on screen.
+  const [foldOpen, setFoldOpen] = useState(false);
   const [principal, setPrincipal] = useState(null), [form, setForm] = useState(blank), [records, setRecords] = useState([]), [total, setTotal] = useState(0), [filter, setFilter] = useState({ status: 'all', period: '', page: 1 }), [selected, setSelected] = useState(null), [confirmation, setConfirmation] = useState(null), [reason, setReason] = useState('source_mismatch'), [pending, setPending] = useState(null), [busy, setBusy] = useState(false), [blocked, setBlocked] = useState(false), [notice, setNotice] = useState('Consultando los parámetros guardados…'), [bad, setBad] = useState(false);
   const mounted = useRef(true), exclusive = useRef(false), ticket = useRef(0), dialog = useRef(null), filterRef = useRef(filter);
   filterRef.current = filter;
@@ -110,6 +113,7 @@ export default function PayrollParameters({ request = parameterRequest }) {
   return <section data-parameter-workspace="v1" aria-label="Gestión de parámetros salariales">
     <style>{css}</style>
     <NativeSalaryCatalog revoked={blocked}/>
+    <details className="pp-fold" open={foldOpen || !!pending || !!selected} onToggle={e => setFoldOpen(e.currentTarget.open)}><summary>Actualizar auxiliares 88 y 90 desde la escala aprobada</summary>
     <header className="pp-hero"><p className="pp-eyebrow">Configuración salarial · Registro propio en Neon</p><h2>Parámetros salariales</h2><p>Prepará los auxiliares 88 y 90 desde la escala aprobada, revisá el resultado por convenio y enviá el cambio a otra persona para su control. Sin escribir fórmulas ni reconstruir planillas.</p><div className="pp-steps"><span>1 · Preparar valores</span><span>2 · Guardar propuesta</span><span>3 · Revisión independiente</span></div></header>
     <div className="pp-status" data-error={bad} role="status" aria-live="polite">{notice}</div>
     {pending && <div className="pp-panel"><h3>Este intento necesita confirmación</h3><p>Conservamos la misma clave para no duplicar el cambio. No prepares otro hasta resolverlo.</p><small>Intento: {pending.key}</small><div className="pp-actions"><button disabled={busy || blocked} onClick={recover}>Consultar confirmación</button><button disabled={busy || blocked} onClick={() => transaction(() => send(pending))}>Reenviar el mismo intento</button></div></div>}
@@ -145,6 +149,7 @@ export default function PayrollParameters({ request = parameterRequest }) {
         </section>}
       </div>
     </div>}
+    </details>
     <PayrollCatalog proposal={selected} revoked={blocked} onDenied={failure} />
     <dialog ref={dialog} aria-labelledby="pp-confirm-title" onCancel={() => { if (!busy) setConfirmation(null); }}>
       <h3 id="pp-confirm-title">{confirmation?.command === 'prepare' ? 'Revisar antes de guardar' : PARAMETER_COMMANDS[confirmation?.command]}</h3>

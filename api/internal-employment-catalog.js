@@ -5,6 +5,7 @@ import { schoolCertificateHttp } from './internal-family-certificates.js';
 import { schoolCertificateSafeError } from '../lib/internal-family-certificates.js';
 import { parseScopedPrivateJson, readRawPrivateJson } from '../lib/private-json-body.js';
 import { EMPLOYMENT_CATALOG_MAX_BYTES, EMPLOYMENT_CATALOG_READ, EMPLOYMENT_CATALOG_CAPS, catalogFail, employmentCatalogError, employmentCatalogOperation } from '../lib/internal-employment-catalog.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 export const config = {api: {bodyParser: false}};
 
 // Duplicate names are rejected within each object, while repeated row fields in
@@ -59,7 +60,7 @@ export function createEmploymentCatalogHandler(deps = {}) {
         if (!principalHasCapabilities(access.principal, [EMPLOYMENT_CATALOG_CAPS[operation]])) catalogFail('FORBIDDEN', 403, 'La membresía no permite esta operación sobre el catálogo.');
         input = {body: body.payload, key: schoolCertificateHttp.header(req, 'idempotency-key')};
       }
-      const data = await employmentCatalogOperation(await getSql(env), access.principal, sessionFor(access, env), operation, input);
+      const data = await employmentCatalogOperation((req.method || 'GET') === 'GET' ? busyRetrySql(await getSql(env)) : await getSql(env), access.principal, sessionFor(access, env), operation, input);
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ok: true, data});
     } catch (error) {

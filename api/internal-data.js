@@ -19,6 +19,7 @@ import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } 
 import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
 import { internalPayrollDocumentBatch } from '../lib/internal-payroll-document-batch.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
+import { internalPayrollEntityExport } from '../lib/internal-payroll-entity-export.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
 import { employeePayrollDetail } from '../lib/internal-payroll-detail.js';
@@ -34,6 +35,7 @@ import {
   reasonPolicyMapping,
 } from '../assets/mendoza-title-vi.js';
 import { JUNIN_BUDGET_2026 } from '../assets/junin-budget-2026.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -1115,7 +1117,7 @@ export async function payrollControl(sql) {
 }
 
 const ABSENCE_MIN_DATE = '1990-01-01';
-const ABSENCE_BUCKETS = new Set(['month', 'year']);
+const ABSENCE_BUCKETS = new Set(['month', 'year', 'day']);
 const ABSENCE_UNIT_SEMANTICS = 'Días declarados por GRH (DIAS_24); no equivalen a jornadas perdidas, duración ni tasa de ausentismo.';
 const ABSENCE_SECTOR_SEMANTICS = 'Sector actual observado en el legajo al corte de importación; no reconstruye la asignación histórica al momento del evento.';
 
@@ -1151,6 +1153,7 @@ function absenceSummaryRow(row = {}) {
   return {
     events: absenceNumber(row.events),
     affectedContracts: absenceNumber(row.affectedContracts),
+    affectedPeople: absenceNumber(row.affectedPeople),
     sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays)
   };
 }
@@ -1164,7 +1167,7 @@ function absenceReasonFlags(row = {}) {
   };
 }
 
-function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '', rangeMode = 'starts' }) {
+function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '', legajo = '', companyId = '', rangeMode = 'starts' }) {
   const values = [from, to];
   const conditions = [absenceWindowSql('absence', rangeMode)];
   const parameter = (value) => {
@@ -1176,6 +1179,8 @@ function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = ''
   }
   if (reasonCode) conditions.push(`absence.motivo_code = ${parameter(reasonCode)}`);
   if (contractId) conditions.push(`contract.id = ${parameter(contractId)}::uuid`);
+  // Legajo de origen exacto (empresa + legajo): igualdad, nunca coincidencia parcial.
+  if (legajo) conditions.push(`absence.company_id::text = ${parameter(companyId)} AND absence.legajo = ${parameter(legajo)}`);
   if (search) { const p=parameter(absenceSearchPattern(search)); conditions.push(`(COALESCE(identity.full_name, employee.nombre, '') ILIKE ${p} OR absence.legajo ILIKE ${p})`); }
   return { where: conditions.join(' AND '), values };
 }
@@ -1269,6 +1274,7 @@ async function queryAbsenceSummary(sql, filters, marker = 'summary') {
     /* absence:${marker} */
     SELECT count(*)::int AS events,
            count(DISTINCT contract.id)::int AS "affectedContracts",
+           count(DISTINCT (absence.company_id, absence.legajo))::int AS "affectedPeople",
            COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
     ${absenceFromSql(Boolean(filters.search), { employee: Boolean(filters.sector || filters.search), reason: false })}
     WHERE ${scope.where}
@@ -1302,8 +1308,7 @@ export async function absenceAnalytics(sql, req) {
   const { from, to } = request.range.effective;
   const filters = { from, to, sector: request.sector, reasonCode: request.reasonCode };
   const scope = absenceFilter(filters);
-  const validScope = absenceFilter({ from: ABSENCE_MIN_DATE, to: source.cutoff });
-  const interval = request.bucket === 'month' ? '1 month - 1 day' : '1 year - 1 day';
+  const interval = request.bucket === 'month' ? '1 month - 1 day' : request.bucket === 'day' ? '0 days' : '1 year - 1 day';
   const priorRange = comparisonFor(request.range);
   const comparisonPromise = priorRange
     ? queryAbsenceSummary(sql, { ...priorRange, sector: request.sector, reasonCode: request.reasonCode }, 'comparison')
@@ -1314,8 +1319,6 @@ export async function absenceAnalytics(sql, req) {
     seriesRows,
     reasonRows,
     sectorRows,
-    facetReasonRows,
-    facetSectorRows,
     [qualityRow = {}],
     previous
   ] = await Promise.all([
@@ -1326,11 +1329,12 @@ export async function absenceAnalytics(sql, req) {
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+             count(DISTINCT (absence.company_id, absence.legajo))::int AS "affectedPeople",
              (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
                OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
       ${absenceFromSql(false, { employee: Boolean(filters.sector), reason: false })}
       WHERE ${scope.where}
-      GROUP BY 1, 5 ORDER BY 1
+      GROUP BY 1, 6 ORDER BY 1
     `, scope.values),
     sql.query(`
       /* absence:reasons */
@@ -1358,43 +1362,48 @@ export async function absenceAnalytics(sql, req) {
       GROUP BY 1 ORDER BY events DESC, label
     `, scope.values),
     sql.query(`
-      /* absence:facet-reasons */
-      WITH codes AS MATERIALIZED (
-        SELECT DISTINCT absence.motivo_code ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
+      /* absence:facets-quality-once */
+      WITH raw AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.fecha_hasta,
+               absence.dias, absence.motivo_code, contract.id AS linked_contract
+        ${absenceFromSql(false, { employee: false, reason: false })}
+      ), within_coverage AS MATERIALIZED (
+        SELECT company_id, legajo, motivo_code FROM raw WHERE fecha BETWEEN $1::date AND $2::date
+      ), reason_dim AS MATERIALIZED (
+        SELECT source_payload #>> '{sourceKey,reasonCode}' AS code, label
+        FROM grh_effective_catalog_rows_v1 WHERE catalog='absence_reasons'
+      ), employee_dim AS MATERIALIZED (
+        SELECT company_id,legajo,sector FROM grh_effective_employees_v1
+      ), codes AS (
+        SELECT DISTINCT motivo_code FROM within_coverage
+      ), people AS (
+        SELECT DISTINCT company_id, legajo FROM within_coverage
+      ), reason_options AS (
+        SELECT codes.motivo_code AS code, COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
+        FROM codes LEFT JOIN reason_dim reason ON reason.code=codes.motivo_code
+        ORDER BY label
+      ), sector_options AS (
+        SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
+        FROM people LEFT JOIN employee_dim employee
+          ON employee.company_id=people.company_id AND employee.legajo=people.legajo
+        ORDER BY value
       )
-      SELECT codes.motivo_code AS code, COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
-      FROM codes LEFT JOIN grh_effective_catalog_rows_v1 reason ON reason.catalog='absence_reasons'
-       AND reason.source_payload #>> '{sourceKey,reasonCode}'=codes.motivo_code
-      ORDER BY label
-    `, validScope.values),
-    sql.query(`
-      /* absence:facet-sectors */
-      WITH people AS MATERIALIZED (
-        SELECT DISTINCT absence.company_id, absence.legajo ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
-      )
-      SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
-      FROM people LEFT JOIN grh_effective_employees_v1 employee
-       ON employee.company_id=people.company_id AND employee.legajo=people.legajo
-      ORDER BY value
-    `, validScope.values),
-    sql.query(`
-      /* absence:quality */
       SELECT count(*)::int AS "sourceRows",
-             count(*) FILTER (WHERE absence.fecha < $1::date)::int AS "excludedBeforeMinimum",
-             count(*) FILTER (WHERE absence.fecha > $2::date)::int AS "excludedAfterCutoff",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND (absence.motivo_code IS NULL OR btrim(absence.motivo_code) = ''))::int AS "missingReasonCode",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND absence.fecha_hasta < absence.fecha)::int AS "invertedDateRanges",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND absence.dias IS NULL)::int AS "missingSourceDeclaredDays",
-             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
-                               AND contract.id IS NULL)::int AS "unlinkedEvents"
-      ${absenceFromSql(false, { employee: false, reason: false })}
+             count(*) FILTER (WHERE fecha < $1::date)::int AS "excludedBeforeMinimum",
+             count(*) FILTER (WHERE fecha > $2::date)::int AS "excludedAfterCutoff",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND (motivo_code IS NULL OR btrim(motivo_code)=''))::int AS "missingReasonCode",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND fecha_hasta < fecha)::int AS "invertedDateRanges",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND dias IS NULL)::int AS "missingSourceDeclaredDays",
+             count(*) FILTER (WHERE fecha BETWEEN $1::date AND $2::date AND linked_contract IS NULL)::int AS "unlinkedEvents",
+             coalesce((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.label) FROM reason_options f),'[]'::jsonb) AS "reasonOptions",
+             coalesce((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.value) FROM sector_options f),'[]'::jsonb) AS "sectorOptions"
+      FROM raw
     `, [ABSENCE_MIN_DATE, source.cutoff]),
     comparisonPromise
   ]);
 
+  const facetReasonRows = qualityRow.reasonOptions;
+  const facetSectorRows = qualityRow.sectorOptions;
   const comparison = previous ? {
     available: true,
     basis: 'previous_year_same_calendar_window',
@@ -1403,6 +1412,7 @@ export async function absenceAnalytics(sql, req) {
     changePercent: {
       events: percentChange(summary.events, previous.events),
       affectedContracts: percentChange(summary.affectedContracts, previous.affectedContracts),
+      affectedPeople: percentChange(summary.affectedPeople, previous.affectedPeople),
       sourceDeclaredDays: percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays)
     }
   } : {
@@ -1468,11 +1478,87 @@ export async function absenceAnalytics(sql, req) {
   };
 }
 
-export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
+// Ranking descriptivo de personas con más eventos (o más días declarados) dentro del mismo alcance de filtros.
+// Agrupa por legajo de origen (no por contrato vinculado) para no perder eventos sin vínculo laboral homologado.
+const ABSENCE_PEOPLE_ORDER = new Set(['events', 'days']);
+export async function absencePeople(sql, req) {
+  const order = boundedQueryValue(req, 'order', 8).toLowerCase() || 'events';
+  if (!ABSENCE_PEOPLE_ORDER.has(order)) {
+    return { status: 400, payload: { ok: false, code: 'ABSENCE_PEOPLE_ORDER_INVALID', error: 'Orden del ranking inválido' } };
+  }
+  const source = await absenceSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
+  }
+  const request = absenceRequest(req, source);
+  if (request.error) return request.error;
+  const limit = positiveInteger(queryValue(req, 'limit', '10'), 10, 50);
+  const filters = { from: request.range.effective.from, to: request.range.effective.to, sector: request.sector, reasonCode: request.reasonCode };
+  const scope = absenceFilter(filters);
+  const values = [...scope.values, limit];
+  const orderSql = order === 'days' ? '"sourceDeclaredDays" DESC, events DESC' : 'events DESC, "sourceDeclaredDays" DESC';
+  const rows = await sql.query(`
+    /* absence:people */
+    SELECT absence.company_id AS "companyId", absence.legajo,
+           (array_agg(contract.id::text ORDER BY contract.id) FILTER (WHERE contract.id IS NOT NULL))[1] AS "contractId",
+           max(COALESCE(identity.full_name, employee.nombre)) AS name,
+           COALESCE(NULLIF(btrim(max(employee.sector)), ''), 'Sin sector informado') AS sector,
+           count(*)::int AS events,
+           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+           count(absence.dias)::int AS "reportedDaysEvents",
+           count(DISTINCT absence.motivo_code)::int AS "distinctReasons",
+           mode() WITHIN GROUP (ORDER BY COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado')) AS "topReason",
+           max(absence.fecha) AS "lastEventDate"
+    ${absenceFromSql(true)}
+    WHERE ${scope.where}
+    GROUP BY absence.company_id, absence.legajo
+    ORDER BY ${orderSql}, absence.legajo
+    LIMIT $${values.length}
+  `, values);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: rows.map((row) => ({
+        contractId: row.contractId ?? null,
+        companyId: row.companyId ?? null,
+        legajo: row.legajo ?? null,
+        name: row.name ?? null,
+        sector: row.sector,
+        events: absenceNumber(row.events),
+        sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays),
+        reportedDaysEvents: absenceNumber(row.reportedDaysEvents),
+        distinctReasons: absenceNumber(row.distinctReasons),
+        topReason: row.topReason ?? null,
+        lastEventDate: isoDate(row.lastEventDate)
+      })),
+      order,
+      limit,
+      range: request.range,
+      quality: { sourceCutoff: source.cutoff, unitSemantics: ABSENCE_UNIT_SEMANTICS, sectorSemantics: ABSENCE_SECTOR_SEMANTICS },
+      meta: {
+        authority: 'GRH',
+        grain: 'absence_person_ranking',
+        filters: { sector: request.sector || null, reasonCode: request.reasonCode || null },
+        containsPersonalIdentifiers: true,
+        externalSharingAllowed: false,
+        interpretation: 'Ranking descriptivo de registros administrativos; no evalúa desempeño ni justifica ausencias.'
+      }
+    }
+  };
+}
+
+export async function absenceEvents(sql, req, { rangeMode = 'starts', sourceBinding = null } = {}) {
   absenceWindowMode(rangeMode);
   let detailScope;
-  try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search','')}); }
+  try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search',''),legajo:queryValue(req,'legajo',''),companyId:queryValue(req,'companyId','')}); }
   catch { return {status:400,payload:{ok:false,code:'ABSENCE_DETAIL_FILTER_INVALID',error:'Filtro de detalle inválido'}}; }
+  // The source view may contain several companies. A browser-supplied company
+  // never expands the certified binding obtained by the authenticated route.
+  if (detailScope.legajo && (!Number.isSafeInteger(sourceBinding?.companyId)
+      || sourceBinding.companyId < 1 || detailScope.companyId !== String(sourceBinding.companyId))) {
+    return { status: 403, payload: { ok: false, code: 'ABSENCE_DETAIL_SCOPE_FORBIDDEN', error: 'El ámbito del historial no está autorizado para esta fuente municipal.' } };
+  }
   const source = await absenceSourceContext(sql);
   if (!source) {
     return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
@@ -1551,6 +1637,7 @@ export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
           sector: request.sector || null,
           reasonCode: request.reasonCode || null
         },
+        detailScope: detailScope.legajo ? 'exact_source_legajo' : detailScope.contractId ? 'contract' : detailScope.search ? 'search' : 'all',
         containsPersonalIdentifiers: true,
         externalSharingAllowed: false,
         excludedFields: [
@@ -2049,43 +2136,47 @@ export async function leaveNormative(sql) {
   const [[readiness = {}], reasonRows] = await Promise.all([
     sql.query(`
       /* leave-normative:readiness */
-      SELECT
-        (SELECT count(*)::int FROM grh_effective_employees_v1) AS "employmentRecords",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo) AS "activeRecords",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NOT NULL) AS "activeWithHireDate",
-        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NULL) AS "activeWithoutHireDate",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND fecha_ingreso IS NOT NULL
-            AND fecha_ingreso <= $1::date - interval '5 years'
-            AND COALESCE(
-              CASE
-                WHEN NULLIF(source_payload #>> '{employment,seniorityYears}', '') ~ '^-?[0-9]+(?:\\.[0-9]+)?$'
-                  THEN (source_payload #>> '{employment,seniorityYears}')::numeric
-                ELSE NULL
-              END,
-              0
-            ) = 0
-        ) AS "activeOldHireDateZeroSourceSeniority",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND NULLIF(source_payload #>> '{employment,dailyHours}', '') IS NOT NULL
-        ) AS "activeWithDeclaredDailyHours",
-        (SELECT count(*)::int FROM grh_effective_employees_v1
-          WHERE activo AND NULLIF(source_payload #>> '{employment,monthlyHours}', '') IS NOT NULL
-        ) AS "activeWithDeclaredMonthlyHours",
-        (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceSourceRows",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date) AS "absenceRowsWithinCoverage",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceRowsBeforeMinimum",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceRowsAfterCutoff",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha) AS "absenceInvertedRanges",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')) AS "absenceMissingReason",
-        (SELECT count(*)::int FROM grh_effective_absences_v1 absence
-          LEFT JOIN grh_effective_employees_v1 employee USING (company_id, legajo)
-          WHERE absence.fecha BETWEEN DATE '1990-01-01' AND $1::date AND employee.legajo IS NULL
-        ) AS "absenceUnlinkedRows",
-        (SELECT count(*)::int FROM grh_effective_leaves_v1) AS "legacyLeaveRows",
-        (SELECT min(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
-        (SELECT max(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate",
-        (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'absence_reasons') AS "reasonCatalogRows"
+      WITH employees AS MATERIALIZED (
+        SELECT company_id, legajo, activo, fecha_ingreso,
+               source_payload #>> '{employment,seniorityYears}' AS seniority,
+               source_payload #>> '{employment,dailyHours}' AS daily_hours,
+               source_payload #>> '{employment,monthlyHours}' AS monthly_hours
+        FROM grh_effective_employees_v1
+      ), employee_counts AS (
+        SELECT count(*)::int AS "employmentRecords",
+               (count(*) FILTER (WHERE activo))::int AS "activeRecords",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NOT NULL))::int AS "activeWithHireDate",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NULL))::int AS "activeWithoutHireDate",
+               (count(*) FILTER (WHERE activo AND fecha_ingreso IS NOT NULL
+                  AND fecha_ingreso <= $1::date - interval '5 years'
+                  AND COALESCE(CASE WHEN NULLIF(seniority, '') ~ '^-?[0-9]+(?:\\.[0-9]+)?$'
+                                    THEN seniority::numeric ELSE NULL END, 0) = 0))::int AS "activeOldHireDateZeroSourceSeniority",
+               (count(*) FILTER (WHERE activo AND NULLIF(daily_hours, '') IS NOT NULL))::int AS "activeWithDeclaredDailyHours",
+               (count(*) FILTER (WHERE activo AND NULLIF(monthly_hours, '') IS NOT NULL))::int AS "activeWithDeclaredMonthlyHours"
+        FROM employees
+      ), absence_counts AS (
+        SELECT count(*)::int AS "absenceSourceRows",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date))::int AS "absenceRowsWithinCoverage",
+               (count(*) FILTER (WHERE fecha < DATE '1990-01-01'))::int AS "absenceRowsBeforeMinimum",
+               (count(*) FILTER (WHERE fecha > $1::date))::int AS "absenceRowsAfterCutoff",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha))::int AS "absenceInvertedRanges",
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')))::int AS "absenceMissingReason",
+               -- Only existence matters: duplicate employee keys must not multiply events.
+               (count(*) FILTER (WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (a.company_id IS NULL OR a.legajo IS NULL OR (a.company_id, a.legajo) NOT IN (
+                 SELECT company_id, legajo FROM employees WHERE company_id IS NOT NULL AND legajo IS NOT NULL
+               ))))::int AS "absenceUnlinkedRows"
+        FROM grh_effective_absences_v1 a
+      ), leave_counts AS (
+        SELECT count(*)::int AS "legacyLeaveRows",
+               min(fecha_inicio) FILTER (WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
+               max(fecha_inicio) FILTER (WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate"
+        FROM grh_effective_leaves_v1
+      ), reason_count AS (
+        SELECT count(*)::int AS "reasonCatalogRows"
+        FROM grh_effective_catalog_rows_v1 WHERE catalog = 'absence_reasons'
+      )
+      SELECT e.*, a.*, l.*, c.*
+      FROM employee_counts e CROSS JOIN absence_counts a CROSS JOIN leave_counts l CROSS JOIN reason_count c
     `, [source.cutoff]),
     sql.query(`
       /* leave-normative:reason-mapping */
@@ -2098,7 +2189,8 @@ export async function leaveNormative(sql) {
              catalog.source_payload ->> 'affectsAttendanceBonus' AS "affectsAttendanceBonus",
              catalog.source_payload ->> 'generatesDiscountedDays' AS "generatesDiscountedDays",
              catalog.source_payload ->> 'calculationMethod' AS "calculationMethod",
-             count(absence.*)::int AS events,
+             -- The equality join guarantees a nonnull motivo_code only on matched absences.
+             count(absence.motivo_code)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
       FROM grh_effective_catalog_rows_v1 catalog
@@ -2528,7 +2620,14 @@ function managementSectorProjection(rows, grouping) {
  * Compara dos gestiones con ventanas exactas y una base temporal equivalente.
  * El contrato es agregado: no publica nombres, documentos ni identificadores de legajo.
  */
-export async function managementAnalytics(sql) {
+export const MANAGEMENT_ANALYTICS_QUERIES = Object.freeze(['metrics', 'payroll-comparison', 'sectors', 'quality']);
+// Directory cost probes: source-only reconstruction, per-row lifecycle projection, per-row current native read (the page).
+export const DIRECTORY_PROBES = Object.freeze(['directory-source', 'directory-lifecycle', 'directory-current']);
+export async function managementAnalytics(sql, { probe = null, sequential = false, report = null, now = null } = {}) {
+  const managementNow = () => { try { const value = (now ?? (() => performance.now()))(); return Number.isFinite(value) ? value : null; } catch { return null; } };
+  const managementElapsed = (from) => { const to = managementNow(); return from === null || to === null ? null : Math.max(0, Math.round(to - from)); };
+  const managementReport = (diagnostic) => { try { const pending = report?.(Object.freeze(diagnostic)); if (pending && typeof pending.then === 'function') void Promise.resolve(pending).catch(() => {}); } catch {} };
+  if (probe !== null && !MANAGEMENT_ANALYTICS_QUERIES.includes(probe)) return { status: 400, payload: { ok: false, code: 'MANAGEMENT_PROBE_INVALID', error: 'La consulta de diagnóstico no existe.' } };
   const [source = null] = await sql.query(`
     /* management:source */
     SELECT id AS "batchId", source_cutoff AS "sourceCutoff",
@@ -2611,38 +2710,64 @@ export async function managementAnalytics(sql) {
   const payrollPrevious = managementCompleteMonthRange(MANAGEMENT_PREVIOUS.from, previousComparableTo);
   const payrollCurrent = managementCompleteMonthRange(MANAGEMENT_CURRENT.from, currentTo);
 
-  const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = await Promise.all([
-    sql.query(`
+  const managementQueries = [
+    ['metrics', () => sql.query(`
       /* management:metrics */
+      -- The effective absence view is evaluated once and reused by every window: the curated
+      -- view costs a key function per base row, so one evaluation per window would not finish
+      -- inside the function budget.
       WITH windows(id, date_from, date_to) AS (
         VALUES ${metricScope.sql}
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.dias
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN (SELECT min(date_from) FROM windows) AND (SELECT max(date_to) FROM windows)
+      ), hire AS (
+        SELECT period.id, count(contract.id)::int AS hires, count(DISTINCT contract.person_id)::int AS hire_persons
+        FROM windows period
+        LEFT JOIN employment_contract contract ON contract.start_date BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), departure AS (
+        SELECT period.id, count(contract.id)::int AS exits, count(DISTINCT contract.person_id)::int AS exit_persons
+        FROM windows period
+        LEFT JOIN employment_contract contract ON contract.end_date BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), event AS (
+        SELECT period.id, count(absence.fecha)::int AS absence_events,
+               COALESCE(sum(absence.dias), 0)::numeric AS source_declared_days
+        FROM windows period
+        LEFT JOIN absence ON absence.fecha BETWEEN period.date_from AND period.date_to
+        GROUP BY period.id
+      ), affected AS (
+        SELECT period.id, count(DISTINCT contract.id)::int AS affected_contracts
+        FROM windows period
+        JOIN absence ON absence.fecha BETWEEN period.date_from AND period.date_to
+        JOIN employment_contract contract
+          ON contract.legacy_company_id = absence.company_id
+         AND contract.legacy_legajo = absence.legajo
+        GROUP BY period.id
       )
       SELECT period.id, period.date_from AS "from", period.date_to AS "to",
-             (SELECT count(*)::int FROM employment_contract contract
-               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS hires,
-             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
-               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS "hirePersons",
-             (SELECT count(*)::int FROM employment_contract contract
-               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS exits,
-             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
-               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS "exitPersons",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 absence
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "absenceEvents",
-             (SELECT count(DISTINCT contract.id)::int
-                FROM grh_effective_absences_v1 absence
-                JOIN employment_contract contract
-                  ON contract.legacy_company_id = absence.company_id
-                 AND contract.legacy_legajo = absence.legajo
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "affectedContracts",
-             (SELECT COALESCE(sum(absence.dias), 0)::numeric FROM grh_effective_absences_v1 absence
-               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "sourceDeclaredDays"
+             hire.hires, hire.hire_persons AS "hirePersons",
+             departure.exits, departure.exit_persons AS "exitPersons",
+             event.absence_events AS "absenceEvents",
+             COALESCE(affected.affected_contracts, 0)::int AS "affectedContracts",
+             event.source_declared_days AS "sourceDeclaredDays"
       FROM windows period
-    `, metricScope.values),
-    sql.query(`
+      JOIN hire USING (id)
+      JOIN departure USING (id)
+      JOIN event USING (id)
+      LEFT JOIN affected USING (id)
+    `, metricScope.values)],
+    ['payroll-comparison', () => sql.query(`
       /* management:payroll-comparison */
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
                ('current'::text, $3::date, $4::date)
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN $1::date AND $2::date OR absence.fecha BETWEEN $3::date AND $4::date
       ), contract_month AS (
         SELECT fact.employment_contract_id,
                date_trunc('month', fact.payroll_date)::date AS period_month
@@ -2666,7 +2791,7 @@ export async function managementAnalytics(sql) {
                count(DISTINCT contract.id) FILTER (WHERE contract_month.employment_contract_id IS NOT NULL)::int
                  AS "affectedAlignedContracts"
         FROM windows period
-        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2682,12 +2807,16 @@ export async function managementAnalytics(sql) {
                AS "eventsPer100ContractMonths"
       FROM denominator JOIN numerator USING (window_key)
       ORDER BY denominator.window_key
-    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
-    sql.query(`
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to])],
+    ['sectors', () => sql.query(`
       /* management:sectors */
       WITH windows(window_key, from_date, to_date) AS (
         VALUES ('previous'::text, $1::date, $2::date),
                ('current'::text, $3::date, $4::date)
+      ), absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha
+        FROM grh_effective_absences_v1 absence
+        WHERE absence.fecha BETWEEN $1::date AND $2::date OR absence.fecha BETWEEN $3::date AND $4::date
       ), contract_month_raw AS (
         SELECT fact.employment_contract_id,
                date_trunc('month', fact.payroll_date)::date AS period_month,
@@ -2741,7 +2870,7 @@ export async function managementAnalytics(sql) {
                     WHEN contract_month.employment_contract_id IS NULL THEN 'no_closed_payroll_contract_month'
                     ELSE contract_month.sector_quality END AS sector_quality
         FROM windows period
-        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2768,25 +2897,66 @@ export async function managementAnalytics(sql) {
       LEFT JOIN denominator USING (window_key, sector_key)
       LEFT JOIN numerator USING (window_key, sector_key)
       ORDER BY keys.window_key, "contractMonths" DESC, label
-    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
-    sql.query(`
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to])],
+    ['quality', () => sql.query(`
       /* management:quality */
+      WITH absence AS MATERIALIZED (
+        SELECT absence.company_id, absence.legajo, absence.fecha, absence.fecha_hasta
+        FROM grh_effective_absences_v1 absence
+      ), contract_key AS (
+        SELECT DISTINCT contract.legacy_company_id AS company_id, contract.legacy_legajo AS legajo
+        FROM employment_contract contract
+      ), absence_quality AS (
+        SELECT count(*)::int AS absence_rows,
+               count(*) FILTER (WHERE absence.fecha < DATE '1990-01-01')::int AS absence_before_coverage,
+               count(*) FILTER (WHERE absence.fecha > $1::date)::int AS absence_after_cutoff,
+               count(*) FILTER (WHERE absence.fecha_hasta < absence.fecha)::int AS inverted_absence_ranges,
+               count(*) FILTER (WHERE contract_key.company_id IS NULL)::int AS unlinked_absences
+        FROM absence
+        LEFT JOIN contract_key
+          ON contract_key.company_id = absence.company_id AND contract_key.legajo = absence.legajo
+      ), movement_quality AS (
+        SELECT count(*)::int AS movement_rows,
+               count(*) FILTER (WHERE movement_type IS NULL)::int AS movements_without_type
+        FROM grh_effective_employment_movement_v1
+      )
       SELECT (SELECT count(*)::int FROM employment_contract) AS "contracts",
              (SELECT count(DISTINCT person_id)::int FROM employment_contract) AS "personsWithContract",
              (SELECT count(*)::int FROM employment_contract WHERE start_date IS NULL) AS "missingValidStartDate",
-             (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceRows",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceBeforeCoverage",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceAfterCutoff",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha_hasta < fecha) AS "invertedAbsenceRanges",
-             (SELECT count(*)::int FROM grh_effective_absences_v1 absence LEFT JOIN employment_contract contract
-                ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
-               WHERE contract.id IS NULL) AS "unlinkedAbsences",
-             (SELECT count(*)::int FROM grh_effective_employment_movement_v1) AS "movementRows",
-             (SELECT count(*)::int FROM grh_effective_employment_movement_v1 WHERE movement_type IS NULL) AS "movementsWithoutType",
+             absence_quality.absence_rows AS "absenceRows",
+             absence_quality.absence_before_coverage AS "absenceBeforeCoverage",
+             absence_quality.absence_after_cutoff AS "absenceAfterCutoff",
+             absence_quality.inverted_absence_ranges AS "invertedAbsenceRanges",
+             absence_quality.unlinked_absences AS "unlinkedAbsences",
+             movement_quality.movement_rows AS "movementRows",
+             movement_quality.movements_without_type AS "movementsWithoutType",
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
              (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
-    `, [cutoff]),
-  ]);
+      FROM absence_quality, movement_quality
+    `, [cutoff])],
+  ];
+  const runManagementQuery = async ([name, run]) => {
+    const started = managementNow();
+    try {
+      const rows = await run();
+      managementReport({ version: 'management-analytics-phase.v1', query: name, durationMs: managementElapsed(started), rows: Array.isArray(rows) ? rows.length : null, outcome: 'fulfilled' });
+      return rows;
+    } catch (error) {
+      managementReport({ version: 'management-analytics-phase.v1', query: name, durationMs: managementElapsed(started), rows: null, outcome: 'rejected' });
+      throw error;
+    }
+  };
+  if (probe !== null) {
+    // Read-only diagnostic: one named query, same SQL and parameters as the page, no payload.
+    const entry = managementQueries.find(([name]) => name === probe);
+    if (!entry) return { status: 400, payload: { ok: false, code: 'MANAGEMENT_PROBE_INVALID', error: 'La consulta de diagnóstico no existe.' } };
+    const started = managementNow();
+    const rows = await runManagementQuery(entry);
+    return { status: 200, payload: { ok: true, probe: { query: probe, durationMs: managementElapsed(started), rows: rows.length, sourceCutoff: cutoff } } };
+  }
+  const managementResults = sequential ? [] : await Promise.all(managementQueries.map(runManagementQuery));
+  if (sequential) for (const entry of managementQueries) managementResults.push(await runManagementQuery(entry));
+  const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = managementResults;
 
   const metrics = new Map(metricRows.map((row) => [row.id, row]));
   const windowById = new Map(metricWindows.map((window) => [window.id, window]));
@@ -3071,12 +3241,38 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false) {
+function mixedStatusCanaryEnabled(env, before, principal) {
+  // Explicit single managed tenant only. No frontend switch and no default when the tenant pin is absent.
+  const tenant=env.MUNICONTROL_MIXED_DIRECTORY_STATUS_TENANT_ID;
+  return env.MUNICONTROL_MIXED_DIRECTORY_STATUS_BATCH==='1'
+    && typeof tenant==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(tenant)
+    && tenant===before?.scope?.tenantId && tenant===principal?.tenant?.id && principal.tenant.source==='membership'
+    && typeof before.scope.membershipId==='string' && before.scope.membershipId===principal.tenant.membershipId;
+}
+
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false, searchSql = '', mixedStatusBatch = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
       FROM grh_effective_employees_v1
-    ), directory AS MATERIALIZED (
+    ), ${mixedStatusBatch ? `mixed_native_ids AS MATERIALIZED (
+      SELECT ARRAY(SELECT c.id FROM employment_contract c JOIN person_identity i ON i.id=c.person_id
+        WHERE c.tenant_id=$3::uuid AND c.legacy_company_id=$2::bigint AND c.source_system='MUNICONTROL'
+        ORDER BY c.id LIMIT 2049) AS ids
+    ), mixed_native_work AS MATERIALIZED (
+      SELECT ids FROM mixed_native_ids WHERE cardinality(ids) BETWEEN 1 AND 2048
+    ), mixed_native_status AS MATERIALIZED (
+      SELECT s.contract_id,s.administrative_status FROM mixed_native_work w
+      CROSS JOIN LATERAL public.native_employee_mixed_status_by_ids_v1($4::jsonb,w.ids) s
+    ), ` : ''}${searchSql ? `search_contracts AS MATERIALIZED (
+      -- Search fast path: the expensive per-contract projections run only for the contracts whose
+      -- name, legajo, DNI or CUIL match (the same expressions the directory exposes).
+      SELECT contract.id FROM employment_contract contract
+      JOIN person_identity identity ON identity.id = contract.person_id
+      LEFT JOIN directory_employees employee ON employee.company_id = contract.legacy_company_id
+       AND employee.legajo = contract.legacy_legajo AND contract.source_system = 'GRH'
+      WHERE ${searchSql}
+    ), ` : ''}directory AS MATERIALIZED (
       SELECT contract.id AS "contractId",
              contract.person_id AS "canonicalPersonId",
              contract.legacy_company_id AS "companyId",
@@ -3137,7 +3333,12 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
-      ${lifecycleBound ? "LEFT JOIN LATERAL (SELECT "+(currentNativeRead?"public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract'":"public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id)")+" AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
+      ${mixedStatusBatch ? `LEFT JOIN mixed_native_status mx ON mx.contract_id=contract.id
+      LEFT JOIN LATERAL (SELECT CASE WHEN mx.contract_id IS NOT NULL
+         THEN jsonb_build_object('status',mx.administrative_status)
+         ELSE public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract' END AS data
+        WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true` :
+      lifecycleBound ? "LEFT JOIN LATERAL (SELECT "+(currentNativeRead?"public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract'":"public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id)")+" AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN directory_employees employee
         ON employee.company_id = contract.legacy_company_id
@@ -3171,10 +3372,10 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
         ORDER BY assignment.snapshot_date DESC
         LIMIT 1
       ) latest_assignment ON true
-      WHERE (contract.source_system='GRH' AND source_batch.source_system='GRH'
+      WHERE ${searchSql ? 'contract.id IN (SELECT id FROM search_contracts) AND (' : ''}(contract.source_system='GRH' AND source_batch.source_system='GRH'
         AND source_batch.validation_state='published' AND source_batch.legacy_import_run_id IS NOT NULL
         ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''})
-        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}
+        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}${searchSql ? ')' : ''}
     )
   `;
 }
@@ -3198,6 +3399,8 @@ export async function employees(sql, req, binding = null, options = {}) {
   const organization = boundedQueryValue(req, 'organization');
   const agreement = boundedQueryValue(req, 'agreement');
   const includeFacets = queryValue(req, 'includeFacets', '1') !== '0';
+  // The screen keeps the source-wide totals of its first load; a search then skips them (fast path).
+  const includeScope = queryValue(req, 'includeScope', '1') !== '0';
   const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || DEFAULT_WORKFORCE_STATUS;
   const status = requestedStatus === 'active' ? 'administrative_active' : requestedStatus;
   if(options.nativeOnly&&['liquidable','gap','last_closed'].includes(status))return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_PAYROLL_UNAVAILABLE',error:'Este padrón verifica los contratos propios. La cobertura de liquidaciones todavía no está certificada; consultá por situación administrativa.'}};
@@ -3217,19 +3420,21 @@ export async function employees(sql, req, binding = null, options = {}) {
     values.push(value);
     return `$${values.length}`;
   };
+  let searchSql = '';
   if (search) {
     const term = parameter(`%${picker ? escapePickerLike(search) : search}%`);
     const nameTokens = [...new Set(search.split(/\s+/).map((token) => token.trim()).filter(Boolean))]
       .slice(0, 8);
-    const tokenNameMatch = nameTokens.length
-      ? ` OR (${nameTokens.map((token) => `translate(lower(directory.nombre), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${parameter(`%${picker ? escapePickerLike(token) : token}%`)}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})`
-      : '';
-    conditions.push(`(
-      directory.nombre ILIKE ${term}
-      OR directory.legajo ILIKE ${term}
-      ${picker ? '' : `OR directory.dni ILIKE ${term} OR directory.cuil ILIKE ${term}`}
-      ${tokenNameMatch}
-    )`);
+    const tokens = nameTokens.map((token) => parameter(`%${picker ? escapePickerLike(token) : token}%`));
+    const predicate = (col) => `(
+      ${col.nombre} ILIKE ${term}
+      OR ${col.legajo} ILIKE ${term}
+      ${picker ? '' : `OR ${col.dni} ILIKE ${term} OR ${col.cuil} ILIKE ${term}`}
+      ${tokens.length ? ` OR (${tokens.map((t) => `translate(lower(${col.nombre}), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${t}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})` : ''}
+    )`;
+    conditions.push(predicate({ nombre: 'directory.nombre', legajo: 'directory.legajo', dni: 'directory.dni', cuil: 'directory.cuil' }));
+    // The picker never shows totals, so it always takes the fast path; the directory does once it holds its totals.
+    if ((picker || !includeScope) && !includeFacets && !options.nativeOnly && status !== 'multiple_active') searchSql = predicate({ nombre: 'COALESCE(identity.full_name, employee.nombre)', legajo: 'contract.legacy_legajo', dni: 'identity.dni', cuil: 'identity.cuil' });
   }
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
   if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
@@ -3244,7 +3449,11 @@ export async function employees(sql, req, binding = null, options = {}) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead)));
+  // Only the ordinary full mixed opening. Search, picker and diagnostics keep their deployed SQL.
+  const mixedStatusBatch = options.mixedStatusBatch === true && options.currentNativeRead === true && !options.nativeOnly
+    && Boolean(binding?.lifecycleContext && binding?.tenantId) && !picker && !search && !sector && !organization && !agreement
+    && status === 'administrative_active' && crosswalk === 'all' && includeFacets && includeScope && page === 1 && limit === 25;
+  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead),searchSql,mixedStatusBatch));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3265,7 +3474,10 @@ export async function employees(sql, req, binding = null, options = {}) {
     ), directory_count AS (
       SELECT count(*)::int AS total FROM filtered_directory
     ), directory_scope AS (
-      ${operationalScopeSelectSql('')}
+      ${searchSql ? `SELECT min(batch.source_cutoff) AS "sourceCutoffFrom", max(batch.source_cutoff) AS "sourceCutoffTo"
+        FROM employment_contract contract JOIN source_import_batch batch ON batch.id = contract.source_batch_id
+        WHERE contract.source_system='GRH' AND batch.source_system='GRH' AND batch.validation_state='published'
+          AND batch.legacy_import_run_id IS NOT NULL${binding ? ' AND batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''}` : operationalScopeSelectSql('')}
     ), directory_page AS (
       SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate", "recordOrigin"' : '*'},
              row_number() OVER (ORDER BY ${pageOrder}) AS "__pageOrder"
@@ -3317,8 +3529,9 @@ export async function employees(sql, req, binding = null, options = {}) {
     payload: {
       ok: true,
       data: data.map(({sourceSystem, sourceBatchId, sourceCutoff, ...row}) => row),
-      operational: {...operationalScopeFromRow(scope, status),...(options.nativeOnly?{countsScope:'authenticated_native_directory',payrollIncluded:null,activeOutsidePayroll:null,lastClosedContracts:null,lastClosedMonth:null}:{})},
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+      ...(searchSql ? { operational: null, scope: null, scopeOmitted: true } : {
+      operational: {...operationalScopeFromRow(scope, status),...(options.nativeOnly?{countsScope:'authenticated_native_directory',payrollIncluded:null,activeOutsidePayroll:null,lastClosedContracts:null,lastClosedMonth:null}:{})},
       scope: {
         grain: 'employment_contract',
         authority: options.nativeOnly?'MUNICONTROL':nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
@@ -3329,6 +3542,7 @@ export async function employees(sql, req, binding = null, options = {}) {
         ambiguous: Number(scope?.ambiguous || 0),
         unmatched: Number(scope?.unmatched || 0)
       },
+      }),
       facets: { sectors, organizations, agreements }
     }
   };
@@ -3893,6 +4107,59 @@ export async function employee(sql, req, tenantId = null, options = {}) {
   };
 }
 
+function createEmployeesReadPhaseTrace(report, now) {
+  const tick = () => {
+    try { const value = now(); return typeof value === 'number' && Number.isFinite(value) ? value : null; }
+    catch { return null; }
+  };
+  const elapsed = (from, to) => {
+    if (from === null || to === null) return null;
+    const value = to - from;
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+  };
+  const origin = tick();
+  let sequence = 0;
+  const emit = (phase, event, step, from = null, outcome = null) => {
+    const at = tick();
+    const diagnostic = Object.freeze({
+      version: 'employees-read-phase.v1', phase, event, step,
+      elapsedMs: elapsed(origin, at), durationMs: from === null ? null : elapsed(from, at), outcome,
+    });
+    try {
+      const pending = report(diagnostic);
+      if (pending && typeof pending.then === 'function') void Promise.resolve(pending).catch(() => {});
+    } catch {}
+  };
+  emit('request', 'start', 0);
+  return Object.freeze({
+    async read(phase, work) {
+      const step = ++sequence, started = tick();
+      emit(phase, 'start', step);
+      try {
+        const value = await work();
+        emit(phase, 'end', step, started, 'fulfilled');
+        return value;
+      } catch (error) {
+        emit(phase, 'end', step, started, 'rejected');
+        throw error;
+      }
+    },
+    sync(phase, work) {
+      const step = ++sequence, started = tick();
+      emit(phase, 'start', step);
+      try {
+        const value = work();
+        emit(phase, 'end', step, started, 'fulfilled');
+        return value;
+      } catch (error) {
+        emit(phase, 'end', step, started, 'rejected');
+        throw error;
+      }
+    },
+    finish() { emit('request', 'finish', 0, origin); },
+  });
+}
+
 export function createInternalDataHandler(dependencies = {}) {
   const requireAccess = dependencies.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess;
   const getSql = dependencies.getInternalSql ?? getInternalSql;
@@ -3900,6 +4167,9 @@ export function createInternalDataHandler(dependencies = {}) {
   const getTenantSession = dependencies.actionMutationSession ?? actionMutationSession;
   const env = dependencies.env ?? process.env;
   const reportReadFailure = dependencies.reportReadFailure ?? ((diagnostic) => console.error('[internal-data]', diagnostic));
+  const reportEmployeesPhase = dependencies.reportEmployeesPhase ?? ((diagnostic) => console.info('[internal-data:employees-phase]', diagnostic));
+  const reportManagementPhase = dependencies.reportManagementPhase ?? ((diagnostic) => console.info('[internal-data:management-phase]', diagnostic));
+  const employeesPhaseNow = dependencies.employeesPhaseNow ?? (() => performance.now());
 
   return async function handler(req, res) {
     if (String(req.method || 'GET').toUpperCase() !== 'GET') {
@@ -3907,22 +4177,26 @@ export function createInternalDataHandler(dependencies = {}) {
       return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
     let resource = 'unknown';
+    let employeePhases = null;
+    const readPhase = (phase, work) => employeePhases ? employeePhases.read(phase, work) : work();
+    const syncPhase = (phase, work) => employeePhases ? employeePhases.sync(phase, work) : work();
     try {
       resource = queryValue(req, 'resource', 'summary').toLowerCase();
+      if (resource === 'employees') employeePhases = createEmployeesReadPhaseTrace(reportEmployeesPhase, employeesPhaseNow);
       const requiredCapabilities = capabilitiesForInternalDataResource(resource);
-      const access = await requireAccess(req, res, {
+      const access = await readPhase('access', () => requireAccess(req, res, {
         env,
         requiredCapabilities: requiredCapabilities ?? [],
         requireDataPlaneReady: true,
         requireCertifiedDataBinding: true,
         allowLegacy: false,
-      });
+      }));
       if (!access) return undefined;
       if (!requiredCapabilities) {
         return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
       }
       if(resource==='nativeroster'){
-        const result=await internalNativeRoster(await getSql(),req,access.principal,getTenantSession(access,env));
+        const result=await internalNativeRoster(busyRetrySql(await getSql()),req,access.principal,getTenantSession(access,env));
         return send(res,result.status,result.payload);
       }
       if(resource==='employmentadoptionreview'){
@@ -3940,6 +4214,10 @@ export function createInternalDataHandler(dependencies = {}) {
       if (resource === 'payrollexportroster') {
         const result = await internalPayrollRoster(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
         return send(res,result.status,result.payload);
+      }
+      if (resource === 'payrollentityexport') {
+        const result = await internalPayrollEntityExport(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        return send(res, result.status, result.payload);
       }
       if (resource === 'payrollsourcereport') {
         const result = await internalPayrollSourceReport(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
@@ -3959,23 +4237,23 @@ export function createInternalDataHandler(dependencies = {}) {
         const result = await employeePayroll(sql, req, access.principal, tenantSession);
         return send(res, result.status, result.payload);
       }
-      const sql = await getSql();
+      const sql = await readPhase('source_client', () => getSql());
       const sourceBinding = { ...directorySourceBinding(env), tenantId: access.principal?.tenant?.id };
       let sourceSnapshot;
-      try{sourceSnapshot=await effectiveSourceSnapshot(sql,sourceBinding);}
+      try{sourceSnapshot=await readPhase('source_identity', () => effectiveSourceSnapshot(sql,sourceBinding));}
       catch(error){
         // Empty imported cohorts use current authenticated municipal proofs.
         // A partial imported cohort never becomes a silently truncated census.
         const target=queryValue(req,'contractId').toLowerCase();
         if(!['employees','employee'].includes(resource)||access.mode!=='managed'||error?.code!=='GRH_SOURCE_SCOPE_INVALID'||!sourceBinding.database||!sourceBinding.companyId)throw error;
-        const currentSql=await getPayrollSql(env),currentSession=getTenantSession(access,env);
+        const currentSql=await readPhase('native_client', () => getPayrollSql(env)),currentSession=getTenantSession(access,env);
         if(resource==='employees'){
-          const first=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          const first=await readPhase('native_before', () => readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding));
           if(first.imported!==0)throw error;
-          const result=await employees(sql,req,{...sourceBinding,lifecycleContext:employeeContext(access.principal,currentSession)},{nativeOnly:true});
-          const fresh=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          const result=await readPhase('directory', () => employees(sql,req,{...sourceBinding,lifecycleContext:employeeContext(access.principal,currentSession)},{nativeOnly:true}));
+          const fresh=await readPhase('native_after', () => readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding));
           if(first.token!==fresh.token||JSON.stringify(first.scope)!==JSON.stringify(fresh.scope)||fresh.imported!==0||result.status===200&&(result.currentCensusTotal??result.payload.scope?.totalContracts)!==first.total)throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');
-          return send(res,result.status,result.payload);
+          return syncPhase('response', () => send(res,result.status,result.payload));
         }
         if(!adoptionUuid(target))throw error;
         let first;
@@ -3993,8 +4271,8 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res,result.status,result.payload);
       }
       const respond = async (status, payload) => {
-        await assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot);
-        return send(res, status, payload);
+        await readPhase('source_bookend', () => assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot));
+        return syncPhase('response', () => send(res, status, payload));
       };
       if(resource==='payrolldocumentbatch'){
         const result=await internalPayrollDocumentBatch(sql,req,sourceBinding,sourceSnapshot,{readRoster:async datasetId=>internalPayrollRoster(await getPayrollSql(env),{query:{resource:'payrollexportroster',datasetId}},access.principal,getTenantSession(access,env))});
@@ -4012,8 +4290,13 @@ export function createInternalDataHandler(dependencies = {}) {
         const result = await internalAbsencePerson(sql,req,sourceBinding,sourceSnapshot,{readEvents:absenceEvents});
         return await respond(result.status,result.payload);
       }
+      if (resource === 'absencepeople') {
+        const result = await absencePeople(sql, req);
+        if(result.status===200)result.payload.meta={...result.payload.meta,snapshot:sourceSnapshot,tenantId:sourceBinding.tenantId};
+        return await respond(result.status,result.payload);
+      }
       if (resource === 'absenceevents') {
-        const result = await absenceEvents(sql, req);
+        const result = await absenceEvents(sql, req, { sourceBinding });
         if(result.status===200)result.payload.meta={...result.payload.meta,snapshot:sourceSnapshot,tenantId:sourceBinding.tenantId};
         return await respond( result.status, result.payload);
       }
@@ -4026,7 +4309,10 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond( result.status, result.payload);
       }
       if (resource === 'managementanalytics') {
-        const result = await managementAnalytics(sql);
+        const probe = typeof req.query?.probe === 'string' ? req.query.probe : null;
+        const result = await managementAnalytics(sql, {
+          probe, sequential: env.MANAGEMENT_ANALYTICS_SEQUENTIAL === '1', report: reportManagementPhase,
+        });
         return await respond( result.status, result.payload);
       }
       if (resource === 'qualityoverview') {
@@ -4043,9 +4329,23 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'employees') {
         const nativeRead=access.mode==='managed';
-        const before=nativeRead?await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding):null;
-        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'});
-        if(nativeRead){const after=await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding);if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
+        const probe=queryValue(req,'probe')||null;
+        if(probe!==null){
+          // Read-only diagnostic of the directory query cost (S3-7). Same access, filters and
+          // parameters as the page; the response carries only timing and the total count.
+          if(!nativeRead||!DIRECTORY_PROBES.includes(probe))return await respond(400,{ok:false,code:'DIRECTORY_PROBE_INVALID',error:'La consulta de diagnóstico no existe.'});
+          const binding=directorySourceBinding(env);
+          if(!binding||!access.principal?.tenant?.id)return await respond(400,{ok:false,code:'DIRECTORY_PROBE_INVALID',error:'La consulta de diagnóstico no existe.'});
+          const variant=probe==='directory-source'?binding:{...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))};
+          const started=performance.now();
+          const probed=await readPhase('directory', () => employees(sql, req, variant, {currentNativeRead:probe==='directory-current'}));
+          const durationMs=Math.round(performance.now()-started);
+          const total=Number.isSafeInteger(probed?.payload?.pagination?.total)?probed.payload.pagination.total:null;
+          return await respond(probed.status===200?200:probed.status,probed.status===200?{ok:true,probe:{query:probe,durationMs,total}}:probed.payload);
+        }
+        const before=nativeRead?await readPhase('native_before', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding)):null;
+        const result = await readPhase('directory', () => employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed',mixedStatusBatch:mixedStatusCanaryEnabled(env,before,access.principal)}));
+        if(nativeRead){const after=await readPhase('native_after', async () => readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding));if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
         return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
@@ -4068,6 +4368,8 @@ export function createInternalDataHandler(dependencies = {}) {
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
       reportReadFailure(payrollReadDiagnostic(error, safeResource, requestId));
       return send(res, failure.status, { ok: false, code: failure.code, error: failure.error, retryable: failure.retryable, requestId });
+    } finally {
+      employeePhases?.finish();
     }
   };
 }

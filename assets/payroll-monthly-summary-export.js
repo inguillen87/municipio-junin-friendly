@@ -145,9 +145,15 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
       rect(left, y, contentWidth, headerHeight, '0.09 0.24 0.30'); let x = left;
       headerParts.forEach((p, i) => { p.forEach((line, j) => draw(x + 5, y + 12 + j * 10, line, 8, true, '1 1 1')); x += sizes[i]; }); y += headerHeight;
     }
-    const firstRowHeight = values.length ? Math.min(60, Math.max(...partsFor(values[0]).map(p => p.length)) * 10.5 + 8) : 22;
+    const firstRowHeight = values.length ? Math.max(...partsFor(values[0]).map(p => p.length)) * 10.5 + 8 : 24;
     const noteLines = note ? monthlyPdfLines(note, contentWidth, 8) : [];
-    const sectionHeight = 27 + noteLines.length * 11 + headerHeight + firstRowHeight;
+    const noteHeight = noteLines.length ? noteLines.length * 11 + 6 : 0;
+    // Keep a normal first row with its section title and column headings. If
+    // it cannot fit even on a fresh section page, reserve one line and let
+    // the measured row fragments below consume the remaining page space.
+    const firstPageRoom = bottom - 88 - noteHeight - headerHeight;
+    const firstRowReservation = values.length && firstRowHeight > firstPageRoom ? 10.5 + 8 : firstRowHeight;
+    const sectionHeight = 31 + noteHeight + headerHeight + firstRowReservation;
     if (!ops || y + sectionHeight > bottom) page();
     else { y += 14; draw(left, y + 9, title, 10, true); y += 17; }
     noteLines.forEach(line => { draw(left, y + 8, line); y += 11; });
@@ -162,7 +168,7 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
         let capacity = Math.floor((bottom - y - 8) / 10.5);
         if (capacity < 1) { page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5); }
         const remaining = lines - offset;
-        if (offset === 0 && remaining > capacity && remaining * 10.5 + 8 <= bottom - 88 - headerHeight) {
+        if (index !== 0 && offset === 0 && remaining > capacity && remaining * 10.5 + 8 <= bottom - 88 - headerHeight) {
           page(); header(); capacity = Math.floor((bottom - y - 8) / 10.5);
         }
         const count = Math.min(remaining, capacity), h = count * 10.5 + 8;
@@ -190,13 +196,30 @@ export function monthlySummaryPdf(data, view, queriedAt, retentions = null) {
       r.unit ?? 'No informada', String(r.sourceRows) + ' / ' + String(r.distinctLegajos), monthlyDecimal(r.quantity), monthlyDecimal(r.amount),
     ]), [185, 48, 65, 103, 130], { right: [2, 3, 4], note: 'Sin nota: sin faltantes en las líneas incluidas. Líneas / legajos: ocurrencias y legajos únicos; no son sumables entre conceptos.' });
   }
-  table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, volumen y huellas'], data.sources.map(s => [
-    s.datasetId + ' · ' + s.sourceLabel + ' · Fecha: ' + s.date,
-    s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus)
-      + ' · ' + s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt
-      + ' · Respaldo: ' + s.sourceSha256 + ' · Contenido: ' + s.payloadHash,
-  ]), [35, 65]);
-  const controls = controlRows(data, view, queriedAt, retentions); table('Control y alcance', controls[0], controls.slice(1), [30, 100]);
+  if (retentions) {
+    table('Fuentes exactas de la selección', ['Corrida y origen', 'Período, volumen y huellas'], data.sources.map(s => [
+      s.datasetId + ' · ' + s.sourceLabel + ' · Fecha: ' + s.date,
+      s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0') + ' · ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + monthlyClosure(s.closureStatus)
+        + ' · ' + s.statementCount + ' legajos · ' + s.lineCount + ' líneas · Incorporado: ' + s.importedAt
+        + ' · Respaldo: ' + s.sourceSha256 + ' · Contenido: ' + s.payloadHash,
+    ]), [35, 65]);
+    const controls = controlRows(data, view, queriedAt, retentions); table('Control y alcance', controls[0], controls.slice(1), [30, 100]);
+  } else {
+    // Human-readable source references follow the unchanged Excel source order.
+    // UUIDs, source/content hashes and the complete methodology remain in Excel.
+    table('Fuentes seleccionadas', ['Fuente / tipo / período', 'Fecha / cierre', 'Fuente y corte', 'Legajos / líneas'], data.sources.map((s, index) => [
+      String(index + 1) + '. ' + s.type + ' · ' + monthlyType(s.type) + ' · ' + s.sourcePeriod + '-' + String(s.sourceMonth).padStart(2, '0'),
+      s.date + ' · ' + monthlyClosure(s.closureStatus), s.sourceLabel, String(s.statementCount) + ' / ' + String(s.lineCount),
+    ]), [90, 113, 228, 100], { right: [3] });
+    const filterLabel = { all: 'Todos', missing: 'Con datos faltantes', informed: 'Sin faltantes en las líneas incluidas' }[view.filters.status];
+    const control = data.counts.datasetCount + ' corridas; ' + data.counts.statementParticipations + ' participaciones; '
+      + data.counts.distinctLegajos + ' legajos únicos; ' + data.counts.lineCount + ' líneas; ' + view.rows.length + ' de '
+      + data.counts.conceptCount + ' conceptos exportados. Filtro: ' + filterLabel + '. Búsqueda: ' + (view.filters.search || 'Sin búsqueda') + '. '
+      + 'Líneas: ocurrencias, no personas. Cantidades según unidad. Faltantes: No informado. Un concepto ausente no equivale a cero. No se suman conceptos entre sí. '
+      + 'Sólo corridas seleccionadas; no certifica mes completo. Control interno, sin cálculo, pago, cierre ni presentación oficial. '
+      + 'Excel conserva las fuentes en este orden, UUID, huellas completas, incorporación y metodología. Consulta y huella del resumen completas al pie.';
+    table('Control y alcance', ['Selección, límites y trazabilidad'], [[control]], [100]);
+  }
   const objects = [null, '<< /Type /Catalog /Pages 2 0 R >>', null, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'], kids = [];
   for (const p of pages) { const id = objects.length, content = p.join('\n'); kids.push(id + ' 0 R'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id + 1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); }
   objects[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`; let result = '%PDF-1.4\n'; const offsets = [0];

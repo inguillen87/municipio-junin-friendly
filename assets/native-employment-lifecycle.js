@@ -6,7 +6,7 @@ const statuses={pending:'Pendiente de revisión',approved:'Aprobado y registrado
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const stamp=v=>v?new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(v)):'Historial laboral del alta';
 const issue=(code,status)=>Object.assign(Error(),{code,status});
-const errorText=e=>e.code==='NATIVE_EMPLOYMENT_LIFECYCLE_DATES_REQUIRED'?'Faltan fechas laborales comprobadas. Revisá el ingreso y la baja originales con su respaldo antes de preparar un movimiento.':e.code==='ACTOR_CHANGED'?'Cambió la cuenta o el ámbito del legajo. El intento original se conserva y sólo puede recuperarse con el acceso original.':[401,403].includes(e.status)?'Tu sesión o permiso cambió. Los datos fueron retirados. Volvé a consultar con una sesión autorizada.':e.status===409?'El historial laboral o la propuesta cambió. Conservamos tu borrador sin mezclar versiones; revisá el estado vigente.':e.status===404?'Todavía no hay confirmación. Podés consultar otra vez o reenviar exactamente el mismo intento.':'No se pudo verificar la respuesta. Conservamos el borrador y la referencia de cualquier envío sin confirmar.';
+const errorText=e=>e.code==='NATIVE_EMPLOYMENT_LIFECYCLE_DATES_REQUIRED'?'Faltan fechas laborales comprobadas. Revisá el ingreso y la baja originales con su respaldo antes de preparar un movimiento.':e.code==='ACTOR_CHANGED'?'Cambió la cuenta o el ámbito del legajo. El intento original se conserva y sólo puede recuperarse con el acceso original.':[401,403].includes(e.status)?'Tu sesión o permiso cambió. Los datos fueron retirados. Volvé a consultar con una sesión autorizada.':e.status===409?(/BUSY$/.test(String(e.code??''))?'Hay otra operación en curso sobre este legajo. Tocá «Actualizar» en unos segundos.':e.serverMessage||'El historial laboral o la propuesta cambió. Conservamos tu borrador sin mezclar versiones; revisá el estado vigente.'):e.status===404?'Todavía no hay confirmación. Podés consultar otra vez o reenviar exactamente el mismo intento.':'No se pudo verificar la respuesta. Conservamos el borrador y la referencia de cualquier envío sin confirmar.';
 
 // These references live only in this page. Closing a sheet never silently retries a write.
 if(typeof window!=='undefined'){
@@ -21,11 +21,12 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  contractId=contractId.toLowerCase();host.dataset.nlcMounted='true';host.classList.add('nlc-panel');
  const state=contexts.get(contractId)||{actor:null,scope:null,draft:null,pending:null};contexts.set(contractId,state);
  let bootstrap=null,detail=null,detailScope=null,busy=false,epoch=0,controller=null,closed=false;
- host.innerHTML=`<p class="nlc-note">Registrá una baja o un reingreso con respaldo y revisión de otra persona. Se conserva el mismo legajo, contrato y todos los períodos laborales. La baja indica el último día de vigencia, inclusive. No calcula haberes, antigüedad ni pagos.</p>
+ host.innerHTML=`<div class="nlc-top"><p class="nlc-note nlc-lead">Bajas y reingresos con su respaldo; los aprueba otra persona. Se conserva el mismo legajo, contrato y todos los períodos laborales. La baja indica el último día de vigencia, inclusive. No calcula haberes ni pagos.</p><button type="button" class="nlc-ghost" data-nlc-refresh>Actualizar</button></div>
  <p role="status" aria-live="polite" class="nlc-status" data-nlc-status></p>
- <div class="nlc-actions"><button type="button" data-nlc-refresh>Actualizar consulta</button><button type="button" class="nlc-primary" data-nlc-create hidden>Preparar movimiento</button></div>
+ <div class="nlc-card" data-nlc-content hidden><div class="nlc-card-head" data-nlc-source></div><div class="nlc-current" data-nlc-current></div><div class="nlc-actions nlc-card-actions"><button type="button" class="nlc-primary" data-nlc-create hidden>Dar de baja o reingresar</button></div></div>
+ <p class="nlc-note nlc-why" data-nlc-why hidden></p>
+ <section class="nlc-waiting" data-nlc-waiting hidden role="status"><h4 data-nlc-waiting-title>Movimiento pendiente de revisión</h4><p data-nlc-waiting-text></p><div class="nlc-actions" data-nlc-waiting-actions></div></section>
  <section class="nlc-pending" data-nlc-pending hidden><h4>Envío sin confirmar</h4><p>Se conserva el mismo contenido y su referencia. Consultá el resultado antes de preparar otro cambio.</p><p data-nlc-attempt></p><div class="nlc-actions"><button type="button" data-nlc-recover>Consultar confirmación</button><button type="button" data-nlc-retry disabled>Reenviar el mismo intento</button></div></section>
- <div data-nlc-content hidden><p data-nlc-source class="nlc-note"></p><div class="nlc-values" data-nlc-current></div></div>
  <form data-nlc-form hidden><h4>Propuesta de movimiento</h4><p class="nlc-note" data-nlc-draft-note></p><div class="nlc-fields" data-nlc-fields></div><label>Resolución o documento<input data-nlc-reference required minlength="3" maxlength="180"></label><label>Motivo<textarea data-nlc-reason required minlength="10" maxlength="1000" rows="3"></textarea></label><div data-nlc-diff></div><label class="nlc-reviewed"><input type="checkbox" data-nlc-propose-checked>Revisé el movimiento y todos los períodos, el motivo y el documento de respaldo</label><div class="nlc-actions"><button type="submit" class="nlc-primary" data-nlc-send>Enviar a revisión</button><button type="button" data-nlc-discard>Descartar borrador</button></div></form>
  <section data-nlc-history hidden><h4>Historial de movimientos laborales</h4><p data-nlc-history-note></p><div class="nlc-proposals" data-nlc-proposals></div></section>
  <section data-nlc-detail hidden><div class="nlc-section-head"><h4>Comparación de la propuesta</h4><button type="button" data-nlc-detail-close>Cerrar comparación</button></div><p data-nlc-proposal-info></p><p data-nlc-proposal-reference></p><p data-nlc-proposal-reason></p><div data-nlc-comparison></div><p data-nlc-review-status class="nlc-note"></p><form data-nlc-review-form hidden><label>Motivo de la decisión<textarea data-nlc-review-reason required minlength="10" maxlength="1000" rows="3"></textarea></label><p class="nlc-note">La aprobación registra las fechas declaradas. La vigencia se consulta para cada período. No anula liquidaciones ni aprueba licencias, beneficios o pagos.</p><label class="nlc-reviewed"><input type="checkbox" data-nlc-review-checked>Revisé el movimiento y todos los períodos y el respaldo antes de decidir</label><div class="nlc-actions"><button type="submit" class="nlc-primary" data-nlc-decision="approve">Aprobar y aplicar</button><button type="submit" data-nlc-decision="reject">Rechazar</button></div></form></section>`;
@@ -33,10 +34,26 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  const valid=seq=>!closed&&host.isConnected&&seq===epoch;
  function clearVisible(){bootstrap=null;detail=null;detailScope=null;for(const s of ['content','form','history','detail','pending','create'])$('[data-nlc-'+s+']').hidden=true;for(const s of ['current','fields','diff','proposals','comparison','proposal-info','proposal-reference','proposal-reason','review-status','source','history-note','attempt','draft-note'])$('[data-nlc-'+s+']').replaceChildren();for(const s of ['reason','reference','review-reason'])$('[data-nlc-'+s+']').value='';for(const s of ['propose-checked','review-checked'])$('[data-nlc-'+s+']').checked=false;}
  function changedActor(){if(!state.pending){state.actor=null;state.scope=null;}state.draft=null;clearVisible();throw issue('ACTOR_CHANGED');}
+ function renderWaiting(list){
+  const box=$('[data-nlc-waiting]');box.hidden=!list.length;if(!list.length){$('[data-nlc-waiting-actions]').replaceChildren();box.dataset.sig='';return;}
+  const sig=list.map(p=>p.id+':'+p.canReview+':'+p.baseVersion).join('|')+':'+bootstrap.permissions.canReview+':'+bootstrap.employment.version;
+  if(box.dataset.sig===sig)return;box.dataset.sig=sig;
+  const one=list[0],reviewer=bootstrap.permissions.canReview,label=p=>LIFECYCLE_MOVEMENTS[p.movement]+' '+civil(p.date)+' · '+p.authorLabel+' · '+stamp(p.createdAt);
+  $('[data-nlc-waiting-title]').textContent=list.length===1?'Movimiento pendiente de revisión':list.length+' propuestas pendientes de revisión';
+  $('[data-nlc-waiting-text]').textContent=(list.length===1?'':'Si alguna está repetida, se aprueba una y las demás se rechazan con el motivo «Duplicada». ')
+   +(reviewer?(list.length===1?'Abrila, revisá la fecha y decidí: aprobar o rechazar.':'Abrí cada una, revisá la fecha y decidí.'):(list.length===1?'La aprueba otra persona con permiso, desde esta misma ficha. No hace falta volver a enviarla.':'Las revisa otra persona con permiso, desde esta misma ficha. No hace falta volver a enviarlas.'));
+  $('[data-nlc-waiting-actions]').replaceChildren(...list.map(p=>{const row=el('div',undefined,'nlc-waiting-row');const b=el('button',reviewer&&p.canReview?'Revisar y decidir':'Ver propuesta',reviewer&&p.canReview?'nlc-primary':'');b.type='button';b.disabled=busy||closed;b.setAttribute('aria-label',b.textContent+': '+label(p));b.addEventListener('click',()=>loadProposal(p.id));row.append(el('span',label(p)),b);return row;}));
+ }
  function controls(){
   host.querySelectorAll('button,input,textarea,select').forEach(n=>n.disabled=busy||closed);
   const pending=state.pending,draft=state.draft,stale=draft&&bootstrap&&(draft.baseVersion!==bootstrap.employment.version);
-  $('[data-nlc-create]').hidden=!bootstrap?.permissions.canPropose||!!draft||!!pending;
+  // A proposal already waiting for review: say so and do not offer a second one (a repeated send looked like a failure).
+  const waiting=bootstrap&&!pending&&!draft?bootstrap.proposals.filter(p=>p.status==='pending'):[];
+  $('[data-nlc-create]').hidden=!bootstrap?.permissions.canPropose||!!draft||!!pending||waiting.length>0;
+  renderWaiting(waiting);
+  // Say why the button is missing instead of leaving an empty section.
+  const why=!bootstrap||draft||pending||waiting.length||bootstrap.permissions.canPropose?'':bootstrap.employment?.datesVerified===false?'Para dar de baja este legajo primero hay que comprobar sus fechas laborales (ingreso y baja originales con su respaldo).':state.canProposeCap?'Tu cuenta tiene el permiso «Proponer cambios de legajo», pero el servidor no la habilita para este legajo: hace falta que el usuario esté vinculado a un legajo vigente del padrón propio. Las bajas las prepara una persona con legajo vigente y las aprueba otra con permiso de aprobación.':'Tu cuenta puede consultar pero no preparar bajas. Para prepararlas hace falta el permiso «Proponer cambios de legajo» y que el usuario esté vinculado a su legajo municipal (Administración de plataforma › Usuarios y roles). La baja la aprueba otra persona con permiso de aprobación.';
+  if($('[data-nlc-why]').textContent!==why)$('[data-nlc-why]').textContent=why;$('[data-nlc-why]').hidden=!why;
   $('[data-nlc-pending]').hidden=!pending||!bootstrap;if(pending)$('[data-nlc-attempt]').textContent='Referencia: '+pending.key;
   $('[data-nlc-retry]').disabled=busy||!pending?.retryReady;
   for(const n of host.querySelectorAll('[data-nlc-form] input,[data-nlc-form] select,[data-nlc-form] textarea,[data-nlc-form] button,[data-nlc-review-form] textarea,[data-nlc-decision]'))n.disabled=busy||!!pending;
@@ -49,13 +66,19 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
   if(detail&&approvalStale&&detail.status==='pending')$('[data-nlc-review-status]').textContent='La versión de origen cambió. Esta propuesta no puede aprobarse; una persona habilitada puede rechazarla con motivo.';
  }
  async function request(url,options={}){
-  const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});
-  let d;try{d=await r.json();}catch{throw issue('RESPONSE_INVALID',503);}if(!r.ok||d?.ok!==true)throw issue(typeof d?.code==='string'?d.code.replace(/^NATIVE_EMPLOYMENT_LIFECYCLE_/,''):'UNAVAILABLE',r.status);return d;
+  // Reads only: a short wait when another operation holds the same legajo (several panels of the ficha load together).
+  const read=!options.method||options.method==='GET';
+  for(let attempt=0;;attempt++){
+   const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});
+   let d;try{d=await r.json();}catch{throw issue('RESPONSE_INVALID',503);}
+   if(read&&r.status===409&&/BUSY$/.test(String(d?.code??''))&&attempt<3){await new Promise(done=>setTimeout(done,400+attempt*600));continue;}
+   if(!r.ok||d?.ok!==true)throw Object.assign(issue(typeof d?.code==='string'?d.code.replace(/^NATIVE_EMPLOYMENT_LIFECYCLE_/,''):'UNAVAILABLE',r.status),{serverMessage:typeof d?.error==='string'?d.error:''});return d;
+  }
  }
  async function authority(seq){
   const value=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
   const email=value.user?.email,caps=value.access?.tenantCapabilities;if(value.authenticated!==true||typeof email!=='string'||!email.trim()||!Array.isArray(caps))throw issue('SESSION_INVALID',401);
-  const actor=JSON.stringify([email.trim().toLowerCase(),value.access.tenant?.id??null,value.access.tenant?.roleKey??value.user.role??null]);if(state.actor&&state.actor!==actor)changedActor();state.actor=actor;if(!caps.includes('workforce.employee.read'))throw issue('FORBIDDEN',403);
+  const actor=JSON.stringify([email.trim().toLowerCase(),value.access.tenant?.id??null,value.access.tenant?.roleKey??value.user.role??null]);if(state.actor&&state.actor!==actor)changedActor();state.actor=actor;state.canProposeCap=caps.includes('employee.record.propose');if(!caps.includes('workforce.employee.read'))throw issue('FORBIDDEN',403);
  }
  async function fresh(seq){
   const d=validateLifecycleBootstrap((await request(API+'?'+new URLSearchParams({resource:'bootstrap',contractId}))).data,contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
@@ -63,7 +86,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  }
  function fail(error){if([401,403].includes(error.status)){clearVisible();}else if(error.code==='CONTRACT_INVALID'){clearVisible();}else if(error.code==='REVIEW_CHANGED'){detail=null;detailScope=null;$('[data-nlc-detail]').hidden=true;$('[data-nlc-comparison]').replaceChildren();$('[data-nlc-review-checked]').checked=false;}say(errorText(error),true);}
  function civil(value){if(!value)return 'Sin baja';const [y,m,d]=value.split('-');return d+'/'+m+'/'+y;}
- function periods(target,rows){target.replaceChildren();const list=el('ol',undefined,'nlc-periods');for(const r of rows){const item=el('li');item.append(el('strong','Ingreso: '+civil(r.startDate)),el('span','Último día de vigencia: '+civil(r.endDate)));list.append(item);}target.append(list);}
+ function periods(target,rows){target.replaceChildren();const list=el('ol',undefined,'nlc-periods');for(const r of rows){const item=el('li',undefined,r.endDate?'is-closed':'is-open');const from=el('span','','nlc-period-from'),to=el('span','','nlc-period-to');from.append(el('small','Ingreso'),el('strong',civil(r.startDate)));to.append(el('small','Último día de vigencia'),el('strong',r.endDate?civil(r.endDate):'Sin baja'));item.append(from,el('span','→','nlc-period-arrow'),to);list.append(item);}target.append(list);}
  function comparison(target,before,after){target.replaceChildren();const grid=el('div',undefined,'nlc-comparison');for(const [title,rows]of [['Vigente al preparar',before.intervals],['Propuesto',after.intervals]]){const card=el('section',undefined,'nlc-change');card.append(el('h5',title));const content=el('div');periods(content,rows);card.append(content);grid.append(card);}target.append(grid);}
  function draftDiff(){if(!state.draft)return;$('[data-nlc-propose-checked]').checked=false;try{comparison($('[data-nlc-diff]'),state.draft.before,{intervals:lifecycleAfter(state.draft.before.intervals,state.draft.movement,state.draft.date,state.draft.version)});}catch(e){$('[data-nlc-diff]').replaceChildren(el('p',e.message,'nlc-note'));}controls();}
  function drawFields(){
@@ -73,15 +96,17 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
  }
  function render(){
   if(!bootstrap)return;const d=state.draft,e=bootstrap.employment;$('[data-nlc-content]').hidden=false;$('[data-nlc-history]').hidden=false;
-  $('[data-nlc-source]').textContent='Legajo '+bootstrap.subject.legajo+' · '+bootstrap.subject.employeeName+' · '+LIFECYCLE_STATUSES[e.status]+' al '+civil(e.today)+' · '+(e.revision?'Movimiento '+e.revision+' registrado '+stamp(e.appliedAt):'Períodos laborales de origen.');
+  const who=el('div','','nlc-who');who.append(el('strong','Legajo '+bootstrap.subject.legajo),el('span',bootstrap.subject.employeeName));
+  const pill=el('span',LIFECYCLE_STATUSES[e.status]+' al '+civil(e.today),'nlc-pill nlc-pill-'+e.status);
+  $('[data-nlc-source]').replaceChildren(who,pill,el('span',e.revision?'Último movimiento aplicado '+stamp(e.appliedAt):'Períodos laborales del alta, sin movimientos aplicados.','nlc-note nlc-origin'));
   if(e.datesVerified===false)$('[data-nlc-current]').replaceChildren(el('p','Faltan fechas laborales comprobadas. Revisá el ingreso y la baja originales con su respaldo antes de preparar un movimiento. No se creó ningún período laboral.','nlc-note'));else periods($('[data-nlc-current]'),e.intervals);
-  $('[data-nlc-history-note]').textContent=bootstrap.historyTruncated?'Se muestran las 20 propuestas más recientes. Hay antecedentes anteriores fuera de esta lista.':bootstrap.proposals.length+' propuestas registradas.';
-  $('[data-nlc-proposals]').replaceChildren();for(const p of bootstrap.proposals){const b=el('button',LIFECYCLE_MOVEMENTS[p.movement]+' '+civil(p.date)+' · '+statuses[p.status]+' · '+p.authorLabel+' · '+stamp(p.createdAt));b.type='button';b.dataset.nlcProposal=p.id;b.addEventListener('click',()=>loadProposal(p.id));$('[data-nlc-proposals]').append(b);}
+  $('[data-nlc-history-note]').textContent=bootstrap.historyTruncated?'Se muestran las 20 propuestas más recientes. Hay antecedentes anteriores fuera de esta lista.':(bootstrap.proposals.length?'Tocá un movimiento para ver la comparación'+(bootstrap.permissions.canReview?' y decidir.':'.'):'Todavía no hay movimientos propuestos.');
+  $('[data-nlc-proposals]').replaceChildren();for(const p of bootstrap.proposals){const b=el('button',undefined,'nlc-row');b.append(el('strong',LIFECYCLE_MOVEMENTS[p.movement]+' '+civil(p.date)),el('span',statuses[p.status],'nlc-chip nlc-chip-'+p.status),el('span',p.authorLabel+' · '+stamp(p.createdAt),'nlc-row-meta'));b.setAttribute('aria-label',LIFECYCLE_MOVEMENTS[p.movement]+' '+civil(p.date)+', '+statuses[p.status]+', '+p.authorLabel+', '+stamp(p.createdAt));b.type='button';b.dataset.nlcProposal=p.id;b.addEventListener('click',()=>loadProposal(p.id));$('[data-nlc-proposals]').append(b);}
   $('[data-nlc-form]').hidden=!d;if(d){drawFields();$('[data-nlc-reference]').value=d.legalReference;$('[data-nlc-reason]').value=d.reason;$('[data-nlc-draft-note]').textContent=d.baseVersion!==e.version?'El historial laboral cambió. Conservamos tu borrador de origen; no se enviará sobre otra versión. Descartalo sólo cuando hayas revisado sus diferencias.':'Editás una copia de la versión consultada. Todavía no se guardó ningún cambio.';draftDiff();}controls();
  }
  async function load(){
   if(busy||closed)return;const seq=++epoch;controller?.abort();controller=new AbortController();busy=true;controls();say('Consultando historial laboral y permisos…');
-  try{await authority(seq);await fresh(seq);if(!valid(seq))return;render();say(state.pending?'Hay un envío sin confirmar. Consultá su resultado antes de continuar.':state.draft?'Consulta actualizada. El borrador conserva su versión de origen.':'Historial laboral consultado. Aplicarlo requiere revisión de otra persona.');}
+  try{await authority(seq);await fresh(seq);if(!valid(seq))return;render();say(state.pending?'Hay un envío sin confirmar. Consultá su resultado antes de continuar.':state.draft?'Consulta actualizada. El borrador conserva su versión de origen.':'');}
   catch(e){if(valid(seq))fail(e);}finally{if(valid(seq)){busy=false;controls();}}
  }
  async function loadProposal(id){
@@ -106,7 +131,7 @@ export function mountNativeEmploymentLifecycle(host,{contractId,onApplied}={}){
    attempt.sending=!recover;started=!recover;const raw=(await request(recover?API+'?'+new URLSearchParams({resource:'attempt',contractId,key:attempt.key}):API,recover?{}:{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes})).data;if(!valid(seq))return;saved=await accept(raw,attempt,seq);
   }catch(e){if(!valid(seq))return;if(state.pending===attempt){if(e.code==='ACTOR_CHANGED'||recover||attempt.uncertain||started&&(!e.status||e.status>=500||[401,403].includes(e.status))){attempt.uncertain=true;attempt.retryReady=recover&&e.status===404;}else state.pending=null;}fail(e);if(bootstrap)render();}
   finally{attempt.sending=false;if(valid(seq)){busy=false;controls();}}
-  if(saved&&valid(seq)){if(saved.status==='approved'){document.dispatchEvent(new CustomEvent('mc:native-employment-lifecycle-changed',{detail:{contractId}}));say('Movimiento aprobada y aplicada. Se conservó el mismo contrato y todos sus períodos laborales.');if(typeof onApplied==='function'){onApplied({contractId,receipt:saved});return;}}const text=saved.status==='rejected'?'Propuesta rechazada. El historial laboral vigente se conserva.':'Propuesta enviada a revisión. El historial laboral vigente se conserva.';await load();if(!closed&&bootstrap)say(text);}
+  if(saved&&valid(seq)){if(saved.status==='approved'){document.dispatchEvent(new CustomEvent('mc:native-employment-lifecycle-changed',{detail:{contractId}}));say('Movimiento aprobado y aplicado. Se conservó el mismo contrato y todos sus períodos laborales.');if(typeof onApplied==='function'){onApplied({contractId,receipt:saved});return;}}const text=saved.status==='rejected'?'Propuesta rechazada. El historial laboral vigente se conserva.':'Propuesta enviada. Queda pendiente hasta que otra persona con permiso la apruebe desde esta ficha; no hace falta volver a enviarla.';await load();if(!closed&&bootstrap)say(text);}
  }
  function begin(body){if(busy||state.pending)return;const reviewed=reviewedLifecycleAttempt(body,bootstrap,detail,crypto.randomUUID());state.pending={actor:state.actor,key:reviewed.key,body:reviewed.body,bytes:reviewed.bytes,reviewed,uncertain:false,retryReady:false,sending:false};send();}
  $('[data-nlc-refresh]').addEventListener('click',load);$('[data-nlc-create]').addEventListener('click',prepare);

@@ -1,0 +1,801 @@
+{
+  "package": "native-employment-void.ui-synthetic.r1",
+  "synthetic": true,
+  "municipalRows": 0,
+  "serverCalls": 0,
+  "version": "native-employment-void.v1",
+  "purpose": "Fixtures locales de pantalla: no representan respuestas emitidas por producción y no deben enviarse a una API real.",
+  "datesAndHashes": "UUID, legajos, personas, fechas y hashes generados; los hashes sólo cumplen el formato y la coherencia entre fixtures.",
+  "options": {
+    "operation": [
+      "propose",
+      "review"
+    ],
+    "acknowledgement": "historical_without_current_relationship",
+    "decision": [
+      "approve",
+      "reject"
+    ],
+    "proposalStatus": [
+      "pending",
+      "approved",
+      "rejected"
+    ],
+    "pendingKind": [
+      "lifecycle",
+      "change"
+    ],
+    "subjectStatus": [
+      "active",
+      "inactive"
+    ]
+  },
+  "cases": [
+    {
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "registrationId": "f1000000-0000-4000-8000-000000000101",
+      "legajo": "990001",
+      "employeeName": "Persona sintética A — fixture UI",
+      "pendingLifecycleCount": 2,
+      "scopeVersionByPersona": {
+        "maker": "2ca6ffcca638f393cbd1ced1f69cf832e96b730c0342bbbaeac6410d0cccb955",
+        "checker": "4b5c3acfa1a1f4625703439d817c127f4cdc671d90dc3d67cac5c635b7a5a7ad",
+        "reader": "02dd4983312f682858025d1847def1a7e990f3d401d114244f59449ff5faf974"
+      },
+      "pendingOperations": [
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000401",
+          "version": "1ade11557cc99fcbacf9e76ef1568f66f89b4a61d909fb14b11ef388fdf70585"
+        },
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000402",
+          "version": "1d036fe1ddbe0b4323480170461da08259c4fafcf4beb4f4d53b748a4d0b1c2b"
+        }
+      ]
+    },
+    {
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "registrationId": "f1000000-0000-4000-8000-000000000102",
+      "legajo": "990002",
+      "employeeName": "Persona sintética B — fixture UI",
+      "pendingLifecycleCount": 1,
+      "scopeVersionByPersona": {
+        "maker": "744d0b2beff7551d28e764c2f6d34b7328dd26c354991823b8f1b3565a472d50",
+        "checker": "8199550bf737ad84388778d675947910e7bf1b72b9ca31b6c69689f909ede87c",
+        "reader": "41ed50815fa9d1ac623a207d00ab6f2c86ea4b8d6ac7fb152ae92f23fe3c51e0"
+      },
+      "pendingOperations": [
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000403",
+          "version": "d2088ac34202ce5126fbb529f783b948fa82b801c849a02800bfc3e82aa202ab"
+        }
+      ]
+    },
+    {
+      "case": "C",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "registrationId": "f1000000-0000-4000-8000-000000000103",
+      "legajo": "990003",
+      "employeeName": "Persona sintética C — fixture UI",
+      "pendingLifecycleCount": 1,
+      "scopeVersionByPersona": {
+        "maker": "8c678519909d0bdf3a7754b8f1a1ecb1858c95d41fca1a54a04224b03836a54d",
+        "checker": "4cbc1e26c5be07304d0fe93a1f412b81f9b9d9fb5a998b8dfff4027af7559cb1",
+        "reader": "97149c1d747429a6d7c63e86ce8e0a63ddab20518791309c308e38c1001514fc"
+      },
+      "pendingOperations": [
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000404",
+          "version": "31bbb83dd24f2a057f524fc26b3adb3c0f8d69f2f492e31877171e1623581758"
+        }
+      ]
+    }
+  ],
+  "sourceSha256": {
+    "models/native-employment-void-model.js": "396982a77e13790d63ce456ed1a4418573446a92708e446e8ae312e125ce42b2",
+    "models/native-employment-lifecycle-model.js": "719a2a1fc733c772468de57fb9f0df06e78efdc99972fa0f45e9ecc738a8a365",
+    "models/native-employee-contract.js": "c85292f1eef4a33a22e34d82e07b7a3b69114ebac5782f2faa0dd47203b867e8",
+    "models/native-employment-catalog-model.js": "36493ca960df5e0cf8851c12b9a1bd35a29de70cc857517073a3554614c7c928",
+    "candidate-core.sql": "be9d398dda2843b292883158d79d7ae83105718be075c912b3ec4d67d44dfec3",
+    "candidate-adapter.js": "62d5515082f0868353fc25f4eb1babfe6be986072b6bc1d3ec31a42985df9a6f",
+    "candidate-lifecycle-mapper.js": "8906d47590fb2028df082c3286031a344c0e6cc920ff36bcc2d82aad3673de8f"
+  },
+  "fixtures": [
+    {
+      "file": "responses/bootstrap-A-eligible.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Elegible; 2 solicitud(es) de baja sintética(s) pendientes.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "206c88d8128c0aac723198f39d7aaf1b8b6eca1399b97412713d37f02f2f1749"
+    },
+    {
+      "file": "responses/bootstrap-B-eligible.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "maker",
+      "description": "Elegible; 1 solicitud(es) de baja sintética(s) pendientes.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000002"
+      },
+      "sha256": "cb3c2eab0333fecd024dda334cf08fc59b94ee137d81f4515373f1a8ce13688e"
+    },
+    {
+      "file": "responses/bootstrap-C-eligible.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "C",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "persona": "maker",
+      "description": "Elegible; 1 solicitud(es) de baja sintética(s) pendientes.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000003"
+      },
+      "sha256": "9e4d75f24f04c73b2b3023c15f3e3d2d97084fdaf74e0689795d4daf5185b03d"
+    },
+    {
+      "file": "responses/bootstrap-A-read-only.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "reader",
+      "description": "Puede consultar; no puede preparar ni revisar.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "5d11fac73b265a7cba07791575c32860a6edde48b44fcbf2f4bd2e2a49af7131"
+    },
+    {
+      "file": "responses/bootstrap-A-reviewer.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Puede revisar; no puede preparar.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "2e9894723eca05d3472368b98fc86b1bf193e9546a97c1487f2540a19f855740"
+    },
+    {
+      "file": "responses/bootstrap-A-no-audit-identity.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "unlinked",
+      "description": "Lectura permitida; falta identificar al actor para una mutación. La causa no agrega claves al contrato.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "a8e2bcbcec0cf8285a53876db5a1d8db4e957ac3d2ffd61e7e01fb02490185c3"
+    },
+    {
+      "file": "responses/bootstrap-C-in-use.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "C",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "persona": "maker",
+      "description": "Uso propio previo bloquea preparar aunque tenga el permiso de rol.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000003"
+      },
+      "sha256": "93f702e48710c5db1526d9c5ef09e96699275ccd6764528cbb478485805d0817"
+    },
+    {
+      "file": "responses/bootstrap-A-own-pending.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Permiso general canReview=true, pero propuesta propia canReview=false.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "0991f6b2d36cd754a71d5845a746c6471674fca532cba3f846bd80ef7d5ce9f5"
+    },
+    {
+      "file": "responses/bootstrap-A-pending-independent-review.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Otra persona habilitada puede revisar la propuesta pendiente.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "623d20aebd4a811418b64b80b218b673291b7bffe871ce012e19df5b47887b52"
+    },
+    {
+      "file": "responses/proposal-A-pending-own.json",
+      "synthetic": true,
+      "kind": "proposal",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Vista del autor: no habilita su propia decisión.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=proposal&contractId=f1000000-0000-4000-8000-000000000001&id=f1000000-0000-4000-8000-000000000201"
+      },
+      "sha256": "69977ac999b709e59f121bed4cedfd6c8f484709a35ba5b80545836acf07fe49"
+    },
+    {
+      "file": "responses/proposal-A-pending-reviewer.json",
+      "synthetic": true,
+      "kind": "proposal",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Vista del revisor: antes/después sin cambios de fechas y dos bajas afectadas.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=proposal&contractId=f1000000-0000-4000-8000-000000000001&id=f1000000-0000-4000-8000-000000000201"
+      },
+      "sha256": "1e56cdf2e525ce7331f07bfb1c47df62cebc3509f18d0215e493d8b5f43a70da"
+    },
+    {
+      "file": "responses/proposal-C-pending-reviewer.json",
+      "synthetic": true,
+      "kind": "proposal",
+      "case": "C",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "persona": "checker",
+      "description": "Otra propuesta pendiente con una baja afectada.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=proposal&contractId=f1000000-0000-4000-8000-000000000003&id=f1000000-0000-4000-8000-000000000203"
+      },
+      "sha256": "0b3d01850885ab136436145d1d4068ee2926a08f4dae3e7df5f938c4dde17b48"
+    },
+    {
+      "file": "responses/receipt-A-proposed.json",
+      "synthetic": true,
+      "kind": "receipt",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Propuesta guardada; no cambia el padrón.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "bodyFile": "requests/propose-A.json",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000501"
+        }
+      },
+      "sha256": "c374d057b4c385ca495eabd91de29bfbb5729c32ff1d4f482e99b1bf6ddcaf7d"
+    },
+    {
+      "file": "responses/receipt-A-proposed-replay.json",
+      "synthetic": true,
+      "kind": "receipt",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Mismo resultado de la propuesta ante reintento.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Replayed": "true"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=attempt&contractId=f1000000-0000-4000-8000-000000000001&key=f1000000-0000-4000-8000-000000000501"
+      },
+      "sha256": "de964b81b1a145109f4f35af845e67cbe235d395b696f93f25d99222dc82a328"
+    },
+    {
+      "file": "responses/proposal-A-approved.json",
+      "synthetic": true,
+      "kind": "proposal",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Corrección aprobada: expediente final, dos bajas conservadas como antecedente.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=proposal&contractId=f1000000-0000-4000-8000-000000000001&id=f1000000-0000-4000-8000-000000000201"
+      },
+      "sha256": "857047dcf80144c57431c1bfce66bd79cb12d7bd60cb464470af1cf7204c6a21"
+    },
+    {
+      "file": "responses/receipt-A-approved.json",
+      "synthetic": true,
+      "kind": "receipt",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Aplicada; dos solicitudes lifecycle quedan sin posibilidad de aprobación.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "bodyFile": "requests/approve-A.json",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000502"
+        }
+      },
+      "sha256": "60882e2830edc3d4c8ad99ddfd0c676e55d637fdb76bf43334851bc9b14a1136"
+    },
+    {
+      "file": "responses/receipt-A-approved-replay.json",
+      "synthetic": true,
+      "kind": "receipt",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Replay de la misma aprobación; no duplica el retiro.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Replayed": "true"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=attempt&contractId=f1000000-0000-4000-8000-000000000001&key=f1000000-0000-4000-8000-000000000502"
+      },
+      "sha256": "9da9d42e67122cf084d546da376edf9af02d38ab9683fcaac9f5d37e695d8db9"
+    },
+    {
+      "file": "responses/bootstrap-A-withdrawn.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Alta retirada: estado inactive, fecha de egreso sigue null, historial visible.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000001"
+      },
+      "sha256": "b8933e6bb24aea076c94e79b665b6a0dcc2cc650b6f3dbe373d9e7bb0af58831"
+    },
+    {
+      "file": "responses/proposal-B-rejected.json",
+      "synthetic": true,
+      "kind": "proposal",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "checker",
+      "description": "Rechazo de la corrección. El after es la propuesta descartada, no el estado aplicado.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=proposal&contractId=f1000000-0000-4000-8000-000000000002&id=f1000000-0000-4000-8000-000000000202"
+      },
+      "sha256": "33c7eca1c78ed23b31e22fb1cef7ceee0810b6eaded390ae6efc6d1d6308b3d1"
+    },
+    {
+      "file": "responses/receipt-B-rejected.json",
+      "synthetic": true,
+      "kind": "receipt",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "checker",
+      "description": "No modifica padrón ni deshabilita la baja pendiente; supersededProposals vacío.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "bodyFile": "requests/reject-B.json",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000503"
+        }
+      },
+      "sha256": "eb25f73c4fae1c576b77563bafd8d2bee07db4c815299cfb194e4028615400dc"
+    },
+    {
+      "file": "responses/bootstrap-B-after-rejection.json",
+      "synthetic": true,
+      "kind": "bootstrap",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "maker",
+      "description": "Después del rechazo el contrato continúa activo y la baja original sigue pendiente.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-void?resource=bootstrap&contractId=f1000000-0000-4000-8000-000000000002"
+      },
+      "sha256": "47e3b7b2f3d444e10d3789aca72e5da39a6cbd48d74662c94ff07e0c0a2797ed"
+    },
+    {
+      "file": "responses/baja-A-1-pending.json",
+      "synthetic": true,
+      "kind": "lifecycle-proposal",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Baja sintética conservada; no es una corrección de incorporación. Status sigue pending después del retiro; la aprobación recibe WITHDRAWN.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-lifecycle?resource=proposal&contractId=f1000000-0000-4000-8000-000000000001&id=f1000000-0000-4000-8000-000000000401"
+      },
+      "sha256": "42ba1b70c3dab498bd0de1e9e1d90f18ce5644735a8436e547238c0eebd26d2b"
+    },
+    {
+      "file": "responses/baja-A-2-pending.json",
+      "synthetic": true,
+      "kind": "lifecycle-proposal",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Baja sintética conservada; no es una corrección de incorporación. Status sigue pending después del retiro; la aprobación recibe WITHDRAWN.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-lifecycle?resource=proposal&contractId=f1000000-0000-4000-8000-000000000001&id=f1000000-0000-4000-8000-000000000402"
+      },
+      "sha256": "5e819714b3e27777a13357eba242c94ad4d1ee5eff570151d6ea230f57290933"
+    },
+    {
+      "file": "responses/baja-B-1-pending.json",
+      "synthetic": true,
+      "kind": "lifecycle-proposal",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "checker",
+      "description": "Baja sintética conservada; no es una corrección de incorporación. Status sigue pending después del retiro; la aprobación recibe WITHDRAWN.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-lifecycle?resource=proposal&contractId=f1000000-0000-4000-8000-000000000002&id=f1000000-0000-4000-8000-000000000403"
+      },
+      "sha256": "b33517850164222311a89fc5bee465fd352fc195b043e948fadb698de2cf0567"
+    },
+    {
+      "file": "responses/baja-C-1-pending.json",
+      "synthetic": true,
+      "kind": "lifecycle-proposal",
+      "case": "C",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "persona": "checker",
+      "description": "Baja sintética conservada; no es una corrección de incorporación. Status sigue pending después del retiro; la aprobación recibe WITHDRAWN.",
+      "http": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "/api/internal-employment-lifecycle?resource=proposal&contractId=f1000000-0000-4000-8000-000000000003&id=f1000000-0000-4000-8000-000000000404"
+      },
+      "sha256": "9c5cc1fdd0f8e0d0305f3d00385e43ee128a5af4c04b25a1153b5a3f88c6c0df"
+    },
+    {
+      "file": "requests/propose-A.json",
+      "synthetic": true,
+      "kind": "request-propose",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "maker",
+      "description": "Sólo motivo y acknowledgement exacto; ningún campo de fechas.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000501"
+        }
+      },
+      "sha256": "0e486ef9aa35b61dfc4f05dbce561710197b3afd79d9e5875f589d85c39ca216"
+    },
+    {
+      "file": "requests/approve-A.json",
+      "synthetic": true,
+      "kind": "request-review",
+      "case": "A",
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "persona": "checker",
+      "description": "Nueva clave de intento de la revisión y versión exacta de propuesta.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000502"
+        }
+      },
+      "sha256": "59e1a0fd7b9ea16ed2fd970c77cf375b224f5e20a509dc7c283e6d74f661caab"
+    },
+    {
+      "file": "requests/reject-B.json",
+      "synthetic": true,
+      "kind": "request-review",
+      "case": "B",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "persona": "checker",
+      "description": "Rechazo con motivo propio; no es una anulación de haberes.",
+      "http": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "/api/internal-employment-void",
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "f1000000-0000-4000-8000-000000000503"
+        }
+      },
+      "sha256": "498ea42cf286d07a85b890b3e5d533ff552fb8afa8136c2f05ac3b03eec80c6a"
+    },
+    {
+      "file": "responses/error-actor_required.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 403,
+        "headers": {}
+      },
+      "sha256": "e9315d9abbe28bda7d35b1507d24fb9645567bf0e076e7bffc2fcdff41cac30e"
+    },
+    {
+      "file": "responses/error-maker_checker_required.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 403,
+        "headers": {}
+      },
+      "sha256": "f2c1fcef0abc210adbea5c10c5612547b49c60f7086e94d07027a4536d37d514"
+    },
+    {
+      "file": "responses/error-in_use.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 409,
+        "headers": {}
+      },
+      "sha256": "8009db4c5f4fcf1debe858e714d86aa0e5873a2f34b8ed19397d00a4be1b21cb"
+    },
+    {
+      "file": "responses/error-base_changed.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 409,
+        "headers": {}
+      },
+      "sha256": "c0906aa5043c95a186a7397b1b50a6cabab6fe568fdb3059e615a406e8e1c49c"
+    },
+    {
+      "file": "responses/error-busy.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 409,
+        "headers": {
+          "Retry-After": "1"
+        }
+      },
+      "sha256": "84b5b3e54282b24b3f164f5c7bd370685d1368b8529a6204e9c09665529d3f5d"
+    },
+    {
+      "file": "responses/error-withdrawn.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 409,
+        "headers": {}
+      },
+      "sha256": "8e5d8b9558a8f5f9c4525fdff5185b3b51b0bdcfa982d4d6b0eb573e619d032a"
+    },
+    {
+      "file": "responses/error-contract_invalid.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 503,
+        "headers": {}
+      },
+      "sha256": "729ec98cd167fa3b0753e4c37b1bb17191f48d76a8c4b3135fb8905f461ef010"
+    },
+    {
+      "file": "responses/error-session_invalid.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Código y texto extraídos del adaptador candidato, sin alteraciones.",
+      "http": {
+        "status": 401,
+        "headers": {}
+      },
+      "sha256": "9bf8795751febbed8c8b8164a9f89529d86b73832c4c4378f73111ddd6bd9960"
+    },
+    {
+      "file": "responses/error-baja-approve-after-withdrawal.json",
+      "synthetic": true,
+      "kind": "error",
+      "description": "Aprobar una baja tras retiro queda bloqueado. No convertir este error en rechazo ni ocultar el historial.",
+      "http": {
+        "status": 409,
+        "headers": {}
+      },
+      "sha256": "dc31a9a06a413c622a0c13a65d8f341461d1f1e0fbb9500c65a212a10c38e54d"
+    }
+  ]
+}

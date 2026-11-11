@@ -171,9 +171,18 @@ export function createPayrollArtReportWorkbench(root, options = {}) {
   async function authorize() {
     setBusy(true);
     try {
-      const response = await fetchImpl(`${PAYROLL_CONTROL_IMPORT_API}?resource=bootstrap`, {
-        credentials: 'same-origin', headers: { Accept: 'application/json' },
-      });
+      let response;
+      // 409 SESSION_BUSY while the access refreshes: retry the read a few times (Retry-After) before failing.
+      for (let attempt = 0; ; attempt += 1) {
+        response = await fetchImpl(`${PAYROLL_CONTROL_IMPORT_API}?resource=bootstrap`, {
+          credentials: 'same-origin', headers: { Accept: 'application/json' },
+        });
+        if (response.status !== 409 || attempt >= 3) break;
+        const peek = typeof response.clone === 'function' ? await response.clone().json().catch(() => null) : null;
+        if (peek?.code !== 'PAYROLL_CONTROL_IMPORT_SESSION_BUSY') break;
+        const wait = Math.min(3000, (Number(response.headers?.get?.('Retry-After')) || 1) * 1000) * (attempt + 1) * 0.5 + Math.random() * 250;
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
       if (response.status === 401) {
         redirectToLogin();
         return;

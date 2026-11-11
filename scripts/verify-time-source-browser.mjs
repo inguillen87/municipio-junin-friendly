@@ -39,7 +39,8 @@ export function buildTimeSourceAuthFixture() {
     authenticated: true,
     sessionVersion: 2,
     user: { id: 'b1000000-0000-4000-8000-000000000002', name: 'Proponente temporal QA', role: 'JUNIN_TIEMPO_FUENTES_PROPONENTE' },
-    access: { context: 'tenant', tenant: { id: 'c1000000-0000-4000-8000-000000000003', name: 'Tenant QA' } },
+    // The page now gates «Nueva fuente» by capability: the proponent fixture carries the capabilities of that role.
+    access: { context: 'tenant', tenant: { id: 'c1000000-0000-4000-8000-000000000003', name: 'Tenant QA' }, tenantCapabilities: ['time.source.read', 'time.source.propose', 'time.catalog.read'] },
     authentication: { level: 'mfa', mfaVerified: true },
   };
 }

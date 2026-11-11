@@ -7,7 +7,7 @@ const el=(tag,text,id)=>{const node=document.createElement(tag);if(text!==undefi
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
 const field=(text,input)=>{const label=el('label',text);label.append(input);return label;};
 const amount=value=>value===null?'No informado':`${BigInt(value)<0n?'-':''}$ ${(BigInt(value)<0n?-BigInt(value):BigInt(value))/100n},${String((BigInt(value)<0n?-BigInt(value):BigInt(value))%100n).padStart(2,'0')}`;
-const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'SAC',vacation:'Vacaciones',supplementary:'Complementaria',final:'Final',other:'Otra'};
+const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo (SAC)',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra'};
 const states={draft:'Borrador',submitted:'En aprobación',approved:'Aprobado para exportar',rejected:'Rechazado',cancelled:'Cancelado'};
 const shortId=value=>value.slice(0,8).toUpperCase()+'…'+value.slice(-6).toUpperCase();
 

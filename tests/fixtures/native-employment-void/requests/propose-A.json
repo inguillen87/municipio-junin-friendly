@@ -1,0 +1,10 @@
+{
+  "operation": "propose",
+  "payload": {
+    "contractId": "f1000000-0000-4000-8000-000000000001",
+    "scopeVersion": "2ca6ffcca638f393cbd1ced1f69cf832e96b730c0342bbbaeac6410d0cccb955",
+    "baseVersion": "f1eaac171faccef4b8a1549e622c3e573ac530a53319bbff5ce62e5aeb19256d",
+    "reason": "Incorporación histórica sintética sin relación vigente, para prueba de interfaz.",
+    "acknowledgement": "historical_without_current_relationship"
+  }
+}

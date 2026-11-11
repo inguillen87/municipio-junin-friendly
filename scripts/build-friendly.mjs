@@ -9,14 +9,17 @@ import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildDocumentReader } from './build-document-reader.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
+import { buildCharts } from './build-charts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
   'assets/own-fiscal-facts-model.js',
+  'assets/own-fiscal-correction-context.js',
   'assets/own-fiscal-facts-panel.js',
   'assets/own-fiscal-facts-panel.css',
   'assets/own-f931-contract.js',
+  'assets/own-f931-history-admission.js',
   'assets/own-f931-preparation-model.js',
   'assets/own-f931-preparation-client.js',
   'assets/own-f931-preparation-panel.js',
@@ -29,6 +32,7 @@ const shellFiles = [
   'assets/own-art-report-panel.js',
   'assets/own-art-report-panel.css',
   'assets/own-art-report-export.js',
+  'assets/art-extra-suss-template.js',
   'assets/own-program-coverage-model.js',
   'assets/own-program-coverage-panel.js',
   'assets/own-period-participation-program.js',
@@ -37,23 +41,38 @@ const shellFiles = [
   'assets/own-salary-seniority-model.js',
   'assets/own-salary-seniority-panel.js',
   'assets/own-salary-seniority-panel.css',
+  'assets/own-salary-seniority-collective.js',
+  'assets/own-salary-seniority-collective-panel.js',
+  'assets/own-collective-jobs-client.js',
+  'assets/own-collective-jobs-panel.js',
   'assets/own-contract-working-time-model.js',
   'assets/own-contract-working-time-panel.js',
   'assets/own-contract-working-time-collective.js',
   'assets/own-contract-working-time-collective-panel.js',
   'assets/own-contract-working-time-panel.css',
   'assets/own-payroll-period-context.js',
+  'assets/own-payroll-novelty-presence.js',
   'assets/own-agreement-working-time-model.js',
   'assets/own-agreement-working-time-program.js',
   'assets/own-agreement-working-time-workspace.js',
   'assets/own-agreement-working-time-panel.js',
   'assets/own-agreement-working-time-panel.css',
+  'assets/period-carry-forward.js',
   'assets/own-contract-salary-conditions-model.js',
   'assets/own-payroll-conditions.js',
   'assets/own-payroll-response.js',
   'assets/own-contract-salary-conditions-workspace.js',
   'assets/own-contract-salary-conditions-panel.js',
+  'assets/own-contract-salary-conditions-pending.js',
+  'assets/pending-bell-model.js',
+  'assets/pending-bell.js',
+  'assets/pending-bell.css',
+  'assets/pending-bell-mount.js',
   'assets/own-contract-salary-conditions-panel.css',
+  'assets/own-contract-family-payroll-facts-model.js',
+  'assets/own-contract-family-payroll-facts-workspace.js',
+  'assets/own-contract-family-payroll-facts-panel.js',
+  'assets/own-contract-family-payroll-facts-panel.css',
   'assets/own-period-classification-model.js',
   'assets/own-period-classification-panel.js',
   'assets/own-period-classification-panel.css',
@@ -125,6 +144,10 @@ const shellFiles = [
   'assets/time-catalog-review.css',
   'assets/time-catalog-contract.js',
   'relojes-marcaciones.html',
+  'homologacion-desarrollo.html',
+  'assets/developer-homologation-panel.js',
+  'assets/developer-homologation-manual.js',
+  'assets/developer-homologation.css',
   'administracion-plataforma.html',
   'estructura.html',
   'integracion-datos.html',
@@ -144,6 +167,8 @@ const shellFiles = [
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-capability-gate.js',
+  'assets/internal-shell-ux.js',
+  'assets/mc-activity-bar.js',
   'assets/workday-export.js',
   'assets/workday-panel.css',
   'assets/workday-panel.js',
@@ -184,6 +209,17 @@ const shellFiles = [
   'assets/structure-people.js',
   'assets/structure-people.css',
   'assets/payroll-bank-generator.js',
+  'assets/mc-chart-loader.js',
+  'assets/aggregate-chart-model.js',
+  'assets/aggregate-chart-view.js',
+  'assets/aggregate-charts.css',
+  'assets/absence-charts.js',
+  'assets/absence-report-pdf.js',
+  'assets/absence-dashboard.css',
+  'assets/quality-charts.js',
+  'assets/structure-charts.js',
+  'assets/own-run-charts.js',
+  'assets/mc-charts.css',
   'assets/payroll-bank-generator-model.js',
   'assets/payroll-bank-generator-export.js',
   'assets/payroll-bank-reconciliation.js',
@@ -202,11 +238,15 @@ const shellFiles = [
   'assets/export-sex-code.js',
   'assets/payroll-roster-model.js',
   'assets/payroll-roster-panel.js',
+  'assets/payroll-entity-export-panel.js',
+  'assets/entity-discount-export.js',
   'assets/payroll-navigation.js',
   'assets/own-payroll-summary-model.js',
   'assets/own-payroll-summary-panel.js',
   'assets/own-payroll-summary.css',
   'assets/own-payroll-run-panel.js',
+  'assets/own-run-departments.js',
+  'assets/own-run-coverage.js',
   'assets/own-payroll-readiness-model.js',
   'assets/own-payroll-source-review.js',
   'assets/own-payroll-individual-panel.js',
@@ -220,6 +260,7 @@ const shellFiles = [
   'assets/own-payroll-close-panel.js',
   'assets/own-payroll-close-panel.css',
   'assets/own-payroll-report-model.js',
+  'assets/own-payroll-report-census-model.js',
   'assets/own-payroll-receipt-planilla-model.js',
   'assets/own-payroll-receipt-planilla-export.js',
   'assets/own-payroll-receipt-planilla-panel.js',
@@ -242,6 +283,7 @@ const shellFiles = [
   'assets/position-comparison-panel.js',
   'assets/position-comparison.css',
   'assets/own-payroll-program-panel.js',
+  'assets/own-program-formula-text.js', 'assets/own-program-steps.js',
   'assets/own-bank-accounts-panel.js',
   'assets/own-bank-accounts-panel.css',
   'assets/own-bank-accounts-model.js',
@@ -268,6 +310,8 @@ const shellFiles = [
   'assets/own-payroll-reconciliation-panel.css',
   'assets/own-payroll-program-panel.css',
   'assets/own-payroll-program-workspace-model.js',
+  'assets/own-payroll-program-prepared-draft.js',
+  'assets/native-salary-stream-model.js',
   'assets/own-payroll-program-precision.js',
   'assets/own-payroll-program-model.js',
   'assets/own-payroll-program-copy-model.js',
@@ -281,6 +325,7 @@ const shellFiles = [
   'assets/own-payroll-exact.js',
   'assets/native-salary-catalog-model.js',
   'assets/native-salary-file-model.js',
+  'assets/native-salary-grid-export.js',
   'assets/native-salary-file-panel.js',
   'assets/payroll-detail-model.js',
   'assets/payroll-detail-selection.js',
@@ -327,8 +372,13 @@ const shellFiles = [
   'assets/native-employment-lifecycle.css',
   'assets/native-employment-lifecycle-model.js',
   'assets/native-employment-lifecycle-review.js',
+  'assets/native-employment-void.js',
+  'assets/native-employment-void-model.js',
   'assets/employee-detail-navigation.js',
   'assets/employee-detail-navigation.css',
+  'assets/workspace-quickbar.js',
+  'assets/employee-payroll-chart.js',
+  'assets/workspace-quickbar.css',
   'assets/payroll-novelty-amount-policy.js',
   'assets/clock-dashboard-zip.js',
   'assets/clock-dashboard-export.js',
@@ -340,6 +390,8 @@ const shellFiles = [
   'assets/attendance-clock-operations.css',
   'assets/attendance-clock-operations.js',
   'assets/attendance-connector-admin.js',
+  'assets/time-exceptions-panel.js',
+  'assets/time-exceptions.css',
   'assets/internal-guide.js',
   'assets/liquidaciones-menu.js',
   'assets/liquidaciones-menu.css',
@@ -360,6 +412,8 @@ const shellFiles = [
   'assets/internal-work-today.js',
   'assets/internal-work-today-sections.css',
   'assets/municontrol-enterprise.css',
+  'assets/fonts/inter-latin-opsz-normal.woff2',
+  'assets/fonts/inter-LICENSE.txt',
   'assets/brand/municontrol-mark.svg',
   'assets/brand/logo-horizontal.svg',
   'assets/brand/logo-horizontal-inverse.svg',
@@ -383,6 +437,19 @@ const shellFiles = [
   'assets/grh-backup-review.css',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
+  'assets/own-cajas-profiles.js',
+  'assets/own-cajas-zip-core.js',
+  'assets/own-cajas-zip-worker.js',
+  'assets/own-cajas-xml-reader.js',
+  'assets/own-cajas-control-model.js',
+  'assets/own-cajas-control-factory.js',
+  'assets/own-cajas-api-client.js',
+  'assets/own-cajas-panel-view.js',
+  'assets/own-cajas-panel.js',
+  'assets/own-cajas-panel.css',
+  'assets/own-cajas-response.js',
+  'assets/vendor/fflate-0.8.3.min.js',
+  'assets/vendor/fflate-0.8.3-LICENSE.txt',
   'assets/payroll-control-import-workflow.js',
   'assets/payroll-reprocessing-workflow.js',
   'assets/payroll-art-report.js',
@@ -424,6 +491,7 @@ const shellFiles = [
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',
+  'assets/payroll-novelty-batch-hint.js',
   'assets/payroll-novelty-txt.js',
   'assets/payroll-novelty-txt-panel.js',
   'assets/payroll-native-monthly-model.js',
@@ -431,6 +499,18 @@ const shellFiles = [
   'assets/payroll-native-monthly-review.css',
   'assets/own-payroll-novelties-model.js',
   'assets/own-payroll-novelties-panel.js',
+  'assets/grh-entity-formats.js',
+  'assets/grh-concept-dictionary.js',
+  'assets/section-tabs.js',
+  'assets/section-tabs.css',
+  'assets/novedades-tabs.js',
+  'assets/page-tabs.js',
+  'assets/role-label.js',
+  'assets/list-pager.js',
+  'assets/text-tidy.js',
+  'assets/approvals-inbox-model.js',
+  'assets/approvals-inbox.js',
+  'assets/approvals-inbox.css',
   'assets/own-payroll-novelties-panel.css',
   'assets/payroll-monthly-decisions.js',
   'assets/payroll-monthly-decisions-model.js',
@@ -453,6 +533,7 @@ const shellFiles = [
   'assets/payroll-novelty-sheet.js',
   'assets/attendance-preparte-panel.js',
   'assets/attendance-preparte-model.js',
+  'assets/attendance-tardiness-model.js',
   'assets/attendance-preparte-export.js',
   'assets/attendance-preparte.css',
   'assets/payroll-novelty-sheet-model.js',
@@ -563,22 +644,35 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 }
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
-  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
+  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza').replaceAll('Friendly · Junín', 'Junín, Mendoza · Uso interno'))) : original;
   const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
     ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
-  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
-    ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
+  // Multi-select helpers keep native visibility and each panel's lifecycle handling intact.
+  const withShellUx = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate) && !withGate.includes('internal-shell-ux.js')
+    ? withGate.replace('</head>', '<script src="/assets/mc-activity-bar.js"></script><script src="/assets/internal-shell-ux.js"></script></head>') : withGate;
+  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withShellUx)
+    ? withShellUx.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withShellUx;
   const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
     ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
+  // The interface typeface ships with the app (no third-party font host); preload it where the shared stylesheet is used.
+  const withFont = file.endsWith('.html') && legalLinked.includes('municontrol-enterprise.css') && !legalLinked.includes('inter-latin-opsz-normal.woff2')
+    ? legalLinked.replace('</head>', '<link rel="preload" href="/assets/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin></head>') : legalLinked;
+  const routed = file.endsWith('.html') ? applyCleanRouteLinks(withFont, file) : withFont;
   fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
 
 await buildLegalRegistry(root, output);
 await buildReactIslands(root, output);
 await buildLeaveRulesIsland(root, output);
+const charts = await buildCharts(root, output);
+console.log(`MuniControl charts: ${(charts.gzipBytes / 1024).toFixed(1)} KB gzip, loaded on demand.`);
 buildClockFleet(root, output);
 buildDocumentReader(root, output);
+
+// Cold first visits (phones, new PCs) used to discover the module graph one import level at a time: Novedades chains
+// up to 11 levels and Nómina 15. Each page now announces every statically imported module up front with
+// <link rel="modulepreload">, so the browser fetches them in parallel. Nothing extra executes: dynamic import() stays lazy.
+addModulePreloads(output);
 
 const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {
@@ -622,4 +716,40 @@ function applyCleanRouteLinks(html, file) {
   });
   const linked = withReturns.replace(/(<a\b[^>]*?\bhref\s*=\s*)(["'])([^"']*)\2/gi, (_, prefix, quote, href) => prefix + quote + routes.canonicalHref(href, base) + quote);
   return linked.includes('src="/assets/app-routes.js"') ? linked : linked.replace(/<head([^>]*)>/i, '<head$1>\n  <script src="/assets/app-routes.js"></script>');
+}
+
+function addModulePreloads(outputRoot) {
+  const importPattern = /(?:^|[;\s}])(?:import\s[^'"()]*?from\s*|import\s*|export\s[^'"()]*?from\s*)(['"])(\.{0,2}\/[^'"?#]+\.js)\1/g;
+  const cache = new Map();
+  const importsOf = file => {
+    if (cache.has(file)) return cache.get(file);
+    let source = '';
+    try { source = fs.readFileSync(file, 'utf8'); } catch { cache.set(file, []); return []; }
+    const found = [];
+    for (const match of source.matchAll(importPattern)) found.push(path.resolve(path.dirname(file), match[2]));
+    cache.set(file, found);
+    return found;
+  };
+  for (const page of fs.readdirSync(outputRoot).filter(name => name.endsWith('.html'))) {
+    const pagePath = path.join(outputRoot, page);
+    const html = fs.readFileSync(pagePath, 'utf8');
+    if (html.includes('rel="modulepreload"')) continue;
+    const entries = [];
+    for (const match of html.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"'?#]+\.js)["'][^>]*>/gi)) entries.push(match[1]);
+    for (const match of html.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+      for (const inner of match[1].matchAll(importPattern)) entries.push(inner[2]);
+    }
+    const seen = new Set();
+    const queue = entries.map(entry => path.resolve(outputRoot, entry.replace(/^\//, '')));
+    while (queue.length) {
+      const file = queue.shift();
+      if (seen.has(file) || !file.startsWith(outputRoot + path.sep) || !fs.existsSync(file)) continue;
+      seen.add(file);
+      queue.push(...importsOf(file));
+    }
+    const hrefs = [...seen].map(file => '/' + path.relative(outputRoot, file).split(path.sep).join('/')).sort().slice(0, 300);
+    if (!hrefs.length) continue;
+    const links = hrefs.map(href => `<link rel="modulepreload" href="${href}">`).join('');
+    fs.writeFileSync(pagePath, html.replace('</head>', links + '</head>'));
+  }
 }

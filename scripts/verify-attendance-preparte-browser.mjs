@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 // Compiled or published frontend; every API call, including writes, is intercepted.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -76,7 +77,7 @@ try {
     return route.fulfill({ contentType: types[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
   });
   page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-  await page.goto(origin + '/novedades'); await page.locator('#preflightButton:enabled').waitFor();
+  await page.goto(origin + '/novedades'); await openNoveltyReferences(page); await page.locator('#preflightButton:enabled').waitFor();
   await page.locator('#periodMonth').fill('2026-09'); await page.locator('#payrollType').selectOption('monthly');
   const panel = page.locator('#attendancePreparte'), status = panel.locator('[data-ap-status]');
   const load = async () => { await panel.locator('[data-ap-load]').click(); await page.waitForFunction(() =>
@@ -103,14 +104,15 @@ try {
   assert.match(await panel.locator('[data-ap-correction-list]').innerText(), /supera el tope/);
   assert.match(await status.innerText(), /Corregí todas las incidencias/);
   assert.equal(posts.length, 0); assert.equal(await page.locator('[data-sheet-row]').count(), 0);
-  await first.locator('[data-ap-field=cap]').fill('3');
+  // Acta 20 scale (owner decision 05/11): 4 h observed propose 5 %, so the declared ceiling must allow 5.
+  await first.locator('[data-ap-field=cap]').fill('5');
   checks.push('one monthly source read, whole 107-person scope, blocked incidents and individual ceiling enforced before transfer');
   await page.locator('[name=sourceMode][value=sheet]').check(); await page.locator('#sheetAdd').click();
   await field(0,0).fill('9999'); await field(0,1).fill('1'); await field(0,4).fill('30');
   await review(); newReceipt = true; await use();
   await page.waitForFunction(() => document.querySelectorAll('[data-sheet-row]').length === 2);
   assert.equal(await field(0,0).inputValue(), '9999'); assert.equal(await field(1,0).inputValue(), '9001');
-  assert.equal(await field(1,1).inputValue(), '44'); assert.equal(await field(1,4).inputValue(), '3');
+  assert.equal(await field(1,1).inputValue(), '44'); assert.equal(await field(1,4).inputValue(), '5');
   assert.equal(await page.locator('#periodMonth').isDisabled(), true); assert.equal(await page.locator('#payrollType').isDisabled(), true);
   assert.equal(posts.length, 0); assert.match(requests.at(-1).evidence, /^[a-f0-9]{64}$/);
   await first.locator('[type=checkbox]').check(); await review(); await use();
@@ -132,7 +134,7 @@ try {
   assert.equal(await page.locator('#payrollType').isDisabled(), true);
   assert.equal(posts.length, 1); const rows = posts[0].body.payload.rows;
   assert.equal(rows.length, 2); assert.equal(rows[1].conceptSourceId, '44');
-  assert.equal(rows[1].quantityDecimal, '3'); assert.equal(rows[1].amountCents, null); assert.equal(rows[1].forced, false);
+  assert.equal(rows[1].quantityDecimal, '5'); assert.equal(rows[1].amountCents, null); assert.equal(rows[1].forced, false);
   assert.match(rows[1].observation, /evidencia personal/);
   releaseReceiptRefresh();
   await page.waitForFunction(() => document.body.dataset.busy !== 'true');
@@ -143,7 +145,7 @@ try {
   await panel.locator('[data-ap-export]').click(); await page.waitForFunction(() => document.querySelector('[data-ap-status]')?.textContent.includes('cambiaron'));
   assert.equal(posts.length, 1); await load();
   assert.equal(await first.locator('[type=checkbox]').isChecked(), false);
-  assert.equal(await first.locator('[data-ap-field=cap]').inputValue(), '3');
+  assert.equal(await first.locator('[data-ap-field=cap]').inputValue(), '5');
   assert.match(await status.innerText(), /desmarcadas/);
   checks.push('changed source blocks stale export/transfer and requires reselecting affected people while preserving declared ceilings');
   await panel.locator('[data-ap-filter]').selectOption('ready'); await first.locator('[type=checkbox]').check();
@@ -186,7 +188,7 @@ try {
   checks.push('complete Excel retains the blocked row and its reason without a numeric extra-time formula or a new payroll batch');
   splitStream=false;await load();await first.locator('[type=checkbox]').check();reboundStream=true;await load();
   assert.equal(await first.locator('[type=checkbox]').isEnabled(),true);assert.equal(await first.locator('[type=checkbox]').isChecked(),false);
-  assert.equal(await first.locator('[data-ap-field=cap]').inputValue(),'3');assert.match(await status.innerText(),/desmarcadas/);
+  assert.equal(await first.locator('[data-ap-field=cap]').inputValue(),'5');assert.match(await status.innerText(),/desmarcadas/);
   assert.equal(posts.length,batchCount);
   checks.push('changing only the binding with identical times clears the prior selection while preserving declared fields for a fresh review');
 

@@ -82,3 +82,12 @@ test('HTTP authority failure stops the read without historical fallback',async t
  const h=harness(t);h.state.rosterResponse=()=>new Response(JSON.stringify({ok:false}),{status:403});
  await assert.rejects(h.read(),e=>e.status===403);assert.equal(h.state.invalidated.length,1);assert.equal(h.requests.length,2);
 });
+test('picker window: searches reuse the roster read in the last minute; applying a selection reads it again', async () => {
+ const fs = await import('node:fs');
+ const src = fs.readFileSync(new URL('../assets/employee-picker.js', import.meta.url), 'utf8');
+ assert.match(src, /let rosterCache=null;const ROSTER_REUSE_MS=60000;/);
+ assert.match(src, /const reuse=rosterCache&&Date\.now\(\)-rosterCache\.at<ROSTER_REUSE_MS;const payload=reuse\?rosterCache\.payload:await readNativeRoster/);
+ assert.match(src, /function reset\(\)\{stop\(\);rosterCache=null;/);
+ // The selection path keeps its fresh read.
+ assert.match(src, /const payload=await readNativeRoster\(\{signal:activeController\.signal\}\);if\(version!==requestVersion\|\|!dialog\.open\|\|!options\)return;rosterCache=\{at:Date\.now\(\),payload\};/);
+});

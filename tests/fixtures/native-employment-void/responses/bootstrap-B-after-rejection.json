@@ -1,0 +1,48 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "scopeVersion": "744d0b2beff7551d28e764c2f6d34b7328dd26c354991823b8f1b3565a472d50",
+    "baseVersion": "8d0a892dd653092095ca757d0ce79f448fecd104670b66b6213551b5b4a943a9",
+    "subject": {
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "registrationId": "f1000000-0000-4000-8000-000000000102",
+      "legajo": "990002",
+      "employeeName": "Persona sintética B — fixture UI",
+      "status": "active",
+      "startDate": "2000-01-01",
+      "endDate": null
+    },
+    "state": {
+      "voided": false,
+      "version": null,
+      "approvalId": null,
+      "approvedAt": null
+    },
+    "dependencies": [],
+    "pendingOperations": [
+      {
+        "kind": "lifecycle",
+        "id": "f1000000-0000-4000-8000-000000000403",
+        "version": "d2088ac34202ce5126fbb529f783b948fa82b801c849a02800bfc3e82aa202ab"
+      }
+    ],
+    "proposals": [
+      {
+        "id": "f1000000-0000-4000-8000-000000000202",
+        "contractId": "f1000000-0000-4000-8000-000000000002",
+        "status": "rejected",
+        "reason": "Incorporación histórica sintética sin relación vigente, para prueba de interfaz.",
+        "createdAt": "2026-11-09T20:00:00Z",
+        "authorLabel": "Preparador sintético QA",
+        "proposalVersion": "8bdb2b103e6549d83a1c57ad08ac55991dde410df6c2d09d60bd83b0df653349",
+        "canReview": false
+      }
+    ],
+    "permissions": {
+      "canPropose": true,
+      "canReview": true
+    },
+    "complete": true
+  }
+}

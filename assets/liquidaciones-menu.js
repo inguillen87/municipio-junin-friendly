@@ -3,11 +3,23 @@ export const LIQUIDACIONES_TASKS = Object.freeze([
   {label:'Resumen de liquidaciones',href:'/nomina#resumen',capability:'payroll.read'},
   {label:'Reportes y costo salarial',href:'/nomina#reportes',capability:'payroll.read'},
   {label:'Novedades',href:'/novedades',capability:'payroll.novelty.read'},
+  {label:'Calcular',href:'/nomina#calculo',capability:'payroll.read'},
+  {label:'Anular período',href:'/nomina#anulacion',capability:'payroll.read'},
+  {label:'Confirmar y anular',href:'/nomina#decisiones',capability:'payroll.read'},
+  {label:'Cerrar liquidación',href:'/nomina#cierre',capability:'payroll.read'},
   {label:'Comparar liquidaciones',href:'/nomina#comparar',capability:'payroll.read'},
   {label:'Historial de corridas',href:'/nomina#historial',capability:'payroll.read'},
   {label:'Parámetros salariales',href:'/nomina#parametros',capability:'payroll.read'},
   {label:'Solicitudes de corrección',href:'/nomina#correcciones',capability:'payroll.read'},
 ].map(task=>Object.freeze(task)));
+// External pages navigate to existing tasks with normal links, never fake tabs or mounted payroll panels.
+export const LIQUIDACIONES_PROCESS_SECTIONS=Object.freeze([
+  {label:null,hrefs:['/novedades','/nomina#resumen']},
+  {label:'Liquidar el período',hrefs:['/nomina#calculo','/nomina#anulacion','/nomina#decisiones','/nomina#cierre']},
+  {label:'Documentos',hrefs:['/nomina#reportes','/nomina#comparar']},
+  {label:'Seguimiento',hrefs:['/nomina#correcciones','/nomina#historial']},
+  {label:'Reglas y parámetros',hrefs:['/nomina#parametros']},
+].map(section=>Object.freeze({...section,hrefs:Object.freeze(section.hrefs)})));
 export function visibleLiquidacionesTasks(capabilities){const allowed=new Set(Array.isArray(capabilities)?capabilities:[]);return LIQUIDACIONES_TASKS.filter(task=>allowed.has(task.capability));}
 export function activeLiquidacionesTask(pathname,hash=''){
   if(['/novedades','/novedades-nomina','/novedades-nomina.html'].includes(pathname))return '/novedades';
@@ -36,7 +48,19 @@ export async function mountLiquidacionesMenu(){
   apply();
   if(old){old.dataset.liquidacionesLegacy='';old.hidden=true;}
   let adopted=null;
-  function updateActive(){const tab=adopted?.querySelector('[role=tab][aria-selected="true"]');const active=activeLiquidacionesTask(location.pathname,location.hash)??(tab?NOMINA+tab.dataset.task:null);group.dataset.active=String(active!==null);for(const link of links.children){if(link.getAttribute('href')===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}if(active)group.open=true;if(adopted)for(const section of adopted.querySelectorAll('details.task-section'))section.open=!!tab&&section.contains(tab);}
+  function updateActive(){const tab=adopted?.querySelector('[role=tab][aria-selected="true"]');const active=activeLiquidacionesTask(location.pathname,location.hash)??(tab?NOMINA+tab.dataset.task:null);group.dataset.active=String(active!==null);for(const link of links.querySelectorAll('a[href]')){if(link.getAttribute('href')===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}if(active)group.open=true;if(adopted)for(const section of adopted.querySelectorAll('details.task-section'))section.open=!!tab&&section.contains(tab);}
+  if(!['/nomina','/nomina-control','/nomina-control.html'].includes(location.pathname)){
+    const existing=new Map([...links.querySelectorAll('a[href]')].map(link=>[link.getAttribute('href'),link]));
+    links.classList.add('mc-liquidaciones-tasks');links.dataset.liquidacionesExternal='';
+    for(const section of LIQUIDACIONES_PROCESS_SECTIONS){
+      const items=section.hrefs.map(href=>existing.get(href)).filter(Boolean);if(!items.length)continue;
+      if(section.label===null){for(const link of items)links.append(link);continue;}
+      const disclosure=document.createElement('details');disclosure.className='task-section';
+      const title=document.createElement('summary');title.textContent=section.label;
+      const list=document.createElement('nav');list.setAttribute('aria-label',section.label);list.append(...items);disclosure.append(title,list);links.append(disclosure);
+      disclosure.addEventListener('toggle',()=>{if(!disclosure.open||document.getElementById('mcWorkAreaSearch')?.value.trim())return;for(const other of links.querySelectorAll('details.task-section'))if(other!==disclosure)other.open=false;});
+    }
+  }
   updateActive();window.addEventListener('hashchange',updateActive);window.addEventListener('popstate',updateActive);document.addEventListener('taskchange',updateActive);
   const escape=event=>{if(event.key==='Escape'){group.open=false;summary.focus();}};links.addEventListener('keydown',escape);
   // Adopt the page's own task workspace whether it registered before (already in the DOM) or after this mount.

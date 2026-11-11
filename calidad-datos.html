@@ -178,6 +178,8 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -204,8 +206,8 @@
     <div class="content" id="content" hidden>
       <nav class="breadcrumb" aria-label="Ruta"><a href="friendly-dashboard.html">Centro ejecutivo</a><span>/</span><span>Calidad de datos</span></nav>
       <div class="title-grid">
-        <div><p class="kicker">Registro público de calidad</p><h1>Calidad del corte GRH</h1></div>
-        <p>Qué puede sostener una decisión hoy, qué requiere homologación funcional y qué no debe mostrarse hasta incorporar una fuente válida.</p>
+        <div><p class="kicker">Calidad de los datos publicados</p><h1>Calidad de los datos de GRH</h1></div>
+        <p>Qué datos ya son confiables para decidir, cuáles necesitan una revisión antes de usarse y cuáles no se muestran hasta tener una fuente válida.</p>
       </div>
       <div class="source-line"><span><b>Fuente</b> <span id="sourceName">—</span></span><span><b>Corte</b> <time id="sourceDate">—</time></span><span><b>Grano</b> Agregado</span><span><b>Filas personales</b> No</span></div>
 
@@ -222,8 +224,9 @@
         <div class="quality-metric"><span>Ausencias huérfanas</span><strong id="orphanAbsences">—</strong><small id="orphanAbsencePct">—</small></div>
       </div>
 
+      <div data-mc-tabs='[{"id":"controles","label":"Controles","hint":"Qué se validó","sel":"#controles"},{"id":"revisar","label":"Casos a revisar","hint":"Lo que necesita atención","sel":"#excepciones"},{"id":"reglas","label":"Cómo se calcula","hint":"Reglas y datos disponibles","sel":"#reglas,#disponibilidad"},{"id":"fuente","label":"Fuente y límites","hint":"Origen y advertencias","sel":"#limites,#fuente"}]' data-mc-tabs-key="mc.calidad-datos.tab" data-mc-tabs-label="Secciones de Calidad del corte"></div>
       <section class="section" id="controles" aria-labelledby="checksTitle">
-        <div class="section-header"><div><span class="section-index">01 · CONTROLES</span><h2 id="checksTitle">Matriz de validación</h2></div><p>El estado “revisar” no invalida todo el corte: indica que la excepción debe mantenerse fuera de una interpretación que dependa de ese campo.</p></div>
+        <div class="section-header"><div><span class="section-index">01 · CONTROLES</span><h2 id="checksTitle">Qué se controló</h2></div><p>“Revisar” no invalida todos los datos: indica que ese campo no debe usarse para sacar conclusiones hasta corregirlo.</p></div>
         <div class="audit-table-wrap">
           <table class="audit-table">
             <thead><tr><th>Control</th><th>Resultado</th><th>Universo</th><th>Estado</th><th>Uso permitido</th></tr></thead>
@@ -233,12 +236,12 @@
       </section>
 
       <section class="section" id="excepciones" aria-labelledby="exceptionsTitle">
-        <div class="section-header"><div><span class="section-index">02 · EXCEPCIONES</span><h2 id="exceptionsTitle">Casos que requieren revisión</h2></div><p>Magnitud relativa calculada contra el universo correspondiente. Las barras tienen escala propia y no deben compararse entre sí como severidad.</p></div>
+        <div class="section-header"><div><span class="section-index">02 · EXCEPCIONES</span><h2 id="exceptionsTitle">Casos que requieren revisión</h2></div><p>Cada barra muestra qué parte del total está afectada. Las barras tienen escalas distintas: no sirven para comparar gravedad entre sí.</p></div>
         <div class="exception-grid" id="exceptionGrid"></div>
       </section>
 
       <section class="section" id="reglas" aria-labelledby="rulesTitle">
-        <div class="section-header"><div><span class="section-index">03 · REGLAS DE LECTURA</span><h2 id="rulesTitle">Cómo se construyen los indicadores</h2></div><p>Las definiciones están separadas de la interfaz para que un cambio de criterio pueda versionarse y volver a auditarse.</p></div>
+        <div class="section-header"><div><span class="section-index">03 · REGLAS DE LECTURA</span><h2 id="rulesTitle">Cómo se calcula cada indicador</h2></div><p>Las definiciones se guardan con su versión, para que cualquier cambio de criterio quede registrado y pueda revisarse.</p></div>
         <div class="rule-grid">
           <article class="rule"><h3>Legajo activo</h3><p>Se considera activo cuando la fecha de egreso está vacía. Es un proxy operativo, no un estado certificado por el área de Personal.</p><dl><dt>Numerador</dt><dd>Legajos sin fecha de egreso</dd><dt>Denominador</dt><dd>Total histórico de legajos</dd><dt>Estado</dt><dd>Derivado; requiere homologación municipal</dd></dl></article>
           <article class="rule"><h3>Evento de ausencia</h3><p>Cada registro válido de la tabla de ausencias cuenta como un evento. Una misma persona puede aparecer más de una vez.</p><dl><dt>Unidad</dt><dd>Evento registrado</dd><dt>No representa</dt><dd>Días perdidos, duración ni tasa</dd><dt>Estado</dt><dd>Conteo verificado; semántica pendiente</dd></dl></article>
@@ -248,18 +251,18 @@
       </section>
 
       <section class="section" id="disponibilidad" aria-labelledby="availabilityTitle">
-        <div class="section-header"><div><span class="section-index">04 · DISPONIBILIDAD</span><h2 id="availabilityTitle">Contrato por dominio</h2></div><p>La ausencia de una fuente se muestra como tal. No se rellena con valores de demostración ni inferencias silenciosas.</p></div>
+        <div class="section-header"><div><span class="section-index">04 · DISPONIBILIDAD</span><h2 id="availabilityTitle">Qué datos hay de cada tema</h2></div><p>Cuando falta una fuente se dice que falta. No se completa con ejemplos ni estimaciones.</p></div>
         <div class="availability-grid" id="availabilityGrid"></div>
         <div class="catalog-strip" id="catalogStrip" aria-label="Catálogos detectados"></div>
       </section>
 
       <section class="section" id="limites" aria-labelledby="limitsTitle">
-        <div class="section-header"><div><span class="section-index">05 · LÍMITES</span><h2 id="limitsTitle">Restricciones declaradas</h2></div><p>Estas observaciones viajan con el corte y condicionan el uso correcto del informe ejecutivo.</p></div>
+        <div class="section-header"><div><span class="section-index">05 · LÍMITES</span><h2 id="limitsTitle">Advertencias</h2></div><p>Límites de estos datos que hay que tener presentes al leer el informe ejecutivo.</p></div>
         <div class="limit-list" id="limitList"></div>
       </section>
 
       <section class="section" id="fuente" aria-labelledby="sourceTitle">
-        <div class="section-header"><div><span class="section-index">06 · TRAZABILIDAD</span><h2 id="sourceTitle">Identidad del corte</h2></div><p>Referencia suficiente para saber qué archivo agregado alimentó la publicación y cuándo fue generado.</p></div>
+        <div class="section-header"><div><span class="section-index">06 · TRAZABILIDAD</span><h2 id="sourceTitle">De qué fecha son los datos</h2></div><p>Qué archivo alimentó esta publicación y cuándo se generó.</p></div>
         <div class="source-card"><dl>
           <dt>Dataset</dt><dd id="traceDataset">—</dd>
           <dt>Fecha y hora</dt><dd id="traceDate">—</dd>

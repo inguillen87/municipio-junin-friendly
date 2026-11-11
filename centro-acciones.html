@@ -1183,6 +1183,9 @@
             role: humanRoleLabel(first(user.role, user.profile, authUser && authUser.role))
           },
           capabilities: normalizeCapabilities(root), subjects: subjects, reasons: reasons,
+          overtimeNeedsEmployeeLink: root.principal?.overtimeReadBlock === 'active_employment_required',
+          overtimeNeedsActorIdentity: root.principal?.overtimeReadBlock === 'actor_identity_required',
+          overtimeActorKind: ['employment','administrative'].includes(root.principal?.overtimeActorKind) ? root.principal.overtimeActorKind : null,
           subjectsTruncated: bool(first(options.subjectsTruncated, root.subjectsTruncated)),
           approvalEvidenceByConfidentiality: firstObject(contract.approvalEvidenceByConfidentiality, root.approvalEvidenceByConfidentiality),
           actionTypes: actionTypes, statuses: statuses, views: views,
@@ -1545,10 +1548,15 @@
       }
 
       function renderCapabilities() {
-        var labels = Array.from(new Set(Array.from(state.capabilities).map(function (capability) { return CAPABILITY_LABELS[capability]; }).filter(Boolean)));
+        var labels = Array.from(new Set(Array.from(state.capabilities).filter(function (capability) {
+          if (capability === 'time.overtime.read') return canReadOvertime();
+          if (capability === 'time.overtime.enter') return canEnterOvertime();
+          if (capability === 'time.overtime.approve') return canDecideOvertime();
+          return true;
+        }).map(function (capability) { return CAPABILITY_LABELS[capability]; }).filter(Boolean)));
         var role = state.bootstrap.user.role;
         var permissionCopy = labels.length ? role + ' · Puede ' + labels.join(', ') + '.' : role + ' · Sólo se habilitan las operaciones informadas explícitamente por el backend.';
-        if (hasCapability('time.overtime.read') && !state.overtime && state.overtimeUnavailableReason) permissionCopy += ' Mayor esfuerzo permanece bloqueado: ' + state.overtimeUnavailableReason;
+        if (!state.overtime && state.overtimeUnavailableReason) permissionCopy += ' Mayor esfuerzo: ' + state.overtimeUnavailableReason;
         el.permissionSummary.textContent = permissionCopy;
         var hasSubjectRoute = state.initialSubjects.length > 0 || canSearchSubjects();
         var hasReasonRoute = state.bootstrap.reasons.length > 0 || canSearchSubjects();
@@ -2918,7 +2926,12 @@
           state.overtime=null;
           state.overtimeInitialSubjects=[];
           state.overtimeUnavailableReason='';
-          if(hasCapability('time.overtime.read')){
+          if(state.bootstrap.overtimeNeedsEmployeeLink){
+            state.overtimeUnavailableReason='tu cuenta tiene el permiso, pero no se verificó un vínculo con un legajo activo de este municipio.';
+          }else if(state.bootstrap.overtimeNeedsActorIdentity){
+            // Operador administrativo sin empleo activo: falta acreditar su identidad; no se resuelve con un alta laboral.
+            state.overtimeUnavailableReason='no se pudo verificar la identidad de tu cuenta para operar Horas extra en este municipio.';
+          }else if(hasCapability('time.overtime.read')){
             try{
               var overtimePayload=await actionGet('bootstrap',{caseType:'overtime_entry'});
               var overtimeCapabilities=normalizeCapabilities(overtimePayload);

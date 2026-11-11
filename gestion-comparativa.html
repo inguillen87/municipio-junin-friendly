@@ -518,6 +518,9 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
+  <script src="assets/role-label.js"></script>
 </head>
 <body data-mc-page="management">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -600,9 +603,9 @@
           <div id="mainView" hidden>
             <header class="page-head">
               <div>
-                <p class="eyebrow">Planeamiento y RRHH · GRH como autoridad laboral</p>
-                <h1>Dos gestiones, una base temporal comparable</h1>
-                <p class="page-lead">Movimientos, nómina y ausentismo se presentan con períodos exactos, grano explícito y controles que evitan convertir diferencias registrales en conclusiones de desempeño.</p>
+                <p class="eyebrow">Reportes · personal, sueldos y ausentismo</p>
+                <h1>Comparar gestiones</h1>
+                <p class="page-lead">Compará la gestión actual con la anterior: altas y bajas de personal, sueldos liquidados y ausentismo, siempre sobre períodos equivalentes. Las diferencias describen los registros; no miden el desempeño de una gestión.</p>
               </div>
               <aside class="status-panel" id="overallStatus" aria-live="polite">
                 <strong id="overallTitle">Corte en preparación</strong>
@@ -617,7 +620,7 @@
 
             <section class="section" id="scopePanel" aria-labelledby="scopeTitle">
               <div class="section-head">
-                <div><span class="section-index">01 · Alcance</span><h2 id="scopeTitle">Cómo querés comparar</h2><p>La vista equivalente es la única habilitada para leer diferencias. La gestión completa aporta contexto con duraciones distintas.</p></div>
+                <div><span class="section-index">01 · Alcance</span><h2 id="scopeTitle">Cómo querés comparar</h2><p>Elegí si comparás el mismo tiempo transcurrido de cada gestión (la única forma justa de ver diferencias) o las gestiones completas, que duran distinto.</p></div>
                 <span class="status-pill context" id="scopeBadge">Configuración local</span>
               </div>
               <form class="control-panel" id="comparisonForm">
@@ -630,9 +633,10 @@
               </form>
             </section>
 
+            <div data-mc-tabs='[{"id":"comparacion","label":"Comparación directa","hint":"Altas, bajas y períodos","sel":"#comparisonPanel"},{"id":"anios","label":"Año por año","hint":"Cómo evolucionó cada gestión","sel":"#yearsPanel"},{"id":"nomina","label":"Sueldos y ausentismo","hint":"Sobre una misma base","sel":"#normalizedPanel"},{"id":"sectores","label":"Por sector","hint":"Dónde cambió el personal","sel":"#sectorsPanel"},{"id":"respaldo","label":"Presupuesto y fuentes","hint":"De dónde salen los datos","sel":"#budgetPanel,#sourcePanel"}]' data-mc-tabs-key="mc.comparativa.tab" data-mc-tabs-label="Secciones de Comparación de gestiones"></div>
             <section class="section" id="comparisonPanel" aria-labelledby="comparisonTitle">
               <div class="section-head">
-                <div><span class="section-index">02 · Comparación directa</span><h2 id="comparisonTitle">Períodos y movimientos</h2><p>Altas y bajas cuentan registros laborales; las personas distintas se informan como contexto cuando la fuente las entrega.</p></div>
+                <div><span class="section-index">02 · Comparación directa</span><h2 id="comparisonTitle">Períodos y movimientos</h2><p>Altas y bajas de personal en cada gestión. Se cuentan registros laborales; la cantidad de personas distintas se muestra cuando el dato existe.</p></div>
                 <span class="status-pill partial" id="comparisonBadge">Verificando</span>
               </div>
               <div class="period-rail" id="periodRail" aria-label="Períodos comparados"></div>
@@ -643,7 +647,7 @@
 
             <section class="section" id="yearsPanel" aria-labelledby="yearsTitle">
               <div class="section-head">
-                <div><span class="section-index">03 · Evolución</span><h2 id="yearsTitle">Año por año</h2><p id="yearsDescription">Cada año se alinea desde la fecha de inicio de su gestión. Un tramo parcial se compara únicamente con el mismo tramo anterior.</p></div>
+                <div><span class="section-index">03 · Evolución</span><h2 id="yearsTitle">Año por año</h2><p id="yearsDescription">Cada año se cuenta desde el inicio de su gestión. Un año incompleto se compara sólo con el mismo tramo de la gestión anterior.</p></div>
                 <span class="status-pill context" id="yearsBadge">Base temporal</span>
               </div>
               <article class="panel" id="managementYearChart">
@@ -659,7 +663,7 @@
 
             <section class="section" id="normalizedPanel" aria-labelledby="normalizedTitle">
               <div class="section-head">
-                <div><span class="section-index">04 · Base comparable</span><h2 id="normalizedTitle">Nómina y eventos sobre base comparable</h2><p>Los conteos brutos se acompañan con meses cerrados, contratos-mes y el cociente descriptivo publicado por la API cuando su denominador es válido.</p></div>
+                <div><span class="section-index">04 · Base comparable</span><h2 id="normalizedTitle">Sueldos y ausentismo</h2><p>Para que la comparación sea justa, las cantidades se muestran junto con los meses cerrados y la cantidad de contratos de cada período.</p></div>
                 <span class="status-pill context" id="normalizedBadge">Verificando base</span>
               </div>
               <div class="domain-grid">
@@ -670,7 +674,7 @@
 
             <section class="section" id="sectorsPanel" aria-labelledby="sectorsTitle">
               <div class="section-head">
-                <div><span class="section-index">05 · Composición</span><h2 id="sectorsTitle">Sectores y familias</h2><p>La lectura literal preserva las etiquetas GRH. La consolidada sólo se habilita si existe un mapeo explícito y versionado.</p></div>
+                <div><span class="section-index">05 · Composición</span><h2 id="sectorsTitle">Por sector</h2><p>Cómo se reparte el personal en cada gestión. Los nombres de sector son los de GRH; sólo se agrupan cuando existe una equivalencia aprobada.</p></div>
                 <span class="status-pill context" id="sectorBadge">Verificando agrupación</span>
               </div>
               <article class="panel" id="breakdownPanel">
@@ -688,13 +692,13 @@
             </section>
 
             <section class="section" id="budgetPanel" aria-labelledby="budgetTitle">
-              <div class="section-head"><div><span class="section-index">06 · Dominio financiero</span><h2 id="budgetTitle">Presupuesto y ejecución</h2><p>El presupuesto aprobado se publica con fuente y conciliación propias. La ejecución permanece separada hasta incorporar una fuente transaccional oficial.</p></div></div>
+              <div class="section-head"><div><span class="section-index">06 · Dominio financiero</span><h2 id="budgetTitle">Presupuesto y ejecución</h2><p>El presupuesto aprobado tiene su propia fuente. La ejecución (lo realmente gastado) se va a mostrar cuando haya una fuente oficial.</p></div></div>
               <article class="budget-card" id="budgetCard"><span class="budget-mark" aria-hidden="true">$</span><div><h3 id="budgetCardTitle">Verificando disponibilidad</h3><p id="budgetMessage">La API indicará si el dominio presupuestario está listo.</p><div class="budget-meta" id="budgetMeta"></div><div class="budget-facts" id="budgetFacts" hidden></div></div><span class="status-pill context" id="budgetBadge">Consultando</span></article>
             </section>
 
             <section class="section" id="sourcePanel" aria-labelledby="sourceTitle">
               <div class="section-head">
-                <div><span class="section-index">07 · Evidencia</span><h2 id="sourceTitle">Fuente, calidad y límites</h2><p>Estos datos forman parte del resultado y deben acompañar cualquier comunicación institucional.</p></div>
+                <div><span class="section-index">07 · Evidencia</span><h2 id="sourceTitle">De dónde salen los datos</h2><p>Fuente, fecha y advertencias de esta comparación. Conviene incluirlas en cualquier informe que se comparta.</p></div>
                 <span class="status-pill context" id="qualityBadge">Verificando</span>
               </div>
               <div class="evidence-grid">
@@ -754,7 +758,21 @@
         if (content !== undefined && content !== null) node.textContent = String(content);
         return node;
       }
-      function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+      var comparisonChartJobs = new WeakMap(), comparisonChartView = null;
+      function clear(node) {
+        if(comparisonChartView && comparisonChartJobs.has(node)) comparisonChartView.clearAggregateCharts(node);
+        comparisonChartJobs.delete(node);
+        while (node.firstChild) node.removeChild(node.firstChild);
+      }
+      function clearComparisonCharts(){['yearChart','sectorBars'].forEach(function(id){clear(byId(id));});}
+      function queueComparisonChart(host, options){
+        if(!options.rows.length)return;
+        var job={source:state.analytics}; comparisonChartJobs.set(host,job);
+        import('./assets/aggregate-chart-view.js').then(function(view){
+          if(comparisonChartJobs.get(host)!==job||state.analytics!==job.source||redirecting||!host.isConnected)return;
+          comparisonChartView=view;return view.drawAggregateCharts(host,[view.comparisonChart(options)]);
+        }).catch(function(){/* Existing exact tables remain available. */});
+      }
       function formatInteger(value) { var number = finite(value); return number === null ? 'No informado' : integerFormat.format(number); }
       function formatDecimal(value) { var number = finite(value); return number === null ? 'No informado' : decimalFormat.format(number); }
       function formatRatio(value) { var number = finite(value); return number === null ? 'No informado' : ratioFormat.format(number); }
@@ -970,6 +988,7 @@
       function redirectToLogin() {
         if (redirecting) return;
         redirecting = true;
+        clearComparisonCharts();
         location.replace(LOGIN_URL);
       }
 
@@ -999,7 +1018,7 @@
         var root = asObject(payload);
         var user = asObject(firstValue(root.user, root.data && root.data.user, root.data, root.session));
         var name = text(firstValue(user.name, user.displayName, user.email), 'Sesión municipal');
-        var role = text(firstValue(user.role, user.profile, user.type), 'Acceso interno');
+        var role = (window.MuniControlRoleLabel || function (value) { return value; })(text(firstValue(user.role, user.profile, user.type), 'Acceso interno'));
         byId('userName').textContent = name;
         byId('userRole').textContent = role;
         var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');
@@ -1007,6 +1026,7 @@
       }
 
       function showLoading(message) {
+        clearComparisonCharts();
         byId('loadingMessage').textContent = message || 'Consultando información.';
         byId('loading').hidden = false;
         byId('errorHost').hidden = true;
@@ -1014,6 +1034,7 @@
       }
 
       function showError(error) {
+        clearComparisonCharts();
         if (error && error.unauthorized) return;
         var host = byId('errorHost');
         clear(host);
@@ -1220,6 +1241,10 @@
         byId('yearsBadge').className = 'status-pill ' + (calendar ? 'partial' : 'context');
         byId('yearsBadge').textContent = calendar ? 'Contexto, no equivalencia' : 'Año de gestión';
         if (calendar) renderCalendarYears(); else renderManagementYears();
+        queueComparisonChart(byId('yearChart'),{key:'comparison-years',title:byId('yearChartTitle').textContent,
+          subtitle:byId('yearChartNote').textContent, left:calendar?'Altas':'Gestión anterior',right:calendar?'Bajas':'Gestión actual',
+          rows:calendar?state.analytics.calendarYears.map(function(row){return {label:row.label||String(row.year),previous:row.period.hires,current:row.period.exits,
+            note:[row.management,row.transition?'Año de transición':'',row.partial?'Parcial; sin proyección':''].filter(Boolean).join(' · ')};}):managementYearRows()});
       }
 
       function renderPairList(host, rows, previousLabel, currentLabel) {
@@ -1330,6 +1355,9 @@
             host.append(item);
           });
         }
+        queueComparisonChart(host,{key:'comparison-sectors',title:'Distribución comparada',horizontal:true,
+          subtitle:(state.sectorMetric==='events'?'Eventos':'Meses-contrato')+' · hasta diez categorías; el detalle conserva todas.',
+          rows:visible.map(function(row){var pair=sectorValues(row);return {label:row.label,previous:pair.previous,current:pair.current};})});
         var table = byId('sectorRows');
         clear(table);
         ordered.forEach(function (row) {

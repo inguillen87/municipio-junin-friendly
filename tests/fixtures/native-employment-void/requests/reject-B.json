@@ -1,0 +1,11 @@
+{
+  "operation": "review",
+  "payload": {
+    "contractId": "f1000000-0000-4000-8000-000000000002",
+    "proposalId": "f1000000-0000-4000-8000-000000000202",
+    "scopeVersion": "8199550bf737ad84388778d675947910e7bf1b72b9ca31b6c69689f909ede87c",
+    "proposalVersion": "8bdb2b103e6549d83a1c57ad08ac55991dde410df6c2d09d60bd83b0df653349",
+    "decision": "reject",
+    "reason": "Decisión independiente sintética para validar el circuito de corrección."
+  }
+}

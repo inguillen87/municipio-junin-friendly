@@ -1,0 +1,32 @@
+export const VOID_VERSION='native-employment-void.v1';
+export const VOID_ACKNOWLEDGEMENT='historical_without_current_relationship';
+export class VoidInputError extends Error{constructor(code,message){super(message);this.name='VoidInputError';this.code=code;}}
+const input=(msg='Volvé a consultar el alta antes de continuar.')=>{throw new VoidInputError('INPUT_INVALID',msg)};
+const contract=ok=>{if(!ok)throw new VoidInputError('CONTRACT_INVALID','No se pudo verificar la corrección del alta. Volvé a consultar el mismo intento.');};
+const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+const exact=(v,keys)=>obj(v)&&Object.keys(v).sort().join('|')===[...keys].sort().join('|');
+export const voidUuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
+export const voidAttemptKey=voidUuid;
+const hash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+const day=v=>typeof v==='string'&&/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+const stamp=v=>typeof v==='string'&&day(v.slice(0,10))&&/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(v)&&Number.isFinite(Date.parse(v));
+const text=(v,min,max)=>typeof v==='string'&&[...v].length>=min&&[...v].length<=max&&!/[\p{Cc}<>]/u.test(v);
+const reason=v=>{if(typeof v!=='string')input('Indicá el motivo de la corrección.');v=v.normalize('NFC').trim();if(!text(v,10,1000))input('Indicá un motivo entre 10 y 1000 caracteres, sin etiquetas ni controles.');return v;};
+export function voidProposalInput(v){if(!exact(v,['contractId','scopeVersion','baseVersion','reason','acknowledgement'])||!voidUuid(v.contractId)||!hash(v.scopeVersion)||!hash(v.baseVersion)||v.acknowledgement!==VOID_ACKNOWLEDGEMENT)input();return{...v,contractId:v.contractId.toLowerCase(),reason:reason(v.reason)};}
+export function voidReviewInput(v){if(!exact(v,['contractId','proposalId','scopeVersion','proposalVersion','decision','reason'])||!voidUuid(v.contractId)||!voidUuid(v.proposalId)||!hash(v.scopeVersion)||!hash(v.proposalVersion)||!['approve','reject'].includes(v.decision))input();return{...v,contractId:v.contractId.toLowerCase(),proposalId:v.proposalId.toLowerCase(),reason:reason(v.reason)};}
+const same=(a,b)=>typeof a==='string'&&(!b||a.toLowerCase()===b.toLowerCase());
+function summary(p,target){contract(obj(p)&&voidUuid(p.id)&&voidUuid(p.contractId)&&same(p.contractId,target)&&['pending','approved','rejected'].includes(p.status)&&text(p.reason,10,1000)&&stamp(p.createdAt)&&text(p.authorLabel,1,160)&&hash(p.proposalVersion)&&typeof p.canReview==='boolean'&&(p.status==='pending'||!p.canReview));}
+function dates(v){contract(exact(v,['status','startDate','endDate'])&&['active','inactive'].includes(v.status)&&(v.startDate===null||day(v.startDate))&&(v.endDate===null||day(v.endDate))&&(v.endDate===null||v.startDate===null||v.endDate>=v.startDate));}
+function pending(v){contract(Array.isArray(v)&&v.length<=200);for(const p of v)contract(exact(p,['kind','id','version'])&&['change','lifecycle'].includes(p.kind)&&voidUuid(p.id)&&hash(p.version));contract(new Set(v.map(p=>p.kind+':'+p.id.toLowerCase())).size===v.length);}
+export function validateVoidBootstrap(v,target){
+ contract(exact(v,['version','scopeVersion','baseVersion','subject','state','dependencies','pendingOperations','proposals','permissions','complete'])&&v.version===VOID_VERSION&&hash(v.scopeVersion)&&hash(v.baseVersion)&&v.complete===true);pending(v.pendingOperations);
+ const s=v.subject;contract(exact(s,['contractId','registrationId','legajo','employeeName','status','startDate','endDate'])&&voidUuid(s.contractId)&&same(s.contractId,target)&&voidUuid(s.registrationId)&&text(s.legajo,1,64)&&text(s.employeeName,1,160));dates({status:s.status,startDate:s.startDate,endDate:s.endDate});
+ const q=v.state;contract(exact(q,['voided','version','approvalId','approvedAt'])&&typeof q.voided==='boolean'&&(q.voided?hash(q.version)&&voidUuid(q.approvalId)&&stamp(q.approvedAt)&&s.status==='inactive':q.version===null&&q.approvalId===null&&q.approvedAt===null));
+ contract(exact(v.permissions,['canPropose','canReview'])&&Object.values(v.permissions).every(x=>typeof x==='boolean')&&Array.isArray(v.dependencies)&&v.dependencies.every(x=>typeof x==='string'&&/^[a-z_]+$/.test(x))&&new Set(v.dependencies).size===v.dependencies.length&&(!v.permissions.canPropose||!q.voided&&s.status==='active'&&v.dependencies.length===0));
+ contract(Array.isArray(v.proposals)&&v.proposals.length<=20);for(const p of v.proposals){contract(exact(p,['id','contractId','status','reason','createdAt','authorLabel','proposalVersion','canReview']));summary(p,s.contractId);}contract(new Set(v.proposals.map(p=>p.id.toLowerCase())).size===v.proposals.length);return v;
+}
+export function validateVoidProposal(v,target,id){
+ contract(exact(v,['version','scopeVersion','proposal'])&&v.version===VOID_VERSION&&hash(v.scopeVersion));const p=v.proposal;contract(exact(p,['id','contractId','status','reason','createdAt','authorLabel','proposalVersion','canReview','baseVersion','pendingOperations','before','after','review'])&&same(p.id,id)&&hash(p.baseVersion));summary(p,target);pending(p.pendingOperations);dates(p.before);dates(p.after);contract(p.before.status==='active'&&p.after.status==='inactive'&&p.before.startDate===p.after.startDate&&p.before.endDate===p.after.endDate);
+ const r=p.review;contract(p.status==='pending'?r===null:exact(r,['id','decision','reason','reviewerLabel','reviewedAt','version'])&&voidUuid(r.id)&&r.decision===(p.status==='approved'?'approve':'reject')&&text(r.reason,10,1000)&&text(r.reviewerLabel,1,160)&&stamp(r.reviewedAt)&&hash(r.version));return v;
+}
+export function validateVoidReceipt(v,target){contract(exact(v,['version','operation','contractId','proposalId','status','proposalVersion','approvalId','reviewVersion','supersededProposals','replayed','payrollModified','datesModified'])&&v.version===VOID_VERSION&&['propose','review'].includes(v.operation)&&voidUuid(v.contractId)&&same(v.contractId,target)&&voidUuid(v.proposalId)&&hash(v.proposalVersion)&&typeof v.replayed==='boolean'&&v.payrollModified===false&&v.datesModified===false&&(v.operation==='propose'?v.status==='pending'&&v.approvalId===null&&v.reviewVersion===null:['approved','rejected'].includes(v.status)&&voidUuid(v.approvalId)&&hash(v.reviewVersion)));pending(v.supersededProposals);contract(v.status==='approved'||v.supersededProposals.length===0);return v;}

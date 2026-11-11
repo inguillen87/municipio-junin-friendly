@@ -32,7 +32,8 @@ try{
  const panel=page.locator('#seleccion-documental'),month=panel.getByLabel('Mes de liquidación',{exact:true}),type=panel.getByLabel('Tipo de liquidación',{exact:true}),dataset=panel.getByLabel('Liquidación documental',{exact:true});
  const load=()=>panel.getByRole('button',{name:'Consultar liquidaciones',exact:true}).click(),apply=()=>panel.getByRole('button',{name:'Aplicar selección',exact:true}).click();
  const status=panel.locator('[data-batch-status]'),catalogStatus=panel.locator('[data-batch-catalog-status]');
- assert.equal(await month.isDisabled(),true);await load();await month.locator('option[value="2026-08"]').waitFor({state:'attached'});
+ // 0b89ec09: «Documentos por rango» lists the available liquidations on entry; «Consultar» reads them again explicitly.
+ await month.locator('option[value="2026-08"]').waitFor({state:'attached'});await load();await month.locator('option[value="2026-08"]').waitFor({state:'attached'});
  assert.deepEqual(await month.locator('option').evaluateAll(options=>options.map(o=>o.value)),['all','2026-08','2025-12']);assert.equal(await dataset.locator('option').count(),5);
  assert.equal(calls.filter(q=>q.resource==='payrolldocumentbatch').length,0);checks.push('Carga el catálogo y habilita filtros sin consultar automáticamente legajos.');
  await month.selectOption('2026-08');await type.selectOption('M');assert.equal(await dataset.locator('option').count(),3);

@@ -12,7 +12,7 @@ const origin='https://native-lifecycle.invalid',root=path.resolve('public'),out=
 for(const file of ['assets/native-employment-lifecycle.js','assets/native-employment-lifecycle.css','assets/native-employment-lifecycle-model.js','assets/native-employment-lifecycle-review.js'])assert.deepEqual(fs.readFileSync(file),fs.readFileSync(path.join(root,file)),'BUILD_STALE:'+file);
 const hash=v=>createHash('sha256').update(v).digest('hex'),ids=[CONTRACT,'22222222-2222-4222-8222-222222222223'],initial=lifecycleFixture().bootstrap;
 if(adopted){initial.version=LIFECYCLE_VERSION;initial.subject.recordKind='adopted';initial.subject.legajo='A/3501';initial.employment.datesVerified=true;initial.employment.intervals[0].startDate='1888-01-01';}
-const states=new Map(ids.map(id=>[id,structuredClone(initial.employment)])),proposals=new Map(),receipts=new Map(),posts=[],checks=[],errors=[],routeErrors=[];let actor='maker',read=true,mode='ok',hold=null;
+const states=new Map(ids.map(id=>[id,structuredClone(initial.employment)])),proposals=new Map(),receipts=new Map(),posts=[],checks=[],errors=[],routeErrors=[];let directoryReads=0,actor='maker',read=true,mode='ok',hold=null;
 const subject=id=>({...structuredClone(initial.subject),contractId:id,employeeName:id===CONTRACT?'PERSONA SINTÉTICA UNO':'PERSONA SINTÉTICA DOS',identityToken:hash(id),registrationId:id});
 const scope=id=>hash(actor+'|'+id),caps=()=>read?['workforce.employee.read','workforce.summary.read','employee.record.propose','employee.record.approve']:[];
 const principal=()=>({...basePrincipal,user:{email:actor+'@example.invalid'},tenant:{...basePrincipal.tenant,membershipId:actor==='maker'?'44444444-4444-4444-8444-444444444444':'44444444-4444-4444-8444-444444444445',effectiveCapabilities:caps()}});
@@ -46,7 +46,7 @@ try{
   }
   assert.equal(request.method(),'GET','UNRELATED_WRITE');const resource=url.searchParams.get('resource');
   if(resource==='employee')return route.fulfill({json:nativeEmployeeDetail(row(url.searchParams.get('contractId'))).payload});
-  if(resource==='employees')return route.fulfill({json:{ok:true,data:ids.map(row),pagination:{page:1,limit:25,total:2,pages:1},scope:{totalContracts:2,totalPeople:2,matched:0,ambiguous:0,unmatched:0},operational:{version:'workforce-operational.v1',selectedStatus:'all',activeContracts:2,activePeople:2,currentCensusCertified:false},facets:{sectors:[],organizations:[],agreements:[]}}});
+  if(resource==='employees'){directoryReads++;return route.fulfill({json:{ok:true,data:ids.map(row),pagination:{page:1,limit:25,total:2,pages:1},scope:{totalContracts:2,totalPeople:2,matched:0,ambiguous:0,unmatched:0},operational:{version:'workforce-operational.v1',selectedStatus:'all',activeContracts:2,activePeople:2,currentCensusCertified:false},facets:{sectors:[],organizations:[],agreements:[]}}});}
   if(resource==='nativeroster')return route.fulfill({json:{ok:true,data:roster(2)}});
   return route.fulfill({json:{ok:true,data:[]}});
  }catch(e){if(e.message!=='Route is already handled!')routeErrors.push(e.message);await route.abort().catch(()=>{});}});
@@ -55,14 +55,24 @@ try{
  const ready=async()=>{await page.waitForFunction(()=>!!document.querySelector('[data-nlc-refresh]')&&!document.querySelector('[data-nlc-refresh]').disabled);};
  const open=async(index=0)=>{await $('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).nth(index).click();await ready();};
  const close=async()=>{await $('#employeeDialog').evaluate(n=>n.dispatchEvent(new Event('cancel',{cancelable:true})));await page.waitForFunction(()=>!document.querySelector('#employeeDialog').open);};
- const reload=async()=>{await page.reload();await open();};
+ // This verifier intentionally enters the complementary directory; native primary entry is covered separately.
+ const consultDirectory=async({initialEntry=false}={})=>{
+  const readsBefore=directoryReads,history=$('#employeeHistory');
+  if(initialEntry){assert.equal(await history.evaluate(n=>n.open),false);assert.equal(await $('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).count(),0);}
+  // Owner decision 2026-11-05 (ce7eb9cc): opening «Antecedentes» consults at once; when it is already open, «Buscar» does.
+  if(!await history.evaluate(n=>n.open))await history.locator('summary').first().click();
+  else await $('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
+  assert.equal(directoryReads,readsBefore+1,'ONE_DIRECTORY_QUERY_PER_ENTRY');
+ };
+ const reload=async()=>{await page.reload();await consultDirectory({initialEntry:true});await open();};
  const prepare=async(date)=>{await $('[data-nlc-create]').click();await field('date').fill(date);await $('[data-nlc-reference]').fill('Instrumento sintético QA 110');await $('[data-nlc-reason]').fill('Movimiento sintético con respaldo municipal');};
  const send=async()=>{await $('[data-nlc-propose-checked]').check();await $('[data-nlc-send]').click();await ready();};
  const view=async(id)=>{await $('[data-nlc-proposal="'+id+'"]').click();await $('[data-nlc-detail]:not([hidden])').waitFor();await ready();};
  const decide=async(decision)=>{await $('[data-nlc-review-reason]').fill('Decisión independiente sintética QA');await $('[data-nlc-review-checked]').check();await $('[data-nlc-decision='+decision+']').click();await ready();};
  const latest=()=>[...proposals.keys()].at(-1),pending=async()=>{await page.waitForFunction(()=>!document.querySelector('[data-nlc-pending]').hidden&&!document.querySelector('[data-nlc-recover]').disabled);};
  const suspend=kind=>{let enter,release,finish;const h={kind,entered:new Promise(r=>enter=r),wait:new Promise(r=>release=r),finished:new Promise(r=>finish=r),enter:()=>enter(),release:()=>release(),finish:()=>finish()};hold=h;return h;};
- await page.goto(origin+'/personal#legajos');await open();await $('[data-nlc-content]:not([hidden])').waitFor();assert.equal(posts.length,0);assert.equal(await $('dialog[open]').count(),1);assert.match(await panel.innerText(),/mismo legajo, contrato/);checks.push('existing employee sheet displays full intervals and explicit scope with one dialog and zero automatic writes');
+ await page.goto(origin+'/personal#legajos');assert.equal(directoryReads,0);await consultDirectory({initialEntry:true});checks.push('complementary directory stays unqueried until its real entry is opened, then reads exactly once');await open();await $('[data-nlc-content]:not([hidden])').waitFor();assert.equal(posts.length,0);assert.equal(await $('dialog[open]').count(),1);assert.match(await panel.innerText(),/mismo legajo, contrato/);checks.push('existing employee sheet displays full intervals and explicit scope with one dialog and zero automatic writes');
  const navigation=$('.employee-section-nav');await navigation.waitFor();await navigation.locator('select').selectOption({label:'Baja, reingreso e historial laboral'});await navigation.getByRole('button',{name:'Ir a la sección',exact:true}).click();assert.equal(await page.locator(':focus').innerText(),'Baja, reingreso e historial laboral');checks.push('existing accessible sheet navigation reaches the independent lifecycle section directly');
  await prepare('2026-10-01');assert.equal(await field('movement').inputValue(),'terminate');assert.equal(await $('[data-nlc-send]').isDisabled(),true);await $('[data-nlc-propose-checked]').check();await field('date').fill('2026-10-02');assert.equal(await $('[data-nlc-propose-checked]').isChecked(),false);assert.equal(posts.length,0);await field('date').fill('2026-10-01');checks.push('date edits withdraw explicit review; last day is visibly inclusive');
  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1050});for(const name of ['movement','date']){await field(name).scrollIntoViewIfNeeded();const b=await field(name).evaluate(n=>{const r=n.getBoundingClientRect();return{left:r.left,right:r.right,width:r.width,height:r.height,label:n.closest('label').firstChild.textContent,view:innerWidth};});assert.ok(b.left>=0&&b.right<=b.view&&b.height>=44&&b.label.length>3);}assert.ok(await $('#employeeDialog').evaluate(n=>n.scrollWidth<=n.clientWidth+1));await page.screenshot({path:path.join(out,'movement-'+width+'.png')});}checks.push('1440/390/320 mobile controls have labels,44px targets and no horizontal overflow');await page.setViewportSize({width:1440,height:1050});
@@ -78,15 +88,13 @@ try{
   read=true;
   await page.evaluate(values=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(values)}})),caps());
   assert.equal(await $('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).count(),0);
-  await $('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
+  await consultDirectory();
   await open();
  await prepare('2026-11-02');const heldCurrent=await $('[data-nlc-current]').elementHandle(),heldRefresh=await $('[data-nlc-refresh]').elementHandle();const held=suspend('post');await $('[data-nlc-propose-checked]').check();await $('[data-nlc-send]').click();await held.entered;const hiddenPosts=posts.length;await page.evaluate(()=>{Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden;});assert.equal(await heldCurrent.textContent(),'');assert.equal(await heldRefresh.evaluate(n=>n.disabled),true);assert.equal(await $('.nlc-panel').count(),0);
   assert.equal(await $('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).count(),0);
   held.release();await held.finished;await close();
   assert.equal(await $('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).count(),0);
-  await $('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('#employeeTableWrap')?.getAttribute('aria-busy')==='false'&&Array.from(document.querySelectorAll('#employeeRows button')).some(button=>button.textContent==='Ver ficha'));
+  await consultDirectory();
   await open();await pending();await $('[data-nlc-recover]').click();await ready();assert.equal(posts.length,hiddenPosts);checks.push('hiding during POST clears visible data; reopening recovers the original body/key without retrying a write');
  if(adopted){const count=posts.length;mode='missing-dates';await $('[data-nlc-refresh]').click();await ready();assert.equal(await $('[data-nlc-create]').isVisible(),false);assert.match(await $('[data-nlc-current]').innerText(),/Faltan fechas laborales comprobadas/);assert.equal(await $('[data-nlc-current] li').count(),0);assert.equal(posts.length,count);checks.push('incomplete adopted history explains the missing dates, creates no interval and enables no write');}
  assert.deepEqual(errors,[]);assert.deepEqual(routeErrors,[]);const result={ok:true,checksPassed:checks.length,checks,syntheticPosts:posts.length,realHttpHandler:true,syntheticSql:true,adopted,municipalWrites:0,realApiCalls:0,browser:browser.version()};fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));

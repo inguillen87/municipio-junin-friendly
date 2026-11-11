@@ -3,6 +3,39 @@
 .own-salary-conditions label{display:flex;flex-direction:column;gap:.4rem;font-weight:650;margin:.65rem 0}.own-salary-conditions input,.own-salary-conditions select,.own-salary-conditions textarea{width:100%;min-width:0;min-height:44px;font:inherit;padding:.65rem;border:1px solid #adbfbd;border-radius:6px;background:#fff;color:#153847}
 .own-salary-conditions fieldset{border:1px solid #d2dfdc;border-radius:8px;margin:1rem 0;padding:1rem;min-width:0}.own-salary-conditions legend{font-weight:750;padding:0 .4rem}.own-salary-conditions details{border-bottom:1px solid #d7e2df;padding:.8rem 0}.own-salary-conditions summary{cursor:pointer;min-height:44px;padding:.5rem;font-weight:700}
 .own-salary-conditions button{min-height:44px;padding:.65rem 1rem;border:1px solid #15776f;border-radius:6px;background:#fff;color:#15534f;font:inherit;font-weight:700;cursor:pointer;max-width:100%;white-space:normal}.own-salary-conditions button:disabled{opacity:.55;cursor:default}.own-salary-conditions :focus-visible{outline:3px solid #075c80;outline-offset:3px}
-.own-salary-conditions [data-conditions-send]{background:#15776f;color:#fff}.conditions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 1rem}.conditions-row{border:1px solid #d6e2df;border-radius:8px;padding:1rem;margin:1rem 0;background:#f9fcfb}.conditions-row h4{margin:0 0 .6rem}.conditions-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem}.conditions-pair dl{margin:.5rem 0}.conditions-pair dt{font-weight:700}.conditions-pair dd{margin:0 0 .6rem}.conditions-pair h5{font-size:1rem;margin:.3rem 0}
+.own-salary-conditions [data-conditions-send]{background:#15776f;color:#fff}.conditions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 1rem}.conditions-row{border:1px solid #d6e2df;border-radius:8px;padding:.7rem 1rem;margin:.5rem 0;background:#f9fcfb}.conditions-row h4{margin:0 0 .3rem}[data-conditions-rows] .conditions-row{padding:0}.own-salary-conditions details.conditions-fold{border:0;padding:0}.own-salary-conditions .conditions-fold>summary{display:flex;flex-wrap:wrap;gap:.2rem 1rem;justify-content:space-between;align-items:center;padding:.2rem .9rem;font-weight:400}.conditions-fold>summary h4{margin:0;font-size:1rem}.conditions-fold>summary span{color:#4d6763;font-size:.9rem}.conditions-fold[open]{background:#fff;border-radius:8px}.conditions-fold>.conditions-grid{padding:.2rem .9rem .8rem}.conditions-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem}.conditions-pair dl{margin:.4rem 0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.15rem .9rem}.conditions-pair dt{font-weight:700}.conditions-pair dd{margin:0}.conditions-pair p{margin:.4rem 0}.conditions-pair h5{font-size:1rem;margin:.3rem 0}
 .conditions-actions,.conditions-pages{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:1rem 0}.own-salary-conditions .conditions-check{flex-direction:row;align-items:flex-start}.own-salary-conditions .conditions-check input{width:22px;min-height:22px;flex:0 0 22px}.own-salary-conditions [data-conditions-status]{padding:.8rem;border-left:4px solid #15776f;background:#eff7f5}.own-salary-conditions [data-state=warning]{border-color:#a55a0c;background:#fff8ed}.own-salary-conditions [data-conditions-comparison]{border-top:2px solid #15776f;margin-top:1rem;padding-top:1rem}
 @media(max-width:900px){.conditions-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.own-salary-conditions{padding:1rem}.conditions-grid,.conditions-pair{grid-template-columns:minmax(0,1fr)}.conditions-pages button,.conditions-actions button{width:100%}.own-salary-conditions button{width:100%}.own-salary-conditions h2{font-size:1.35rem}.conditions-row{padding:.8rem}}
+/* Período y botón de consulta en un mismo renglón. */
+.own-salary-conditions [data-conditions-target]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.4rem 1rem}.own-salary-conditions [data-conditions-target]>label{flex:0 1 280px;margin:.2rem 0}.own-salary-conditions [data-conditions-target]>button{margin:.2rem 0}
+/* Mientras se revisa la comparación, el listado de personas se retira de la vista: una cosa por vez, sin página larga. */
+.own-salary-conditions:has([data-conditions-comparison]:not([hidden])) :is([data-conditions-rows],[data-conditions-count],label:has(>[data-conditions-search]),.conditions-pages:has(>[data-conditions-prev])){display:none}
+/* Flecha de «se puede abrir»: el renglón plegado usa flex y pierde el triángulo del navegador. */
+.own-salary-conditions .conditions-fold>summary{list-style:none}.own-salary-conditions .conditions-fold>summary::-webkit-details-marker{display:none}
+.own-salary-conditions .conditions-fold>summary::before{content:'';flex:none;width:8px;height:8px;margin:0 .35rem 0 .1rem;border-right:2px solid #15776f;border-bottom:2px solid #15776f;transform:rotate(-45deg);transition:transform .15s ease}
+.own-salary-conditions .conditions-fold[open]>summary::before{transform:rotate(45deg)}
+.own-salary-conditions .conditions-fold>summary>h4{flex:1 1 12rem;min-width:0}
+@media(prefers-reduced-motion:reduce){.own-salary-conditions .conditions-fold>summary::before{transition:none}}
+/* Barra de confirmación: el tilde y el botón quedan a la vista mientras se recorre la comparación. */
+.own-salary-conditions .conditions-actions:has(>:not([hidden])){position:sticky;bottom:0;z-index:3;margin:1rem -.5rem 0;padding:.75rem 1rem;background:#fff;border:1px solid #c9d8d5;border-radius:12px 12px 0 0;box-shadow:0 -8px 20px rgba(16,42,48,.12)}
+.own-salary-conditions .conditions-actions .conditions-check{flex:1 1 22rem;margin:0}
+.own-salary-conditions .conditions-next{margin:.6rem 0 0;font-size:.92rem;color:#4a5d61}
+.own-salary-conditions .conditions-next.conditions-warn{padding:.55rem .75rem;border-left:4px solid #b25e00;background:#fff5e6;color:#5f3200;font-weight:650}
+@media print{.own-salary-conditions .conditions-actions{position:static;box-shadow:none;border:0}.own-salary-conditions .conditions-next{display:none}}
+.own-salary-conditions .conditions-example{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .8rem;font-size:.92rem;color:#4a5d61}
+.own-salary-conditions .conditions-example button{width:auto;min-height:44px;padding:.45rem .9rem;font-weight:650;border-style:dashed}
+.own-salary-conditions .conditions-example span{flex:1 1 16rem}
+.own-salary-conditions textarea::placeholder{color:#6b7f83;font-weight:400;opacity:1}
+@media print{.own-salary-conditions .conditions-example{display:none}}
+/* Aviso de propuesta pendiente para quien revisa. */
+.own-salary-conditions .conditions-pending{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 1rem;padding:.8rem 1rem;border:1px solid #e3c184;border-left:5px solid #b25e00;border-radius:8px;background:#fff8ea}
+.own-salary-conditions .conditions-pending p{flex:1 1 18rem;margin:0;font-weight:650;color:#4d2c00;overflow-wrap:anywhere}
+.own-salary-conditions .conditions-pending button{width:auto;background:#15776f;border-color:#15776f;color:#fff}
+@media print{.own-salary-conditions .conditions-pending{display:none}}
+/* Estado del período y, a su lado, «Traer lo aprobado el mes anterior». */
+.own-salary-conditions .conditions-carry{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:0}
+.own-salary-conditions .conditions-carry+p{margin-top:.3rem}
+.own-salary-conditions .conditions-carry p{flex:1 1 18rem;margin:0}
+.own-salary-conditions .conditions-carry button{width:auto}
+@media (max-width:480px){.own-salary-conditions .conditions-carry button{width:100%}}
+@media print{.own-salary-conditions .conditions-carry button{display:none}}

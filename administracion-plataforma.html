@@ -454,6 +454,7 @@
       <div class="gate-actions" id="platformContextActions" hidden>
         <button class="button primary" id="switchToPlatformButton" type="button">Cambiar a Administración de plataforma</button>
         <a class="button" id="reloginPlatformLink" href="login.html?next=administracion-plataforma.html">Volver a ingresar y elegir Plataforma</a>
+        <a class="button" href="/homologacion">Probar circuitos en mi ámbito municipal</a>
         <a class="button quiet" href="internal-dashboard.html#inicio">Volver a la operación de Junín</a>
       </div>
     </div>
@@ -478,6 +479,7 @@
           <span class="nav-label">Identidad y acceso</span>
           <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
           <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+          <a class="nav-link" href="/homologacion" data-operation-target="/homologacion"><span class="nav-code" aria-hidden="true">QA</span>Homologación de desarrollo</a>
           <a class="nav-link" href="seguridad-cuenta.html"><span class="nav-code" aria-hidden="true">SE</span>Mi seguridad</a>
         </div>
         <div class="nav-group">
@@ -965,6 +967,7 @@
       'platform.roles.manage'
     ]);
     var OPERATION_TARGETS = Object.freeze([
+      '/homologacion',
       'internal-dashboard.html#inicio',
       'centro-acciones.html'
     ]);
@@ -1613,6 +1616,7 @@
         },
         capabilities: capabilities,
         eligibleCapabilities: eligible,
+        sodEditBaseline: row.sodEditBaseline || null,
         version: version
       };
     }
@@ -1976,16 +1980,35 @@
       return role ? role.capabilities.map(function (capability) { return capability.key; }) : [];
     }
 
-    function sodConflicts(selectedKeys) {
+    // Only for an edit of the SAME active directory row and role. This is display
+    // evidence about an already accepted state, not permission to add any new pair.
+    function reviewedSodBaseline(row, roleKey, tenantId) {
+      var valid = new Set(), b = row && row.sodEditBaseline;
+      if (!b || b.schema !== 'iam.current-pairs.v1' || !tenantId || row.tenantId !== tenantId ||
+          row.status !== 'active' || b.tenantId !== tenantId || b.membershipId !== row.membershipId ||
+          row.roleKey !== roleKey || b.roleKey !== roleKey || !Number.isSafeInteger(row.version) ||
+          row.version < 1 || b.membershipVersion !== row.version || !Array.isArray(b.pairs) ||
+          !Array.isArray(row.capabilities)) return valid;
+      var prior = new Set(row.capabilities);
+      for (var i=0; i<b.pairs.length; i++) {
+        var p=b.pairs[i];
+        if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'string' || typeof p[1] !== 'string' ||
+            p[0] === p[1] || !prior.has(p[0]) || !prior.has(p[1])) return new Set();
+        valid.add(JSON.stringify([p[0],p[1]].sort()));
+      }
+      return valid;
+    }
+    function sodConflicts(selectedKeys, reviewedPairs) {
       var selected = selectedKeys instanceof Set ? selectedKeys : new Set(selectedKeys || []);
       var conflicts = [];
+      function known(a,b) { return !!reviewedPairs && reviewedPairs.has(JSON.stringify([a,b].sort())); }
       state.sodRules.forEach(function (rule) {
-        if (selected.has(rule.left) && selected.has(rule.right)) conflicts.push(rule.reason + ' (' + rule.left + ' / ' + rule.right + ')');
+        if (selected.has(rule.left) && selected.has(rule.right) && !known(rule.left,rule.right)) conflicts.push(rule.reason + ' (' + rule.left + ' / ' + rule.right + ')');
       });
       selected.forEach(function (key) {
         var capability = capabilityByKey(key);
         capability.conflictsWith.forEach(function (other) {
-          if (selected.has(other)) conflicts.push('Las capacidades ' + key + ' y ' + other + ' son incompatibles.');
+          if (selected.has(other) && !known(key,other)) conflicts.push('Las capacidades ' + key + ' y ' + other + ' son incompatibles.');
         });
       });
       return Array.from(new Set(conflicts));
@@ -3001,7 +3024,8 @@
       var user = state.selectedUser;
       if (!user) return;
       var selected = capabilityKeysFrom(el.userAccessCapabilities);
-      var conflicts = sodConflicts(new Set(selected));
+      var reviewedPairs = reviewedSodBaseline(user, el.userAccessRole.value, state.context.tenantId);
+      var conflicts = sodConflicts(new Set(selected), reviewedPairs);
       var selectedRoleAdministrative = administrativeOnlyRole(el.userAccessRole.value);
       var operationalKeys = new Set(state.operationalCatalog.scopeCapabilities.map(function (capability) { return capability.key; }));
       var selectedOperational = selected.filter(function (key) { return operationalKeys.has(key) || /^(?:leave\.request|time\.overtime|absence|employee\.record)\./.test(key); });
@@ -3014,6 +3038,7 @@
       el.userEffectiveSummary.append(node('strong', '', (roleByKey(el.userAccessRole.value) || {}).label || 'Rol no informado'));
       el.userEffectiveSummary.appendChild(document.createTextNode(' · ' + selected.length + ' capacidades solicitadas · tenant ' + user.tenantName + '. El backend define el acceso final.'));
       renderConflictBox(el.userConflictBox, conflicts, mutationAllowed('update_access', true));
+      if (reviewedPairs.size) el.userConflictBox.append(node('span', '', 'Se verificó la configuración vigente de esta membresía. Las incompatibilidades nuevas siguen bloqueadas.'));
       var self = state.user && user.email && state.user.email && user.email.toLowerCase() === state.user.email.toLowerCase();
       el.suspendMembershipButton.disabled = !mutationAllowed('suspend_membership', false) || !user.membershipId || !versionReady || self || normalizeUserStatus(user.status) === 'suspended';
       var invitationVersionReady = Number.isSafeInteger(Number(user.invitation.version)) && Number(user.invitation.version) >= 1;

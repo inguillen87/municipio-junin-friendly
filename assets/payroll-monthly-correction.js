@@ -6,7 +6,7 @@ const el=(tag,text,id)=>{const n=document.createElement(tag);if(text!==undefined
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
 const label=(text,input)=>{const n=el('label',text);n.append(input);return n;};
 const short=id=>id.slice(0,8).toUpperCase()+'…'+id.slice(-6).toUpperCase();
-const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'SAC',vacation:'Vacaciones',supplementary:'Complementaria',final:'Final',other:'Otra'};
+const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo (SAC)',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra'};
 const states={pending:'Propuesta pendiente',approved:'Corrección aprobada',rejected:'Corrección rechazada'};
 const names={periodMonth:'Período de la novedad',payrollType:'Tipo de liquidación',conceptSourceId:'Código del concepto',costCenterSourceId:'Centro de costo',adjustmentMonth:'Mes de ajuste',quantityDecimal:'Unidades exactas',amountCents:'Importe informado en centavos',movementType:'Movimiento',legalInstrument:'Instrumento legal',observation:'Observación',forced:'Modo forzado'};
 const nullable=new Set(['costCenterSourceId','adjustmentMonth','quantityDecimal','amountCents','movementType','legalInstrument','observation']);

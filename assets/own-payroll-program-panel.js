@@ -7,6 +7,10 @@ import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {ownPayrollConditions as ownProgramConditions,CONDITION_FIELD_UNITS,CLASSIFICATION_FIELD_UNITS,OWN_PAYROLL_CONDITIONS_VERSION} from './own-payroll-conditions.js';
 import {programWorkspaceOperations,PROGRAM_CONDITION_TYPES,PROGRAM_CONDITION_FIELDS,PROGRAM_CLASSIFICATION_FIELDS} from './own-payroll-program-workspace-model.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
+import {programFormulaText} from './own-program-formula-text.js';
+import {mountProgramSteps} from './own-program-steps.js';
+import {readSalaryBootstrap} from './native-salary-stream-model.js';
+import {reviewPreparedProgramDraft,applyPreparedProgramDraft,OWN_PROGRAM_PREPARED_MAX_BYTES} from './own-payroll-program-prepared-draft.js';
 import {mountProgramCoverage} from './own-program-coverage-panel.js';
 import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-payroll-program-copy-model.js';
 import {prepareProgramScaleReference,applyProgramScaleReference} from './own-payroll-program-scale-reference-model.js';
@@ -30,6 +34,9 @@ export function mountOwnPayrollProgram(container){
  <p data-program-status role="status" aria-live="polite">Abrí Reglas de cálculo para verificar el acceso.</p>
  <div data-program-content hidden><section class="own-program-guidance" data-program-guidance aria-label="Próximo paso para las reglas"><h3 data-program-guidance-title></h3><p data-program-guidance-description></p><p data-program-preparation-access></p><p data-program-pending-summary></p><div class="own-program-actions"><a data-program-catalog-link href="/nomina#parametros">Abrir maestro salarial propio</a><button type="button" data-program-pending-link hidden>Consultar propuestas pendientes</button></div><p>Esta consulta no certifica los importes ni la aptitud para liquidar. La decisión registra si hubo revisión independiente o decisión explícita del propietario.</p></section><p data-program-current></p><details><summary>Consultar conceptos y valores aprobados</summary><div data-program-catalog></div></details><div class="own-program-tabs" role="group" aria-label="Tarea de reglas"><button type="button" data-program-edit-tab>Preparar reglas</button><button type="button" data-program-review-tab>Revisar propuestas</button></div>
  <form data-program-form><fieldset data-program-fields><legend>1. Preparar el programa completo</legend><p>Las reglas anteriores se conservan. Cada cambio requiere vigencia, fuentes, redondeo y respaldo expresos.</p>
+ <section class="own-program-guidance" aria-label="Cargar una preparación completa"><h3>Cargar reglas preparadas</h3><p>Elegí el JSON completo del preparador de MuniControl. Primero se verifica y se compara; aplicarlo sólo cambia el borrador. No aprueba reglas ni calcula haberes.</p>
+ <label>Archivo de preparación completo<input type="file" accept=".json,application/json" data-program-file-input></label><div class="own-program-actions"><button type="button" data-program-file-review>Revisar archivo completo</button><button type="button" data-program-file-clear>Descartar archivo y comparación</button></div><p data-program-file-note role="status" aria-live="polite">El archivo se lee en este navegador; no se sube ni se guarda automáticamente.</p>
+ <section data-program-file-result hidden><h4>Comparación completa antes de aplicar</h4><p data-program-file-summary></p><p>La huella verifica la integridad declarada del archivo. No certifica el respaldo de origen, las fórmulas municipales ni su aprobación.</p><div data-program-file-comparison></div><label class="own-program-check"><input type="checkbox" data-program-file-confirm>Revisé todas las reglas, entradas, políticas, fuentes y vigencias del archivo.</label><button type="button" data-program-file-apply>Aplicar archivo revisado al borrador</button></section></section>
  <label class="own-program-check"><input type="checkbox" data-program-namespaces>Separar códigos de conceptos y auxiliares</label><p>Al separar, cada fórmula indica si usa un concepto o un auxiliar. Revisá todas las referencias del programa. Los cálculos y envíos anteriores conservan su versión.</p>
  <label class="own-program-check"><input type="checkbox" data-program-seniority>Usar antigüedad salarial reconocida del padrón propio</label><p>Declaración aprobada por legajo y período: años y meses separados, sin deducirlos desde el ingreso. La ausencia bloquea una entrada requerida. <a href="/nomina#antiguedad">Preparar o revisar antigüedad</a>.</p>
  <label class="own-program-check"><input type="checkbox" data-program-working-time>Usar jornada contractual propia aprobada</label><p>Horas diarias y mensuales separadas por contrato y período; no se convierten ni se deducen. <a href="/nomina#jornada">Preparar o revisar jornada</a>.</p>
@@ -59,19 +66,27 @@ export function mountOwnPayrollProgram(container){
  <section data-program-send-box hidden><h3>Confirmar la operación revisada</h3><p data-program-operation></p><label class="own-program-check"><input type="checkbox" data-program-confirm>Revisé el conjunto completo, sus fuentes, vigencias y el fundamento.</label></section></div>
  <div class="own-program-actions"><button type="button" data-program-send hidden>Registrar propuesta</button><button type="button" data-program-recover hidden>Consultar el mismo intento</button><button type="button" data-program-new hidden>Nueva preparación</button><button type="button" data-program-revise hidden>Revisar intento no registrado</button></div><p data-program-receipt hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-program-'+key+']');
+ mountProgramSteps($('fields'));
  const coverage=mountProgramCoverage($('content'));$('content').insertBefore($('content').lastElementChild,$('form'));
  let owner=null,ownerLocked=false,ownerPublication=false;
- let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null,scalePlan=null;
+ let openPending=true,active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null,scalePlan=null,filePlan=null,fileEpoch=0;
  const scaleReference=mountProgramScaleReference($('scale-helper'),{onEdit:invalidate,onPreview:reviewScaleReference,onApply:applyScaleReference,onConfirm:controls});
  const ruleKey=r=>ownProgramRuleKey(r,draft?.namespaceVersion);
  const copySelection=new Set();let copySourcePage=1;
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
- const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
+ // Un aviso nunca queda mudo: si el error llegó sin texto, se dice qué hacer.
+ const status=(message,state='neutral')=>{$('status').textContent=typeof message==='string'&&message.trim()?message:'No pudimos completar la consulta de reglas. Tocá «Actualizar consulta» para reintentar.';$('status').dataset.state=state;};
  function controls(){
   const locked=busy||ownerLocked;
   coverage.setEnabled(!locked&&!attempt&&can(PROGRAM_READ));
   $('refresh').disabled=locked||!live();$('fields').disabled=locked||!!attempt||!can(capsFor('propose'))||!boot?.permissions.canPropose||!(boot?.salaryCatalog.revision>0);
+  const fileAllowed=can(capsFor('propose'))&&boot?.permissions.canPropose&&boot?.salaryCatalog.revision>0;
+  $('file-input').disabled=locked||!!attempt||!fileAllowed;
+  $('file-review').disabled=locked||!!attempt||!fileAllowed||!$('file-input').files?.length;
+  $('file-clear').disabled=locked||!!attempt||!fileAllowed||!filePlan&&!$('file-input').files?.length;
+  $('file-confirm').disabled=locked||!!attempt||!fileAllowed||!filePlan;
+  $('file-apply').disabled=locked||!!attempt||!fileAllowed||!filePlan||!$('file-confirm').checked;
   scaleReference.setEnabled(!$('fields').disabled&&ownProgramNamespaced(draft),!!scalePlan);
   const proposal=boot?.proposals.find(p=>p.id===$('proposal-select').value);
   $('decision-fields').disabled=locked||!!attempt||!can(capsFor('approve'))||!proposal?.canReview||proposal.status!=='pending';
@@ -90,8 +105,10 @@ export function mountOwnPayrollProgram(container){
   owner?.setEnabled(!busy&&!attempt&&!prepared&&can([...PROGRAM_READ,'employee.record.propose','payroll.parameter.prepare'])&&tab==='review');
  }
  function clearCopy(){copyPlan=null;$('copy-confirm').checked=false;$('copy-review').hidden=true;$('copy-summary').textContent='';$('copy-comparison').replaceChildren();}
- function invalidate(){if(attempt||ownerLocked)return;owner?.suspend();clearCopy();scalePlan=null;scaleReference.clearReview();prepared=null;$('confirm').checked=false;$('impact').hidden=true;$('impact-table').replaceChildren();$('send-box').hidden=true;controls();}
+ function clearPreparedFile({keepFile=false}={}){fileEpoch++;filePlan=null;if(!keepFile)$('file-input').value='';$('file-confirm').checked=false;$('file-result').hidden=true;$('file-summary').textContent='';$('file-comparison').replaceChildren();$('file-note').textContent='El archivo se lee en este navegador; no se sube ni se guarda automáticamente.';}
+ function invalidate({keepFile=false}={}){if(attempt||ownerLocked)return;owner?.suspend();clearPreparedFile({keepFile});clearCopy();scalePlan=null;scaleReference.clearReview();prepared=null;$('confirm').checked=false;$('impact').hidden=true;$('impact-table').replaceChildren();$('send-box').hidden=true;controls();}
  function clearViews(){
+  clearPreparedFile();
   coverage.clear();
   scalePlan=null;scaleReference.clear();
   clearCopy();$('copy').open=false;for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).value='';$('copy-source').replaceChildren();$('copy-targets').replaceChildren(node('legend','Convenios de destino'));
@@ -119,6 +136,7 @@ export function mountOwnPayrollProgram(container){
   if(!ownerPublication)owner?.suspend();const version=++seq;busy=true;const owned=new AbortController();controller=owned;controls();const timer=setTimeout(()=>owned.abort(),45000);
   try{await work(()=>version===seq&&live());}catch(error){if(version===seq&&live()){
    clearCopy();
+   clearPreparedFile();
    scalePlan=null;scaleReference.clearReview();
    if([401,403].includes(error.status)){access=null;clearViews();$('login').hidden=error.status!==401;}
    status(error.name==='AbortError'?'No se confirmó la respuesta. Consultá el mismo intento antes de iniciar otro.':error.message,'warning');
@@ -130,6 +148,10 @@ export function mountOwnPayrollProgram(container){
   if(type==='decimal'){input.type='text';input.inputMode='decimal';}if(key)input.dataset.programField=key;
   input.value=value??'';input.addEventListener(options||type==='month'?'change':'input',()=>{if(attempt||ownerLocked)return;onChange(input.value);invalidate();});wrap.append(input);parent.append(wrap);return input;
  }
+ // Sugerencias para un campo de texto: las entradas o conceptos que ya existen, con su nombre. El campo sigue siendo
+ // de texto libre y se valida igual; la lista sólo evita tipear de memoria.
+ let hintSerial=0;
+ function suggest(parent,input,options){const seen=new Set(),list=node('datalist');for(const [value,label]of options){if(!value||seen.has(value)||seen.size>=200)continue;seen.add(value);const option=node('option');option.value=value;option.label=label;option.textContent=label;list.append(option);}if(!seen.size)return;list.id='own-program-hints-'+(++hintSerial);input.setAttribute('list',list.id);parent.append(list);}
  function rounding(parent,value,key){
   const group=node('div');group.className='own-program-grid';
   field(group,'Decimales',value.precision,Object.fromEntries(Array.from({length:9},(_,i)=>[String(i),String(i)])),v=>value.precision=v===''?null:Number(v),{key:key+'-precision'});
@@ -141,6 +163,9 @@ export function mountOwnPayrollProgram(container){
  }
  function renderExpression(rule){
   const area=node('div');area.className='own-program-expression';const size=expressionSize(rule.expression);area.append(node('p',`Fórmula: ${size.nodes} operaciones. Las unidades y conversiones se declaran expresamente.`));
+  // La misma fórmula en una línea, para leerla de un vistazo; se actualiza con cada cambio del editor de abajo.
+  const sentence=node('p');sentence.className='own-program-formula';sentence.dataset.programFormula='';const said=node('span');sentence.append(node('strong','En una línea: '),said);
+  const catalogName=(kind,code)=>boot?.salaryCatalog.items.find(i=>i.active&&i.agreementCode===rule.agreementCode&&i.code===code&&(kind==='auxiliary'?i.kind==='auxiliary'||i.nature==='auxiliary':i.kind==='concept'&&i.nature!=='auxiliary'))?.label??null;const say=()=>{said.textContent=programFormulaText(rule.expression,{names:catalogName});};say();area.addEventListener('input',say);area.addEventListener('change',say);area.append(sentence);
   const labels={left:'Primer valor',right:'Segundo valor',value:'Valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple'};
   function walk(value,path,level){
    const card=node('fieldset');card.className='own-program-expression-node';card.style.setProperty('--program-depth',String(Math.min(level,6)));card.append(node('legend',path.length?path.map(p=>labels[p]).join(' · '):'Resultado de la fórmula'));
@@ -153,9 +178,9 @@ export function mountOwnPayrollProgram(container){
    const group=node('div');group.className='own-program-grid';const key='expression-'+(path.join('-')||'root');
    if(['input','literal','convert'].includes(value.op))field(group,'Unidad',value.unit,PROGRAM_UNITS,v=>value.unit=v,{key:key+'-unit'});
    if(value.op==='match'){field(group,'Identificador de la condición',value.key,null,v=>value.key=v,{key:key+'-key',max:64});field(group,'Tipo de condición',value.type,PROGRAM_CONDITION_TYPES,v=>{value.type=v;value.value=v==='boolean'?null:'';renderRule();},{key:key+'-type'});field(group,'Comparación de la condición',value.operator,{eq:'Igual',ne:'Distinto'},v=>value.operator=v,{key:key+'-operator'});field(group,'Valor declarado de la condición',value.value,value.type==='boolean'?{true:'Sí',false:'No'}:null,v=>value.value=value.type==='boolean'?(v==='true'?true:v==='false'?false:null):v,{key:key+'-value',max:32});}
-   if(value.op==='input')field(group,'Identificador de la entrada',value.key,null,v=>value.key=v,{key:key+'-key',max:64});
+   if(value.op==='input')suggest(group,field(group,'Identificador de la entrada',value.key,null,v=>value.key=v,{key:key+'-key',max:64}),draft.bindings.filter(b=>b.agreementCode===rule.agreementCode&&(!value.unit||b.unit===value.unit)).map(b=>[b.key,(PROGRAM_SOURCES[b.sourceKind]??'Entrada')+' · '+(PROGRAM_UNITS[b.unit]??'unidad pendiente')]));
    if(value.op==='literal')field(group,'Valor explícito',value.value,null,v=>value.value=v.replace(',','.'),{key:key+'-value',type:'decimal',max:106});
-   if(['concept','auxiliary'].includes(value.op)){field(group,value.op==='auxiliary'?'Código del auxiliar':'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9});const stages={exact:'Resultado exacto, antes del redondeo'};if(value.stage==='rounded')stages.rounded='Etapa histórica: después del redondeo';const control=field(group,'Etapa del valor',value.stage,stages,v=>value.stage=v,{key:key+'-stage'});for(const option of control.options)if(option.value==='rounded')option.disabled=true;}
+   if(['concept','auxiliary'].includes(value.op)){suggest(group,field(group,value.op==='auxiliary'?'Código del auxiliar':'Código del concepto',value.code,null,v=>value.code=v,{key:key+'-code',max:9}),(boot?.salaryCatalog.items??[]).filter(i=>i.active&&i.agreementCode===rule.agreementCode&&(value.op==='auxiliary'?i.kind==='auxiliary'||i.nature==='auxiliary':i.kind==='concept'&&i.nature!=='auxiliary')).map(i=>[i.code,i.label]));const stages={exact:'Resultado exacto, antes del redondeo'};if(value.stage==='rounded')stages.rounded='Etapa histórica: después del redondeo';const control=field(group,'Etapa del valor',value.stage,stages,v=>value.stage=v,{key:key+'-stage'});for(const option of control.options)if(option.value==='rounded')option.disabled=true;}
    if(value.op==='compare')field(group,'Comparación',value.operator,PROGRAM_COMPARE,v=>value.operator=v,{key:key+'-operator'});
    if(value.op==='convert'){field(group,'Factor exacto',value.factor,null,v=>value.factor=v.replace(',','.'),{key:key+'-factor',type:'decimal',max:106});field(group,'Respaldo de la conversión',value.conversionReference,null,v=>value.conversionReference=v,{key:key+'-reference'});}
    card.append(group);if(value.op==='round')rounding(card,value.rounding,key);area.append(card);
@@ -261,7 +286,8 @@ export function mountOwnPayrollProgram(container){
  function renderProposal(){
   $('proposal-detail').replaceChildren();const p=boot?.proposals.find(p=>p.id===$('proposal-select').value);owner?.update(p?.status==='pending'?p.id:null);if(!p){$('proposal-detail').textContent='No hay propuestas en esta consulta.';controls();return;}
   $('proposal-detail').append(node('p',`${stateLabels[p.status]} · ${p.authorLabel} · ${date(p.createdAt)}`),node('p','Fundamento: '+p.reason));
-  const detail=node('div');comparison(detail,p.baseDefinition,p.definition);$('proposal-detail').append(detail);
+  // The full rule-by-rule comparison stays one click away instead of filling the screen.
+  const detail=node('details'),body=node('div');comparison(body,p.baseDefinition,p.definition);detail.append(node('summary',`Ver el detalle de reglas y entradas (${p.definition.rules.length} reglas · ${p.definition.bindings.length} entradas)`),body);$('proposal-detail').append(detail);
   if(p.decision)$('proposal-detail').append(node('p',`${stateLabels[p.status]} por ${p.decision.actorLabel} · ${date(p.decision.recordedAt)} · ${p.decision.reason}`));
   if(p.status==='pending'&&!p.canReview)$('proposal-detail').append(node('p','La revisión independiente necesita otra persona habilitada. La decisión del propietario tiene su autorización y respaldo separados.'));
   if(p.status==='pending'&&(p.baseVersion!==boot.program.version||p.salaryVersion!==boot.salaryCatalog.version))$('proposal-detail').append(node('p','Cambió la base o el catálogo. No puede aprobarse esta versión; puede rechazarse conservando el historial.'));controls();
@@ -288,6 +314,8 @@ export function mountOwnPayrollProgram(container){
   const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);for(const rule of draft.rules)if(priorKeys.has(ruleKey(rule)))historicalRules.add(rule);
   $('period-context').checked=ownProgramPeriodContext(draft);$('period-context').disabled=!ownProgramNamespaced(draft)||ownProgramPeriodContext(boot.program.definition);$('namespaces').checked=ownProgramNamespaced(draft);$('namespaces').disabled=ownProgramNamespaced(boot.program.definition);$('working-time').checked=ownProgramWorkingTime(draft);$('agreement-time').checked=ownProgramAgreementWorkingTime(draft);$('agreement-time').disabled=!ownProgramNamespaced(draft)||ownProgramAgreementWorkingTime(boot.program.definition);$('conditions').checked=ownProgramConditions(draft);$('conditions').disabled=!ownProgramNamespaced(draft)||ownProgramConditions(boot.program.definition);$('seniority').checked=ownProgramSeniority(draft);$('seniority').disabled=!ownProgramNamespaced(draft)||ownProgramSeniority(boot.program.definition);$('working-time').disabled=!ownProgramNamespaced(draft)||ownProgramWorkingTime(boot.program.definition);$('participation').checked=ownProgramParticipation(draft);$('participation').disabled=!ownProgramNamespaced(draft)||ownProgramParticipation(boot.program.definition);$('fixed-validity').value=draft.periodParticipation?.fixedValidity??'';$('fixed-validity').disabled=!ownProgramParticipation(draft);$('precision').value=draft.totalsPrecision===null?'':String(draft.totalsPrecision);selectors();renderRule();renderBinding();
   const selected=$('proposal-select').value;$('proposal-select').replaceChildren(...boot.proposals.map((p,i)=>new Option(`${i+1}. ${stateLabels[p.status]} · ${date(p.createdAt)} · ${p.authorLabel}`,p.id)));if(boot.proposals.some(p=>p.id===selected))$('proposal-select').value=selected;
+  // A pending proposal opens by itself on the first consultation (no hidden 'Consultar propuestas pendientes' step).
+  if(openPending&&tab==='edit'&&!attempt&&!prepared&&boot.proposals.some(p=>p.status==='pending')){openPending=false;tab='review';if(boot.proposals.find(p=>p.id===$('proposal-select').value)?.status!=='pending')$('proposal-select').value=boot.proposals.find(p=>p.status==='pending').id;}
   $('form').hidden=tab!=='edit';$('proposals').hidden=tab!=='review';renderProposal();controls();
  }
  function showReceipt(value){receipt=value;notFound=false;$('receipt').hidden=false;$('receipt').textContent=`${value.status==='pending'?'Propuesta registrada para revisión independiente':value.status==='approved'?'Programa aprobado':'Propuesta rechazada'} · revisión ${value.revision}. Conservá este intento para consultar su comprobante.`;status('Operación confirmada. Actualizar o consultar no calcula haberes.','success');controls();}
@@ -351,6 +379,56 @@ export function mountOwnPayrollProgram(container){
    const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);historicalRules=new WeakSet(draft.rules.filter(r=>priorKeys.has(ruleKey(r))));selectors();renderRule();renderBinding();status('Auxiliares incorporados al borrador completo. Revisá el programa y su fundamento antes de registrar la propuesta.','success');
   });
  }
+ async function preparedFileBases(valid){
+  await session(capsFor('propose'));if(!valid())return null;const key=access.key;
+  const salary=await readSalaryBootstrap(async(index,snapshot)=>{
+   if(!valid()||access?.key!==key)throw new DOMException('Consulta descartada','AbortError');
+   const query=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)query.set('snapshot',snapshot);
+   return (await request('/api/internal-native-salary?'+query)).data;
+  },{isCurrent:()=>valid()&&access?.key===key});
+  if(!valid()||access?.key!==key)return null;
+  const programme=ownProgramBootstrap((await request(endpoint+'?resource=bootstrap')).data);
+  if(!valid()||access?.key!==key)return null;
+  await session(capsFor('propose'));if(!valid()||access?.key!==key)return null;
+  return {salary,programme,key};
+ }
+ $('file-input').addEventListener('change',()=>{if(attempt||busy||ownerLocked)return;invalidate({keepFile:true});$('file-note').textContent=$('file-input').files?.length?'Archivo elegido. Revisalo completo antes de aplicarlo; el borrador sigue igual.':'No hay un archivo elegido.';controls();});
+ $('file-confirm').addEventListener('change',controls);
+ $('file-clear').addEventListener('click',()=>{if(attempt||busy||ownerLocked)return;clearPreparedFile();controls();});
+ $('file-review').addEventListener('click',()=>{
+  const file=$('file-input').files?.[0];if(!file||!draft||attempt||busy||ownerLocked||!can(capsFor('propose')))return;
+  const epoch=fileEpoch,base=salarySerialized(draft),key=access.key;
+  perform(async valid=>{
+   const current=()=>valid()&&!controller?.signal.aborted&&fileEpoch===epoch&&access?.key===key&&salarySerialized(draft)===base&&$('file-input').files?.[0]===file;
+   if(!/\.json$/i.test(file.name)||!Number.isSafeInteger(file.size)||file.size<1||file.size>OWN_PROGRAM_PREPARED_MAX_BYTES)throw Error('Elegí un JSON completo de hasta 16 MiB. No se cambió el borrador.');
+   const basis=await preparedFileBases(()=>valid()&&!controller?.signal.aborted);if(!basis||!current()||basis.key!==key)return;
+   let bytes;try{
+    bytes=new Uint8Array(await file.arrayBuffer());if(!current())return;
+    if(bytes.byteLength!==file.size||bytes.byteLength>OWN_PROGRAM_PREPARED_MAX_BYTES)throw Error('No se pudo leer el archivo completo. No se cambió el borrador.');
+    let text;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error('El archivo no tiene codificación UTF-8 válida. No se cambió el borrador.');}
+    const plan=await reviewPreparedProgramDraft(basis.salary,basis.programme,draft,text);
+    if(!current())return;
+    comparison($('file-comparison'),draft.rules.length?draft:null,plan.program);
+    filePlan=plan;$('file-confirm').checked=false;$('file-result').hidden=false;
+    const s=plan.summary;$('file-summary').textContent=s.definitions+' definiciones completas · '+s.typedRules+' reglas preparadas · '+s.inputDefinitions+' entradas de origen, '+s.consumedInputDefinitions+' consumidas · programa completo: '+s.totalRules+' reglas y '+s.totalBindings+' entradas · período '+s.period+'.';
+    $('file-note').textContent='Preparación completa verificada contra el maestro, encuadre y programa actuales. Revisá todos los cambios; todavía no se aplicaron.';
+    status('Archivo completo revisado. El borrador anterior sigue intacto.');
+   }finally{bytes?.fill(0);if(valid()&&controller?.signal.aborted)clearPreparedFile();else if(current())$('file-input').value='';}
+  });
+ });
+ $('file-apply').addEventListener('click',()=>{
+  if(!filePlan||!$('file-confirm').checked||attempt||busy||ownerLocked||!can(capsFor('propose')))return;
+  const reviewed=filePlan,epoch=fileEpoch,key=access.key;
+  perform(async valid=>{
+   const basis=await preparedFileBases(()=>valid()&&!controller?.signal.aborted);if(!basis||!valid()||controller?.signal.aborted||filePlan!==reviewed||fileEpoch!==epoch||access?.key!==key||basis.key!==key)return;
+   const next=await applyPreparedProgramDraft(basis.salary,basis.programme,draft,reviewed);
+   if(!valid()||controller?.signal.aborted||filePlan!==reviewed||fileEpoch!==epoch||access?.key!==key)return;
+   invalidate();draft=next;boot=basis.programme;
+   const priorKeys=new Set(boot.program.definition?.rules.map(ruleKey)??[]);historicalRules=new WeakSet(draft.rules.filter(r=>priorKeys.has(ruleKey(r))));
+   renderBoot(basis.programme);
+   status('Archivo aplicado al borrador completo. Revisá el fundamento y el programa antes de registrar una propuesta. No se aprobaron reglas ni se calcularon haberes.','success');
+  });
+ });
  $('review-decision').addEventListener('click',()=>{if(attempt||busy||ownerLocked)return;try{showPrepared(decideProgramWorkspace(boot,$('proposal-select').value,$('decision').value,$('decision-reason').value,true));}catch(e){invalidate();status(e.message,'warning');}});
  $('add-rule').addEventListener('click',()=>{if(!draft||attempt||ownerLocked)return;if(draft.rules.length>=1000){status('El programa alcanzó su capacidad. No se omitieron reglas.','warning');return;}draft.rules.push({agreementCode:'',code:'',nature:'',unit:'',validFrom:'',validUntil:null,liquidationTypes:[],ruleReference:'',rounding:{precision:null,mode:'exact'},expression:{op:'literal',unit:'',value:''}});ruleIndex=draft.rules.length-1;invalidate();selectors();renderRule();});
  $('add-binding').addEventListener('click',()=>{if(!draft||attempt||ownerLocked)return;if(draft.bindings.length>=1000){status('El programa alcanzó su capacidad. No se omitieron entradas.','warning');return;}draft.bindings.push({agreementCode:'',key:'',unit:'',sourceKind:'',sourceCode:'',onMissing:'',combine:'',ruleReference:''});bindingIndex=draft.bindings.length-1;invalidate();selectors();renderBinding();});

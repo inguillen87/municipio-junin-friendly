@@ -41,7 +41,7 @@ if(root){
   if(!active||document.hidden)return;
   const g=++generation;controller?.abort();controller=new AbortController();const current=controller;
   root.setAttribute('aria-busy','true');$('refresh').disabled=true;$('error').hidden=true;
-  try{const response=await fetch('/api/internal-attendance?resource=pm10-reception',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:AbortSignal.any([current.signal,AbortSignal.timeout(20000)])});
+  try{const response=await fetch('/api/internal-attendance?resource=pm10-reception',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'},signal:AbortSignal.any([current.signal,AbortSignal.timeout(20000)])});
    if(response.status===401||response.status===403){active=false;clearInterval(timer);throw Error('Acceso no disponible. Ingresá nuevamente con un perfil autorizado.');}
    const data=await response.json();if(!response.ok||!valid(data))throw Error('No se pudo verificar la recepción. No se muestran cifras anteriores como actuales.');if(g!==generation||!active)return;render(data);
   }catch(e){if(g!==generation||current.signal.aborted)return;clear();$('state').textContent='Sin confirmación actual';$('error').textContent=e.message==='Acceso no disponible. Ingresá nuevamente con un perfil autorizado.'?e.message:'No se pudo actualizar la recepción. Reintentá para consultar el estado actual.';$('error').hidden=false;}

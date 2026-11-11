@@ -110,6 +110,12 @@ async function responsive(scenario){
   const targets=await page.locator('#qa .button,#qa input:not([type=checkbox]),#qa select').evaluateAll(elements=>elements.filter(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').map(e=>({label:e.textContent?.trim().slice(0,80)||e.getAttribute('aria-label')||e.id,tag:e.tagName,height:e.getBoundingClientRect().height})));
   for(const target of targets)assert.ok(target.height>=43.9,scenario+' '+width+'px target below44px: '+JSON.stringify(target));
   check(targets.length>0,scenario+' has '+targets.length+' visible targets of at least44px at '+width+'px');
+  if(scenario.startsWith('calculation')){
+   const fields=await page.locator('.own-run-grid input[type=month],.own-run-grid input[type=date],.own-run-grid select').evaluateAll(elements=>elements.filter(e=>e.getClientRects().length).map(e=>({id:e.id,height:e.getBoundingClientRect().height})));
+   assert.equal(fields.length,4,scenario+' exposes the four calculation controls');
+   for(const field of fields)assert.ok(field.height>=43.9&&field.height<=64,scenario+' '+width+'px control should remain compact and accessible: '+JSON.stringify(field));
+   check(true,scenario+' keeps period, date, type and scope at44–64px at '+width+'px');
+  }
   const file=scenario+'-'+width+'.png';await page.screenshot({path:path.join(output,file),fullPage:true});screenshots.push(file);
  }
 }
@@ -130,15 +136,16 @@ try{
   if(diagnostic){pendingResponseCompletions.set(diagnostic.id,diagnostic);response.finished().then(error=>requestDiagnostic(request,'response-completion',{completionError:error?.message??null})).catch(error=>requestDiagnostic(request,'response-completion',{completionError:error.message})).finally(()=>{pendingResponseCompletions.delete(diagnostic.id);transportChanged();});}
  });page.on('requestfailed',request=>{const diagnostic=requestDiagnostic(request,'request-failed',{error:request.failure()?.errorText});if(diagnostic){pendingApiRequests.delete(diagnostic.id);const pending=pendingResponseCompletions.get(diagnostic.id);if(pending)requestDiagnostic(request,'response-failed-before-completion',{serverId:pending.serverId,error:request.failure()?.errorText});}requestFailures.push({url:new URL(request.url()).pathname,error:request.failure()?.errorText});transportChanged();});page.on('download',download=>downloads.push(download));
 
+ // The readiness facts sit inside the collapsed «Cómo se prepara un mes nuevo» help: read their text, not their rendering.
  state.roster=ownRoster(0);state.programme=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await open('calculation');
  check(await c('fields').evaluate(e=>e.disabled)&&await c('send').isDisabled(),'New calculation fields and command are locked despite prepare permission when own roster is zero');
  check(await c('readiness-link').getAttribute('href')==='/personal?adopcion=pendientes#legajos','Zero complete own roster directs the operator to the pending adoption review in Personas');
- check((await c('readiness-facts').innerText()).includes('0 legajos propios'),'Zero shown only from verified unfiltered complete own roster');
+ check((await c('readiness-facts').textContent()).includes('0 legajos propios'),'Zero shown only from verified unfiltered complete own roster');
  await responsive('calculation-own-roster-empty');
 
  state.roster=ownRoster(1);await c('refresh').click();await idle('.own-run');check(await c('readiness-link').getAttribute('href')==='/nomina#parametros'&&await c('send').isDisabled(),'Unapproved salary catalogue directs to Parameters without a new capture');
  state.programme=bootstrap();await c('refresh').click();await idle('.own-run');check(await c('readiness-link').getAttribute('href')==='/nomina#reglas'&&await c('send').isDisabled(),'Unapproved programme directs to Rules without treating a proposal as approval');
- state.rosterError=true;await c('refresh').click();await idle('.own-run');check(/sin verificar/.test(await c('readiness-facts').innerText())&&!/0 legajos/.test(await c('readiness-facts').innerText())&&await c('fields').evaluate(e=>e.disabled),'HTTP503 yields unverified prerequisites, never zero population');
+ state.rosterError=true;await c('refresh').click();await idle('.own-run');check(/sin verificar/.test(await c('readiness-facts').textContent())&&!/0 legajos/.test(await c('readiness-facts').textContent())&&await c('fields').evaluate(e=>e.disabled),'HTTP503 yields unverified prerequisites, never zero population');
  check(await c('readiness-check').isVisible()&&await c('readiness-link').isHidden(),'Unavailable preparation offers a fresh verification, not a false adoption action');
  state.rosterError=false;state.programme=bootstrap({program:approved()});await c('refresh').click();await idle('.own-run');
  await c('period').fill('2026-10');await c('date').fill('2026-10-31');await c('type').selectOption('monthly');await c('kind').selectOption('all');await c('confirm').check();

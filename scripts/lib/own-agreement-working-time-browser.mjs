@@ -82,7 +82,7 @@ export async function verifyAgreementWorkingTimeBrowser({handlers,env,actors,set
   origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
   const {browser}=await launchOwnSyntheticBrowser();
   try {
-    const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
+    const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
     await context.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
     page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
     page.on('request',request=>{try{const observed=observeAgreementQaPost(request,origin);if(observed)observedPosts.push(observed);}catch(error){errors.push('HTTP QA observation: '+error.message);}});

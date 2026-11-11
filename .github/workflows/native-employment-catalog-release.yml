@@ -16,6 +16,8 @@ on:
       - 'tests/native-employment-catalog*'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - 'vercel.json'
       - '.github/workflows/native-employment-catalog-release.yml'

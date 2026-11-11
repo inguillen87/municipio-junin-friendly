@@ -1,4 +1,4 @@
-#employeeDialog .employee-section-nav{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;margin:0 0 22px;background:#edf7f4;border:1px solid #b2d1c5;border-radius:11px;box-shadow:0 4px 16px #173d4810}
+#employeeDialog .employee-section-nav{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;margin:0 0 22px;background:#edf7f4;border:1px solid #b2d1c5;border-radius:11px;box-shadow:0 4px 16px #173d4810}
 #employeeDialog .employee-section-nav>div:first-child{flex:1;min-width:0}
 #employeeDialog .employee-section-nav strong{display:block;font-size:14px;line-height:1.4;color:#133f4d}
 #employeeDialog .employee-section-nav span{display:block;margin-top:5px;color:#456b6d;font-size:12px;line-height:1.5}
@@ -7,7 +7,7 @@
 #employeeDialog .employee-section-controls select{width:100%;min-width:0;max-width:320px;min-height:44px;font:13px/1.4 system-ui;padding:10px 28px 10px 10px;border:1px solid #a8c7c5;border-radius:8px;background:white;color:#143d4c}
 #employeeDialog .employee-section-controls .button{min-height:44px;white-space:nowrap;font-size:12px;padding:10px 14px;border-radius:8px;background:#087c72;border-color:#087c72;color:white}
 #employeeDialog .employee-section-controls :is(button,select):focus-visible{outline:3px solid #ad7417;outline-offset:3px}
-#employeeDialog .dialog-body{scroll-padding-block-start:150px}
+#employeeDialog .dialog-body{scroll-padding-block-start:70px}
 #employeeDialog .detail-section h3[tabindex="-1"]:focus{outline:2px solid #148278;outline-offset:7px;border-radius:2px}
 @media(max-width:650px){
  #employeeDialog .employee-section-nav{display:block;padding:12px;margin-bottom:18px}
@@ -17,6 +17,59 @@
  #employeeDialog .employee-section-controls label{flex:1}
  #employeeDialog .employee-section-controls select{max-width:none;font-size:12px}
  #employeeDialog .employee-section-controls .button{padding:10px;font-size:11px}
- #employeeDialog .dialog-body{padding:14px;scroll-padding-block-start:155px}
+ #employeeDialog .dialog-body{padding:14px;scroll-padding-block-start:70px}
 }
 @media(prefers-reduced-motion:reduce){#employeeDialog .employee-section-nav *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+/* Ficha: resumen, secciones y acciones rápidas (05/11) */
+#employeeDialog .employee-section-nav{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"copy controls" "chips actions";gap:12px 16px;align-items:center}
+#employeeDialog .employee-section-nav>.esn-copy{grid-area:copy}
+#employeeDialog .employee-section-nav>.employee-section-controls{grid-area:controls;max-width:none}
+#employeeDialog .esn-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+#employeeDialog .esn-kpi{position:relative;padding:12px 12px 12px 16px;border:1px solid #cfe2dc;border-radius:12px;background:linear-gradient(180deg,#fff,#f6fbfa);overflow:hidden;animation:esn-rise .42s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--esn-i,0) * 60ms);transition:transform .18s,box-shadow .18s}
+#employeeDialog .esn-kpi:hover{transform:translateY(-2px);box-shadow:0 8px 18px #0f766e14}
+#employeeDialog .esn-kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(180deg,#0f766e,#69d3c5)}
+#employeeDialog .esn-kpi strong{display:inline;margin:0;font-size:16px;line-height:1.3;color:#0f3f3b;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#employeeDialog .esn-kpi small{display:inline-block;margin-left:6px;font-size:12px;color:#36605c}
+#employeeDialog .esn-kpi span{display:block;margin-top:5px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5d7b7b}
+#employeeDialog .esn-chips{grid-area:chips;display:flex;flex-wrap:wrap;gap:6px;min-width:0;padding:2px}
+#employeeDialog .esn-chip{flex:0 0 auto;padding:6px 11px;border:1px solid #b8d4cc;border-radius:999px;background:#fff;color:#164b4a;font:600 12px/1.2 system-ui;cursor:pointer;transition:background .18s,color .18s,border-color .18s,transform .18s}
+#employeeDialog .esn-chip:hover{transform:translateY(-1px);border-color:#0f766e}
+#employeeDialog .esn-chip[aria-current]{background:#0f766e;border-color:#0f766e;color:#fff;box-shadow:0 4px 12px #0f766e33}
+#employeeDialog .esn-actions{grid-area:actions;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+#employeeDialog .esn-action{padding:7px 11px;border:1px solid #9cc4bb;border-radius:8px;background:#f3faf8;color:#0f4f49;font:600 12px/1.2 system-ui;cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
+#employeeDialog .esn-action:hover{background:#e3f3ef;transform:translateY(-1px);box-shadow:0 4px 10px #0f766e1f}
+#employeeDialog .esn-action:active{transform:translateY(0)}
+#employeeDialog :is(.esn-chip,.esn-action):focus-visible{outline:3px solid #ad7417;outline-offset:2px}
+#employeeDialog .esn-feedback{font-size:12px;color:#36605c}
+@keyframes esn-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(max-width:900px){#employeeDialog .employee-section-nav{grid-template-areas:"copy controls" "chips chips" "actions actions"}#employeeDialog .esn-actions{justify-content:flex-start}}
+@media(max-width:650px){
+ #employeeDialog .employee-section-nav{grid-template-columns:1fr;grid-template-areas:"controls" "chips" "actions";gap:8px}
+ #employeeDialog .employee-section-nav>.esn-copy{display:none}
+ #employeeDialog .esn-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #employeeDialog .esn-kpi strong{font-size:14px}
+ #employeeDialog .esn-action{padding:6px 9px;font-size:11px}
+ /* Phones: the section list lives in «Ir a una sección»; no row of chips to slide sideways. */
+ #employeeDialog .esn-chips{display:none}
+}
+@media(prefers-reduced-motion:reduce){#employeeDialog .esn-kpi{animation:none}#employeeDialog :is(.esn-chip,.esn-action,.esn-kpi){transition:none}}
+@media print{
+ body.mc-print-ficha>*:not(#employeeDialog),body.mc-print-ficha #employeeDialog .dialog-close,body.mc-print-ficha #employeeDialog :is(.employee-section-nav,.employee-quick-actions){display:none!important}
+ body.mc-print-ficha #employeeDialog{position:static!important;width:auto!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;box-shadow:none!important;overflow:visible!important}
+ body.mc-print-ficha #employeeDialog::backdrop{background:none}
+ body.mc-print-ficha #employeeDialog .dialog-body{overflow:visible!important;max-height:none!important}
+ body.mc-print-ficha #employeeDialog .esn-kpi{animation:none;break-inside:avoid}
+}
+
+/* Compact dock (06/11): the full navigator scrolls with the ficha; this slim bar floats only after it leaves the view. */
+#employeeDialog .esn-dock{position:sticky;top:0;height:0;z-index:5}
+#employeeDialog .esn-dock-bar{position:absolute;top:8px;left:50%;display:flex;align-items:center;gap:8px;max-width:min(560px,calc(100% - 16px));padding:5px 6px 5px 14px;border:1px solid #b2d1c5;border-radius:999px;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 28px #173d4826;opacity:0;transform:translate(-50%,-10px);pointer-events:none;transition:opacity .2s ease,transform .22s cubic-bezier(.2,.7,.2,1)}
+#employeeDialog .esn-dock.is-on .esn-dock-bar{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#employeeDialog .esn-dock-current{flex:0 0 auto;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#456b6d}
+#employeeDialog .esn-dock-bar select{flex:1 1 160px;min-width:0;max-width:220px;min-height:34px;padding:4px 24px 4px 10px;border:1px solid #a8c7c5;border-radius:999px;background:#fff;font:12px/1.3 system-ui;color:#143d4c}
+#employeeDialog .esn-dock-bar button{min-height:34px;min-width:34px;padding:0 12px;border-radius:999px;border:1px solid #087c72;background:#087c72;color:#fff;font:700 12px/1 system-ui;cursor:pointer;white-space:nowrap}
+#employeeDialog .esn-dock-bar .esn-dock-top{background:#fff;color:#087c72;padding:0;font-size:15px}
+#employeeDialog .esn-dock-bar :is(button,select):focus-visible{outline:3px solid #ad7417;outline-offset:2px}
+@media(max-width:650px){#employeeDialog .esn-dock-bar{left:8px;right:8px;max-width:none;transform:translateY(-10px)}#employeeDialog .esn-dock.is-on .esn-dock-bar{transform:none}#employeeDialog .esn-dock-current{display:none}}
+@media(prefers-reduced-motion:reduce){#employeeDialog .esn-dock-bar{transition:none}}
+@media print{#employeeDialog .esn-dock{display:none!important}}

@@ -48,7 +48,8 @@ test('CSV neutraliza un legajo que empieza como fórmula y conserva el valor his
  const f=opaqueReport(['=1+2','  @SUM(1)']),b=ownReportBundle(f.query,f.details,f.receipts),d=ownReportDocument(b),csv=reportCsv(d);
  assert.match(csv,/'=1\+2/);assert.match(csv,/'  @SUM/);assert.equal(f.receipts[0].snapshot.employees[0].employeeNumber,'=1+2');
  const xml=Buffer.from(reportXlsx(d)).toString('utf8');assert.match(xml,/<c [^>]*t="inlineStr"[^>]*><is><t[^>]*>=1\+2<\/t>/);
- assert.deepEqual([...xml.matchAll(/<f>(.*?)<\/f>/g)].map(m=>m[1]),['COUNTA(Datos!A2:A3)']);
+ // Only the controlled formulas exist: the row count and the three numeric payroll totals (PR #267); the legajo stays text.
+ assert.deepEqual([...xml.matchAll(/<f>(.*?)<\/f>/g)].map(m=>m[1]),['COUNTA(Datos!A2:A3)','SUMPRODUCT(ROUND(Datos!I2:I3*100,0))/100','SUMPRODUCT(ROUND(Datos!J2:J3*100,0))/100','SUMPRODUCT(ROUND(Datos!K2:K3*100,0))/100']);
 });
 test('fuentes desconocidas producen correcciones accionables sin revelar datos ni ocultar fallas',()=>{
  assert.equal(closeError(Error('PAYROLL_FIXED_DATES_INVALID')).status,422);assert.match(closeError(Error('PAYROLL_FIXED_DATES_INVALID')).message,/no se omitieron/);
