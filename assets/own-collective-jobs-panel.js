@@ -34,7 +34,7 @@ export function mountCollectiveJobs(container, options, config) {
   </section>
   <button type="button" ${attr('new')}>Iniciar otro conjunto</button>`;
  container.append(host); const $ = key => host.querySelector(`[${attr(key)}]`);
- let loaded = null, job = null, comparison = null, busy = false, sequence = 0, controller = null;
+ let loaded = null, job = null, comparison = null, busy = false, sequence = 0, controller = null, pendingFile = false;
  let createKey = null, createUncertain = false, page = 1, jobs = new Map(), nextCursor = null;
  const live = () => isVisible() && !document.hidden && host.isConnected;
  const status = (message, kind = 'neutral') => { $('status').textContent = message; $('status').dataset.state = kind; };
@@ -73,7 +73,7 @@ export function mountCollectiveJobs(container, options, config) {
   const valid = () => epoch === sequence && live();
   try { await work(valid); }
   catch (error) { if (valid()) { if ([400, 413, 415, 422].includes(error.status)) createUncertain = false; if ([401, 403].includes(error.status)) { clearPrivate(); createUncertain = false; createKey = null; } status(error.name === 'AbortError' ? 'Se interrumpió la consulta. El avance guardado se conserva; consultá los conjuntos antes de iniciar otro.' : error.message, 'warning'); } }
-  finally { if (epoch === sequence) { busy = false; controller = null; render(false); changed(); } }
+  finally { if (epoch === sequence) { busy = false; controller = null; render(false); changed(); takePendingFile(); } }
  }
  function take(value) {
   const next = collectiveJobSnapshot(value, family, job?.id ?? null);
@@ -146,7 +146,7 @@ export function mountCollectiveJobs(container, options, config) {
   controls();
  }
  function clearPrivate() {
-  loaded = null; job = null; comparison = null; jobs.clear(); nextCursor = null;
+  loaded = null; job = null; comparison = null; jobs.clear(); nextCursor = null; pendingFile = false;
   $('file').value = ''; $('file-label').textContent = 'Sin archivo.'; $('reason').value = ''; $('search').value = ''; $('rows').replaceChildren(); $('review-reason').textContent = ''; $('job-label').textContent = ''; $('count').textContent = '';
   $('confirm').checked = false; $('jobs').replaceChildren(new Option('Elegir conjunto…', '')); $('comparison').hidden = true; $('progress-section').hidden = true; $('more-jobs').hidden = true;
  }
@@ -154,13 +154,24 @@ export function mountCollectiveJobs(container, options, config) {
   sequence++; controller?.abort(); controller = null; busy = false; clearPrivate(); createKey = null; createUncertain = false;
   status('La vista se cerró. Los conjuntos guardados siguen en el servidor; recuperalos al volver.'); controls();
  }
- $('file').addEventListener('change', () => action(async valid => {
+ function loadFile() { return action(async valid => {
   const file = $('file').files?.[0]; if (!file) return;
   if (file.size > maxBytes) throw Error('El archivo completo supera 4 MiB. No se recorta.');
   const data = validateFile(JSON.parse(await file.text())); if (!valid()) return;
   loaded = data; createKey = null; $('file-label').textContent = `${data.total} contratos · período ${data.period} · archivo listo para revisar.`;
   status('Archivo completo cargado. Indicá el fundamento y enviá el conjunto para revisión.');
- }));
+ }); }
+ // El archivo elegido mientras hay otra consulta en curso (la lista de conjuntos, o la revisión de sesión de la pantalla, que
+ // corre sola cada pocos segundos) se lee apenas termina. Antes se descartaba sin aviso: quedaba elegido en el selector, la
+ // pantalla seguía diciendo «Sin archivo.» y «Revisar conjunto completo» no se habilitaba hasta volver a elegirlo.
+ function takePendingFile() {
+  if (!pendingFile || busy || !live() || otherBlocked()) return;
+  pendingFile = false; if ($('file').files?.[0] && !job && !loaded) loadFile();
+ }
+ $('file').addEventListener('change', () => {
+  if (live() && (busy || otherBlocked())) { pendingFile = !!$('file').files?.[0]; if (pendingFile) $('file-label').textContent = 'El archivo se lee apenas termine la consulta en curso.'; return; }
+  pendingFile = false; loadFile();
+ });
  for (const key of ['mode', 'reason']) $(key).addEventListener('input', () => { if (!createUncertain) createKey = null; });
  $('prepare').addEventListener('click', () => action(async valid => {
   if (!loaded) return; const reason = $('reason').value.trim().normalize('NFC');
@@ -194,5 +205,5 @@ export function mountCollectiveJobs(container, options, config) {
  const poll = setInterval(() => { if (host.open && live() && !busy && !otherBlocked() && job) action(refresh); }, 5000);
  window.addEventListener('pagehide', () => { clearInterval(poll); suspend(); }, { once: true });
  // The parent may always retire this view. Server work owns no browser lock.
- controls(); return { suspend, update: controls, blocking: () => busy, holding: () => false };
+ controls(); return { suspend, update: () => { controls(); takePendingFile(); }, blocking: () => busy, holding: () => false };
 }
