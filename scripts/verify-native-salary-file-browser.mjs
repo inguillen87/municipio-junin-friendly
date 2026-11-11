@@ -21,7 +21,7 @@ const handler=createNativeSalaryHandler({env:{INTERNAL_APP_ORIGIN:origin},requir
 }})});
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});let page;
 try{
- const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Parámetros con sus secciones juntas (vista completa): este recorrido usa la tabla y el circuito enteros. Las secciones de a una se verifican en verify-native-salary-browser. */await context.addInitScript(()=>{try{localStorage.setItem('mc.parametros.vista','todo');}catch{}});
  await context.route('**/*',async route=>{
   const request=route.request(),u=new URL(request.url());if(u.origin!==origin)return route.abort();
   if(u.pathname==='/assets/native-salary-file-panel.js'){optionalRequests++;if(state?.blockOptional)return route.fulfill({status:503,body:'Synthetic optional module failure'});}

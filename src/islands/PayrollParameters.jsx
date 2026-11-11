@@ -39,13 +39,31 @@ const css = `
 [data-parameter-workspace] .pp-scope{font-size:12px;border-top:1px solid #d8e4e4;padding-top:12px;color:#49646f}
 @media(max-width:1000px){[data-parameter-workspace] .pp-grid{grid-template-columns:1fr}}
 @media(max-width:600px){[data-parameter-workspace] .pp-panel,[data-parameter-workspace] .pp-hero{padding:16px}[data-parameter-workspace] .pp-filter{grid-template-columns:1fr}[data-parameter-workspace] .pp-meta{grid-template-columns:1fr;gap:3px}[data-parameter-workspace] .pp-meta dd{margin-bottom:9px}[data-parameter-workspace] .pp-actions button{flex:1 1 150px}}
+[data-parameter-workspace] [hidden]{display:none!important}
+[data-parameter-workspace] .pp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;padding:5px;border:1px solid #cfdee4;border-radius:12px;background:#f1f6f7}
+[data-parameter-workspace] .pp-tabs button{flex:1 1 168px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:48px;border:0;border-radius:8px;background:transparent;color:#35545f;font-size:14px;transition:background-color .15s,color .15s}
+[data-parameter-workspace] .pp-tabs button:hover{background:#ffffffb3}
+[data-parameter-workspace] .pp-tabs button[aria-current=page]{background:#fff;color:#0b4f4a;box-shadow:0 1px 3px #0a2a4426,inset 0 -3px 0 #007d75}
+[data-parameter-workspace] .pp-mark{font-size:11px;font-weight:700;line-height:1.5;color:#7a4f00;background:#fff0cc;border-radius:999px;padding:0 9px}
+[data-parameter-workspace] .pp-fold>summary::before{content:'▸';margin-right:10px;transition:transform .15s}[data-parameter-workspace] .pp-fold[open]>summary::before{transform:rotate(90deg)}
+[data-parameter-workspace] .pp-tools-note{margin:0 0 4px;color:#45616f}
+@media(prefers-reduced-motion:reduce){[data-parameter-workspace] .pp-tabs button{transition:none}}
 [data-parameter-workspace] .pp-fold{margin:20px 0;border:1px solid #d3e4e3;border-radius:12px;background:#fff}[data-parameter-workspace] .pp-fold>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;padding:12px 18px;font-weight:700;color:#0f5f58}[data-parameter-workspace] .pp-fold[open]>summary{border-bottom:1px solid #e3ecec}[data-parameter-workspace] .pp-fold>.pp-hero{margin:16px}[data-parameter-workspace] .pp-fold>:not(summary):not(.pp-hero){margin-left:16px;margin-right:16px}
 `;
 const blank = () => ({ ruleId: '', amount: '', validFrom: '', sourceReference: '', rounding: 'exact_cent', agreementIds: [] });
 function draftFrom(form) { return { ruleId: form.ruleId, baseAmountCents: parseParameterMoney(form.amount), validFrom: form.validFrom, sourceReference: form.sourceReference.trim(), rounding: form.rounding, agreementIds: [...form.agreementIds].sort((a, b) => a - b) }; }
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('es-AR') : 'No informada';
 function Values({ draft }) { return <div className="pp-preview">{parameterPreview(draft).map(row => <div className="pp-preview-row" key={row.agreementId}><span>{row.agreementId} · {AGREEMENT_LABELS[row.agreementId]}<small>Auxiliar {row.auxiliaryId} · clase {row.baseClass}</small></span><strong>{parameterMoney(row.newValueCents)}</strong></div>)}</div>; }
-export default function PayrollParameters({ request = parameterRequest }) {
+// Parámetros se abre en «Valores del mes» y muestra una sección por vez: nada de lo que es de otro momento (cambiar, revisar,
+// herramientas) queda apilado debajo. Las secciones siguen montadas; sólo cambia cuál se ve. `todo` las muestra juntas, como
+// página completa: no se ofrece en pantalla, la usan los verificadores que recorren el circuito entero.
+const VIEWS = [['mes', 'Valores del mes'], ['cambiar', 'Cambiar valores'], ['historial', 'Historial y revisión'], ['herramientas', 'Herramientas']];
+function firstView() { try { return localStorage.getItem('mc.parametros.vista') === 'todo' ? 'todo' : 'mes'; } catch { return 'mes'; } }
+export default function PayrollParameters({ request = parameterRequest, tools = null }) {
+  const [view, setView] = useState(firstView), [master, setMaster] = useState({ waiting: 0, draft: false, pending: false });
+  const toolSlot = useRef(null), all = view === 'todo';
+  // The formula laboratory is a node of the page itself: it is shown under «Herramientas», after the other tools.
+  useEffect(() => { if (tools && toolSlot.current) toolSlot.current.append(tools); }, [tools]);
   // The 88/90 helper is a secondary tool: folded unless an attempt or a selected change needs it on screen.
   const [foldOpen, setFoldOpen] = useState(false);
   const [principal, setPrincipal] = useState(null), [form, setForm] = useState(blank), [records, setRecords] = useState([]), [total, setTotal] = useState(0), [filter, setFilter] = useState({ status: 'all', period: '', page: 1 }), [selected, setSelected] = useState(null), [confirmation, setConfirmation] = useState(null), [reason, setReason] = useState('source_mismatch'), [pending, setPending] = useState(null), [busy, setBusy] = useState(false), [blocked, setBlocked] = useState(false), [notice, setNotice] = useState('Consultando los parámetros guardados…'), [bad, setBad] = useState(false);
@@ -112,7 +130,13 @@ export default function PayrollParameters({ request = parameterRequest }) {
   const selectedDraft = selected && (() => { const { rows, sourceSha256, applied, currentCatalogVerified, ...input } = selected.draft; return input; })();
   return <section data-parameter-workspace="v1" aria-label="Gestión de parámetros salariales">
     <style>{css}</style>
-    <NativeSalaryCatalog revoked={blocked}/>
+    {!all && <nav className="pp-tabs" aria-label="Secciones de Parámetros">{VIEWS.map(([id, label]) => {
+      const mark = id === 'historial' ? (master.waiting === 1 ? '1 espera revisión' : master.waiting ? master.waiting + ' esperan revisión' : '') : id === 'cambiar' ? (master.pending ? 'envío sin confirmar' : master.draft ? 'borrador sin enviar' : '') : id === 'herramientas' && pending ? 'intento sin confirmar' : '';
+      return <button key={id} type="button" data-parameter-view={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}{mark && <span className="pp-mark">{mark}</span>}</button>;
+    })}</nav>}
+    <NativeSalaryCatalog revoked={blocked} view={view} onView={setView} onSummary={setMaster}/>
+    <div data-parameter-tools hidden={!all && view !== 'herramientas'}>
+    {!all && <p className="pp-tools-note">De uso poco frecuente. Ninguna de estas herramientas cambia una liquidación.</p>}
     <details className="pp-fold" open={foldOpen || !!pending || !!selected} onToggle={e => setFoldOpen(e.currentTarget.open)}><summary>Actualizar auxiliares 88 y 90 desde la escala aprobada</summary>
     <header className="pp-hero"><p className="pp-eyebrow">Configuración salarial · Registro propio en Neon</p><h2>Parámetros salariales</h2><p>Prepará los auxiliares 88 y 90 desde la escala aprobada, revisá el resultado por convenio y enviá el cambio a otra persona para su control. Sin escribir fórmulas ni reconstruir planillas.</p><div className="pp-steps"><span>1 · Preparar valores</span><span>2 · Guardar propuesta</span><span>3 · Revisión independiente</span></div></header>
     <div className="pp-status" data-error={bad} role="status" aria-live="polite">{notice}</div>
@@ -151,6 +175,8 @@ export default function PayrollParameters({ request = parameterRequest }) {
     </div>}
     </details>
     <PayrollCatalog proposal={selected} revoked={blocked} onDenied={failure} />
+    <div ref={toolSlot} data-parameter-tool-slot/>
+    </div>
     <dialog ref={dialog} aria-labelledby="pp-confirm-title" onCancel={() => { if (!busy) setConfirmation(null); }}>
       <h3 id="pp-confirm-title">{confirmation?.command === 'prepare' ? 'Revisar antes de guardar' : PARAMETER_COMMANDS[confirmation?.command]}</h3>
       {confirmation?.command === 'prepare' ? <><p>Desde {confirmation.draft.validFrom} · {confirmation.draft.sourceReference}</p><Values draft={confirmation.draft}/></> : selected && <><p>Desde {selected.draft.validFrom} · Versión {selected.version}</p><p>{selected.draft.sourceReference}</p>{confirmation?.command === 'reject' && <label>Motivo del rechazo<select value={reason} onChange={e => setReason(e.target.value)}>{PARAMETER_REASONS.reject.map(r => <option key={r} value={r}>{PARAMETER_REASON_LABELS[r]}</option>)}</select></label>}</>}

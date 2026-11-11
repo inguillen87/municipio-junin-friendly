@@ -27,7 +27,7 @@ function preview(p=state.proposal){return {...envelope,preview:{proposalId:p.id,
 function receipt(){const p=state.proposal,a={id:uid(6),revision:8,proposalId:p.id,proposalVersion:p.version,validFrom:p.draft.validFrom,activatedAt:'2026-10-01T12:00:00.123456Z'};return {ok:true,...envelope,currentRevision:8,replayed:false,activation:a,catalog:{period:a.validFrom,revision:8,rows:p.draft.rows.map(row=>({...row,activationId:a.id,activationRevision:8,proposalId:p.id,proposalVersion:p.version,validFrom:a.validFrom,sourceReference:p.draft.sourceReference,ruleId:p.draft.ruleId,sourceSha256:PARAMETER_SOURCE_SHA,activatedAt:a.activatedAt}))}};}
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
 try{
- const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block',acceptDownloads:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block',acceptDownloads:true});/* Parámetros con sus secciones juntas: este recorrido usa el ayudante 88/90 y el catálogo a la vez. */await context.addInitScript(()=>{try{localStorage.setItem('mc.parametros.vista','todo');}catch{}});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
   if(u.pathname.startsWith('/api/')){
@@ -109,8 +109,10 @@ try{
  for(let i=0;i<100&&!releasePost;i++)await new Promise(resolve=>setTimeout(resolve,20));assert.ok(releasePost);
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
  releasePost();releasePost=null;await c.getByRole('button',{name:'Comprobar acceso al catálogo'}).waitFor();await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});
- await page.waitForFunction(()=>Array.from(document.querySelectorAll('[data-payroll-catalog] button')).some(el=>el.textContent==='Comprobar acceso al catálogo'&&!el.disabled));
- await c.getByRole('button',{name:'Comprobar acceso al catálogo'}).click();await c.getByRole('button',{name:'Consultar activación pendiente'}).click();await success();checks.push('hidden page rejects a late POST receipt; original attempt remains recoverable after explicit access check');
+ // Al volver, la pantalla comprueba el acceso sola (la misma lectura que el botón): no reenvía ni recupera nada por su cuenta.
+ const returnedWrites=writes.length;await page.waitForFunction(()=>Array.from(document.querySelectorAll('[data-payroll-catalog] button')).some(el=>el.textContent==='Consultar activación pendiente'&&!el.disabled));
+ assert.equal(await c.getByRole('button',{name:'Comprobar acceso al catálogo'}).count(),0);assert.equal(writes.length,returnedWrites);assert.equal(await c.locator('.pc-value').count(),0);assert.equal(await c.getByRole('heading',{name:'Activación sin confirmación'}).count(),1);
+ await c.getByRole('button',{name:'Consultar activación pendiente'}).click();await success();assert.equal(writes.length,returnedWrites);checks.push('hidden page rejects a late POST receipt; returning checks the access by itself without resending, and the original attempt is recovered only when the person asks');
  assert.deepEqual(errors,[]);
  const result={ok:true,checksPassed:checks.length,checks,errors,uiSource:published?'Vercel production static assets':'compiled local files',browserApiMode:'synthetic-only',privateRequestsForwarded:0,actualWritesSent:0,municipalSessionTested:false};
  fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));await context.close();

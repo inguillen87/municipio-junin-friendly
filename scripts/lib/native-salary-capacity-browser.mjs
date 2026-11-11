@@ -17,7 +17,7 @@ export async function verifyNativeSalaryCapacityBrowser({handler,env,actor,outpu
  const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:browserName==='chrome'?{channel:'chrome'}:{})});
  env.INTERNAL_APP_ORIGIN=origin;let page,holdPage=null,releasePage=null,lostAck=false;
  try{
-  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
+  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Parámetros con sus secciones juntas (vista completa): este recorrido usa la tabla y el circuito enteros. Las secciones de a una se verifican en verify-native-salary-browser. */await context.addInitScript(()=>{try{localStorage.setItem('mc.parametros.vista','todo');}catch{}});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());
    if(u.origin!==origin){external.push(u.origin);return route.abort();}

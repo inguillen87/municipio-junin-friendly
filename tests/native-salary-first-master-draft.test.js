@@ -38,6 +38,7 @@ test('la comparación del borrador y el envío siguen protegidos con el primer m
 });
 
 test('si Parámetros falla al dibujarse, el aviso se escribe cuando React terminó y no queda una tarea en blanco',()=>{
- assert.ok(entry.includes("onUncaughtError() { queueMicrotask(() => { root.unmount(); host.textContent = 'No se pudo abrir Parámetros. Actualizá la página antes de iniciar una operación.'; }); }"));
+ // Antes de desmontar, el laboratorio de fórmulas (un nodo de la página que Parámetros muestra en «Herramientas») vuelve a su lugar.
+ assert.ok(entry.includes("onUncaughtError() { queueMicrotask(() => { if (tools) host.after(tools); root.unmount(); host.textContent = 'No se pudo abrir Parámetros. Actualizá la página antes de iniciar una operación.'; }); }"));
  assert.doesNotMatch(entry,/onUncaughtError\(\) \{ root\.unmount\(\)/,'desmontar dentro del aviso de React vacía el contenedor después de escribir el mensaje');
 });
