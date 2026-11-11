@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {PENDING_BELL_READERS, pendingBellReadersFor, pendingBellSources, pendingBellAccountKey} from '../assets/pending-bell-mount.js';
+import {PENDING_BELL_READERS, pendingBellReadersFor, pendingBellSources, pendingBellAccountKey, pendingBellCircuits, pendingBellReading} from '../assets/pending-bell-mount.js';
+import {APPROVAL_SOURCES, visibleApprovalSources} from '../assets/approvals-inbox-model.js';
 import {SALARY_CONDITIONS_PENDING_VERSION} from '../assets/own-contract-salary-conditions-pending.js';
 import {SALARY_CONDITIONS_READ} from '../assets/own-contract-salary-conditions-model.js';
 import {bellState} from '../assets/pending-bell-model.js';
@@ -54,8 +55,53 @@ test('the remembered-items key identifies account, municipality and role without
 
 test('the mount module is the only place that knows a query, and it knows no reasons or people', () => {
  const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8');
- assert.deepEqual([...mount.matchAll(/'(\/api\/[^']+)'/g)].map(m => m[1]).sort(), ['/api/internal-auth', '/api/internal-own-contract-salary-conditions?resource=pending']);
- assert.ok(!/reason|employeeName|legajo|innerHTML|localStorage|sessionStorage/.test(mount));
+ assert.deepEqual([...mount.matchAll(/'(\/api\/[^']+)'/g)].map(m => m[1]).sort(), ['/api/internal-auth', '/api/internal-own-contract-salary-conditions?resource=pending'], 'las demás consultas son las de la bandeja, no una lista propia');
+ assert.ok(mount.includes("import {visibleApprovalSources, lastClosedMonth} from './approvals-inbox-model.js';"));
+ assert.ok(!/reason|employeeName|innerHTML|localStorage|sessionStorage/.test(mount) && !/legajos? *[:=(]|\.legajo/.test(mount));
  assert.ok(!/method:\s*'POST'|operation:'command'/.test(mount), 'sólo lee');
- assert.ok(mount.includes("doc.querySelector('.topbar .top-actions')") && mount.includes("if (readers.length === 0) return null;"));
+ assert.ok(mount.includes("doc.querySelector('.topbar .top-actions, .topbar .topbar-actions')") && mount.includes("if (readers.length === 0 && sources.length === 0) return null;"));
+ assert.ok(mount.includes("inboxHref: sources.length ? '/nomina#resumen' : ''"), 'el enlace a la bandeja completa sólo aparece si la cuenta ve algún circuito');
+});
+
+// Los circuitos de la bandeja «Pendientes de aprobación» también avisan en la campanita. Datos ficticios.
+const master = n => ({ok: true, data: {catalog: {version: 'v7'}, proposals: Array.from({length: n}, (_, i) => ({status: 'pending', baseVersion: 'v7', canReview: i === 0, authorLabel: 'Preparación municipal', createdAt: '2026-11-11T21:00:00Z', reason: 'Motivo que no debe salir de la bandeja', items: [{}, {}]}))}});
+const allCaps = new Set(APPROVAL_SOURCES.flatMap(s => s.caps));
+
+test('de cada circuito de la bandeja la campanita toma sólo cuántos esperan y cuántos decide esta cuenta', async () => {
+ const sources = visibleApprovalSources(allCaps).filter(s => ['program', 'salary-master'].includes(s.key)), asked = [];
+ const circuits = await pendingBellCircuits(async url => { asked.push(url); return url.includes('native-salary') ? master(2) : {ok: true, data: {proposals: []}}; }, sources, '2026-10');
+ assert.deepEqual(asked.sort(), ['/api/internal-native-salary?resource=bootstrap', '/api/internal-own-payroll-program?resource=bootstrap']);
+ assert.deepEqual(circuits, [{key: 'program', title: 'Programa de cálculo', href: '/nomina#reglas', count: 0, reviewable: 0}, {key: 'salary-master', title: 'Maestro salarial', href: '/nomina#parametros', count: 2, reviewable: 1}]);
+ assert.ok(!JSON.stringify(circuits).includes('Motivo') && !JSON.stringify(circuits).includes('Preparación'), 'ni fundamentos ni personas');
+ const state = bellState([], [], circuits); assert.equal(state.waiting, 1); assert.equal(state.elsewhere, 1);
+});
+
+test('todos los circuitos de la bandeja tienen un enlace que la campanita acepta, y se leen de a dos por vez', async () => {
+ const sources = visibleApprovalSources(allCaps); assert.equal(sources.length, APPROVAL_SOURCES.length);
+ let running = 0, most = 0;
+ const circuits = await pendingBellCircuits(async () => { running++; most = Math.max(most, running); await new Promise(resolve => setImmediate(resolve)); running--; throw new Error('red'); }, sources);
+ assert.equal(most, 2); assert.equal(circuits.length, sources.length); assert.ok(circuits.every(c => c.error === true));
+ const state = bellState([], [], circuits); assert.equal(state.failed.length, sources.length); assert.equal(state.count, 0); assert.equal(state.complete, false);
+});
+
+test('una respuesta rechazada o con otra forma deja el circuito sin respuesta', async () => {
+ const [source] = visibleApprovalSources(allCaps).filter(s => s.key === 'salary-master');
+ for (const read of [async () => ({ok: false, code: 'FORBIDDEN'}), async () => null, async () => { throw new Error('503'); }]) {
+  assert.deepEqual(await pendingBellCircuits(read, [source]), [{key: 'salary-master', title: 'Maestro salarial', href: '/nomina#parametros', error: true}]);
+ }
+});
+
+test('los circuitos se leen como mucho cada tres minutos, y enseguida cuando una pantalla avisa que registró algo', async () => {
+ const [source] = visibleApprovalSources(allCaps).filter(s => s.key === 'salary-master'); let clock = 1000, heavy = 0, light = 0;
+ const reading = pendingBellReading(async url => { if (url.includes('native-salary')) { heavy++; return master(1); } light++; return {ok: true, data: pending()}; }, PENDING_BELL_READERS, [source], {now: () => clock});
+ let r = await reading.read(); assert.equal(heavy, 1); assert.equal(light, 1); assert.equal(r.circuits[0].reviewable, 1); assert.equal(r.sources.length, 1);
+ clock += 60000; r = await reading.read(); assert.equal(heavy, 1, 'al minuto sólo se repite la consulta liviana'); assert.equal(light, 2); assert.equal(r.circuits.length, 1);
+ clock += 120000; await reading.read(); assert.equal(heavy, 2, 'a los tres minutos se leen de nuevo');
+ reading.invalidate(); await reading.read(); assert.equal(heavy, 3, 'un aviso de la pantalla los vuelve a leer enseguida');
+ const state = bellState(r.sources, [], r.circuits); assert.equal(state.waiting, 2);
+});
+
+test('una cuenta sin circuitos de la bandeja sigue recibiendo la consulta liviana sola', async () => {
+ const reading = pendingBellReading(async () => ({ok: true, data: pending()}), PENDING_BELL_READERS, []);
+ const r = await reading.read(); assert.deepEqual(r.circuits, []); assert.equal(bellState(r.sources, [], r.circuits).waiting, 1);
 });

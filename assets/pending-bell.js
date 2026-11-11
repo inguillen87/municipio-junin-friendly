@@ -5,7 +5,7 @@ import {bellState, rememberedKeys, ago, periodText} from './pending-bell-model.j
 const node = (tag, text, className) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e; };
 const BELL = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 3a6 6 0 0 0-6 6v3.2c0 .9-.3 1.7-.9 2.4L4 16v1h16v-1l-1.1-1.4a3.8 3.8 0 0 1-.9-2.4V9a6 6 0 0 0-6-6Zm-2.2 16a2.3 2.3 0 0 0 4.4 0Z" fill="currentColor"/></svg>';
 
-export function mountPendingBell({host, read, accountKey, everyMs = 60000, now = () => Date.now(), storage = globalThis.localStorage}) {
+export function mountPendingBell({host, read, accountKey, everyMs = 60000, now = () => Date.now(), storage = globalThis.localStorage, inboxHref = ''}) {
   if (!host || host.dataset.pendingBellMounted || typeof read !== 'function' || typeof accountKey !== 'string' || !accountKey) return null;
   host.dataset.pendingBellMounted = 'true';
   if (!document.querySelector('link[data-pending-bell-style]')) { const link = node('link'); link.rel = 'stylesheet'; link.href = new URL('./pending-bell.css', import.meta.url).href; link.dataset.pendingBellStyle = ''; document.head.append(link); }
@@ -25,16 +25,26 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
       node('span', kind === 'review' ? 'El detalle y el fundamento se ven al abrirlo.' : 'El motivo está en la propuesta.', 'mc-bell-why'), link);
     return li;
   };
+  // Un circuito de la bandeja: cuántas propuestas esperan a esta persona y el enlace a su pantalla. Sin nombres ni motivos.
+  const circuit = c => {
+    const li = node('li', undefined, 'mc-bell-item is-circuit'), link = node('a', 'Revisar', 'mc-bell-go'); link.href = c.href; link.setAttribute('aria-label', 'Revisar ' + c.title);
+    li.append(node('strong', c.title), node('span', c.sure ? (c.mine === 1 ? '1 espera tu decisión.' : c.mine + ' esperan tu decisión.')
+      : (c.mine === 1 ? '1 pendiente. Al abrirlo se ve si lo decidís vos.' : c.mine + ' pendientes. Al abrirlos se ve cuáles decidís vos.'), 'mc-bell-who'), link);
+    return li;
+  };
   function render() {
     panel.replaceChildren(node('h2', 'Tus pendientes'));
     if (failed && !state) { panel.append(node('p', 'No se pudo consultar. Se vuelve a intentar solo en un minuto.', 'mc-bell-empty')); return; }
     if (!state) { panel.append(node('p', 'Consultando…', 'mc-bell-empty')); return; }
-    if (!state.toReview.length && !state.decided.length) panel.append(node('p', 'No hay nada esperándote. Cuando alguien necesite tu aprobación, aparece acá.', 'mc-bell-empty'));
-    if (state.toReview.length) { const list = node('ul'); for (const r of state.toReview) list.append(item(r, 'review')); panel.append(node('h3', 'Esperan tu decisión'), list); }
+    // Sin ninguna lectura no se puede decir «no hay nada»: se dice que no se pudo consultar.
+    if (!state.toReview.length && !state.decided.length && !state.circuits.length) panel.append(node('p', !state.covered.length ? 'No se pudo consultar ningún circuito. Se vuelve a intentar solo en un minuto.'
+      : state.failed.length ? 'No hay nada esperándote en los circuitos que respondieron.' : 'No hay nada esperándote. Cuando alguien necesite tu aprobación, aparece acá.', 'mc-bell-empty'));
+    if (state.toReview.length || state.circuits.length) { const list = node('ul'); for (const c of state.circuits) list.append(circuit(c)); for (const r of state.toReview) list.append(item(r, 'review')); panel.append(node('h3', 'Esperan tu decisión'), list); }
     if (state.decided.length) { const list = node('ul'); for (const r of state.decided) list.append(item(r, 'decided')); panel.append(node('h3', 'Lo que decidieron sobre lo tuyo'), list); }
-    // Cobertura parcial dicha con todas las letras: un circuito sin lectura no es un circuito sin pendientes.
-    panel.append(node('p', state.covered.length ? 'Por ahora avisa de: ' + state.covered.join(', ') + '. Los demás circuitos se revisan en su pantalla.' : 'Ningún circuito respondió.', 'mc-bell-empty'));
-    if (state.failed.length) panel.append(node('p', 'Sin respuesta de: ' + state.failed.join(', ') + '. No se cuentan como cero.', 'mc-bell-empty'));
+    if (state.elsewhere) panel.append(node('p', state.elsewhere === 1 ? 'Hay 1 pendiente más que decide otra persona.' : 'Hay ' + state.elsewhere + ' pendientes más que deciden otras personas.', 'mc-bell-empty'));
+    // Un circuito sin lectura no es un circuito sin pendientes: se nombra.
+    if (state.failed.length && state.covered.length) panel.append(node('p', (state.failed.length > 3 ? 'Sin respuesta de ' + state.failed.length + ' circuitos' : 'Sin respuesta de: ' + state.failed.join(', ')) + '. No se cuentan como cero.', 'mc-bell-empty'));
+    if (inboxHref) { const all = node('a', 'Ver la bandeja completa', 'mc-bell-all'); all.href = inboxHref; panel.append(all); }
     if (failed) panel.append(node('p', 'La última consulta falló; esto es lo anterior.', 'mc-bell-empty'));
   }
   function paint() {
@@ -45,7 +55,8 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
   }
   async function load() {
     if (loading || document.hidden) return; loading = true;
-    try { state = bellState(await read(), seen()); failed = false; loadedAt = now(); } catch { failed = true; }
+    // La lectura puede traer sólo las consultas livianas (una lista) o también los circuitos de la bandeja.
+    try { const r = await read(); state = Array.isArray(r) ? bellState(r, seen()) : bellState(r.sources, seen(), r.circuits); failed = false; loadedAt = now(); } catch { failed = true; }
     finally { loading = false; paint(); }
   }
   function close(focus = false) { if (panel.hidden) return; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (focus) button.focus(); }
