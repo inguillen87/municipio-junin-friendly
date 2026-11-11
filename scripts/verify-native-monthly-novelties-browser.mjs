@@ -217,7 +217,7 @@ try{
   await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('44');
   await page.locator('#costCenterSourceId').fill('9');await page.locator('#adjustmentMonth').fill('2026-08');
   await page.locator('#quantityDecimal').fill('1,000001');await page.locator('#manualAmountEnabled').check();await page.locator('#amountArs').fill('90071992547409,93');
-  await page.locator('#movementType').fill('standard');await page.locator('#legalInstrument').fill('Resolución QA 2026');await page.locator('#observation').fill('Fundamento sintético completo');
+  /* «Tipo de movimiento» is a list in plain Spanish now; its optional block may be folded. */await page.locator('#movementType').evaluate(e=>{const fold=e.closest('details');if(fold)fold.open=true;});await page.locator('#movementType').selectOption('standard');await page.locator('#legalInstrument').fill('Resolución QA 2026');await page.locator('#observation').fill('Fundamento sintético completo');
   await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();
   const reviewText=await page.locator('#nativeMonthlyReview').innerText();
   for(const value of ['2026-09','Mensual','44','9','2026-08','1,000001','90.071.992.547.409,93','standard','Resolución QA 2026','Fundamento sintético completo','Modo forzado'])assert.ok(reviewText.includes(value),value);

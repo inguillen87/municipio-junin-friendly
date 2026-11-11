@@ -69,7 +69,10 @@ try {
   await page.getByRole('tab', { name: 'Parámetros', exact: true, includeHidden: true }).waitFor({state:'attached'});
   assert.equal(calls.length, 0, 'parameters do not warm private API on other tabs');
   await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});
-  const w = page.locator('[data-parameter-workspace]'); await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();
+  const w = page.locator('[data-parameter-workspace]');
+  // The 88/90 update lives in a fold that stays closed until someone needs it.
+  const openFold = async () => { const fold = w.locator('details.pp-fold'); await fold.waitFor({state:'attached'}); if (!await fold.evaluate(e => e.open)) await fold.locator('> summary').click(); };
+  await openFold(); await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();
   assert.equal(await page.locator('[data-liquidaciones-menu] a[aria-current=page]').getAttribute('href'), '/nomina#parametros');
   assert.equal(await page.getByRole('heading', { name: 'Revisar una fórmula antes de parametrizarla' }).isVisible(), false);
   checks.push('lazy authorized load, correct sidebar highlight, legacy technical lab collapsed');
@@ -120,7 +123,7 @@ try {
   await detailHost.getByRole('button', { name: 'Enviar a revisión', exact: true }).click(); await w.getByRole('button', { name: 'Confirmar operación' }).click();
   await detailHost.getByRole('heading', { name: 'En revisión', exact: true }).waitFor();
   assert.equal(await detailHost.getByRole('button', { name: 'Aprobar propuesta', exact: true }).count(), 0);
-  role = 'checker'; await page.reload(); await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();
+  role = 'checker'; await page.reload(); await openFold(); await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();
   await w.locator('.pp-record').last().click(); await detailHost.getByRole('button', { name: 'Aprobar propuesta', exact: true }).waitFor();
   conflict = true; await detailHost.getByRole('button', { name: 'Aprobar propuesta', exact: true }).click(); await w.getByRole('button', { name: 'Confirmar operación' }).click();
   await w.getByText('La propuesta cambió. Volvé a abrirla.', { exact: true }).waitFor(); assert.equal(await detailHost.count(), 0);
