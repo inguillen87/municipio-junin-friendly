@@ -7,6 +7,7 @@ import {chromium} from 'playwright';
 import {verifySalaryPercentage} from './lib/native-salary-percentage-browser.mjs';
 import {verifySalaryPeriodPercentage} from './lib/native-salary-period-percentage-browser.mjs';
 import {verifySalarySourceScales} from './lib/native-salary-source-scale-browser.mjs';
+import {verifySalaryRowActions} from './lib/native-salary-row-actions-browser.mjs';
 import {createNativeSalaryHandler} from '../api/internal-native-salary.js';
 import {body,row,bootstrap,proposal,receipt,uid} from '../tests/fixtures/native-salary-synthetic.js';
 import {salaryItems,salaryRowKey} from '../assets/native-salary-catalog-model.js';
@@ -90,5 +91,6 @@ try{const context=await browser.newContext({viewport:{width:1440,height:1000},lo
  await verifySalaryPercentage({page,w,getState:()=>state,load,commit,writes,checks,out});
  await verifySalaryPeriodPercentage({page,w,getState:()=>state,load,commit,writes,checks,out});
  await verifySalarySourceScales({page,w,getState:()=>state,load,commit,writes,checks,out});
+ await verifySalaryRowActions({page,w,getState:()=>state,load,commit,writes,checks,out});
  assert.deepEqual(errors,[]);const result={ok:true,checksPassed:checks.length,checks,errors,privateRequestsForwarded:0,municipalWrites:0,handler:'real',sql:'synthetic',screenshots:[1440,390,320]};fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));await context.close();
 }catch(error){if(currentQaPage&&!currentQaPage.isClosed()){await currentQaPage.screenshot({path:path.join(out,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(out,'failure.html'),await currentQaPage.content());}throw error;}finally{await browser.close();}
