@@ -40,7 +40,7 @@ export async function verifyNativeSalaryCapacityBrowser({handler,env,actor,outpu
    return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
   });
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
-  const master=page.locator('[data-native-salary]'),search=master.getByLabel('Buscar código, convenio, clase o descripción'),pendingProposals=()=>master.getByRole('button',{name:new RegExp('^Pendiente · .* · '+all.length+' definiciones$')});
+  const master=page.locator('[data-native-salary]'),search=master.getByLabel('Buscar',{exact:true}),pendingProposals=()=>master.getByRole('button',{name:new RegExp('^Pendiente · .* · '+all.length+' definiciones$')});
   const complete=()=>master.getByRole('status').filter({hasText:all.length+' definiciones propias'}).waitFor({timeout:180000});
   let navigation=0;const open=async()=>{await page.goto(origin+'/nomina?qa-capacity='+(++navigation)+'#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});};
   const refresh=async()=>{const start=performance.now();await master.getByRole('button',{name:'Consultar maestro propio',exact:true}).click();await complete();durations.push({resource:'complete-browser-read',ms:performance.now()-start});};
