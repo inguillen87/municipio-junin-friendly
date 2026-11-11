@@ -1,5 +1,5 @@
 // Existing loopback databases only. All persisted actors/amounts are synthetic.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';import {fileURLToPath} from 'node:url';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {randomUUID,createHash} from 'node:crypto';import {fileURLToPath} from 'node:url';
 import {buildAdoptedOwnNoveltyInstallation,assertAdoptedOwnNoveltyDurability} from './lib/adopted-own-novelties-installation.mjs';import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa,relocateNoeliaNoveltyInstallation,relocateNoeliaJurisdictionInstallation} from './lib/noelia-payroll-circuit-qa.mjs';
 import {buildOwnJurisdictionInstallation,assertOwnJurisdictionDurability} from './lib/own-payroll-jurisdiction-installation.mjs';
 import {buildInactiveJurisdictionInstallation} from './lib/adoption-inactive-jurisdiction-installation.mjs';
@@ -39,6 +39,9 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
  const api=async(kind,query,body,key=randomUUID(),expected=200)=>{const q=query??{},url='/api/qa-'+kind+(Object.keys(q).length?'?'+new URLSearchParams(q):''),res={setHeader(){},status(v){this.statusCode=v;return this;},json(v){this.value=v;return this;}};await handlers[kind]({method:body?'POST':'GET',url,query:q,headers:body?{origin:env.INTERNAL_APP_ORIGIN,'sec-fetch-site':'same-origin','content-type':'application/json','idempotency-key':key}:{},...(body?{body:JSON.stringify({operation:kind==='run'?'calculate':'command',payload:body})}:{})},res);if(Array.isArray(expected))assert.ok(expected.includes(res.statusCode),JSON.stringify(res.value));else assert.equal(res.statusCode,expected,JSON.stringify(res.value));if(res.statusCode>=400)return res.value;assert.equal(res.value.ok,true);return res.value.data;};
  try{
   run(qa.sql);seeded=true;run(tx(b.operator.consumers.statements));run(tx(b.operator.statements));
+  // The roster and the directory read every contract of the municipality in one pass through this function, installed in
+  // production outside the numbered migrations. The disposable schema gets the same exact definition.
+  {const rosterSource=fs.readFileSync(path.join(root,'tests/fixtures/own-collective-installed-roster.sql.txt'),'utf8');assert.equal(createHash('sha256').update(rosterSource).digest('hex'),'3b27f0b7be40a279f9b63009f9a50cafdf2921aadaddf18a7ab839bec79a843e');run(tx([qa.normalized(rosterSource),`REVOKE ALL ON FUNCTION ${qa.schema}.native_employee_roster_projection_batch_v1(jsonb) FROM PUBLIC`,`GRANT EXECUTE ON FUNCTION ${qa.schema}.native_employee_roster_projection_batch_v1(jsonb) TO municontrol_actions_runtime_app`]));}
   if(qa.nativeDemo){
    const absent=await db.run("SELECT jsonb_build_object('native',NOT EXISTS(SELECT 1 FROM native_employee_registration r JOIN employment_contract c ON c.id=r.contract_id WHERE c.legacy_legajo='19041'),'sources',(SELECT count(*) FROM payroll_novelty_batch WHERE status='approved'),'captures',(SELECT count(*) FROM own_payroll_run_capture))");
    assert.deepEqual(absent,{native:true,sources:0,captures:0});
