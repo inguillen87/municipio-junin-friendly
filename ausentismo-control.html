@@ -902,6 +902,14 @@
         if (!response.ok || payload.ok !== true) {
           var failure = new Error(response.status === 403 ? 'Tu perfil no habilita esta consulta.' : response.status === 422 ? 'El período está fuera del corte disponible. Ajustá las fechas.' : 'No se pudo completar esta consulta. Reintentá sin recargar la página.');
           failure.status = response.status;
+          // Cuando el período pedido no toca los datos, la API informa qué rango sí hay. Se le dice a la persona con sus fechas.
+          var available = response.status === 422 && payload.code === 'ABSENCE_RANGE_OUTSIDE_SOURCE' && payload.range && payload.range.available;
+          if (available && /^\d{4}-\d{2}-\d{2}$/.test(String(available.from)) && /^\d{4}-\d{2}-\d{2}$/.test(String(available.to))) {
+            // `after`: el período empieza después del último dato (lo habitual: se pidió una fecha posterior al corte).
+            var requested = payload.range.requested || {}, after = !(String(requested.to) < String(available.from));
+            failure.available = { from: available.from, to: available.to, after: after };
+            failure.message = after ? 'El período elegido empieza después del último dato disponible, que es del ' + safeDate(available.to) + '. Elegí fechas hasta ese día.' : 'El período elegido termina antes del primer dato disponible, que es del ' + safeDate(available.from) + '. Elegí fechas desde ese día.';
+          }
           if (typeof payload.requestId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(payload.requestId)) failure.message += ' Referencia: ' + payload.requestId;
           throw failure;
         }
@@ -1292,6 +1300,21 @@
           }
           setText(part + 'ReadStatus', error.name === 'TimeoutError' ? 'La consulta demoró demasiado. Reintentá esta sección.' : error.message);
           byId(part + 'Retry').hidden = false;
+          settleWithoutData(error, part);
+        }
+        // Lo que la consulta dejó en «Consultando» o «verificando» pasa a decir que no hay lectura y, si se sabe, hasta
+        // qué fecha hay datos. Antes esos carteles quedaban así hasta la próxima consulta válida.
+        function settleWithoutData(error, part) {
+          var range = error.available || null;
+          if (part === 'events') { setText('resultCount', 'Sin eventos para mostrar: la consulta no se completó.'); return; }
+          setBadge('summaryBadge', 'warning', 'Sin datos');
+          setBadge('comparisonBadge', 'warning', 'Sin comparación');
+          setBadge('qualityBadge', 'warning', 'Sin lectura');
+          byId('overallPanel').dataset.state = 'warning';
+          setText('overallTitle', range ? 'Período fuera de los datos disponibles' : 'Sin indicadores para estos filtros');
+          setText('overallDetail', range ? (range.after ? 'Hay datos hasta el ' + safeDate(range.to) : 'Hay datos desde el ' + safeDate(range.from)) + '. Cambiá las fechas y volvé a consultar.' : 'La consulta no se completó. Reintentá o cambiá los filtros.');
+          setText('sourceChip', range ? 'Fuente interna · corte ' + safeDate(range.to) : 'Fuente interna · sin lectura');
+          if (range) { setText('cutoffLabel', safeDate(range.to)); setText('updatedAt', safeDate(range.to)); setBadge('periodBadge', 'warning', range.after ? 'Fuera del corte · hay datos hasta ' + safeDate(range.to) : 'Fuera del corte · hay datos desde ' + safeDate(range.from)); }
         }
         var tasks = [];
         if (!eventsOnly) {

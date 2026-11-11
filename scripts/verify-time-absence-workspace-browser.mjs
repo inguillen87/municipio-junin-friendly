@@ -11,7 +11,7 @@ const live=process.env.TIME_WORKSPACE_ORIGIN;if(live!==undefined)assert.equal(li
 const origin=live||'https://time-workspace.test',base=path.resolve('public'),out=path.resolve('verification/time-absence-workspace');fs.mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
 const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',serviceWorkers:'block'});
-const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null,overlapFixture=false,reportReads=0,reportDeniedAt=0;
+const SOURCE_CUT='2026-09-10';const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null,overlapFixture=false,reportReads=0,reportDeniedAt=0;
 await context.route('**/*',async route=>{
  const req=route.request(),url=new URL(req.url()),q=url.searchParams,resource=(q.get('resource')||'').toLowerCase();
  if(url.origin!==origin)return route.abort();
@@ -28,6 +28,7 @@ await context.route('**/*',async route=>{
  }
  calls.push({path:url.pathname,resource,query:new URLSearchParams(q)});
  const send=(data,status=200)=>route.fulfill({status,json:data,headers:{'Cache-Control':'private, no-store'}}).catch(()=>{});
+ if(['absenceanalytics','absenceevents'].includes(resource)&&q.get('from')>SOURCE_CUT)return send({ok:false,code:'ABSENCE_RANGE_OUTSIDE_SOURCE',error:'El período solicitado no intersecta la cobertura disponible (1990-01-01 a '+SOURCE_CUT+').',range:{requested:{from:q.get('from'),to:q.get('to')},available:{from:'1990-01-01',to:SOURCE_CUT}}},422);
  if(resource==='absenceanalytics'){if(delayAnalytics)await new Promise(resolve=>releaseAnalytics=resolve);return send(absenceWorkspaceAnalytics(q));}
  if(resource==='absenceevents'){
   const response=absenceWorkspaceEvents(q);
@@ -275,6 +276,22 @@ assert.equal(await clock.locator('#clockHourly button').count(),24);
  await clock.setViewportSize({width:390,height:844});assert.ok(await clock.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  personFailure=403;await clock.locator('#wdNext').click();await clock.waitForFunction(()=>document.getElementById('wdRows').childElementCount===0);assert.equal(await clock.locator('#wdPersonScope').isHidden(),true);assert.equal(await clock.locator('#wdPersonScope h3').textContent(),'');
  checks.push('Revoked nominal permission clears the selected identity and its previous rows.');
+ // Un período posterior al corte de la fuente: la pantalla dice hasta qué fecha hay datos y nada queda «Consultando».
+ const late=await context.newPage();late.on('pageerror',e=>errors.push(e.message));await late.goto(origin+'/ausentismo-control.html?from=2026-11-11&to=2026-11-11');
+ await late.locator('#analyticsRetry').waitFor({state:'attached'});await late.waitForFunction(()=>!document.getElementById('analyticsRetry').hidden&&!document.getElementById('eventsRetry').hidden);
+ const lateText=id=>late.locator('#'+id).textContent(),said=await lateText('analyticsReadStatus');
+ assert.match(said,/^El período elegido empieza después del último dato disponible, que es del .*2026\. Elegí fechas hasta ese día\.$/);assert.doesNotMatch(said,/1990/);assert.equal(said,await lateText('eventsReadStatus'));
+ assert.equal(await lateText('overallTitle'),'Período fuera de los datos disponibles');assert.match(await lateText('overallDetail'),/^Hay datos hasta el .*2026\. Cambiá las fechas y volvé a consultar\.$/);
+ assert.match(await lateText('sourceChip'),/^Fuente interna · corte /);assert.match(await lateText('periodBadge'),/^Fuera del corte · hay datos hasta /);
+ assert.equal(await lateText('summaryBadge'),'Sin datos');assert.equal(await lateText('comparisonBadge'),'Sin comparación');assert.equal(await lateText('qualityBadge'),'Sin lectura');assert.equal(await lateText('resultCount'),'Sin eventos para mostrar: la consulta no se completó.');
+ const stillWaiting=await late.evaluate(()=>['overallTitle','summaryBadge','comparisonBadge','qualityBadge','sourceChip','resultCount','periodBadge','analyticsReadStatus','eventsReadStatus'].filter(id=>/consultando|verificando/i.test(document.getElementById(id).textContent)));
+ assert.deepEqual(stillWaiting,[]);
+ await late.screenshot({path:path.join(out,'absence-outside-cut-desktop.png')});await late.setViewportSize({width:390,height:844});assert.ok(await late.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'the out-of-range notice fits a phone');await late.screenshot({path:path.join(out,'absence-outside-cut-mobile.png')});await late.setViewportSize({width:1440,height:1000});
+ // Con fechas dentro del rango, la misma pantalla vuelve a leer y los carteles pasan a los de una consulta válida.
+ await late.locator('#fromInput').fill('2026-08-01');await late.locator('#toInput').fill('2026-09-10');await late.locator('#filterPanel button[type=submit]').click();
+ await late.waitForFunction(()=>document.getElementById('summaryBadge').textContent!=='Sin datos'&&document.getElementById('overallTitle').textContent.startsWith('Control disponible'));
+ assert.doesNotMatch(await lateText('periodBadge'),/Fuera del corte/);await late.close();
+ checks.push('A period after the source cut names the available dates, leaves no «Consultando» label behind and recovers with valid dates.');
  assert.deepEqual(errors,[]);const report={version:'time-absence-workspace-qa.v1',checkedAt:new Date().toISOString(),mode:live?'published_bytes_synthetic_api':'local_build_synthetic_api',checksPassed:checks.length,checks,reportArtifacts:{csvEventRows:csv.trimEnd().split('\r\n').length-1,pdfPages:verifiedPrintPageCount,pdfWidthPoints:paper.width,pdfHeightPoints:paper.height,pdfA4Landscape:true,pdfNumberingVerified:true},apiRequests:calls.length,publishedAssets:[...assets].sort(),errors,municipalSessionTested:false,businessWrites:0};
  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await context.close();await browser.close();}
