@@ -186,9 +186,9 @@ function renderPreparationGuide() {
     : !hasCapability('payroll.novelty.prepare') ? 'Este acceso no permite crear lotes.'
     : monthlyContractId && !monthlySubject ? 'Actualizá el vínculo elegido antes de validar la novedad.'
     : invalidEntryField ? 'Corregí el campo señalado y volvé a presionar Validar y previsualizar. Todavía no se guardó el lote.'
-    : !preparedDraft ? 'Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Crear lote trazable.'
-    : nativeSelected() && !nativeMonthlyReview.confirmed(preparedNativeReview) ? 'Revisá todos los datos de la previa y marcá la confirmación para habilitar Crear lote trazable.'
-    : 'Previa lista. Crear lote trazable guarda estas novedades en borrador; no calcula una liquidación ni genera un recibo nuevo.';
+    : !preparedDraft ? 'Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Guardar lote.'
+    : nativeSelected() && !nativeMonthlyReview.confirmed(preparedNativeReview) ? 'Revisá todos los datos de la previa y marcá la confirmación para habilitar Guardar lote.'
+    : 'Previa lista. Guardar lote deja estas novedades en borrador; no calcula una liquidación ni genera un recibo nuevo.';
   if (help.textContent !== text) help.textContent = text;
 }
 function clearEntryValidation() {
@@ -1369,7 +1369,7 @@ function syncAmountEntry() {
   byId('amountArs').disabled=!policy.enabled||locked;
   byId('amountArs').required=policy.required;
   if(!policy.enabled)byId('amountArs').value='';
-  byId('amountPolicyHelp').textContent=forced?'Excepción forzada: exige importe, fundamento y segunda aprobación.':policy.enabled?'Importe informado manualmente. Se conserva su origen y revisión.':'Carga habitual por concepto y unidades. La valorización corresponde al motor de liquidación; no se presupone cero.';
+  byId('amountPolicyHelp').textContent=forced?'Importe forzado: necesita el importe, un motivo y la aprobación de otra persona.':policy.enabled?'Importe informado a mano. Se guarda con su origen y su revisión.':'Lo habitual es cargar concepto y unidades: el importe lo calcula la liquidación. Si no informás un importe, queda vacío; no se toma como cero.';
   applyMonthlyLocks();
 }
 

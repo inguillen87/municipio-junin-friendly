@@ -41,7 +41,7 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
     const label = el('label','Validaciones'); label.append(issueKind); filters.append(label);
   }
   const reset = button('Limpiar filtros', id('Reset')); filters.append(reset);
-  const note = el('p', 'Los filtros sólo cambian esta vista. Crear lote trazable guarda todas las filas validadas, no sólo las visibles.', 'panel-note');
+  const note = el('p', 'Los filtros sólo cambian esta vista. Guardar lote guarda todas las filas validadas, no sólo las visibles.', 'panel-note');
   note.id = id('Scope');
   controls.append(kpis, filters, note);
   host.querySelector('.table-wrap').before(controls);

@@ -242,7 +242,7 @@
 
           <details class="novelty-reference" id="noveltyReferenceWorkspace">
             <summary>Otras cargas, archivos incorporados y lotes anteriores</summary>
-            <p>Usá estas herramientas para continuar un lote anterior, una carga por archivo o la novedad mensual abierta desde una ficha. Para el trabajo habitual con registros propios, usá la carga de arriba.</p>
+            <p>Acá seguís un lote anterior, una carga por archivo o la novedad abierta desde una ficha. Para cargar novedades de todos los días usá la pestaña «Cargar novedades»: pide menos datos.</p><p><button class="button" type="button" data-novelty-jump="ownNativeBulkNovelties">Ir a Cargar novedades</button></p>
           <section class="section" id="readOnlySection" aria-labelledby="readOnlyTitle" hidden>
             <header class="section-head"><div><span class="section-index">CONSULTA HABILITADA</span><h2 id="readOnlyTitle">Bandeja visible sin permiso de carga</h2><p>Tu perfil puede consultar la bandeja habilitada por el servidor. El detalle nominal, la auditoría y la exportación aparecen únicamente si tus capacidades efectivas los autorizan.</p></div><span class="status submitted">Sólo lectura</span></header>
           </section>
@@ -267,22 +267,22 @@
             <div class="form-grid">
               <div class="field"><label for="periodMonth">Período de liquidación</label><input id="periodMonth" type="month" required></div>
               <div class="field"><label for="payrollType">Tipo de liquidación</label><select id="payrollType" required><option value="monthly">Mensual</option><option value="first_fortnight">Primera quincena</option><option value="sac">Aguinaldo (SAC)</option><option value="vacation">Vacaciones</option><option value="supplementary">Complementaria</option><option value="final">Liquidación final</option><option value="other">Otra</option></select></div>
-              <div class="field"><span class="field-label">Estado inicial</span><div class="checkbox"><span>Sin guardar; requiere validación y revisión.</span></div></div>
+              <div class="field"><span class="field-label">Cómo sigue</span><div class="checkbox"><span>Todavía sin guardar. Primero validás; después lo aprueba otra persona.</span></div></div>
             </div>
 
             <details id="attendancePreparte"></details>
 
             <div class="form-grid" id="individualFields">
               <div class="field"><label for="legajo">Legajo</label><input id="legajo" inputmode="numeric" maxlength="20" placeholder="Ej.: 571"><button type="button" class="button picker-open-button" id="pickLegajoButton">Buscar por nombre</button><p id="pickedLegajoName" class="picker-picked-name" role="status" aria-live="polite"></p></div>
-              <div class="field"><label for="conceptSourceId">Concepto</label><input id="conceptSourceId" inputmode="numeric" maxlength="20" placeholder="Código de concepto"></div>
-              <div class="field"><label for="costCenterSourceId">Área / centro de costo</label><input id="costCenterSourceId" inputmode="numeric" maxlength="20" placeholder="Opcional"></div>
-              <div class="field"><label for="adjustmentMonth">Mes de ajuste</label><input id="adjustmentMonth" type="month"><small>Debe ser igual o anterior al período.</small></div>
-              <div class="field"><label for="quantityDecimal">Unidades</label><input id="quantityDecimal" inputmode="decimal" placeholder="Ej.: 2,5"></div>
-              <div class="field"><label for="manualAmountEnabled"><input id="manualAmountEnabled" type="checkbox"> Informar importe manual (opcional)</label><div id="manualAmountFields" hidden><label for="amountArs">Importe excepcional · ARS</label><input id="amountArs" inputmode="decimal" placeholder="Sólo si corresponde" disabled><small>Se conserva en centavos exactos. No reemplaza silenciosamente una fórmula.</small></div><small id="amountPolicyHelp">Carga habitual por concepto y unidades. Sin importe informado no se presupone cero.</small></div>
-              <div class="field"><label for="movementType">Tipo de movimiento</label><select id="movementType"><option value="">Normal (lo habitual)</option><option value="standard">Normal: novedad del mes que se liquida</option><option value="adjustment">Ajuste: corrige o completa un mes anterior</option></select><small class="hint">Elegí «Ajuste» sólo si la novedad corrige un mes ya liquidado; en ese caso indicá también el mes de ajuste.</small></div>
-              <div class="field wide"><label for="legalInstrument">Instrumento legal</label><input id="legalInstrument" maxlength="160" placeholder="Resolución, decreto u ordenanza, si corresponde"></div>
-              <div class="field full"><label for="observation">Observación</label><textarea id="observation" maxlength="500" placeholder="Describí brevemente el pedido o fundamento. Este texto queda en el lote restringido."></textarea><small>Máximo 500 caracteres. No adjuntes información clínica innecesaria.</small></div>
-              <label class="field full checkbox" for="forced"><input id="forced" type="checkbox"><span><strong>Modo forzado</strong><br>Exige importe y una justificación de al menos 10 caracteres; siempre requiere segunda aprobación.</span></label>
+              <div class="field"><label for="conceptSourceId">Concepto</label><input id="conceptSourceId" inputmode="numeric" maxlength="20" placeholder="Código. Ej.: 95"></div>
+              <div class="field"><label for="costCenterSourceId">Área o centro de costo (opcional)</label><input id="costCenterSourceId" inputmode="numeric" maxlength="20" placeholder="Código, si corresponde"></div>
+              <div class="field"><label for="adjustmentMonth">Mes de ajuste (sólo si es un ajuste)</label><input id="adjustmentMonth" type="month"><small>Para una novedad normal del mes, dejalo vacío. Si lo cargás, tiene que ser igual o anterior al período.</small></div>
+              <div class="field"><label for="quantityDecimal">Unidades (días, horas o cantidad)</label><input id="quantityDecimal" inputmode="decimal" placeholder="Ej.: 2 o 2,5"></div>
+              <div class="field"><label for="manualAmountEnabled"><input id="manualAmountEnabled" type="checkbox"> Informar un importe (opcional)</label><div id="manualAmountFields" hidden><label for="amountArs">Importe en pesos</label><input id="amountArs" inputmode="decimal" placeholder="Sólo si corresponde" disabled><small>Se guarda con sus centavos exactos. No cambia la fórmula del concepto.</small></div><small id="amountPolicyHelp">Lo habitual es cargar concepto y unidades: el importe lo calcula la liquidación. Si no informás un importe, queda vacío; no se toma como cero.</small></div>
+              <div class="field"><label for="movementType">Tipo de movimiento</label><select id="movementType"><option value="">Normal (lo habitual)</option><option value="standard">Normal: novedad del mes que se liquida</option><option value="adjustment">Ajuste: corrige o completa un mes anterior</option></select><small class="hint">Elegí «Ajuste» sólo si la novedad corrige un mes ya liquidado. En ese caso cargá también el mes de ajuste.</small></div>
+              <div class="field wide"><label for="legalInstrument">Instrumento legal (opcional)</label><input id="legalInstrument" maxlength="160" placeholder="Resolución, decreto u ordenanza, si corresponde"></div>
+              <div class="field full"><label for="observation">Observación</label><textarea id="observation" maxlength="500" placeholder="Contá brevemente el pedido o el motivo. Lo lee quien revisa el lote."></textarea><small>Máximo 500 caracteres. No adjuntes información clínica innecesaria.</small></div>
+              <label class="field full checkbox" for="forced"><input id="forced" type="checkbox"><span><strong>Importe forzado</strong><br>Pide que este importe se use en lugar del que calcularía la liquidación. Necesita el importe, un motivo de al menos 10 caracteres en Observación y la aprobación de otra persona.</span></label>
             </div>
 
             <div class="agile-panel" id="agilePanel" hidden>
@@ -326,7 +326,7 @@
               </div>
               <p id="agileVisibleCount" role="status" aria-live="polite"></p>
               <div class="table-wrap" id="agileTable" hidden><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Fundamento</th><th>Acción</th></tr></thead><tbody id="agileRows"></tbody></table></div>
-              <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. Al guardar, se comprueban todas las filas, sus vínculos y tu acceso vigente.</p>
+              <p class="panel-note">La lista vive sólo en esta pestaña hasta guardar el lote. Al guardar, se comprueban todas las filas, sus vínculos y tu acceso vigente.</p>
             </div>
 
             <div id="sheetFields" hidden></div>
@@ -342,9 +342,9 @@
               <div class="bulk-format">legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;movimiento;instrumento_legal;observacion;forzado</div></div>
             </div>
 
-            <div class="form-actions"><button class="button" id="preflightButton" type="button" aria-describedby="prepareHelp">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" aria-describedby="prepareHelp" disabled>Crear lote trazable</button></div>
-            <p id="prepareHelp" class="hint" role="status" aria-live="polite">Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Crear lote trazable.</p>
-            <p class="hint">Esta acción guarda el lote de novedades. El cálculo, la anulación de liquidaciones y los recibos se gestionan en sus tareas del menú Liquidaciones.</p>
+            <div class="form-actions"><button class="button" id="preflightButton" type="button" aria-describedby="prepareHelp">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" aria-describedby="prepareHelp" disabled>Guardar lote</button></div>
+            <p id="prepareHelp" class="hint" role="status" aria-live="polite">Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Guardar lote.</p>
+            <p class="hint">Guardar lote deja las novedades en borrador para que otra persona las apruebe. Calcular, anular una liquidación y emitir recibos se hacen desde el menú Liquidaciones.</p>
 
             <section id="noveltyIssuesPanel" hidden></section>
             <div class="preview" id="previewPanel" hidden>
