@@ -8,7 +8,8 @@ import {salaryUuid,SALARY_UNITS} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
-import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {ownRunResult,verifiedRunCapture,ownRunRows,ownRunCsv,ownRunOfficialSummary,ownRunOfficialText} from './own-payroll-run-reader.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
@@ -68,7 +69,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Incidencias completas de las novedades capturadas"><table><caption>Incidencias por registro · búsqueda y página no limitan la descarga</caption><thead><tr><th>Legajo</th><th>Convenio</th><th>Concepto</th><th>Origen y fila</th><th>Estado</th><th>Acción sugerida</th></tr></thead><tbody data-own-source-rows></tbody></table></div>
     <nav class="own-run-actions" aria-label="Páginas de incidencias"><button class="button" type="button" data-own-source-prev>Anterior</button><span data-own-source-page></span><button class="button" type="button" data-own-source-next>Siguiente</button></nav>
   </section>
-  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p></div><button class="button" type="button" data-own-download disabled>Descargar CSV completo</button></header>
+  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p><p data-own-result-official class="own-run-official" hidden></p></div><button class="button" type="button" data-own-download disabled>Descargar CSV completo</button></header>
     <p class="own-run-notice">Resultado calculado. Consultá el resumen individual para ver el estado de cada legajo.</p>
     <button class="button primary" type="button" data-own-review disabled>Revisar liquidación</button>
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Totales por legajo, tabla desplazable"><table><caption>Totales por legajo de la corrida guardada</caption><thead><tr><th>Legajo</th><th>Bruto</th><th>Retenciones</th><th>Neto calculado</th><th>Aportes patronales</th><th>Resumen</th></tr></thead><tbody data-own-totals></tbody></table></div><section data-own-individual hidden></section>
@@ -218,7 +219,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;departmentPlan=null;programDefinition=null;programData=null;rosterRows=null;computeBlocked=null;coverageMemo=null;
     invalidateReadiness();
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
-    $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
+    $('result-summary').textContent='';$('result-official').textContent='';$('result-official').hidden=true;$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
   const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
@@ -271,7 +272,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     for(const r of boot.runs){const row=node('article'),description=node('div'),button=node('button','Consultar '+r.period+' · '+OWN_RUN_TYPES[r.liquidationType]);description.append(node('p',r.state==='calculated'?'Resultado calculado · consultar decisiones':'Cálculo sin terminar: se preparó y no llegó a calcular'),node('p',({all:'Todos los legajos propios',contracts:r.selectionValueCount+' legajos seleccionados',departments:r.selectionValueCount+' reparticiones',agreements:r.selectionValueCount+' convenios'})[r.selectionKind]+' · '+labelDate(r.createdAt)));button.type='button';button.className='button';button.dataset.ownOpen=r.key;button.addEventListener('click',()=>recover(r.key));description.append(node('p',ownRunDateLabel(r.liquidationDate)));row.append(description,button);$('history').append(row);}
   }
   function renderRows(){
-    if(!current?.saved)return;const view=ownRunWorkspaceRows(current,$('search').value,page);page=view.page;
+    if(!current?.saved)return;const view=ownRunRows(current,$('search').value,page);page=view.page;
     $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+(SALARY_UNITS[r.unit]??r.unit).toLowerCase()),r.ruleReference])tr.append(node('td',text));return tr;}));
     $('range').textContent=view.filtered+' conceptos de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
@@ -289,9 +290,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(c&&c.missing.length){computeBlocked=computeBlocked??'coverage';status('Captura sin resultado: el programa no cubre todo su alcance, así que reintentarla no la completa. '+ownRunCoverageText(c)+' Cuando el programa esté completo, prepará otro cálculo.','warning');}
       else status('Captura recuperada. Reintentá el mismo cálculo para completar su resultado.','warning');
       controls();return;}
-    const {input,result,people}=ownRunWorkspaceResult(value);$('result').hidden=false;
+    const {input,result,people}=ownRunResult(value);$('result').hidden=false;
     knownSavedKey=value.key;individual.clear();
     $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+result.employeeCount+' legajos · '+result.rowCount+' conceptos · guardado '+labelDate(value.saved.recordedAt);
+    const official=ownRunOfficialText(ownRunOfficialSummary(value));$('result-official').textContent=official;$('result-official').hidden=!official;
     $('totals').replaceChildren(...result.employeeTotals.map(t=>{const tr=node('tr');for(const text of [people.get(t.contractId).employeeNumber,...['gross','deduction','net','employer_contribution'].map(k=>formatOwnRunDecimal(t[k]))])tr.append(node('td',text));const cell=node('td'),button=node('button','Ver resumen');button.type='button';button.className='button';button.dataset.ownIndividualOpen=t.contractId;button.setAttribute('aria-label','Ver resumen del legajo '+people.get(t.contractId).employeeNumber);button.addEventListener('click',()=>openIndividual(t.contractId,button));cell.append(button);tr.append(cell);return tr;}));
     import('./own-run-charts.js').then(m=>{if(current===value)m.drawRunCharts($('result'),result);}).catch(()=>{});
     $('trace').replaceChildren();for(const [name,version]of Object.entries(input.sourceVersions))$('trace').append(node('dt',({population:'Padrón y encuadre',rules:'Programa y definiciones',novelties:'Novedades aprobadas'})[name]),node('dd',version));
@@ -409,7 +411,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   async function recover(key=attempt?.key){if(!key||attempt&&!current?.saved&&key!==attempt.key)return;return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);
     if(!valid())return;
-    try{const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(key))).data,attempt?.key===key?attempt:null);if(valid())showCapture(value);}
+    try{const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(key))).data,attempt?.key===key?attempt:null);if(valid())showCapture(value);}
     catch(error){if(valid()&&error.status===404&&attempt?.key===key)notFound=true;throw error;}
   });}
   async function send(){if(!canPrepare()||!attempt&&!canStart()||busy||current?.saved)return;return perform(async valid=>{
@@ -435,7 +437,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     catch(error){
       if(error.status!==422||!valid()||!can(OWN_RUN_NOMINAL))throw error;
       const rejected=attempt;let registered=null,missing=false;
-      try{registered=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(rejected.key))).data,rejected);}
+      try{registered=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(rejected.key))).data,rejected);}
       catch(check){if(check.status===404)missing=true;else if(check.name==='AbortError')throw check;}
       if(!valid())return;
       if(registered){if(!registered.saved&&/^OWN_RUN_(PAY_RULE_MISSING|RULE_MISSING|RULE_OVERLAP|RULE_CYCLE)$/.test(error.code??''))computeBlocked=error.code;showCapture(registered);if(computeBlocked===error.code){status(error.message+' La captura quedó registrada sin resultado.','warning');controls();}return;}
@@ -444,15 +446,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones; su repartición la indica RR. HH. con la documentación del mes.':'';
       throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
     }
-    const value=await verifiedWorkspaceCapture(response.data,attempt);
+    const value=await verifiedRunCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
   async function download(){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);
     if(!valid())return;
-    const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
+    const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
     if(!valid()||!value.saved)return;
-    const blob=new Blob([ownRunWorkspaceCsv(value)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');
+    const blob=new Blob([ownRunCsv(value)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');
     a.href=url;a.download='calculo-propio-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
     status('Se descargó el detalle completo del cálculo guardado. La búsqueda y la página no lo recortaron.','success');
   });}
@@ -464,7 +466,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   async function reviewSources(downloadCsv=false){if(!current||!can(OWN_RUN_NOMINAL)||downloadCsv&&!sourceReview)return;const original=current;clearSourceReview();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
-    const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
+    const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
     const reviewed=await ownRunSourceReview(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
     if(downloadCsv){const csv=await ownSourceReviewCsv(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
       const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=node('a');a.href=url;a.download='incidencias-novedades-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);

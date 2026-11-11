@@ -2,6 +2,9 @@ import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './na
 import {ownRunCommand,ownRunCapture} from './own-payroll-run-model.js';
 import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
 import {decimal,exactAdd,quantize} from './own-payroll-exact.js';
+import {ownHistoricalOfficialInput,ownHistoricalRunResult} from './own-payroll-historical-result-model.js';
+import {verifiedOwnOfficialCapture} from './own-payroll-official-snapshot-model.js';
+import {copyRowEmissionData} from './own-payroll-row-emission.js';
 export const OWN_LIQ_READ=OWN_RUN_READ,OWN_LIQ_NOMINAL=OWN_RUN_NOMINAL;
 export const OWN_LIQ_REVIEW=Object.freeze([...OWN_LIQ_NOMINAL,'payroll.calculation.approve']);
 export const OWN_LIQ_CANCEL=OWN_RUN_PREPARE;
@@ -22,7 +25,9 @@ export function ownLiquidationBootstrap(v){
 export function ownLiquidationDetail(v){
  exact(v,['version','id','scopeVersion','stateVersion','capture','employees','effects','reviewAccessRequired']);
  if(v.version!=='own-liquidation-detail.v1'||!salaryUuid(v.id)||![v.scopeVersion,v.stateVersion].every(salaryHash)||!Array.isArray(v.employees)||typeof v.reviewAccessRequired!=='boolean')fail();
- ownRunCapture(v.capture);const verified=ownRunWorkspaceResult(v.capture);if(!verified||v.capture.id!==v.id||v.employees.length!==verified.result.employeeCount)fail();
+ // The saved result decides its reader by its own declared version: V1/V2 keep the historical workspace validator untouched;
+ // V4/V5 (official totals, row emission) are read by the official validator, which checks the original capture and recomputes it.
+ const verified=ownHistoricalRunResult(v.capture);if(!verified||v.capture.id!==v.id||v.employees.length!==verified.result.employeeCount)fail();
  exact(v.effects,['paymentExecuted','accountingPosted','periodClosed']);if(Object.values(v.effects).some(e=>e!==false))fail();
  const expected=new Set(verified.result.employeeTotals.map(t=>t.contractId)),ids=new Set();
  for(const e of v.employees){exact(e,['contractId','state','version','liquidationVersion','blockedBy','allowedCommands','events']);
@@ -36,7 +41,13 @@ export function ownLiquidationDetail(v){
   if(e.state!==prior||e.liquidationVersion!==number||e.allowedCommands.some(c=>c==='confirm'?e.state!=='calculated'||e.blockedBy!==null:c==='annul'?e.state!=='confirmed':e.state!=='calculated'))fail();ids.add(e.contractId);
  }return v;
 }
-export async function verifiedOwnLiquidationDetail(v){ownLiquidationDetail(v);await verifiedWorkspaceCapture(v.capture);return v;}
+// Historical results keep their route and their object. A V4/V5 detail is validated on a private copy taken before the first
+// await, and that copy is what comes back: a change to the caller's object while the hashes are computed cannot reach it.
+export async function verifiedOwnLiquidationDetail(v){
+ if(!ownHistoricalOfficialInput(v?.capture?.saved?.input)){ownLiquidationDetail(v);await verifiedWorkspaceCapture(v.capture);return v;}
+ const value=copyRowEmissionData(v);ownLiquidationDetail(value);
+ return {...value,capture:await verifiedOwnOfficialCapture(value.capture)};
+}
 export function ownLiquidationSelection(detail,selection,command){
  ownLiquidationDetail(detail);if(!commands.includes(command))fail();
  selection=ownRunCommand({...detail.capture.body,selection}).selection;
