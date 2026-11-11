@@ -8,6 +8,17 @@ const catalog = [
   { kind: 'sectors', code: '4', label: 'TEMPORARIOS' }, { kind: 'sectors', code: '9', label: 'SIN PERSONAL' }, { kind: 'agreements', code: '1', label: 'ADMINISTRATIVO' },
 ];
 const row = (legajo, sector, status = 'active') => ({ legajo, sector, status });
+const contract = (n, sector, status = 'active') => ({...row(String(n), sector, status), contractId:'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),name:'Persona sintética '+n});
+
+test('a real missing repartición stays outside the exact selectable contracts without inventing a sector', () => {
+  const rows=[contract(10,'ADMINISTRATIVO'),contract(11,'TEMPORARIOS'),contract(12,null),contract(13,'ADMINISTRATIVO','inactive')],before=structuredClone(rows);
+  const plan=ownRunDepartmentsForAll(rows,catalog);
+  assert.deepEqual(plan.codes,['1','4']);assert.equal(plan.covered,2);assert.equal(plan.usable,true);
+  assert.deepEqual(plan.contracts,rows.slice(0,2).map(({contractId,legajo,name})=>({contractId,legajo,name})));
+  assert.deepEqual(plan.unsectored,['12']);assert.deepEqual(plan.unmatched,[]);assert.deepEqual(rows,before);
+  const empty=ownRunDepartmentsForAll([rows[2]],catalog);
+  assert.equal(empty.usable,false);assert.equal(empty.covered,0);assert.deepEqual(empty.contracts,[]);assert.deepEqual(empty.codes,[]);assert.deepEqual(empty.unsectored,['12']);
+});
 
 test('picks only the reparticiones with active people and lists the legajos left out', () => {
   const plan = ownRunDepartmentsForAll([row('10', 'ADMINISTRATIVO'), row('11', ' administrativo '), row('12', 'TEMPORARIOS'), row('13', 'HS. CATEDRAS CULTURA', 'inactive'), row('869', null), row('792', ''), row('793', '  ')], catalog);
