@@ -63,6 +63,19 @@ test('elegido mientras se lee la lista de conjuntos, se lee cuando esa lectura t
  }finally{close();}
 });
 
+test('otro archivo elegido durante una consulta reemplaza al que ya estaba cargado',async()=>{
+ let parentBusy=false;const {api,$,close}=await mounted({otherBlocked:()=>parentBusy});
+ try{
+  $('file').files=[file];$('file').fire('change');await settle();
+  assert.equal($('file-label').textContent,'2 contratos · período 2026-10 · archivo listo para revisar.');
+  const other={size:64,text:async()=>JSON.stringify({period:'2026-11',rows:[{},{},{}]})};
+  parentBusy=true;$('file').files=[other];$('file').fire('change');await settle();
+  assert.equal($('file-label').textContent,'El archivo se lee apenas termine la consulta en curso.');
+  parentBusy=false;api.update();await settle();
+  assert.equal($('file-label').textContent,'3 contratos · período 2026-11 · archivo listo para revisar.','la pantalla no sigue con el archivo anterior mientras el selector muestra el nuevo');
+ }finally{close();}
+});
+
 test('si la persona quita el archivo antes de que termine la consulta, no se lee nada',async()=>{
  let parentBusy=true;const {api,$,close}=await mounted({otherBlocked:()=>parentBusy});
  try{

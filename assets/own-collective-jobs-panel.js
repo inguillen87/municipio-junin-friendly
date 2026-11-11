@@ -166,7 +166,7 @@ export function mountCollectiveJobs(container, options, config) {
  // pantalla seguía diciendo «Sin archivo.» y «Revisar conjunto completo» no se habilitaba hasta volver a elegirlo.
  function takePendingFile() {
   if (!pendingFile || busy || !live() || otherBlocked()) return;
-  pendingFile = false; if ($('file').files?.[0] && !job && !loaded) loadFile();
+  pendingFile = false; if ($('file').files?.[0] && !job) loadFile();
  }
  $('file').addEventListener('change', () => {
   if (live() && (busy || otherBlocked())) { pendingFile = !!$('file').files?.[0]; if (pendingFile) $('file-label').textContent = 'El archivo se lee apenas termine la consulta en curso.'; return; }
