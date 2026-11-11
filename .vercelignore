@@ -424,3 +424,6 @@ local-agents/
 !scripts/migrations/224-native-employment-void.sql
 !tests/fixtures/own-collective-jobs-qa.sql.txt
 !tests/fixtures/own-collective-installed-roster.sql.txt
+
+# Exact source-only prepared-catalogue function required by build verification.
+!tests/fixtures/employment-adoption-prepared-sources.sql.txt
