@@ -9,6 +9,7 @@ import {fault,safeCode,readCredential} from '../pm10/config.mjs';
 import {CaptureStore,acquireLock,atomicJson,safeDirectory} from '../pm10/store.mjs';
 import {ensureCapture} from '../pm10/service.mjs';
 import {beforeClockSession,nextCaptureFailure} from './capture-policy.mjs';
+import {captureRecoveryReadiness,readCaptureRecoveryReview,requestCaptureRecovery,acquireCaptureRecoveryOwner,beginCaptureRecovery,finishCaptureRecovery} from './capture-recovery.mjs';
 import {readMunicipalRoute,requireMunicipalPrefix,MUNICIPAL_PREFIX,ROUTE_ERRORS} from '../pm10/route-guard.mjs';
 const ID=/^[a-z][a-z0-9-]{1,63}$/,SERIAL=/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const TRANSIENT=new Set(['CONNECT_TIMEOUT','RESPONSE_TIMEOUT','ECONNRESET','ECONNABORTED','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','CONNECTION_ENDED','CONNECTION_CLOSED','DEADLINE_EXCEEDED','TOTAL_TIMEOUT']);
@@ -39,12 +40,19 @@ async function boundState(root,c){
  try{const statusFile=path.join(root,'status.json'),st=await lstat(statusFile);if(!st.isFile()||st.isSymbolicLink()||st.size>32768)throw fault('FLEET_STATE_INVALID');let s;try{s=JSON.parse(await readFile(statusFile,'utf8'));}catch{throw fault('FLEET_STATE_INVALID');}if(s.schema!=='clock-fleet-status.v1'||s.clockId!==c.clockId||s.serial!==c.serial||s.cloudReception!=='not_configured'||typeof s.blocked!=='boolean'||!Number.isSafeInteger(s.failureCount)||s.failureCount<0||s.failureCount>1000||(s.connectionFailureCount!==undefined&&(!Number.isSafeInteger(s.connectionFailureCount)||s.connectionFailureCount<0||s.connectionFailureCount>1000))||(s.nextPollAt!==null&&!Number.isFinite(Date.parse(s.nextPollAt))))throw fault('FLEET_STATE_INVALID');if(s.status==='storage_wait'&&(s.blocked||s.lastError!=='DISK_SPACE_LOW'||s.nextPollAt===null))throw fault('FLEET_STATE_INVALID');return {...fresh(c),...s};}
  catch(e){if(e.code==='ENOENT')return fresh(c);throw e;}
 }
-export async function captureClock(fleet,c,{collect=collectConfigured,credential=readCredential,route=readMunicipalRoute,now=()=>new Date(),signal,freeBytes}={}){
- const root=path.join(fleet.stateDir,c.clockId);let release,key,state=fresh(c),store,persist=false,preconnect=false,checkingCapacity=false;
+export async function captureClock(fleet,c,{collect=collectConfigured,credential=readCredential,route=readMunicipalRoute,now=()=>new Date(),signal,freeBytes,recoveryOwner}={}){
+ const root=path.join(fleet.stateDir,c.clockId);let release,key,state=fresh(c),store,persist=false,preconnect=false,checkingCapacity=false,recovery=null,recoveryCode=null,recoverySucceeded=false,checkingRecovery=false;
  try{
   release=await acquireLock(root);state=await boundState(root,c);
   if(!c.enabled){state={...state,status:'disabled'};persist=true;return state;}
-  if(state.blocked||signal?.aborted)return state;
+  if(state.blocked){
+   checkingRecovery=true;
+   recovery=await beginCaptureRecovery(fleet,c,state,{owner:recoveryOwner,signal,now});
+   checkingRecovery=false;
+   if(!recovery)return state;
+   if(!recovery.allowed){recoveryCode=recovery.code;return state;}
+  }
+  if(signal?.aborted){if(recovery)recoveryCode='CANCELLED';return state;}
   if(state.nextPollAt&&Date.parse(state.nextPollAt)>now().getTime())return state;
   store=await new CaptureStore(root,{identity:{clockId:c.clockId,serial:c.serial},maxQueueBytes:fleet.maxQueueMiB*1048576,minFreeBytes:fleet.minFreeMiB*1048576,freeBytes}).init();
   persist=true;state={...state,lastAttemptAt:now().toISOString()};checkingCapacity=true;await store.capacity(MAX_BYTES+1048576);checkingCapacity=false;
@@ -55,14 +63,21 @@ export async function captureClock(fleet,c,{collect=collectConfigured,credential
   await atomicJson(path.join(root,'attempt-report.json'),result.report);
   const report=ensureCapture(result,c.serial),saved=await store.save(result.raw,{capturedAt:report.finishedAt??now().toISOString(),deviceTimeLocal:report.metadata.deviceTimeBefore});
   state={...state,...store.summary(),status:'captured_locally',failureCount:0,connectionFailureCount:0,blocked:false,lastError:null,lastCaptureAt:report.finishedAt??now().toISOString(),snapshotRecordCount:saved.snapshotRecordCount,newUniqueRecordsLastCycle:saved.newUniqueRecords,lastCaptureSha256:saved.snapshotSha256,nextPollAt:new Date(now().getTime()+c.pollSeconds*1000).toISOString()};
+  recoverySucceeded=true;
  }catch(e){
-  const code=safeCode(e);if(!release)throw e;
+  const code=safeCode(e);recoveryCode=code;if(!release)throw e;
   // Corruption/identity failures never overwrite the previous state or rebind a queue.
-  if(['FLEET_IDENTITY_MISMATCH','FLEET_STATE_INVALID','QUEUE_CORRUPT'].includes(code)){persist=false;throw e;}
+  if(checkingRecovery||['FLEET_IDENTITY_MISMATCH','FLEET_STATE_INVALID','QUEUE_CORRUPT'].includes(code)){persist=false;throw e;}
   persist=true;
   const transient=TRANSIENT.has(code),network=ROUTE_ERRORS.has(code),cancelled=signal?.aborted;
   state={...state,...store?.summary(),...nextCaptureFailure(state,{code,network,cancelled:!!cancelled,preconnect,transient,pollSeconds:c.pollSeconds,now:now(),storageWait:checkingCapacity&&code==='DISK_SPACE_LOW'})};
- }finally{key?.fill(0);if(release){try{if(persist&&state.schema==='clock-fleet-status.v1')await atomicJson(path.join(root,'status.json'),state);}finally{await release();}}}
+ }finally{key?.fill(0);if(release){try{
+   if(recovery){
+    if(!recoverySucceeded)state={...state,status:'blocked',blocked:true,nextPollAt:null};
+    await finishCaptureRecovery(recovery,state,{succeeded:recoverySucceeded,code:recoveryCode,statusWillBeWritten:persist,now});
+   }
+   if(persist&&state.schema==='clock-fleet-status.v1')await atomicJson(path.join(root,'status.json'),state);
+  }finally{await release();}}}
  return state;
 }
 function brief(s){return {clockId:s.clockId,status:s.status,blocked:s.blocked,lastAttemptAt:s.lastAttemptAt,lastCaptureAt:s.lastCaptureAt,lastError:s.lastError,connectionFailureCount:s.connectionFailureCount??0,uniqueLocalRecords:s.uniqueLocalRecords,nextPollAt:s.nextPollAt,cloudReception:'not_configured'};}
@@ -75,13 +90,25 @@ export async function seedFleetSummary(config){
  }
  return results;
 }
+export async function requestReviewedCaptureRecovery(raw,review,options={}){
+ const fleet=validateFleetConfig(raw),clock=fleet.clocks.find(value=>value.clockId===review.clockId);
+ if(!clock)throw fault('CAPTURE_RECOVERY_CLOCK_INVALID');
+ return requestCaptureRecovery(fleet,clock,review,{...options,loadState:boundState});
+}
 export async function main(argv=process.argv.slice(2)){
+ if(['recovery-readiness','request-recovery'].includes(argv[0])){
+  if(argv.length!==5||argv[1]!=='--config'||argv[3]!== (argv[0]==='recovery-readiness'?'--clock':'--review'))throw fault('CAPTURE_RECOVERY_USAGE');
+  const config=await loadFleetConfig(path.resolve(argv[2]));
+  if(argv[0]==='request-recovery')return requestReviewedCaptureRecovery(config,await readCaptureRecoveryReview(path.resolve(argv[4])));
+  const clock=config.clocks.find(value=>value.clockId===argv[4]);if(!clock)throw fault('CAPTURE_RECOVERY_CLOCK_INVALID');
+  return captureRecoveryReadiness(config,clock);
+ }
  if(!['once','run'].includes(argv[0])||argv[1]!=='--config'||argv.length!==3)throw fault('USAGE_FLEET_RUN_ONCE_CONFIG');
  const config=await loadFleetConfig(path.resolve(argv[2]));await safeDirectory(config.stateDir);
- const release=await acquireLock(config.stateDir),controller=new AbortController(),stop=()=>controller.abort();
+ const {release,owner:recoveryOwner}=await acquireCaptureRecoveryOwner(config),controller=new AbortController(),stop=()=>controller.abort();
  process.once('SIGINT',stop);process.once('SIGTERM',stop);const results=new Map();let writing=Promise.resolve();
  const summary=()=>{writing=writing.then(()=>atomicJson(path.join(config.stateDir,'fleet-summary.json'),{schema:'clock-fleet-summary.v1',updatedAt:new Date().toISOString(),clocks:[...results.values()],cloudReception:'not_configured'}));return writing;};
- async function loop(c){do{try{const s=await captureClock(config,c,{signal:controller.signal});results.set(c.clockId,brief(s));console.log(JSON.stringify(brief(s)));await summary();}
+ async function loop(c){do{try{const s=await captureClock(config,c,{signal:controller.signal,recoveryOwner});results.set(c.clockId,brief(s));console.log(JSON.stringify(brief(s)));await summary();}
   catch(e){results.set(c.clockId,{clockId:c.clockId,status:'review_required',lastError:safeCode(e),cloudReception:'not_configured'});console.error(JSON.stringify(results.get(c.clockId)));await summary();return;}
   if(argv[0]==='once'||!c.enabled)break;
   try{await wait(Math.max(1000,results.get(c.clockId)?.nextPollAt?Date.parse(results.get(c.clockId).nextPollAt)-Date.now():60000),undefined,{signal:controller.signal});}catch{break;}
@@ -89,4 +116,4 @@ export async function main(argv=process.argv.slice(2)){
  try{for(const [id,state] of await seedFleetSummary(config))results.set(id,state);await summary();await Promise.all(config.clocks.map(loop));}
  finally{try{await summary();}finally{process.off('SIGINT',stop);process.off('SIGTERM',stop);await release();}}
 }
-if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url){try{await main();}catch(e){console.error(JSON.stringify({error:safeCode(e)}));process.exitCode=2;}}
+if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url){try{const result=await main();if(result)console.log(JSON.stringify(result));}catch(e){console.error(JSON.stringify({error:safeCode(e)}));process.exitCode=2;}}
