@@ -1,61 +1,87 @@
 import {encodePayrollPages} from './payroll-detail-export.js';
 import {ownReceiptBatch,ownReceiptSelf,ownReceiptSnapshot,ownReceiptType} from './own-payroll-receipt-model.js';
 import {OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
-const mapping={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2212:45};
-function hex(value){return '<'+[...String(value)].map(c=>{const n=c.codePointAt(0);if(!(n>=32&&n<=255||mapping[n]!==undefined))throw Error('El PDF no admite un carácter de la identidad o etiqueta original. No se reemplazó ni omitió el recibo.');return(mapping[n]??n).toString(16).padStart(2,'0');}).join('')+'>';}
-function wrap(value,max=91){const result=[];let line='';for(let word of String(value).split(/\s+/)){while(word.length>max){if(line)result.push(line);line='';result.push(word.slice(0,max));word=word.slice(max);}if((line+' '+word).trim().length>max){if(line)result.push(line);line=word;}else line=(line+' '+word).trim();}if(line)result.push(line);return result.length?result:[''];}
-// One readable page for an ordinary receipt: identity and context together, one line per concept, totals side by side,
-// origin grouped at the end. Long receipts continue on more pages repeating legajo and context; nothing is hidden.
-const UNIT_LABELS={hours:'horas',minutes:'minutos',days:'días',percent:'%',units:'unidades',coefficient:'coeficiente',years:'años',months:'meses'};
-const unitText=unit=>unit==='money'?'':(UNIT_LABELS[unit]??unit);
+import {OWN_PDF_INK as INK,OWN_PDF_MUTED as MUTED,OWN_PDF_STRONG as STRONG,OWN_PDF_TINT as TINT,ownPdfDateText,ownPdfDocument,ownPdfPeriodText,ownPdfTaxIdText,ownPdfText} from './own-payroll-pdf-kit.js';
+const UNSUPPORTED='El PDF no admite un carácter de la identidad o etiqueta original. No se reemplazó ni omitió el recibo.';
+// Width in points of a text as the receipt draws it; a character the PDF cannot draw is rejected, never replaced.
+export const ownReceiptTextWidth=ownPdfText(UNSUPPORTED).width;
+// One page for an ordinary receipt, laid out the way payroll staff already read one: employer and period on top, the net in its own
+// box, earnings on the left and deductions on the right, each with its total. Employer contributions and technical values go in a
+// separate informative block, so nothing is hidden and nothing that is not pay is mixed with pay. Long receipts continue on more
+// pages that repeat whose they are. Every amount is the exact one of the closed liquidation; this file adds or rounds nothing.
 export function ownReceiptPages(record,params,source,{state='prepared',batchId='Previa sin conservar'}={}){
- const L=38,R=557,BOTTOM=74,INK='0.07 0.20 0.25',MUTED='0.33 0.42 0.47';
- const pages=[];let ops=[],y,continued=false;
- const put=(x,y,t,size=9,bold=false,color=INK)=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm ${hex(t)} Tj ET`);
- const right=(xr,y,t,size=9,bold=false,color=INK)=>put(Math.max(L,+(xr-String(t).length*size*0.53).toFixed(1)),y,t,size,bold,color);
- const rule=(yy,shade='0.80 0.85 0.86')=>ops.push(`${shade} RG 0.6 w ${L} ${yy} m ${R} ${yy} l S`);
- const page=()=>{
-  if(ops.length)pages.push(ops);ops=[];y=800;
-  put(L,y,'MuniControl · Recibo propio para revisión',12,true);right(R,y,`${source.period} · ${ownReceiptType(source.type)}`,9,true);y-=19;
-  const names=wrap(record.name,64);names.forEach((part,i)=>{put(L,y,part,12,true);if(i===0)right(R,y,'Legajo '+record.employeeNumber+(continued?' · continuación':''),10,true);y-=15;});
-  for(const part of wrap(`DNI ${record.dni} · CUIL ${record.cuil} · Convenio ${record.agreementCode} · Repartición ${record.departmentCode} · Versión ${record.liquidationVersion}`,112)){put(L,y,part,8.5,false,MUTED);y-=12;}
-  y-=2;rule(y);y-=15;continued=true;
- };
- const ensure=h=>{if(y-h<BOTTOM)page();};
- const text=(value,{size=8.5,bold=false,color=MUTED,max=112}={})=>{for(const part of wrap(value,max)){ensure(size+4);put(L,y,part,size,bold,color);y-=size+3.5;}};
- page();
- text(`Emisor: ${params.issuer.name} · CUIT ${params.issuer.taxId} · ${params.issuer.address}`,{color:INK});
- text('Fecha de pago/acreditación declarada: '+(params.paymentDate??'No informada')+'.',{color:INK});
- text('La fecha declarada no acredita pago. Firma digital pendiente.');
- text(state==='approved'?'Disponibilidad revisada por otra persona.':'Preparación para revisión; aún no disponible para el agente.',{bold:true,color:INK});
- if(params.legend)text(params.legend);
- y-=6;
- // Concepts: one line each (label wraps only when long), value right-aligned; units in plain Spanish, money without label.
- ensure(30);put(L,y,'Código',8,true,MUTED);put(L+50,y,'Concepto',8,true,MUTED);right(R,y,'Importe / valor',8,true,MUTED);y-=5;rule(y);y-=12;
- for(const nature of Object.keys(OWN_RUN_NATURES)){
-  const rows=record.concepts.filter(c=>c.nature===nature);if(!rows.length)continue;
-  const note=nature==='employer_contribution'?'A cargo del empleador; no se descuenta otra vez del neto.':nature==='auxiliary'?'Valor técnico: no se suma como haber ni retención.':'';
-  ensure(16+(note?11:0)+Math.min(rows.length,2)*13);
-  put(L,y,OWN_RUN_NATURES[nature],9,true);if(note)right(R,y,note,7.5,false,MUTED);y-=13;
-  for(const c of rows){
-   const parts=wrap(c.label,66),unit=unitText(c.unit);ensure(parts.length*12+2);
-   put(L,y,c.code,9,true);parts.forEach((part,i)=>put(L+50,y-i*12,part,9));
-   right(R,y,formatOwnRunDecimal(c.amount,c.unit==='money')+(unit?' '+unit:''),9,true);
-   y-=parts.length*12+2;
+ const L=38,R=557,W=R-L,MID=(L+R)/2,EDGES=[L,MID,R],HALF=MID-L;
+ for(const concept of record.concepts)if(!Object.hasOwn(OWN_RUN_NATURES,concept.nature))throw Error('El recibo contiene un concepto de una naturaleza desconocida. No se omitió.');
+ const type=ownReceiptType(source.type),money=value=>formatOwnRunDecimal(value),totals=record.totals,net=money(totals.net);
+ let continued=false;
+ const doc=ownPdfDocument({unsupported:UNSUPPORTED,header(doc){
+  // Employer on the left, kind of document on the right.
+  const issuer=doc.fit(params.issuer.name,330,12,true),place=doc.fit(`CUIT ${ownPdfTaxIdText(params.issuer.taxId)} · ${params.issuer.address}`,330,8);
+  issuer.forEach((part,i)=>doc.put(L,doc.y-i*14,part,12,true));
+  doc.right(R,doc.y,'RECIBO DE HABERES',11,true);doc.right(R,doc.y-12,'Recibo propio · copia para revisión',7.5,false,MUTED);
+  doc.y-=(issuer.length-1)*14+12;place.forEach((part,i)=>doc.put(L,doc.y-i*10,part,8,false,MUTED));doc.y-=(place.length-1)*10+7;
+  doc.line(L,doc.y,R,doc.y,STRONG,0.8);
+  if(!continued){
+   // Period, kind of liquidation, declared payment date and the net, where the eye lands first.
+   doc.y-=8;const top=doc.y,h=34,items=[['Período',ownPdfPeriodText(source.period),160],['Liquidación',type,112],['Fecha de pago declarada',ownPdfDateText(params.paymentDate),112]];
+   let x=L;for(const [label,value,w]of items){doc.box(x,top-h,w,h);doc.put(x+7,top-11,label,7,false,MUTED);doc.put(x+7,top-26,value,doc.shrink(value,w-14,10.5,true),true);x+=w;}
+   doc.box(x,top-h,R-x,h,{fill:TINT,stroke:STRONG,weight:0.8});doc.put(x+7,top-11,'Neto a cobrar',7,true,MUTED);doc.right(R-7,top-27,net,doc.shrink(net,R-x-14,12.5,true),true);
+   doc.y=top-h-19;
+   const names=doc.fit(record.name,W-160,12,true),number='Legajo '+record.employeeNumber;
+   names.forEach((part,i)=>doc.put(L,doc.y-i*15,part,12,true));doc.right(R,doc.y,number,doc.shrink(number,150,11,true),true);
+   doc.y-=(names.length-1)*15+17;
+   doc.cells([['CUIL',ownPdfTaxIdText(record.cuil)],['DNI',String(record.dni)],['Convenio',String(record.agreementCode)],['Repartición',String(record.departmentCode)],['Versión de la liquidación',String(record.liquidationVersion)]],L,W);
+   doc.y-=9;
+  }else{
+   doc.y-=15;const names=doc.fit(record.name,W-190,10,true),number='Legajo '+record.employeeNumber+' · continuación';
+   names.forEach((part,i)=>doc.put(L,doc.y-i*12,part,10,true));doc.right(R,doc.y,number,doc.shrink(number,180,9.5,true),true);
+   doc.y-=(names.length-1)*12+11;doc.put(L,doc.y,`${ownPdfPeriodText(source.period)} · ${type}`,8,false,MUTED);doc.y-=9;
   }
-  y-=4;
- }
- // Totals side by side; net on its own line. Totals and origin stay together on the last page.
- const origin=['Origen: identidad del registro municipal verificado; conceptos del catálogo conservado en el cálculo.',`Emisión: ${batchId} · Grupo cerrado: ${source.id}`,'Huella del cierre: '+source.snapshotSha256,'No acredita firma digital, imputación ni ejecución de pago.'].flatMap(v=>wrap(v,118));
- ensure(78+origin.length*10.5+16);rule(y+4);y-=10;put(L,y,'Totales exactos de la liquidación cerrada',9,true);y-=14;
- const pairs=[[['remuneration','Remunerativos'],['non_remuneration','No remunerativos']],[['deduction','Retenciones'],['employer_contribution','Aportes patronales']],[['gross','Bruto'],null]];
- for(const pair of pairs){pair.forEach((item,i)=>{if(!item)return;const [key,label]=item,x=i?306:L,xr=i?R:286;put(x,y,label,9,false,MUTED);right(xr,y,formatOwnRunDecimal(record.totals[key]),9,true);});y-=13;}
- y-=3;rule(y+9,'0.55 0.62 0.65');put(L,y-4,'Neto',11,true);right(R,y-4,formatOwnRunDecimal(record.totals.net),11,true);y-=24;
- // Origin and document state, kept together so a page never starts with a stray word.
- put(L,y,'Origen y estado del documento',8.5,true,MUTED);y-=11;for(const part of origin){put(L,y,part,7.5,false,MUTED);y-=10.5;}
- pages.push(ops);
- for(const [i,operations]of pages.entries()){ops=operations;rule(64);put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);put(L,40,`Legajo ${record.employeeNumber} · ${source.period} · ${ownReceiptType(source.type)}`,7.5,false,MUTED);right(R,46,`${i+1} / ${pages.length}`,8);}
- return pages;
+  continued=true;
+ }});
+ const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>doc.entry(concept,HALF,options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
+ const mainHead=()=>{
+  doc.box(L,doc.y-16,W,16,{fill:TINT,stroke:null});doc.line(L,doc.y,R,doc.y,STRONG,0.8);
+  doc.put(L+6,doc.y-11.5,'HABERES',8.5,true);doc.put(MID+6,doc.y-11.5,'DESCUENTOS',8.5,true);doc.y-=16;
+  for(const [x0,x1]of [[L,MID],[MID,R]]){doc.put(x0+6,doc.y-9.5,'Cód.',7,false,MUTED);doc.put(x0+38,doc.y-9.5,'Concepto',7,false,MUTED);doc.right(x1-6,doc.y-9.5,'Importe ($)',7,false,MUTED);}
+  doc.y-=13;doc.line(L,doc.y,R,doc.y);doc.y-=3;
+ };
+ const infoHead=()=>{
+  doc.box(L,doc.y-14,W,14,{fill:TINT,stroke:null});doc.line(L,doc.y,R,doc.y);
+  doc.put(L+6,doc.y-10,'APORTES PATRONALES · a cargo del empleador',7.5,true,MUTED);doc.put(MID+6,doc.y-10,'VALORES TÉCNICOS · no suman ni restan',7.5,true,MUTED);doc.y-=17;
+ };
+ doc.page();
+ const earnings=[...group('remuneration','Remunerativos'),...group('non_remuneration','No remunerativos')],deductions=group('deduction',null);
+ doc.columns(earnings.length?earnings:[{note:'Sin haberes en esta liquidación.',height:14}],deductions.length?deductions:[{note:'Sin descuentos en esta liquidación.',height:14}],EDGES,{head:mainHead,headHeight:32});
+ // Column totals, the exact totals of the closed liquidation and the net stay together on one page.
+ doc.ensure(108);
+ doc.box(L,doc.y-18,W,18,{fill:TINT});doc.line(MID,doc.y,MID,doc.y-18);
+ doc.put(L+6,doc.y-12.5,'Total haberes',9,true);doc.right(MID-6,doc.y-12.5,money(totals.gross),9,true);
+ doc.put(MID+6,doc.y-12.5,'Total descuentos',9,true);doc.right(R-6,doc.y-12.5,money(totals.deduction),9,true);
+ doc.y-=33;doc.put(L,doc.y,'Totales exactos de la liquidación cerrada',8,true,MUTED);doc.y-=13;
+ doc.cells([['Remunerativos',money(totals.remuneration)],['No remunerativos',money(totals.non_remuneration)],['Bruto',money(totals.gross)],['Retenciones',money(totals.deduction)],['Aportes patronales',money(totals.employer_contribution)]],L,W,{bold:true});
+ doc.y-=12;
+ doc.box(L,doc.y-26,W,26,{fill:TINT,stroke:STRONG,weight:0.8});doc.put(L+8,doc.y-17.5,'Neto',12,true);doc.right(R-8,doc.y-17.5,net,doc.shrink(net,W-90,13,true),true);
+ doc.y-=42;const netPage=doc.pages.length;
+ // What the employer pays and the technical values of the calculation: shown, apart from pay.
+ const employer=group('employer_contribution',null,{size:7.5,withSign:true}),technical=group('auxiliary',null,{size:7.5,withSign:true});
+ if(employer.length||technical.length){doc.columns(employer,technical,EDGES,{head:infoHead,headHeight:17});doc.y-=5;}else doc.y+=9;
+ // State and origin of the document, kept together so a page never starts with a stray line.
+ const notes=[
+  ['La fecha declarada no acredita pago. Firma digital pendiente.',false,MUTED],
+  [state==='approved'?'Disponibilidad revisada por otra persona.':'Preparación para revisión; aún no disponible para el agente.',true,INK],
+  ...(params.legend?[[params.legend,false,MUTED]]:[]),
+  ['Origen: identidad del registro municipal verificado; conceptos del catálogo conservado en el cálculo.',false,MUTED],
+  [`Emisión: ${batchId} · Grupo cerrado: ${source.id}`,false,MUTED],
+  ['Huella del cierre: '+source.snapshotSha256,false,MUTED],
+  ['No acredita firma digital, imputación ni ejecución de pago.',false,MUTED],
+ ].flatMap(([value,bold,color])=>doc.fit(value,W,7.5,bold).map(part=>[part,bold,color]));
+ doc.ensure(notes.length*10+9);doc.y-=9;
+ // When this block lands on a later page than the totals, the net is repeated so the last page still says what is paid.
+ if(doc.pages.length!==netPage)notes.unshift([`Neto: ${net} (totales en la página ${netPage})`,true,INK]);
+ for(const [part,bold,color]of notes){doc.put(L,doc.y,part,7.5,bold,color);doc.y-=10;}
+ for(const i of doc.pages.keys()){doc.select(i);doc.line(L,64,R,64);doc.put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);doc.put(L,41,`Legajo ${record.employeeNumber} · ${source.period} · ${type}`,7.5,false,MUTED);doc.right(R,46,`${i+1} / ${doc.pages.length}`,8);}
+ return doc.pages;
 }
 export async function createOwnReceiptPdf(value,{signal,preview=false,self=false,index=0}={}){
  const pages=[];let records,params,sources,state,batchId;

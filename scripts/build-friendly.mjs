@@ -272,6 +272,7 @@ const shellFiles = [
   'assets/own-payroll-report-panel.js',
   'assets/own-payroll-report-panel.css',
   'assets/own-payroll-receipt-model.js',
+  'assets/own-payroll-pdf-kit.js',
   'assets/own-payroll-receipt-pdf.js',
   'assets/own-payroll-receipt-panel.js',
   'assets/own-payroll-receipt-panel.css',

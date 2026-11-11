@@ -28,7 +28,7 @@ const browserMode=browserArgument?.slice('--browser='.length)??'chromium';assert
 const output=path.resolve(argument?.slice('--output='.length)||'verification/noelia-payroll-readiness-browser-'+new Date().toISOString().replace(/[^0-9]/g,''));
 assert.ok(!fs.existsSync(path.join(output,'result.json')),'Use a new output directory to preserve prior evidence.');
 fs.mkdirSync(output,{recursive:true});
-const files=['assets/own-payroll-run-panel.js','assets/own-payroll-readiness-model.js','assets/own-payroll-program-panel.js','assets/own-payroll-receipt-panel.js','assets/own-payroll-receipt-panel.css','assets/own-payroll-receipt-pdf.js','assets/own-payroll-close-panel.js','assets/own-payroll-close-panel.css','assets/own-payroll-run-panel.css'];
+const files=['assets/own-payroll-run-panel.js','assets/own-payroll-readiness-model.js','assets/own-payroll-program-panel.js','assets/own-payroll-receipt-panel.js','assets/own-payroll-receipt-panel.css','assets/own-payroll-receipt-pdf.js','assets/own-payroll-pdf-kit.js','assets/own-payroll-close-panel.js','assets/own-payroll-close-panel.css','assets/own-payroll-run-panel.css'];
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex'),assets=files.map(file=>{assert.ok(fs.existsSync(path.join(build,file)),'Build missing '+file);return {file,sha256:sha(fs.readFileSync(path.join(build,file)))};});
 const release=fs.existsSync(path.join(build,'release-info.json'))?JSON.parse(fs.readFileSync(path.join(build,'release-info.json'),'utf8')):null;
 const capabilities=[...new Set([...OWN_RUN_PREPARE,...OWN_RECEIPT_PREPARE,...OWN_RECEIPT_APPROVE,...OWN_CLOSE_WRITE,'workforce.structure.read'])];
