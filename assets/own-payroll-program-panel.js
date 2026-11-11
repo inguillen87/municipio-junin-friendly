@@ -75,7 +75,8 @@ export function mountOwnPayrollProgram(container){
  const copySelection=new Set();let copySourcePage=1;
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
- const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
+ // Un aviso nunca queda mudo: si el error llegó sin texto, se dice qué hacer.
+ const status=(message,state='neutral')=>{$('status').textContent=typeof message==='string'&&message.trim()?message:'No pudimos completar la consulta de reglas. Tocá «Actualizar consulta» para reintentar.';$('status').dataset.state=state;};
  function controls(){
   const locked=busy||ownerLocked;
   coverage.setEnabled(!locked&&!attempt&&can(PROGRAM_READ));
