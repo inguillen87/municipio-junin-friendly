@@ -26,6 +26,7 @@ import {verifyOwnCloseDetail} from './lib/own-close-detail-circuit-qa.mjs';
 import {buildOwnRunDateInstallation,declaredDateCapture,declaredDateReceipt} from './lib/own-payroll-run-date-installation.mjs';
 import {ownInstallationFunctionPin} from './lib/own-payroll-installation.mjs';
 import {pinsCheck} from './lib/native-leave-installation.mjs'; import {createNativeEmployeeHandler} from '../api/internal-native-employees.js'; import {assertNoeliaNativeDemoCycle} from './lib/noelia-native-demo-qa.mjs';
+import {ownRunDepartmentsForAll} from '../assets/own-run-departments.js';
 const root=path.resolve(import.meta.dirname,'..');
 export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,browser=false,positions=false,jurisdictions=false,transport='local'}){
  browser=browser===true?'chrome':browser===false?'none':browser;assert.ok(['none','chrome','chromium'].includes(browser));assert.equal(typeof positions,'boolean');assert.equal(typeof jurisdictions,'boolean');assert.match(sourceCommit,/^[a-f0-9]{40}$/);if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA,'QA_CI_SOURCE_CHANGED');
@@ -131,6 +132,10 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
   const selectorBefore=proof(),pickerQuery=search=>({resource:'employees',view:'novelty-selector',status:'administrative_active',includeFacets:'0',limit:'20',page:'1',search}),opaque=await api('directory',pickerQuery('A/3501')),numeric=await api('directory',pickerQuery('901'));
   ok(opaque.length===1&&opaque[0].legajo==='A/3501'&&opaque[0].recordOrigin==='MUNICONTROL','actual HTTP handler and SQL preserve the opaque adopted legajo without any imported cohort');
   ok(['901','0901'].every(n=>numeric.some(r=>r.legajo===n)),'actual SQL selector keeps numeric and zero-prefixed adopted legajos distinct');
+  const roster=await api('directory',{resource:'nativeroster',schema:'2'}),catalog=await api('catalog',{resource:'bootstrap'}),departmentPlan=ownRunDepartmentsForAll(roster.rows,catalog.catalog.items);
+  assert.equal(roster.rows.length,29);assert.deepEqual(departmentPlan.codes,['20']);assert.equal(departmentPlan.covered,29);assert.equal(departmentPlan.usable,true);assert.deepEqual(departmentPlan.unsectored,[]);assert.deepEqual(departmentPlan.unmatched,[]);
+  assert.deepEqual(departmentPlan.contracts.map(c=>c.contractId).sort(),list.subjects.map(c=>c.contractId).sort());
+  ok(['A/3501','901','0901'].every(n=>roster.rows.some(r=>r.legajo===n&&r.sector===catalog.catalog.items.find(c=>c.kind==='sectors'&&c.code==='20').label)),'actual roster and calculator retain all29 subjects, including the three documented historical reparticiones');
   assert.deepEqual(proof(),selectorBefore);checks.push('authenticated selector reads preserve every existing row and object while retaining authority locks');
   if(positionQa)await positionQa.assignments(list.subjects);
   const rows=list.subjects.map((s,i)=>({rowOrdinal:i+1,legajo:s.legajo,contractId:s.contractId,identityToken:s.identityToken,conceptSourceId:'120',costCenterSourceId:null,adjustmentMonth:null,quantityDecimal:null,amountCents:'2000',movementType:null,legalInstrument:'Importe exclusivamente inventado QA',observation:null,forced:false}));
