@@ -7,7 +7,7 @@ import {periodContextFields} from './own-payroll-period-context.js';
 // Reads the existing preparation result; never interprets formula source, runs
 // the Node preparer, uploads the evidence, or issues a municipal command.
 export const OWN_PROGRAM_PREPARED_MAX_BYTES=16*1024*1024;
-export const OWN_PROGRAM_PREPARED_VERSIONS=Object.freeze(['own-payroll-programme-source-preparation.v1','own-payroll-programme-source-preparation.v2']);
+export const OWN_PROGRAM_PREPARED_VERSIONS=Object.freeze(['own-payroll-programme-source-preparation.v1','own-payroll-programme-source-preparation.v2','own-payroll-programme-source-preparation.v3']);
 export const OWN_PROGRAM_PREPARED_REVIEW_VERSION='own-payroll-program-prepared-draft-review.v1';
 const encoder=new TextEncoder(),maximumReason='\ud800'.repeat(1000);
 const rootFields=['version','status','approved','executable','payrollCalculated','payrollPosted','sourceHashStatus','basePinStatus','pins','completeness','presentable','context','incidents','dependencies','trace','draft'];
@@ -65,7 +65,7 @@ async function reviewParsed(salaryValue,programmeValue,currentDraft,file){
  require(file.status==='proposal_draft'&&[file.approved,file.executable,file.payrollCalculated,file.payrollPosted].every(v=>v===false)&&file.sourceHashStatus==='declared_evidence_not_backup_revalidation'&&file.basePinStatus==='validated_model_snapshots_not_remote_authorization');
  require(Array.isArray(file.incidents)&&file.incidents.length===0,'PROGRAM_PREPARED_INCIDENTS','La preparación conserva incidencias. Revisá su fuente; no se cargó un programa parcial.');
  require(salaryExact(file.presentable,['master','programme'])&&file.presentable.master===false&&file.presentable.programme===true);
- const roleVersion=file.version===OWN_PROGRAM_PREPARED_VERSIONS[1],count=file.completeness;
+ const roleVersion=file.version!==OWN_PROGRAM_PREPARED_VERSIONS[0],count=file.completeness;
  require(salaryExact(count,[...completenessFields,...(roleVersion?['expectedTypedRules','inputDefinitions','consumedInputDefinitions']:[])])&&count.sourceDeclaredComplete===true&&count.masterContractComplete===true&&count.programmeContractComplete===true);
  require(integer(count.expectedDefinitions)&&count.expectedDefinitions>0&&count.expectedDefinitions<=OWN_PAYROLL_LIMITS.rules&&count.receivedDefinitions===count.expectedDefinitions&&integer(count.typedRules));
  require(Array.isArray(count.allAgreements)&&count.allAgreements.length>0&&count.allAgreements.length<=1000&&count.allAgreements.every(code)&&new Set(count.allAgreements).size===count.allAgreements.length&&salarySerialized([...count.allAgreements].sort())===salarySerialized(count.allAgreements));
@@ -91,7 +91,7 @@ async function reviewParsed(salaryValue,programmeValue,currentDraft,file){
   require(!roleVersion||roles.includes(definition.role));
   if(roleVersion&&definition.role==='payable')require(row.kind==='concept'&&row.nature!=='auxiliary');
   if(roleVersion&&definition.role==='dependency')require(row.kind==='auxiliary'&&row.nature==='auxiliary');
-  if(definition.quantity!==null)require(salaryExact(definition.quantity,['unit','stage','rounding','expression','sourceReference','sourceSha256'])&&row.kind==='concept'&&definition.quantity.unit===row.unit&&salaryHash(definition.quantity.sourceSha256)&&['exact','rounded'].includes(definition.quantity.stage)&&((definition.quantity.stage==='exact')===(definition.quantity.rounding===null)));
+  if(definition.quantity!==null)require(salaryExact(definition.quantity,['unit','stage','rounding','expression','sourceReference','sourceSha256'])&&row.kind==='concept'&&(file.version==='own-payroll-programme-source-preparation.v3'||definition.quantity.unit===row.unit)&&salaryHash(definition.quantity.sourceSha256)&&['exact','rounded'].includes(definition.quantity.stage)&&((definition.quantity.stage==='exact')===(definition.quantity.rounding===null)));
   definitions.set(identity,definition);
  }
  require(count.allAgreements.every(a=>[...definitions.values()].some(d=>d.catalogue.agreementCode===a)));

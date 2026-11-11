@@ -1,5 +1,5 @@
 import {encodePayrollPages} from './payroll-detail-export.js';
-import {ownReceiptBatch,ownReceiptSelf,ownReceiptSnapshot,ownReceiptType} from './own-payroll-receipt-model.js';
+import {ownReceiptBatch,ownReceiptSelf,ownReceiptSnapshot,ownReceiptType,verifiedOwnReceiptSelf,verifiedOwnReceiptSnapshot,ownReceiptVerifyHash} from './own-payroll-receipt-model.js';
 import {OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 import {OWN_PDF_INK as INK,OWN_PDF_MUTED as MUTED,OWN_PDF_STRONG as STRONG,OWN_PDF_TINT as TINT,ownPdfDateText,ownPdfDocument,ownPdfPeriodText,ownPdfTaxIdText,ownPdfText} from './own-payroll-pdf-kit.js';
 const UNSUPPORTED='El PDF no admite un carácter de la identidad o etiqueta original. No se reemplazó ni omitió el recibo.';
@@ -68,6 +68,7 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
  if(employer.length||technical.length){doc.columns(employer,technical,EDGES,{head:infoHead,headHeight:17});doc.y-=5;}else doc.y+=9;
  // State and origin of the document, kept together so a page never starts with a stray line.
  const notes=[
+  ...(record.totalReconciliation?[[`Neto de renglones: ${money(record.lineTotals.net)} · Conciliación: ${money(record.totalReconciliation.netDifferenceFromLines)} · Neto oficial: ${net}`,false,MUTED],['La conciliación conserva la diferencia del cierre; no agrega un haber ni un descuento.',false,MUTED]]:[]),
   ['La fecha declarada no acredita pago. Firma digital pendiente.',false,MUTED],
   [state==='approved'?'Disponibilidad revisada por otra persona.':'Preparación para revisión; aún no disponible para el agente.',true,INK],
   ...(params.legend?[[params.legend,false,MUTED]]:[]),
@@ -84,10 +85,12 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
  return doc.pages;
 }
 export async function createOwnReceiptPdf(value,{signal,preview=false,self=false,index=0}={}){
+ // Verify and render one private copy across every asynchronous boundary.
+ value=structuredClone(value);
  const pages=[];let records,params,sources,state,batchId;
- if(self){ownReceiptSelf(value);const item=value.items[index];if(!item)throw Error('Elegí un recibo propio vigente.');records=[item.record];params=item.params;sources=[item.source];state='approved';batchId=item.batchId;}
- else if(preview){ownReceiptSnapshot(value);records=value.records;params=value.params;sources=value.sources;state='prepared';}
- else{ownReceiptBatch(value);if(!value.permissions.canDownload)throw Error('La emisión no admite una descarga vigente.');records=value.snapshot.records;params=value.snapshot.params;sources=value.snapshot.sources;state=value.state;batchId=value.id;}
+ if(self){await verifiedOwnReceiptSelf(value);const item=value.items[index];if(!item)throw Error('Elegí un recibo propio vigente.');records=[item.record];params=item.params;sources=[item.source];state='approved';batchId=item.batchId;}
+ else if(preview){await verifiedOwnReceiptSnapshot(value);records=value.records;params=value.params;sources=value.sources;state='prepared';}
+ else{ownReceiptBatch(value);if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value.snapshot.version))await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);if(!value.permissions.canDownload)throw Error('La emisión no admite una descarga vigente.');records=value.snapshot.records;params=value.snapshot.params;sources=value.snapshot.sources;state=value.state;batchId=value.id;}
  if(!records.length)throw Error('No hay recibos en este alcance; no se inventó una liquidación en cero.');
  for(const [i,record]of records.entries()){signal?.throwIfAborted();pages.push(...ownReceiptPages(record,params,sources.find(s=>s.id===record.sourceGroupId),{state,batchId}));if(pages.length>8000)throw Error('El conjunto supera la capacidad de PDF. No se exportó una parte.');if(i%10===0)await new Promise(resolve=>setTimeout(resolve,0));}
  signal?.throwIfAborted();const bytes=encodePayrollPages(pages);await new Promise(resolve=>setTimeout(resolve,0));if(signal?.aborted){bytes.fill(0);signal.throwIfAborted();}return {bytes,recordCount:records.length,pageCount:pages.length};

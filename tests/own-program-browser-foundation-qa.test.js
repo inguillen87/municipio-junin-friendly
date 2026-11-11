@@ -16,6 +16,12 @@ test('run browser serves the complete real capture and engine graph before parit
  const assets=ownProgramBrowserAssets(name=>fs.readFileSync(new URL('../assets/'+name,import.meta.url)),entries);
  for(const name of [...entries,'own-agreement-working-time-model.js','own-agreement-working-time-program.js'])assert.ok(assets.has('/assets/'+name),name);
  for(const [route,body]of assets)assert.ok(body.equals(fs.readFileSync(new URL('..'+route,import.meta.url))));
+ // The split engine is served whole: a module missing from the graph would fail in the browser, not here.
+ for(const name of ['own-payroll-expression.js','own-payroll-quantity.js','own-payroll-special-methods.js','own-payroll-family-facts.js','own-payroll-family-tariffs.js'])assert.ok(assets.has('/assets/'+name),name);
+ assert.ok(assets.size<48,'the graph stays bounded');
+});
+test('a graph that keeps growing is stopped at the bound',()=>{
+ assert.throws(()=>ownProgramBrowserAssets(name=>bytes("import './m"+(Number(name.slice(1,-3))+1)+".js';"),['m0.js']),/PROGRAM_BROWSER_MODULE_LIMIT/);
 });
 test('fixture graph follows static import, side effect and export dependencies once, including cycles',()=>{
  const sources={'a.js':"import {x} from './b.js';import './c.js';export {y} from './d.js';export * from './e.js';",'b.js':"import './a.js';",'c.js':'','d.js':'','e.js':''},reads=[];

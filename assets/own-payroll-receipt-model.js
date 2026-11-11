@@ -1,3 +1,4 @@
+import {hasOwnOfficialReceipt,ownOfficialReceiptRecord,verifiedOwnOfficialReceiptEvidence} from './own-payroll-official-receipt-model.js';
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownReportQuery,ownReportFilters,emptyOwnReportFilters} from './own-payroll-report-model.js';
 import {OWN_CLOSE_NOMINAL,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
@@ -69,6 +70,10 @@ export function ownReceiptCommand(value){
 }
 
 export function ownReceiptRecord(record){
+ if(hasOwnOfficialReceipt(record))return ownOfficialReceiptRecord(record,ownReceiptLegacyRecord);
+ return ownReceiptLegacyRecord(record);
+}
+function ownReceiptLegacyRecord(record){
  const namespaced=record?.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION;
  need(salaryExact(record,['sourceGroupId','contractId','personId','registrationId','employeeNumber','name','dni','cuil','agreementCode','departmentCode','runId','liquidationVersion','precision','totals','concepts',...(namespaced?['namespaceVersion']:[])])&&[record.sourceGroupId,record.contractId,record.personId,record.registrationId,record.runId].every(salaryUuid)&&ownPayrollEmployeeNumber(record.employeeNumber)&&[record.agreementCode,record.departmentCode].every(code)&&text(record.name,3,160)&&typeof record.dni==='string'&&/^\d{5,12}$/.test(record.dni)&&typeof record.cuil==='string'&&/^\d{11}$/.test(record.cuil)&&Number.isSafeInteger(record.liquidationVersion)&&record.liquidationVersion>0&&Number.isInteger(record.precision)&&record.precision>=0&&record.precision<=8&&salaryExact(record.totals,OWN_CLOSE_TOTAL_KEYS)&&Array.isArray(record.concepts)&&record.concepts.length<=OWN_RECEIPT_MAX_CONCEPTS,'No se verificó la identidad propia o la copia financiera del recibo.');
  const seen=new Set(),sums=Object.fromEntries(OWN_CLOSE_TOTAL_KEYS.slice(0,4).map(key=>[key,rational(0n)]));
@@ -83,7 +88,8 @@ export function ownReceiptRecord(record){
  return record;
 }
 export function ownReceiptSnapshot(value){
- need(salaryExact(value,['version','params','sourceVersion','sources','records','recordCount','conceptCount','identityBasis','paymentDateBasis','signatureState','payrollPosted','paymentExecuted'])&&((value.version==='own-receipt-snapshot.v1'&&value.identityBasis==='native_registration_immutable')||(['own-receipt-snapshot.v2','own-receipt-snapshot.v3'].includes(value.version)&&value.identityBasis==='owned_registration_verified_at_capture'))&&salaryHash(value.sourceVersion)&&value.paymentDateBasis==='declared'&&value.signatureState==='pending'&&value.payrollPosted===false&&value.paymentExecuted===false,'No se verificó la copia de emisión y sus estados.');
+ const official=['own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value?.version);
+ need(salaryExact(value,['version','params','sourceVersion','sources','records','recordCount','conceptCount','identityBasis','paymentDateBasis','signatureState','payrollPosted','paymentExecuted',...(official?['economicConceptCount','omittedRowCount']:[])])&&((value.version==='own-receipt-snapshot.v1'&&value.identityBasis==='native_registration_immutable')||(['own-receipt-snapshot.v2','own-receipt-snapshot.v3','own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value.version)&&value.identityBasis==='owned_registration_verified_at_capture'))&&salaryHash(value.sourceVersion)&&value.paymentDateBasis==='declared'&&value.signatureState==='pending'&&value.payrollPosted===false&&value.paymentExecuted===false,'No se verificó la copia de emisión y sus estados.');
  const params=ownReceiptParams(value.params),groups=new Map(),identities=new Set();
  need(value.version!=='own-receipt-snapshot.v1'||!Object.hasOwn(params,'contracts'),'La selección exacta requiere una copia de emisión v2.');
  need(Array.isArray(value.sources)&&value.sources.length<=1000&&Array.isArray(value.records)&&value.records.length<=OWN_RECEIPT_MAX_RECORDS&&value.recordCount===value.records.length&&Number.isSafeInteger(value.conceptCount)&&value.conceptCount>=0&&value.conceptCount<=OWN_RECEIPT_MAX_CONCEPTS,'La emisión completa supera la capacidad o perdió documentos; no se exportará un subconjunto.');
@@ -92,22 +98,28 @@ export function ownReceiptSnapshot(value){
  }
  let concepts=0;const sourceCounts=new Map();
  for(const record of value.records){
-  ownReceiptRecord(record);need(value.version==='own-receipt-snapshot.v3'||!Object.hasOwn(record,'namespaceVersion'),'La emisión anterior no declara referencias separadas.');need(value.version!=='own-receipt-snapshot.v1'||code(record.employeeNumber),'La copia original v1 requiere un legajo numérico.');need(!params.contracts?.length||params.contracts.includes(record.contractId),'El recibo está fuera de la selección exacta revisada.');const source=groups.get(record.sourceGroupId);need(source,'Un recibo no pertenece a una fuente original verificada.');
+  ownReceiptRecord(record);need(!hasOwnOfficialReceipt(record)||official,'Los totales oficiales requieren una emisión explícita v4 o v5.');need(official||value.version==='own-receipt-snapshot.v3'||!Object.hasOwn(record,'namespaceVersion'),'La emisión anterior no declara referencias separadas.');need(value.version!=='own-receipt-snapshot.v1'||code(record.employeeNumber),'La copia original v1 requiere un legajo numérico.');need(!params.contracts?.length||params.contracts.includes(record.contractId),'El recibo está fuera de la selección exacta revisada.');const source=groups.get(record.sourceGroupId);need(source,'Un recibo no pertenece a una fuente original verificada.');
   const identity=source.period+':'+source.type+':'+record.contractId;need(!identities.has(identity),'Un contrato está repetido en el mismo período y tipo.');identities.add(identity);concepts+=record.concepts.length;sourceCounts.set(source.id,(sourceCounts.get(source.id)??0)+1);
   need(!(params.filters.employeeFrom||params.filters.employeeTo)||code(record.employeeNumber),'El rango numérico no puede ordenar un legajo no numérico. Elegí contratos exactos de la previa completa.');
   for(const [range,field] of [['employee','employeeNumber'],['agreement','agreementCode'],['department','departmentCode']])need((!params.filters[range+'From']||BigInt(record[field])>=BigInt(params.filters[range+'From']))&&(!params.filters[range+'To']||BigInt(record[field])<=BigInt(params.filters[range+'To'])),'El recibo está fuera de los límites inclusivos revisados.');
  }
  need(concepts===value.conceptCount&&value.sources.every(source=>(sourceCounts.get(source.id)??0)===source.selectedCount),'Faltan recibos o conceptos del conjunto completo.');
  need(value.version!=='own-receipt-snapshot.v3'||value.records.some(r=>r.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION),'La emisión v3 requiere una referencia separada conservada.');
+ if(official){
+  const officialRecords=value.records.filter(hasOwnOfficialReceipt),hasV5=officialRecords.some(record=>record.inputVersion==='own-payroll-input.v5');
+  need(officialRecords.length>0&&value.version===(hasV5?'own-receipt-snapshot.v5':'own-receipt-snapshot.v4'),'La versión de emisión no corresponde a sus cálculos originales.');
+  need(Number.isSafeInteger(value.economicConceptCount)&&value.economicConceptCount>=value.conceptCount&&value.economicConceptCount<=OWN_RECEIPT_MAX_CONCEPTS&&value.economicConceptCount===value.records.reduce((sum,record)=>sum+(hasOwnOfficialReceipt(record)?record.economicConceptCount:record.concepts.length),0)&&Number.isSafeInteger(value.omittedRowCount)&&value.omittedRowCount>=0&&value.omittedRowCount===officialRecords.reduce((sum,record)=>sum+record.omittedRowCount,0),'La emisión perdió renglones económicos o decisiones de impresión.');
+ }
  return value;
 }
 export function ownReceiptPreview(value){
  need(salaryExact(value,['version','scopeVersion','snapshot','snapshotSha256','permissions'])&&value.version==='own-receipt-preview.v1'&&salaryHash(value.scopeVersion)&&salaryHash(value.snapshotSha256)&&salaryExact(value.permissions,['canPrepare'])&&typeof value.permissions.canPrepare==='boolean','No se verificó la previa de emisión.');ownReceiptSnapshot(value.snapshot);return value;
 }
 export async function ownReceiptVerifyHash(value,expected){
- need(salaryHash(expected),'No se verificó la huella de emisión.');const actual=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(byte=>byte.toString(16).padStart(2,'0')).join('');need(actual===expected,'Cambió el contenido conservado de la emisión.');return value;
+ value=structuredClone(value);
+ need(salaryHash(expected),'No se verificó la huella de emisión.');const actual=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(byte=>byte.toString(16).padStart(2,'0')).join('');need(actual===expected,'Cambió el contenido conservado de la emisión.');if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value?.version))await verifiedOwnOfficialReceiptEvidence(value);return value;
 }
-export async function verifiedOwnReceiptPreview(value){ownReceiptPreview(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);return value;}
+export async function verifiedOwnReceiptPreview(value){value=structuredClone(value);ownReceiptPreview(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);return value;}
 export function ownReceiptBatch(value){
  need(salaryExact(value,['version','id','preparedAt','preparedBy','snapshot','snapshotSha256','state','sourceCurrent','review','permissions'])&&value.version==='own-receipt-batch.v1'&&salaryUuid(value.id)&&at(value.preparedAt)&&text(value.preparedBy,1,160)&&salaryHash(value.snapshotSha256)&&['prepared','approved','withdrawn'].includes(value.state)&&typeof value.sourceCurrent==='boolean'&&salaryExact(value.permissions,['canApprove','canWithdraw','canDownload'])&&Object.values(value.permissions).every(v=>typeof v==='boolean'),'No se verificó la emisión conservada.');ownReceiptSnapshot(value.snapshot);
  if(value.state==='prepared')need(value.review===null,'La preparación no tiene una aprobación implícita.');
@@ -136,3 +148,6 @@ export function ownReceiptSelf(value){
   contract??=item.record.contractId;person??=item.record.personId;const key=item.batchId+':'+item.source.id;need(contract===item.record.contractId&&person===item.record.personId&&!seen.has(key),'La consulta no pertenece exclusivamente a un agente.');seen.add(key);
  }return value;
 }
+
+export async function verifiedOwnReceiptSelf(value){value=structuredClone(value);ownReceiptSelf(value);await verifiedOwnOfficialReceiptEvidence(value);return value;}
+export async function verifiedOwnReceiptSnapshot(value){value=structuredClone(value);ownReceiptSnapshot(value);await verifiedOwnOfficialReceiptEvidence(value);return value;}

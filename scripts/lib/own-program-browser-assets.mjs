@@ -7,7 +7,9 @@ export function ownProgramBrowserAssets(readAsset, entries=['own-payroll-program
  function visit(name){
   assert.match(name,/^[a-z0-9]+(?:-[a-z0-9]+)*\.js$/,'PROGRAM_BROWSER_LOCAL_ASSET_REQUIRED');
   const route='/assets/'+name;if(assets.has(route))return;
-  assert.ok(assets.size<32,'PROGRAM_BROWSER_MODULE_LIMIT');
+  // A bound against a runaway graph, not a budget. The engine was split into its own modules (expression, quantities, special
+  // methods, family facts and tariffs, official totals, row emission): run model + engine went from 22 to 33 files.
+  assert.ok(assets.size<48,'PROGRAM_BROWSER_MODULE_LIMIT');
   const bytes=readAsset(name);assert.ok(Buffer.isBuffer(bytes),'PROGRAM_BROWSER_BYTES_REQUIRED');
   const source=bytes.toString('utf8');assert.ok(!/\bimport\s*\(/.test(source),'PROGRAM_BROWSER_STATIC_IMPORTS_REQUIRED');assets.set(route,bytes);
   const imports=/\bimport\s+(?:[^'";]*?\sfrom\s*)?['"]([^'"]+)['"]|\bexport\s+(?:\*|\{[^}]*\})\s+from\s*['"]([^'"]+)['"]/g;

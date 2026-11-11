@@ -1,5 +1,6 @@
 import {salarySerialized,SALARY_UNITS} from './native-salary-catalog-model.js';
-import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
+import {ownHistoricalRunResult,ownHistoricalNamespaced,verifiedHistoricalCapture} from './own-payroll-historical-result-model.js';
 import {decimal,exactSubtract,quantize} from './own-payroll-exact.js';
 import {ownLiquidationDetail,verifiedOwnLiquidationDetail} from './own-payroll-liquidation-model.js';
 
@@ -10,7 +11,7 @@ const difference=(a,b)=>quantize(exactSubtract(decimal(b),decimal(a)),{precision
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const sourceProof=c=>[c.id,c.key,c.bodySha256,c.algorithmSha256,c.payloadSha256,c.createdAt,c.saved.inputSha256,c.saved.resultSha256,c.saved.recordedAt];
-const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(input.version!=='own-payroll-input.v2'||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
+const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(!ownHistoricalNamespaced(input)||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
 
 function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAfter=null){
  const present=!!before&&!!after,compatible=present&&before.nature===after.nature&&before.unit===after.unit,reasons=[];
@@ -29,14 +30,14 @@ function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAft
 // A contract UUID, never a converted employee number, joins the two immutable
 // results. Missing participation/concept is not an amount of zero.
 export function ownComparison(base,target,details=null){
- const b=ownRunWorkspaceResult(base),t=ownRunWorkspaceResult(target);
+ const b=ownHistoricalRunResult(base),t=ownHistoricalRunResult(target);
  need(b&&t,'Elegí dos resultados calculados y completos. Una captura pendiente no se compara.');
  need(base.id!==target.id&&base.key!==target.key,'Elegí dos cálculos distintos.');
  need(b.input.liquidationType===t.input.liquidationType,'Las liquidaciones deben ser del mismo tipo.');
  if(details){need(Array.isArray(details)&&details.length===2,'Falta el ámbito autorizado de ambas liquidaciones.');for(const [i,d]of details.entries()){ownLiquidationDetail(d);need(salarySerialized(d.capture)===salarySerialized(i===0?base:target),'La consulta autorizada no corresponde a su cálculo.');}need(details[0].scopeVersion===details[1].scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');}
  else need(base.body.scopeVersion===target.body.scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');
  for(const [capture,value]of [[base,b],[target,t]])need(value.input.period===capture.body.period&&value.input.liquidationType===capture.body.liquidationType&&salarySerialized(value.input.selection)===salarySerialized(capture.body.selection),'El resultado no corresponde al período, tipo y alcance de su captura.');
- const namespaced=[b.input.version,t.input.version].includes('own-payroll-input.v2'),rowKey=r=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+ const namespaced=[b.input,t.input].some(ownHistoricalNamespaced),rowKey=r=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
  const people=new Set([...b.result.employeeTotals,...t.result.employeeTotals].map(e=>e.contractId)),before=new Map(b.result.rows.map(r=>[rowKey(r),r])),after=new Map(t.result.rows.map(r=>[rowKey(r),r])),keys=new Set([...before.keys(),...after.keys()]);
  need(keys.size<=OWN_COMPARISON_MAX_ROWS&&people.size*4<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
  const baseTotals=new Map(b.result.employeeTotals.map(e=>[e.contractId,e])),targetTotals=new Map(t.result.employeeTotals.map(e=>[e.contractId,e])),totals=[];
@@ -52,7 +53,7 @@ export function ownComparison(base,target,details=null){
  if(base.algorithmSha256!==target.algorithmSha256)warnings.push('Cambió la versión del algoritmo. Revisá las fuentes antes de interpretar diferencias.');
  return freeze({base:structuredClone(base),target:structuredClone(target),details:details?structuredClone(details):null,rows,totals,warnings,employees:people.size,proof:salarySerialized([sourceProof(base),sourceProof(target),details?.map(d=>[d.scopeVersion,d.stateVersion])??null])});
 }
-export async function verifiedOwnComparison(base,target){await verifiedWorkspaceCapture(base);await verifiedWorkspaceCapture(target);return ownComparison(base,target);}
+export async function verifiedOwnComparison(base,target){await verifiedHistoricalCapture(base);await verifiedHistoricalCapture(target);return ownComparison(base,target);}
 export async function verifiedOwnLiquidationComparison(base,target){await verifiedOwnLiquidationDetail(base);await verifiedOwnLiquidationDetail(target);return ownComparison(base.capture,target.capture,[base,target]);}
 
 export function ownComparisonView(model,{view='concepts',change='all',search='',page=1,pageSize=25}={}){

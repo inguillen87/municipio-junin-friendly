@@ -1,3 +1,4 @@
+import {ownOfficialCloseSnapshot} from './own-payroll-official-snapshot-model.js';
 import {decimal, rational, exactAdd, exactSubtract, quantize} from './own-payroll-exact.js';
 import {ownClosedJurisdiction, ownJurisdictionLabel} from './own-payroll-jurisdiction-model.js';
 import {OWN_RUN_TYPES} from './own-payroll-run-workspace-model.js';
@@ -6,9 +7,9 @@ import {salarySerialized} from './native-salary-catalog-model.js';
 const keys = ['remuneration','non_remuneration','deduction','employer_contribution','gross','net'];
 const labels = ['Remunerativo','No remunerativo','Retenciones','Aportes patronales','Bruto','Neto'];
 const empty = () => Object.fromEntries(keys.map(key => [key,rational(0n)]));
-const addTotals = items => {
+const addTotals = (items, field = 'totals') => {
   const totals = empty();
-  for (const {employee} of items) for (const key of keys) totals[key] = exactAdd(totals[key],decimal(employee.totals[key]));
+  for (const {employee} of items) for (const key of keys) totals[key] = exactAdd(totals[key],decimal((employee[field]??employee.totals)[key]));
   return totals;
 };
 
@@ -16,7 +17,10 @@ const addTotals = items => {
 // Original concepts and dimensions only; no current roster or legacy service.
 export function ownReportStatement(chosen, sources, details, grouping) {
   const precision = chosen.reduce((n,item) => Math.max(n,item.employee.precision),0);
-  const original = addTotals(chosen), concepts = empty(), selectedByGroup = new Map();
+  const officialSources=sources.filter(s=>['own-close-snapshot.v4','own-close-snapshot.v5'].includes(s.snapshot.version));
+  for(const source of officialSources)ownOfficialCloseSnapshot(source.snapshot);
+  const official=chosen.some(item=>item.employee.totalReconciliation!=null);
+  const original = addTotals(chosen), lineOriginal=addTotals(chosen,'lineTotals'), concepts = empty(), selectedByGroup = new Map();
   for (const {source,employee} of chosen) {
     const ids = selectedByGroup.get(source.groupId) ?? new Set();
     ids.add(employee.contractId); selectedByGroup.set(source.groupId,ids);
@@ -30,7 +34,9 @@ export function ownReportStatement(chosen, sources, details, grouping) {
   const exact = value => quantize(value,{precision,mode:'exact'}).amount;
   const reconciliation = keys.map((key,i) => [labels[i],chosen.length?exact(original[key]):null,
     chosen.length?exact(concepts[key]):null,chosen.length?exact(exactSubtract(concepts[key],original[key])):null]);
-  if (chosen.length && reconciliation.some(row => decimal(row[3]).n !== 0n)) throw Error('El informe no concilia con los conceptos originales. No se generó un expediente parcial.');
+  if(chosen.length&&keys.some(key=>exact(exactSubtract(concepts[key],lineOriginal[key]))!==exact(rational(0n))))throw Error('El informe no concilia con los renglones originales conservados.');
+  if (!official && chosen.length && reconciliation.some(row => decimal(row[3]).n !== 0n)) throw Error('El informe no concilia con los conceptos originales. No se generó un expediente parcial.');
+  const originalEvidence=official?chosen.map(({source,employee:e})=>({contractId:e.contractId,runId:e.runId,sourceGroupId:source.groupId,sourceSha256:source.snapshotSha256,totals:structuredClone(e.totals),lineTotals:structuredClone(e.lineTotals??e.totals),totalReconciliation:structuredClone(e.totalReconciliation??null)})):null;
   const groups = new Map();
   for (const item of chosen) {
     const e = item.employee, jurisdiction = ownJurisdictionLabel(ownClosedJurisdiction(e,item.source.snapshot.version));
@@ -50,11 +56,11 @@ export function ownReportStatement(chosen, sources, details, grouping) {
   const partialGroups = selectedSources.filter(source=>!source.snapshot.populationComplete).length;
   const cutGroups = selectedSources.filter(source=>selectedByGroup.get(source.groupId).size!==source.snapshot.employeeCount).length;
   const missingClosures = details.filter(detail=>!detail.groups.some(group=>group.state==='closed')).length;
-  return {rows,cover:{version:'own-payroll-statement.v1',
+  return {rows,cover:{version:official?'own-payroll-statement.v2':'own-payroll-statement.v1',...(official?{originalEvidence}:{}),
     totals:reconciliation.map(row=>[row[0],row[1]]),reconciliation,
     coverage:[['Grupos aportando al alcance',selectedSources.length],['Grupos con cierre original parcial',partialGroups],
       ['Grupos reducidos por filtros explícitos',cutGroups],['Períodos / tipos sin grupo cerrado',missingClosures]],
-    status:chosen.length?'Conceptos y totales originales conciliados exactamente':'Sin participaciones para el alcance elegido; no se presume cero',
+    status:chosen.length?(official?'Totales oficiales y renglones conciliados con sus diferencias originales conservadas. Diferencia de la tabla: renglones menos total oficial.':'Conceptos y totales originales conciliados exactamente'):'Sin participaciones para el alcance elegido; no se presume cero',
     populationNotice:partialGroups||cutGroups||missingClosures
       ? 'El alcance contiene cobertura parcial o períodos sin cierre. Este informe no certifica el cierre de toda la nómina municipal.'
       : 'La conciliación corresponde al alcance elegido y a sus fuentes cerradas. No certifica por sí sola la cobertura de toda la nómina municipal.'}};

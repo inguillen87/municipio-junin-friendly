@@ -9,3 +9,4 @@ export function exactProgram(){
  p.rules.find(r=>r.code==='900').expression.left.right.value='4';
  p.totalsPrecision=8;return p;
 }
+
