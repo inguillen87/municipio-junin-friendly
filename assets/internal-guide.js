@@ -79,9 +79,9 @@
         ['#mcTab-otras', 'Archivos y lotes anteriores', 'Importar planilla o TXT/CSV, preparte de relojes, y anular o corregir lotes ya cargados.']
       ],
       explain: [
-        ['.boundary', 'Límite operativo', 'Esta etapa no modifica GRH, cálculo de haberes ni movimientos laborales.'],
-        ['#entrySection', 'Carga individual o masiva', 'Ambos modos usan el mismo contrato, límites y validaciones determinísticas.'],
-        ['#batchesTitle', 'Maker-checker', 'La preparación, el envío y la decisión quedan separados y auditados.']
+        ['.boundary', 'Qué hace esta pantalla', 'Acá se cargan y se aprueban novedades. No cambia GRH ni liquida: el cálculo se hace después, en Liquidaciones.'],
+        ['#entrySection', 'De a una o de a muchas', 'Individual, rápida, planilla o archivo: todas pasan los mismos controles antes de guardar.'],
+        ['#batchesTitle', 'Dos personas', 'Una persona prepara el lote y otra lo aprueba o lo rechaza. Queda registro de cada paso.']
       ]
     },
     actions: {

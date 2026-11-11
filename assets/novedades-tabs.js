@@ -2,7 +2,7 @@
 import { mountSectionTabs } from './section-tabs.js';
 import { GRH_CONCEPTS, CONCEPT_GROUPS, conceptInfo, conceptLabel } from './grh-concept-dictionary.js';
 const start = () => {
-  const host = document.querySelector('nav[data-quickbar="novedades"]');
+  const host = document.querySelector('[data-novedades-tabs]');
   if (!host || document.querySelector('.mc-section-tabs')) return;
   const tabs = mountSectionTabs({
     host, storageKey: 'mc.novedades.tab', label: 'Secciones de Novedades',

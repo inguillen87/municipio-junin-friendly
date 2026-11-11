@@ -42,15 +42,20 @@ test('Inicio shortcuts open real pages and payroll tasks that exist', () => {
   }
 });
 
-test('Novedades quickbar targets the entry modes and sections of its page', () => {
+test('Novedades has one navigation row: its tabs, no quick-action bar and no repeated shortcuts', () => {
   const page = fs.readFileSync('novedades-nomina.html', 'utf8');
-  assert.match(page, /<nav data-quickbar="novedades"><\/nav>/);
-  for (const action of QUICKBARS.novedades.actions) for (const selector of [action.target, action.reveal].filter(Boolean)) {
-    const id = /^#([A-Za-z]+)$/.exec(selector)?.[1], mode = /value="([a-z]+)"/.exec(selector)?.[1];
-    if (id) assert.ok(page.includes(`id="${id}"`), selector);
-    else if (mode) assert.ok(page.includes(`name="sourceMode" value="${mode}"`), selector);
-    else assert.fail(selector);
-  }
+  assert.equal(QUICKBARS.novedades, undefined, 'the tabs already lead to every task of the screen');
+  assert.doesNotMatch(page, /data-quickbar=|workspace-quickbar\.(js|css)/);
+  assert.match(page, /<div data-novedades-tabs><\/div>/);
+  assert.match(fs.readFileSync('assets/novedades-tabs.js', 'utf8'), /document\.querySelector\('\[data-novedades-tabs\]'\)/);
+  // The page head only offers what comes after loading; fixed novelties, earlier batches and the clock report are tabs.
+  const head = /<section class="page-head"[\s\S]*?<\/section>/.exec(page)[0];
+  assert.deepEqual([...head.matchAll(/<a class="button" href="([^"]+)">([^<]+)<\/a>/g)].map(m => [m[1], m[2]]), [['nomina-control.html#calculo', 'Ir a Calcular'], ['nomina-control.html#reportes', 'Consultar reportes']]);
+  assert.doesNotMatch(head, /<button/);
+  // Whoever lands on the older individual form gets a way back to the everyday flow, and plain names for its actions.
+  assert.match(page, /<button class="button" type="button" data-novelty-jump="ownNativeBulkNovelties">Ir a Cargar novedades<\/button>/);
+  assert.match(page, /id="prepareButton"[^>]*>Guardar lote<\/button>/);
+  assert.doesNotMatch(page, /lote trazable|Modo forzado|lote restringido|padrón propio/);
 });
 
 test('quick actions are grouped and wrap: no row scrolls sideways, and a compact dock keeps the same groups', async () => {

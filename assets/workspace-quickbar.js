@@ -61,19 +61,7 @@ export const QUICKBARS = Object.freeze({
       { text: 'Centro de acciones', run: 'link', href: 'centro-acciones.html', group: 'control', icon: 'check' },
     ],
   },
-  novedades: {
-    label: 'Acciones rápidas de Novedades',
-    actions: [
-      { text: 'Preparte de relojes', run: 'open', target: '#attendancePreparte', group: 'load', icon: 'clock' },
-      { text: 'Carga rápida', run: 'click', target: 'input[name="sourceMode"][value="agile"]', reveal: '#entrySection', group: 'load', icon: 'plus' },
-      { text: 'Planilla', run: 'click', target: 'input[name="sourceMode"][value="sheet"]', reveal: '#entrySection', group: 'load', icon: 'grid' },
-      { text: 'TXT / CSV', run: 'click', target: 'input[name="sourceMode"][value="bulk"]', reveal: '#entrySection', group: 'load', icon: 'upload' },
-      { text: 'Buscar legajo', run: 'click', target: '#pickLegajoButton', group: 'find', icon: 'search' },
-      { text: 'Validar y previsualizar', run: 'click', target: '#preflightButton', kind: 'primary', group: 'manage', icon: 'check' },
-      { text: 'Lotes y decisiones', run: 'scroll', target: '#batchesTitle' },
-      { text: 'Novedades fijas', run: 'open', target: '#fixedNovelties' },
-    ],
-  },
+  // Novedades no lleva barra de acciones: sus tres pestañas ya son el camino a cada tarea (assets/novedades-tabs.js).
   ausentismo: {
     label: 'Acciones rápidas de Ausentismo',
     actions: [
