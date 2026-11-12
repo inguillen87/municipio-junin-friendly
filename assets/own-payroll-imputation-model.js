@@ -82,8 +82,16 @@ const exactSum=(amounts,precision)=>quantize(amounts.reduce((total,a)=>exactAdd(
 
 // An allocation of stored money, never another evaluation of salary rules.
 // Every concept has one disposition, including auxiliary values and incidents.
-export function calculateImputation(source,{adjustments=null}={}){
- const v=imputationSource(source),s=v.group.snapshot,c=v.configuration,official=IMPUTATION_OFFICIAL_SNAPSHOTS.includes(s.version);
+// `calculateImputation` es el resultado v1, el mismo que calcula la base (own_imputation_allocate_v1): la previa del
+// servidor se coteja contra él y no cambia. `calculateOfficialImputation` es la mitad en JavaScript del contrato v2 para
+// cierres con total oficial; hasta que la base calcule lo mismo, la pantalla lo usa sólo para mostrar.
+export function calculateImputation(source){return allocate(source,undefined);}
+export function calculateOfficialImputation(source,{adjustments}={}){
+ need(IMPUTATION_OFFICIAL_SNAPSHOTS.includes(source?.group?.snapshot?.version),'El cierre no tiene total oficial.');
+ return allocate(source,adjustments??null);
+}
+function allocate(source,adjustments){
+ const v=imputationSource(source),s=v.group.snapshot,c=v.configuration,official=adjustments!==undefined;
  const configuration=c.definition?accountingDefinition(c.definition):{mappings:[],assignments:[]};
  const mappings=intervalIndex(configuration.mappings,mappingScope),assignments=intervalIndex(configuration.assignments,r=>assignmentScope(r.contractId,r.conceptCode));
  const employees=new Map(s.employees.map(e=>[id(e.contractId),e])),dates=new Map(v.dateSources.map(d=>[id(d.runId),d.body.liquidationDate??null]));
@@ -158,11 +166,12 @@ export function imputationAdjustmentSummary(result){
  return {count:pending.length,employees:new Set(pending.map(r=>id(r.contractId))).size,net:result.adjustmentTotalEffects.net,
   byKind:Object.keys(IMPUTATION_ADJUSTMENT_KINDS).filter(k=>byKind.has(k)).map(k=>{const v=byKind.get(k);return {kind:v.kind,label:v.label,count:v.count,amount:adjustmentMoney(v.cents)};})};
 }
-export async function verifiedImputation(source){
+export async function verifiedImputation(source){await verifiedImputationSource(source);return calculateImputation(source);}
+/** Resultado v2 de un cierre con total oficial. Los ajustes se derivan del recibo original ya verificado, nunca de datos
+ *  que elija quien llama. */
+export async function verifiedOfficialImputation(source){
  await verifiedImputationSource(source);
- // Los ajustes se derivan del recibo original ya verificado, nunca de datos que elija quien llama.
- const official=IMPUTATION_OFFICIAL_SNAPSHOTS.includes(source?.group?.snapshot?.version);
- return calculateImputation(source,official?{adjustments:await deriveAccountingAdjustmentCandidate(source.group)}:{});
+ return calculateOfficialImputation(source,{adjustments:await deriveAccountingAdjustmentCandidate(source.group)});
 }
 
 export function imputationIncidentCsv(result){
