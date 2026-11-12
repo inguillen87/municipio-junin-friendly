@@ -1,17 +1,70 @@
 name: Own bank accounts
 on:
   pull_request:
-    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+    paths: ['scripts/lib/ci-tested-build.mjs', 'tests/ci-tested-build.test.js', 'scripts/own-art-tested-build.mjs', 'tests/own-art-tested-build.test.js', '.github/workflows/own-art.yml', 'assets/release-status-model.js', 'package.json', 'package-lock.json', '.nvmrc', 'assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
   push:
     branches: ['master']
-    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+    paths: ['scripts/lib/ci-tested-build.mjs', 'tests/ci-tested-build.test.js', 'scripts/own-art-tested-build.mjs', 'tests/own-art-tested-build.test.js', '.github/workflows/own-art.yml', 'assets/release-status-model.js', 'package.json', 'package-lock.json', '.nvmrc', 'assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/migrations/151-*', 'scripts/*own-bank-payment-channel*', 'scripts/lib/own-bank-payment-channel-installation.mjs', 'tests/own-bank-payment-channel.test.js', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
 permissions:
   contents: read
 concurrency:
   group: own-bank-accounts-${{ github.ref }}
   cancel-in-progress: true
+env:
+  ART_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
+  tested_build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      manifest_sha: ${{ steps.custody.outputs['manifest-sha'] }}
+      artifact_id: ${{ steps.shared_upload.outputs['artifact-id'] }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Refuse ambient database and optional local test inputs
+        run: node scripts/lib/ci-tested-build.mjs preflight own-bank-accounts
+      - name: Complete original general tests and build once for this matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee "$RUNNER_TEMP/ci-tested-build-own-bank-accounts.log"
+      - name: Seal tested public bytes with exact source and current-run identity
+        id: custody
+        run: node scripts/lib/ci-tested-build.mjs create own-bank-accounts
+      - name: Upload immutable current-run tested public bytes
+        id: shared_upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-tested-public-own-bank-accounts-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/ci-tested-public-own-bank-accounts/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 5
+      - name: Require the immutable uploaded artifact identifier
+        shell: bash
+        env:
+          CI_BUILD_ARTIFACT_ID: ${{ steps.shared_upload.outputs['artifact-id'] }}
+        run: |
+          set -euo pipefail
+          [[ "$CI_BUILD_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+      - name: Preserve complete general build output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-tested-build-own-bank-accounts-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/ci-tested-build-own-bank-accounts.log
+          if-no-files-found: warn
+          retention-days: 5
   bank-accounts:
+    needs: tested_build
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -27,6 +80,9 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
+      - name: Fail closed when the full-suite producer did not succeed
+        if: ${{ always() && (needs.tested_build.result != 'success' || cancelled()) }}
+        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -35,7 +91,25 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - name: Require exact producer outputs before downloading
+        shell: bash
+        env:
+          CI_BUILD_ARTIFACT_ID: ${{ needs.tested_build.outputs.artifact_id }}
+          CI_BUILD_MANIFEST_SHA256: ${{ needs.tested_build.outputs.manifest_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CI_BUILD_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CI_BUILD_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+      - name: Download only the immutable artifact emitted by this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.tested_build.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/ci-tested-public-own-bank-accounts
+      - name: Verify exact source, runtime, run and every public byte before use
+        env:
+          CI_BUILD_MANIFEST_SHA256: ${{ needs.tested_build.outputs.manifest_sha }}
+        run: node scripts/lib/ci-tested-build.mjs verify own-bank-accounts
       - run: npx playwright install --with-deps chromium
       - name: Prepare isolated databases and restricted runtime
         env:

@@ -72,8 +72,12 @@ test('the single canonical 188 circuit uses explicit CI transport and exact head
 
 test('readiness remains enabled without injecting periodic health clients during the guarded QA interval',()=>{
  const validate=candidate=>{
+  // Associate the health probe with the PG consumer, not the build producer.
+  const pgJob=/\n  verify:\n([\s\S]*?)(?=\n  [A-Za-z_][A-Za-z0-9_-]*:\n|$)/.exec(candidate)?.[1];
+  assert.ok(pgJob,'PG_VERIFY_JOB_REQUIRED');candidate=pgJob;
+
   const seconds=flag=>{const m=new RegExp('--'+flag+' ([1-9][0-9]*)(s|m|h)\\b').exec(candidate);assert.ok(m,'HEALTH_DURATION_REQUIRED:'+flag);return Number(m[1])*({s:1,m:60,h:3600}[m[2]]);};
-  const jobSeconds=Number(/timeout-minutes: ([1-9][0-9]*)/.exec(candidate)?.[1])*60;
+  const jobSeconds=Number(/^    timeout-minutes: ([1-9][0-9]*)$/m.exec(candidate)?.[1])*60;
   assert.ok(Number.isSafeInteger(jobSeconds)&&jobSeconds>0);
   assert.match(candidate,/--health-cmd "pg_isready -U postgres -d own_payroll_run_qa"/);
   assert.doesNotMatch(candidate,/--no-healthcheck|--health-cmd (?:none|NONE)/);
@@ -83,6 +87,13 @@ test('readiness remains enabled without injecting periodic health clients during
   assert.ok(seconds('health-timeout')>0);assert.match(candidate,/--health-retries [1-9][0-9]*\b/);
  };
  validate(workflow);
+  // Keep producer 45 min and health 1 h while only the PG deadline becomes 61 min.
+  const longerConsumer=workflow.replace(/(\n  verify:\n[\s\S]*?\n    timeout-minutes: )45(?=\n)/,(_whole,prefix)=>prefix+'61');
+  assert.notEqual(longerConsumer,workflow,'PG_CONSUMER_DEADLINE_MUTATION_REQUIRED');
+  assert.match(longerConsumer,/\n  tested_build:\n[\s\S]*?\n    timeout-minutes: 45\n/);
+  assert.match(longerConsumer,/--health-interval 1h\b/);
+  assert.throws(()=>validate(longerConsumer),/PERIODIC_HEALTH_CLIENT_INSIDE_QA_WINDOW/);
+
  assert.throws(()=>validate(workflow.replace('--health-interval 1h','--health-interval 5s')),/PERIODIC_HEALTH_CLIENT_INSIDE_QA_WINDOW/);
  assert.throws(()=>validate(workflow.replace(/--health-cmd "[^"]+"/,'--no-healthcheck')),{code:'ERR_ASSERTION'});
 });

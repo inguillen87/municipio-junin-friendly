@@ -16,7 +16,18 @@ test('190 CI has disposable17/18 services, exact source, pinned tools and no fai
  assert.equal((workflow.match(/NODE_OPTIONS: --import \.\/scripts\/lib\/project-chromium\.mjs/g)||[]).length,1);assert.ok(workflow.indexOf('mkdir -p verification')<workflow.indexOf('node scripts/install-project-chromium.mjs'));assert.ok(workflow.indexOf('--purpose=release-verification')<workflow.indexOf(commands[0]));
 });
 test('startup health stays active without adding a background SQL client during a guarded run',()=>{
- const check=value=>{const duration=name=>{const m=new RegExp('--'+name+' ([1-9][0-9]*)(s|m|h)\\b').exec(value);assert.ok(m);return Number(m[1])*({s:1,m:60,h:3600}[m[2]]);},deadline=Number(/timeout-minutes: ([1-9][0-9]*)/.exec(value)?.[1])*60;assert.match(value,/--health-cmd "pg_isready -U postgres -d own_payroll_run_qa"/);assert.ok(duration('health-start-interval')<=duration('health-start-period'));assert.ok(duration('health-start-period')<=60);assert.ok(duration('health-interval')>deadline,'PERIODIC_HEALTH_CLIENT_INSIDE_QA');assert.ok(duration('health-timeout')>0);assert.match(value,/--health-retries [1-9][0-9]*/);};check(workflow);assert.throws(()=>check(workflow.replace('--health-interval 1h','--health-interval 5s')),/PERIODIC_HEALTH_CLIENT_INSIDE_QA/);
+ const check=value=>{
+  // Associate the health probe with the PG consumer, not the build producer.
+  const pgJob=/\n  verify:\n([\s\S]*?)(?=\n  [A-Za-z_][A-Za-z0-9_-]*:\n|$)/.exec(value)?.[1];
+  assert.ok(pgJob,'PG_VERIFY_JOB_REQUIRED');value=pgJob;
+  const duration=name=>{const m=new RegExp('--'+name+' ([1-9][0-9]*)(s|m|h)\\b').exec(value);assert.ok(m);return Number(m[1])*({s:1,m:60,h:3600}[m[2]]);},deadline=Number(/^    timeout-minutes: ([1-9][0-9]*)$/m.exec(value)?.[1])*60;assert.match(value,/--health-cmd "pg_isready -U postgres -d own_payroll_run_qa"/);assert.ok(duration('health-start-interval')<=duration('health-start-period'));assert.ok(duration('health-start-period')<=60);assert.ok(duration('health-interval')>deadline,'PERIODIC_HEALTH_CLIENT_INSIDE_QA');assert.ok(duration('health-timeout')>0);assert.match(value,/--health-retries [1-9][0-9]*/);};check(workflow);
+  // Keep producer 45 min and health 1 h while only the PG deadline becomes 61 min.
+  const longerConsumer=workflow.replace(/(\n  verify:\n[\s\S]*?\n    timeout-minutes: )45(?=\n)/,(_whole,prefix)=>prefix+'61');
+  assert.notEqual(longerConsumer,workflow,'PG_CONSUMER_DEADLINE_MUTATION_REQUIRED');
+  assert.match(longerConsumer,/\n  tested_build:\n[\s\S]*?\n    timeout-minutes: 45\n/);
+  assert.match(longerConsumer,/--health-interval 1h\b/);
+  assert.throws(()=>check(longerConsumer),/PERIODIC_HEALTH_CLIENT_INSIDE_QA/);
+  assert.throws(()=>check(workflow.replace('--health-interval 1h','--health-interval 5s')),/PERIODIC_HEALTH_CLIENT_INSIDE_QA/);
 });
 test('artifacts preserve actual synthetic results, failure and UI evidence without private folders or SQL uploads',()=>{
  assert.match(workflow,/if: always\(\)/);assert.match(workflow,/retention-days: 5/);const block=workflow.slice(workflow.indexOf('          path: |')),files=[...block.matchAll(/^            ([^\n]+)$/gm)].map(m=>m[1]);assert.deepEqual(files,['verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/*.json','verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/*failure.txt','verification/owner-program-pg${{ matrix.pg }}-${{ matrix.baseline }}/*.png','verification/release-chromium-157.0.8098.0/installation.json']);assert.doesNotMatch(block,/\.handoff|\.private|\.sql\b|\.gz|\.ogg|verification\/\*\*/);

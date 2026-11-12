@@ -23,3 +23,5 @@
 @keyframes onv-pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
 @media(max-width:760px){.own-novelties-picker{grid-template-columns:1fr}.own-novelties-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.own-novelties-step-n,.own-novelties-chip{animation:none}}
+.own-novelties-extras{font-size:.86rem;line-height:1.45;color:#3f5b60;min-width:12rem;max-width:26rem;overflow-wrap:anywhere}.own-novelties-extras span{display:block}.own-novelties-extras span+span{margin-top:2px}
+.own-novelties label>small{font-weight:400;color:#3f5b60;line-height:1.4}

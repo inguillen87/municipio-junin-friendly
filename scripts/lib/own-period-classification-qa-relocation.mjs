@@ -12,7 +12,7 @@ export const OWN_PERIOD_CLASSIFICATION_QA_FIXTURE_CHAIN='legacy-native-payroll-w
 const files=Object.freeze({
  'scripts/lib/own-period-participation-installation.mjs':'2274e017f769ea4b490de36cb473360c26fdd7104fe528bf4fac8e669755b713',
  'scripts/lib/noelia-payroll-circuit-qa.mjs':'5884c679649c5614fd3015dbc9bf3a730452763ed619441f4a0520e17b79c6d0',
- 'scripts/verify-salary-auxiliary-namespace.mjs':'c497249eebf71900e0e68ae1e7f2980a0e9634569615c83f4f3a5ad545795e2b',
+ 'scripts/verify-salary-auxiliary-namespace.mjs':'9634e7ff3136be4bf131abadbbe3758489c5c74368629ddedc5bba64ce530cec',
  'scripts/verify-own-salary-seniority.mjs':'5d0dd47d5f0a5365938c412f63ac0853bb3caf5335edbf4812d76a88aabeef34',
  'scripts/verify-own-period-participation.mjs':'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877',
  'scripts/lib/qa-lock-observation.mjs':'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9',

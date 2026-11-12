@@ -2,7 +2,7 @@ import { normalizePayrollExpression, payrollExpressionUnit, evaluatePayrollExpre
 import { decimal, rational, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
 import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
 import {ownPayrollFamilyFacts} from './own-payroll-family-facts.js';
-import {ownPayrollFamilyTariffs,familyTariffInputFields,normalizeFamilyTariffCapture,createFamilyTariffInputResolver} from './own-payroll-family-tariffs.js';
+import {ownPayrollFamilyTariffs,familyTariffInputFields,normalizeFamilyTariffCapture,createFamilyTariffInputResolverFactory,familyTariffPolicyVersionCompatible} from './own-payroll-family-tariffs.js';
 
 export const OWN_PAYROLL_INPUT_VERSION = 'own-payroll-input.v1';
 export const OWN_PAYROLL_RESULT_VERSION = 'own-payroll-result.v1';
@@ -54,7 +54,7 @@ export function normalizeOwnPayrollInput(input) {
   }).sort((a, b) => order(a.contractId, b.contractId)); unique(employees.map(e => e.contractId));
   const rules = normalizeOwnPayrollRules(input.rules, { namespaced: input.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION, typedConditions });
   const familyTariffCapture=ownPayrollFamilyTariffs(input)?normalizeFamilyTariffCapture(input.familyTariffCapture,employees,input.period,input.liquidationType):null;
-  if(familyTariffCapture)require(familyTariffCapture.policies.every(p=>p.version===input.familyTariffsVersion),'FAMILY_TARIFF_VERSION_MISMATCH','La captura debe conservar la versión de la política declarada.');
+  if(familyTariffCapture)require(familyTariffCapture.policies.every(p=>familyTariffPolicyVersionCompatible(input.familyTariffsVersion,p.version)),'FAMILY_TARIFF_VERSION_MISMATCH','La captura debe conservar la versión de la política declarada.');
   return { ...input,...(familyTariffCapture?{familyTariffCapture}:{}), selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
 }
 export function normalizeOwnPayrollRules(raw, { namespaced = false, typedConditions = false } = {}) {
@@ -110,6 +110,7 @@ export function validateOwnPayrollRulePeriods(raw, { namespaced = false, typedCo
 }
 function calculateOwnPayrollInternal(raw, metrics = null) {
   const snapshot = normalizeOwnPayrollInput(raw), { period, liquidationType, selection } = snapshot;
+  const tariffResolverFor=ownPayrollFamilyTariffs(snapshot)?createFamilyTariffInputResolverFactory(snapshot.familyTariffCapture):null;
   const namespaced = snapshot.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION;
   const selectField = { contracts: 'contractId', agreements: 'agreementCode', departments: 'departmentCode' }[selection.kind];
   const selected = snapshot.employees.filter(e => selection.kind === 'all' || selection.values.includes(e[selectField]));
@@ -126,7 +127,7 @@ function calculateOwnPayrollInternal(raw, metrics = null) {
     const rules = compiled.get(employee.agreementCode);
     require(rules && [...rules.values()].some(r => ['remuneration', 'non_remuneration'].includes(r.rule.nature)), 'PAY_RULE_MISSING', 'Faltan reglas de haberes vigentes para un contrato del conjunto.');
     const consume=()=>require(++operations <= OWN_PAYROLL_LIMITS.operations, 'COMPUTATION_LIMIT', 'El cálculo completo supera la capacidad declarada; no se entrega un resultado parcial.');
-    const tariffResolver=ownPayrollFamilyTariffs(snapshot)?createFamilyTariffInputResolver(snapshot.familyTariffCapture,employee,consume):null;
+    const tariffResolver=tariffResolverFor?.(employee,consume)??null;
     const values = new Map(), inputs = tariffResolver?.inputs??new Map(employee.inputs.map(i => [i.key, i]));
     function concept(code) {
       if (values.has(code)) return values.get(code);

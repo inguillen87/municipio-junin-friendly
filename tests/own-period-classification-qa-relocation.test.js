@@ -105,7 +105,7 @@ test('the QA predecessor refuses altered138, altered strict body, public grants 
 test('the reviewed capture-lock source epoch preserves the original business fixture and live source hashes',()=>{
  assert.equal(artifact.fixtureChain,'legacy-native-payroll-without-final-source.v1');
  assert.equal(Object.keys(artifact.fixtureSourceHashes).length,8);
- assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'c497249eebf71900e0e68ae1e7f2980a0e9634569615c83f4f3a5ad545795e2b');
+ assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'9634e7ff3136be4bf131abadbbe3758489c5c74368629ddedc5bba64ce530cec');
  assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-lock-observation.mjs'],'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-run-capture-lock.mjs'],'dc7f78cde977895d7ea6215d1ba7ca97ad7c862789db4a3ef88e1d57ff301107');

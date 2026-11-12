@@ -38,7 +38,7 @@ const SAFE_LIBRARY_MESSAGES = Object.freeze({
   PAYROLL_NOVELTY_VERSION_CONFLICT: 'El lote fue modificado por otra persona',
   PAYROLL_NOVELTY_MAKER_CHECKER_REQUIRED: 'La persona que preparó el lote no puede aprobarlo',
   PAYROLL_NOVELTY_CAPABILITY_REQUIRED: 'No posee la capacidad requerida',
-  PAYROLL_NOVELTY_EMPLOYMENT_REQUIRED: 'La operación exige un vínculo laboral vigente',
+  PAYROLL_NOVELTY_EMPLOYMENT_REQUIRED: 'La operación requiere la identidad del operador acreditada',
   PAYROLL_NOVELTY_AUTHORITY_REQUIRED: 'La membresía no tiene autoridad operativa',
   PAYROLL_NOVELTY_NOT_FOUND: 'Lote de novedades no encontrado',
   PAYROLL_NOVELTY_NOT_EXPORTABLE: 'El lote todavía no está aprobado para exportar',

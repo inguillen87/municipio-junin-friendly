@@ -37,7 +37,26 @@ const identity=a=>({principal:{user:{email:a.actorEmail},tenant:{source:'members
 const calc=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input),close=(op,input)=>ownCloseOperation(db,checker.principal,checker.session,op,input);
 const prior=proof();assert.equal(prior.schemas,0);
 try{
- run(qa.sql);seeded=true;run(tx([qa.sourceFixture]));run(tx(b.operator.consumers.statements));run(tx(b.operator.statements));
+ run(qa.sql);seeded=true;run(tx([qa.sourceFixture]));
+ // ALTER TYPE in PG17.12+ changes reserved attribute versions. The installer
+ // accepts only that expected increment, not other options, ACLs or columns.
+ const consumers=b.operator.consumers.statements,consumerAfter=consumers.findIndex(s=>s.includes("PERFORM set_config('municontrol_adopted_consumers_install.after'"));
+ assert.ok(consumerAfter>0,'ADOPTED_CONSUMERS_AFTER_BOUNDARY_REQUIRED');
+ const consumerPrior=proof();
+ for(const [mutation,error,label] of [
+  ['ALTER TABLE payroll_novelty_row ALTER COLUMN concept_source_id SET (n_distinct=0.25)','ADOPTED_CONSUMERS_ATTRIBUTE_OPTIONS_CHANGED','attribute options other than pg_attver remain protected'],
+  ['ALTER TABLE payroll_novelty_row ALTER COLUMN concept_source_id SET STATISTICS 42','ADOPTED_CONSUMERS_PRIOR_STATE_CHANGED','column metadata outside the reviewed type widening remains protected'],
+  ['GRANT SELECT ON payroll_novelty_row TO municontrol_actions_runtime_app','ADOPTED_CONSUMERS_PRIOR_STATE_CHANGED','table ACL remains protected during the reviewed type widening']
+ ]){run(tx([...consumers.slice(0,consumerAfter),mutation,...consumers.slice(consumerAfter)]),error);assert.deepEqual(proof(),consumerPrior);ok(true,label);}
+ const consumerAudit=consumers.findIndex(s=>s.includes('ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INCREMENT'));assert.ok(consumerAudit>consumerAfter,'ADOPTED_CONSUMERS_VERSION_AUDIT_REQUIRED');
+ const decrease=`DO $negative_versions$ DECLARE side text;value jsonb;BEGIN
+  FOREACH side IN ARRAY ARRAY['before','after'] LOOP
+   SELECT jsonb_agg(jsonb_set(v,'{options}',coalesce((SELECT jsonb_agg(o ORDER BY ord) FROM jsonb_array_elements_text(CASE WHEN v->'options'='null'::jsonb THEN '[]'::jsonb ELSE v->'options' END) WITH ORDINALITY z(o,ord) WHERE split_part(o,'=',1)<>'pg_attver'),'[]'::jsonb)||jsonb_build_array('pg_attver='||CASE WHEN side='before' THEN '20' ELSE '19' END)) ORDER BY (v->>'attnum')::integer) INTO value FROM jsonb_array_elements(current_setting('municontrol_adopted_consumers_install.attribute_options_'||side)::jsonb) x(v);
+   PERFORM set_config('municontrol_adopted_consumers_install.attribute_options_'||side,value::text,true);
+  END LOOP;
+ END $negative_versions$`;
+ run(tx([...consumers.slice(0,consumerAudit),decrease,...consumers.slice(consumerAudit)]),'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INCREMENT');assert.deepEqual(proof(),consumerPrior);ok(true,'a decreasing reserved attribute version is rejected rather than ignored');
+ run(tx(consumers));run(tx(b.operator.statements));
  const boot=await adoptionPreparationOperation(db,maker.principal,maker.session,'bootstrap'),proposal=await adoptionPreparationOperation(db,maker.principal,maker.session,'propose',{key:randomUUID(),body:await adoptionPreparationPayload(boot.review,boot.catalogVersion,'42','Resolución exclusivamente sintética QA','Adopción inventada para verificar fecha declarada y conservación')});
  const view=await municipalAdoptionOperation(db,checker.principal,checker.session,'review',{id:proposal.receipt.proposalId});await municipalAdoptionOperation(db,checker.principal,checker.session,'command',{key:randomUUID(),body:{reviewVersion:view.reviewVersion,review:{proposalId:view.proposal.proposalId,proposalVersion:view.proposal.proposalVersion,sourceContextVersion:view.proposal.sourceContextVersion,catalogVersion:view.proposal.catalogVersion,decision:'approve',reason:'Revisión independiente exclusivamente sintética QA'},reviewConfirmed:true}});
  run(tx(b.installation));run(tx(j.installation));run(tx(inactive.installation));run(tx(final.installation));run(tx(active.installation));run(tx(serialization.installation));run(tx(profile.installation));run(tx(declaredQa.installation));

@@ -3,6 +3,7 @@
 import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-model.js';
 import {ownOfficialEconomicEvidence,verifiedOwnOfficialEconomicSource} from './own-payroll-official-snapshot-model.js';
 import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
+import {OWN_PAYROLL_ROW_EMISSION_V2_VERSION} from './own-payroll-row-emission.js';
 
 const need=(condition,message)=>{if(!condition)throw Error(message);};
 const same=(left,right)=>salarySerialized(left)===salarySerialized(right);
@@ -33,7 +34,8 @@ export function ownOfficialReceiptRecord(record,validateLegacyRecord){
  const visible=record.economicConcepts.filter(concept=>concept.nature!=='auxiliary'&&record.receiptRowKeys.includes(record.contractId+':concept:'+concept.code));
  need(same(visible,record.concepts)&&visible.length===record.receiptRowKeys.length,'La impresión no coincide con el selector conservado del recibo.');
  const quantities=new Map(record.quantities.map(quantity=>[quantity.conceptCode,quantity]));
- const omissions=record.rowEmissions.filter(decision=>decision.decision==='omit').map(decision=>({decision,calculatedRow:rows.get('concept:'+decision.conceptCode),quantity:quantities.get(decision.conceptCode),labeledConcept:labels.get('concept:'+decision.conceptCode)}));
+ const temporal=record.sourceEvidence.rowEmissionVersion===OWN_PAYROLL_ROW_EMISSION_V2_VERSION;
+ const omissions=record.rowEmissions.filter(decision=>decision.decision==='omit').map(decision=>({decision,calculatedRow:rows.get('concept:'+decision.conceptCode),quantity:quantities.get(decision.conceptCode)??(temporal?null:undefined),labeledConcept:labels.get('concept:'+decision.conceptCode)}));
  need(Array.isArray(record.omissionAudit)&&Number.isSafeInteger(record.omittedRowCount)&&record.omittedRowCount>=0&&record.omittedRowCount===omissions.length&&same(record.omissionAudit,omissions),'Se alteró la auditoría de renglones omitidos de la impresión.');
  need(record.economicConceptCount===record.concepts.length+record.omittedRowCount+record.economicRows.filter(row=>row.nature==='auxiliary').length,'La impresión o su auditoría perdieron un renglón económico.');
  return record;

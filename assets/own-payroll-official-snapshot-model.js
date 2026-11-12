@@ -6,14 +6,15 @@ import {ownRunCapture} from './own-payroll-run-model.js';
 import {ownRunWorkspaceResult} from './own-payroll-run-workspace-model.js';
 import {ownPayrollEmployeeNumber,OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {ownProgramBootstrap} from './own-payroll-program-model.js';
+import {captureOfficialTotalsPolicy} from './own-payroll-official-program.js';
 import {participationRules} from './own-period-participation-program.js';
 import {quantityInputPhases} from './own-payroll-quantity-program.js';
 import {normalizeOwnPayrollQuantityPhase,OWN_PAYROLL_QUANTITY_PHASES_VERSION} from './own-payroll-quantity.js';
 import {ownProgramPeriodContext,verifiedPeriodContextCapture} from './own-payroll-period-context.js';
 import {ownRunJurisdictions,ownJurisdictionMapForCapture,ownJurisdictionRecord} from './own-payroll-jurisdiction-model.js';
-import {normalizeOwnPayrollOfficialInput,calculateOwnPayrollWithOfficialTotals,normalizeOfficialTotalsPolicy,verifyOwnPayrollOfficialEconomicRows} from './own-payroll-official-totals.js';
-import {normalizeOwnPayrollRowEmissionInput,calculateOwnPayrollWithRowEmission,copyRowEmissionData,normalizeRowEmissionPolicies,rowEmissionRowKey,rowEmissionPolicyKey,OWN_PAYROLL_ROW_EMISSION_VERSION} from './own-payroll-row-emission.js';
-import {normalizeFamilyTariffPolicy,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION} from './own-payroll-family-tariffs.js';
+import {normalizeOwnPayrollOfficialInput,calculateOwnPayrollWithOfficialTotals,normalizeOfficialTotalsEvidence,verifyOwnPayrollOfficialEconomicRows} from './own-payroll-official-totals.js';
+import {normalizeOwnPayrollRowEmissionInput,calculateOwnPayrollWithRowEmission,copyRowEmissionData,normalizeRowEmissionPolicies,selectRowEmissionPolicies,ownPayrollRowEmission,rowEmissionRowKey,rowEmissionPolicyKey,OWN_PAYROLL_ROW_EMISSION_V2_VERSION} from './own-payroll-row-emission.js';
+import {normalizeFamilyTariffPolicy,selectFamilyTariffPolicies,familyTariffInputKeys,familyTariffPolicyVersionCompatible,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION} from './own-payroll-family-tariffs.js';
 import {selectFamilyTariff,methodExact} from './own-payroll-special-methods.js';
 import {civilDay} from './employment-adoption-review-model.js';
 import {FAMILY_FACT_FIELD_UNITS,OWN_PAYROLL_FAMILY_FACTS_VERSION} from './own-payroll-family-facts.js';
@@ -68,9 +69,15 @@ export function ownOfficialCapture(capture){
  const calculate=input.version==='own-payroll-input.v5'?calculateOwnPayrollWithRowEmission:calculateOwnPayrollWithOfficialTotals;
  need(same(normalize(input),input),'La entrada original no conserva su representación canónica.');
  need(input.period===capture.body.period&&input.liquidationType===capture.body.liquidationType&&same(input.selection,capture.body.selection)&&input.namespaceVersion===definition.namespaceVersion&&same(input.rules,participationRules(definition))&&same(input.quantityPhases,quantityInputPhases(definition))&&input.totalsPrecision===definition.totalsPrecision,'Las reglas, cantidades o el alcance cambiaron respecto del programa original.');
- const policies=definition.officialTotalsPolicies?.filter(p=>p.agreementCode===input.officialTotalsPolicy.agreementCode&&p.period===input.period&&p.liquidationType===input.liquidationType);
- need(policies?.length===1&&same(policies[0],input.officialTotalsPolicy),'El total oficial debe conservar la política del programa original.');
- if(input.version==='own-payroll-input.v5')need(definition.rowEmissionVersion===input.rowEmissionVersion&&same(definition.rowEmissionPolicies.filter(p=>p.agreementCode===input.officialTotalsPolicy.agreementCode&&p.period===input.period&&p.liquidationType===input.liquidationType),input.rowEmissionPolicies),'La emisión debe conservar la política explícita del programa original.');
+ const selectedField={contracts:'contractId',agreements:'agreementCode',departments:'departmentCode'}[input.selection.kind];
+ const selected=input.employees.filter(e=>input.selection.kind==='all'||input.selection.values.includes(e[selectedField]));
+ const official=captureOfficialTotalsPolicy(definition,input.period,input.liquidationType,selected);
+ need(same(official.officialTotalsPolicy,input.officialTotalsPolicy)&&same(official.officialTotalsCapture??null,input.officialTotalsCapture??null),'El total oficial debe conservar la política y cadena completa del programa original.');
+ if(input.version==='own-payroll-input.v5'){
+  const active=selectRowEmissionPolicies(definition,input.period,input.liquidationType,input.officialTotalsPolicy.agreementCode);
+  const original=definition.rowEmissionVersion===OWN_PAYROLL_ROW_EMISSION_V2_VERSION?definition.rowEmissionPolicies.filter(p=>p.agreementCode===input.officialTotalsPolicy.agreementCode&&p.liquidationType===input.liquidationType):active;
+  need(definition.rowEmissionVersion===input.rowEmissionVersion&&same(original,input.rowEmissionPolicies),'La emisión debe conservar las políticas y sucesiones explícitas del programa original.');
+ }
  else need(!['rowEmissionVersion','rowEmissionPolicies'].some(k=>Object.hasOwn(definition,k)||Object.hasOwn(input,k)),'V4 no puede eliminar la política de emisión de un programa V5.');
  const people=new Map(input.employees.map(e=>[e.contractId,e])),population=payload.population;
  need(population.complete===true&&population.version===input.sourceVersions.population&&list(population.employees,10000)&&population.employees.length===people.size&&new Set(population.employees.map(e=>e.contractId)).size===people.size,'La población original debe estar completa y sin duplicados.');
@@ -93,8 +100,12 @@ export function ownOfficialCapture(capture){
  }
  const tariffPresent=['familyTariffsVersion','familyTariffCapture'].some(k=>Object.hasOwn(input,k))||Object.hasOwn(definition,'familyTariffsVersion')||Object.hasOwn(result,'familyTariffsVersion');
  if(tariffPresent){
-  need(input.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION&&definition.familyTariffsVersion===input.familyTariffsVersion&&result.familyTariffsVersion===input.familyTariffsVersion&&same(input.familyTariffCapture.policies,definition.familyTariffPolicies)&&input.familyTariffCapture.familyFactsVersion===payload.familyPayrollFacts.version,'La tarifa debe conservar la versión V2 y la tabla del programa original.');
-  const expectedBindings=definition.bindings.filter(b=>b.sourceKind==='family_tariff').map(({agreementCode,key,sourceCode})=>({agreementCode,key,sourceCode})).sort((a,b)=>order(a.key,b.key));
+  const temporal=definition.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+  const agreements=new Set(population.employees.map(e=>e.agreementCode));
+  const activeRules=definition.rules.filter(r=>r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
+  const expectedBindings=definition.bindings.filter(b=>b.sourceKind==='family_tariff'&&(!temporal||agreements.has(b.agreementCode)&&activeRules.some(r=>r.agreementCode===b.agreementCode&&familyTariffInputKeys(r.expression).includes(b.key)))).map(({agreementCode,key,sourceCode})=>({agreementCode,key,sourceCode})).sort((a,b)=>order(a.key,b.key));
+  const expectedPolicies=temporal?definition.familyTariffPolicies.filter(p=>expectedBindings.some(b=>b.agreementCode===p.agreementCode)&&p.liquidationType===input.liquidationType):definition.familyTariffPolicies;
+  need([OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(input.familyTariffsVersion)&&definition.familyTariffsVersion===input.familyTariffsVersion&&result.familyTariffsVersion===input.familyTariffsVersion&&input.familyTariffCapture.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&same(input.familyTariffCapture.policies,expectedPolicies)&&input.familyTariffCapture.familyFactsVersion===payload.familyPayrollFacts.version,'La tarifa debe conservar su versión y las tablas vigentes del programa original.');
   need(same(input.familyTariffCapture.bindings,expectedBindings),'Las claves de tarifa cambiaron respecto de su programa.');
   for(const r of input.familyTariffCapture.records){const original=payload.familyPayrollFacts.records.find(x=>x.contractId===r.contractId),person=population.employees.find(x=>x.contractId===r.contractId);need(original?.definition&&person&&original.identityToken===person.identityToken&&r.identityToken===person.identityToken&&r.agreementCode===person.agreementCode&&r.revision===original.revision&&r.approvalId===original.approvalId&&r.regionCode===original.definition.tariffSelection.region&&r.priorSemesterAverage===original.definition.tariffSelection.semesterAverage&&r.asOfDate===original.definition.asOfDate,'La selección tarifaria debe conservar los hechos familiares originales.');}
  }
@@ -121,19 +132,27 @@ export async function verifiedOwnOfficialCapture(value){
 const rowFields=['contractId','employeeNumber','agreementCode','departmentCode','conceptCode','nature','unit','amount','exactValue','rounding','ruleReference','dependencies','trace'];
 const quantityFields=['contractId','employeeNumber','agreementCode','departmentCode','conceptCode','unit','stage','rounding','exactValue','value','decimalValue','sourceReference','sourceSha256','amountUse','dependencies','trace'];
 const sourceFields=['runId','inputVersion','resultVersion','payloadSha256','inputSha256','resultSha256','officialTotalsPolicy','quantityPhasesVersion','quantityPhases','familyTariffsVersion','familyTariffCaptureMetadata','rowEmissionVersion','rowEmissionPolicies'];
+const officialContext=source=>source.officialTotalsCapture??source.officialTotalsPolicy;
 function sourceEvidence(source){
- need(salaryExact(source,sourceFields)&&salaryUuid(source.runId)&&allInputVersions.includes(source.inputVersion)&&source.resultVersion===source.inputVersion.replace('input','result')&&[source.payloadSha256,source.inputSha256,source.resultSha256].every(salaryHash),'La fuente del cierre perdió su identidad, versión o huellas originales.');
+ need(salaryExact(source,[...sourceFields,...(Object.hasOwn(source,'officialTotalsCapture')?['officialTotalsCapture']:[])])&&salaryUuid(source.runId)&&allInputVersions.includes(source.inputVersion)&&source.resultVersion===source.inputVersion.replace('input','result')&&[source.payloadSha256,source.inputSha256,source.resultSha256].every(salaryHash),'La fuente del cierre perdió su identidad, versión o huellas originales.');
  if(inputVersions.includes(source.inputVersion)){
-  need(same(normalizeOfficialTotalsPolicy(source.officialTotalsPolicy),source.officialTotalsPolicy),'La política oficial no es canónica.');
+  const official=normalizeOfficialTotalsEvidence(source);
+  need(same(official.policy,source.officialTotalsPolicy)&&same(official.capture,source.officialTotalsCapture??null),'La política oficial y su cadena deben conservar la representación canónica original.');
   need(source.quantityPhasesVersion===OWN_PAYROLL_QUANTITY_PHASES_VERSION&&list(source.quantityPhases,10000)&&source.quantityPhases.length>0&&same(source.quantityPhases.map(p=>normalizeOwnPayrollQuantityPhase(p,{typedConditions:true})),source.quantityPhases),'La fuente oficial requiere todas sus fases originales de cantidad.');
- }else need(source.officialTotalsPolicy===null&&source.quantityPhasesVersion===null&&same(source.quantityPhases,[]),'Una captura histórica no puede declarar totales o cantidades oficiales retroactivamente.');
- if(source.inputVersion==='own-payroll-input.v5')need(source.rowEmissionVersion===OWN_PAYROLL_ROW_EMISSION_VERSION&&same(normalizeRowEmissionPolicies(source.rowEmissionPolicies),source.rowEmissionPolicies),'La fuente V5 requiere su política completa de emisión.');
+ }else need(!Object.hasOwn(source,'officialTotalsCapture')&&source.officialTotalsPolicy===null&&source.quantityPhasesVersion===null&&same(source.quantityPhases,[]),'Una captura histórica no puede declarar totales o cantidades oficiales retroactivamente.');
+ if(source.inputVersion==='own-payroll-input.v5'){
+  need(ownPayrollRowEmission(source)&&same(normalizeRowEmissionPolicies(source.rowEmissionPolicies,source.rowEmissionVersion),source.rowEmissionPolicies)&&source.rowEmissionPolicies.every(p=>p.agreementCode===source.officialTotalsPolicy.agreementCode&&p.liquidationType===source.officialTotalsPolicy.liquidationType),'La fuente V5 requiere su política completa de emisión para el alcance original.');
+  const active=selectRowEmissionPolicies(source,officialContext(source).period,source.officialTotalsPolicy.liquidationType,source.officialTotalsPolicy.agreementCode);
+  need(source.rowEmissionVersion===OWN_PAYROLL_ROW_EMISSION_V2_VERSION||active.length===source.rowEmissionPolicies.length,'La captura histórica conserva el período exacto de todas sus políticas.');
+ }
  else need(source.rowEmissionVersion===null&&same(source.rowEmissionPolicies,[]),'La emisión sólo puede declararse en una captura V5.');
  if(source.familyTariffsVersion===null)need(source.familyTariffCaptureMetadata===null,'Una fuente sin tarifas no puede agregar una tabla.');
  else{
   const m=source.familyTariffCaptureMetadata;
-  need(inputVersions.includes(source.inputVersion)&&source.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION&&salaryExact(m,['version','familyFactsVersion','policies','policySha256','bindings'])&&m.version===OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION&&[m.familyFactsVersion,m.policySha256].every(salaryHash)&&list(m.policies,1)&&m.policies.length===1&&same(m.policies.map(normalizeFamilyTariffPolicy),m.policies)&&m.policies[0].version===source.familyTariffsVersion&&list(m.bindings,512)&&m.bindings.length>0,'La fuente tarifaria requiere metadata completa, sin registros de otras personas.');
-  const seen=new Set();for(const b of m.bindings){need(salaryExact(b,['agreementCode','key','sourceCode'])&&b.agreementCode===m.policies[0].agreementCode&&typeof b.key==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key)&&m.policies[0].mappings.some(x=>x.sourceCode===b.sourceCode)&&!seen.has(b.key),'Una tarifa contiene claves ajenas o repetidas.');seen.add(b.key);}
+  const temporal=source.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+  need(inputVersions.includes(source.inputVersion)&&[OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(source.familyTariffsVersion)&&salaryExact(m,['version',...(temporal?['period','liquidationType']:[]),'familyFactsVersion','policies','policySha256','bindings'])&&m.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&(!temporal||m.period===officialContext(source).period&&m.liquidationType===source.officialTotalsPolicy.liquidationType)&&[m.familyFactsVersion,m.policySha256].every(salaryHash)&&list(m.policies,temporal?1000:1)&&m.policies.length>0&&same(m.policies.map(normalizeFamilyTariffPolicy),m.policies)&&m.policies.every(p=>familyTariffPolicyVersionCompatible(source.familyTariffsVersion,p.version)&&p.agreementCode===source.officialTotalsPolicy.agreementCode&&p.liquidationType===source.officialTotalsPolicy.liquidationType)&&list(m.bindings,512)&&m.bindings.length>0,'La fuente tarifaria requiere metadata completa del período y alcance originales.');
+  const [active]=selectFamilyTariffPolicies({familyTariffsVersion:source.familyTariffsVersion,familyTariffPolicies:m.policies},officialContext(source).period,source.officialTotalsPolicy.liquidationType,[source.officialTotalsPolicy.agreementCode]);
+  const seen=new Set();for(const b of m.bindings){need(salaryExact(b,['agreementCode','key','sourceCode'])&&b.agreementCode===active.agreementCode&&typeof b.key==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key)&&active.mappings.some(x=>x.sourceCode===b.sourceCode)&&!seen.has(b.key),'Una tarifa contiene claves ajenas o repetidas.');seen.add(b.key);}
  }
  return source;
 }
@@ -142,8 +161,8 @@ function tariffEvidence(value){
  const {sourceEvidence:s,familyTariffRecord:r,familyTariffDecisions:decisions,contractId,rows}=value;
  need(list(decisions,512),'La evidencia tarifaria debe conservar todas sus decisiones.');
  if(s.familyTariffsVersion===null){need(r===null&&decisions.length===0,'Una captura sin tarifas no puede agregar decisiones tarifarias.');return;}
- const m=s.familyTariffCaptureMetadata,p=m.policies[0];
- need(salaryExact(r,['contractId','agreementCode','identityToken','revision','approvalId','definitionSha256','regionCode','priorSemesterAverage','asOfDate'])&&r.contractId===contractId&&r.agreementCode===p.agreementCode&&[r.identityToken,r.definitionSha256].every(salaryHash)&&Number.isSafeInteger(r.revision)&&r.revision>0&&salaryUuid(r.approvalId)&&(r.regionCode===null||code(r.regionCode))&&(r.priorSemesterAverage===null||typeof r.priorSemesterAverage==='string'&&/^(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$/.test(r.priorSemesterAverage))&&civilDay(r.asOfDate)&&r.asOfDate.slice(0,7)<=p.period,'La tarifa debe conservar el registro familiar exacto del contrato.');
+ const m=s.familyTariffCaptureMetadata,[p]=selectFamilyTariffPolicies({familyTariffsVersion:s.familyTariffsVersion,familyTariffPolicies:m.policies},officialContext(s).period,s.officialTotalsPolicy.liquidationType,[s.officialTotalsPolicy.agreementCode]);
+ need(salaryExact(r,['contractId','agreementCode','identityToken','revision','approvalId','definitionSha256','regionCode','priorSemesterAverage','asOfDate'])&&r.contractId===contractId&&r.agreementCode===p.agreementCode&&[r.identityToken,r.definitionSha256].every(salaryHash)&&Number.isSafeInteger(r.revision)&&r.revision>0&&salaryUuid(r.approvalId)&&(r.regionCode===null||code(r.regionCode))&&(r.priorSemesterAverage===null||typeof r.priorSemesterAverage==='string'&&/^(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$/.test(r.priorSemesterAverage))&&civilDay(r.asOfDate)&&r.asOfDate.slice(0,7)<=officialContext(s).period,'La tarifa debe conservar el registro familiar exacto del contrato.');
  const expected=[];
  for(const b of m.bindings){
   const mapping=p.mappings.find(x=>x.sourceCode===b.sourceCode),reads=rows.flatMap(row=>row.trace).filter(t=>t.operation==='input'&&t.reference===b.key),count=reads.length;
@@ -173,11 +192,11 @@ export function ownOfficialEconomicEvidence(value){
  }
  sums.gross=exactAdd(sums.remuneration,sums.non_remuneration);sums.net=exactSubtract(sums.gross,sums.deduction);
  need(same(formatTotals(sums,precision),Object.fromEntries(OWN_OFFICIAL_TOTAL_KEYS.map(k=>[k,lineTotals[k]]))),'Las filas económicas deben conciliar con los totales de renglones originales.');
- need(list(quantities)&&list(rowEmissions,2)&&list(receiptRowKeys)&&list(familyTariffDecisions,512),'La evidencia de cantidades, emisión y tarifas no puede estar recortada.');
+ need(list(quantities)&&list(rowEmissions,s.rowEmissionVersion===OWN_PAYROLL_ROW_EMISSION_V2_VERSION?1000:2)&&list(receiptRowKeys)&&list(familyTariffDecisions,512),'La evidencia de cantidades, emisión y tarifas no puede estar recortada.');
  const official=inputVersions.includes(inputVersion),qmap=new Map();
  if(official){
   need(precision===2&&rows.every(r=>r.agreementCode===s.officialTotalsPolicy.agreementCode),'La política oficial no coincide con el contrato y precisión del cierre.');
-  verifyOwnPayrollOfficialEconomicRows({rows,lineTotals,totals,totalReconciliation,officialTotalsPolicy:s.officialTotalsPolicy});
+  verifyOwnPayrollOfficialEconomicRows({rows,lineTotals,totals,totalReconciliation,officialTotalsPolicy:s.officialTotalsPolicy,...(Object.hasOwn(s,'officialTotalsCapture')?{officialTotalsCapture:s.officialTotalsCapture}:{})});
   for(const q of quantities){
    need(salaryExact(q,quantityFields)&&q.contractId===contractId&&['employeeNumber','agreementCode','departmentCode'].every(k=>q[k]===first[k])&&code(q.conceptCode)&&['days','hours','minutes','units','percent','money','coefficient'].includes(q.unit)&&['exact','rounded'].includes(q.stage)&&salaryHash(q.sourceSha256)&&payrollExpressionReference(q.sourceReference)&&!qmap.has(q.conceptCode)&&list(q.dependencies)&&list(q.trace),'Una cantidad perdió identidad, unidad o fuente.');
    const exact=fraction(q.exactValue);fraction(q.value);
@@ -185,16 +204,22 @@ export function ownOfficialEconomicEvidence(value){
    else{const rounded=quantize(exact,q.rounding);need(rounded.amount===q.decimalValue&&same(exactEvidence(decimal(rounded.amount)),q.value),'La cantidad redondeada perdió su evidencia exacta.');}
    qmap.set(q.conceptCode,q);
   }
-  const phases=s.quantityPhases.filter(p=>p.agreementCode===first.agreementCode&&p.validFrom<=s.officialTotalsPolicy.period&&(p.validUntil===null||p.validUntil>=s.officialTotalsPolicy.period)&&p.liquidationTypes.includes(s.officialTotalsPolicy.liquidationType));
+  const phases=s.quantityPhases.filter(p=>p.agreementCode===first.agreementCode&&p.validFrom<=officialContext(s).period&&(p.validUntil===null||p.validUntil>=officialContext(s).period)&&p.liquidationTypes.includes(s.officialTotalsPolicy.liquidationType));
   need(phases.length>0&&new Set(phases.map(p=>p.code)).size===phases.length&&same(phases.map(p=>p.code),quantities.map(q=>q.conceptCode)),'El registro debe conservar exactamente todas las cantidades de las fases vigentes originales.');
   for(const p of phases){const q=qmap.get(p.code);need(rows.some(r=>r.nature!=='auxiliary'&&r.conceptCode===p.code)&&['unit','stage','rounding','amountUse','sourceReference','sourceSha256'].every(k=>same(q[k],p[k])),'Una cantidad cambió su unidad, tratamiento o fuente original.');}
   tariffEvidence(value);
  }else need(same(totals,lineTotals)&&totalReconciliation===null&&quantities.length===0&&familyTariffDecisions.length===0&&familyTariffRecord===null,'Un resultado histórico no puede recibir evidencia oficial retroactiva.');
  const omitted=new Set(),expected=[];
  if(inputVersion==='own-payroll-input.v5'){
-  for(const p of s.rowEmissionPolicies){
+  for(const p of selectRowEmissionPolicies(s,officialContext(s).period,s.officialTotalsPolicy.liquidationType,s.officialTotalsPolicy.agreementCode)){
    const row=rows.find(r=>r.nature!=='auxiliary'&&r.conceptCode===p.conceptCode);need(row&&row.nature==='non_remuneration'&&row.unit==='money'&&row.agreementCode===p.agreementCode&&s.officialTotalsPolicy.contributions['995'].includes(row.conceptCode),'La política debe corresponder a una fila familiar y su acumulador original.');
-   const conditions=p.conditions.map(c=>{const q=qmap.get(c.quantityCode);need(q&&q.unit===c.unit&&(c.quantityCode==='1'||q.stage==='exact'),'Falta la cantidad original de la decisión de emisión.');const n=fraction(q.value);need(n.n>=0n&&(c.quantityCode==='1'||n.d===1n),'La cantidad familiar no admite negativos ni fracciones.');return {...c,observed:exactEvidence(n),passed:exactCompare(n,decimal(c.value))>0,quantitySourceSha256:q.sourceSha256};});
+    const temporal=p.version===OWN_PAYROLL_ROW_EMISSION_V2_VERSION;
+    const conditions=p.conditions.map(c=>{
+     const q=qmap.get(c.quantityCode);need(q&&q.unit===c.unit&&(temporal?q.stage===c.stage:c.quantityCode==='1'||q.stage==='exact'),'Falta la cantidad original de la decisión de emisión.');
+     const n=fraction(q.value);need(n.n>=0n&&(temporal?c.valueDomain==='nonnegative'||n.d===1n:c.quantityCode==='1'||n.d===1n),'La cantidad no conserva el dominio declarado por la política original.');
+     const comparison=exactCompare(n,decimal(c.value)),passed=temporal?{lt:comparison<0,le:comparison<=0,eq:comparison===0,ne:comparison!==0,ge:comparison>=0,gt:comparison>0}[c.operator]:comparison>0;
+     return {...c,observed:exactEvidence(n),passed,quantitySourceSha256:q.sourceSha256};
+    });
    const emit=conditions.every(c=>c.passed),key=rowEmissionRowKey(row);
    if(!emit){need(exactCompare(fraction(row.exactValue),rational(0n))===0&&exactCompare(decimal(row.amount),rational(0n))===0,'La omisión no puede ocultar un importe ni una fracción no nula.');omitted.add(key);}
    expected.push({rowKey:key,contractId,agreementCode:row.agreementCode,conceptCode:row.conceptCode,policyKey:rowEmissionPolicyKey(p),decision:emit?'emit':'omit',reason:emit?'conditions_met':'conditions_not_met',conditions,sourceReference:p.sourceReference,sourceSha256:p.sourceSha256});
@@ -211,7 +236,7 @@ export function ownOfficialCloseSnapshot(snapshot){
  need(salaryExact(snapshot,fields)&&isOwnOfficialCloseSnapshot(snapshot)&&period(snapshot.period)&&types.includes(snapshot.liquidationType)&&snapshot.populationDomain==='native_registered'&&salaryHash(snapshot.rosterVersion)&&Number.isSafeInteger(snapshot.employeeCount)&&snapshot.employeeCount>0&&snapshot.employeeCount<=10000&&Number.isSafeInteger(snapshot.populationCount)&&snapshot.populationCount>=snapshot.employeeCount&&snapshot.populationCount<=10000&&snapshot.populationComplete===(snapshot.employeeCount===snapshot.populationCount)&&Number.isInteger(snapshot.precision)&&snapshot.precision>=0&&snapshot.precision<=8&&list(snapshot.employees,10000)&&snapshot.employees.length===snapshot.employeeCount&&list(snapshot.concepts)&&snapshot.conceptCount===snapshot.concepts.length&&list(snapshot.sources,1000)&&snapshot.payrollCalculated===true&&snapshot.payrollPosted===false&&snapshot.paymentExecuted===false&&snapshot.economicRowsPreserved===true,'El cierre oficial debe conservar su contrato completo.');
  need(same(selection(snapshot.selection),snapshot.selection),'El alcance histórico debe conservar su orden canónico.');
  need(salaryExact(snapshot.totals,OWN_OFFICIAL_TOTAL_KEYS)&&salaryExact(snapshot.lineTotals,OWN_OFFICIAL_TOTAL_KEYS),'Faltan totales oficiales o de renglones.');
- const sources=new Map();for(const s of snapshot.sources){sourceEvidence(s);need(!sources.has(s.runId),'Una fuente original se repite.');sources.set(s.runId,s);if(s.officialTotalsPolicy)need(s.officialTotalsPolicy.period===snapshot.period&&s.officialTotalsPolicy.liquidationType===snapshot.liquidationType,'Una política pertenece a otro período o tipo.');}
+ const sources=new Map();for(const s of snapshot.sources){sourceEvidence(s);need(!sources.has(s.runId),'Una fuente original se repite.');sources.set(s.runId,s);if(s.officialTotalsPolicy)need(officialContext(s).period===snapshot.period&&s.officialTotalsPolicy.liquidationType===snapshot.liquidationType,'Una política pertenece a otro período o tipo.');}
  const ids=new Set(),runs=new Set(),totals=emptyTotals(),lineTotals=emptyTotals(),counts={quantityCount:0,familyTariffDecisionCount:0,emissionDecisionCount:0,receiptRowCount:0};let hasV5=false,hasOfficial=false;
  const field={contracts:'contractId',agreements:'agreementCode',departments:'departmentCode'}[snapshot.selection.kind],found=new Set();
  for(const e of snapshot.employees){
@@ -233,6 +258,7 @@ export function ownOfficialCloseSnapshot(snapshot){
 export async function verifiedOwnOfficialEconomicSource(value){
  const source=copyRowEmissionData(value);
  sourceEvidence(source);const metadata=source.familyTariffCaptureMetadata;
+ if(source.officialTotalsCapture)need(await ownOfficialHash(source.officialTotalsCapture.policies)===source.officialTotalsCapture.policiesSha256,'La cadena oficial cerrada no conserva su huella original.');
  if(metadata){
   need(await ownOfficialHash(metadata.policies)===metadata.policySha256,'La política tarifaria cerrada no conserva su huella original.');
   for(const policy of metadata.policies)need(await ownOfficialHash(policy.rows)===policy.rowsSha256,'La tabla tarifaria cerrada no conserva su huella original.');
@@ -247,7 +273,7 @@ export async function verifiedOwnOfficialCloseSnapshot(value){
 
 function captureSource(capture){
  const {input:i}=capture.saved,{records,...metadata}=i.familyTariffCapture??{};
- return {runId:capture.id,inputVersion:i.version,resultVersion:capture.saved.result.version,payloadSha256:capture.payloadSha256,inputSha256:capture.saved.inputSha256,resultSha256:capture.saved.resultSha256,officialTotalsPolicy:structuredClone(i.officialTotalsPolicy??null),quantityPhasesVersion:i.quantityPhasesVersion??null,quantityPhases:structuredClone(i.quantityPhases??[]),familyTariffsVersion:i.familyTariffsVersion??null,familyTariffCaptureMetadata:i.familyTariffCapture?structuredClone(metadata):null,rowEmissionVersion:i.rowEmissionVersion??null,rowEmissionPolicies:structuredClone(i.rowEmissionPolicies??[])};
+ return {runId:capture.id,inputVersion:i.version,resultVersion:capture.saved.result.version,payloadSha256:capture.payloadSha256,inputSha256:capture.saved.inputSha256,resultSha256:capture.saved.resultSha256,officialTotalsPolicy:structuredClone(i.officialTotalsPolicy??null),...(i.officialTotalsCapture?{officialTotalsCapture:structuredClone(i.officialTotalsCapture)}:{}),quantityPhasesVersion:i.quantityPhasesVersion??null,quantityPhases:structuredClone(i.quantityPhases??[]),familyTariffsVersion:i.familyTariffsVersion??null,familyTariffCaptureMetadata:i.familyTariffCapture?structuredClone(metadata):null,rowEmissionVersion:i.rowEmissionVersion??null,rowEmissionPolicies:structuredClone(i.rowEmissionPolicies??[])};
 }
 
 /** Mechanical close projection from complete, immutable, confirmed captures.

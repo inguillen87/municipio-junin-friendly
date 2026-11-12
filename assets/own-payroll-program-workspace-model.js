@@ -3,12 +3,14 @@ import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {requireExactProgramChanges} from './own-payroll-program-precision.js';
 import {ownPayrollConditions} from './own-payroll-conditions.js';
+import {FAMILY_FACT_FIELDS} from './own-contract-family-payroll-facts-workspace.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',days:'Días',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
 export const PROGRAM_CONDITION_TYPES=Object.freeze({code:'Código o situación declarada',boolean:'Declaración de sí o no'});
 export const PROGRAM_CONDITION_FIELDS=Object.freeze({partialSeniorityYears:'Años de antigüedad parcial',titleStatus:'Situación del título',titleCode:'Código del título',titlePercentage:'Porcentaje del título',unhealthyWork:'Insalubridad declarada'});
 export const PROGRAM_CLASSIFICATION_FIELDS=Object.freeze({categoryCode:'Clase del contrato propio',agreementCode:'Convenio del contrato propio'});
-export const PROGRAM_SOURCES=Object.freeze({monthly_presence:'Presencia de novedad mensual aprobada',fixed_presence:'Presencia de novedad fija aprobada',period_context_fact:'Mes del período de liquidación declarado',agreement_time_fact:'Horas mensuales del convenio aprobadas',classification_fact:'Encuadre propio capturado',salary_condition_fact:'Condiciones propias aprobadas',working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
+export const PROGRAM_FAMILY_FIELDS=Object.freeze({...Object.fromEntries(FAMILY_FACT_FIELDS.map(f=>[f.key,f.label])),prenatalAdjustmentMonths:'Meses de ajuste prenatal',tariffRegion:'Región de la tarifa',semesterAverage:'Promedio del semestre anterior'});
+export const PROGRAM_SOURCES=Object.freeze({family_fact:'Dato familiar propio aprobado',family_tariff:'Tarifa familiar según región y promedio aprobados',monthly_presence:'Presencia de novedad mensual aprobada',fixed_presence:'Presencia de novedad fija aprobada',period_context_fact:'Mes del período de liquidación declarado',agreement_time_fact:'Horas mensuales del convenio aprobadas',classification_fact:'Encuadre propio capturado',salary_condition_fact:'Condiciones propias aprobadas',working_time_fact:'Jornada contractual aprobada',period_fact:'Participación aprobada del período',employment_fact:'Antigüedad reconocida y aprobada',parameter:'Valor del concepto aprobado',auxiliary_parameter:'Valor del auxiliar aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
 export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',auxiliary:'Usar un auxiliar calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Tratamiento de precisión en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
 const conditionOperations=Object.freeze({match:'Comprobar un código o declaración'});
@@ -94,6 +96,55 @@ export function describeProgramExpression(node){
   return `${n.op==='compare'?PROGRAM_COMPARE[n.operator]:PROGRAM_OPERATIONS[n.op]} [${show(n.left)}] y [${show(n.right)}]`;
  };return show(node);
 }
+export const PROGRAM_POLICY_LABELS=Object.freeze({
+ familyPayrollFactsVersion:'Datos familiares aprobados',
+ familyTariffsVersion:'Formato de las tarifas familiares',familyTariffPolicies:'Tarifas familiares y vigencias',
+ rowEmissionVersion:'Formato de la emisión de recibos',rowEmissionPolicies:'Cuándo incluir un concepto en el recibo',
+ officialTotalsVersion:'Formato de los totales oficiales',officialTotalsPolicies:'Composición de los totales oficiales',
+ quantityPhasesVersion:'Formato de las cantidades',quantityPhases:'Cálculo de cantidades',
+ monthlyForcedAmountsVersion:'Formato de los importes forzados',monthlyForcedAmountPolicies:'Importes forzados del período',
+});
+const policyFieldLabels=Object.freeze({
+ version:'Formato',policyId:'Identificador de la política',supersedes:'Política anterior que reemplaza',policySha256:'Huella de la política anterior',
+ agreementCode:'Convenio',conceptCode:'Concepto',code:'Código',period:'Período',validFrom:'Desde',validUntil:'Hasta',liquidationType:'Tipo de liquidación',liquidationTypes:'Tipos de liquidación',
+ selection:'Selección de la tarifa',outsideRange:'Si no existe una tarifa aplicable',mappings:'Correspondencias de tarifas',rows:'Tabla de importes',rowsSha256:'Huella de la tabla',
+ sourceCode:'Código de origen',typeCode:'Tipo de asignación',regionCode:'Región',upperBound:'Tope inclusivo',amount:'Importe',sourceReference:'Respaldo',ruleReference:'Respaldo de la regla',sourceSha256:'Huella de la fuente',
+ conditions:'Condiciones que deben cumplirse',quantityCode:'Cantidad del concepto',unit:'Unidad',operator:'Comparación',value:'Valor',valueDomain:'Valores admitidos',whenFalse:'Si no se cumple',nonzeroAction:'Si el importe no es cero',nonPositiveNet:'Si el neto es cero o negativo',
+ totalCodes:'Auxiliares que forman los totales',contributions:'Conceptos incluidos en cada total',employerContribution:'Contribución patronal',remuneration:'Remuneraciones',nonSubject:'No sujetos',familyAllowances:'Asignaciones familiares',deduction:'Descuentos',net:'Neto',
+ employer_contribution:'Contribución patronal',non_subject:'No sujetos',family_allowances:'Asignaciones familiares',
+ '990':'Contribuciones patronales (990)','993':'Remuneraciones (993)','994':'No sujetos (994)','995':'Asignaciones familiares (995)','996':'Descuentos (996)','888':'Auxiliar de salida (888)','998':'Auxiliar de salida (998)','999':'Auxiliar de salida (999)',
+ stage:'Etapa',rounding:'Tratamiento de precisión',precision:'Decimales',mode:'Criterio',expression:'Fórmula de la cantidad',amountUse:'Uso en el importe',periodTreatment:'Tratamiento del período',kind:'Tratamiento',reference:'Respaldo',
+ sourceContract:'Formato de la fuente',sourceKind:'Origen',amountInputKey:'Entrada del importe',presenceInputKey:'Entrada de presencia',treatment:'Tratamiento del importe',quantityPolicy:'Tratamiento de la cantidad',
+ op:'Operación',left:'Primer valor',right:'Segundo valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple',key:'Entrada',factor:'Factor',conversionReference:'Respaldo de la conversión',
+});
+const policyValues=Object.freeze({
+ ...PROGRAM_UNITS,...PROGRAM_ROUNDING,...PROGRAM_COMPARE,...PROGRAM_SOURCES,...PROGRAM_OPERATIONS,
+ monthly:'Mensual',annual_bonus:'Sueldo anual complementario',final_settlement:'Liquidación final',
+ first_upper_bound_inclusive:'Primer tope que incluye el valor',error:'Detener y revisar',omit_receipt_row:'Omitir la fila del recibo',
+ declared_amount_passthrough:'Usar el importe aprobado sin recalcularlo',explicit_zero:'Cantidad cero declarada',independent:'Cantidad independiente del importe',
+ none:'Sin prorrateo',fraction:'Fracción documentada',rounded:'Después del redondeo',reject:'Rechazar',nonnegative:'Cero o positivo',nonnegative_integer:'Entero cero o positivo',
+});
+const policyEnumFields=new Set(['unit','operator','liquidationType','liquidationTypes','selection','outsideRange','whenFalse','nonzeroAction','nonPositiveNet','valueDomain','stage','mode','kind','treatment','quantityPolicy','sourceKind','op']);
+export const programPolicyLabel=key=>PROGRAM_POLICY_LABELS[key]??policyFieldLabels[key]??key;
+// The values come from ownProgramStructure. Render every field, including source
+// evidence and empty/null values, as text; decimal strings never pass through Number.
+export function describeProgramPolicy(field,value){
+ const scalar=(key,v)=>v===null?(key==='validUntil'?'Sin término':key==='supersedes'?'No reemplaza otra política':'Sin declarar'):typeof v==='boolean'?(v?'Sí':'No'):key==='stage'&&v==='exact'?'Antes del redondeo':policyEnumFields.has(key)?policyValues[v]??String(v):String(v);
+ function lines(key,v,depth){
+  if(v===null||typeof v!=='object')return[scalar(key,v)];
+  if(Array.isArray(v)){
+   if(v.length===0)return['Sin elementos'];
+   if(v.every(item=>item===null||typeof item!=='object'))return[v.map(item=>scalar(key,item)).join(', ')];
+   return v.flatMap((item,i)=>{const content=lines(key,item,depth+1);return[`${i+1}. ${content[0]}`,...content.slice(1).map(line=>'   '+line)];});
+  }
+  return Object.entries(v).flatMap(([name,item])=>{const content=lines(name,item,depth+1);return[`${programPolicyLabel(name)}: ${content[0]}`,...content.slice(1).map(line=>'  '+line)];});
+ }
+ return value===null?'Sin declarar':lines(field,value,0).join('\n');
+}
+// These fields already have their own complete comparison below. Everything
+// else in the validated program must be counted and displayed too, including
+// future versioned policy fields; otherwise a policy-only update looks unchanged.
+const separatelyComparedProgramFields=new Set(['rules','bindings','totalsPrecision','namespaceVersion','noveltyPresenceVersion','periodContextVersion','agreementWorkingTimeVersion','salaryConditionsVersion','workingTimeVersion','employmentFactsVersion','periodParticipation']);
 export function programWorkspaceChanges(before,after){
  const next=ownProgramStructure(after),prior=before?ownProgramStructure(before):{rules:[],bindings:[],totalsPrecision:null},rows=[];
  for(const [kind,key] of [['rules',r=>ownProgramRuleKey(r,next.namespaceVersion)],['bindings',b=>b.agreementCode+':'+b.key]]){
@@ -103,6 +154,11 @@ export function programWorkspaceChanges(before,after){
  if(next.periodParticipation||prior.periodParticipation) {
   const old=new Map((prior.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t])),fresh=new Map((next.periodParticipation?.treatments??[]).map(t=>[t.ruleKey,t]));
   for(const id of new Set([...old.keys(),...fresh.keys()])){const a=old.get(id)??null,b=fresh.get(id)??null;rows.push({kind:'participation',key:id,before:a,after:b,status:!a?'added':!b?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});}
+ }
+ for(const key of new Set([...Object.keys(prior),...Object.keys(next)])){
+  if(separatelyComparedProgramFields.has(key))continue;
+  const a=Object.hasOwn(prior,key)?prior[key]:null,b=Object.hasOwn(next,key)?next[key]:null;
+  rows.push({kind:'policies',key,before:a,after:b,status:!Object.hasOwn(prior,key)?'added':!Object.hasOwn(next,key)?'removed':salarySerialized(a)===salarySerialized(b)?'unchanged':'modified'});
  }
  return {...(next.noveltyPresenceVersion||prior.noveltyPresenceVersion?{noveltyPresenceVersion:{before:prior.noveltyPresenceVersion??null,after:next.noveltyPresenceVersion??null}}:{}),...(next.periodContextVersion||prior.periodContextVersion?{periodContextVersion:{before:prior.periodContextVersion??null,after:next.periodContextVersion??null}}:{}),...(next.agreementWorkingTimeVersion||prior.agreementWorkingTimeVersion?{agreementWorkingTimeVersion:{before:prior.agreementWorkingTimeVersion??null,after:next.agreementWorkingTimeVersion??null}}:{}),...(next.salaryConditionsVersion||prior.salaryConditionsVersion?{salaryConditionsVersion:{before:prior.salaryConditionsVersion??null,after:next.salaryConditionsVersion??null}}:{}),...(next.workingTimeVersion||prior.workingTimeVersion?{workingTimeVersion:{before:prior.workingTimeVersion??null,after:next.workingTimeVersion??null}}:{}),...(next.periodParticipation||prior.periodParticipation?{periodParticipation:{before:prior.periodParticipation??null,after:next.periodParticipation??null}}:{}),rows,totalsPrecision:{before:prior.totalsPrecision,after:next.totalsPrecision},namespaceVersion:{before:prior.namespaceVersion??null,after:next.namespaceVersion??null},...(next.employmentFactsVersion||prior.employmentFactsVersion?{employmentFactsVersion:{before:prior.employmentFactsVersion??null,after:next.employmentFactsVersion??null}}:{}),changed:(prior.noveltyPresenceVersion!==next.noveltyPresenceVersion?1:0)+(prior.periodContextVersion!==next.periodContextVersion?1:0)+(prior.agreementWorkingTimeVersion!==next.agreementWorkingTimeVersion?1:0)+(prior.salaryConditionsVersion!==next.salaryConditionsVersion?1:0)+(prior.workingTimeVersion!==next.workingTimeVersion?1:0)+(salarySerialized(prior.periodParticipation??null)!==salarySerialized(next.periodParticipation??null)?1:0)+(prior.employmentFactsVersion!==next.employmentFactsVersion?1:0)+rows.filter(r=>r.status!=='unchanged').length+(prior.totalsPrecision!==next.totalsPrecision?1:0)+(prior.namespaceVersion!==next.namespaceVersion?1:0)};
 }
