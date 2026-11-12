@@ -1,3 +1,6 @@
+import {verifyOptionalScaleInputs} from './own-payroll-optional-scales.js';
+import {verifyQuantityOnlyInput} from './own-payroll-quantity-only-capture.js';
+import {verifyDeclaredAdjustmentInput} from './own-payroll-declared-adjustments-capture.js';
 import {monthlyForcedCaptureSourceRecords,monthlyForcedCaptureHashChecks} from './own-payroll-monthly-forced-amounts.js';
 // Private V4/V5 readers. A saved capture is checked in its original version;
 // this module neither admits a calculation nor supplies missing source facts.
@@ -14,11 +17,12 @@ import {ownProgramPeriodContext,verifiedPeriodContextCapture} from './own-payrol
 import {ownRunJurisdictions,ownJurisdictionMapForCapture,ownJurisdictionRecord} from './own-payroll-jurisdiction-model.js';
 import {normalizeOwnPayrollOfficialInput,calculateOwnPayrollWithOfficialTotals,normalizeOfficialTotalsEvidence,verifyOwnPayrollOfficialEconomicRows} from './own-payroll-official-totals.js';
 import {normalizeOwnPayrollRowEmissionInput,calculateOwnPayrollWithRowEmission,copyRowEmissionData,normalizeRowEmissionPolicies,selectRowEmissionPolicies,ownPayrollRowEmission,rowEmissionRowKey,rowEmissionPolicyKey,OWN_PAYROLL_ROW_EMISSION_V2_VERSION} from './own-payroll-row-emission.js';
-import {normalizeFamilyTariffPolicy,selectFamilyTariffPolicies,familyTariffInputKeys,familyTariffPolicyVersionCompatible,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION} from './own-payroll-family-tariffs.js';
+import {normalizeFamilyTariffPolicy,selectFamilyTariffPolicies,familyTariffInputKeys,familyTariffPolicyVersionCompatible,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION,temporalFamilyTariffVersion,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION,OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION} from './own-payroll-family-tariffs.js';
 import {selectFamilyTariff,methodExact} from './own-payroll-special-methods.js';
 import {civilDay} from './employment-adoption-review-model.js';
 import {FAMILY_FACT_FIELD_UNITS,OWN_PAYROLL_FAMILY_FACTS_VERSION} from './own-payroll-family-facts.js';
 import {conditionUnit} from './own-payroll-conditions.js';
+import {SALARY_NATIVE_VERSION,salaryNativeCaptureMaterial} from './own-contract-salary-conditions-native-model.js';
 import {payrollExpressionReference} from './own-payroll-expression.js';
 import {decimal,rational,exactEvidence,exactAdd,exactSubtract,exactCompare,quantize,payrollRequire as require} from './own-payroll-exact.js';
 
@@ -64,6 +68,9 @@ export function ownOfficialCapture(capture){
  need(!Object.hasOwn(definition,'fixedForcedAmountsVersion')&&!Object.hasOwn(definition,'fixedForcedAmountsPolicy'),'La composición de importes forzados sigue requiriendo su circuito propio.');
  ownProgramBootstrap(payload.programState);
  monthlyForcedCaptureSourceRecords(payload,input,result);
+ verifyOptionalScaleInputs(payload,input);
+ verifyDeclaredAdjustmentInput(payload,input,result);
+ verifyQuantityOnlyInput(payload,input);
  need(program.revision>0&&program.salaryVersion===payload.programState.salaryCatalog.version,'La captura debe conservar el programa aprobado y su catálogo original.');
  const normalize=input.version==='own-payroll-input.v5'?normalizeOwnPayrollRowEmissionInput:normalizeOwnPayrollOfficialInput;
  const calculate=input.version==='own-payroll-input.v5'?calculateOwnPayrollWithRowEmission:calculateOwnPayrollWithOfficialTotals;
@@ -100,12 +107,12 @@ export function ownOfficialCapture(capture){
  }
  const tariffPresent=['familyTariffsVersion','familyTariffCapture'].some(k=>Object.hasOwn(input,k))||Object.hasOwn(definition,'familyTariffsVersion')||Object.hasOwn(result,'familyTariffsVersion');
  if(tariffPresent){
-  const temporal=definition.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+  const temporal=temporalFamilyTariffVersion(definition.familyTariffsVersion);
   const agreements=new Set(population.employees.map(e=>e.agreementCode));
   const activeRules=definition.rules.filter(r=>r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
   const expectedBindings=definition.bindings.filter(b=>b.sourceKind==='family_tariff'&&(!temporal||agreements.has(b.agreementCode)&&activeRules.some(r=>r.agreementCode===b.agreementCode&&familyTariffInputKeys(r.expression).includes(b.key)))).map(({agreementCode,key,sourceCode})=>({agreementCode,key,sourceCode})).sort((a,b)=>order(a.key,b.key));
   const expectedPolicies=temporal?definition.familyTariffPolicies.filter(p=>expectedBindings.some(b=>b.agreementCode===p.agreementCode)&&p.liquidationType===input.liquidationType):definition.familyTariffPolicies;
-  need([OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(input.familyTariffsVersion)&&definition.familyTariffsVersion===input.familyTariffsVersion&&result.familyTariffsVersion===input.familyTariffsVersion&&input.familyTariffCapture.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&same(input.familyTariffCapture.policies,expectedPolicies)&&input.familyTariffCapture.familyFactsVersion===payload.familyPayrollFacts.version,'La tarifa debe conservar su versión y las tablas vigentes del programa original.');
+  need([OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION].includes(input.familyTariffsVersion)&&definition.familyTariffsVersion===input.familyTariffsVersion&&result.familyTariffsVersion===input.familyTariffsVersion&&input.familyTariffCapture.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&same(input.familyTariffCapture.policies,expectedPolicies)&&input.familyTariffCapture.familyFactsVersion===payload.familyPayrollFacts.version,'La tarifa debe conservar su versión y las tablas vigentes del programa original.');
   need(same(input.familyTariffCapture.bindings,expectedBindings),'Las claves de tarifa cambiaron respecto de su programa.');
   for(const r of input.familyTariffCapture.records){const original=payload.familyPayrollFacts.records.find(x=>x.contractId===r.contractId),person=population.employees.find(x=>x.contractId===r.contractId);need(original?.definition&&person&&original.identityToken===person.identityToken&&r.identityToken===person.identityToken&&r.agreementCode===person.agreementCode&&r.revision===original.revision&&r.approvalId===original.approvalId&&r.regionCode===original.definition.tariffSelection.region&&r.priorSemesterAverage===original.definition.tariffSelection.semesterAverage&&r.asOfDate===original.definition.asOfDate,'La selección tarifaria debe conservar los hechos familiares originales.');}
  }
@@ -122,7 +129,10 @@ export async function verifiedOwnOfficialCapture(value){
  for(const k of ['periodContext','employmentFacts','periodParticipation','workingTime','agreementWorkingTime','salaryConditions','familyPayrollFacts'])if(Object.hasOwn(payload,k))populationSources[k]=payload[k];
  if(Object.keys(populationSources).length>1)checks.push([populationSources,payload.population.version]);
  const factVersions={employmentFacts:'own-salary-seniority.v1',periodParticipation:'own-period-participation.v1',workingTime:'own-contract-working-time.v1',agreementWorkingTime:'own-agreement-working-time.v1',salaryConditions:'own-contract-salary-conditions.v1',familyPayrollFacts:'own-contract-family-payroll-facts.v1'};
- for(const [key,version] of Object.entries(factVersions))if(payload[key])checks.push([[version,input.period,payload[key].records],payload[key].version]);
+ for(const [key,version] of Object.entries(factVersions))if(payload[key]){
+  if(key==='salaryConditions'&&payload.programState.program.definition.salaryConditionsVersion===SALARY_NATIVE_VERSION){checks.push([[version,input.period,payload[key].legacy.records],payload[key].legacy.version]);checks.push([salaryNativeCaptureMaterial(payload[key],input.period),payload[key].version]);}
+  else checks.push([[version,input.period,payload[key].records],payload[key].version]);
+ }
  if(input.familyTariffCapture){const f=input.familyTariffCapture;checks.push([f.policies,f.policySha256]);for(const p of f.policies)checks.push([p.rows,p.rowsSha256]);for(const r of f.records)checks.push([payload.familyPayrollFacts.records.find(x=>x.contractId===r.contractId).definition,r.definitionSha256]);}
  checks.push(...await monthlyForcedCaptureHashChecks(payload,input,capture.saved.result,ownOfficialHash));
  for(const [value,hash] of checks)need(salaryHash(hash)&&await ownOfficialHash(value)===hash,'Una fuente, tabla, entrada o salida no conserva su huella original.');
@@ -149,8 +159,8 @@ function sourceEvidence(source){
  if(source.familyTariffsVersion===null)need(source.familyTariffCaptureMetadata===null,'Una fuente sin tarifas no puede agregar una tabla.');
  else{
   const m=source.familyTariffCaptureMetadata;
-  const temporal=source.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
-  need(inputVersions.includes(source.inputVersion)&&[OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(source.familyTariffsVersion)&&salaryExact(m,['version',...(temporal?['period','liquidationType']:[]),'familyFactsVersion','policies','policySha256','bindings'])&&m.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&(!temporal||m.period===officialContext(source).period&&m.liquidationType===source.officialTotalsPolicy.liquidationType)&&[m.familyFactsVersion,m.policySha256].every(salaryHash)&&list(m.policies,temporal?1000:1)&&m.policies.length>0&&same(m.policies.map(normalizeFamilyTariffPolicy),m.policies)&&m.policies.every(p=>familyTariffPolicyVersionCompatible(source.familyTariffsVersion,p.version)&&p.agreementCode===source.officialTotalsPolicy.agreementCode&&p.liquidationType===source.officialTotalsPolicy.liquidationType)&&list(m.bindings,512)&&m.bindings.length>0,'La fuente tarifaria requiere metadata completa del período y alcance originales.');
+  const temporal=temporalFamilyTariffVersion(source.familyTariffsVersion);
+  need(inputVersions.includes(source.inputVersion)&&[OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION].includes(source.familyTariffsVersion)&&salaryExact(m,['version',...(temporal?['period','liquidationType']:[]),'familyFactsVersion','policies','policySha256','bindings'])&&m.version===(temporal?OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION:OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION)&&(!temporal||m.period===officialContext(source).period&&m.liquidationType===source.officialTotalsPolicy.liquidationType)&&[m.familyFactsVersion,m.policySha256].every(salaryHash)&&list(m.policies,temporal?1000:1)&&m.policies.length>0&&same(m.policies.map(normalizeFamilyTariffPolicy),m.policies)&&m.policies.every(p=>familyTariffPolicyVersionCompatible(source.familyTariffsVersion,p.version)&&p.agreementCode===source.officialTotalsPolicy.agreementCode&&p.liquidationType===source.officialTotalsPolicy.liquidationType)&&list(m.bindings,512)&&m.bindings.length>0,'La fuente tarifaria requiere metadata completa del período y alcance originales.');
   const [active]=selectFamilyTariffPolicies({familyTariffsVersion:source.familyTariffsVersion,familyTariffPolicies:m.policies},officialContext(source).period,source.officialTotalsPolicy.liquidationType,[source.officialTotalsPolicy.agreementCode]);
   const seen=new Set();for(const b of m.bindings){need(salaryExact(b,['agreementCode','key','sourceCode'])&&b.agreementCode===active.agreementCode&&typeof b.key==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key)&&active.mappings.some(x=>x.sourceCode===b.sourceCode)&&!seen.has(b.key),'Una tarifa contiene claves ajenas o repetidas.');seen.add(b.key);}
  }

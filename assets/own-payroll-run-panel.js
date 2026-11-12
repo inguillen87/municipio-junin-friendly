@@ -37,6 +37,8 @@ const errors={
   OWN_RUN_OFFICIAL_POLICY_REQUIRED:'Las reglas aprobadas no definen los totales del recibo para ese convenio, mes y tipo de liquidación. Completalo en Reglas de cálculo. No se creó ningún cálculo.',
   OWN_RUN_OFFICIAL_NOT_INSTALLED:'El cálculo con totales oficiales todavía no está instalado. Avisá a sistemas. No se creó ningún cálculo.',
   OWN_RUN_OFFICIAL_NONPOSITIVE_NET_REVIEW_REQUIRED:'A algún legajo el neto le queda en cero o negativo. No se guardó el resultado: revisá sus descuentos y novedades y volvé a calcular.',
+  OWN_RUN_OPTIONAL_SCALE_CAPTURE_INVALID:'No se verificó el maestro completo que respalda los adicionales. Recuperá el mismo intento; no se usó cero para suplir datos faltantes.',
+  OWN_RUN_OPTIONAL_SCALE_INPUT_INVALID:'El adicional no coincide con el importe aprobado o con la ausencia de configuración demostrada. El resultado no se confirmó.',
   OWN_RUN_FAMILY_APPROVAL_REQUIRED:'Falta aprobar la declaración familiar de algún legajo para este mes. Un dato sin informar no se toma como cero. Aprobala y volvé a calcular.',
   OWN_RUN_FAMILY_TARIFF_FACT_SOURCE_REQUIRED:'Falta aprobar la declaración familiar de algún legajo para este mes. Un dato sin informar no se toma como cero. Aprobala y volvé a calcular.',
   OWN_RUN_FAMILY_TARIFF_FACT_MISSING:'A algún legajo le falta la región o el promedio semestral en su declaración familiar. Completala y volvé a calcular; no se supuso un valor.',

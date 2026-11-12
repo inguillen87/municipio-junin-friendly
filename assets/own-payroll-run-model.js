@@ -1,3 +1,7 @@
+import {verifyConditionalSourceCapture,verifyConditionalSourceInputs} from './own-payroll-conditional-sources.js';
+import {optionalScaleResolver,verifyOptionalScaleInputs} from './own-payroll-optional-scales.js';
+import {verifyQuantityOnlyInput} from './own-payroll-quantity-only-capture.js';
+import {verifyDeclaredAdjustmentCapture,verifyDeclaredAdjustmentInput} from './own-payroll-declared-adjustments-capture.js';
 import { participationCapture } from './own-period-participation-model.js';
 import { ownProgramParticipation } from './own-period-participation-program.js';
 import { salaryExact, salaryHash, salaryUuid, salaryKey, salarySerialized } from './native-salary-catalog-model.js';
@@ -9,6 +13,7 @@ import { workingTimeCapture } from './own-contract-working-time-model.js';
 import { agreementWorkingTimeCapture } from './own-agreement-working-time-model.js';
 import { ownProgramAgreementWorkingTime } from './own-agreement-working-time-program.js';
 import {salaryConditionsCapture} from './own-contract-salary-conditions-model.js';
+import {salaryNativeCapture,SALARY_NATIVE_VERSION} from './own-contract-salary-conditions-native-model.js';
 import {familyPayrollFactsCapture} from './own-contract-family-payroll-facts-model.js';
 import {ownPayrollFamilyFacts} from './own-payroll-family-facts.js';
 import {ownPayrollConditions} from './own-payroll-conditions.js';
@@ -48,10 +53,14 @@ export function ownRunCapture(v, attempt = null) {
   if (hasSeniority) seniorityCapture(v.payload.employmentFacts, v.payload.population?.employees ?? [], v.body.period);
   if (ownProgramWorkingTime(v.payload.programState?.program?.definition)) workingTimeCapture(v.payload.workingTime, v.payload.population?.employees ?? [], v.body.period);
   if (ownProgramAgreementWorkingTime(v.payload.programState?.program?.definition)) agreementWorkingTimeCapture(v.payload.agreementWorkingTime, v.payload.population?.employees ?? [], v.body.period);
-  if(ownPayrollConditions(v.payload.programState?.program?.definition))salaryConditionsCapture(v.payload.salaryConditions,v.payload.population?.employees??[],v.body.period);
+  if(ownPayrollConditions(v.payload.programState?.program?.definition))(v.payload.programState.program.definition.salaryConditionsVersion===SALARY_NATIVE_VERSION?salaryNativeCapture:salaryConditionsCapture)(v.payload.salaryConditions,v.payload.population?.employees??[],v.body.period);
   if(ownPayrollFamilyFacts(v.payload.programState?.program?.definition))familyPayrollFactsCapture(v.payload.familyPayrollFacts,v.payload.population?.employees??[],v.body.period);
+  verifyDeclaredAdjustmentCapture(v.payload);
+  if(v.saved===null)optionalScaleResolver(v.payload);else verifyOptionalScaleInputs(v.payload,v.saved.input);
+  if(v.saved===null)verifyConditionalSourceCapture(v.payload);else verifyConditionalSourceInputs(v.payload,v.saved.input);
+  verifyQuantityOnlyInput(v.payload);
   if (attempt) require(v.key === attempt.key && salarySerialized(v.body) === salarySerialized(attempt.body), 'RUN_CONTRACT_INVALID', 'La captura cambió el cuerpo o la clave originales.');
-  if (v.saved !== null) ownRunSaved(v.saved, v.id, v.algorithmSha256);
+  if (v.saved !== null) {ownRunSaved(v.saved, v.id, v.algorithmSha256);verifyDeclaredAdjustmentInput(v.payload,v.saved.input,v.saved.result);verifyQuantityOnlyInput(v.payload,v.saved.input);}
   return v;
 }
 export function ownRunSaved(v, captureId = null, algorithm = null) {

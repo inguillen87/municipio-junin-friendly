@@ -11,6 +11,7 @@ import {requirePolicyScope,policyAppliesTo,policyRuleIntersects,requirePolicyDec
 export const OWN_PAYROLL_FAMILY_TARIFFS_VERSION='own-payroll-family-tariffs.v1';
 export const OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION='own-payroll-family-tariffs.v2';
 export const OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION='own-payroll-family-tariffs.v3';
+export const OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION='own-payroll-family-tariffs.v4';
 export const OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_VERSION='own-payroll-family-tariff-capture.v1';
 export const OWN_PAYROLL_FAMILY_TARIFF_CAPTURE_V2_VERSION='own-payroll-family-tariff-capture.v2';
 export const FAMILY_TARIFF_EXECUTOR_MAP=Object.freeze({
@@ -28,9 +29,10 @@ export const FAMILY_TARIFF_V2_MAP=Object.freeze({...FAMILY_TARIFF_EXECUTOR_MAP,
  '85':Object.freeze({conceptCode:'304',typeCode:'6'}),
 });
 const mapForVersion=v=>v===OWN_PAYROLL_FAMILY_TARIFFS_VERSION?FAMILY_TARIFF_EXECUTOR_MAP:v===OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION?FAMILY_TARIFF_V2_MAP:null;
-export const familyTariffPolicyVersionCompatible=(outer,inner)=>outer===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION?[OWN_PAYROLL_FAMILY_TARIFFS_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(inner):mapForVersion(outer)!==null&&outer===inner;
+export const temporalFamilyTariffVersion=v=>[OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION].includes(v);
+export const familyTariffPolicyVersionCompatible=(outer,inner)=>outer===OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION?[OWN_PAYROLL_FAMILY_TARIFFS_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION].includes(inner):outer===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION?[OWN_PAYROLL_FAMILY_TARIFFS_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V2_VERSION,OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION].includes(inner):mapForVersion(outer)!==null&&outer===inner;
 export const ownPayrollFamilyTariffs=v=>v!==null&&typeof v==='object'&&familyTariffPolicyVersionCompatible(Object.getOwnPropertyDescriptor(v,'familyTariffsVersion')?.value,Object.getOwnPropertyDescriptor(v,'familyTariffsVersion')?.value);
-const mapForPolicy=p=>p.version===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION?Object.fromEntries(p.mappings.map(m=>[m.sourceCode,m])):mapForVersion(p.version);
+const mapForPolicy=p=>temporalFamilyTariffVersion(p.version)?Object.fromEntries(p.mappings.map(m=>[m.sourceCode,m])):mapForVersion(p.version);
 export const familyTariffInputFields=v=>ownPayrollFamilyTariffs(v)?['familyTariffsVersion','familyTariffCapture']:[];
 export const familyTariffProgramFields=v=>ownPayrollFamilyTariffs(v)?['familyTariffsVersion','familyTariffPolicies']:[];
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
@@ -38,24 +40,31 @@ const code=v=>typeof v==='string'&&/^[1-9][0-9]{0,8}$/.test(v);
 const key=v=>typeof v==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(v);
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
 const order=(a,b)=>a<b?-1:a>b?1:0;
-export const familyTariffPolicyId=p=>p.version===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION?p.policyId:'legacy:family-tariff:'+familyTariffPolicyKey(p);
+export const familyTariffPolicyId=p=>temporalFamilyTariffVersion(p.version)?p.policyId:'legacy:family-tariff:'+familyTariffPolicyKey(p);
 export const resolveFamilyTariffPolicies=policies=>resolvePolicySuccession(policies,{identity:familyTariffPolicyId,scope:p=>p.agreementCode+':'+p.liquidationType});
-export const familyTariffPolicyKey=p=>p.version===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION?[p.agreementCode,p.validFrom+'..'+p.validUntil,p.liquidationType].join(':'):[p.agreementCode,p.period,p.liquidationType].join(':');
+export const familyTariffPolicyKey=p=>temporalFamilyTariffVersion(p.version)?[p.agreementCode,p.validFrom+'..'+p.validUntil,p.liquidationType].join(':'):[p.agreementCode,p.period,p.liquidationType].join(':');
 function shape(v,keys){require(v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===keys.length&&Reflect.ownKeys(v).every(k=>typeof k==='string'&&keys.includes(k))&&Object.values(Object.getOwnPropertyDescriptors(v)).every(d=>Object.hasOwn(d,'value')&&d.enumerable),'FAMILY_TARIFF_CONTRACT_INVALID','El productor de tarifa necesita evidencia íntegra, sin accesores ni campos omitidos.');}
 function list(v,min,max){require(Array.isArray(v)&&Object.getPrototypeOf(v)===Array.prototype&&v.length>=min&&v.length<=max&&Reflect.ownKeys(v).length===v.length+1&&Array.from({length:v.length},(_,i)=>Object.getOwnPropertyDescriptor(v,String(i))).every(d=>d&&Object.hasOwn(d,'value')&&d.enumerable),'FAMILY_TARIFF_CONTRACT_INVALID','El conjunto de tarifa no puede tener huecos ni recortes.');}
 function nonnegative(value){const n=decimal(value);require(n.n>=0n,'FAMILY_TARIFF_CONTRACT_INVALID','La tabla necesita importes y topes no negativos.');quantize(n,{precision:8,mode:'exact'});return n;}
 export function familyTariffInputKeys(node){if(!node||typeof node!=='object')return[];return[node.op==='input'?node.key:null,...['left','right','value','condition','then','else'].flatMap(k=>familyTariffInputKeys(node[k]))].filter(Boolean);}
 
 export function normalizeFamilyTariffPolicy(raw){
- const temporal=Object.getOwnPropertyDescriptor(raw??{},'version')?.value===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+ const declaredVersion=Object.getOwnPropertyDescriptor(raw??{},'version')?.value;
+ const temporal=temporalFamilyTariffVersion(declaredVersion),shared=declaredVersion===OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION;
  shape(raw,['version','agreementCode',...(temporal?['policyId','supersedes','validFrom','validUntil']:['period']),'liquidationType','selection','outsideRange','mappings','rows','rowsSha256','sourceReference','sourceSha256']);
  const versionMap=mapForVersion(raw.version);
  if(temporal){requirePolicyScope(raw);requirePolicyDeclaration(raw);list(raw.mappings,1,512);}else require(versionMap&&raw.agreementCode==='1'&&raw.period==='2026-10'&&raw.liquidationType==='monthly','FAMILY_TARIFF_SCOPE_UNSUPPORTED','Este productor conserva exclusivamente C1 mensual octubre2026.');
  const mappingCount=temporal?raw.mappings.length:versionMap?Object.keys(versionMap).length:0;
  require(raw.selection==='first_upper_bound_inclusive'&&raw.outsideRange==='error'&&payrollExpressionReference(raw.sourceReference)&&sha(raw.sourceSha256)&&sha(raw.rowsSha256),'FAMILY_TARIFF_POLICY_REQUIRED','Región exacta, primer tope inclusivo y error fuera de rango requieren política y huellas explícitas.');
  list(raw.mappings,mappingCount,mappingCount);const mappings=raw.mappings.map(m=>{
-  shape(m,['sourceCode','conceptCode','typeCode','sourceReference','sourceSha256']);const expected=versionMap?.[m.sourceCode];
-  require((temporal?[m.sourceCode,m.conceptCode,m.typeCode].every(code):expected&&m.conceptCode===expected.conceptCode&&m.typeCode===expected.typeCode)&&payrollExpressionReference(m.sourceReference)&&sha(m.sourceSha256),'FAMILY_TARIFF_MAPPING_UNPROVEN','El par debe pertenecer al mapa explícito de su versión; no se infiere por desplazamiento.');return{...m};
+  shape(m,['sourceCode','conceptCode','typeCode','sourceReference','sourceSha256',...(shared?['consumerCodes']:[])]);const expected=versionMap?.[m.sourceCode];
+  require((temporal?[m.sourceCode,m.conceptCode,m.typeCode].every(code):expected&&m.conceptCode===expected.conceptCode&&m.typeCode===expected.typeCode)&&payrollExpressionReference(m.sourceReference)&&sha(m.sourceSha256),'FAMILY_TARIFF_MAPPING_UNPROVEN','El par debe pertenecer al mapa explícito de su versión; no se infiere por desplazamiento.');
+  if(shared){
+   list(m.consumerCodes,1,512);
+   require(m.consumerCodes.every(code)&&m.consumerCodes.includes(m.conceptCode)&&new Set(m.consumerCodes).size===m.consumerCodes.length&&m.consumerCodes.every((c,i)=>i===0||order(m.consumerCodes[i-1],c)<0),'FAMILY_TARIFF_CONSUMERS_INVALID','Declarar todos los consumidores autorizados, ordenados, distintos y con su concepto principal.');
+   return{...m,consumerCodes:[...m.consumerCodes]};
+  }
+  return{...m};
  }).sort((a,b)=>order(a.sourceCode,b.sourceCode));
  require(new Set(mappings.map(m=>m.sourceCode)).size===mappingCount,'FAMILY_TARIFF_MAPPING_UNPROVEN','El mapa debe conservar todos sus pares distintos.');
  list(raw.rows,1,10000);const seen=new Set(),rows=raw.rows.map(r=>{
@@ -80,8 +89,13 @@ export function proposeFamilyTariffPolicyV3(policy){
  shape(policy,['policyId','supersedes','agreementCode','validFrom','validUntil','liquidationType','selection','outsideRange','mappings','rows','rowsSha256','sourceReference','sourceSha256']);
  return normalizeFamilyTariffPolicy({...policy,version:OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION});
 }
+/** Explicit shared consumers; V1/V2/V3 objects and their interpretation remain unchanged. */
+export function proposeFamilyTariffPolicyV4(policy){
+ shape(policy,['policyId','supersedes','agreementCode','validFrom','validUntil','liquidationType','selection','outsideRange','mappings','rows','rowsSha256','sourceReference','sourceSha256']);
+ return normalizeFamilyTariffPolicy({...policy,version:OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION});
+}
 export function selectFamilyTariffPolicies(program,period,liquidationType,agreementCodes){
- const temporal=program.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+ const temporal=temporalFamilyTariffVersion(program.familyTariffsVersion);
  list(program.familyTariffPolicies,1,temporal?1000:1);
  const policies=program.familyTariffPolicies.map(normalizeFamilyTariffPolicy);
  require(policies.every(p=>familyTariffPolicyVersionCompatible(program.familyTariffsVersion,p.version)),'FAMILY_TARIFF_VERSION_MISMATCH','La versión del contenedor debe admitir cada política histórica explícita.');
@@ -94,7 +108,7 @@ export function selectFamilyTariffPolicies(program,period,liquidationType,agreem
 }
 export function normalizeFamilyTariffProgram(program){
  require(program.namespaceVersion==='own-payroll-namespaces.v2'&&program.familyPayrollFactsVersion==='own-contract-family-payroll-facts.v1','FAMILY_TARIFF_FACT_SOURCE_REQUIRED','La tarifa requiere los hechos familiares propios existentes y referencias separadas.');
- const temporal=program.familyTariffsVersion===OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION;
+ const temporal=temporalFamilyTariffVersion(program.familyTariffsVersion);
  list(program.familyTariffPolicies,1,temporal?1000:1);const policies=program.familyTariffPolicies.map(normalizeFamilyTariffPolicy);
  require(policies.every(p=>familyTariffPolicyVersionCompatible(program.familyTariffsVersion,p.version)),'FAMILY_TARIFF_VERSION_MISMATCH','La versión del programa debe admitir cada política declarada.');
  const resolved=resolveFamilyTariffPolicies(policies);
@@ -106,7 +120,7 @@ export function normalizeFamilyTariffProgram(program){
    if(!temporal)require(r.validFrom==='2026-10'&&r.validUntil==='2026-10'&&r.liquidationTypes.length===1&&r.liquidationTypes[0]==='monthly','FAMILY_TARIFF_SCOPE_UNSUPPORTED','El consumidor debe conservar la vigencia probada de octubre, sin extenderla a otros meses.');
    else {
     const during=resolved.filter(entry=>policyRuleIntersects(r,{agreementCode:entry.policy.agreementCode,liquidationType:entry.policy.liquidationType,validFrom:entry.validFrom,validUntil:entry.validUntil}));
-    require(during.length>0&&during.every(({policy:p})=>mapForPolicy(p)[b.sourceCode]&&(p.version!==OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION||mapForPolicy(p)[b.sourceCode].conceptCode===r.code)),'FAMILY_TARIFF_SCOPE_UNSUPPORTED','El consumidor debe coincidir con el concepto declarado en cada vigencia efectiva que alcanza.');
+    require(during.length>0&&during.every(({policy:p})=>{const mapping=mapForPolicy(p)[b.sourceCode];return mapping&&(p.version===OWN_PAYROLL_FAMILY_TARIFFS_V4_VERSION?mapping.consumerCodes.includes(r.code):p.version!==OWN_PAYROLL_FAMILY_TARIFFS_V3_VERSION||mapping.conceptCode===r.code);}),'FAMILY_TARIFF_SCOPE_UNSUPPORTED','El consumidor debe coincidir con el concepto declarado en cada vigencia efectiva que alcanza.');
    }
   }
  }
