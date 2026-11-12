@@ -106,6 +106,25 @@ test('leer un recibo de cálculo oficial comprueba sobre, huellas y que la entra
   invalid(v => { v.saved.id = uid(77); });
 });
 
+for (const version of NATIVE_OFFICIAL_VERSIONS) test('leer ' + version.toUpperCase() + ': una huella rehecha no admite otro período, tipo, alcance ni forma del resultado', () => {
+  for (const [name, change] of Object.entries({
+    'otro período': r => { r.period = '2026-11'; },
+    'otro tipo': r => { r.liquidationType = 'sac'; },
+    'otro alcance': r => { r.selection = { kind: 'departments', values: ['999'] }; },
+    'sin período': r => { delete r.period; },
+    'sin tipo': r => { delete r.liquidationType; },
+    'sin alcance': r => { delete r.selection; },
+    'sin evidencia oficial': r => { delete r.totalReconciliations; },
+    'campo ajeno': r => { r.unexpectedField = true; },
+  })) {
+    const { capture, saved } = nativeOfficial(version), originalResultHash = saved.resultSha256;
+    change(saved.result); saved.resultSha256 = ownRunHash(saved.result);
+    assert.notEqual(saved.resultSha256, originalResultHash, name + ': el resultado cambió y conserva su nueva huella');
+    assert.equal(ownRunHash(saved.input), saved.inputSha256, name + ': la entrada original queda intacta');
+    assert.throws(() => verifyOwnRunReceipt({ ...capture, saved }), e => e.code === 'OWN_RUN_CONTRACT_INVALID' && e.status === 503, name);
+  }
+});
+
 test('la versión del resultado tiene que corresponder al programa capturado, en los dos sentidos', () => {
   const { saved } = nativeOfficial('v5'), old = historicalCapture();
   assert.throws(() => verifyOwnRunReceipt({ ...old, saved: { ...saved, id: old.id, algorithmSha256: old.algorithmSha256 } }), e => e.code === 'OWN_RUN_CONTRACT_INVALID' && /no corresponde al programa capturado/.test(e.message));
