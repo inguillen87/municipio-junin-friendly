@@ -21,7 +21,7 @@ export async function verifySalaryAuxiliaryNamespace({major,transport='local',so
  assert.ok(continuation===undefined||typeof continuation==='function');
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);assert.ok(['none','chrome','chromium'].includes(browser));
  if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
- const destination=path.resolve(root,output);assert.ok(destination.startsWith(root+path.sep+'verification'+path.sep)&&!fs.existsSync(destination));fs.mkdirSync(destination);
+ const destination=path.resolve(root,output);assert.ok(destination.startsWith(root+path.sep+'verification'+path.sep)&&!fs.existsSync(destination));fs.mkdirSync(path.dirname(destination),{recursive:true});fs.mkdirSync(destination);
  const options={read:f=>fs.readFileSync(path.join(root,f),'utf8'),sourceCommit},qa=buildNoeliaCircuitQa(major),batch=buildSalaryAuxiliaryNamespaceInstallation(options),admin=buildSalaryAdministrativeIdentityInstallation(options),db=createNoeliaCircuitPsqlQa({major,port:55400+major,schema:qa.schema,pins:qa.pins,transport,browser});
  // Schema relocation is test-only. Canonical source hashes restore every schema
  // occurrence, including nested readiness metadata, before comparing the pin.
