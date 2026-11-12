@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {reportFixture,historicalReportFixture,reportGroup,rehashReportFixture} from './fixtures/own-payroll-report-synthetic.js';
 import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
-import {ownReportQuery,ownReportPeriods,ownReportFilters,emptyOwnReportFilters,ownReportBundle,verifiedOwnReportBundle,ownReportDocument} from '../assets/own-payroll-report-model.js';
+import fs from 'node:fs';
+import {ownReportQuery,ownReportPeriods,ownReportFilters,emptyOwnReportFilters,ownReportBundle,verifiedOwnReportBundle,ownReportDocument,ownReportCount} from '../assets/own-payroll-report-model.js';
 import {reportCsv,reportXlsx,reportPdf,reportExactShown} from '../assets/report-document.js';
 import {OWN_RUN_TYPES} from '../assets/own-payroll-run-workspace-model.js';
 const bundle=f=>ownReportBundle(f.query,f.details,f.receipts),filters=patch=>({...emptyOwnReportFilters(),...patch});
@@ -101,4 +102,13 @@ test('histórico anual de 150000 participaciones conserva alcance y totales sin 
  const b=ownReportBundle({from:'2026-01',to:'2026-10',types},details,receipts),d=ownReportDocument(b),summary=ownReportDocument(b,filters(),'summary');
  assert.equal(d.rows.length,150000);assert.equal(d.metadata.find(r=>r[0]==='Participaciones seleccionadas')[1],150000);assert.equal(d.metadata.find(r=>r[0]==='Contratos distintos')[1],5000);assert.equal(summary.rows.length,30);assert.equal(summary.rows.reduce((n,r)=>n+r[4],0),150000);
  assert.ok(summary.rows.every(r=>r.slice(5).every(value=>value===receipts[0].snapshot.totals.net)));const csv=reportCsv(d);assert.equal(csv.split('\r\n').length,150002);assert.equal(csv.split('\r\n').filter(line=>line.startsWith('"2026-')).length,150000);assert.match(csv,/"2026-10";"Aguinaldo";"6000"/);
+});
+
+test('Informes cuenta en singular lo que es uno solo: fila, grupo cerrado consultado y participación',()=>{
+ assert.equal(ownReportCount(1,'fila','filas'),'1 fila');assert.equal(ownReportCount(0,'fila','filas'),'0 filas');assert.equal(ownReportCount(25,'fila','filas'),'25 filas');
+ assert.equal(ownReportCount('1','participación','participaciones'),'1 participación','el conteo que llega como texto se lee igual');
+ const panel=fs.readFileSync(new URL('../assets/own-payroll-report-panel.js',import.meta.url),'utf8');
+ assert.doesNotMatch(panel,/\} (filas|grupos cerrados consultados|participaciones) /,'ningún conteo de la pantalla queda con el plural fijo');
+ assert.match(panel,/\$\{ownReportCount\(rows\.length,'fila','filas'\)\} en la vista · \$\{ownReportCount\(documentValue\.rows\.length,'fila','filas'\)\} en cada descarga\./);
+ assert.match(panel,/\$\{ownReportCount\(bundle\.sources\.length,'grupo cerrado consultado','grupos cerrados consultados'\)\} · /);
 });

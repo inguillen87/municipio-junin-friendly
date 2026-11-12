@@ -56,6 +56,9 @@ test('horizontal charts reserve usable mobile plotting space without changing va
 test('native report chart shares the exact full selection and sums gross plus employer contributions once', () => {
  const f = reportFixture(2), before = JSON.stringify(f), doc = ownReportDocument(bundle(f));
  assert.equal(doc.chartSummary.participations, 2);
+ // La leyenda del mes cuenta en singular lo que es uno solo.
+ assert.equal(doc.chartSummary.months[0].coverage, '2 participaciones · 1 grupo cerrado');
+ assert.equal(ownReportDocument(bundle(reportFixture(1))).chartSummary.months[0].coverage, '1 participación · 1 grupo cerrado');
  assert.deepEqual(doc.chartSummary.months.map(({gross, deduction, net}) => ({gross, deduction, net})), [{gross: '245.22', deduction: '7.36', net: '237.86'}]);
  assert.equal(doc.chartSummary.departments[0].cost, '275.26');
  assert.equal(JSON.stringify(f), before);
