@@ -1,3 +1,4 @@
+import {monthlyForcedProgramFields,normalizeMonthlyForcedProgram,monthlyForcedProgramHistory} from './own-payroll-monthly-forced-amounts.js';
 import {ownPayrollFamilyTariffs,familyTariffProgramFields,normalizeFamilyTariffProgram,familyTariffProgramHistory} from './own-payroll-family-tariffs.js';
 export {ownPayrollFamilyTariffs};
 import {ownProgramRowEmission,rowEmissionProgramFields,normalizeRowEmissionProgram,rowEmissionProgramHistory} from './own-payroll-row-emission-program.js';
@@ -30,7 +31,7 @@ const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
 const text = (v, min, max) => typeof v === 'string' && v === v.trim() && v === v.normalize('NFC') && v.length >= min && v.length <= max && !/[<>\u0000-\u001f\u007f]/.test(v);
 export const ownProgramRuleKey = (r, namespaceVersion = null) => [r.agreementCode, ownPayrollRuleIdentity(r, namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION), r.validFrom, r.liquidationTypes.join(',')].join(':');
 export const ownProgramNamespaced = p => p?.namespaceVersion === OWN_PAYROLL_NAMESPACE_VERSION;
-export const ownProgramFields = p => [...familyTariffProgramFields(p),...rowEmissionProgramFields(p),...officialProgramFields(p),...quantityProgramFields(p),...(ownProgramNoveltyPresence(p)?['noveltyPresenceVersion']:[]), ...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownPayrollFamilyFacts(p)?['familyPayrollFactsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), 'rules', 'bindings', 'totalsPrecision'];
+export const ownProgramFields = p => [...monthlyForcedProgramFields(p),...familyTariffProgramFields(p),...rowEmissionProgramFields(p),...officialProgramFields(p),...quantityProgramFields(p),...(ownProgramNoveltyPresence(p)?['noveltyPresenceVersion']:[]), ...(ownProgramNamespaced(p) ? ['namespaceVersion'] : []), ...(ownProgramSeniority(p) ? ['employmentFactsVersion'] : []), ...(ownProgramWorkingTime(p) ? ['workingTimeVersion'] : []), ...(ownProgramAgreementWorkingTime(p) ? ['agreementWorkingTimeVersion'] : []), ...(ownProgramPeriodContext(p) ? ['periodContextVersion'] : []), ...(ownProgramConditions(p)?['salaryConditionsVersion']:[]), ...(ownPayrollFamilyFacts(p)?['familyPayrollFactsVersion']:[]), ...(ownProgramParticipation(p) ? ['periodParticipation'] : []), 'rules', 'bindings', 'totalsPrecision'];
 const bindingKey = b => b.agreementCode + ':' + b.key;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function inputNodes(n) { if (n.op === 'input') return [n]; if(n.op==='match')return[{key:n.key,unit:n.type}];return ['left', 'right', 'value', 'condition', 'then', 'else'].flatMap(k => n[k] && typeof n[k] === 'object' ? inputNodes(n[k]) : []); }
@@ -77,7 +78,8 @@ export function ownProgramStructure(raw) {
   const familyTariffs=tariffs?normalizeFamilyTariffProgram({...raw,...quantity,rules,bindings}):{};
   const official = ownProgramOfficialTotals(raw) ? normalizeOfficialTotalsProgram({...raw,...quantity,rules,bindings}) : {};
   const emission=ownProgramRowEmission(raw)?normalizeRowEmissionProgram({...raw,...official,...quantity,rules,bindings}):{};
-  return { ...familyTariffs, ...emission, ...official, ...quantity, ...(presence?{noveltyPresenceVersion:OWN_PAYROLL_NOVELTY_PRESENCE_VERSION}:{}), ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), ...(familyFacts?{familyPayrollFactsVersion:OWN_PAYROLL_FAMILY_FACTS_VERSION}:{}), rules, bindings, totalsPrecision: raw.totalsPrecision };
+  const monthlyForced=normalizeMonthlyForcedProgram({...raw,rules,bindings,...(policy?{periodParticipation:policy}:{})});
+  return { ...monthlyForced, ...familyTariffs, ...emission, ...official, ...quantity, ...(presence?{noveltyPresenceVersion:OWN_PAYROLL_NOVELTY_PRESENCE_VERSION}:{}), ...(policy ? {periodParticipation:policy} : {}), ...(namespaced ? { namespaceVersion: OWN_PAYROLL_NAMESPACE_VERSION } : {}), ...(seniority ? { employmentFactsVersion: OWN_PROGRAM_SENIORITY_VERSION } : {}), ...(workingTime ? { workingTimeVersion: OWN_PROGRAM_WORKING_TIME_VERSION } : {}), ...(agreementWorkingTime ? { agreementWorkingTimeVersion: OWN_AGREEMENT_WORKING_TIME_VERSION } : {}), ...(periodContext?{periodContextVersion:OWN_PAYROLL_PERIOD_CONTEXT_VERSION}:{}), ...(conditions?{salaryConditionsVersion:OWN_PAYROLL_CONDITIONS_VERSION}:{}), ...(familyFacts?{familyPayrollFactsVersion:OWN_PAYROLL_FAMILY_FACTS_VERSION}:{}), rules, bindings, totalsPrecision: raw.totalsPrecision };
 }
 export function ownProgramDefinition(raw, catalogItems) {
   const program = ownProgramStructure(raw), { rules, bindings } = program, namespaced = ownProgramNamespaced(program), catalog = salaryItems(catalogItems);
@@ -100,6 +102,7 @@ export function ownProgramHistory(before, after) {
   officialTotalsProgramHistory(before,after);
   rowEmissionProgramHistory(before,after);
   familyTariffProgramHistory(before,after);
+  monthlyForcedProgramHistory(before,after);
   require(!ownProgramNoveltyPresence(before)||ownProgramNoveltyPresence(after),'PROGRAM_HISTORY_REQUIRED','Conservá el contrato explícito de presencia de novedades.');
   require(!ownProgramNamespaced(before) || ownProgramNamespaced(after), 'PROGRAM_HISTORY_REQUIRED', 'Un programa con auxiliares separados no puede volver a referencias ambiguas.');
   require(!ownProgramSeniority(before) || ownProgramSeniority(after), 'PROGRAM_HISTORY_REQUIRED', 'Conservá la versión explícita de la fuente propia de antigüedad.');

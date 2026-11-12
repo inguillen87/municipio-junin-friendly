@@ -328,6 +328,7 @@ const shellFiles = [
   'assets/own-payroll-run-reader.js',
   'assets/own-payroll-historical-result-model.js',
   'assets/own-payroll-official-snapshot-model.js',
+  'assets/own-payroll-monthly-forced-amounts.js',
   'assets/own-payroll-run-model.js',
   'assets/own-payroll-run-date.js',
   'assets/own-payroll-engine.js',

@@ -1,3 +1,4 @@
+import {monthlyForcedCaptureSourceRecords,monthlyForcedCaptureHashChecks} from './own-payroll-monthly-forced-amounts.js';
 // Private V4/V5 readers. A saved capture is checked in its original version;
 // this module neither admits a calculation nor supplies missing source facts.
 import {salaryExact,salaryHash,salaryUuid,salarySerialized} from './native-salary-catalog-model.js';
@@ -61,6 +62,7 @@ export function ownOfficialCapture(capture){
  need(salaryExact(saved,['version','id','algorithmSha256','inputSha256','resultSha256','input','result','recordedAt'])&&saved.version==='own-payroll-saved.v1'&&saved.id===capture.id&&saved.algorithmSha256===capture.algorithmSha256&&[saved.inputSha256,saved.resultSha256].every(salaryHash)&&date(saved.recordedAt),'El resultado original debe conservar identificador, algoritmo y huellas.');
  need(!Object.hasOwn(definition,'fixedForcedAmountsVersion')&&!Object.hasOwn(definition,'fixedForcedAmountsPolicy'),'La composición de importes forzados sigue requiriendo su circuito propio.');
  ownProgramBootstrap(payload.programState);
+ monthlyForcedCaptureSourceRecords(payload,input,result);
  need(program.revision>0&&program.salaryVersion===payload.programState.salaryCatalog.version,'La captura debe conservar el programa aprobado y su catálogo original.');
  const normalize=input.version==='own-payroll-input.v5'?normalizeOwnPayrollRowEmissionInput:normalizeOwnPayrollOfficialInput;
  const calculate=input.version==='own-payroll-input.v5'?calculateOwnPayrollWithRowEmission:calculateOwnPayrollWithOfficialTotals;
@@ -111,6 +113,7 @@ export async function verifiedOwnOfficialCapture(value){
  const factVersions={employmentFacts:'own-salary-seniority.v1',periodParticipation:'own-period-participation.v1',workingTime:'own-contract-working-time.v1',agreementWorkingTime:'own-agreement-working-time.v1',salaryConditions:'own-contract-salary-conditions.v1',familyPayrollFacts:'own-contract-family-payroll-facts.v1'};
  for(const [key,version] of Object.entries(factVersions))if(payload[key])checks.push([[version,input.period,payload[key].records],payload[key].version]);
  if(input.familyTariffCapture){const f=input.familyTariffCapture;checks.push([f.policies,f.policySha256]);for(const p of f.policies)checks.push([p.rows,p.rowsSha256]);for(const r of f.records)checks.push([payload.familyPayrollFacts.records.find(x=>x.contractId===r.contractId).definition,r.definitionSha256]);}
+ checks.push(...await monthlyForcedCaptureHashChecks(payload,input,capture.saved.result,ownOfficialHash));
  for(const [value,hash] of checks)need(salaryHash(hash)&&await ownOfficialHash(value)===hash,'Una fuente, tabla, entrada o salida no conserva su huella original.');
  return capture;
 }
