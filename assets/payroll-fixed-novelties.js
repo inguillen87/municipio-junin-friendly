@@ -91,7 +91,10 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       editor.detailSnapshot=null;if(editor.reviewed)editor.reviewed.checked=false;
       editor.form.querySelector('h3').textContent='Propuesta local pendiente';}
   }
-  function deny(){seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
+  // Al ocultarse la pestaña la pantalla retira lo consultado. Si acá había un registro o un borrador a la vista, se anota
+  // para volver a consultarlo solo cuando el acceso se confirme de nuevo, sin que la persona tenga que pedirlo.
+  let restoreOnAccess=false;
+  function deny(){if(mounted&&shell.open&&(data||editor))restoreOnAccess=true;seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
   function clearAll(){deny();editor?.form.reset();editor=null;attempt=null;if(mounted){$('[data-fn-editor]').replaceChildren();controls();}}
   function controls(){
     const locked=busy||Boolean(attempt);if(locked!==reportedLock){reportedLock=locked;onLock(locked);}
@@ -434,7 +437,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     catch(error){if([401,403].includes(error.status))clearConsulted();status('Operación confirmada, pero no pudimos actualizar la vista. Actualizá el registro; no repitas el alta.');}
   }
   async function refresh(){await operation(async live=>{
-    status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
+    restoreOnAccess=false;status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
     if(attempt){
       const pending=attempt;
       if(pending.command==='reviewGroup'&&!groupAllowedReview()){status('Falta permiso vigente de aprobación. Se conserva el intento original; no se consultó ni reenvió.');return;}
@@ -522,12 +525,16 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   const warnPending=event=>{if(attempt){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',warnPending);
   window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('visibilitychange',groupVisibility);document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
-  return {setExternalBusy(value){externalBusy=Boolean(value);controls();},deny,setAccess({capabilities,principalKey}){
+  // Volvió el acceso después de haber retirado lo consultado: se recupera el registro (y se revisa el borrador o el
+  // envío pendiente, como hace «Actualizar registro»). Si la pantalla todavía está ocupada, se hace apenas se libera.
+  function restoreAfterAccess(){if(restoreOnAccess&&mounted&&shell.open&&!data&&!busy&&!externalBusy&&hasRead(access)&&available())refresh();}
+  return {setExternalBusy(value){externalBusy=Boolean(value);controls();restoreAfterAccess();},deny,setAccess({capabilities,principalKey}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
     // Already opened before this module listened (a #fixedNovelties link, or its tab: the toggle event is gone), or opened
     // before the access was known (the toggle could not read): mount if needed and consult now.
     else if(shell.open&&(!mounted||openedWithoutAccess)){openedWithoutAccess=false;mount();if(!data&&!editor&&!busy)refresh();}
+    else restoreAfterAccess();
   }};
 }

@@ -71,3 +71,13 @@ test('la pantalla usa la lista, convierte el texto antes de armar la propuesta y
   assert.doesNotMatch(panel,/'Código del concepto',20\],\['costCenterSourceId','Centro de costo \(opcional\)',20\],\['quantityDecimal','Unidades \(si constan\)'/);
   assert.match(build,/'assets\/payroll-fixed-concepts\.js'/);
 });
+
+test('si la pantalla retiró lo consultado, el registro vuelve solo cuando vuelve el acceso',()=>{
+  const panel=fs.readFileSync('assets/payroll-fixed-novelties.js','utf8');
+  // Se anota sólo si había algo a la vista, y se retira igual que antes.
+  assert.match(panel,/function deny\(\)\{if\(mounted&&shell\.open&&\(data\|\|editor\)\)restoreOnAccess=true;seq\+\+;controller\?\.abort\(\);picker\?\.close\(\);busy=false;clearConsulted\(\);/);
+  // Se recupera con la misma consulta que «Actualizar registro», nunca con la pestaña oculta ni mientras hay otra operación.
+  assert.match(panel,/function restoreAfterAccess\(\)\{if\(restoreOnAccess&&mounted&&shell\.open&&!data&&!busy&&!externalBusy&&hasRead\(access\)&&available\(\)\)refresh\(\);\}/);
+  assert.match(panel,/setExternalBusy\(value\)\{externalBusy=Boolean\(value\);controls\(\);restoreAfterAccess\(\);\}/);
+  assert.match(panel,/const \$=s=>host\.querySelector\(s\),available=\(\)=>!stopped&&shell\.isConnected&&shell\.open&&!document\.hidden;/);
+});
