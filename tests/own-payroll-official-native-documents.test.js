@@ -11,6 +11,9 @@ import { ownCloseOperation } from '../lib/internal-own-payroll-close.js';
 import { ownReceiptOperation } from '../lib/internal-own-payroll-receipts.js';
 import { OWN_LIQ_REVIEW, verifiedOwnLiquidationDetail, ownLiquidationReview, ownLiquidationIndividual } from '../assets/own-payroll-liquidation-model.js';
 import { verifiedRunCapture, ownRunResult, ownRunRows, ownRunCsv, ownRunOfficialSummary, ownRunOfficialText } from '../assets/own-payroll-run-reader.js';
+import { ownLiquidationDetail } from '../assets/own-payroll-liquidation-model.js';
+import { ownRunSourceReview, ownSourceReviewCsv } from '../assets/own-payroll-source-review.js';
+import fs from 'node:fs';
 
 const principal = { user: { email: 'qa@example.invalid' }, tenant: { source: 'membership', id: uid(1), membershipId: uid(2), effectiveCapabilities: [...RUN_CALCULATE, ...OWN_LIQ_REVIEW] } }, session = { email: 'qa@example.invalid', id: uid(3), version: 1, releaseSha: 'd'.repeat(40) };
 const database = document => { const calls = []; return { calls, query: async (q, v) => { calls.push({ q, v }); return [{ result: document }]; } }; };
@@ -88,5 +91,38 @@ for (const version of NATIVE_OFFICIAL_VERSIONS) {
     // Lo mismo que entrega el servidor al consultar el intento.
     const served = await ownRunOperation(database(stored), principal, session, 'attempt', { key: d.capture.key });
     assert.deepEqual(served, stored);
+  });
+
+  test(label + ': la tabla de conceptos de Confirmar y Anular lee el detalle nativo, y su lectura queda recordada', async () => {
+    const d = nativeOfficial(version), verified = await verifiedOwnLiquidationDetail(d.liquidationDetail), saved = d.saved.result;
+    const page = ownRunRows(verified.capture, '', 1, 50);
+    assert.equal(page.total, saved.rowCount); assert.deepEqual(page.rows.map(r => r.amount), saved.rows.map(r => r.amount));
+    assert.equal(ownRunRows(verified.capture, 'no existe').filtered, 0);
+    // La captura verificada queda congelada y su lectura recordada: cada validación posterior del detalle (una por cada control
+    // que dibuja la pantalla) lee ese mismo resultado sin volver a calcularlo.
+    assert.ok(Object.isFrozen(verified.capture) && Object.isFrozen(verified.capture.saved.result.rows[0]));
+    assert.equal(ownRunResult(verified.capture), ownRunResult(verified.capture), 'misma lectura, no otro cálculo');
+    assert.equal(ownLiquidationDetail(verified), verified);
+    // Una copia igual pero no verificada no hereda la lectura: se valida y recalcula entera cada vez.
+    const copy = structuredClone(verified);
+    assert.notEqual(ownRunResult(copy.capture), ownRunResult(copy.capture)); assert.equal(ownLiquidationDetail(copy), copy);
+    const changed = structuredClone(verified); changed.capture.saved.result.employeeTotals[0].net = '1.00';
+    assert.throws(() => ownLiquidationDetail(changed), undefined, 'una copia alterada no pasa por la lectura recordada');
+    // El detalle original no se toca.
+    assert.equal(Object.isFrozen(d.liquidationDetail.capture), false);
+    const panel = fs.readFileSync(new URL('../assets/own-payroll-liquidation-panel.js', import.meta.url), 'utf8');
+    assert.match(panel, /const r=ownRunRows\(current\.capture,\$\('search'\)\.value,page\);/); assert.doesNotMatch(panel, /ownRunWorkspaceRows/);
+  });
+
+  test(label + ': la revisión de novedades de Calcular lee una captura con resultado oficial guardado', async () => {
+    const d = nativeOfficial(version), attempt = { key: d.capture.key, body: d.capture.body };
+    const pending = await ownRunSourceReview({ ...d.capture, saved: null }, attempt);
+    const stored = await verifiedRunCapture({ ...d.capture, saved: d.saved, replayed: true }, attempt), reviewed = await ownRunSourceReview(stored, attempt);
+    assert.deepEqual(reviewed, pending, 'la revisión mira las fuentes capturadas: da lo mismo antes y después de guardar el resultado');
+    assert.equal(typeof await ownSourceReviewCsv(stored, attempt), 'string');
+    // El sobre de la captura se sigue comprobando: otra clave, otro cuerpo u otras fuentes no pasan.
+    await assert.rejects(ownRunSourceReview(stored, { key: uid(999), body: d.capture.body }));
+    const tampered = structuredClone({ ...d.capture, saved: d.saved, replayed: true }); tampered.payload.monthly.extra = true;
+    await assert.rejects(ownRunSourceReview(tampered, attempt));
   });
 }

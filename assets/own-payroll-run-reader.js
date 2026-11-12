@@ -24,6 +24,12 @@ export async function verifiedRunCapture(value,attempt=null){
  frozen(capture);read.set(capture,ownHistoricalRunResult(capture));
  return capture;
 }
+// Para una pantalla que recibe la captura por otro camino (el detalle de una liquidación). La lectura que se recuerda sale de
+// validar y recalcular la captura entera después de congelarla: no depende de que quien llama la haya verificado antes.
+export function rememberedRunCapture(capture){
+ if(ownHistoricalOfficialInput(capture?.saved?.input)&&!read.has(capture)){frozen(capture);read.set(capture,ownHistoricalRunResult(capture));}
+ return capture;
+}
 export const ownRunRows=(capture,search='',page=1,pageSize=25)=>ownRunWorkspaceRows(capture,search,page,pageSize,ownRunResult);
 export const ownRunCsv=capture=>ownRunWorkspaceCsv(capture,ownRunResult);
 /**

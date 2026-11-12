@@ -1,5 +1,6 @@
 import {ownRunBootstrap,ownRunCommand,OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
+import {fetchOwnLiquidationDetail} from './own-payroll-liquidation-read.js';
 import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
 import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
@@ -244,6 +245,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!response.ok||payload?.ok!==true){const error=Error(errors[payload?.code]??(response.status===401?'La sesión venció. Volvé a ingresar.':response.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=response.status;error.code=payload?.code;throw error;}
     return payload;
   }
+  // Detalle de una liquidación guardada. Si no entra en el JSON común, la lectura compartida lo pide completo.
+  async function requestLiquidationDetail(id){
+    if(!live())throw Object.assign(Error('Pantalla no visible.'),{name:'AbortError'});
+    let read;try{read=await fetchOwnLiquidationDetail(id,{signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error(e.message||'La respuesta no pudo verificarse. Consultá el mismo intento.');}
+    if(!read.ok||read.payload?.ok!==true){const error=Error(errors[read.payload?.code]??(read.status===401?'La sesión venció. Volvé a ingresar.':read.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=read.status;error.code=read.payload?.code;throw error;}
+    return read.payload;
+  }
   async function session(required){
     const version=seq,payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
     if(version!==seq||!live())throw Object.assign(Error('La consulta de acceso quedó desactualizada.'),{name:'AbortError'});
@@ -390,7 +398,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function openIndividual(contractId,trigger){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;individual.clear();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
-    const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(original.id))).data);
+    const detail=await verifiedOwnLiquidationDetail((await requestLiquidationDetail(original.id)).data);
     if(!valid())return;if(detail.id!==original.id||detail.capture.saved.resultSha256!==original.saved.resultSha256)throw Error('Cambió el resultado consultado. Actualizá esta corrida.');
     individual.show(ownLiquidationIndividual(detail,contractId),trigger);
   });}
@@ -405,7 +413,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(!valid())return;if(receipt.key!==context.key)throw Error('El comprobante pertenece a otro intento.');preparation=ownAnnulNextPreparation(detail,receipt,context.liquidationDate);
     }else{
       const receipt=await verifiedOwnLiquidationReceipt((await request('/api/internal-own-payroll-liquidation?resource=attempt&key='+encodeURIComponent(context.key))).data);
-      const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);
+      const detail=await verifiedOwnLiquidationDetail((await requestLiquidationDetail(context.runId)).data);
       if(!valid())return;preparation=ownLiquidationNextPreparation(detail,receipt);
       if(preparation.runId!==context.runId||preparation.receiptKey!==context.key)throw Error('El comprobante no corresponde a la anulación elegida.');
     }

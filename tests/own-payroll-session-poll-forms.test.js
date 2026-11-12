@@ -134,6 +134,7 @@ test('ningún sondeo de sesión deshace el formulario por su cuenta cuando la se
  assert.equal(program.split('keepOwner:true').length-1,1,'sólo el sondeo conserva la decisión del propietario');
  assert.ok(annulment.includes("perform(async valid=>{const held=[...access.caps].sort().join();await session();if(valid()){if([...access.caps].sort().join()!==held)$('confirm').checked=false;controls();}});},60000);"));
  assert.ok(liquidation.includes('if(valid()){if(keepUnchanged&&current?.id===id&&JSON.stringify(v)===JSON.stringify(current))return;current=v;'));
- assert.ok(liquidation.includes('if(current)await loadDetail(current.id,valid,null,{keepUnchanged:true});if(valid())controls();});},60000);'));
+ // Un detalle que sólo entra en la lectura completa (un convenio entero con total oficial) no se vuelve a traer cada minuto.
+ assert.ok(liquidation.includes('if(current&&!completeIds.has(current.id))await loadDetail(current.id,valid,null,{keepUnchanged:true});if(valid())controls();});},60000);'));
  assert.equal(liquidation.split('keepUnchanged:true').length-1,1,'sólo el sondeo conserva la vista idéntica; abrir o consultar siempre la rearma');
 });

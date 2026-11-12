@@ -78,9 +78,15 @@ test('los resultados históricos conservan su validador y su mismo objeto',async
 
 test('el lector se elige por la versión que declara el resultado guardado, con opt-in explícito', ()=>{
  const source=fs.readFileSync(new URL('../assets/own-payroll-liquidation-model.js',import.meta.url),'utf8');
- assert.match(source,/const verified=ownHistoricalRunResult\(v\.capture\);if\(!verified\|\|v\.capture\.id!==v\.id\|\|v\.employees\.length!==verified\.result\.employeeCount\)fail\(\);/);
+ // `ownRunResult` es el lector por versión: histórico → validador histórico; V4/V5 → validador oficial, salvo la lectura ya
+ // recordada de una captura congelada.
+ assert.match(source,/const verified=ownRunResult\(v\.capture\);if\(!verified\|\|v\.capture\.id!==v\.id\|\|v\.employees\.length!==verified\.result\.employeeCount\)fail\(\);/);
  assert.match(source,/if\(!ownHistoricalOfficialInput\(v\?\.capture\?\.saved\?\.input\)\)\{ownLiquidationDetail\(v\);await verifiedWorkspaceCapture\(v\.capture\);return v;\}/,'la ruta histórica no cambia');
- assert.match(source,/const value=copyRowEmissionData\(v\);ownLiquidationDetail\(value\);\n return \{\.\.\.value,capture:await verifiedOwnOfficialCapture\(value\.capture\)\};/);
+ assert.match(source,/const value=copyRowEmissionData\(v\);\n/,'la copia privada se toma antes del primer await');
+ assert.match(source,/const verified=\{\.\.\.value,capture:rememberedRunCapture\(await verifiedOwnOfficialCapture\(value\.capture\)\)\};\n ownLiquidationDetail\(verified\);return verified;/);
+ const runReader=fs.readFileSync(new URL('../assets/own-payroll-run-reader.js',import.meta.url),'utf8');
+ assert.match(runReader,/if\(!ownHistoricalOfficialInput\(capture\?\.saved\?\.input\)\|\|!read\.has\(capture\)\)return ownHistoricalRunResult\(capture\);/,'sin lectura recordada, el lector valida y recalcula');
+ assert.match(runReader,/if\(ownHistoricalOfficialInput\(capture\?\.saved\?\.input\)&&!read\.has\(capture\)\)\{frozen\(capture\);read\.set\(capture,ownHistoricalRunResult\(capture\)\);\}/,'sólo se recuerda la lectura de una captura congelada, calculada después de congelarla');
  const reader=fs.readFileSync(new URL('../assets/own-payroll-historical-result-model.js',import.meta.url),'utf8');
  assert.match(reader,/export const ownHistoricalOfficialInput=input=>\['own-payroll-input\.v4','own-payroll-input\.v5'\]\.includes\(input\?\.version\);/);
 });

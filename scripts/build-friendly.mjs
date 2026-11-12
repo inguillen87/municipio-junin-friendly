@@ -61,6 +61,7 @@ const shellFiles = [
   'assets/own-contract-salary-conditions-model.js',
   'assets/own-payroll-conditions.js',
   'assets/own-payroll-response.js',
+  'assets/own-payroll-liquidation-read.js',
   'assets/own-contract-salary-conditions-workspace.js',
   'assets/own-contract-salary-conditions-panel.js',
   'assets/own-contract-salary-conditions-pending.js',
