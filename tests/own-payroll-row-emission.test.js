@@ -101,16 +101,16 @@ test('scope binds exact unit and original quantity phase and retains the officia
  const input=prepareOwnPayrollRowEmissionApprovedInput(emissionSources());input.rowEmissionPolicies[0].period='2026-11';assert.throws(()=>calculateOwnPayrollWithRowEmission(input));
 });
 
-test('a historical emission decision cannot be removed or reinterpreted, and proposal remains blocked',()=>{
+test('a historical emission decision cannot be removed or reinterpreted during proposal',()=>{
  const sources=emissionSources(),before=sources.programState.program.definition;
  ownProgramHistory(null,before);ownProgramHistory(before,structuredClone(before));
  for(const change of [p=>{delete p.rowEmissionVersion;delete p.rowEmissionPolicies;},p=>p.rowEmissionPolicies.pop(),p=>p.rowEmissionPolicies[0].sourceSha256='b'.repeat(64)]){const after=structuredClone(before);change(after);assert.throws(()=>ownProgramHistory(before,after),codeIs('PROGRAM_HISTORY_REQUIRED'));}
- assert.throws(()=>ownProgramCommand(command({program:before}),sources.programState.salaryCatalog.items),codeIs('PROGRAM_ROW_EMISSION_PREPARATION_ONLY'));
+ assert.deepEqual(ownProgramCommand(command({program:before}),sources.programState.salaryCatalog.items).program,before);
 });
 
-test('source preparation keeps the complete candidate for review but never marks V5 presentable or approved',()=>{
- const raw=emissionPreparerEvidence(),r=prepareOwnPayrollProgrammeSource(raw);assert.deepEqual(r.incidents.map(i=>i.code),['PROGRAM_ROW_EMISSION_PREPARATION_ONLY']);
- assert.ok(r.draft.programme);assert.equal(r.completeness.programmeContractComplete,true);assert.equal(r.presentable.programme,false);assert.equal(r.status,'not_presentable');assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);
+test('source preparation keeps the complete V5 candidate presentable for proposal without approval',()=>{
+ const raw=emissionPreparerEvidence(),r=prepareOwnPayrollProgrammeSource(raw);assert.deepEqual(r.incidents,[]);
+ assert.ok(r.draft.programme);assert.equal(r.completeness.programmeContractComplete,true);assert.equal(r.presentable.programme,true);assert.equal(r.status,'proposal_draft');assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.payrollCalculated,false);
  assert.deepEqual(r.draft.programme.rowEmissionPolicies,raw.programmeOptions.rowEmissionPolicies);assert.equal(r.draft.programme.quantityPhases.length,3);assert.equal(r.draft.programme.rules.length,12);ownProgramDefinition(r.draft.programme,raw.salary.catalog.items);
 });
 

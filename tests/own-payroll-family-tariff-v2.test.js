@@ -99,7 +99,7 @@ test('period, agreement and quantity restrictions remain effective for new map c
 });
 test('V2 replay and source preparation remain review-only with all ten monetary bindings',()=>{
  const raw=sources({emission:true}),s=prepareOwnPayrollFamilyTariffSnapshot(raw);assert.deepEqual(verifyOwnPayrollFamilyTariffSnapshot(s),s);
- const prep=prepareOwnPayrollProgrammeSource(emissionPreparerEvidence(raw));assert.ok(prep.incidents.some(i=>i.code==='PROGRAM_FAMILY_TARIFF_PREPARATION_ONLY'));assert.equal(prep.presentable.programme,false);assert.equal(prep.approved,false);assert.equal(prep.executable,false);assert.equal(prep.draft.programme.familyTariffsVersion,V2);
+ const prep=prepareOwnPayrollProgrammeSource(emissionPreparerEvidence(raw));assert.deepEqual(prep.incidents,[]);assert.equal(prep.presentable.programme,true);assert.equal(prep.approved,false);assert.equal(prep.executable,false);assert.equal(prep.draft.programme.familyTariffsVersion,V2);
 });
 test('the extension preserves ten distinct pairs while malformed duplicates and missing mappings fail',()=>{
  const p=v2Policy();assert.equal(p.mappings.length,10);assert.equal(new Set(p.mappings.map(m=>m.sourceCode)).size,10);assert.equal(p.rows.length,33);

@@ -44,8 +44,10 @@ export function ownNoveltyBatch(b){
  need(Array.isArray(b.approvals)&&b.approvals.length<=2&&b.approvals.every(a=>actor(a)&&a.personId!==b.preparedBy.personId&&a.membershipId!==b.preparedBy.membershipId)&&new Set(b.approvals.map(a=>a.personId)).size===b.approvals.length&&new Set(b.approvals.map(a=>a.membershipId)).size===b.approvals.length,'CONTRACT_INVALID');
  for(const r of b.rows){need(salaryExact(r,['values','subject','identityCurrent'])&&typeof r.identityCurrent==='boolean','CONTRACT_INVALID');assertNativeMonthlySubject(r.subject);need(r.values.contractId===r.subject.contractId&&r.values.legajo===r.subject.legajo&&r.values.identityToken===r.subject.identityToken,'CONTRACT_INVALID');}
  need(salarySerialized(ownNoveltyRows(b.rows.map(r=>r.values),b.periodMonth))===salarySerialized(b.rows.map(r=>r.values)),'CONTRACT_INVALID');
- const required=b.rows.some(r=>r.values.forced)?2:1;
- need(b.approvals.length<=required&&(b.status!=='approved'||b.approvals.length===required&&salarySerialized(b.decidedBy)===salarySerialized(b.approvals.at(-1)))&&(b.status!=='draft'||b.approvals.length===0)&&(b.status!=='submitted'||b.approvals.length<required),'CONTRACT_INVALID');return b;
+ // One independent reviewer approves a current batch. Keep immutable forced
+ // batches with two historical reviewers and their first-review receipts readable.
+ const historicalMaximum=b.rows.some(r=>r.values.forced)?2:1;
+ need(b.approvals.length<=historicalMaximum&&(b.status!=='approved'||b.approvals.length>=1&&salarySerialized(b.decidedBy)===salarySerialized(b.approvals.at(-1)))&&(b.status!=='draft'||b.approvals.length===0)&&(b.status!=='submitted'||b.approvals.length<historicalMaximum),'CONTRACT_INVALID');return b;
 }
 export function ownNoveltyBootstrap(v){
  need(salaryExact(v,['version','complete','subjects','batches','permissions'])&&v.version==='own-payroll-novelty-bootstrap.v1'&&v.complete===true&&Array.isArray(v.subjects)&&v.subjects.length<=10000&&Array.isArray(v.batches)&&v.batches.length<=1000&&salaryExact(v.permissions,['canPrepare','canApprove'])&&Object.values(v.permissions).every(x=>typeof x==='boolean'),'CONTRACT_INVALID');

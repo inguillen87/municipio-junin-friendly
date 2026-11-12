@@ -68,7 +68,7 @@ for(const quantity of [null,'1','-1'])test('quantity '+quantity+' cannot replace
 test('missing amount is not inferred from explicit zero quantity',()=>assert.throws(()=>prepare(fixture({amount:null})),is('OWN_NOVELTY_INPUT_INVALID')));
 test('source row hash tampering is rejected before policy use',()=>{const s=fixture();batch(s).rows[0].values.amountCents='3000';assert.throws(()=>prepare(s),is('SOURCE_SCOPE_INVALID'));});
 test('native identity mismatch is rejected',()=>{const s=fixture();batch(s).rows[0].values.identityToken='b'.repeat(64);rehash(s);assert.throws(()=>prepare(s),is('OWN_NOVELTY_CONTRACT_INVALID'));});
-test('first reviewer alone cannot approve a forced batch',()=>{const s=fixture();batch(s).approvals.pop();batch(s).decidedBy=batch(s).approvals[0];assert.throws(()=>prepare(s),is('OWN_NOVELTY_CONTRACT_INVALID'));});
+test('one independent reviewer approves the forced source without changing its amount',()=>{const s=fixture();batch(s).approvals.pop();batch(s).decidedBy=batch(s).approvals[0];const result=createOwnPayrollSnapshot(prepare(s)).result;assert.equal(result.rows.find(r=>r.conceptCode==='609').amount,'20.00');assert.equal(batch(s).approvals.length,1);});
 test('preparer cannot be either reviewer',()=>{const s=fixture();batch(s).approvals[0]=batch(s).preparedBy;assert.throws(()=>prepare(s),is('OWN_NOVELTY_CONTRACT_INVALID'));});
 test('same person with another membership cannot review twice',()=>{const s=fixture();batch(s).approvals[1].personId=batch(s).approvals[0].personId;assert.throws(()=>prepare(s),is('OWN_NOVELTY_CONTRACT_INVALID'));});
 test('two source rows do not silently sum an overridden amount',()=>{
