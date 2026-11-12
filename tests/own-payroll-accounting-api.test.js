@@ -59,3 +59,27 @@ test('recuperar conserva cuerpo original sin reemplazarlo con catálogo nuevo', 
 test('errores del contrato SQL preservan código/acción y no se convierten en éxito', async () => {
  for (const [code, status] of [['SOURCE_REQUIRED',422],['HISTORY_REQUIRED',422],['BASE_CHANGED',409],['INDEPENDENT_REQUIRED',403],['NOT_FOUND',404],['BUSY',409]]) { const a = setup({ getSql: async () => ({ query: async () => { throw Error('ACCOUNTING_' + code); } }) }), res = response(); await a.handler(request(), res); assert.equal(res.statusCode, status); assert.equal(res.value.code, 'ACCOUNTING_' + code); }
 });
+
+// Recuperación de una lectura que choca con un candado (mismo patrón que los demás circuitos del período).
+const readRequest = (query = { resource: 'bootstrap' }) => { const req = request(); req.method = 'GET'; req.query = query; req.url += '?' + new URLSearchParams(query); delete req.body; return req; };
+test('busy bootstrap reauthorizes and retries only the same bounded read', async () => {
+ let reads = 0, auth = 0; const calls = [];
+ const a = setup({ requireAccess: async () => { auth++; return { mode: 'managed', principal }; }, getSql: async () => ({ query: async (q, v) => { calls.push({ q, v }); if (reads++ === 0) throw Error('ACCOUNTING_BUSY'); return [{ result: bootstrap() }]; } }) }), out = response();
+ await a.handler(readRequest(), out); assert.equal(out.statusCode, 200); assert.equal(reads, 2); assert.equal(auth, 2); assert.deepEqual(calls[0], calls[1]);
+});
+test('revocation during busy recovery stops the second SQL read and returns no data', async () => {
+ let auth = 0, reads = 0;
+ const a = setup({ requireAccess: async (req, res) => { if (auth++ === 0) return { mode: 'managed', principal }; res.status(403).json({ ok: false }); return null; }, getSql: async () => ({ query: async () => { reads++; throw Error('ACCOUNTING_BUSY'); } }) }), out = response();
+ await a.handler(readRequest(), out); assert.equal(out.statusCode, 403); assert.equal(reads, 1); assert.equal(out.value.data, undefined);
+});
+test('a changed account or session during busy recovery fails closed without a second read', async () => {
+ let sessions = 0, reads = 0;
+ const a = setup({ sessionFor: () => sessions++ === 0 ? session : { ...session, id: uid(99) }, getSql: async () => ({ query: async () => { reads++; throw Error('ACCOUNTING_BUSY'); } }) }), out = response();
+ await a.handler(readRequest(), out); assert.equal(out.statusCode, 409); assert.equal(out.value.code, 'ACCOUNTING_SCOPE_CHANGED'); assert.equal(reads, 1);
+});
+test('a persistent read BUSY stays 409 after exactly two reads, and a write BUSY never replays the command', async () => {
+ for (const [req, expected] of [[readRequest(), 2], [request(), 1]]) {
+  let reads = 0; const a = setup({ getSql: async () => ({ query: async () => { reads++; throw Error('ACCOUNTING_BUSY'); } }) }), out = response();
+  await a.handler(req, out); assert.equal(out.statusCode, 409); assert.equal(out.value.code, 'ACCOUNTING_BUSY'); assert.equal(reads, expected, req.method);
+ }
+});

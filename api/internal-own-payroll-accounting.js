@@ -8,6 +8,7 @@ import { employeeContext } from '../lib/internal-native-employees.js';
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
 import { accountingCommand, ACCOUNTING_MAX_BYTES } from '../assets/own-payroll-accounting-model.js';
 import { ACCOUNTING_READ, ACCOUNTING_CAPS, accountingFail, accountingError, accountingOperation } from '../lib/internal-own-payroll-accounting.js';
+import { ownPeriodReadScopeKey, recoverOwnPeriodRead } from '../lib/own-period-read-recovery.js';
 export const config = { api: { bodyParser: false } };
 export function createOwnAccountingHandler(deps = {}) {
   const env = deps.env ?? process.env, authorize = deps.requireAccess ?? requireCompatibleInternalAccess,
@@ -31,10 +32,12 @@ export function createOwnAccountingHandler(deps = {}) {
       else if (q.resource === 'detail' && Object.keys(q).sort().join('|') === 'id|resource') { operation = 'detail'; input = { id: q.id }; }
       else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
       else accountingFail('QUERY_INVALID', 400, 'Consulta inválida.');
-      const access = await authorize(req, res, { env, requiredCapabilities: ACCOUNTING_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
+      const accessOptions = { env, requiredCapabilities: ACCOUNTING_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false };
+      const assertAccess = a => { if (a.mode !== 'managed' || a.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(a.principal, ACCOUNTING_READ)) accountingFail('FORBIDDEN', 403, 'La membresía no permite consultar las asociaciones.'); };
+      let access = await authorize(req, res, accessOptions);
       if (!access) return;
-      if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, ACCOUNTING_READ)) accountingFail('FORBIDDEN', 403, 'La membresía no permite consultar las asociaciones.');
-      const session = sessionFor(access, env); employeeContext(access.principal, session);
+      assertAccess(access);
+      let session = sessionFor(access, env); employeeContext(access.principal, session);
       if (method === 'POST') {
         const body = await readRawPrivateJson(req, { maxBytes: ACCOUNTING_MAX_BYTES, maxDepth: 12, timeoutMs: 10000, declaredLength: schoolCertificateHttp.header(req, 'content-length'), fail: kind => {
           if (kind === 'large') accountingFail('LIMIT', 413, 'El conjunto supera el tamaño permitido. No se recortaron asociaciones.');
@@ -46,7 +49,15 @@ export function createOwnAccountingHandler(deps = {}) {
         if (!principalHasCapabilities(access.principal, ACCOUNTING_CAPS[command.command])) accountingFail('FORBIDDEN', 403, 'La membresía no permite esta operación.');
         operation = 'command'; input = { body: command, key: schoolCertificateHttp.header(req, 'idempotency-key') };
       }
-      const data = await accountingOperation(await getSql(env), access.principal, session, operation, input);
+      // Una lectura que choca con un candado de escritura (409 ACCOUNTING_BUSY) se recupera como en los demás circuitos del
+      // período: una espera, una reautorización completa y, si la cuenta y el ámbito son los mismos, una sola lectura más.
+      const sql = await getSql(env), read = () => accountingOperation(sql, access.principal, session, operation, input), scope = method === 'GET' ? ownPeriodReadScopeKey(access.principal, session) : null;
+      const data = method === 'GET' ? await recoverOwnPeriodRead({ method, operation, busyCode: 'ACCOUNTING_BUSY', read, reauthorize: async () => {
+        const next = await authorize(req, res, accessOptions); if (!next) return false; assertAccess(next); const nextSession = sessionFor(next, env);
+        if (ownPeriodReadScopeKey(next.principal, nextSession) !== scope) accountingFail('SCOPE_CHANGED', 409, 'Cambió la cuenta, la sesión o el ámbito municipal. Volvé a abrir la consulta.');
+        access = next; session = nextSession; return true;
+      } }) : await read();
+      if (data === null) return;
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ ok: true, data });
     } catch (e) {
