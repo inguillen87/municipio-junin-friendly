@@ -11,7 +11,8 @@ import {ownLegajoReportRows} from './own-payroll-report-legajo.js';
 const unitLabel=unit=>OWN_VARIABLE_UNITS[unit]??SALARY_UNITS[unit]??unit;
 
 // «1 fila», «2 filas»: un conteo de uno se lee en singular en la pantalla y en la leyenda de los gráficos.
-export const ownReportCount=(n,one,many)=>n+' '+(Number(n)===1?one:many);
+import {countWords as ownReportCount} from './count-words.js';
+export {ownReportCount};
 export const OWN_REPORT_MAX_ROWS=250000;
 export const OWN_REPORT_MAX_BYTES=256*1024*1024;
 const need=(value,message)=>{if(!value)throw Error(message);};

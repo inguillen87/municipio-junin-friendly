@@ -5,6 +5,7 @@ import {storedZip} from './clock-dashboard-zip.js';
 import {encodePayrollPages} from './payroll-detail-export.js';
 import {SALARY_UNITS} from './native-salary-catalog-model.js';
 import {OWN_PDF_MUTED as MUTED,OWN_PDF_STRONG as STRONG,OWN_PDF_TINT as TINT,ownPdfDateText,ownPdfDocument,ownPdfPeriodText} from './own-payroll-pdf-kit.js';
+import {countWords} from './count-words.js';
 const labels={remuneration:'Remunerativos',non_remuneration:'No remunerativos',deduction:'Retenciones',employer_contribution:'Aportes patronales',gross:'Bruto',net:'Neto'};
 const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 function table(value){verifiedPlanilla(value);return [['Período','Tipo','Jurisdicción','Convenio','Repartición','Tipo documento','DNI','Legajo','Apellido y nombre',...Object.values(labels)],...value.records.map(r=>[r.period,ownReceiptType(r.type),r.jurisdiction,r.agreementCode,r.departmentCode,'DNI',r.dni,r.employeeNumber,r.name,...Object.keys(labels).map(k=>r.totals[k])])];}
@@ -41,7 +42,7 @@ export async function ownPlanillaPages(value,{signal}={}){
   doc.put(L,doc.y,'PLANILLA DE SUELDOS',13,true);doc.right(R,doc.y,`${ownPdfPeriodText(group.period)} · ${ownReceiptType(group.type)} · J${group.jurisdiction}`,10,true);doc.y-=14;
   const issuer=doc.fit(value.issuer.name,W-200,9.5,true);issuer.forEach((part,i)=>doc.put(L,doc.y-i*12,part,9.5,true));
   doc.right(R,doc.y,`Convenio ${group.agreementCode} · Repartición ${group.departmentCode}`,9.5,true);doc.y-=(issuer.length-1)*12+11;
-  doc.put(L,doc.y,`${group.records.length} recibos de esta repartición · Emisión completa: ${value.total} · Selección: ${value.selected} · Orden: DNI / número`,7.5,false,MUTED);doc.y-=10;
+  doc.put(L,doc.y,`${countWords(group.records.length,'recibo','recibos')} de esta repartición · Emisión completa: ${value.total} · Selección: ${value.selected} · Orden: DNI / número`,7.5,false,MUTED);doc.y-=10;
   doc.put(L,doc.y,`Fecha de pago declarada: ${ownPdfDateText(value.paymentDate)} · no acredita pago`,7.5,false,MUTED);doc.y-=6;
   doc.line(L,doc.y,R,doc.y,STRONG,0.8);doc.box(L,doc.y-13,W,13,{fill:TINT,stroke:null});
   for(const [x0,x1,title]of [[L,MID,'Haberes ($)'],[MID,R,'Descuentos ($)']]){doc.put(x0+6,doc.y-9,'Cód.',7,true,MUTED);doc.put(x0+32,doc.y-9,'Concepto',7,true,MUTED);doc.right(x1-6,doc.y-9,title,7,true,MUTED);}
@@ -76,11 +77,11 @@ export async function ownPlanillaPages(value,{signal}={}){
    current=null;
    if(++count%10===0)await new Promise(resolve=>setTimeout(resolve,0));
   }
-  totalsBox('TOTALES EXACTOS · REPARTICIÓN '+group.departmentCode,group.totals,`${group.records.length} recibos`,24);
+  totalsBox('TOTALES EXACTOS · REPARTICIÓN '+group.departmentCode,group.totals,countWords(group.records.length,'recibo','recibos'),24);
   doc.put(L,doc.y,'Firma digital pendiente de Contaduría'+(group.jurisdiction==='55'?' y Coordinación de jardines maternales.':'.'),8);doc.y-=10;
   doc.put(L,doc.y,'Aportes patronales y valores técnicos van aparte; no se restan otra vez del neto.',7.5,false,MUTED);doc.y-=16;
  }
- if(value.groups.length>1)totalsBox('TOTAL GENERAL DE LA PLANILLA · todos los grupos incluidos',value.totals,`${value.selected} recibos`);
+ if(value.groups.length>1)totalsBox('TOTAL GENERAL DE LA PLANILLA · todos los grupos incluidos',value.totals,countWords(value.selected,'recibo','recibos'));
  signal?.throwIfAborted();
  for(const i of doc.pages.keys()){doc.select(i);doc.line(L,52,R,52);doc.put(L,40,'USO INTERNO · FIRMA DIGITAL PENDIENTE · NO ACREDITA PAGO',8);doc.right(R,40,`${i+1} / ${doc.pages.length}`,8);}
  return doc.pages;

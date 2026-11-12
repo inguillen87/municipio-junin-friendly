@@ -18,6 +18,7 @@ import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunUnsectoredInAgreements
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
+import {countWords} from './count-words.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -285,12 +286,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   function renderHistory(){
     $('history').replaceChildren();
     if(!boot?.runs.length){$('history').append(node('p','No hay cálculos propios guardados para esta cuenta.'));return;}
-    for(const r of boot.runs){const row=node('article'),description=node('div'),button=node('button','Consultar '+r.period+' · '+OWN_RUN_TYPES[r.liquidationType]);description.append(node('p',r.state==='calculated'?'Resultado calculado · consultar decisiones':'Cálculo sin terminar: se preparó y no llegó a calcular'),node('p',({all:'Todos los legajos propios',contracts:r.selectionValueCount+' legajos seleccionados',departments:r.selectionValueCount+' reparticiones',agreements:r.selectionValueCount+' convenios'})[r.selectionKind]+' · '+labelDate(r.createdAt)));button.type='button';button.className='button';button.dataset.ownOpen=r.key;button.addEventListener('click',()=>recover(r.key));description.append(node('p',ownRunDateLabel(r.liquidationDate)));row.append(description,button);$('history').append(row);}
+    for(const r of boot.runs){const row=node('article'),description=node('div'),button=node('button','Consultar '+r.period+' · '+OWN_RUN_TYPES[r.liquidationType]);description.append(node('p',r.state==='calculated'?'Resultado calculado · consultar decisiones':'Cálculo sin terminar: se preparó y no llegó a calcular'),node('p',({all:'Todos los legajos propios',contracts:countWords(r.selectionValueCount,'legajo seleccionado','legajos seleccionados'),departments:countWords(r.selectionValueCount,'repartición','reparticiones'),agreements:countWords(r.selectionValueCount,'convenio','convenios')})[r.selectionKind]+' · '+labelDate(r.createdAt)));button.type='button';button.className='button';button.dataset.ownOpen=r.key;button.addEventListener('click',()=>recover(r.key));description.append(node('p',ownRunDateLabel(r.liquidationDate)));row.append(description,button);$('history').append(row);}
   }
   function renderRows(){
     if(!current?.saved)return;const view=ownRunRows(current,$('search').value,page);page=view.page;
     $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+(SALARY_UNITS[r.unit]??r.unit).toLowerCase()),r.ruleReference])tr.append(node('td',text));return tr;}));
-    $('range').textContent=view.filtered+' conceptos de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
+    $('range').textContent=countWords(view.filtered,'concepto','conceptos')+' de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }
   function showCapture(value){
@@ -308,7 +309,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       controls();return;}
     const {input,result,people}=ownRunResult(value);$('result').hidden=false;
     knownSavedKey=value.key;individual.clear();
-    $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+result.employeeCount+' legajos · '+result.rowCount+' conceptos · guardado '+labelDate(value.saved.recordedAt);
+    $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+countWords(result.employeeCount,'legajo','legajos')+' · '+countWords(result.rowCount,'concepto','conceptos')+' · guardado '+labelDate(value.saved.recordedAt);
     const official=ownRunOfficialText(ownRunOfficialSummary(value));$('result-official').textContent=official;$('result-official').hidden=!official;
     $('totals').replaceChildren(...result.employeeTotals.map(t=>{const tr=node('tr');for(const text of [people.get(t.contractId).employeeNumber,...['gross','deduction','net','employer_contribution'].map(k=>formatOwnRunDecimal(t[k]))])tr.append(node('td',text));const cell=node('td'),button=node('button','Ver resumen');button.type='button';button.className='button';button.dataset.ownIndividualOpen=t.contractId;button.setAttribute('aria-label','Ver resumen del legajo '+people.get(t.contractId).employeeNumber);button.addEventListener('click',()=>openIndividual(t.contractId,button));cell.append(button);tr.append(cell);return tr;}));
     import('./own-run-charts.js').then(m=>{if(current===value)m.drawRunCharts($('result'),result);}).catch(()=>{});
@@ -422,7 +423,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('date').value=preparation.liquidationDate??'';$('period').value=preparation.period;$('type').value=preparation.liquidationType;$('kind').value=preparation.selection.kind;
     chosen=preparation.selection.kind==='contracts'?preparation.affected.map(e=>({contractId:e.contractId,legajo:e.employeeNumber,nombre:null,recordOrigin:'MUNICONTROL'})):[];
     renderKind();for(const option of $('codes').options)option.selected=preparation.selection.values.includes(option.value);
-    $('confirm').checked=false;status('Se prepararon los '+preparation.affected.length+' legajos exactos de la anulación. Revisá el período, la fecha, el tipo y el alcance antes de calcular. El próximo cálculo volverá a consultar el programa y las novedades aprobadas; todavía no se guardó otro resultado.');
+    $('confirm').checked=false;status((preparation.affected.length===1?'Se preparó el legajo exacto':'Se prepararon los '+preparation.affected.length+' legajos exactos')+' de la anulación. Revisá el período, la fecha, el tipo y el alcance antes de calcular. El próximo cálculo volverá a consultar el programa y las novedades aprobadas; todavía no se guardó otro resultado.');
   }
   async function recover(key=attempt?.key){if(!key||attempt&&!current?.saved&&key!==attempt.key)return;return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);

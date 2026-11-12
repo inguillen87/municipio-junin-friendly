@@ -41,3 +41,28 @@ test('el conteo de legajos concuerda en número: «1 legajo afectado», «29 leg
   assert.equal(close.split("v.body.command==='close'?'Cierre registrado':'Reapertura registrada'").length - 1, 2);
   assert.equal(close.split("v.snapshot.employeeCount===1?'1 legajo':v.snapshot.employeeCount+' legajos'").length - 1, 2);
 });
+
+test('los conteos del circuito se leen en singular cuando son uno, en las diez pantallas', async () => {
+  const fs = await import('node:fs');
+  const { countWords } = await import('../assets/count-words.js');
+  assert.equal(countWords(1, 'legajo', 'legajos'), '1 legajo');
+  assert.equal(countWords(0, 'fila', 'filas'), '0 filas');
+  assert.equal(countWords(29, 'recibo', 'recibos'), '29 recibos');
+  assert.equal(countWords('1', 'corrida', 'corridas'), '1 corrida', 'el conteo que llega como texto se lee igual');
+  assert.equal(countWords('1.234', 'legajo', 'legajos'), '1.234 legajos', 'mil doscientos treinta y cuatro no es uno');
+  const { ownReportCount } = await import('../assets/own-payroll-report-model.js');
+  assert.equal(ownReportCount, countWords, 'Informes usa el mismo ayudante');
+  const fixedPlural = /\$\{[^{}]+\} (legajos|filas|recibos|corridas|contratos|conceptos|renglones|reparticiones|registros)(?![a-záéíóúñ])/;
+  for (const name of ['novelties-panel', 'liquidation-panel', 'annulment-panel', 'close-panel', 'summary-panel', 'receipt-panel', 'receipt-planilla-panel', 'receipt-planilla-export', 'receipt-self', 'report-panel']) {
+    const source = fs.readFileSync(new URL('../assets/own-payroll-' + name + '.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, fixedPlural, name + ': ningún conteo queda con el plural fijo');
+  }
+  const receipts = fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.js', import.meta.url), 'utf8');
+  assert.match(receipts, /import \{countWords as howMany\} from '\.\/count-words\.js';/);
+  const novelties = fs.readFileSync(new URL('../assets/own-payroll-novelties-panel.js', import.meta.url), 'utf8');
+  assert.match(novelties, /\$\{detail\.rowCount===1\?'la fila':'las '\+detail\.rowCount\+' filas'\} del lote completo\./);
+  assert.match(novelties, /\$\{added\.length===1\?'Agregada 1 fila':'Agregadas '\+added\.length\+' filas'\}\./);
+  const close = fs.readFileSync(new URL('../assets/own-payroll-close-panel.js', import.meta.url), 'utf8');
+  assert.match(close, /\$\{g\.employeeCount===1\?'Se reabrirá el legajo':'Se reabrirán los '\+g\.employeeCount\+' legajos'\} del grupo completo\./);
+});
+

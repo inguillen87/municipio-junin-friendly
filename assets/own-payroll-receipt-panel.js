@@ -3,7 +3,8 @@ import {OWN_RUN_TYPES,ownRunWorkspaceAccess,hasOwnRunAccess,formatOwnRunDecimal}
 import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,OWN_RECEIPT_MAX_BYTES,ownReceiptParams,ownReceiptScopeFilters,ownReceiptIssuer,ownReceiptBatch,ownReceiptList,ownReceiptEvent,ownReceiptAttempt,ownReceiptVisibleRecords,ownReceiptVerifyHash,verifiedOwnReceiptPreview} from './own-payroll-receipt-model.js';
 import {createOwnReceiptPdf,saveOwnReceiptPdf} from './own-payroll-receipt-pdf.js';
 // «1 recibo», «29 recibos»: el número con su sustantivo en el mismo número.
-export const howMany=(n,one,many)=>n+' '+(n===1?one:many);
+import {countWords as howMany} from './count-words.js';
+export {howMany};
 const endpoint='/api/internal-own-payroll-receipts',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const definitiveRejections=new Set(['OWN_RECEIPT_INPUT_INVALID','OWN_RECEIPT_STATE_CHANGED','OWN_RECEIPT_DECISION_INVALID','OWN_RECEIPT_IDENTITY_REQUIRED','OWN_RECEIPT_SELECTION_INVALID','OWN_RECEIPT_RANGE_INVALID','OWN_RECEIPT_LABEL_REQUIRED','OWN_RECEIPT_EMPTY','OWN_RECEIPT_DUPLICATE','OWN_RECEIPT_IDEMPOTENCY_REUSE','OWN_RECEIPT_LIMIT']);
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
@@ -43,7 +44,7 @@ export function mountOwnPayrollReceipts(host){
  }
  function issuerControls(){const profile=issuerProfile?.state==='configured'?issuerProfile.profile:null;$('issuerProfile').hidden=!profile;$('issuerIdentity').textContent=profile?'Datos del municipio empleador, emisor de los recibos. No son datos personales del agente.':'';for(const [key,field] of [['issuerName','name'],['issuerTaxId','taxId'],['issuerAddress','address']])$(key).value=profile?profile.issuer[field]:'';$('issuerSource').textContent=profile?`${profile.source.label} · corte ${profile.source.cutoff.replace('T',' ')} · revisión ${profile.revision}.`:'';$('issuerEditor').hidden=issuerProfile?.state!=='missing';$('issuerEditor').disabled=issuerProfile?.state!=='missing';}
  function receiptScope(params){
-  const parts=params.contracts?.length?[params.contracts.length+' contratos exactos']:[];
+  const parts=params.contracts?.length?[howMany(params.contracts.length,'contrato exacto','contratos exactos')]:[];
   for(const [kind,label]of [['employee','Legajo'],['department','Repartición'],['agreement','Convenio']]){const from=params.filters[kind+'From'],to=params.filters[kind+'To'];if(from||to)parts.push(label+' '+(from&&from===to?from:(from||'sin límite inicial')+' a '+(to||'sin límite final')));}
   return parts.length?parts.join(' · '):'Todos los legajos';
  }
@@ -86,7 +87,7 @@ export function mountOwnPayrollReceipts(host){
    details.append(node('summary','Referencia '+row.attempt.key),node('p',`${howMany(s.recordCount,'recibo','recibos')} y ${howMany(s.conceptCount,'concepto','conceptos')} en la previa anterior. La consulta confirmó que este envío no está registrado. Su contenido original se conserva; la nueva preparación se revisa por separado.`));
    details.append(node('p','Período anterior: '+p.period+' · Tipos: '+p.types.map(t=>OWN_RUN_TYPES[t]).join(', ')));
    for(const [range,label]of [['employee','Legajos'],['department','Reparticiones'],['agreement','Convenios conservados']])if(p.filters[range+'From']||p.filters[range+'To'])details.append(node('p',label+': '+(p.filters[range+'From']||'Sin límite inicial')+' a '+(p.filters[range+'To']||'Sin límite final')));
-   if(p.contracts?.length)details.append(node('p',p.contracts.length+' contratos exactos elegidos en la previa anterior.'));
+   if(p.contracts?.length)details.append(node('p',howMany(p.contracts.length,'contrato exacto elegido','contratos exactos elegidos')+' en la previa anterior.'));
    details.append(node('p','Emisor anterior: '+p.issuer.name+' · CUIT '+p.issuer.taxId+' · '+p.issuer.address),node('p','Fecha declarada anterior: '+(p.paymentDate??'No informada')),node('p','Leyenda anterior: '+(p.legend||'Sin leyenda')),node('p','Fundamento anterior: '+row.context.reason));$('previous').append(details);
   }
  }
