@@ -52,7 +52,8 @@ export function monthlyForcedProgramHistory(before,after){
 }
 
 // Called only after the existing native-batch validator has checked the whole
-// batch, its two independent approvals, all identities and the captured hash.
+// batch, its independent review (including historical two-review receipts),
+// all identities and the captured hash.
 export function monthlyForcedSourceResolver(program){
  const normalized=normalizeMonthlyForcedProgram(program),policies=normalized.monthlyForcedAmountPolicies??[];
  return ({row,family,agreementCode,period,liquidationType,sourceContract})=>{

@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createOwnNoveltyHandler} from '../api/internal-own-payroll-novelties.js';
 import {OWN_NOVELTY_READ} from '../assets/own-payroll-novelties-model.js';
+import {ownNoveltyHash} from '../lib/internal-own-payroll-novelties.js';
 import {prepare,receipt,bootstrap,batch} from './fixtures/own-payroll-novelties-synthetic.js';import {uid} from './fixtures/own-payroll-program-synthetic.js';
 const all=[...OWN_NOVELTY_READ,'payroll.novelty.prepare','payroll.novelty.approve','payroll.novelty.export'],principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid(1),membershipId:uid(2),effectiveCapabilities:all}},session={email:'qa@example.invalid',id:uid(3),version:1,releaseSha:'a'.repeat(40)};
 const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(v){this.value=v;return this;}});
@@ -13,6 +14,15 @@ test('review-only permission cannot prepare a batch even though it may read a de
 test('foreign origin, unsigned actor and legacy access never connect',async()=>{const foreign=post();foreign.headers.origin='https://other.example';for(const [req,overrides,status]of [[foreign,{},403],[post(),{sessionFor:()=>({...session,version:0})},401],[get(),{requireAccess:async()=>({mode:'legacy',principal})},403]]){const a=setup(overrides),r=response();await a.handler(req,r);assert.equal(r.statusCode,status);assert.equal(a.stats.connects,0);}});
 test('duplicate JSON/query keys, external identity, excessive count and missing values fail without SQL',async()=>{const duplicate=post();duplicate.body=duplicate.body.replace('"command":"prepare"','"command":"prepare","command":"prepare"');const missing=prepare();missing.rows[1].amountCents=null;const tooMany=prepare(10001);for(const req of [duplicate,post(missing),post(tooMany),get({resource:'bootstrap',tenantId:uid(88)}),{...get(),url:'/api/internal-own-payroll-novelties?resource=bootstrap&resource=bootstrap'}]){const a=setup(),r=response();await a.handler(req,r);assert.ok([400,413,422].includes(r.statusCode),JSON.stringify(r.value));assert.equal(a.stats.connects,0);}});
 test('corrupted row hash is not exposed as a verified approval',async()=>{const a=setup({getSql:async()=>({query:async()=>[{result:batch(2,{rowsSha256:'a'.repeat(64)})}]})}),r=response();await a.handler(get({resource:'detail',id:uid(20000)}),r);assert.equal(r.statusCode,503);assert.equal(r.value.data,undefined);});
+test('API returns a complete forced one-review approval or explicit confirmation without requiring a second reviewer',async()=>{
+ for(const revision of [3,4]){
+  const snapshot=batch(1,{revision});snapshot.rows[0].values.forced=true;snapshot.rows[0].values.observation='Synthetic independent review';
+  snapshot.rowsSha256=ownNoveltyHash(snapshot.rows.map(({values,subject})=>({values,subject})));
+  const body={command:'approve',batchId:snapshot.id,expectedRevision:revision-1,reasonReference:null,reviewConfirmed:true};
+  const a=setup({getSql:async()=>({query:async(_sql,values)=>[{result:{version:'own-payroll-novelty-receipt.v1',requestKey:values[2],requestSha256:ownNoveltyHash(body),body,snapshot,replayed:false}}]})}),r=response();
+  await a.handler(post(body),r);assert.equal(r.statusCode,201);assert.equal(r.value.data.snapshot.status,'approved');assert.equal(r.value.data.snapshot.approvals.length,1);assert.deepEqual(r.value.data.body,body);
+ }
+});
 
 // Recuperación de una lectura que choca con un candado (mismo patrón que los demás circuitos del período).
 test('busy bootstrap reauthorizes and retries only the same bounded read',async()=>{

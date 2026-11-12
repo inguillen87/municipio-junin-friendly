@@ -122,9 +122,8 @@ export function ownProgramCommand(raw, catalogItems = null) {
     // Structural checks precede the authoritative catalog read. Linking happens
     // again against the exact approved catalog returned by the SQL facade.
     const program = catalogItems ? ownProgramDefinition(raw.program, catalogItems) : ownProgramStructure(raw.program);
-    require(!ownPayrollFamilyTariffs(program),'PROGRAM_FAMILY_TARIFF_PREPARATION_ONLY','El productor requiere captura, finalización y lectores operativos versionados; este candidato sólo permite preparación.');
-    require(!ownProgramRowEmission(program),'PROGRAM_ROW_EMISSION_PREPARATION_ONLY','La emisión requiere captura, cierre y lectores de su versión explícita; este candidato sólo permite preparación.');
-    require(!ownProgramQuantities(program), 'PROGRAM_QUANTITY_PREPARATION_ONLY', 'Las cantidades requieren el contrato operativo conjunto de captura, finalización y lectura.');
+    // The SQL command admits installed operational families after checking
+    // current authorization, scope, approved sources and independent review.
     require(salaryExact(program, ownProgramFields(program)), 'PROGRAM_INVALID', 'El programa tiene campos omitidos o no admitidos.'); return { ...raw, program };
   }
   require(salaryUuid(raw.proposalId) && salaryHash(raw.proposalSha256) && raw.program === null && raw.reviewConfirmed === true, 'PROGRAM_INVALID', 'Revisá la propuesta completa y confirmá la decisión.'); return { ...raw };

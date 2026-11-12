@@ -116,9 +116,9 @@ test('explicit producer adapter preserves V2/V3/V4/V5 dispatch and old adapters 
  for(const version of ['own-payroll-input.v2','own-payroll-input.v3']){const source=familyTariffSources(),p=source.programState.program.definition;delete p.officialTotalsVersion;delete p.officialTotalsPolicies;if(version==='own-payroll-input.v2'){delete p.quantityPhasesVersion;delete p.quantityPhases;}source.programState.program.definition=ownProgramDefinition(p,source.programState.salaryCatalog.items);const snap=prepareOwnPayrollFamilyTariffSnapshot(source);assert.equal(snap.input.version,version);assert.equal(snap.result.familyTariffDecisionCount,6);}
 });
 
-test('source preparer integrates real sourceKind without AST changes and keeps the candidate nonpresentable',()=>{
- const raw=emissionPreparerEvidence(familyTariffSources()),r=prepareOwnPayrollProgrammeSource(raw);assert.deepEqual(r.incidents.map(i=>i.code),['PROGRAM_FAMILY_TARIFF_PREPARATION_ONLY']);assert.ok(r.draft.programme);assert.equal(r.draft.programme.bindings.filter(b=>b.sourceKind==='family_tariff').length,6);assert.equal(r.presentable.programme,false);assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.completeness.programmeContractComplete,true);ownProgramDefinition(r.draft.programme,raw.salary.catalog.items);
- assert.throws(()=>ownProgramCommand(command({program:r.draft.programme}),raw.salary.catalog.items),codeIs('PROGRAM_FAMILY_TARIFF_PREPARATION_ONLY'));
+test('source preparer integrates real sourceKind into a presentable unapproved proposal draft',()=>{
+ const raw=emissionPreparerEvidence(familyTariffSources()),r=prepareOwnPayrollProgrammeSource(raw);assert.deepEqual(r.incidents,[]);assert.ok(r.draft.programme);assert.equal(r.draft.programme.bindings.filter(b=>b.sourceKind==='family_tariff').length,6);assert.equal(r.presentable.programme,true);assert.equal(r.approved,false);assert.equal(r.executable,false);assert.equal(r.completeness.programmeContractComplete,true);ownProgramDefinition(r.draft.programme,raw.salary.catalog.items);
+ assert.deepEqual(ownProgramCommand(command({program:r.draft.programme}),raw.salary.catalog.items).program,r.draft.programme);
 });
 
 test('a historical tariff table or producer version cannot be replaced, and scopes cannot be extended silently',()=>{
