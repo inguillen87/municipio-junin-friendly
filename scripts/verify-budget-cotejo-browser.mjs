@@ -12,7 +12,7 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='GET'){res.writeHead(405);return res.end();}
  if(filePath.startsWith('/api/')){if(delay)await new Promise(r=>setTimeout(r,delay));res.writeHead(denied?403:200,{'Content-Type':'application/json','Cache-Control':'private, no-store'});return res.end(JSON.stringify(denied?{ok:false}:filePath==='/api/internal-auth'?session():url.searchParams.get('resource')==='budgetpayrollcatalog'?catalog():roster(url.searchParams.get('datasetId'))));}
  if(filePath==='/'){res.setHeader('Content-Type','text/html');return res.end('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/assets/budget-structure.css"><body style="font-family:Arial;margin:20px"><main></main><script type="module">import {mountAuthorizedBudgetStructure} from "/assets/budget-structure-workbench.js";mountAuthorizedBudgetStructure(document.querySelector("main"));</script></body></html>');}
- const file=filePath.startsWith('/assets/vendor/pdf')?path.join(root,'node_modules/pdfjs-dist/build',path.basename(filePath)):path.resolve(root,'.'+filePath);
+ const file=filePath.startsWith('/assets/vendor/pdf')?path.join(root,'node_modules/pdfjs-dist/legacy/build',path.basename(filePath)):path.resolve(root,'.'+filePath);
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);return res.end();}
  res.setHeader('Content-Type',file.endsWith('.css')?'text/css':'application/javascript');res.end(fs.readFileSync(file));
 });

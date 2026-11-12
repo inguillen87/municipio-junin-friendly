@@ -1530,10 +1530,17 @@ function initialize() {
     externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyDecisions?.locked()) || Boolean(monthlyAnnul?.locked()) || document.body.dataset.busy==='true',
   });
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) clearConsulted();
-    else if (readBlocked) showMessage('info','Volvé a consultar para continuar','La vista se retiró al salir de la página. Actualizá para verificar el acceso; un envío pendiente conserva su contenido y clave.');
-  });
+  // Leaving the page withdraws what was consulted. Coming back, or opening this block while it is withdrawn, checks the access and
+  // reads it again by itself: nobody has to find «Actualizar» to get the screen back. It is only a read. An unconfirmed send keeps
+  // its content and key, and consulting or resending it stays an explicit action; with a send pending in both spaces nothing is
+  // read, as with «Actualizar».
+  const reconsult = () => {
+    if (document.hidden || !readBlocked) return;
+    if (ownBulkNovelties?.hasPending?.() && legacyNoveltyOperationPending()) return refreshNoveltyWorkspace();
+    return loadBootstrap({ quiet: true });
+  };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearConsulted(); else reconsult(); });
+  byId('noveltyReferenceWorkspace').addEventListener('toggle', event => { if (event.currentTarget.open) reconsult(); });
   window.addEventListener('pagehide', () => {
     clearConsulted();
     // A cached page can return with an uncertain request. Keep that exact attempt

@@ -30,19 +30,33 @@ function sourceItems(source) {
     decided.push({key: source.key + ':' + r.eventId, title: source.title, href: source.href, period: r.period, status: r.status, who: r.actorLabel, when: r.recordedAt}); }
   return {toReview, decided};
 }
+// Un circuito de la bandeja «Pendientes de aprobación» (maestro, reglas, novedades, altas, licencias…): cuántas propuestas
+// esperan y cuántas puede decidir esta persona. Si el circuito no informa cuáles son de ella, se avisan todas y se dice.
+// Un circuito sin respuesta o con una cuenta imposible no aporta cero.
+const circuitHref = v => typeof v === 'string' && /^\/[a-z0-9-]+(\?[a-z0-9=&-]+)?(#[a-zA-Z0-9-]+)?$/.test(v);
+function circuitItem(c) {
+  if (!c || !text(c.key, 60) || !text(c.title, 80) || !circuitHref(c.href)) throw new TypeError('PENDING_BELL_CIRCUIT_INVALID');
+  if (c.error === true) return null;
+  if (!Number.isSafeInteger(c.count) || c.count < 0 || !(c.reviewable === null || Number.isSafeInteger(c.reviewable) && c.reviewable >= 0 && c.reviewable <= c.count)) return null;
+  const mine = c.reviewable === null ? c.count : c.reviewable;
+  return {key: c.key, title: c.title, href: c.href, mine, sure: c.reviewable !== null, others: c.count - mine};
+}
 // El número rojo cuenta lo que espera una decisión de esta persona más las decisiones sobre lo suyo que todavía no
 // se le mostraron. «Visto» son los identificadores de eventos realmente mostrados, no la hora en que abrió la lista.
 // Una fuente que falla o no cumple su forma no aporta cero: se cuenta como sin respuesta.
-export function bellState(sources, seenKeys = []) {
-  if (!Array.isArray(sources) || !Array.isArray(seenKeys)) throw new TypeError('PENDING_BELL_INVALID');
-  const seen = new Set(seenKeys.filter(k => typeof k === 'string')), toReview = [], decided = [], failed = [], covered = [];
+export function bellState(sources, seenKeys = [], circuitReads = []) {
+  if (!Array.isArray(sources) || !Array.isArray(seenKeys) || !Array.isArray(circuitReads)) throw new TypeError('PENDING_BELL_INVALID');
+  const seen = new Set(seenKeys.filter(k => typeof k === 'string')), toReview = [], decided = [], failed = [], covered = [], circuits = [];
   if (new Set(sources.map(s => s?.key)).size !== sources.length) throw new TypeError('PENDING_BELL_SOURCE_INVALID');
+  if (new Set(circuitReads.map(c => c?.key)).size !== circuitReads.length) throw new TypeError('PENDING_BELL_CIRCUIT_INVALID');
+  let elsewhere = 0;
+  for (const read of circuitReads) { const c = circuitItem(read); if (!c) { failed.push(read.title); continue; } covered.push(c.title); elsewhere += c.others; if (c.mine > 0) circuits.push(c); }
   for (const source of sources) { const items = sourceItems(source); if (!items) { failed.push(source.title); continue; } covered.push(source.title); toReview.push(...items.toReview); decided.push(...items.decided); }
   toReview.sort((a, b) => Date.parse(a.when) - Date.parse(b.when)); decided.sort((a, b) => Date.parse(b.when) - Date.parse(a.when));
   for (const r of decided) r.fresh = !seen.has(r.key);
-  const waiting = toReview.length, news = decided.filter(r => r.fresh).length, count = waiting + news;
+  const waiting = toReview.length + circuits.reduce((n, c) => n + c.mine, 0), news = decided.filter(r => r.fresh).length, count = waiting + news;
   const label = count ? (waiting ? waiting + (waiting === 1 ? ' pendiente te espera' : ' pendientes te esperan') : '') + (waiting && news ? ' y ' : '') + (news ? news + (news === 1 ? ' novedad de lo tuyo' : ' novedades de lo tuyo') : '') : 'Sin pendientes';
-  return {toReview, decided, waiting, news, count, badge: count > 99 ? '99+' : count ? String(count) : '', label, covered, failed, complete: failed.length === 0,
+  return {toReview, decided, circuits, elsewhere, waiting, news, count, badge: count > 99 ? '99+' : count ? String(count) : '', label, covered, failed, complete: failed.length === 0,
     shownKeys: decided.map(r => r.key)};
 }
 // Lo que se guarda como visto: sólo claves de decisiones que siguen existiendo, para que no crezca sin límite.

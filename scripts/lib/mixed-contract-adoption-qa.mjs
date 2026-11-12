@@ -5,6 +5,8 @@ import {randomUUID} from 'node:crypto';
 import {buildOwnerDecisionQa,ownerDecisionQaHash as hash,ownerDecisionQaLiteral as q,ownerDecisionQaColumnAudit} from './municipal-owner-adoption-decision-qa.mjs';
 import {buildMixedContractAdoptionInstallation} from './mixed-contract-adoption-installation.mjs';
 import {buildFinalGrhSourceReviewAdmissionInstallation,FINAL_REVIEW_ADMISSION_PROFILES} from './final-grh-source-review-admission-installation.mjs';
+import {preparedSourcesForQa,PREPARED_SOURCES_FIXTURE} from './prepared-sources-qa.mjs';
+import {ADOPTION_PREPARED_SOURCES_READER_SQL} from '../../lib/internal-employment-adoption-prepared-sources.js';
 
 const json=v=>q(JSON.stringify(v))+'::jsonb';
 const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'MIXED_QA_SOURCE_ANCHOR_CHANGED:'+a.slice(0,70));return s.replace(a,()=>b);};
@@ -113,18 +115,25 @@ export function buildMixedContractAdoptionQa({major,sourceCommit,read,schema='mc
  const owner=buildOwnerDecisionQa({major,sourceCommit,read,schema,operationalPairBaseline}),batch=buildMixedContractAdoptionInstallation({read,sourceCommit,operationalPairBaseline});
  const hashes={...owner.hashes},definitions=[...owner.definitions,owner.graph.batch.authority.newDefinition,...owner.graph.batch.definitions,owner.graph.batch.guard,owner.graph.batch.ready,...batch.newDefinitions,...batch.afterDefinitions];
  let stable=false;for(let pass=0;pass<16;pass++){let changed=false;for(const d of definitions){let relocated=owner.relocate(d);for(const[a,b]of Object.entries(hashes))relocated=relocated.replaceAll(a,b);const key=hash(body(d)),value=hash(body(relocated));if(hashes[key]!==value){hashes[key]=value;changed=true;}}if(!changed){stable=true;break;}}assert.ok(stable,'MIXED_QA_HASH_GRAPH_CYCLE');
+ // The cut selectors read the prepared-source catalogue, installed outside the numbered migrations. Its exact captured
+ // definition joins the same relocation: the product reader's pinned body hash maps to the hash of the relocated body.
+ const preparedSources=preparedSourcesForQa({schema,relocate:owner.relocate,read});assert.equal(hashes[preparedSources.canonicalSha256],undefined,'MIXED_QA_PREPARED_SOURCES_HASH_COLLISION');hashes[preparedSources.canonicalSha256]=preparedSources.relocatedSha256;
  const normalized=sql=>{let result=owner.relocate(sql);for(const[a,b]of Object.entries(hashes))result=result.replaceAll(a,b);return result;};
  const local=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback','rollbackVerification'].map(k=>[k,batch[k].map(normalized)]));
  const ownerLocal=Object.fromEntries(['rehearsal','installation','repetition','verification','rollback','rollbackVerification'].map(k=>[k,owner.graph.batch[k].map(normalized)]));
- const fixture=mixedQaFinalSourceSeed(owner),admission=profile==='october14'?buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major}):null,later=admission?mixedQaOctober14Candidate(owner,randomUUID()):null,sourceHashes={...owner.sourceHashes,...batch.sourceHashes,...admission?.sourceHashes};
+ const fixture=mixedQaFinalSourceSeed(owner),admission=profile==='october14'?buildFinalGrhSourceReviewAdmissionInstallation({read,sourceCommit,major}):null,later=admission?mixedQaOctober14Candidate(owner,randomUUID()):null,sourceHashes={...owner.sourceHashes,...batch.sourceHashes,...admission?.sourceHashes,[PREPARED_SOURCES_FIXTURE]:hash(read(PREPARED_SOURCES_FIXTURE))};
  const columnAudit=ownerDecisionQaColumnAudit(fixture.seed+';'+owner.graph.batch.statements.filter(s=>/^CREATE TABLE/.test(s)).map(normalized).join(';'),[...owner.definitions,...owner.graph.batch.definitions,...batch.newDefinitions,...batch.afterDefinitions]);assert.deepEqual(columnAudit.unknown,[],'MIXED_QA_COLUMN_MISSING');
- return {major,sourceCommit,schema,owner,batch,normalized,hashes,local,ownerLocal,sourceHashes,columnAudit,...fixture,...(later?{seed:owner.seed}:{}),profile,admission,later,actor:owner.actor,checker:owner.checker,ids:later?{...owner.ids,revision:later.revisionId}:owner.ids,connects:false,executesSql:false};
+ return {major,sourceCommit,schema,owner,batch,normalized,hashes,local,ownerLocal,preparedSources,sourceHashes,columnAudit,...fixture,...(later?{seed:owner.seed}:{}),profile,admission,later,actor:owner.actor,checker:owner.checker,ids:later?{...owner.ids,revision:later.revisionId}:owner.ids,connects:false,executesSql:false};
 }
 
 // Parameterized canonical RPCs only. This adapter never accepts caller SQL or
 // a different schema, statement suffix, unused argument or host expression.
+// The one statement that is not a plain RPC is the product's own prepared-source
+// reader, admitted byte for byte with its single context argument; the caller's
+// relocation moves it, metadata gate and pinned body hash included, into the schema.
 export function mixedQaQuery(text,args,schema){
  assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.ok(Array.isArray(args));
+ if(text===ADOPTION_PREPARED_SOURCES_READER_SQL){assert.equal(args.length,1,'MIXED_QA_PREPARED_SOURCES_ARGUMENT');assert.equal(typeof args[0],'string');assert.deepEqual(text.match(/\$\d+/g),['$1'],'MIXED_QA_PREPARED_SOURCES_READER_CHANGED');return text.replace('$1',()=>q(args[0]));}
  const allowed=new Set(['employment_adoption_bootstrap_v1','employment_adoption_final_available_v1','employment_adoption_mixed_available_v1','employment_adoption_mixed_bootstrap_v1','employment_adoption_propose_v1','employment_adoption_attempt_v1','municipal_owner_adoption_authority_v1','municipal_owner_adoption_preview_v1','municipal_owner_adoption_command_v1','municipal_owner_adoption_attempt_v1','municipal_adoption_queue_v1','municipal_adoption_review_v1','municipal_adoption_command_v1','municipal_adoption_attempt_v1']);
  const m=/^SELECT public\.(\w+)\(((?:\$[1-9][0-9]*::(?:jsonb|uuid|text))(?:,\$[1-9][0-9]*::(?:jsonb|uuid|text))*)\) AS result$/.exec(text);assert.ok(m&&allowed.has(m[1]),'MIXED_QA_RPC_REQUIRED');
  const used=new Set(),result=text.replace('public.',schema+'.').replace(/\$(\d+)\b/g,(_,index)=>{const at=Number(index)-1;assert.ok(at>=0&&at<args.length);assert.equal(typeof args[at],'string');used.add(at);return q(args[at]);});assert.equal(used.size,args.length);return result;

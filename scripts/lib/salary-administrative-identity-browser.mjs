@@ -7,7 +7,7 @@ export async function verifySalaryAdministrativeBrowser({handlers,env,actor,outp
  const caps=['workforce.employee.read','payroll.read','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read'];
  const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:browserName==='chrome'?{channel:'chrome'}:{})});env.INTERNAL_APP_ORIGIN=origin;
  try{
-  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
+  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. Parámetros: sus secciones juntas; de a una se verifican en verify-native-salary-browser. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo');localStorage.setItem('mc.parametros.vista','todo')}catch{}});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
    const kind=u.pathname==='/api/internal-native-salary'?'salary':u.pathname==='/api/internal-own-payroll-program'?'program':null;
@@ -22,7 +22,10 @@ export async function verifySalaryAdministrativeBrowser({handlers,env,actor,outp
   const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
   const salary=page.locator('[data-native-salary]'),program=page.getByRole('region',{name:'Reglas propias de cálculo',exact:true});
   const loadSalary=async()=>{await page.goto(origin+'/nomina#resumen');await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'parametros'});await salary.getByRole('button',{name:'Consultar maestro propio'}).click();await salary.getByText('definiciones propias',{exact:false}).waitFor();};
-  await loadSalary();check(await salary.getByRole('button',{name:'Preparar nueva versión'}).isEnabled(),'built React master allows the historical verified administrative author to prepare');
+  // El maestro se consulta solo al abrirse y «Consultar» pide otra lectura: mientras una está en curso, preparar espera. Se comprueba
+  // el estado final, con la lectura terminada (antes se miraba en el primer cuadro y dependía de cuánto tardara esa lectura).
+  const prepareReady=()=>page.waitForFunction(()=>[...document.querySelectorAll('[data-native-salary] button')].some(b=>b.textContent==='Preparar nueva versión'&&!b.disabled)).then(()=>true,()=>false);
+  await loadSalary();check(await prepareReady()&&await salary.getByRole('button',{name:'Preparar nueva versión'}).isEnabled(),'built React master allows the historical verified administrative author to prepare');
   await salary.getByRole('button',{name:'Preparar nueva versión'}).click();await salary.getByLabel('Motivo de la versión').fill('Borrador exclusivamente sintético; no se envía ni modifica el maestro');check(await salary.getByLabel('Motivo de la versión').inputValue()==='Borrador exclusivamente sintético; no se envía ni modifica el maestro','enabled master preserves editable work without issuing a write');
   for(const width of [390,320]){await page.setViewportSize({width,height:900});await page.screenshot({path:path.join(output,'salary-mobile-'+width+'.png'),fullPage:true});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'master remains readable at '+width+'px without body overflow');}
   await page.setViewportSize({width:1440,height:1000});await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'reglas'});await program.locator('[data-program-content]').waitFor({state:'visible'});check(await program.locator('[data-program-prepare]').isEnabled(),'built program panel enables existing administrative preparation after actual SQL authentication');

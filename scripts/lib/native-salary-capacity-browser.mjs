@@ -17,7 +17,7 @@ export async function verifyNativeSalaryCapacityBrowser({handler,env,actor,outpu
  const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:browserName==='chrome'?{channel:'chrome'}:{})});
  env.INTERNAL_APP_ORIGIN=origin;let page,holdPage=null,releasePage=null,lostAck=false;
  try{
-  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
+  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});/* Parámetros con sus secciones juntas (vista completa): este recorrido usa la tabla y el circuito enteros. Las secciones de a una se verifican en verify-native-salary-browser. */await context.addInitScript(()=>{try{localStorage.setItem('mc.parametros.vista','todo');}catch{}});
   await context.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());
    if(u.origin!==origin){external.push(u.origin);return route.abort();}
@@ -40,7 +40,7 @@ export async function verifyNativeSalaryCapacityBrowser({handler,env,actor,outpu
    return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream',body:fs.readFileSync(file)});
   });
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
-  const master=page.locator('[data-native-salary]'),search=master.getByLabel('Buscar',{exact:true}),pendingProposals=()=>master.getByRole('button',{name:new RegExp('^Pendiente · .* · '+all.length+' definiciones$')});
+  const master=page.locator('[data-native-salary]'),search=master.getByLabel('Buscar',{exact:true}),/* Cada versión dice además cuándo se propuso; las preparadas sobre una versión anterior llevan su aviso antes de la fecha y no cuentan acá. */pendingProposals=()=>master.getByRole('button',{name:new RegExp('^Pendiente · .* · '+all.length+' definiciones\\s*Propuesta el \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}$')});
   // Since 5/11 the definitions are a grid: one bounded page of rows, a count line for the whole filter and a pager. The
   // proposals keep their own lists (waiting for review, and the rest of the history folded).
   const gridRows=()=>master.locator('.sc-grid tbody tr'),counted=async()=>(await master.locator('.sc-count').innerText()).trim(),paged=async()=>(await master.getByText(/ filas del filtro · página \d+$/).innerText()).trim();

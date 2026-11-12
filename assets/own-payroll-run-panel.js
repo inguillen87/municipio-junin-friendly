@@ -4,7 +4,7 @@ import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
 import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
-import {salaryUuid} from './native-salary-catalog-model.js';
+import {salaryUuid,SALARY_UNITS} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
@@ -272,7 +272,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function renderRows(){
     if(!current?.saved)return;const view=ownRunWorkspaceRows(current,$('search').value,page);page=view.page;
-    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+r.unit),r.ruleReference])tr.append(node('td',text));return tr;}));
+    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+(SALARY_UNITS[r.unit]??r.unit).toLowerCase()),r.ruleReference])tr.append(node('td',text));return tr;}));
     $('range').textContent=view.filtered+' conceptos de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }

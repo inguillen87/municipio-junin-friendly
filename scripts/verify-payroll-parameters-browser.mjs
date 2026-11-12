@@ -18,6 +18,8 @@ function capabilities() { return ['payroll.read', 'payroll.novelty.read', 'payro
 function detail(p) { return { ...p, allowedCommands: role === 'maker' ? p.status === 'prepared' ? ['submit', 'cancel'] : p.status === 'submitted' ? ['cancel'] : [] : role === 'checker' && p.status === 'submitted' ? ['approve', 'reject'] : [] }; }
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'es-AR', serviceWorkers: 'block', acceptDownloads: true });
+  // Parámetros con sus secciones juntas: este recorrido usa el ayudante 88/90 completo. Las secciones de a una se verifican en verify-native-salary-browser.
+  await context.addInitScript(() => { try { localStorage.setItem('mc.parametros.vista','todo'); } catch {} });
   await context.route('**/*', async route => {
     const request = route.request(), u = new URL(request.url());
     if (u.origin !== origin) return route.abort();

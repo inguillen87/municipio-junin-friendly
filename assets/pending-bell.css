@@ -11,11 +11,15 @@
 .mc-bell-panel h3{margin:.9rem 0 .4rem;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:#4a5d61}
 .mc-bell-panel ul{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}
 .mc-bell-item{display:grid;gap:.15rem;padding:.7rem .8rem;border:1px solid #dbe6e4;border-radius:10px;background:#f8fbfa}
+.mc-bell-item.is-circuit{grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:.75rem}
+.mc-bell-item.is-circuit .mc-bell-go{grid-column:2;grid-row:1 / span 2;margin-top:0}
 .mc-bell-item.is-fresh{border-left:4px solid #b25e00;background:#fff8ea}
 .mc-bell-who{font-size:.88rem;color:#4a5d61}
 .mc-bell-why{font-size:.92rem;overflow-wrap:anywhere}
 .mc-bell-go{justify-self:start;margin-top:.35rem;display:inline-flex;align-items:center;min-height:44px;padding:0 1rem;border-radius:8px;background:#15776f;color:#fff;font-weight:700;text-decoration:none}
 .mc-bell-go:focus-visible{outline:3px solid #0b5c8a;outline-offset:2px}
 .mc-bell-empty{margin:.4rem 0;color:#4a5d61}
+.mc-bell-all{display:inline-flex;align-items:center;min-height:44px;margin-top:.3rem;color:#0b5c5a;font-weight:700}
+.mc-bell-all:focus-visible{outline:3px solid #0b5c8a;outline-offset:2px}
 @media (max-width:480px){.mc-bell-panel{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-height:75vh;border-radius:14px 14px 0 0}}
 @media print{.mc-bell{display:none}}

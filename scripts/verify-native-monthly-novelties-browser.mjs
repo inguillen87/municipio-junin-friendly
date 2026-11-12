@@ -37,6 +37,7 @@ function readBatch(stored){
     b.status==='submitted'&&actor==='checker'?(current?['approve','reject']:['reject']):[];
   b.canExport=b.status==='approved'&&current&&nominal;return b;
 }
+let bootstrapReads=0;
 function bootstrap(){return {ok:true,principal:{email:actor+'@example.invalid',membershipId:ids[actor],tenantId:ids.tenant,
   certifiedBindingId:ids.binding,capabilities:capabilities()},feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},
   limits:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,
@@ -97,7 +98,7 @@ try{
           return route.fulfill({json:response});
         }
         assert.equal(url.searchParams.get('version'),'2');const resource=url.searchParams.get('resource');
-        if(resource==='bootstrap')return route.fulfill({json:bootstrap()});
+        if(resource==='bootstrap'){bootstrapReads++;return route.fulfill({json:bootstrap()});}
         if(resource==='employee'){
           assert.equal(nominal,true);assert.equal(url.searchParams.has('legajo'),false);const contractId=url.searchParams.get('contractId');
           let subject=contractId===ids.other?{...original,contractId:ids.other,employeeName:'Otra alta QA con el mismo legajo',registrationId:'ffffffff-ffff-4fff-8fff-ffffffffffff'}:clone(currentSubject);
@@ -254,8 +255,11 @@ try{
   // A late fresh subject read cannot authorize the first write after hiding.
   holdEmployee=true;const beforeHidden=posts.length;await page.locator('#prepareButton').click();await page.waitForFunction(()=>document.body.dataset.busy==='true');
   for(let i=0;i<120&&!releaseEmployee;i++)await page.waitForTimeout(10);assert.ok(releaseEmployee);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});releaseEmployee();releaseEmployee=null;
-  await page.waitForTimeout(80);assert.equal(posts.length,beforeHidden);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
+  await page.waitForTimeout(80);assert.equal(posts.length,beforeHidden);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);assert.equal(await page.locator('#entrySection').isHidden(),true);const readsWhileHidden=bootstrapReads;await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
   checks.push('hiding during the fresh identity read clears the review and prevents a late first POST');
+  // Volver a la página consulta de nuevo sola (acceso y lotes): nadie tiene que tocar «Actualizar», y no se envía nada.
+  await page.locator('#entrySection:visible').waitFor();assert.equal(bootstrapReads,readsWhileHidden+1);assert.equal(posts.length,beforeHidden);assert.equal(await page.getByText('Volvé a consultar para continuar').count(),0);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);
+  checks.push('returning to the page reads the access and the lots again by itself, without a write and without restoring the withdrawn review');
   nominal=true;await open();holdEmployee=true;await page.locator('#nativeMonthlyRefresh').click();
   await page.waitForFunction(()=>document.body.dataset.busy==='true');deny=true;
   // Trigger a newer authority read while the employee lookup remains in flight.

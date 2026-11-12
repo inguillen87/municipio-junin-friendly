@@ -98,7 +98,9 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
     await input.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});check((await r('chips').innerText()).includes(employeeNumber),'actual calculator preserves the exact selected identifier');
    }
    await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.body.liquidationDate,liquidationDate);assert.equal(value.saved.result.employeeCount,expectedCount);}});
-   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill(employeeNumber.toLowerCase());check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact selected employee number');
+   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');
+   // «Detalle por concepto» llega plegado y se abre con animación: la búsqueda vive adentro.
+   await r('concept-details').evaluate(e=>{if(!e.open)e.querySelector('summary').click();});await r('search').waitFor({state:'visible'});await r('search').fill(employeeNumber.toLowerCase());check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact selected employee number');
    return result;
   }
   async function confirmPartial({detail}){

@@ -8,6 +8,7 @@ function initial(){return{ok:true,version:'pm10-status.v1',checkedAt:'2026-09-13
 let source=initial(),mode='ok',deferred=null,gateDenied=false,recentReceipt=false;const check=(text)=>checks.push(text);
 try{
  browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});const ctx=await browser.newContext({viewport:{width:1440,height:1050}});
+ await ctx.addInitScript(()=>{try{localStorage.setItem('mc.relojes.tab','tecnico')}catch{}});/* la pantalla tiene pestañas: la recepción del colector está en «Datos técnicos» */
  await ctx.route('**/*',async route=>{const request=route.request(),u=new URL(request.url());if(u.origin!==origin)return route.abort();if(!u.pathname.startsWith('/api/'))return route.continue();requests.push({path:u.pathname,resource:u.searchParams.get('resource'),method:request.method()});
   const resource=u.searchParams.get('resource');if(gateDenied&&resource==='bootstrap')return route.fulfill({status:403,json:{ok:false,error:'Sin permiso de QA'}});
   if(resource==='pm10-reception'){

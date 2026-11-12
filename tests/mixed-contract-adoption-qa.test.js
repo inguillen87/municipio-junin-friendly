@@ -4,6 +4,8 @@ import {ownerDecisionQaHash as hash} from '../scripts/lib/municipal-owner-adopti
 import {assertMixedQaCohort,mixedQaHtml,mixedQaOptions} from '../scripts/verify-mixed-contract-adoption.mjs';
 import {relocateFinalReviewAdmissionInstallation} from '../scripts/lib/final-grh-source-review-admission-qa.mjs';
 import {mixedAdoptionRaw} from './fixtures/mixed-contract-adoption-synthetic.js';
+import {preparedSourcesDefinition,preparedSourcesForQa,PREPARED_SOURCES_FIXTURE,PREPARED_SOURCES_FIXTURE_SHA256,PREPARED_SOURCES_FUNCTION} from '../scripts/lib/prepared-sources-qa.mjs';
+import {ADOPTION_PREPARED_SOURCES_READER_SQL,ADOPTION_PREPARED_SOURCES_READER_SHA256} from '../lib/internal-employment-adoption-prepared-sources.js';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'),sourceCommit='a'.repeat(40),schema='mc_qa_fixed_092_'+'c'.repeat(32);
 const qa=buildMixedContractAdoptionQa({major:17,sourceCommit,read,schema});
 const laterFixtures=new Map(),laterFixture=major=>{if(!laterFixtures.has(major))laterFixtures.set(major,buildMixedContractAdoptionQa({major,sourceCommit,read,schema,profile:'october14'}));return laterFixtures.get(major);};
@@ -89,6 +91,29 @@ test('the HTTP SQL adapter preserves JSON and canonical UUID arguments but canno
  assert.throws(()=>mixedQaQuery(text,['{}','{}'],schema));assert.throws(()=>mixedQaQuery(text,['{}',{},'key'],schema));assert.throws(()=>mixedQaQuery(text,['{}','{}','key','extra'],schema));assert.throws(()=>mixedQaQuery(text,['{}','{}','key'],'public'));
  for(const call of['employment_adoption_mixed_available_v1($1::jsonb)','employment_adoption_mixed_bootstrap_v1($1::jsonb,$2::uuid,$3::text)','municipal_adoption_command_v1($1::jsonb,$2::jsonb,$3::uuid)','municipal_owner_adoption_command_v1($1::jsonb,$2::jsonb,$3::uuid)']){const count=[...call.matchAll(/\$/g)].length;assert.ok(mixedQaQuery('SELECT public.'+call+' AS result',Array(count).fill('{}'),schema).startsWith('SELECT '+schema+'.'));}
  assert.ok(Object.isFrozen(MIXED_QA_COUNTS));
+});
+
+test('the prepared-source catalogue is the exact installed definition: pinned bytes, the body the product reader admits, and nothing but relocation in QA',()=>{
+ const source=preparedSourcesDefinition(read),installed=qa.preparedSources;assert.equal(hash(source),PREPARED_SOURCES_FIXTURE_SHA256);assert.equal(hash(body(source)),ADOPTION_PREPARED_SOURCES_READER_SHA256);
+ for(const changed of[source.replace('n>3','n>4'),source+'\n',source.replace('SECURITY DEFINER','SECURITY INVOKER')])assert.throws(()=>preparedSourcesDefinition(()=>changed),/QA_PREPARED_SOURCES_SOURCE_CHANGED/);
+ assert.equal(installed.statements.length,3);const [definition,...privileges]=installed.statements;
+ assert.ok(definition.startsWith('CREATE FUNCTION '+schema+'.'+PREPARED_SOURCES_FUNCTION+'(p jsonb)'));assert.ok(!definition.includes('OR REPLACE'));assert.ok(!definition.includes('public.'));
+ assert.equal(body(definition),body(source).replaceAll('public.',schema+'.'));assert.ok(definition.includes(' SECURITY DEFINER\n SET search_path=pg_catalog,'+schema+',public,pg_temp\n SET "TimeZone" TO \'UTC\'\nAS $function$'));
+ assert.equal(installed.signature,schema+'.'+PREPARED_SOURCES_FUNCTION+'(jsonb)');assert.deepEqual(privileges,['REVOKE ALL ON FUNCTION '+installed.signature+' FROM PUBLIC','GRANT EXECUTE ON FUNCTION '+installed.signature+' TO municontrol_actions_runtime_app']);
+ assert.equal(installed.canonicalSha256,ADOPTION_PREPARED_SOURCES_READER_SHA256);assert.equal(installed.relocatedSha256,hash(body(definition)));assert.notEqual(installed.relocatedSha256,installed.canonicalSha256);
+ assert.equal(qa.hashes[ADOPTION_PREPARED_SOURCES_READER_SHA256],installed.relocatedSha256);assert.equal(qa.sourceHashes[PREPARED_SOURCES_FIXTURE],PREPARED_SOURCES_FIXTURE_SHA256);
+ assert.throws(()=>preparedSourcesForQa({schema:'public',relocate:qa.owner.relocate,read}),/QA_PREPARED_SOURCES_DESTINATION/);assert.throws(()=>preparedSourcesForQa({schema,relocate:value=>value,read}),/QA_PREPARED_SOURCES_NOT_RELOCATED/);
+});
+
+test('the adapter admits the product reader of that catalogue only byte for byte; relocation keeps its whole metadata gate and pins the relocated body',()=>{
+ const context=JSON.stringify({note:"literal ' $1 ; SELECT fake"}),mapped=qa.normalized(mixedQaQuery(ADOPTION_PREPARED_SOURCES_READER_SQL,[context],schema));
+ const moved=[['public.',schema+'.'],["n.nspname='public'","n.nspname='"+schema+"'"],['search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp'],[ADOPTION_PREPARED_SOURCES_READER_SHA256,qa.preparedSources.relocatedSha256]];
+ let expected=ADOPTION_PREPARED_SOURCES_READER_SQL;for(const[from,to]of moved){assert.ok(expected.includes(from));expected=expected.replaceAll(from,to);}
+ assert.equal(mapped,expected.replace('$1',()=>"'"+context.replaceAll("'","''")+"'"));assert.ok(!mapped.includes('public.'));assert.ok(!mapped.includes(ADOPTION_PREPARED_SOURCES_READER_SHA256));
+ for(const condition of['f.prosecdef','f.proconfig=ARRAY[','f.proowner=(SELECT p.proowner','SELECT count(*)=2','pg_catalog.sha256(pg_catalog.convert_to(f.prosrc'])assert.ok(mapped.includes(condition));
+ for(const bad of[ADOPTION_PREPARED_SOURCES_READER_SQL+' ',ADOPTION_PREPARED_SOURCES_READER_SQL.replace(' AND f.prosecdef',''),ADOPTION_PREPARED_SOURCES_READER_SQL.replace(ADOPTION_PREPARED_SOURCES_READER_SHA256,'0'.repeat(64)),ADOPTION_PREPARED_SOURCES_READER_SQL+'; SELECT 1'])assert.throws(()=>mixedQaQuery(bad,[context],schema));
+ for(const args of[[],[context,context],[{}]])assert.throws(()=>mixedQaQuery(ADOPTION_PREPARED_SOURCES_READER_SQL,args,schema));assert.throws(()=>mixedQaQuery(ADOPTION_PREPARED_SOURCES_READER_SQL,[context],'public'));
+ const runner=read('scripts/verify-mixed-contract-adoption.mjs');assert.ok(runner.includes('run(tx(qa.preparedSources.statements))'));assert.ok(runner.includes('r.sql===ADOPTION_PREPARED_SOURCES_READER_SQL'));assert.ok(runner.includes('sqlAuthorityStubs:false'));
 });
 
 test('runtime proof rejects a vacuous selection, changed complete partition or nominal pending identity instead of counting only a filtered view',()=>{

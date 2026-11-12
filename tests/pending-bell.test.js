@@ -57,11 +57,48 @@ test('la pantalla no decide nada, no guarda datos de personas y sólo la conecta
  assert.ok(!/reason|authorEmail|employeeName|legajo/.test(ui + model), 'ni fundamentos ni datos de personas');
  assert.equal(ui.split('innerHTML').length - 1, 1, 'el único HTML fijo es el ícono; todo lo demás entra como texto');
  assert.ok(ui.includes("if (loading || document.hidden) return;") && ui.includes("document.addEventListener('mc:pending-refresh', () => load());"));
- assert.ok(ui.includes("'Por ahora avisa de: '") && ui.includes("No se cuentan como cero."), 'la cobertura parcial se dice');
+ assert.ok(ui.includes("'Sin respuesta de: '") && ui.includes("No se cuentan como cero.") && ui.includes("'No se pudo consultar ningún circuito. Se vuelve a intentar solo en un minuto.'"), 'un circuito sin lectura se nombra, y sin ninguna lectura no se dice «no hay nada»');
+ assert.ok(!ui.includes('Por ahora avisa de'), 'ya no avisa de un solo circuito');
  const pages = fs.readdirSync('.').filter(f => f.endsWith('.html')).filter(f => fs.readFileSync(f, 'utf8').includes('pending-bell'));
- assert.deepEqual(pages, ['nomina-control.html'], 'por ahora sólo Liquidaciones la muestra');
- assert.equal(fs.readFileSync('nomina-control.html', 'utf8').split('<script type="module" src="assets/pending-bell-mount.js"></script>').length - 1, 1);
+ assert.deepEqual(pages, ['internal-dashboard.html', 'nomina-control.html', 'novedades-nomina.html'], 'la muestran Inicio, Liquidaciones y Novedades');
+ for (const page of pages) assert.equal(fs.readFileSync(page, 'utf8').split('<script type="module" src="assets/pending-bell-mount.js"></script>').length - 1, 1, page);
  const build = fs.readFileSync('scripts/build-friendly.mjs', 'utf8');
  for (const file of ['assets/own-contract-salary-conditions-pending.js', 'assets/pending-bell-model.js', 'assets/pending-bell.js', 'assets/pending-bell.css', 'assets/pending-bell-mount.js']) assert.equal(build.split("'" + file + "'").length - 1, 1, file);
  assert.ok(!fs.readFileSync('assets/internal-guide.js', 'utf8').includes('pending-bell'));
+});
+
+// La campanita muestra los mismos circuitos que la bandeja «Pendientes de aprobación». Antes sólo escuchaba uno, y quien
+// tenía una propuesta del maestro salarial esperándolo veía «No hay nada esperándote».
+const circuit = (key, title, count, reviewable, href = '/nomina#parametros') => ({key, title, href, count, reviewable});
+
+test('lo que espera a esta persona en cualquier circuito de la bandeja cuenta en el número rojo', () => {
+ const state = bellState([], [], [circuit('salary-master', 'Maestro salarial', 1, 1), circuit('program', 'Programa de cálculo', 0, 0, '/nomina#reglas'), circuit('monthly-batches', 'Lotes mensuales', 2, 1, '/novedades#lotes')]);
+ assert.equal(state.waiting, 2); assert.equal(state.count, 2); assert.equal(state.badge, '2'); assert.equal(state.label, '2 pendientes te esperan');
+ assert.deepEqual(state.circuits.map(c => [c.title, c.mine, c.sure, c.href]), [['Maestro salarial', 1, true, '/nomina#parametros'], ['Lotes mensuales', 1, true, '/novedades#lotes']]);
+ assert.equal(state.elsewhere, 1, 'el lote que decide otra persona no cuenta para vos, pero se dice que existe');
+ assert.deepEqual(state.covered, ['Maestro salarial', 'Programa de cálculo', 'Lotes mensuales']); assert.equal(state.complete, true);
+});
+
+test('un circuito que no dice cuáles decide esta persona avisa todas y lo aclara; uno sin pendientes no aparece', () => {
+ const state = bellState([], [], [circuit('leave', 'Licencias solicitadas', 3, null, '/acciones'), circuit('adoption', 'Altas al padrón propio', 0, 0, '/personal?adopcion=pendientes#legajos')]);
+ assert.equal(state.waiting, 3); assert.deepEqual(state.circuits.map(c => [c.title, c.mine, c.sure]), [['Licencias solicitadas', 3, false]]); assert.equal(state.elsewhere, 0);
+});
+
+test('un circuito sin respuesta o con una cuenta imposible queda «sin respuesta», nunca en cero', () => {
+ for (const broken of [{key: 'adoption', title: 'Altas al padrón propio', href: '/personal?adopcion=pendientes#legajos', error: true}, circuit('adoption', 'Altas al padrón propio', 1, 2), circuit('adoption', 'Altas al padrón propio', -1, 0), circuit('adoption', 'Altas al padrón propio', '1', 0)]) {
+  const state = bellState([], [], [circuit('salary-master', 'Maestro salarial', 1, 1), broken]);
+  assert.deepEqual(state.failed, ['Altas al padrón propio']); assert.equal(state.complete, false); assert.equal(state.waiting, 1);
+ }
+ assert.throws(() => bellState([], [], [circuit('a', 'Uno', 0, 0), circuit('a', 'Otro', 0, 0)]), /PENDING_BELL_CIRCUIT_INVALID/);
+ assert.throws(() => bellState([], [], [circuit('a', 'Uno', 0, 0, 'https://otro.example/x')]), /PENDING_BELL_CIRCUIT_INVALID/);
+ assert.throws(() => bellState([], [], null), /PENDING_BELL_INVALID/);
+});
+
+test('los pendientes de los circuitos se suman a los de la consulta liviana y a las novedades de lo propio', () => {
+ const light = [{key: 'condiciones', title: 'Condiciones salariales', href: '/nomina#condiciones', pending: {complete: true, counts: {toReview: 1, decided: 1},
+  toReview: [{proposalId: '00000000-0000-4000-8000-000000000001', period: '2026-10', authorLabel: 'Preparación municipal', createdAt: '2026-11-01T10:00:00Z', canReview: true}],
+  decided: [{eventId: '00000000-0000-4000-8000-000000000003', proposalId: '00000000-0000-4000-8000-000000000002', period: '2026-10', status: 'approved', actorLabel: 'Revisión municipal', recordedAt: '2026-11-09T12:00:00Z'}]}}];
+ const state = bellState(light, [], [circuit('salary-master', 'Maestro salarial', 1, 1)]);
+ assert.equal(state.waiting, 2); assert.equal(state.news, 1); assert.equal(state.count, 3); assert.equal(state.label, '2 pendientes te esperan y 1 novedad de lo tuyo');
+ assert.deepEqual(bellState(light, []).circuits, [], 'sin circuitos, la campanita sigue funcionando como antes');
 });

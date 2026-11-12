@@ -1,6 +1,7 @@
 // All accounts, definitions, operations and amounts are invented QA fixtures.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
+import {createOwnQaCaptureSql} from './lib/qa-run-capture-lock.mjs';
 import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa,relocateNoeliaNoveltyInstallation} from './lib/noelia-payroll-circuit-qa.mjs';
 import {buildAdoptedOwnNoveltyInstallation} from './lib/adopted-own-novelties-installation.mjs';
 import {buildSalaryAuxiliaryNamespaceInstallation} from './lib/salary-auxiliary-namespace-installation.mjs';
@@ -38,8 +39,9 @@ export async function verifySalaryAuxiliaryNamespace({major,transport='local',so
  };
  const reject=async(fn,code,label)=>{await assert.rejects(fn,new RegExp(code));checks.push(label);};
  let current=qa.actors.maker;const caps=[...new Set([...qa.caps,'payroll.parameter.prepare','payroll.parameter.approve'])];
+ const captureDb=createOwnQaCaptureSql({read:options.read,schema:qa.schema,db,record:value=>fs.appendFileSync(path.join(destination,'capture-lock-observations.ndjson'),JSON.stringify(value)+'\n')});
  const adapter={query:async(query,values)=>{
-  if(!/^SELECT public\.(?:native_salary|own_program)_/.test(query))try{return await db.query(query,values);}catch(e){fs.appendFileSync(path.join(destination,'sql-failures.txt'),query+'\n'+e.stack+'\n');throw e;}
+  if(!/^SELECT public\.(?:native_salary|own_program)_/.test(query))try{return await captureDb.query(query,values);}catch(e){fs.appendFileSync(path.join(destination,'sql-failures.txt'),query+'\n'+e.stack+'\n');throw e;}
   assert.match(query,/^SELECT public\.(?:native_salary|own_program)_(?:bootstrap|command|attempt|stream)_v1\([\s\S]+\) AS result$/);
   return [{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,k)=>{assert.ok(Number(k)>0&&Number(k)<=values.length);return values[Number(k)-1]===null?'NULL':q(values[Number(k)-1]);}),true)}];
  }};
@@ -86,7 +88,7 @@ export async function verifySalaryAuxiliaryNamespace({major,transport='local',so
   // An optional new-feature continuation runs only after every original check.
   // The original regression assertions, failure recording and cleanup stay intact.
   const continuationResult=continuation?await continuation({options,qa,db,relocate,sql,adapter,deps,env,handlers,api,ok,setActor:value=>{current=value;},period,oldBody,oldKey,old,calculated,closed,count,destination}):null;
-  report={ok:true,major,sourceCommit,checksPassed:checks.length,checks,syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,employeeCount:count,...(continuationResult?{continuation:continuationResult}:{})};
+  report={ok:true,major,sourceCommit,checksPassed:checks.length,checks,syntheticOnly:true,productiveBusinessWrites:0,installed,durable,repeated,employeeCount:count,captureLockProof:captureDb.captureLockProof(),...(continuationResult?{continuation:continuationResult}:{})};
  }catch(e){failure=e;fs.writeFileSync(path.join(destination,'failure.txt'),e.stack+'\n');fs.writeFileSync(path.join(destination,'partial-checks.json'),JSON.stringify({checksPassed:checks.length,checks},null,2));}
  finally{if(seeded)try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');}catch(e){failure??=e;}}
  if(failure)throw failure;fs.writeFileSync(path.join(destination,'result.json'),JSON.stringify(report,null,2)+'\n');return report;
