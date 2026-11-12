@@ -105,3 +105,21 @@ test('una cuenta sin circuitos de la bandeja sigue recibiendo la consulta livian
  const reading = pendingBellReading(async () => ({ok: true, data: pending()}), PENDING_BELL_READERS, []);
  const r = await reading.read(); assert.deepEqual(r.circuits, []); assert.equal(bellState(r.sources, [], r.circuits).waiting, 1);
 });
+
+test('a circuit the database was too busy to answer is read again before it counts as unanswered', async () => {
+ const {patientRead, busyRead} = await import('../assets/approvals-inbox-model.js');
+ assert.ok(busyRead(409, 'OWN_NOVELTY_BUSY') && busyRead(503, 'BANK_ACCOUNTS_UNAVAILABLE') && busyRead(503, 'ACCOUNTING_BUSY'));
+ assert.ok(!busyRead(409, 'OWN_NOVELTY_VERSION_CHANGED') && !busyRead(503, 'EMPLOYMENT_ADOPTION_NOT_READY') && !busyRead(401, 'X_BUSY') && !busyRead(200, undefined));
+ const busy = () => Object.assign(new Error('PENDING_READ_FAILED'), {status: 409, code: 'OWN_NOVELTY_BUSY'}), waits = [];
+ let calls = 0;
+ assert.equal(await patientRead(async () => { if (++calls < 3) throw busy(); return 'ok'; }, {wait: async n => { waits.push(n); }}), 'ok');
+ assert.equal(calls, 3); assert.deepEqual(waits, [1, 2]);
+ // Tres intentos y no más; lo que no es «ocupada» no se repite; una lectura retirada tampoco.
+ calls = 0; await assert.rejects(patientRead(async () => { calls++; throw busy(); }, {wait: async () => {}}), e => e.code === 'OWN_NOVELTY_BUSY'); assert.equal(calls, 3);
+ calls = 0; await assert.rejects(patientRead(async () => { calls++; throw Object.assign(new Error('x'), {status: 503, code: 'EMPLOYMENT_ADOPTION_NOT_READY'}); }, {wait: async () => {}})); assert.equal(calls, 1);
+ calls = 0; await assert.rejects(patientRead(async () => { calls++; throw Object.assign(new Error('x'), {name: 'AbortError', status: 409, code: 'A_BUSY'}); }, {wait: async () => {}})); assert.equal(calls, 1);
+ const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8'), inbox = fs.readFileSync('assets/approvals-inbox.js', 'utf8');
+ assert.ok(mount.includes('await patientRead(() => getJson(s.url({period})))') && mount.includes('await patientRead(() => getJson(r.url))'), 'la campanita reintenta sus dos clases de lectura');
+ assert.ok(mount.includes("{status: response.status, code: body?.code}"), 'el rechazo conserva su código para saber si era «ocupada»');
+ assert.ok(inbox.includes('s.pick(await patientRead(() => getJson(s.url({ period }), signal)))'), 'la bandeja reintenta igual que la campanita');
+});
