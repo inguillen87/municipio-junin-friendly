@@ -276,3 +276,24 @@ test('numeric legajo order is deterministic and an empty closed scope does not i
   const report = await prepare(source); assert.deepEqual(report.rows.map(r => r.values.legajo), ['1', '2', '10']);
   const empty = await prepare(osepFixture(0)); blocked(empty); assert.equal(empty.total, 0); assert.equal(empty.issueCount, 0);
 });
+
+// Official closure (V4/V5), documents returned by PostgreSQL 18.6: GRH totals are kept as 800000993/800000994/800000998
+// and each employee preserves that correspondence. The approved draft mapping keeps naming 993, 994 and 998.
+for (const version of ['v5', 'v4']) test('draft mapping reads 993 + 994 and 998 from an official ' + version.toUpperCase() + ' closure under the codes it preserved', async () => {
+  const { nativeOfficial } = await import('./fixtures/own-payroll-native-official-pg18.js');
+  const { ownArtFixture, artFixtureHash } = await import('./fixtures/own-art-report-synthetic.js');
+  const { ownClosedJurisdiction } = await import('../assets/own-payroll-jurisdiction-model.js');
+  const receipt = nativeOfficial(version).closeReceipt, s = receipt.snapshot, source = ownArtFixture(s.employeeCount);
+  source.content.groups = [receipt]; source.content.params = { period: s.period, types: [s.liquidationType] }; source.content.sourceRecordCount = s.employeeCount;
+  s.employees.forEach((e, i) => Object.assign(source.content.people[i], { contractId: e.contractId, employeeNumber: e.employeeNumber }));
+  source.sourceVersion = artFixtureHash(source.content);
+  assert.ok(!s.concepts.some(r => ['993', '994', '998'].includes(r.conceptCode)), 'the official closure has no plain 993, 994 or 998 rows');
+  const report = await prepareOwnOsepReport(source, osepOptions(source, ownClosedJurisdiction(s.employees[0], s.version).code)), row = report.rows[0];
+  assert.equal(row.values.subjectSalaryCents, '20001'); assert.equal(row.values.netPayCents, '25250001');
+  const fields = row.issues.map(i => i.code + '@' + i.fieldId);
+  for (const field of ['subjectSalaryCents', 'netPayCents']) assert.ok(!fields.some(f => f.endsWith('@' + field)), field + ' is resolved without issues');
+  assert.ok(!row.issues.some(i => i.code === 'NET_RECONCILIATION_MISMATCH'), '998 equals the official net saved by the closure');
+  // A concept the closure does not carry is still reported; zero is never assumed.
+  assert.ok(fields.includes('AMOUNT_SOURCE_MISSING@quotaCents'));
+});
+

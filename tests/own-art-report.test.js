@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {verifiedOwnArtSource,prepareOwnArtReport,ownArtVisibleRows,ownArtParams} from '../assets/own-art-report-model.js';
+import {verifiedOwnArtSource,prepareOwnArtReport,ownArtVisibleRows,ownArtParams,ownClosedTotalCode} from '../assets/own-art-report-model.js';
 import {ownArtCsv,ownArtXlsx} from '../assets/own-art-report-export.js';
 import {ownArtFixture,rehashArtFixture,artFixtureHash} from './fixtures/own-art-report-synthetic.js';
 const report=async v=>prepareOwnArtReport(await verifiedOwnArtSource(v));
@@ -99,3 +99,31 @@ test('extra-SUSS readiness catches normalized CUIL length before the existing ex
  p.cuil=base+(n===11?'0':n===10?'9':String(n));rehashArtFixture(source);const original=JSON.stringify(source),r=await report(source),state=artExtraSussReadiness(r);
  assert.equal(r.canExport,true);assert.equal(state.canExport,false);assert.equal(state.issueCount,1);assert.match(state.rows[0].issues[0],/CUIL de 11 dígitos/);assert.throws(()=>ownArtExtraSussXlsx(r),/observaciones propias/);assert.ok(ownArtCsv(r).includes(p.cuil));assert.ok(ownArtXlsx(r).length>0);assert.equal(JSON.stringify(source),original);
 });
+
+// Cierre con total oficial (V4/V5): documentos que devolvió PostgreSQL 18.6 con el candidato nativo. El cierre guarda los
+// totales de GRH como 800000993 y 800000995, y conserva esa correspondencia en cada legajo.
+const officialArtSource=async version=>{
+ const {nativeOfficial}=await import('./fixtures/own-payroll-native-official-pg18.js'),receipt=nativeOfficial(version).closeReceipt,s=receipt.snapshot,v=ownArtFixture(s.employeeCount);
+ v.content.groups=[receipt];v.content.params={period:s.period,types:[s.liquidationType]};v.content.sourceRecordCount=s.employeeCount;
+ s.employees.forEach((e,i)=>Object.assign(v.content.people[i],{contractId:e.contractId,employeeNumber:e.employeeNumber}));
+ v.sourceVersion=artFixtureHash(v.content);return v;
+};
+for(const version of ['v5','v4'])test('ART lee 993 y 995 de un cierre con total oficial '+version.toUpperCase()+' con el código que el cierre conservó',async()=>{
+ const v=await officialArtSource(version),e=v.content.groups[0].snapshot.employees[0],codes=v.content.groups[0].snapshot.concepts.map(r=>r.conceptCode);
+ assert.deepEqual([e.totalReconciliation.sourceTotals['993'],e.totalReconciliation.sourceTotals['995']],['800000993','800000995']);
+ assert.ok(!codes.includes('993')&&!codes.includes('995'),'el cierre oficial no trae renglones 993 ni 995');
+ assert.equal(ownClosedTotalCode(e,'993'),'800000993');assert.equal(ownClosedTotalCode(e,'701'),'701','un código que el cierre no conservó como total queda igual');
+ const r=await report(v);
+ assert.equal(r.rows[0].concept993Cents,'20001');assert.equal(r.rows[0].concept995Cents,'25230000');assert.equal(r.rows[0].salaryCents,'25250001');
+ assert.equal(r.salaryCents,'25250001');assert.deepEqual(r.rows[0].issues,[]);assert.equal(r.canExport,true);
+ assert.equal(r.rows[0].salaryCents,String(Math.round(Number(e.totals.remuneration)*100)+Math.round(Number(e.totals.non_remuneration)*100)),'993 + 995 es el remunerativo más el no remunerativo oficiales');
+});
+test('ART no inventa el total oficial: si falta el renglón conservado lo informa, y un cierre anterior sigue leyendo 993 y 995',async()=>{
+ const v=await officialArtSource('v5'),s=v.content.groups[0].snapshot;
+ assert.equal(ownClosedTotalCode({totalReconciliation:null},'993'),'993');assert.equal(ownClosedTotalCode({},'995'),'995');assert.equal(ownClosedTotalCode({totalReconciliation:{sourceTotals:{'993':800000993}}},'993'),'993','una correspondencia que no es texto no se usa');
+ const plain=ownArtFixture(1).content.groups[0].snapshot;assert.ok(plain.concepts.some(r=>r.conceptCode==='993')&&!plain.concepts.some(r=>r.conceptCode==='800000993'),'el cierre anterior trae 993 con su código');
+ const before=await report(ownArtFixture(1));assert.equal(before.canExport,true);assert.equal(before.rows[0].issues.length,0);
+ // Sin la correspondencia conservada, el mismo cierre oficial no tiene de dónde leer 993 ni 995: se informa, no se supone.
+ const lines=code=>s.concepts.filter(r=>r.conceptCode===ownClosedTotalCode({totalReconciliation:null},code));assert.equal(lines('993').length,0);assert.equal(lines('995').length,0);
+});
+

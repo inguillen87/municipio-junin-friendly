@@ -1,7 +1,7 @@
 // Preparation adapter only: verified native closures -> the reviewed OSEP 206 writer.
 // No API, database write, payroll evaluation, permission change or official submission.
 import { salaryExact, salaryHash, salaryUuid, salarySerialized } from './native-salary-catalog-model.js';
-import { OWN_ART_MAX_BYTES, ownArtParams, verifiedOwnArtSource } from './own-art-report-model.js';
+import { OWN_ART_MAX_BYTES, ownArtParams, verifiedOwnArtSource, ownClosedTotalCode } from './own-art-report-model.js';
 import { ownClosedJurisdiction } from './own-payroll-jurisdiction-model.js';
 import { decimal, quantize } from './own-payroll-exact.js';
 import {
@@ -145,7 +145,9 @@ function amountFor(f, participation, issues) {
     let amount;
     if (t.kind === 'closed_total') amount = participation.employee.totals.net;
     else {
-      const rows = participation.concepts.filter(r => r.conceptCode === t.code && (r.nature === 'auxiliary' ? 'auxiliary' : 'concept') === t.namespace);
+      // A total kept by an official close (V4/V5) is read under the code that close preserved (993 -> 800000993).
+      const code = t.namespace === 'auxiliary' ? ownClosedTotalCode(participation.employee, t.code) : t.code;
+      const rows = participation.concepts.filter(r => r.conceptCode === code && (r.nature === 'auxiliary' ? 'auxiliary' : 'concept') === t.namespace);
       if (rows.length !== 1) { issues.push(issue('AMOUNT_SOURCE_MISSING', 'Falta una fuente monetaria única para ' + t.namespace + ':' + t.code + '; no se supone cero.', f.fieldId)); complete = false; continue; }
       if (rows[0].nature !== t.nature || rows[0].unit !== 'money') { issues.push(issue('AMOUNT_SOURCE_KIND', 'La naturaleza o unidad de ' + t.namespace + ':' + t.code + ' no coincide con el contrato.', f.fieldId)); complete = false; continue; }
       amount = rows[0].amount;
