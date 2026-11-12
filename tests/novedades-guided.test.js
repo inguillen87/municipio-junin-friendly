@@ -19,7 +19,8 @@ test('Novedades: guided own flow, no endless roster, tabs and catalogue on every
   const panel = fs.readFileSync('assets/own-payroll-novelties-panel.js', 'utf8');
   assert.match(panel, /filtered=!query\|\|many\?\[\]:/, 'nothing is listed until something is typed');
   assert.match(panel, /data-n-concept list="ownNoveltyConcepts"/);
-  assert.match(panel, /<select data-n-movement><option value="">Sin movimiento<\/option><option value="standard">Normal<\/option><option value="adjustment">Ajuste<\/option><\/select>/);
+  // Los dos movimientos habituales y, además, el de origen sin traducir (por ejemplo «m» de una novedad tomada de GRH).
+  assert.match(panel, /<select data-n-movement><option value="">Sin movimiento<\/option><option value="standard">Normal<\/option><option value="adjustment">Ajuste<\/option><option value="\$\{OWN_NOVELTY_MOVEMENT_OTHER\}">Otro movimiento documentado<\/option><\/select>/);
   assert.match(panel, /<details class="own-novelties-more">/);
   const page = fs.readFileSync('novedades-nomina.html', 'utf8');
   assert.match(page, /<script type="module" src="assets\/novedades-tabs.js"><\/script>/);

@@ -1,9 +1,10 @@
-import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,
+import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,fixedActorReady,
   fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,fixedComparison,fixedDetailEqual,fixedSubjectEqual,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
+import {FIXED_CONCEPT_OPTIONS,FIXED_INSTRUMENT_OPTIONS,fixedConceptCode,fixedConceptGuess,fixedConceptHint,fixedConceptIsOwn,fixedConceptName,fixedConceptOption,fixedDayText} from './payroll-fixed-concepts.js';
 import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedReviewGroupEligible,fixedReviewGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
@@ -19,11 +20,11 @@ const stamp=value=>dayLabel(value)+' · '+value.slice(11).replace('T',' ');
 const hasRead=caps=>['payroll.novelty.read','payroll.novelty.nominal.read'].every(c=>caps.has(c));
 function errorMessage(error){
   if(error.status===401)return 'La sesión venció. Ingresá nuevamente antes de continuar.';
-  if(error.code==='PAYROLL_FIXED_EMPLOYMENT_REQUIRED')return 'Falta verificar el vínculo laboral del operador. No se crean vínculos automáticamente.';
+  if(error.code==='PAYROLL_FIXED_EMPLOYMENT_REQUIRED')return 'Falta acreditar la identidad del operador para proponer o revisar.';
   if(error.status===403)return 'No tenés permiso vigente para esta operación. Se retiraron los datos consultados.';
   const messages={VERSION_CONFLICT:'Otra persona modificó el registro. Revisá la versión actual; tu propuesta se conserva.',PENDING_EXISTS:'Hay una propuesta pendiente. Consultala antes de preparar otro cambio.',
     OVERLAP:'La vigencia se superpone con otra novedad aprobada del mismo concepto, centro y tipo. Revisá ambas antes de aprobar.',IDENTITY_CHANGED:'Cambió la identidad del legajo. El borrador no se asociará a otra persona.',
-    MAKER_CHECKER_REQUIRED:'La revisión debe hacerla otra persona con permiso vigente.',EMPLOYMENT_REQUIRED:'Falta verificar el vínculo laboral del operador. No se crean vínculos automáticamente.',IDEMPOTENCY_REUSE:'La clave pertenece a otros datos. Verificá el intento antes de iniciar otra operación.',
+    MAKER_CHECKER_REQUIRED:'La revisión debe hacerla otra persona con permiso vigente.',EMPLOYMENT_REQUIRED:'Falta acreditar la identidad del operador para proponer o revisar.',IDEMPOTENCY_REUSE:'La clave pertenece a otros datos. Verificá el intento antes de iniciar otra operación.',
     SNAPSHOT_CHANGED:'Cambió el resultado consultado. Actualizá la consulta antes de exportar.',CONTRACT_DRIFT:'No se pudo verificar el archivo completo. Actualizá el registro antes de exportar.',SESSION_BUSY:'Hay otra operación en curso. Reintentá con los mismos datos.',
     NOT_FOUND:'No se encontró el registro o legajo solicitado.',ROW_LIMIT:'El resultado supera el límite permitido. No se muestra una lista parcial.',CAPACITY_LIMIT:'No hay capacidad disponible para guardar. Los datos del formulario se conservan.',
     LEGACY_RECONCILIATION_REQUIRED:'Hay novedades fijas de un registro anterior pendientes de conciliar. No se guardaron cambios. Hace falta conciliar ese registro antes de continuar.',
@@ -34,7 +35,7 @@ function errorMessage(error){
 function save(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 function facts(value){
   const dl=node('dl',undefined,'fn-facts');
-  const entries=value?[['Concepto declarado',value.conceptSourceId],['Centro de costo',value.costCenterSourceId??'Sin informar'],['Tipo',FIXED_TYPES[value.payrollType]],
+  const entries=value?[['Concepto',fixedConceptName(value.conceptSourceId)],['Centro de costo',value.costCenterSourceId??'Sin informar'],['Tipo',FIXED_TYPES[value.payrollType]],
     ['Unidades declaradas',value.quantityDecimal??'Sin informar'],['Importe declarado',fixedMoney(value.amountCents)],['Modo forzado',value.forced?'Sí · '+value.forcedReason:'No'],
     ['Alta',dayLabel(value.validFrom)],['Vencimiento',dayLabel(value.validTo)],['Instrumento',value.legalInstrument]]:[];
   for(const[label,text]of entries){const part=node('div');part.append(node('dt',label),node('dd',text));dl.append(part);}return dl;
@@ -46,7 +47,8 @@ function comparison(row,operation,values){
   const region=node('div',undefined,'fn-change-table');region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','Comparación completa de los diez campos de la novedad fija');
   const table=node('table'),caption=node('caption','Diez campos · última versión aprobada frente a la propuesta');table.append(caption);
   const head=node('thead'),tr=node('tr');for(const title of ['Campo','Última versión aprobada','Propuesta','Cambio']){const th=node('th',title);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
-  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);for(const [title,value]of [['Última versión aprobada',field.before],['Propuesta',field.after],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
+  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);const shown=value=>field.key==='conceptSourceId'&&/^\d+$/.test(value)?fixedConceptName(value):['validFrom','validTo'].includes(field.key)?fixedDayText(value):value;
+    for(const [title,value]of [['Última versión aprobada',shown(field.before)],['Propuesta',shown(field.after)],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
 }
 function reviewSource(row,decision){const source=node('section');source.dataset.fnReviewSource='';source.append(node('p',(row.pending.operation==='annul'?'Anulación propuesta':'Valores propuestos')+' · Revisión '+row.version,'fn-note'),comparison(row,row.pending.operation,row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason),node('p',decision==='reject'?'Rechazar conserva la última versión aprobada y registra el rechazo.':'Aprobar habilita únicamente control y exportación; no calcula haberes.','fn-note'));return source;}
 
@@ -57,8 +59,8 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   const groupIds=new Set(),reviewGroupIds=new Set();
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
   const can=cap=>fixedCapability(bootstrap,access,cap);
-  const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
-  const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
+  const allowedPrepare=()=>can('payroll.fixed.prepare')&&fixedActorReady(bootstrap);
+  const allowedReview=()=>can('payroll.fixed.approve')&&fixedActorReady(bootstrap);
   let groupGateAllowed=false,reviewGroupGateAllowed=false;
   const groupAllowedPrepare=()=>allowedPrepare()&&groupGateAllowed;
   const groupAllowedReview=()=>allowedReview()&&reviewGroupGateAllowed;
@@ -89,7 +91,10 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       editor.detailSnapshot=null;if(editor.reviewed)editor.reviewed.checked=false;
       editor.form.querySelector('h3').textContent='Propuesta local pendiente';}
   }
-  function deny(){seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
+  // Al ocultarse la pestaña la pantalla retira lo consultado. Si acá había un registro o un borrador a la vista, se anota
+  // para volver a consultarlo solo cuando el acceso se confirme de nuevo, sin que la persona tenga que pedirlo.
+  let restoreOnAccess=false;
+  function deny(){if(mounted&&shell.open&&(data||editor))restoreOnAccess=true;seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
   function clearAll(){deny();editor?.form.reset();editor=null;attempt=null;if(mounted){$('[data-fn-editor]').replaceChildren();controls();}}
   function controls(){
     const locked=busy||Boolean(attempt);if(locked!==reportedLock){reportedLock=locked;onLock(locked);}
@@ -200,6 +205,27 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   }
   async function openDetail(id){if(editor)return;await operation(async live=>{status('Consultando registro e historial…');detail=null;renderDetail();const next=fixedDetail(await request({resource:'detail',recordId:id}),id);if(!live())return;detail=next;renderDetail();status('Registro consultado. Una aprobación sólo habilita control y exportación.');});}
   function makeField(fields,key,label,type='text',max=500){const wrapper=node('label',label),input=node(type==='textarea'?'textarea':'input');if(type!=='textarea')input.type=type;input.dataset.fnField=key;input.name=key;input.autocomplete='off';input.maxLength=max;if(type==='date'){input.min='1900-01-01';input.max='2100-12-31';}wrapper.append(input);fields[key]=input;return wrapper;}
+  // El concepto se busca por nombre en una lista; el campo sigue aceptando el número. Lo que se guarda es el código.
+  let chooserSeq=0;
+  function conceptChooser(fields){
+    const input=fields.conceptSourceId,list=node('datalist'),hint=node('small','','fn-hint');list.id='fnConcepts'+(++chooserSeq);hint.dataset.fnConceptHint='';
+    for(const option of FIXED_CONCEPT_OPTIONS){const item=node('option');item.value=option.text;item.label=option.detail;list.append(item);}
+    input.inputMode='text';input.placeholder='Escribí el nombre: sindicato, seguro, cuota…';input.setAttribute('list',list.id);input.closest('label').append(list,hint);
+    const show=()=>{hint.textContent=fixedConceptHint(input.value);};
+    input.addEventListener('input',show);input.addEventListener('fn-concept-shown',show);
+    input.addEventListener('change',()=>{
+      if(fixedConceptCode(input.value)===null){const guess=fixedConceptGuess(input.value);if(guess)input.value=guess.text;}
+      const code=fixedConceptCode(input.value);
+      // Un dato fijo de la liquidación propia se informa con una unidad y sin importe: se completa si todavía está vacío.
+      if(code&&fixedConceptIsOwn(code)&&!fields.quantityDecimal.value.trim()&&!fields.amountArs.value.trim())fields.quantityDecimal.value='1';
+      show();
+    });
+    show();
+  }
+  function instrumentChooser(input){
+    const list=node('datalist');list.id='fnInstruments'+(++chooserSeq);for(const text of FIXED_INSTRUMENT_OPTIONS){const item=node('option');item.value=text;list.append(item);}
+    input.placeholder='Elegí el tipo de respaldo y completá el número o la fecha';input.setAttribute('list',list.id);input.closest('label').append(list);
+  }
   function editorShell(title){
     const form=node('form',undefined,'fn-editor');form.append(node('h3',title));const subject=node('p','','fn-note');subject.dataset.fnSubject='';form.append(subject);
     const feedback=node('p','','fn-status');feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');feedback.dataset.fnFormStatus='';
@@ -271,15 +297,17 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   function openEditor(row=null,operationKind='set',selectedSubject=null){
     if(editor||attempt||busy||!allowedPrepare()||row&&!row.canPropose)return;
     const box=editorShell(operationKind==='annul'?'Proponer anulación':row?'Proponer corrección':'Registrar novedad fija'),fields={};
-    const identity=node('fieldset'),legend=node('legend','1 · Legajo y respaldo');identity.append(legend);const grid=node('div',undefined,'fn-grid');
-    grid.append(makeField(fields,'legajo','Legajo exacto','text',20));fields.legajo.inputMode='numeric';
-    const lookup=button('Verificar legajo GRH','lookup'),choose=button('Buscar y elegir persona','choose');grid.append(lookup,choose);identity.append(grid,node('p','Podés elegir un alta propia por su ficha. El número de legajo por sí solo consulta únicamente la fuente GRH.','fn-note'));box.form.append(identity);
+    const identity=node('fieldset'),legend=node('legend','1 · Persona');identity.append(legend);const grid=node('div',undefined,'fn-grid');
+    const lookup=button('Verificar legajo','lookup'),choose=button('Buscar persona por nombre o legajo','choose');
+    identity.append(choose,node('p','Elegila de la lista: no hace falta saber el legajo ni copiar datos.','fn-note'));
+    grid.append(makeField(fields,'legajo','O escribí el legajo exacto','text',20),lookup);fields.legajo.inputMode='numeric';identity.append(grid,node('p','El número de legajo por sí solo consulta únicamente la fuente GRH.','fn-note'));box.form.append(identity);
     if(operationKind==='set'){
-      const fieldset=node('fieldset');fieldset.append(node('legend','2 · Valores y vigencia informados'));const inputs=node('div',undefined,'fn-grid');
-      for(const[key,label,max]of [['conceptSourceId','Código del concepto',20],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
-      for(const key of ['conceptSourceId','costCenterSourceId'])fields[key].inputMode='numeric';for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
+      const fieldset=node('fieldset');fieldset.append(node('legend','2 · Qué novedad es y desde cuándo'));const inputs=node('div',undefined,'fn-grid');
+      for(const[key,label,max]of [['conceptSourceId','Concepto',160],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
+      fields.costCenterSourceId.inputMode='numeric';for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
+      conceptChooser(fields);instrumentChooser(fields.legalInstrument);
       const type=node('label','Tipo de liquidación'),select=node('select');select.dataset.fnField='payrollType';select.append(Object.assign(node('option','Elegí un tipo'),{value:''}));
-      for(const[value,label]of Object.entries(FIXED_TYPES))select.append(Object.assign(node('option',label),{value}));fields.payrollType=select;type.append(select);inputs.append(type);
+      for(const[value,label]of Object.entries(FIXED_TYPES))select.append(Object.assign(node('option',label),{value}));if(!row)select.value='monthly';fields.payrollType=select;type.append(select);inputs.append(type);
       inputs.append(makeField(fields,'validFrom','Fecha de alta','date'),makeField(fields,'validTo','Vencimiento (si consta)','date'));
       const forced=makeField(fields,'forced','Valor forzado, con fundamento','checkbox');forced.className='fn-check';inputs.append(forced,makeField(fields,'forcedReason','Fundamento del modo forzado','text',500));
       fields.forcedReason.closest('label').hidden=true;fields.forced.addEventListener('change',()=>{fields.forcedReason.closest('label').hidden=!fields.forced.checked;});
@@ -292,7 +320,8 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     editor={...box,kind:'propose',operation:operationKind,row,detailSnapshot:row?detail:null,subject:row?.subject??selectedSubject,lookupContractId:selectedSubject?.contractId??null,expectedVersion:row?.version??0,fields,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
     if(selectedSubject){fields.legajo.value=selectedSubject.legajo;fields.legajo.readOnly=true;showSubject();}
     if(row){fields.legajo.value=row.subject.legajo;fields.legajo.readOnly=true;const v=row.approved?.operation==='set'?row.approved.values:row.latest.values;
-      if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=v[key]??'';}
+      if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=key==='conceptSourceId'?fixedConceptOption(v[key])??v[key]:v[key]??'';}
+      fields.conceptSourceId?.dispatchEvent(new Event('fn-concept-shown'));
       if(fields.forcedReason)fields.forcedReason.closest('label').hidden=!fields.forced.checked;showSubject();}
     fields.legajo.addEventListener('input',()=>{if(editor&&!editor.row){editor.subject=null;editor.lookupContractId=null;box.subjectHost.replaceChildren();}});
     lookup.addEventListener('click',lookupEmployee);
@@ -329,6 +358,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     try{
       if(!active.subject||(active.subject.origin==='MUNICONTROL'?active.fields.legajo.value:active.fields.legajo.value.trim())!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
+      if(active.operation!=='annul'){const code=fixedConceptCode(fields.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');fields.conceptSourceId=code;}
       const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields,active.subject);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
       active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
@@ -407,7 +437,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     catch(error){if([401,403].includes(error.status))clearConsulted();status('Operación confirmada, pero no pudimos actualizar la vista. Actualizá el registro; no repitas el alta.');}
   }
   async function refresh(){await operation(async live=>{
-    status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
+    restoreOnAccess=false;status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
     if(attempt){
       const pending=attempt;
       if(pending.command==='reviewGroup'&&!groupAllowedReview()){status('Falta permiso vigente de aprobación. Se conserva el intento original; no se consultó ni reenvió.');return;}
@@ -435,7 +465,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     }else if(requestedContract&&allowedPrepare()){
       const contractId=requestedContract;requestedContract=null;const chosen=fixedEmployee(await request({resource:'employee',contractId}),{contractId});
       if(live()){busy=false;openEditor(null,'set',chosen);busy=true;status('Alta seleccionada por su ficha. Revisá el origen y prepará la propuesta; todavía no se guardó ninguna novedad.');}
-    }else status(bootstrap.principal.employmentLinked?'Registro consultado. Las propuestas pendientes y las versiones aprobadas se muestran por separado.':'Consulta disponible. Falta verificar el vínculo laboral del operador para proponer o revisar.');
+    }else status(fixedActorReady(bootstrap)?'Registro consultado. Las propuestas pendientes y las versiones aprobadas se muestran por separado.':'Consulta disponible. Falta acreditar la identidad del operador para proponer o revisar.');
   });}
   async function exportFile(format){
     if(editor||!data?.periodMonth||!can('payroll.novelty.export'))return;const original=data,view=selected();
@@ -495,12 +525,16 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   const warnPending=event=>{if(attempt){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',warnPending);
   window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('visibilitychange',groupVisibility);document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
-  return {setExternalBusy(value){externalBusy=Boolean(value);controls();},deny,setAccess({capabilities,principalKey}){
+  // Volvió el acceso después de haber retirado lo consultado: se recupera el registro (y se revisa el borrador o el
+  // envío pendiente, como hace «Actualizar registro»). Si la pantalla todavía está ocupada, se hace apenas se libera.
+  function restoreAfterAccess(){if(restoreOnAccess&&mounted&&shell.open&&!data&&!busy&&!externalBusy&&hasRead(access)&&available())refresh();}
+  return {setExternalBusy(value){externalBusy=Boolean(value);controls();restoreAfterAccess();},deny,setAccess({capabilities,principalKey}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
     // Already opened before this module listened (a #fixedNovelties link, or its tab: the toggle event is gone), or opened
     // before the access was known (the toggle could not read): mount if needed and consult now.
     else if(shell.open&&(!mounted||openedWithoutAccess)){openedWithoutAccess=false;mount();if(!data&&!editor&&!busy)refresh();}
+    else restoreAfterAccess();
   }};
 }

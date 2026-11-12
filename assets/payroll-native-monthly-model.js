@@ -1,4 +1,5 @@
 // Shared, browser-safe checks for the additive monthly contract. No persistence.
+import { payrollOperatorIdentity } from './payroll-operator-identity.js';
 export const MONTHLY_BATCH_MAX_ROWS = 2000;
 export const MONTHLY_BATCH_WRITER_LIMITS = Object.freeze([500, MONTHLY_BATCH_MAX_ROWS]);
 const fail = () => { throw Error('La respuesta de novedades no cumple el contrato seguro. Volvé a consultar.'); };
@@ -134,6 +135,10 @@ export function verifyMonthlyBootstrap(payload) {
       || !['tenantId','membershipId','certifiedBindingId'].every(key => uuid(principal[key]))
       || !Array.isArray(principal.capabilities) || principal.capabilities.some(cap => !text(cap,100))
       || new Set(principal.capabilities).size !== principal.capabilities.length || !Array.isArray(payload.batches)) fail();
+  if(Object.hasOwn(principal,'actorIdentityVerified')||Object.hasOwn(principal,'actorIdentityBasis')){
+    let identity;try{identity=payrollOperatorIdentity(principal,{required:true});}catch{fail();}
+    if(!identity.verified&&payload.batches.some(batch=>batch.allowedCommands?.some(command=>['approve','reject'].includes(command))))fail();
+  }
   payload.batches.forEach(batch => verifyMonthlyBatch(batch,{mode:'bootstrap'}));
   return payload;
 }
