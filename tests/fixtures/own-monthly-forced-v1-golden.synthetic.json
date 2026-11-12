@@ -1,0 +1,72 @@
+{
+  "schema": "monthly-forced-v1-golden.v1",
+  "sourceCommit": "135e16584c4b5e84fbabdbbe5431c271650c5aef",
+  "sourceTree": "452005f72f5dc2399549713f10dc60122e33ceda",
+  "sourceModuleSha256": "634d69bd53907c1e403dcb80f6efd43e6d37e6086499534646a53cc8682af792",
+  "syntheticOnly": true,
+  "cases": [
+    {
+      "name": "one-reviewer-positive",
+      "options": {
+        "name": "one-reviewer-positive",
+        "legacy": true,
+        "period": "2026-10",
+        "amount": "2000"
+      },
+      "programmeSha256": "bf85f95742386e70790f8f7e0415287c00be4ff3c29b3f59dc279bee39ae6449",
+      "inputSha256": "2268d6b548b0d81ccd73dbdcd3974614e096bb7536f0a69f9366558df85d6984",
+      "resultSha256": "ee8213a5157cf7332f0c6686da1d53b92300d95ee24547db458ffa1612814ec5",
+      "snapshotSha256": "871e8b579df5e2da1d712727d2d105430c605d3a10a591524634e7ac2afbefe9",
+      "sourceRecordsSha256": "876de656eee4df464fac1cdaf736a02e3f145f9d3d34d1ac0fab9192eb41fd2f",
+      "hashChecksSha256": "61c4940fa86ae17f1316e8fb1fa0c2fede2406589e20dbede9640f272c4db88f"
+    },
+    {
+      "name": "historical-two-negative",
+      "options": {
+        "name": "historical-two-negative",
+        "legacy": true,
+        "period": "2026-10",
+        "amount": "-100",
+        "reviews": 2
+      },
+      "programmeSha256": "bf85f95742386e70790f8f7e0415287c00be4ff3c29b3f59dc279bee39ae6449",
+      "inputSha256": "a4a4d789854476388f01ed722dad241b876bb20adecf44618da66bb9d3f526a3",
+      "resultSha256": "e817cf6f342763565cdb26c80de4800d330cd2058bfb204f20be3380ea92e653",
+      "snapshotSha256": "cc39f55b50c6d8957e8906f5e22eb3ef2dca6a9f524a25e3c4c88d28693c4564",
+      "sourceRecordsSha256": "c935c77c1c2cb8bd38932cef5440f9ed7eb8cb5b75b1f42302d56428d24022a2",
+      "hashChecksSha256": "d2448a8a0531cd7a44bffb8adcc6c29a3d590c67e50421a2204882091a3a4905"
+    },
+    {
+      "name": "zero-present",
+      "options": {
+        "name": "zero-present",
+        "legacy": true,
+        "period": "2026-10",
+        "amount": "0"
+      },
+      "programmeSha256": "bf85f95742386e70790f8f7e0415287c00be4ff3c29b3f59dc279bee39ae6449",
+      "inputSha256": "b7911ad1202ee4a5c6a699be387efc65e7c1dfd55103bab827894bc229b680fc",
+      "resultSha256": "160b0c1bd531f1d75a0b46eb0648642b1307f906cad3e78ef72162fbd57f848c",
+      "snapshotSha256": "baa37f6d138e299cd0c719e52dacf659db7b20816197d225b5c0cebc4acbba06",
+      "sourceRecordsSha256": "7b881e5c7157aed0e671053283c8c6b9238c5d29c659d3906cce06ddfeb4e578",
+      "hashChecksSha256": "6fea5f635d220599b3ced87f3de26bab43163b62cc09bb735daa0ec58161893e"
+    },
+    {
+      "name": "official-v5-original",
+      "options": {
+        "name": "official-v5-original",
+        "legacy": true,
+        "period": "2026-10",
+        "validFrom": "2026-10",
+        "validUntil": "2026-10",
+        "official": true
+      },
+      "programmeSha256": "c1f96c376fc0d72e2878d1ec375c710746549828a58963b1e65bf48cb232b111",
+      "inputSha256": "38bb58548528565558fa6a1a6ac4ab81f5c34dbd53bb62a0c258fe3a86437c60",
+      "resultSha256": "2678f4c0c1e57b8a4a17b8dc7aab0f2d2568b6547453f1988a73d8d80883c7ce",
+      "snapshotSha256": "97f647b750cfd167c93c4ebad3fbc497f1b65b4076f991c031e0359a4fc134a6",
+      "sourceRecordsSha256": "876de656eee4df464fac1cdaf736a02e3f145f9d3d34d1ac0fab9192eb41fd2f",
+      "hashChecksSha256": "61c4940fa86ae17f1316e8fb1fa0c2fede2406589e20dbede9640f272c4db88f"
+    }
+  ]
+}

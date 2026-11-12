@@ -4,6 +4,7 @@ import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-m
 import {payrollRequire as require,decimal} from './own-payroll-exact.js';
 import {participationRules} from './own-period-participation-program.js';
 import {policyCode,policyMonth,requirePolicyScope,requirePolicyDeclaration,resolvePolicySuccession,resolvedPolicyAppliesTo,policyBoundaryMonths} from './own-payroll-policy-validity.js';
+import {OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION,resolveMonthlyForcedPolicies} from './own-payroll-monthly-forced-amounts.js';
 
 export const OWN_QUANTITY_ONLY_INPUTS_VERSION='own-quantity-only-inputs.v1';
 const programFields=['quantityOnlyInputsVersion','quantityOnlyInputPolicies'];
@@ -37,6 +38,7 @@ export function normalizeQuantityOnlyProgram(programme){
  require(programme.namespaceVersion==='own-payroll-namespaces.v2','QUANTITY_ONLY_CONTRACT_INVALID','La política requiere referencias separadas de conceptos y auxiliares.');
  const normalized=normalizeQuantityOnlyPolicies({version:programme.quantityOnlyInputsVersion,policies:programme.quantityOnlyInputPolicies});
  const rules=participationRules(programme),phases=programme.quantityPhases??[];
+ const forced=programme.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION?resolveMonthlyForcedPolicies(programme.monthlyForcedAmountPolicies):(programme.monthlyForcedAmountPolicies??[]).map(policy=>({policy,validFrom:policy.period,validUntil:policy.period}));
  for(const entry of resolvePolicySuccession(normalized.policies,{identity:p=>p.policyId,scope})){
   const p=entry.policy,related=[...rules,...phases].filter(r=>r.agreementCode===p.agreementCode&&r.liquidationTypes.includes(p.liquidationType));
   const bindings=programme.bindings.filter(b=>b.agreementCode===p.agreementCode&&b.sourceCode===p.sourceCode&&/^(monthly|fixed)_/.test(b.sourceKind));
@@ -46,7 +48,7 @@ export function normalizeQuantityOnlyProgram(programme){
    require(owners.length===1&&owners[0].unit==='money','QUANTITY_ONLY_OWNER_REQUIRED','Debe existir un único concepto monetario vigente; esta política no crea su fórmula.');
    require(related.some(r=>active(r,p,month)&&uses(r.expression,p.quantityInputKey)),'QUANTITY_ONLY_CONSUMER_REQUIRED','Una regla o cantidad vigente debe consumir la entrada declarada.');
   }
-  require(!(programme.monthlyForcedAmountPolicies??[]).some(f=>f.agreementCode===p.agreementCode&&f.sourceCode===p.sourceCode&&f.liquidationType===p.liquidationType&&f.period>=entry.validFrom&&(entry.validUntil===null||f.period<=entry.validUntil)),'QUANTITY_ONLY_POLICY_COLLISION','Un importe forzado no puede reemplazar esta cantidad durante la misma vigencia.');
+  require(!forced.some(f=>f.policy.agreementCode===p.agreementCode&&f.policy.sourceCode===p.sourceCode&&f.policy.liquidationType===p.liquidationType&&(f.validUntil===null||f.validUntil>=entry.validFrom)&&(entry.validUntil===null||f.validFrom<=entry.validUntil)),'QUANTITY_ONLY_POLICY_COLLISION','Un importe forzado no puede reemplazar esta cantidad durante la misma vigencia.');
   require(!(programme.monthlyDeclaredAdjustmentPolicies??[]).some(f=>f.agreementCode===p.agreementCode&&f.sourceCode===p.sourceCode&&f.liquidationType===p.liquidationType&&(f.validUntil===null||f.validUntil>=entry.validFrom)&&(entry.validUntil===null||entry.validUntil>=f.validFrom)),'QUANTITY_ONLY_POLICY_COLLISION','El mismo código no admite a la vez importe declarado y sólo cantidad.');
  }
  return{quantityOnlyInputsVersion:normalized.version,quantityOnlyInputPolicies:normalized.policies};
