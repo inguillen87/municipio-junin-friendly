@@ -1,4 +1,5 @@
 import {verifyConditionalSourceCapture,verifyConditionalSourceInputs} from './own-payroll-conditional-sources.js';
+import {verifyCappedSource} from './own-payroll-capped-deductions.js';
 import {optionalScaleResolver,verifyOptionalScaleInputs} from './own-payroll-optional-scales.js';
 import {verifyQuantityOnlyInput} from './own-payroll-quantity-only-capture.js';
 import {verifyDeclaredAdjustmentCapture,verifyDeclaredAdjustmentInput} from './own-payroll-declared-adjustments-capture.js';
@@ -59,6 +60,7 @@ export function ownRunCapture(v, attempt = null) {
   if(v.saved===null)optionalScaleResolver(v.payload);else verifyOptionalScaleInputs(v.payload,v.saved.input);
   if(v.saved===null)verifyConditionalSourceCapture(v.payload);else verifyConditionalSourceInputs(v.payload,v.saved.input);
   verifyQuantityOnlyInput(v.payload);
+  verifyCappedSource(v.payload);
   if (attempt) require(v.key === attempt.key && salarySerialized(v.body) === salarySerialized(attempt.body), 'RUN_CONTRACT_INVALID', 'La captura cambió el cuerpo o la clave originales.');
   if (v.saved !== null) {ownRunSaved(v.saved, v.id, v.algorithmSha256);verifyDeclaredAdjustmentInput(v.payload,v.saved.input,v.saved.result);verifyQuantityOnlyInput(v.payload,v.saved.input);}
   return v;

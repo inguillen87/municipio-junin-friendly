@@ -97,6 +97,7 @@ export function describeProgramExpression(node){
  };return show(node);
 }
 export const PROGRAM_POLICY_LABELS=Object.freeze({
+ cappedDeductionsVersion:'Formato de descuentos con límite',cappedDeductionPolicies:'Pedido, reserva y orden de los descuentos',
  conditionalSourcesVersion:'Formato de las fuentes condicionales',conditionalSourcePolicies:'Cuándo resolver una escala o jornada',
  quantityOnlyInputsVersion:'Formato de entradas sólo de cantidad',quantityOnlyInputPolicies:'Políticas de cantidad y rechazo de importes incompatibles',
  sourceCoverageVersion:'Formato de la cobertura de fuente',sourceCoveragePolicies:'Cobertura de conceptos y exclusiones documentadas',
@@ -109,6 +110,7 @@ export const PROGRAM_POLICY_LABELS=Object.freeze({
  monthlyForcedAmountsVersion:'Formato de los importes forzados',monthlyForcedAmountPolicies:'Importes forzados del período',
 });
 const policyFieldLabels=Object.freeze({
+ incompatibleSourceCodes:'Fuentes que impiden este cálculo',priorDeductionCodes:'Descuentos anteriores al tramo',cashBaseReference:'Base de líneas disponibles',officialBaseReference:'Base exacta disponible',consumptionStage:'Etapa que consume el saldo de líneas',officialConsumptionStage:'Etapa que consume el saldo oficial',reserveStage:'Etapa de la reserva',limitPrecision:'Decimales seguros del límite',lineRounding:'Redondeo de la línea',officialDestination:'Total de destino',steps:'Orden efectivo del tramo',orderReference:'Respaldo del orden',availableCode:'Auxiliar del saldo de líneas',officialAvailableCode:'Auxiliar del saldo exacto',reserveCode:'Auxiliar del importe reservado',requestedCode:'Auxiliar del importe solicitado',limitCode:'Auxiliar del límite seguro',method:'Efecto declarado',effectStage:'Etapa del efecto',
  consumerCode:'Concepto que consume la entrada',inputKey:'Entrada condicional',activationInputKey:'Habilitación aprobada',selectorInputKey:'Importe de referencia aprobado',selectorOperator:'Comparación del importe',selectorValue:'Importe comparado',inactivePolicy:'Tratamiento de la rama que no se consume',
  quantityInputKey:'Entrada de cantidad',quantityUnit:'Unidad de cantidad',amountPolicy:'Importe informado',otherChannelPolicy:'Novedades de otro canal',
  inventory:'Inventario íntegro de conceptos',inventorySha256:'Huella del inventario',expectedSourceRows:'Filas esperadas de la fuente',nativeInputs:'Entradas propias adicionales',sourceRowSha256:'Huella de la fila original',evidenceSha256:'Respaldo documental',bindingKeys:'Entradas que usan este código',targetCode:'Auxiliar propio del total',decisionSha256:'Respaldo de la decisión',basis:'Fundamento de la exclusión',sourceActivation:'Activación original',methodCode:'Método de origen',methodRowSha256:'Huella del método original',nonAmountEffects:'Efectos independientes de cantidad y fases',phaseReviewSha256:'Respaldo de la revisión de fases',applicableLiquidationTypes:'Tipos a los que sí aplica',dispatchScope:'Alcance de la exclusión',
@@ -126,6 +128,7 @@ const policyFieldLabels=Object.freeze({
  op:'Operación',left:'Primer valor',right:'Segundo valor',condition:'Condición',then:'Si se cumple',else:'Si no se cumple',key:'Entrada',factor:'Factor',conversionReference:'Respaldo de la conversión',
 });
 const policyValues=Object.freeze({
+ capped:'Descuento limitado',existing_deduction:'Descuento existente conservado',27:'Conservar lo no aplicado por concepto',29:'Conservar el importe aplicado, incluso cero',
  null_with_reason:'Conservar sin informar y registrar el motivo',
  rule:'Regla pagable',input:'Entrada de otra regla',total:'Total propio',excluded_total:'Total excluido por decisión documentada',excluded:'Concepto excluido con guarda de novedades',event_activation_only:'Se activa únicamente con una novedad',source_dispatch_disabled:'Ejecución inhibida en la fuente revisada',outside_liquidation_type:'No corresponde a este tipo de liquidación',documented_retirement:'Retiro por decisión documentada',whole_definition:'Toda la definición, incluidas cantidades y fases',
  ...PROGRAM_UNITS,...PROGRAM_ROUNDING,...PROGRAM_COMPARE,...PROGRAM_SOURCES,...PROGRAM_OPERATIONS,
@@ -135,7 +138,7 @@ const policyValues=Object.freeze({
  absent_or_current_month:'Sin ajuste o mes corriente explícito',explicit_prior_month:'Exigir un mes anterior al liquidado',explicit_not_future_month:'Exigir el mes liquidado o uno anterior',nonempty_legal_instrument:'Exigir una constancia identificable',absent_or_zero:'Cantidad sin informar o cero explícito',current_payroll_no_historical_recalculation:'Registrar en el mes liquidado y conservar el mes de origen',zero_only_after_existing_complete_capture:'Cero sólo ante ausencia en una captura completa aprobada',
  none:'Sin prorrateo',fraction:'Fracción documentada',rounded:'Después del redondeo',reject:'Rechazar',nonnegative:'Cero o positivo',nonnegative_integer:'Entero cero o positivo',
 });
-const policyEnumFields=new Set(['selectorOperator','inactivePolicy','amountPolicy','otherChannelPolicy','quantityUnit','adjustmentMonthPolicy','evidencePolicy','forcedPolicy','fixedPolicy','monetaryRecognition','absencePolicy','unit','operator','liquidationType','liquidationTypes','applicableLiquidationTypes','dispatchScope','selection','outsideRange','whenFalse','nonzeroAction','nonPositiveNet','valueDomain','stage','mode','kind','treatment','quantityPolicy','sourceKind','op']);
+const policyEnumFields=new Set(['method','effectStage','consumptionStage','officialConsumptionStage','reserveStage','selectorOperator','inactivePolicy','amountPolicy','otherChannelPolicy','quantityUnit','adjustmentMonthPolicy','evidencePolicy','forcedPolicy','fixedPolicy','monetaryRecognition','absencePolicy','unit','operator','liquidationType','liquidationTypes','applicableLiquidationTypes','dispatchScope','selection','outsideRange','whenFalse','nonzeroAction','nonPositiveNet','valueDomain','stage','mode','kind','treatment','quantityPolicy','sourceKind','op']);
 export const programPolicyLabel=key=>PROGRAM_POLICY_LABELS[key]??policyFieldLabels[key]??key;
 // The values come from ownProgramStructure. Render every field, including source
 // evidence and empty/null values, as text; decimal strings never pass through Number.

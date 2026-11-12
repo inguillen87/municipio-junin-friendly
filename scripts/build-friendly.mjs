@@ -334,6 +334,8 @@ const shellFiles = [
   'assets/own-payroll-historical-result-model.js',
   'assets/own-payroll-official-snapshot-model.js',
   'assets/own-payroll-source-coverage.js',
+  'assets/own-payroll-capped-deductions.js',
+  'assets/own-payroll-capped-sources.js',
   'assets/own-payroll-quantity-only-inputs.js',
   'assets/own-payroll-quantity-only-capture.js',
   'assets/own-payroll-declared-adjustments.js',
