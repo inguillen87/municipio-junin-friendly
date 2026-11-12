@@ -305,6 +305,7 @@ const shellFiles = [
   'assets/own-payroll-accounting-model.js',
   'assets/own-payroll-accounting-workspace-model.js',
   'assets/own-payroll-imputation-model.js',
+  'assets/own-accounting-adjustments.js',
   'assets/own-payroll-imputation-workspace-model.js',
   'assets/own-payroll-imputation-panel.js',
   'assets/own-payroll-imputation-panel.css',

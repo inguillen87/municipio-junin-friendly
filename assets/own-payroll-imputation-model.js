@@ -5,9 +5,16 @@ import {ownRunDate} from './own-payroll-run-date.js';
 import {ownClosedJurisdiction} from './own-payroll-jurisdiction-model.js';
 import {accountingDefinition, accountingHash, accountingMappingKey, accountingAssignmentKey, accountingMappingFields} from './own-payroll-accounting-model.js';
 import {decimal, rational, exactAdd, quantize} from './own-payroll-exact.js';
+import {deriveAccountingAdjustmentCandidate,cents as adjustmentCents,money as adjustmentMoney} from './own-accounting-adjustments.js';
 
 export const IMPUTATION_SOURCE_VERSION='own-payroll-imputation-source.v1';
 export const IMPUTATION_RESULT_VERSION='own-payroll-imputation-result.v1';
+// Cierres con total oficial (V4/V5): los renglones originales se imputan igual que siempre y la diferencia con el total
+// oficial se muestra aparte, como ajustes por contrato (contrato de ajustes contables de Root, 12/11/2026). Es otra
+// versión de resultado: el v1 no recibe campos nuevos. Nunca queda lista hasta que exista la configuración de ajustes
+// aprobada y su verificación nativa.
+export const IMPUTATION_OFFICIAL_RESULT_VERSION='own-payroll-imputation-result.v2';
+export const IMPUTATION_OFFICIAL_SNAPSHOTS=Object.freeze(['own-close-snapshot.v4','own-close-snapshot.v5']);
 export const IMPUTATION_MAX_CONCEPTS=250000;
 export const IMPUTATION_ISSUES=Object.freeze({
  configuration_required:['Configuración pendiente','Aprobar las asociaciones contables propias.'],
@@ -16,7 +23,9 @@ export const IMPUTATION_ISSUES=Object.freeze({
  mapping_missing:['Destino anual no encontrado','Aprobar una asociación que cubra año, jurisdicción, convenio, repartición, concepto y fecha.'],
  nature_mismatch:['Naturaleza diferente','Revisar la asociación y la naturaleza conservada en la liquidación.'],
  institution_missing:['Institución y función no encontradas','Aprobar una asociación del contrato y concepto que cubra su fecha.'],
- fractional_cent:['Fracción de centavo','Resolver la precisión con una regla municipal respaldada; no redondear ni truncar.']
+ fractional_cent:['Fracción de centavo','Resolver la precisión con una regla municipal respaldada; no redondear ni truncar.'],
+ adjustment_destination_required:['Ajustes del total oficial sin destino','Contaduría define partida, cuenta y respaldo de cada clase de ajuste. No se inventa un destino ni se reparte entre conceptos.'],
+ adjustment_circuit_pending:['Imputación de un cierre con total oficial: sólo consulta','Se muestran los renglones y los ajustes. Registrarla se habilita con la configuración de ajustes aprobada.']
 });
 const need=(v,message)=>{if(!v)throw new SalaryInputError('IMPUTATION_CONTRACT_INVALID',message);};
 const id=v=>v.toLowerCase();
@@ -73,8 +82,8 @@ const exactSum=(amounts,precision)=>quantize(amounts.reduce((total,a)=>exactAdd(
 
 // An allocation of stored money, never another evaluation of salary rules.
 // Every concept has one disposition, including auxiliary values and incidents.
-export function calculateImputation(source){
- const v=imputationSource(source),s=v.group.snapshot,c=v.configuration;
+export function calculateImputation(source,{adjustments=null}={}){
+ const v=imputationSource(source),s=v.group.snapshot,c=v.configuration,official=IMPUTATION_OFFICIAL_SNAPSHOTS.includes(s.version);
  const configuration=c.definition?accountingDefinition(c.definition):{mappings:[],assignments:[]};
  const mappings=intervalIndex(configuration.mappings,mappingScope),assignments=intervalIndex(configuration.assignments,r=>assignmentScope(r.contractId,r.conceptCode));
  const employees=new Map(s.employees.map(e=>[id(e.contractId),e])),dates=new Map(v.dateSources.map(d=>[id(d.runId),d.body.liquidationDate??null]));
@@ -112,10 +121,49 @@ export function calculateImputation(source){
  const groups=[...destinations.entries()].sort(([a],[b])=>ordered(a,b)).map(([,g])=>({destination:g.destination,ordinals:g.ordinals,conceptCount:g.ordinals.length,amount:exactSum(g.amounts,g.precision)}));
  const allocatedCount=rows.filter(r=>r.state==='allocated').length,ready=moneyCount>0&&globalIssues.length===0&&issues.length===0;
  const assignedTotals=Object.fromEntries(OWN_CLOSE_TOTAL_KEYS.slice(0,4).map(nature=>{const amounts=rows.filter(r=>r.state==='allocated'&&r.nature===nature).map(r=>r.amount);return [nature,exactSum(amounts,ready?s.precision:amounts.reduce((p,a)=>Math.max(p,a.split('.')[1]?.length??0),s.precision))];}));
- if(ready)for(const nature of OWN_CLOSE_TOTAL_KEYS.slice(0,4))need(assignedTotals[nature]===s.totals[nature],'La imputación no concilia con todos los conceptos del cierre.');
+ // En un cierre con total oficial los renglones concilian con la suma de renglones conservada; la diferencia con el
+ // total oficial no se reparte ni se oculta: va en los ajustes.
+ const expectedTotals=official?s.lineTotals:s.totals;
+ if(ready)for(const nature of OWN_CLOSE_TOTAL_KEYS.slice(0,4))need(assignedTotals[nature]===expectedTotals[nature],'La imputación no concilia con todos los conceptos del cierre.');
+ if(official){
+  need(adjustments?.route==='official_adjustment_candidate'&&adjustments.ready===false&&adjustments.source?.groupId===v.group.groupId&&adjustments.source.snapshotSha256===v.group.snapshotSha256,'Faltan los ajustes del total oficial de este mismo cierre.');
+  const adjustmentRows=adjustments.allComponents.map(component=>{const e=employees.get(id(component.provenance.contractId));need(e,'Un ajuste no pertenece a los contratos cerrados.');
+   return {key:component.key,kind:component.kind,contractId:e.contractId,employeeNumber:e.employeeNumber,agreementCode:e.agreementCode,departmentCode:e.departmentCode,amount:component.amount,sourceTotal:component.sourceTotal,totalEffects:structuredClone(component.totalEffects),destination:null,state:component.postingRequired?'destination_required':'zero'};});
+  const adjustmentCount=adjustmentRows.filter(r=>r.state==='destination_required').length;
+  return {version:IMPUTATION_OFFICIAL_RESULT_VERSION,groupId:v.group.groupId,fiscalYear:v.fiscalYear,sourceVersion:v.sourceVersion,configurationVersion:c.version,configurationRevision:c.revision,snapshotSha256:v.group.snapshotSha256,employeeCount:s.employeeCount,populationCount:s.populationCount,populationComplete:s.populationComplete,conceptCount:s.conceptCount,moneyCount,auxiliaryCount,allocatedCount,
+   ready:false,originalRowsReady:ready,globalIssues:[...globalIssues,...(adjustmentCount?['adjustment_destination_required']:[]),'adjustment_circuit_pending'],issues,rows,groups,
+   sourceTotals:structuredClone(s.totals),lineTotals:structuredClone(s.lineTotals),allocatedTotals:assignedTotals,
+   adjustmentRows,adjustmentCount,adjustmentTotalEffects:structuredClone(adjustments.totalEffects),adjustmentProjectionSha256:adjustments.projectionSha256,accountingPosted:false,paymentExecuted:false};
+ }
  return {version:IMPUTATION_RESULT_VERSION,groupId:v.group.groupId,fiscalYear:v.fiscalYear,sourceVersion:v.sourceVersion,configurationVersion:c.version,configurationRevision:c.revision,snapshotSha256:v.group.snapshotSha256,employeeCount:s.employeeCount,populationCount:s.populationCount,populationComplete:s.populationComplete,conceptCount:s.conceptCount,moneyCount,auxiliaryCount,allocatedCount,ready,globalIssues,issues,rows,groups,sourceTotals:structuredClone(s.totals),allocatedTotals:assignedTotals,accountingPosted:false,paymentExecuted:false};
 }
-export async function verifiedImputation(source){await verifiedImputationSource(source);return calculateImputation(source);}
+// Las nueve clases de ajuste, con el nombre que se muestra en pantalla.
+export const IMPUTATION_ADJUSTMENT_KINDS=Object.freeze({
+ 'category.remuneration':'Redondeo del remunerativo (993)',
+ 'category.non_subject':'Redondeo del no remunerativo (994)',
+ 'category.family_allowances':'Redondeo de asignaciones familiares (995)',
+ 'category.deduction':'Redondeo de descuentos (996)',
+ 'category.employer_contribution':'Redondeo de la contribución patronal (990)',
+ 'consolidation.non_remuneration':'Consolidación del no remunerativo',
+ 'consolidation.gross':'Consolidación del bruto',
+ 'adjustment.net_outside_gross':'Ajuste del neto fuera del bruto (888)',
+ 'consolidation.net_equation':'Redondeo de la cuenta del neto'
+});
+/** Resumen de los ajustes de un resultado v2 para mostrar: cuántos esperan destino, en cuántos legajos, su efecto en el
+ *  neto y el detalle por clase. Suma centavos enteros con signo; no compensa un legajo contra otro al contar. */
+export function imputationAdjustmentSummary(result){
+ need(result?.version===IMPUTATION_OFFICIAL_RESULT_VERSION&&Array.isArray(result.adjustmentRows),'El resultado no tiene ajustes de total oficial.');
+ const pending=result.adjustmentRows.filter(r=>r.state==='destination_required'),byKind=new Map();
+ for(const r of pending){const k=byKind.get(r.kind)??{kind:r.kind,label:IMPUTATION_ADJUSTMENT_KINDS[r.kind],count:0,cents:0n};need(k.label,'Clase de ajuste desconocida.');k.count++;k.cents+=adjustmentCents(r.amount);byKind.set(r.kind,k);}
+ return {count:pending.length,employees:new Set(pending.map(r=>id(r.contractId))).size,net:result.adjustmentTotalEffects.net,
+  byKind:Object.keys(IMPUTATION_ADJUSTMENT_KINDS).filter(k=>byKind.has(k)).map(k=>{const v=byKind.get(k);return {kind:v.kind,label:v.label,count:v.count,amount:adjustmentMoney(v.cents)};})};
+}
+export async function verifiedImputation(source){
+ await verifiedImputationSource(source);
+ // Los ajustes se derivan del recibo original ya verificado, nunca de datos que elija quien llama.
+ const official=IMPUTATION_OFFICIAL_SNAPSHOTS.includes(source?.group?.snapshot?.version);
+ return calculateImputation(source,official?{adjustments:await deriveAccountingAdjustmentCandidate(source.group)}:{});
+}
 
 export function imputationIncidentCsv(result){
  need(result?.version===IMPUTATION_RESULT_VERSION&&Array.isArray(result.rows)&&result.rows.length===result.conceptCount,'No se verificó la revisión completa.');

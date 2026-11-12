@@ -1,0 +1,2251 @@
+{
+  "classification": "ONLY_SYNTHETIC",
+  "recipe": "Existing synthetic reportFixture(2), with each permitted legacy shape and rehashed synthetic snapshot; all validated by original verifiedOwnCloseReceipt.",
+  "cases": [
+    {
+      "version": "own-close-receipt.v1",
+      "id": "10000000-0000-4000-8000-000000000400",
+      "key": "10000000-0000-4000-8000-000000000009",
+      "body": {
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "scopeVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stateVersion": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "command": "close",
+        "groupId": null,
+        "reason": "Cierre exclusivamente sintético para QA",
+        "reviewConfirmed": true
+      },
+      "bodySha256": "5e9b81b710fd407e223178d8c7ab642ab3cd2149bffd50bf27ce21a3769f13df",
+      "groupId": "10000000-0000-4000-8000-000000000400",
+      "snapshot": {
+        "version": "own-close-snapshot.v1",
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "populationDomain": "native_registered",
+        "rosterVersion": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "employeeCount": 2,
+        "populationCount": 2,
+        "populationComplete": true,
+        "precision": 2,
+        "totals": {
+          "remuneration": "225.22",
+          "non_remuneration": "20.00",
+          "deduction": "7.36",
+          "employer_contribution": "30.04",
+          "gross": "245.22",
+          "net": "237.86"
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000090",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 1,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000001",
+              "remuneration": "112.61",
+              "non_remuneration": "20.00",
+              "deduction": "3.98",
+              "employer_contribution": "15.02",
+              "gross": "132.61",
+              "net": "128.63"
+            }
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000092",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 2,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000002",
+              "remuneration": "112.61",
+              "non_remuneration": "0.00",
+              "deduction": "3.38",
+              "employer_contribution": "15.02",
+              "gross": "112.61",
+              "net": "109.23"
+            }
+          }
+        ],
+        "concepts": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "20.00",
+            "exactValue": {
+              "numerator": "20",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.98",
+            "exactValue": {
+              "numerator": "39783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "13261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "39783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "0.00",
+            "exactValue": {
+              "numerator": "0",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.38",
+            "exactValue": {
+              "numerator": "33783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "33783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          }
+        ],
+        "conceptCount": 12,
+        "payrollCalculated": true,
+        "payrollPosted": false,
+        "paymentExecuted": false
+      },
+      "snapshotSha256": "2793ad406ea39f90c1dc22f70ed694686bcddbf06f9bfd13b7c7d33163307365",
+      "recordedAt": "2026-10-05T14:00:00.000Z",
+      "replayed": false
+    },
+    {
+      "version": "own-close-receipt.v1",
+      "id": "10000000-0000-4000-8000-000000000400",
+      "key": "10000000-0000-4000-8000-000000000009",
+      "body": {
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "scopeVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stateVersion": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "command": "close",
+        "groupId": null,
+        "reason": "Cierre exclusivamente sintético para QA",
+        "reviewConfirmed": true
+      },
+      "bodySha256": "5e9b81b710fd407e223178d8c7ab642ab3cd2149bffd50bf27ce21a3769f13df",
+      "groupId": "10000000-0000-4000-8000-000000000400",
+      "snapshot": {
+        "version": "own-close-snapshot.v2",
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "populationDomain": "native_registered",
+        "rosterVersion": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "employeeCount": 2,
+        "populationCount": 2,
+        "populationComplete": true,
+        "precision": 2,
+        "totals": {
+          "remuneration": "225.22",
+          "non_remuneration": "20.00",
+          "deduction": "7.36",
+          "employer_contribution": "30.04",
+          "gross": "245.22",
+          "net": "237.86"
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000090",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 1,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000001",
+              "remuneration": "112.61",
+              "non_remuneration": "20.00",
+              "deduction": "3.98",
+              "employer_contribution": "15.02",
+              "gross": "132.61",
+              "net": "128.63"
+            },
+            "jurisdiction": {
+              "code": null,
+              "basis": "not_captured",
+              "sourceSha256": null
+            }
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000092",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 2,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000002",
+              "remuneration": "112.61",
+              "non_remuneration": "0.00",
+              "deduction": "3.38",
+              "employer_contribution": "15.02",
+              "gross": "112.61",
+              "net": "109.23"
+            },
+            "jurisdiction": {
+              "code": null,
+              "basis": "not_captured",
+              "sourceSha256": null
+            }
+          }
+        ],
+        "concepts": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "20.00",
+            "exactValue": {
+              "numerator": "20",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.98",
+            "exactValue": {
+              "numerator": "39783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "13261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "39783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "0.00",
+            "exactValue": {
+              "numerator": "0",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.38",
+            "exactValue": {
+              "numerator": "33783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "33783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          }
+        ],
+        "conceptCount": 12,
+        "payrollCalculated": true,
+        "payrollPosted": false,
+        "paymentExecuted": false
+      },
+      "snapshotSha256": "f9fbe05aee1f3f439bc6d18dae46912292cb4e3fad5f2c39ac23c677f576edfe",
+      "recordedAt": "2026-10-05T14:00:00.000Z",
+      "replayed": false
+    },
+    {
+      "version": "own-close-receipt.v1",
+      "id": "10000000-0000-4000-8000-000000000400",
+      "key": "10000000-0000-4000-8000-000000000009",
+      "body": {
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "scopeVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stateVersion": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "command": "close",
+        "groupId": null,
+        "reason": "Cierre exclusivamente sintético para QA",
+        "reviewConfirmed": true
+      },
+      "bodySha256": "5e9b81b710fd407e223178d8c7ab642ab3cd2149bffd50bf27ce21a3769f13df",
+      "groupId": "10000000-0000-4000-8000-000000000400",
+      "snapshot": {
+        "version": "own-close-snapshot.v3",
+        "period": "2026-10",
+        "liquidationType": "monthly",
+        "populationDomain": "native_registered",
+        "rosterVersion": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "selection": {
+          "kind": "all",
+          "values": []
+        },
+        "employeeCount": 2,
+        "populationCount": 2,
+        "populationComplete": true,
+        "precision": 2,
+        "totals": {
+          "remuneration": "225.22",
+          "non_remuneration": "20.00",
+          "deduction": "7.36",
+          "employer_contribution": "30.04",
+          "gross": "245.22",
+          "net": "237.86"
+        },
+        "employees": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000090",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 1,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000001",
+              "remuneration": "112.61",
+              "non_remuneration": "20.00",
+              "deduction": "3.98",
+              "employer_contribution": "15.02",
+              "gross": "132.61",
+              "net": "128.63"
+            },
+            "jurisdiction": {
+              "code": null,
+              "basis": "not_captured",
+              "sourceSha256": null
+            },
+            "namespaceVersion": "own-payroll-namespaces.v2"
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "runId": "10000000-0000-4000-8000-000000000092",
+            "inputSha256": "5b44a199a0e39b9e205fbd4d9e7cf7279107da9e96cb2481b558546a2eca8355",
+            "resultSha256": "9d49d89a8e031a8de67b3585303b74dc409b42ce54d497315f575e17e99a78d0",
+            "liquidationVersion": 2,
+            "precision": 2,
+            "conceptCount": 6,
+            "totals": {
+              "contractId": "10000000-0000-4000-8000-000000000002",
+              "remuneration": "112.61",
+              "non_remuneration": "0.00",
+              "deduction": "3.38",
+              "employer_contribution": "15.02",
+              "gross": "112.61",
+              "net": "109.23"
+            },
+            "jurisdiction": {
+              "code": null,
+              "basis": "not_captured",
+              "sourceSha256": null
+            },
+            "namespaceVersion": "own-payroll-namespaces.v2"
+          }
+        ],
+        "concepts": [
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "20.00",
+            "exactValue": {
+              "numerator": "20",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.98",
+            "exactValue": {
+              "numerator": "39783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "20",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "13261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "39783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000001",
+            "employeeNumber": "1001",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "100",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "100.10",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "10"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "base",
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "110",
+            "nature": "remuneration",
+            "unit": "money",
+            "amount": "12.51",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "80"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "8"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "80"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "120",
+            "nature": "non_remuneration",
+            "unit": "money",
+            "amount": "0.00",
+            "exactValue": {
+              "numerator": "0",
+              "denominator": "1"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [],
+            "trace": [
+              {
+                "operation": "input",
+                "reference": "addition",
+                "stage": null,
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "210",
+            "nature": "deduction",
+            "unit": "money",
+            "amount": "3.38",
+            "exactValue": {
+              "numerator": "33783",
+              "denominator": "10000"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100",
+              "110",
+              "120"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "110",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1251",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "120",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "0",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "add",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "11261",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "100"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "33783",
+                  "denominator": "10000"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "310",
+            "nature": "employer_contribution",
+            "unit": "money",
+            "amount": "15.02",
+            "exactValue": {
+              "numerator": "3003",
+              "denominator": "200"
+            },
+            "rounding": {
+              "precision": 2,
+              "mode": "half_up"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "20"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3003",
+                  "denominator": "200"
+                }
+              }
+            ]
+          },
+          {
+            "contractId": "10000000-0000-4000-8000-000000000002",
+            "employeeNumber": "1002",
+            "agreementCode": "1",
+            "departmentCode": "1",
+            "conceptCode": "900",
+            "nature": "auxiliary",
+            "unit": "money",
+            "amount": "33.36666667",
+            "exactValue": {
+              "numerator": "1001",
+              "denominator": "30"
+            },
+            "rounding": {
+              "precision": 8,
+              "mode": "half_even"
+            },
+            "ruleReference": "Regla inventada QA; sin norma municipal",
+            "dependencies": [
+              "100"
+            ],
+            "trace": [
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "literal",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "3",
+                  "denominator": "1"
+                }
+              },
+              {
+                "operation": "divide",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1",
+                  "denominator": "3"
+                }
+              },
+              {
+                "operation": "concept",
+                "reference": "100",
+                "stage": "rounded",
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "10"
+                }
+              },
+              {
+                "operation": "multiply",
+                "reference": null,
+                "stage": null,
+                "result": {
+                  "numerator": "1001",
+                  "denominator": "30"
+                }
+              }
+            ]
+          }
+        ],
+        "conceptCount": 12,
+        "payrollCalculated": true,
+        "payrollPosted": false,
+        "paymentExecuted": false
+      },
+      "snapshotSha256": "a3c0bf480e51bd32980a184bf38652acc99c48a74b8a95832371110feef62350",
+      "recordedAt": "2026-10-05T14:00:00.000Z",
+      "replayed": false
+    }
+  ]
+}
