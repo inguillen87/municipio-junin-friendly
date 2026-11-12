@@ -5,6 +5,7 @@
 // Así la campanita y la bandeja nunca dicen cosas distintas. No guarda fundamentos, nombres ni legajos.
 import {mountPendingBell} from './pending-bell.js';
 import {visibleApprovalSources, lastClosedMonth} from './approvals-inbox-model.js';
+import {patientRead} from './approvals-inbox-model.js';
 import {salaryConditionsPending} from './own-contract-salary-conditions-pending.js';
 import {SALARY_CONDITIONS_READ} from './own-contract-salary-conditions-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
@@ -18,11 +19,12 @@ export function pendingBellReadersFor(caps, readers = PENDING_BELL_READERS) {
   return readers.filter(r => r.capabilities.every(c => caps.has(c)));
 }
 
-/** Una lectura por lector. La que falla o no cumple su contrato queda como «sin respuesta», nunca como cero. */
+/** Una lectura por lector. La que falla o no cumple su contrato queda como «sin respuesta», nunca como cero.
+ *  Si la base estaba ocupada con otra lectura igual, se reintenta antes de darla por perdida. */
 export async function pendingBellSources(getJson, readers) {
   return Promise.all(readers.map(async r => {
     const source = {key: r.key, title: r.title, href: r.href};
-    try { const body = await getJson(r.url); if (body?.ok !== true) throw new Error('PENDING_READ_FAILED'); r.parse(body.data); return {...source, pending: body.data}; }
+    try { const body = await patientRead(() => getJson(r.url)); if (body?.ok !== true) throw new Error('PENDING_READ_FAILED'); r.parse(body.data); return {...source, pending: body.data}; }
     catch { return {...source, error: true}; }
   }));
 }
@@ -34,7 +36,7 @@ export async function pendingBellCircuits(getJson, sources, period = lastClosedM
     while (next < sources.length) {
       const i = next++, s = sources[i], circuit = {key: s.key, title: s.title, href: s.href};
       try {
-        const body = await getJson(s.url({period})); if (body?.ok !== true) throw new Error('PENDING_READ_FAILED');
+        const body = await patientRead(() => getJson(s.url({period}))); if (body?.ok !== true) throw new Error('PENDING_READ_FAILED');
         const r = s.pick(body); if (!Number.isSafeInteger(r?.count)) throw new Error('PENDING_READ_FAILED');
         out[i] = {...circuit, count: r.count, reviewable: Number.isSafeInteger(r.reviewable) ? r.reviewable : null};
       } catch { out[i] = {...circuit, error: true}; }
@@ -67,7 +69,7 @@ export async function pendingBellAccountKey(accessKey, subtle = globalThis.crypt
 async function getJson(url) {
   const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store', headers: {accept: 'application/json'}, signal: AbortSignal.timeout(20000)});
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw Object.assign(new Error('PENDING_READ_FAILED'), {status: response.status});
+  if (!response.ok) throw Object.assign(new Error('PENDING_READ_FAILED'), {status: response.status, code: body?.code});
   return body;
 }
 

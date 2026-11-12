@@ -6,6 +6,18 @@ const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 
 export const periodLabel = p => { const m = /^(\d{4})-(\d{2})/.exec(String(p ?? '')); return m && months[Number(m[2]) - 1] ? months[Number(m[2]) - 1] + ' ' + m[1] : ''; };
 export const shortDate = iso => { const t = Date.parse(iso ?? ''); if (!Number.isFinite(t)) return ''; const d = new Date(t); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); };
 const typeLabel = t => ({ monthly: 'mensual', sac: 'SAC', final: 'final', vacation: 'vacaciones', M: 'mensual', S: 'SAC' })[t] ?? (t ? String(t) : '');
+/** La base atiende de a una lectura por circuito: si llegan dos iguales a la vez (la campanita, esta bandeja y el panel
+ *  piden lo mismo al abrir), rechaza una con 409 «…_BUSY» o 503 «…_UNAVAILABLE». Una lectura no cambia nada: se repite. */
+export const busyRead = (status, code) => status === 409 && /_BUSY$/.test(String(code ?? '')) || status === 503 && /_(BUSY|UNAVAILABLE)$/.test(String(code ?? ''));
+const pause = attempt => new Promise(resolve => setTimeout(resolve, 350 * attempt + Math.random() * 350));
+/** Repite `read()` mientras la base esté ocupada, hasta `tries` intentos, esperando un poco más cada vez. Cualquier otro
+ *  error (sesión vencida, sin permiso, lectura retirada) sale tal cual, sin reintento. */
+export async function patientRead(read, { tries = 3, wait = pause } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await read(); }
+    catch (e) { if (attempt >= tries || e?.name === 'AbortError' || !busyRead(e?.status, e?.code)) throw e; await wait(attempt); }
+  }
+}
 export const lastClosedMonth = (now = new Date()) => { const m = now.getMonth(); return m ? now.getFullYear() + '-' + String(m).padStart(2, '0') : (now.getFullYear() - 1) + '-12'; };
 
 // Common proposal summary (author, date, reason, canReview) used by most governed modules.
