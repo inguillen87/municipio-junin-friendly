@@ -57,12 +57,12 @@
     .crumb a { color: var(--green); font-weight: 800; text-decoration: none; }
     .top-title { margin-top: 2px; color: var(--navy); font-size: 14px; font-weight: 800; }
     .top-actions { display: flex; align-items: center; gap: 9px; }
-    /* 06/11: actions never break inside a label; the informational scope chip yields space first. */
+    /* Las acciones no se parten dentro de una etiqueta. */
     .top-actions { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
     .top-actions .button, .topbar .button { white-space: nowrap; }
-    .scope-chip { white-space: nowrap; text-overflow: ellipsis; }
-    @media (max-width: 1440px) { .scope-chip { display: none; } }
-    .scope-chip { max-width: 300px; min-height: 44px; display: inline-flex; align-items: center; padding: 8px 11px; overflow: hidden; color: var(--green); background: var(--green-soft); border: 1px solid #b8d9d1; border-radius: 4px; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    /* Qué puede hacer esta cuenta en la pantalla, en una línea bajo el título. Sin texto (permisos todavía sin leer) no se muestra. */
+    .scope-line { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .scope-line:has(#sessionScope:empty) { display: none; }
     .button { min-height: 43px; padding: 8px 13px; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-weight: 750; }
     .button:hover:not(:disabled) { border-color: var(--navy-2); background: var(--surface-2); }
     .button:disabled { cursor: not-allowed; opacity: .55; }
@@ -173,7 +173,6 @@
       .sidebar { position: static; min-height: auto; height: auto; }
       .side-note { margin-top: 22px; }
       .topbar { align-items: flex-start; }
-      .scope-chip { display: none; }
       .mode-switch { grid-template-columns: 1fr; }
       .field, .field.wide, .field.half, .field.full { grid-column: 1 / -1; }
       .section { padding: 18px; }
@@ -217,14 +216,14 @@
     <div class="workspace">
       <header class="topbar">
         <div><nav class="crumb" aria-label="Ruta"><a href="internal-dashboard.html">MuniControl</a><span>/</span><a href="nomina-control.html">Nómina</a><span>/</span><span aria-current="page">Novedades</span></nav><div class="top-title">Carga y aprobación de novedades</div></div>
-        <div class="top-actions"><a class="button primary" href="importar-novedades-grh.html">Importar TXT de entidades</a><span class="scope-chip" id="sessionScope">Validando capacidades</span><button class="button" id="refreshButton" type="button">Actualizar</button><button class="button danger" id="logoutButton" type="button">Cerrar sesión</button></div>
+        <div class="top-actions"><button class="button" id="refreshButton" type="button">Actualizar</button><button class="button" id="logoutButton" type="button">Cerrar sesión</button></div>
       </header>
 
       <div class="loading" id="loadingState" role="status"><div><strong>Preparando novedades de nómina</strong><span>Preparando el área de trabajo. Cada consulta verifica tu sesión y el acceso vigente.</span></div></div>
       <main id="mainContent">
         <div id="pageContent" hidden>
           <section class="page-head" aria-labelledby="pageTitle">
-            <div><p class="eyebrow">Liquidaciones · novedades</p><h1 id="pageTitle">Cargar novedades de nómina</h1><p class="lead">Elegí uno o varios legajos, agregá los conceptos y revisá el lote. Cuando otra persona lo aprueba, seguís con el cálculo del período.</p></div>
+            <div><p class="eyebrow">Liquidaciones · novedades</p><h1 id="pageTitle">Cargar novedades de nómina</h1><p class="lead">Elegí uno o varios legajos, agregá los conceptos y revisá el lote. Cuando otra persona lo aprueba, seguís con el cálculo del período.</p><p class="scope-line">Tu acceso: <span id="sessionScope"></span></p></div>
             <nav class="form-actions" aria-label="Lo que sigue después de cargar"><a class="button" href="nomina-control.html#calculo">Ir a Calcular</a><a class="button" href="nomina-control.html#reportes">Consultar reportes</a></nav>
           </section>
           <div data-novedades-tabs></div>
@@ -381,5 +380,6 @@
   </div>
   <div class="busy" id="busyStatus" role="status" aria-live="polite" hidden></div>
   <script type="module" src="assets/payroll-novelty-workbench.js"></script>
+<script type="module" src="assets/pending-bell-mount.js"></script>
 </body>
 </html>

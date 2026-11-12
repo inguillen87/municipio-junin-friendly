@@ -61,6 +61,9 @@ const shellFiles = [
   'assets/own-contract-salary-conditions-model.js',
   'assets/own-payroll-conditions.js',
   'assets/own-payroll-response.js',
+  'assets/own-payroll-liquidation-read.js',
+  'assets/count-words.js',
+  'assets/own-payroll-close-read.js',
   'assets/own-contract-salary-conditions-workspace.js',
   'assets/own-contract-salary-conditions-panel.js',
   'assets/own-contract-salary-conditions-pending.js',
@@ -197,6 +200,7 @@ const shellFiles = [
   'assets/task-workspace.js',
   'assets/report-analysis.js',
   'assets/report-document.js',
+  'assets/own-payroll-statement-evidence-model.js',
   'assets/report-centre.js',
   'assets/budget-structure-model.js',
   'assets/budget-payroll-model.js',
@@ -272,6 +276,8 @@ const shellFiles = [
   'assets/own-payroll-report-panel.js',
   'assets/own-payroll-report-panel.css',
   'assets/own-payroll-receipt-model.js',
+  'assets/own-payroll-official-receipt-model.js',
+  'assets/own-payroll-pdf-kit.js',
   'assets/own-payroll-receipt-pdf.js',
   'assets/own-payroll-receipt-panel.js',
   'assets/own-payroll-receipt-panel.css',
@@ -319,9 +325,23 @@ const shellFiles = [
   'assets/own-payroll-program-scale-reference-panel.js',
   'assets/own-payroll-run-panel.css',
   'assets/own-payroll-run-workspace-model.js',
+  'assets/own-payroll-run-reader.js',
+  'assets/own-payroll-historical-result-model.js',
+  'assets/own-payroll-official-snapshot-model.js',
+  'assets/own-payroll-monthly-forced-amounts.js',
   'assets/own-payroll-run-model.js',
   'assets/own-payroll-run-date.js',
   'assets/own-payroll-engine.js',
+  'assets/own-payroll-expression.js',
+  'assets/own-payroll-special-methods.js',
+  'assets/own-payroll-quantity.js',
+  'assets/own-payroll-quantity-program.js',
+  'assets/own-payroll-family-facts.js',
+  'assets/own-payroll-family-tariffs.js',
+  'assets/own-payroll-official-program.js',
+  'assets/own-payroll-official-totals.js',
+  'assets/own-payroll-row-emission.js',
+  'assets/own-payroll-row-emission-program.js',
   'assets/own-payroll-exact.js',
   'assets/native-salary-catalog-model.js',
   'assets/native-salary-file-model.js',
@@ -562,12 +582,18 @@ const vendorFiles = [
     source: 'node_modules/fflate/LICENSE',
     destination: 'assets/vendor/fflate.LICENSE.txt',
   },
+  // PDF.js publica dos compilaciones de la misma versión. La de `build/` supone el navegador más nuevo: llama sin definirlos
+  // a Map.prototype.getOrInsertComputed, Math.sumPrecise, Promise.try o Uint8Array.prototype.toHex, y en un Chrome o Edge
+  // desactualizado la lectura de PDF falla entera («getOrInsertComputed is not a function»). La de `legacy/build/` es la que
+  // el propio paquete indica para navegadores sin esos métodos: los trae y los define sólo si faltan, en la página y en el
+  // worker. Es la que se publica. tests/pdf-reader-old-browsers.test.js lo fija, junto con los verificadores que sirven
+  // estos dos archivos desde node_modules en vez de public/.
   {
-    source: 'node_modules/pdfjs-dist/build/pdf.min.mjs',
+    source: 'node_modules/pdfjs-dist/legacy/build/pdf.min.mjs',
     destination: 'assets/vendor/pdf.min.mjs',
   },
   {
-    source: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+    source: 'node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs',
     destination: 'assets/vendor/pdf.worker.min.mjs',
   },
   {

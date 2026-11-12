@@ -37,6 +37,17 @@ export async function installOwnPayrollReadinessUiQa(db,qa){
  if(missing.count===0){const counts=await db.run('SELECT jsonb_build_object('+tables.map(name=>q(name)+',(SELECT count(*) FROM '+name+')').join(',')+')');assert.ok(Object.values(counts).every(n=>n===0),'Read row-type dependencies must remain empty');}
  return {installed:true,canonicalReadersVerified:true,existingSourcesPreserved:true,sourceSha256:createHash('sha256').update(source).digest('hex')};
 }
+// The roster reads every contract of the municipality in one pass through a function installed in production outside the
+// numbered migrations. Older fixtures get the same exact definition (pinned by hash), once, after their canonical readers.
+const ROSTER_BATCH='native_employee_roster_projection_batch_v1',ROSTER_BATCH_SHA256='3b27f0b7be40a279f9b63009f9a50cafdf2921aadaddf18a7ab839bec79a843e';
+export async function installOwnRosterBatchQa(db,qa){
+ requireQa(qa);const source=fs.readFileSync(new URL('../../tests/fixtures/own-collective-installed-roster.sql.txt',import.meta.url),'utf8');
+ assert.equal(createHash('sha256').update(source).digest('hex'),ROSTER_BATCH_SHA256,'QA_ROSTER_BATCH_SOURCE_CHANGED');
+ const present=await db.run(`SELECT jsonb_build_object('count',(SELECT count(*) FROM pg_proc WHERE pronamespace=${q(qa.schema)}::regnamespace AND proname=${q(ROSTER_BATCH)}))`);
+ assert.ok([0,1].includes(present.count),'QA_ROSTER_BATCH_AMBIGUOUS');if(present.count===1)return {installed:false,sourceSha256:ROSTER_BATCH_SHA256};
+ await db.run([relocate(source,qa),`REVOKE ALL ON FUNCTION ${qa.schema}.${ROSTER_BATCH}(jsonb) FROM PUBLIC`,`GRANT EXECUTE ON FUNCTION ${qa.schema}.${ROSTER_BATCH}(jsonb) TO municontrol_actions_runtime_app`].join(';')+";SELECT '{}'::jsonb");
+ return {installed:true,sourceSha256:ROSTER_BATCH_SHA256};
+}
 export function createOwnPayrollReadinessSql(db,qa){
  requireQa(qa);return {query:async(query,values)=>{
   const roster=noeliaCircuitRosterRead(query,values,qa.schema);if(roster)return await db.run(roster);

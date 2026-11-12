@@ -1,13 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import {ownerAuthorityQaOptions,ownerAuthorityQaSourceClosure} from '../scripts/verify-municipal-owner-adoption-authority.mjs';
 import {OWNER_CATALOG_QA_ENTRIES,ownerCatalogQaOptions} from '../scripts/verify-municipal-owner-catalog.mjs';
 import {buildOwnerCatalogQa} from '../scripts/lib/municipal-owner-catalog-qa.mjs';
+import {preparedSourcesDefinition,PREPARED_SOURCES_FIXTURE} from '../scripts/lib/prepared-sources-qa.mjs';
 
 const file='.github/workflows/municipal-owner-catalog.yml';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replace(/\r\n?/g,'\n');
 const workflow=read(file);
+const vercelRules=read('.vercelignore').split(/\r?\n/).map(line=>line.trim()).filter(line=>line&&!line.startsWith('#'));
+function vercelIncludes(file,rules=vercelRules){
+ let included=true;
+ for(const rule of rules){
+  const negated=rule.startsWith('!'),pattern=negated?rule.slice(1):rule;
+  if(pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern))included=negated;
+ }
+ return included;
+}
+const packagedRead=(file,rules=vercelRules)=>{assert.ok(vercelIncludes(file,rules),'VERCEL_SOURCE_EXCLUDED:'+file);return read(file);};
 function paths(candidate,section){
  const start=candidate.indexOf('  '+section+':');
  const end=section==='pull_request'?candidate.indexOf('  push:'):candidate.indexOf('permissions:');
@@ -23,9 +35,11 @@ function triggerCoverage(candidate,files){
  assert.deepEqual(paths(candidate,'pull_request'),paths(candidate,'push'));
 }
 
-test('187 CI triggers cover the actual imported closure, every constructor source, runtime assets and its workflow test',()=>{
- const qa=buildOwnerCatalogQa({major:17,sourceCommit:'a'.repeat(40),read});
+test('187 CI and Vercel cover the actual imported closure, every constructor source, runtime assets and its workflow test',()=>{
+ const qa=buildOwnerCatalogQa({major:17,sourceCommit:'a'.repeat(40),read:packagedRead});
  assert.equal(qa.connects,false);assert.equal(qa.executesSql,false);
+ assert.throws(()=>preparedSourcesDefinition(file=>packagedRead(file,vercelRules.filter(rule=>rule!=='!'+PREPARED_SOURCES_FIXTURE))),/VERCEL_SOURCE_EXCLUDED:tests\/fixtures\/employment-adoption-prepared-sources\.sql\.txt/);
+ for(const privateFile of ['.handoff/private.json','.env.local','verification/result.json','source.sql.gz','source.dump','source.backup','notes.private.txt'])assert.equal(vercelIncludes(privateFile),false,privateFile);
  const closure=ownerAuthorityQaSourceClosure({entries:[...OWNER_CATALOG_QA_ENTRIES,'tests/municipal-owner-catalog-workflow.test.js'],additional:[...Object.keys(qa.sourceHashes),'assets/native-employment-catalog.css','.vercelignore','scripts/build-friendly.mjs','package.json','package-lock.json']});
  assert.ok(Object.keys(closure.files).length>=402);
  const files=[...Object.keys(closure.files),file,'.nvmrc','scripts/install-project-chromium.mjs'];

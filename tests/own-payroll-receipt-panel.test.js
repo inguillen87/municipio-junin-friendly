@@ -79,7 +79,7 @@ function harness(t){
 
 for(const code of ['OWN_RECEIPT_STATE_CHANGED','OWN_RECEIPT_IDENTITY_REQUIRED'])test('definitive '+code+' and same-key404 offer explicit correction with fresh full preview',async t=>{
  const h=harness(t);await h.start();h.q('date').value='2026-09-30';h.q('legend').value='Leyenda de ensayo conservada';await h.act('query','submit');h.q('reason').value='Conservación de recibo exclusivamente sintético QA';await h.missingAfterRejection(code);const original=structuredClone(h.posts()[0]);assert.equal(h.q('fields').disabled,true);h.state.sourceVersion=hash('c');h.state.count=2;const before=h.requests.length;await h.act('correct');const reads=h.requests.slice(before);
- assert.ok(reads.some(r=>r.url.includes('resource=issuer')));assert.ok(reads.some(r=>r.body?.operation==='preview'));assert.ok(reads.some(r=>r.url.includes('resource=attempt')));assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.equal(h.posts().length,1,'Correction does not record an operation');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('correct').hidden,true);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('retry').hidden,true);assert.equal(h.q('previous').hidden,false);assert.match(h.q('previous').textContent,new RegExp(original.key));assert.match(h.q('previous').textContent,/1 recibos/);assert.match(h.q('summary').textContent,/2 recibos/);assert.equal(h.q('reason').value,original.body.payload.reason);assert.equal(h.q('date').value,original.body.payload.params.paymentDate);assert.equal(h.q('legend').value,original.body.payload.params.legend);assert.equal(h.q('scope').value,'all');assert.equal(h.q('confirm').checked,false);
+ assert.ok(reads.some(r=>r.url.includes('resource=issuer')));assert.ok(reads.some(r=>r.body?.operation==='preview'));assert.ok(reads.some(r=>r.url.includes('resource=attempt')));assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.equal(h.posts().length,1,'Correction does not record an operation');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('correct').hidden,true);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('retry').hidden,true);assert.equal(h.q('previous').hidden,false);assert.match(h.q('previous').textContent,new RegExp(original.key));assert.match(h.q('previous').textContent,/1 recibo y /);assert.match(h.q('summary').textContent,/2 recibos/);assert.equal(h.q('reason').value,original.body.payload.reason);assert.equal(h.q('date').value,original.body.payload.params.paymentDate);assert.equal(h.q('legend').value,original.body.payload.params.legend);assert.equal(h.q('scope').value,'all');assert.equal(h.q('confirm').checked,false);
  h.state.postError=null;await h.act('prepare');assert.equal(h.posts().length,2);const next=h.posts()[1];assert.notEqual(next.key,original.key);assert.equal(next.body.payload.sourceVersion,hash('c'));assert.deepEqual(h.posts()[0],original);assert.match(h.q('state').textContent,/pendiente de revisión/);assert.equal(h.q('approve').disabled,true,'Preparation never approves availability');
 });
 
@@ -120,7 +120,7 @@ test('correction preserves a single employee range and exact contract selection 
 });
 
 test('a fresh zero-receipt source unlocks correction without inventing a result or allowing persistence',async t=>{
- const h=harness(t);await h.start();await h.missingAfterRejection();h.state.zero=true;h.state.sourceVersion=hash('c');await h.act('correct');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('consult').disabled,false);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);assert.match(h.q('status').textContent,/no tiene recibos propios cerrados/);assert.match(h.q('summary').textContent,/0 recibos/);assert.match(h.q('previous').textContent,/1 recibos/);assert.equal(h.posts().length,1);
+ const h=harness(t);await h.start();await h.missingAfterRejection();h.state.zero=true;h.state.sourceVersion=hash('c');await h.act('correct');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('consult').disabled,false);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);assert.match(h.q('status').textContent,/no tiene recibos propios cerrados/);assert.match(h.q('summary').textContent,/0 recibos/);assert.match(h.q('previous').textContent,/1 recibo y /);assert.equal(h.posts().length,1);
 });
 
 test('correcting a historical batch restores its department scope instead of the unrelated query dropdown',async t=>{
@@ -256,3 +256,13 @@ test('receipt intersection filters do not leak into a later explicit all-employe
  const filters=h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.filters;assert.ok(Object.values(filters).every(value=>value===''));assert.equal(h.q('agreementRange').hidden,true);assert.equal(h.q('agreementRange').disabled,true);assert.equal(h.q('combinedHelp').hidden,true);assert.match(h.q('summary').textContent,/Todos los legajos/);assert.equal(h.posts().length,0);
 });
 
+
+test('los conteos de Recibos concuerdan en número: «1 recibo», «1 grupo cerrado», «1 página»', async () => {
+  const { howMany } = await import('../assets/own-payroll-receipt-panel.js');
+  assert.equal(howMany(1, 'recibo', 'recibos'), '1 recibo'); assert.equal(howMany(29, 'recibo', 'recibos'), '29 recibos'); assert.equal(howMany(0, 'recibo', 'recibos'), '0 recibos');
+  const fs = await import('node:fs');
+  const panel = fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(panel, /(recordCount|total|conceptCount|length)\} (recibos|conceptos|grupos cerrados)/, 'ningún conteo queda con el plural fijo');
+  assert.match(panel, /howMany\(s\.recordCount,'recibo','recibos'\)\} · \$\{howMany\(s\.conceptCount,'concepto','conceptos'\)\} · \$\{howMany\(s\.sources\.length,'grupo cerrado','grupos cerrados'\)\}\./);
+  assert.match(panel, /pdf\.recordCount===1\?'1 recibo completo':pdf\.recordCount\+' recibos completos'\} en \$\{howMany\(pdf\.pageCount,'página','páginas'\)\}\./);
+});

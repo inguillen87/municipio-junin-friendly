@@ -55,7 +55,7 @@ try {
  };
  const preview=async()=>{await $('copy-preview').click();await settled();await $('copy-review').waitFor({state:'visible'});};
  boot=structuredClone(historical.boot);await load();await configure(['2']);await preview();await $('copy-confirm').check();await $('copy-apply').click();await settled();await $('reason').fill('Intento sintético de copiar una política histórica');await $('prepare').click();
- check(posts.length===0&&await $('rule-select').locator('option').count()===2&&(await $('status').innerText()).includes('resultado exacto'),'new copy of historical rounding is rejected without sending or losing either draft rule');
+ check(posts.length===0&&await $('rule-select').locator('option').count()===2&&(await $('status').innerText()).includes('debe ser exacta en todas las etapas o declarar el redondeo municipal a centavos'),'new copy of historical rounding is rejected without sending or losing either draft rule');
  boot=structuredClone(fixture.boot);await load();await configure();await preview();
  check(await $('copy-comparison').locator('tbody tr').count()===62,'review includes source and every one of 61 targets without pagination loss');
  check(posts.length===0&&await $('copy-apply').isDisabled(),'review sends no writes and requires explicit confirmation');

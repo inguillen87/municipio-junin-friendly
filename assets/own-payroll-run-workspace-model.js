@@ -67,8 +67,10 @@ export function ownRunWorkspaceResult(capture) {
   if(result.rowCount!==expectedRows||totalIds.size!==expectedIds.size)fail('El detalle de conceptos está incompleto.');
   return {input,result,people};
 }
-export function ownRunWorkspaceRows(capture, search = '', page = 1, pageSize = 25) {
-  const verified=ownRunWorkspaceResult(capture);
+// `read` is the reader of the saved result. The default is this file's historical validator (V1/V2); the Calcular screen passes the
+// reader that also understands V4/V5, so this module never has to import it.
+export function ownRunWorkspaceRows(capture, search = '', page = 1, pageSize = 25, read = ownRunWorkspaceResult) {
+  const verified=read(capture);
   if(!verified || !Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(pageSize)||pageSize<1)fail('No hay un resultado completo para consultar.');
   const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.toLowerCase().includes(term)||r.conceptCode.toLowerCase().includes(term));
   const pages=Math.max(1,Math.ceil(rows.length/pageSize)), current=Math.min(page,pages);
@@ -79,8 +81,8 @@ const csv = v => {
   if(/^[\s\uFEFF]*[=+\-@]/u.test(value)||/^[\t\r\n]/.test(value))value="'"+value;
   return '"'+value.replaceAll('"','""')+'"';
 };
-export function ownRunWorkspaceCsv(capture) {
-  const {result}=ownRunWorkspaceResult(capture)??{};
+export function ownRunWorkspaceCsv(capture, read = ownRunWorkspaceResult) {
+  const {result}=read(capture)??{};
   if(!result)fail('No hay un cálculo guardado para descargar.');
   return '\uFEFF'+[
     ['Periodo','Liquidacion','Fecha declarada de liquidacion','Legajo','Convenio','Reparticion','Concepto','Naturaleza','Unidad','Valor calculado','Respaldo de regla'],

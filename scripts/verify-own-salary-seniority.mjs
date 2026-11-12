@@ -197,6 +197,7 @@ export async function verifyOwnSalarySeniority(options) {
   if(options.browser!=='none'&&options.browser!==undefined){
    Object.assign(h.env,{FRIENDLY_GRH_SOURCE_DATABASE:'qa_fixed_source',FRIENDLY_GRH_COMPANY_ID:'101'});
    handlers.directory=createInternalDataHandler({env:h.env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:()=>adapter,getActionCenterSql:()=>adapter});
+   /* The picker reads the whole own roster through a function installed outside the numbered migrations: same exact definition, pinned by hash. */{const {installRosterBatchForQa}=await import('./lib/roster-batch-qa.mjs');await installRosterBatchForQa({sql,schema:qa.schema,relocate});}
    const {verifyOwnSalarySeniorityBrowser}=await import('./lib/own-salary-seniority-browser.mjs');
    await verifyOwnSalarySeniorityBrowser({handlers,env:h.env,actors:qa.actors,setActor,people,period,output:h.destination,check:ok,browserName:options.browser,revoke:()=>sql('UPDATE tenant_action_employment_link SET active=false,revoked_at=clock_timestamp() WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid'),restore:()=>sql('UPDATE tenant_action_employment_link SET active=true,revoked_at=NULL WHERE membership_id='+q(qa.actors.maker.membershipId)+'::uuid')});
   }

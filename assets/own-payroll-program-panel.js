@@ -131,14 +131,14 @@ export function mountOwnPayrollProgram(container){
   if(access&&access.key!==next.key||attempt&&attempt.accessKey!==next.key)throw Object.assign(Error('Cambió la sesión. Recuperá el intento desde su cuenta original.'),{status:403});
   access=next;$('login').hidden=true;
  }
- async function perform(work,{allowOwnerPending=false}={}){
+ async function perform(work,{allowOwnerPending=false,keepOwner=false}={}){
   if(!live()||busy||ownerLocked&&!allowOwnerPending||allowOwnerPending&&owner?.state().busy)return;
-  if(!ownerPublication)owner?.suspend();const version=++seq;busy=true;const owned=new AbortController();controller=owned;controls();const timer=setTimeout(()=>owned.abort(),45000);
+  if(!ownerPublication&&!keepOwner)owner?.suspend();const version=++seq;busy=true;const owned=new AbortController();controller=owned;controls();const timer=setTimeout(()=>owned.abort(),45000);
   try{await work(()=>version===seq&&live());}catch(error){if(version===seq&&live()){
    clearCopy();
    clearPreparedFile();
    scalePlan=null;scaleReference.clearReview();
-   if([401,403].includes(error.status)){access=null;clearViews();$('login').hidden=error.status!==401;}
+   if([401,403].includes(error.status)){access=null;clearViews();$('login').hidden=error.status!==401;if(keepOwner)owner?.suspend();}
    status(error.name==='AbortError'?'No se confirmó la respuesta. Consultá el mismo intento antes de iniciar otro.':error.message,'warning');
   }}finally{clearTimeout(timer);if(version===seq){busy=false;controller=null;controls();}}
  }
@@ -468,6 +468,9 @@ export function mountOwnPayrollProgram(container){
  });
  document.addEventListener('taskchange',task);document.addEventListener('visibilitychange',visibility);document.addEventListener('municontrol:capabilities-ready',capabilities);
  document.getElementById('logoutButton')?.addEventListener('click',()=>{owner?.forget();suspend('Sesión cerrada. Se retiró la vista.');});
- const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(attempt?capsFor(attempt.body.command):PROGRAM_READ);if(valid())controls();});},60000);
+ // El sondeo existe para retirar la vista cuando la sesión venció o cambió de cuenta: ahí se retira todo, también la decisión
+ // del propietario. Mientras la sesión sea la misma, siga vigente y conserve sus permisos, no toca lo que la persona está
+ // escribiendo: antes retiraba cada minuto el motivo y la confirmación del propietario y volvía a leer la propuesta.
+ const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{const held=[...access.caps].sort().join();await session(attempt?capsFor(attempt.body.command):PROGRAM_READ);if(valid()){if([...access.caps].sort().join()!==held)owner?.suspend();controls();}},{keepOwner:true});},60000);
  window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capabilities);},{once:true});controls();return {refresh};
 }

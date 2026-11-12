@@ -105,3 +105,47 @@ test('census/source changes, revoked permission, invalidated page and missing gr
  const c=adapter(f);await assert.rejects(loadOwnF931Preparation(params(f),{...c,valid:()=>c.calls.length<2}),{name:'AbortError'});
  const d=adapter(f);await assert.rejects(loadOwnF931Preparation(params(f),{...d,read:async q=>q.resource==='group'?undefined:d.read(q)}));
 });
+
+// Lectura histórica (censo de cierres + recibos + capturas originales) de un cierre con total oficial (V4/V5).
+// Corpus sintético del paquete de cierres; ningún dato municipal.
+async function officialHistory(name){
+ const {officialCloseDetail,officialCloseReceipt,hash}=await import('./fixtures/own-payroll-official-close-synthetic.js');
+ const {reportGroup}=await import('./fixtures/own-payroll-report-synthetic.js');
+ const {reportCensusFixture,liquidationDetailFor}=await import('./fixtures/own-payroll-report-census-synthetic.js');
+ const {buildOwnOfficialCloseSnapshot}=await import('../assets/own-payroll-official-snapshot-model.js');
+ const {verifiedOwnReportCensus}=await import('../assets/own-payroll-report-census-model.js');
+ const detail=officialCloseDetail(name,1),capture=detail.captures[0],uid=n=>'90000000-0000-4000-8000-'+String(n).padStart(12,'0');
+ const rows=capture.payload.population.employees.map((e,i)=>({contractId:e.contractId,employeeNumber:e.employeeNumber,registrationId:uid(30000+i),identityToken:e.identityToken,jurisdictionCode:i%2?'55':'42'}));
+ capture.payload.sourceInventory.jurisdictions={version:'own-run-jurisdictions.v1',complete:true,total:rows.length,rows};capture.payloadSha256=hash(capture.payload);
+ const snapshot=buildOwnOfficialCloseSnapshot(detail,{kind:'all',values:[]}),receipt=officialCloseReceipt(snapshot);detail.groups=[reportGroup(receipt)];
+ const query={from:snapshot.period,to:snapshot.period,types:[snapshot.liquidationType]};
+ return {capture,receipt,snapshot,census:await verifiedOwnReportCensus(reportCensusFixture({query,details:[detail],receipts:[receipt]})),liquidationDetailFor,
+  params:{period:snapshot.period,presentationDate:'2026-11-10',types:[snapshot.liquidationType],jurisdiction:'all'}};
+}
+for(const name of ['days14_both_omitted','legacy_v4_unchanged','full_population37'])test('la lectura histórica acepta un cierre con total oficial y suma sus totales oficiales: '+name,async()=>{
+ const {prepareOwnF931Historical}=await import('../assets/own-f931-preparation-model.js'),f=await officialHistory(name),before=JSON.stringify(f.capture);
+ const r=await prepareOwnF931Historical(f.params,[f.census],[structuredClone(f.receipt)],[f.capture]);
+ assert.equal(r.version,'own-f931-preparation.v2');assert.deepEqual(r.totals,f.snapshot.totals,'los totales son los oficiales del cierre');
+ assert.notEqual(f.snapshot.totals.net,f.snapshot.lineTotals.net,'en este caso el neto oficial difiere de la suma de renglones');
+ assert.equal(JSON.stringify(f.capture),before,'la captura recibida no se modifica');
+});
+test('la lectura histórica rechaza una captura oficial alterada o que no corresponde al cierre',async()=>{
+ const {prepareOwnF931Historical}=await import('../assets/own-f931-preparation-model.js');
+ const changes={
+  'importe de un renglón':c=>{c.saved.result.rows[0].amount='1.00';},
+  'neto oficial':c=>{c.saved.result.employeeTotals[0].net='999.99';},
+  'huella del resultado':c=>{c.saved.resultSha256='f'.repeat(64);},
+  'versión rebajada a la histórica':c=>{c.saved.input.version='own-payroll-input.v2';},
+ };
+ for(const [label,change]of Object.entries(changes)){const f=await officialHistory('days14_both_omitted');change(f.capture);await assert.rejects(prepareOwnF931Historical(f.params,[f.census],[structuredClone(f.receipt)],[f.capture]),undefined,label);}
+ const f=await officialHistory('days14_both_omitted'),other=await officialHistory('full_population37');
+ await assert.rejects(prepareOwnF931Historical(f.params,[f.census],[structuredClone(f.receipt)],[other.capture]),/no corresponde|ajena|Faltan/,'la captura de otra corrida no reemplaza a la del cierre');
+ await assert.rejects(prepareOwnF931Historical(f.params,[f.census],[structuredClone(f.receipt)],[]),/Faltan capturas originales/);
+});
+test('la lectura histórica elige el lector por la versión que declara el resultado guardado',async()=>{
+ const fs=await import('node:fs'),source=fs.readFileSync(new URL('../assets/own-f931-preparation-model.js',import.meta.url),'utf8');
+ assert.match(source,/if\(ownHistoricalOfficialInput\(capture\?\.saved\?\.input\)\)return verifiedRunCapture\(capture\);\n await verifiedWorkspaceCapture\(capture\);/,'V4/V5: lector oficial; V1/V2: el cotejo histórico de siempre');
+ assert.match(source,/const originals=\[\];for\(const capture of structuredClone\(captures\)\)originals\.push\(await verifiedHistoricalCapture\(capture\)\);/,'se usa la copia verificada, no la recibida');
+ assert.match(source,/const verified=ownRunResult\(capture\);/);
+});
+

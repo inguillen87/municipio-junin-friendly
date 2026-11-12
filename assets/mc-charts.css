@@ -9,6 +9,9 @@
 .mc-chart-card figcaption strong::before{content:'';display:inline-block;width:8px;height:8px;margin:0 8px 1px 0;border-radius:50%;background:linear-gradient(135deg,#0f766e,#69d3c5);box-shadow:0 0 0 3px rgba(15,118,110,.12);vertical-align:middle}
 .mc-chart-card figcaption span{font-size:12px;color:var(--muted,#5d6f78)}
 .mc-chart{position:relative;width:100%;height:260px;border-radius:12px}
+/* The drawing keeps its last pixel width until the chart is asked to resize (a ResizeObserver, one frame later). While its card
+   narrows, the drawing narrows with it instead of widening the page; nothing is clipped and tooltips keep their own size. */
+.mc-chart>div:first-child,.mc-chart>div:first-child>canvas,.mc-chart>div:first-child>svg{max-width:100%}
 .mc-chart-card[data-size=sm] .mc-chart{height:200px}.mc-chart-card[data-size=lg] .mc-chart{height:340px}.mc-chart-card[data-size=xl] .mc-chart{height:420px}
 .mc-chart[data-loading=true]{background:linear-gradient(100deg,rgba(15,118,110,.05) 20%,rgba(15,118,110,.14) 40%,rgba(15,118,110,.05) 60%);background-size:220% 100%;animation:mc-shimmer 1.3s linear infinite}
 .mc-chart[data-loading=error]::after{content:'El gráfico no pudo cargarse; los datos siguen disponibles en la tabla.';position:absolute;inset:0;display:grid;place-items:center;padding:16px;text-align:center;font-size:12px;color:var(--muted,#5d6f78)}

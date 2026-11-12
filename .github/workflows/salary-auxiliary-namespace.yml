@@ -1,10 +1,10 @@
 name: Salary auxiliary namespace
 on:
   pull_request:
-    paths: ['assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
+    paths: ['scripts/lib/qa-run-capture-lock.mjs', 'tests/qa-run-capture-lock.test.js', 'assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
   push:
     branches: ['master']
-    paths: ['assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
+    paths: ['scripts/lib/qa-run-capture-lock.mjs', 'tests/qa-run-capture-lock.test.js', 'assets/native-salary*.js', 'assets/own-payroll*.js', 'lib/own-payroll-approved-input.js', 'lib/internal-own-payroll-run.js', 'src/islands/NativeSalary*.jsx', 'scripts/*salary-auxiliary-namespace*', 'scripts/lib/salary-auxiliary-namespace*', 'tests/*salary-auxiliary-namespace*', 'tests/own-payroll-auxiliary-namespace.test.js', 'tests/fixtures/own-payroll-auxiliary-synthetic.js', '.github/workflows/salary-auxiliary-namespace.yml']
 permissions:
   contents: read
 concurrency:

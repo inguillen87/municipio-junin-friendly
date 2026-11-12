@@ -59,7 +59,9 @@ function start(){const root=document.getElementById('reportContent');if(!root||r
  const pick=(host,selector,ready)=>{const button=host.querySelector(selector);return button&&!button.disabled&&ready()?button:null;};
  const autoload={haberes:()=>[pick(financial,'[data-catalog]',()=>financial.querySelector('[data-query]')?.hidden)],
   'resumen-mensual':()=>[pick(monthly,'[data-ms-catalog]',()=>monthly.querySelector('[data-ms-selection]')?.hidden)],
-  comparar:()=>[pick(ownComparison,'[data-oc-refresh]',()=>ownComparison.querySelector('[data-oc-query]')?.hidden),pick(sourceComparison,'[data-pc-catalog]',()=>(sourceComparison.querySelector('select')?.options.length??0)<=1)],
+  // Only the own comparison consults by itself. The historical sources stay behind their voluntary disclosure and are
+  // consulted when the person opens it and asks; nothing here clicks for them.
+  comparar:()=>[pick(ownComparison,'[data-oc-refresh]',()=>ownComparison.querySelector('[data-oc-query]')?.hidden)],
   'seleccion-documental':()=>[pick(documentBatch,'.pdb-primary',()=>(documentBatch.querySelector('select')?.options.length??0)<=1)]};
  // Owner decision 2026-11-05: Haberes and Planilla bancaria then open on the latest monthly run already consulted (the run stays editable).
  const latestMonthly=select=>[...(select?.options??[])].find(o=>o.value&&/\bMes\b/.test(o.textContent));

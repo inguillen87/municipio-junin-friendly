@@ -99,3 +99,19 @@ test('descargas completas de más de una página: CSV seguro, Excel literal sin 
  const pdf=reportPdf(d);assert.ok(pdf.length>1000);assert.equal(d.rows.at(-1)[2],'Total cerrado: Neto');
  assert.throws(()=>reportXlsx({...d,legajoReport:'true'}),/por legajo no válido/);
 });
+
+test('ningún encabezado de columna de los PDF de Informes queda partido a mitad de palabra',async()=>{
+ const {reportPdfHeading}=await import('../assets/report-document.js'),b=bundle(variableReportFixture());
+ // Los encabezados son el texto blanco en negrita de cada hoja.
+ const headings=bytes=>[...Buffer.from(bytes).toString('latin1').matchAll(/BT \/F2 [0-9.]+ Tf 1 1 1 rg 1 0 0 1 [0-9.]+ [0-9.]+ Tm <([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'));
+ for(const view of ['payroll','summary','statement','concepts','legajo','statistics','variables','variable_usage','variable_sources','sources'])for(const grouping of ['statement','statistics'].includes(view)?['agreement_department','concept','department','agreement','jurisdiction']:['concept']){
+  const d=ownReportDocument(b,emptyOwnReportFilters(),view,grouping),words=new Set(headings(reportPdf(d)).flatMap(t=>t.split(/\s+/)));
+  for(const column of d.columns)for(const word of column.label.split(/\s+/))assert.ok(words.has(Buffer.from(word,'latin1').toString('latin1')),view+' / '+grouping+': «'+word+'» de «'+column.label+'» se lee entera');
+ }
+ // Una palabra que no entra a 8 puntos se achica; la que entra queda como siempre; la que no entra ni achicada se parte como antes.
+ assert.deepEqual(reportPdfHeading('Participaciones',52),{parts:['Participaciones'],size:7});
+ assert.deepEqual(reportPdfHeading('Contribuciones patronales exactas',62.4),{parts:['Contribuciones','patronales','exactas'],size:7.5});
+ assert.deepEqual(reportPdfHeading('Neto exacto',62),{parts:['Neto exacto'],size:8});
+ assert.equal(reportPdfHeading('Participaciones',20).size,8);assert.ok(reportPdfHeading('Participaciones',20).parts.length>1);
+});
+

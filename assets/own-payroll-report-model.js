@@ -1,5 +1,5 @@
 import {OWN_JURISDICTIONS,ownJurisdictionChoice,ownJurisdictionSelect,ownClosedJurisdiction,ownJurisdictionLabel} from './own-payroll-jurisdiction-model.js';
-import {salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
+import {SALARY_UNITS,salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownCloseDetail,ownCloseReceipt,verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {OWN_REPORT_CENSUS_VERSION,ownReportCensus,verifiedOwnReportCensus} from './own-payroll-report-census-model.js';
@@ -7,7 +7,12 @@ import {decimal,rational,exactAdd,exactCompare,quantize} from './own-payroll-exa
 import {ownReportVariableSources,OWN_VARIABLE_UNITS,ownVariableDisplayValue} from './own-payroll-report-variables.js';
 import {ownReportStatement} from './own-payroll-report-statement.js';
 import {ownLegajoReportRows} from './own-payroll-report-legajo.js';
+// The unit of a concept in words, the same ones the other report views use; an unknown unit is shown as it was saved.
+const unitLabel=unit=>OWN_VARIABLE_UNITS[unit]??SALARY_UNITS[unit]??unit;
 
+// «1 fila», «2 filas»: un conteo de uno se lee en singular en la pantalla y en la leyenda de los gráficos.
+import {countWords as ownReportCount} from './count-words.js';
+export {ownReportCount};
 export const OWN_REPORT_MAX_ROWS=250000;
 export const OWN_REPORT_MAX_BYTES=256*1024*1024;
 const need=(value,message)=>{if(!value)throw Error(message);};
@@ -103,15 +108,16 @@ function reportChartSummary(bundle, chosen) {
  return {version:'own-payroll-chart-summary.v1',participations:chosen.length,
   months:ownReportPeriods(bundle.query).map(period=>{const items=byMonth.get(period)??[],groups=[...new Map(items.map(item=>[item.source.groupId,item.source])).values()];
    return {period,...Object.fromEntries(['gross','deduction','net'].map(key=>[key,items.length?total(items,key):null])),
-    coverage:items.length?items.length+' participaciones · '+groups.length+' grupos cerrados'+(groups.some(r=>!r.snapshot.populationComplete)?' · incluye cierres parciales':''):'Sin participaciones cerradas en este alcance'};}),departments};
+    coverage:items.length?ownReportCount(items.length,'participación','participaciones')+' · '+ownReportCount(groups.length,'grupo cerrado','grupos cerrados')+(groups.some(r=>!r.snapshot.populationComplete)?' · incluye cierres parciales':''):'Sin participaciones cerradas en este alcance'};}),departments};
 }
 
 export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='payroll',grouping='concept',contracts=[],jurisdiction='all',statisticsSelection=emptyOwnStatisticsSelection()){
  // Recheck the complete census and original concept totals before deriving a view.
  const b=ownReportBundle(bundle.query,bundle.details,bundle.sources),f=ownReportFilters(filters),ids=ownReportContracts(contracts),statistics=ownStatisticsSelection(statisticsSelection),population=selected(b,f,ids),chosen=ownJurisdictionSelect(statisticsSelected(b,population,view==='statistics'?statistics:{...statistics,concept:''}),jurisdiction);
  need(['payroll','summary','concepts','legajo','statistics','sources','variables','variable_usage','variable_sources','statement'].includes(view)&&['concept','department','agreement','agreement_department','jurisdiction'].includes(grouping),'Elegí un informe y una agrupación disponibles.');
- const jurisdictionColumns=b.sources.some(s=>['own-close-snapshot.v2','own-close-snapshot.v3'].includes(s.snapshot.version)),jurisdictionCell=(source,e)=>jurisdictionColumns?[ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version))]:[];
- const text=label=>({label,type:'text',width:24}),integer=label=>({label,type:'integer',width:20});let columns,rows,title,payrollStatement;const variableMetadata=[['Repartición elegida',statistics.department||'Todas'],['Convenio elegido',statistics.agreement||'Todos']];
+ const jurisdictionColumns=b.sources.some(s=>['own-close-snapshot.v2','own-close-snapshot.v3','own-close-snapshot.v4','own-close-snapshot.v5'].includes(s.snapshot.version)),jurisdictionCell=(source,e)=>jurisdictionColumns?[ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version))]:[];
+ // Las columnas «… exacto/a(s)» llevan importes exactos como texto: en el PDF se muestran con separadores es-AR (ver report-document).
+ const text=label=>({label,type:'text',width:24,...(/exact[oa]s?\b/.test(label)?{pdfExact:true}:{})}),integer=label=>({label,type:'integer',width:20});let columns,rows,title,payrollStatement;const variableMetadata=[['Repartición elegida',statistics.department||'Todas'],['Convenio elegido',statistics.agreement||'Todos']];
  if(view==='legajo'){
   title='Liquidaciones propias por legajo';
   columns=[['Período / tipo',20],['Legajo / convenio / repartición',26],['Concepto / descripción original',45],['Haberes exactos',18],['Retenciones exactas',18],['Contribuciones patronales exactas',20],['Auxiliares exactos',18],['Totales cerrados exactos',18],['Versión / fecha declarada',24]].map(([label,width])=>({...text(label),width}));
@@ -131,7 +137,7 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
   rows=[...groups.values()].map(group=>{const item=group[0],precision=group.reduce((p,r)=>Math.max(p,r.employee.precision),0);return [item.period,OWN_RUN_TYPES[item.type],item.employee.agreementCode,item.employee.departmentCode,group.length,...['gross','deduction','net'].map(k=>sum(group.map(r=>r.employee.totals[k]),precision)),...jurisdictionCell(item.source,item.employee)];});
  }else if(view==='concepts'){
   title='Conceptos propios por legajo';columns=['Período','Tipo','Legajo','Concepto','Naturaleza','Unidad','Importe / valor exacto','Versión',...(jurisdictionColumns?['Jurisdicción conservada']:[])].map(text);
-  rows=chosen.flatMap(({period,type,source,employee:e})=>source.snapshot.concepts.filter(r=>r.contractId===e.contractId).map(r=>[period,OWN_RUN_TYPES[type],e.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,String(e.liquidationVersion),...jurisdictionCell(source,e)]));
+  rows=chosen.flatMap(({period,type,source,employee:e})=>source.snapshot.concepts.filter(r=>r.contractId===e.contractId).map(r=>[period,OWN_RUN_TYPES[type],e.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],unitLabel(r.unit),r.amount,String(e.liquidationVersion),...jurisdictionCell(source,e)]));
  }else if(view==='statistics'){
   payrollStatement=ownReportStatement(chosen,b.sources,b.details,'concept').cover;
   variableMetadata.push(['Concepto elegido',statistics.concept||'Todos']);
@@ -141,7 +147,7 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
    const dimension=grouping==='department'?e.departmentCode:grouping==='agreement'?e.agreementCode:grouping==='agreement_department'?e.agreementCode+' / '+e.departmentCode:grouping==='jurisdiction'?ownJurisdictionLabel(ownClosedJurisdiction(e,source.snapshot.version)):'Todos los seleccionados',id=salarySerialized([type,dimension,r.conceptCode,r.nature,r.unit]);
    const g=groups.get(id)??{type,dimension,code:r.conceptCode,nature:r.nature,unit:r.unit,amounts:[],precision:0};g.amounts.push(r.amount);g.precision=Math.max(g.precision,r.amount.split('.')[1]?.length??0);groups.set(id,g);
   }
-  rows=[...groups.values()].sort((a,b)=>a.type.localeCompare(b.type)||a.dimension.localeCompare(b.dimension)||compare(a.code,b.code)||a.nature.localeCompare(b.nature)||a.unit.localeCompare(b.unit)).map(g=>[OWN_RUN_TYPES[g.type],g.dimension,g.code,OWN_RUN_NATURES[g.nature],g.unit,g.amounts.length,sum(g.amounts,g.precision),b.query.from+' a '+b.query.to]);
+  rows=[...groups.values()].sort((a,b)=>a.type.localeCompare(b.type)||a.dimension.localeCompare(b.dimension)||compare(a.code,b.code)||a.nature.localeCompare(b.nature)||a.unit.localeCompare(b.unit)).map(g=>[OWN_RUN_TYPES[g.type],g.dimension,g.code,OWN_RUN_NATURES[g.nature],unitLabel(g.unit),g.amounts.length,sum(g.amounts,g.precision),b.query.from+' a '+b.query.to]);
  }else if(['variables','variable_usage','variable_sources'].includes(view)){
   const originals=ownReportVariableSources(b,bundle.captures,OWN_REPORT_MAX_ROWS);
   const variables=chosen.flatMap(item=>originals.participations.get(item.identity).variables);

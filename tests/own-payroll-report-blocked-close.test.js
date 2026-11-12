@@ -15,7 +15,8 @@ test('the month label used in the message is the Spanish month and year', async 
 });
 
 test('the close detail keeps status and code, and only 503 CONTRACT_INVALID becomes the blocked-close message', () => {
-  assert.match(source, /throw Object\.assign\(Error\(value\.error\?\?'No se obtuvo el histórico completo\.'\),\{status:response\.status,code:value\.code\}\)/);
+  // La lectura pasa por el lector compartido de cierres; el estado y el código del rechazo se conservan igual.
+  assert.match(source, /throw Object\.assign\(Error\(read\.payload\?\.error\?\?'No se obtuvo el histórico completo\.'\),\{status:read\.status,code:read\.payload\?\.code\}\)/);
   const mapping = source.match(/catch\(e\)\{if\(e\.status===503&&\/CONTRACT_INVALID\/\.test\(e\.code\?\?''\)\)throw Object\.assign\(Error\(`([^`]*)`\),\{status:e\.status,code:e\.code\}\);throw e;\}const d=await verifiedOwnCloseDetail\(raw\);/);
   assert.ok(mapping, 'every other failure is rethrown unchanged');
   assert.match(mapping[1], /^No se pudo verificar el padrón o las fuentes del cierre de \$\{reportMonthLabel\(period\)\}\./);

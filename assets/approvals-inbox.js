@@ -1,7 +1,7 @@
 // «Pendientes de aprobación»: one screen with everything waiting for a second person, each linked to its own review.
 // Read-only: it never approves, rejects or changes anything. Reads run two at a time to avoid lock contention.
 import { ownRunWorkspaceAccess } from './own-payroll-run-workspace-model.js';
-import { visibleApprovalSources, approvalTotals, APPROVAL_ELSEWHERE, lastClosedMonth, periodLabel } from './approvals-inbox-model.js';
+import { visibleApprovalSources, approvalTotals, APPROVAL_ELSEWHERE, lastClosedMonth, periodLabel, patientRead } from './approvals-inbox-model.js';
 
 const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined) n.textContent = txt; return n; };
 
@@ -63,7 +63,7 @@ export function mountApprovalsInbox(host) {
     const worker = async () => {
       while (next < sources.length && mine === run) {
         const s = sources[next++]; let r;
-        try { r = s.pick(await getJson(s.url({ period }), signal)); } catch (e) { if (e.name === 'AbortError') return; r = { error: true }; }
+        try { r = s.pick(await patientRead(() => getJson(s.url({ period }), signal))); } catch (e) { if (e.name === 'AbortError') return; r = { error: true }; }
         if (mine !== run) return; results.push({ key: s.key, ...r }); fill(cards.get(s.key), s, r);
       }
     };

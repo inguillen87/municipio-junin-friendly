@@ -21,6 +21,23 @@ export function noeliaCircuitRosterRead(query,values,schema){
 export function buildNoeliaCircuitQa(major,{jurisdictions=false,nativeDemoUi=false}={}){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
  assert.equal(typeof jurisdictions,'boolean');assert.equal(typeof nativeDemoUi,'boolean');
  if(jurisdictions){let count=0;qa.sql=qa.sql.replace(/hire:=native_employee_create_v1\(maker,'(\{"agreementCode"[^\n]*?"legajo":"20[0-9]+"[^\n]*?"jurisdictionCode":)"42"(\})'::jsonb/g,(_,prefix,suffix)=>{count++;return "hire:=native_employee_create_v1(maker,'"+prefix+'"55"'+suffix+"'::jsonb";});assert.equal(count,24,'complete synthetic 55 cohort must be explicitly declared at hire time');}
+ // The three historical fixture contracts already declare sector 20. Preserve
+ // its exact documentary label too, as the native writer does for the other 26.
+ // This precedes the immutable baseline: no adopted or captured row is repaired.
+ const baseline='CREATE TRIGGER grh_effective_baseline_rows';assert.equal(qa.sql.split(baseline).length,2);
+ qa.sql=qa.sql.replace(baseline,()=>`DO $noelia_sector_labels$
+ DECLARE original jsonb;sector_label text;changed integer;
+ BEGIN
+  IF (SELECT count(*) FROM grh_catalog_rows WHERE import_run_id=92001 AND catalog='sectors' AND source_key='20')<>1 THEN RAISE EXCEPTION 'QA_NOELIA_SECTOR_CATALOG_CHANGED';END IF;
+  SELECT label INTO sector_label FROM grh_catalog_rows WHERE import_run_id=92001 AND catalog='sectors' AND source_key='20';
+  IF sector_label IS NULL OR btrim(sector_label)='' THEN RAISE EXCEPTION 'QA_NOELIA_SECTOR_LABEL_MISSING';END IF;
+  SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) INTO original FROM employment_contract c WHERE c.source_system='GRH' AND c.legacy_company_id=101;
+  IF coalesce(jsonb_array_length(original),0)<>3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(original) c WHERE c->>'sector_source_id' IS DISTINCT FROM '20' OR jsonb_typeof(c->'source_payload') IS DISTINCT FROM 'object' OR (c->'source_payload' ? 'employment' AND jsonb_typeof(c#>'{source_payload,employment}') IS DISTINCT FROM 'object')) THEN RAISE EXCEPTION 'QA_NOELIA_HISTORICAL_POPULATION_CHANGED';END IF;
+  UPDATE employment_contract SET source_payload=source_payload||jsonb_build_object('employment',coalesce(source_payload->'employment','{}'::jsonb)||jsonb_build_object('sectorName',sector_label)) WHERE source_system='GRH' AND legacy_company_id=101;
+  GET DIAGNOSTICS changed=ROW_COUNT;
+  IF changed<>3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(original) old JOIN employment_contract c ON c.id::text=old->>'id' WHERE to_jsonb(c)-'source_payload' IS DISTINCT FROM old-'source_payload' OR c.source_payload IS DISTINCT FROM (old->'source_payload')||jsonb_build_object('employment',coalesce(old#>'{source_payload,employment}','{}'::jsonb)||jsonb_build_object('sectorName',sector_label))) THEN RAISE EXCEPTION 'QA_NOELIA_HISTORICAL_IDENTITY_CHANGED';END IF;
+ END $noelia_sector_labels$;
+ `+baseline);
  const caps=[...new Set([...POSITION_QA_CAPS,...(nativeDemoUi?['employee.record.create']:[]),'employee.record.propose','employee.record.approve','workforce.employee.read','workforce.structure.read','payroll.parameter.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.calculation.approve','payroll.calculation.close','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare','payroll.novelty.approve','payroll.novelty.export','payroll.receipt.prepare','payroll.receipt.approve'])];
  qa.sql=qa.sql.replace(anchor,()=>`INSERT INTO capabilities SELECT a.id,c FROM unnest(ARRAY[${q(qa.ids.maker)}::uuid,${q(qa.ids.checker)}::uuid]) a(id) CROSS JOIN unnest(ARRAY[${caps.map(q).join(',')}]) c WHERE NOT EXISTS(SELECT 1 FROM capabilities old WHERE old.membership_id=a.id AND old.capability_key=c);
  -- Canonical columns omitted by the earlier writer fixture; synthetic schema only.

@@ -1,0 +1,233 @@
+[
+  {
+    "regionCode": "1",
+    "typeCode": "1",
+    "upperBound": "999999.00",
+    "amount": "2800.00",
+    "sourceSha256": "d83960d55622678cf1e0dc6503813b3b0c11fcb86b14f70e07630b550f2cb63f"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "2",
+    "upperBound": "999999.00",
+    "amount": "35000.00",
+    "sourceSha256": "53b3de416ea7ec0551cde3da7c90fa151defb120655a99ce3e104a8013c938b4"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "3",
+    "upperBound": "999999.00",
+    "amount": "180000.00",
+    "sourceSha256": "31bbc3b3dda7d5e3cefdf577ba92e936473a3959792aad501c9cae20d2efdee9"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "4",
+    "upperBound": "999999.00",
+    "amount": "35000.00",
+    "sourceSha256": "5cb39526f12fdf01d3017167280efc575471fb06f2e05916db64527c03e6a20f"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "5",
+    "upperBound": "999999.00",
+    "amount": "2800.00",
+    "sourceSha256": "96b5296d7b54ba523c479c1de8a36e9cf72fa62a7bfa9f3fd1a375766c796862"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "6",
+    "upperBound": "999999.00",
+    "amount": "3500.00",
+    "sourceSha256": "6bfd0882943c211d3fce62f0384d6cb05474621770c75296bd829cb38401408a"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "7",
+    "upperBound": "999999.00",
+    "amount": "5400.00",
+    "sourceSha256": "bde21031a8910efa36827014e5a0305ec1a807c7f5946b60385b5c88340aeb81"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "8",
+    "upperBound": "999999.00",
+    "amount": "3500.00",
+    "sourceSha256": "37cc63900433e5a3a7f84139ed9852d95ddd0ec64fffd29da3b485a43b307fbf"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "9",
+    "upperBound": "999999.00",
+    "amount": "7900.00",
+    "sourceSha256": "22b8746937352e64a9d8cd6de74a5fbc2fddd68728ccd4be15937f10c87d27e9"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "10",
+    "upperBound": "999999.00",
+    "amount": "3500.00",
+    "sourceSha256": "c3be0bbf4709b5c36ff13110c3232c4100b2d9a9cc56f05260e9579d58f158dc"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "11",
+    "upperBound": "999999.00",
+    "amount": "7900.00",
+    "sourceSha256": "86f7fd11a6ef66bcc6d9ac9b1ee88adb0250b988e2bbe7ddad886707daf4d314"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "12",
+    "upperBound": "999999.00",
+    "amount": "130700.00",
+    "sourceSha256": "bfa6a4f37a106cbd7b965fe3d0611143d3dd702ef2309b47aa139c3f974a9b09"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "13",
+    "upperBound": "999999.00",
+    "amount": "130700.00",
+    "sourceSha256": "7c9a060948816161ccbb96b7162b805ce6c4986549a36d37bf283fd1b7331c17"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "14",
+    "upperBound": "999999.00",
+    "amount": "2800.00",
+    "sourceSha256": "4d353f088c36288b879273088746d00114b8078f3d3a545494ad144b9838c086"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "15",
+    "upperBound": "999999.00",
+    "amount": "2800.00",
+    "sourceSha256": "0401f31c882d1ef17ad6559a89fbb10d1e81eb58c30165110b04ab893c11a2e6"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "16",
+    "upperBound": "999999.00",
+    "amount": "2800.00",
+    "sourceSha256": "52aea90acb70ad1a2b8335dee9099299e9a43fe0119a0874bfb0da51502ef1e2"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "17",
+    "upperBound": "999999.00",
+    "amount": "35000.00",
+    "sourceSha256": "94da32ab9a21c3979f84ed45e4b74c56b48408b91d497577c3cbea0f03820b66"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "18",
+    "upperBound": "999999.00",
+    "amount": "91000.00",
+    "sourceSha256": "86988bcae1c781365bd38a03c5e013281212ae7eb3c48fe38133fc65e4805e41"
+  },
+  {
+    "regionCode": "1",
+    "typeCode": "19",
+    "upperBound": "99999.00",
+    "amount": "98000.00",
+    "sourceSha256": "65df21736af03d8e47a07732d0ad89fc72c37ee8d19f2a6e57a749cb24dea56b"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "1",
+    "upperBound": "999999.00",
+    "amount": "1600.00",
+    "sourceSha256": "187735113c5d3961df7756b8782cf66125ce6cc514ac9f6e34d2baf37ccd8dad"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "2",
+    "upperBound": "118500.01",
+    "amount": "18000.00",
+    "sourceSha256": "5a24cf845785677ee6c16266d591342ae361168f2ed8ee3c199635f8a32b93ab"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "2",
+    "upperBound": "790000.00",
+    "amount": "35000.00",
+    "sourceSha256": "059568facfcc2a98c18a9eb295122aa3d64eb01f1605eab9bb24825763c1a4d3"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "2",
+    "upperBound": "1185000.00",
+    "amount": "27000.00",
+    "sourceSha256": "df2fae5f2680414467e19f31965d6220e9e0e4f5009a050264dcd7bf2f7c79cd"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "3",
+    "upperBound": "790000.00",
+    "amount": "270000.00",
+    "sourceSha256": "6b342617c6b48a6a3517fb2d2c40610eb6af36d53abb58da8787bde292a2ce7f"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "3",
+    "upperBound": "1185000.00",
+    "amount": "165000.00",
+    "sourceSha256": "5e8113332ffbaa67e615e1a15a874bc8ade42dfc2251310d09cd17895c7dae16"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "3",
+    "upperBound": "2700000.00",
+    "amount": "110000.00",
+    "sourceSha256": "a90695b6104bce93cd28887ff507cfe3e7926cb6c2bddff15eb07c21f41029d5"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "4",
+    "upperBound": "90000.00",
+    "amount": "23500.00",
+    "sourceSha256": "5683b03e29edc8f5c471d02af646e46e7d33c6bd787693a15a6bcfe816582447"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "4",
+    "upperBound": "600000.00",
+    "amount": "29500.00",
+    "sourceSha256": "02c8940763a57f44a6df4c8f202ab5f30cd0506c369b435b46ed5ed597dbe9a0"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "4",
+    "upperBound": "999999.00",
+    "amount": "9000.00",
+    "sourceSha256": "38578f425c3e20d19b275cf145edd54adc1a5326b8b3ebf77a2319b5c5cfbb02"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "12",
+    "upperBound": "999999.00",
+    "amount": "50000.00",
+    "sourceSha256": "1393846f8b21bfa97b41c15e6c4aebb22606d2962c7ca1c0fb1a1b3ae19b7dc9"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "13",
+    "upperBound": "999999.00",
+    "amount": "172000.00",
+    "sourceSha256": "7a40ae6b4cf5d96cb1517d996bc5bd7e1447e3daaaf701a59d3a3a43d3e799a3"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "17",
+    "upperBound": "999999.00",
+    "amount": "20000.00",
+    "sourceSha256": "008378622a9a4e580c797648680d46f8fd10f5d71bc3b9a84a2997e6bbcc06d9"
+  },
+  {
+    "regionCode": "2",
+    "typeCode": "18",
+    "upperBound": "999999.00",
+    "amount": "31000.00",
+    "sourceSha256": "5b5361e3b0b0790dc824b19e755a98edbabaf8eac5adfa186587fd57fba7d102"
+  }
+]

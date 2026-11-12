@@ -71,7 +71,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const journal=document.createElement('div');mountOwnPayrollJournal(journal);
  const reconciliation=document.createElement('div'),reconciliationDocuments=document.createElement('div'),cajas=document.createElement('div');
  mountOwnPayrollReconciliation(reconciliationDocuments);mountOwnCajasControl(cajas);reconciliation.append(reconciliationDocuments,cajas);
- const parameters=document.createElement('div');mountParameterTask(parameters);const formula=pick('formulaLabTitle');const advancedFormula=formula?toolDetails(formula,'Herramienta avanzada · análisis técnico de fórmulas'):null;
+ const formula=pick('formulaLabTitle');const advancedFormula=formula?toolDetails(formula,'Herramienta avanzada · análisis técnico de fórmulas'):null;const parameters=document.createElement('div');mountParameterTask(parameters,{tools:advancedFormula});
  const heading=host.querySelector('.page-head');const actions=document.createElement('div');actions.className='rc-downloads';actions.innerHTML='<a class="rc-button" href="novedades-nomina.html">Cargar novedades</a><a class="rc-button secondary" href="reportes-rrhh.html#certificados-escolares" data-requires-all-capability="workforce.employee.read">Hijos y certificados</a><a class="rc-button secondary" href="reportes-rrhh.html">Centro de reportes</a><a class="rc-button secondary" href="internal-dashboard.html#legajos">Buscar un legajo</a>';heading?.append(actions);
  const migration=document.createElement('div');migration.innerHTML='<header class="rc-panel-head"><h2>Migración y controles externos</h2><p>Herramientas del circuito anterior. Para generar reportes con los datos ya incorporados, usá la pestaña Reportes.</p></header>';
  for(const [id,title]of [['sourcePreviewTitle','Analizar fuente mensual externa'],['postCloseTitle','Comparar extractos externos 701 / 703'],['controlImportTitle','Fuentes agregadas y revisión'],['artReportTitle','Control ART desde archivo de transición'],['bankDiagnosticTitle','Validar formato bancario'],['healthDiagnosticTitle','Validar formatos de salud'],['monthlyClosePrecheckTitle','Comparar paquete mensual externo']]){const n=pick(id);if(n)migration.append(toolDetails(n,title))}
@@ -85,9 +85,12 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const enabled=(root,selector)=>{const button=root.querySelector(selector);return button&&!button.disabled&&!button.hidden?button:null;};
  const periodTasks={anulacion:{root:annulment,period:'[data-annul-period]',type:'[data-annul-type]',load:'[data-annul-load]'},cierre:{root:close,period:'[data-close-period]',type:'[data-close-type]',load:'[data-close-consult]'},
   imputacion:{root:imputation,period:'[data-imputation-period]',type:'[data-imputation-type]',load:'[data-imputation-consult]'},asientos:{root:journal,period:'[data-journal-period]',type:'[data-journal-type]',load:'[data-journal-consult]'},
-  conciliacion:{root:reconciliationDocuments,period:'[data-rec-period]',type:'[data-rec-type]',load:'[data-rec-consult]'},recibos:{root:receipts,period:'[data-receipt-period]',type:null,load:'[data-receipt-history]'}};
+  conciliacion:{root:reconciliationDocuments,period:'[data-rec-period]',type:'[data-rec-type]',load:'[data-rec-consult]'},recibos:{root:receipts,period:'[data-receipt-period]',type:null,load:null}};
+ // Recibos only gets its month here: the panel itself then loads the municipal data and the emissions of that month, in one
+ // operation. A click sent from here could arrive late and clear what the person had already consulted.
  // Tasks whose consult needs more choices (presentation, jurisdiction, codes): only the month is preselected.
  const monthOnly=['art','f931','horas-convenio','condiciones','familia','reglas'];
+ const isPeriodSelector=input=>[...input.attributes].some(attribute=>/^data-[a-z0-9-]+-period$/.test(attribute.name));
  let retries=0;const preload=()=>{if(document.hidden)return;const id=workspaceHost.dataset.activeTask,task=periodTasks[id];
   if(id==='calculo'){const field=key=>calculation.querySelector('[data-own-'+key+']'),set=(input,value)=>{input.value=value;input.dispatchEvent(new Event('change',{bubbles:true}));};
    const period=field('period'),date=field('date'),type=field('type'),kind=field('kind');
@@ -98,14 +101,20 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
   // Wait until the panel has verified access (its fieldset is disabled meanwhile): writing the month earlier fired
   // «change», which F.931 treats as new criteria and aborted its own access check, leaving it locked with
   // «Cambió el período…». F.931 reads the month when consulting, so it only needs «input».
-  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value){if(input.matches(':disabled')){if(retries-->0)setTimeout(preload,700);continue;}input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));if(id!=='f931')input.dispatchEvent(new Event('change',{bubbles:true}));}
+  // Only the month a panel consults by (its «…-period» selector) is preselected. Every other month field of the task — the end
+  // of a rule's validity, the months of a copy, a scale reference — stays as the person left it: an empty «hasta» means «sin
+  // término», and filling it from here closed the rule without anyone asking.
+  if(monthOnly.includes(id))for(const input of document.getElementById('task-'+id)?.querySelectorAll('input[type=month]')??[])if(!input.value&&isPeriodSelector(input)){if(input.matches(':disabled')){if(retries-->0)setTimeout(preload,700);continue;}input.value=lastMonth();input.dispatchEvent(new Event('input',{bubbles:true}));if(id!=='f931')input.dispatchEvent(new Event('change',{bubbles:true}));}
   if(task){const period=task.root.querySelector(task.period),type=task.type?task.root.querySelector(task.type):null;let changed=false;if(period&&!period.value&&!period.disabled){changed=true;period.value=lastMonth();period.dispatchEvent(new Event('input',{bubbles:true}));period.dispatchEvent(new Event('change',{bubbles:true}));}
    if(type&&!type.value&&!type.disabled&&[...type.options].some(o=>o.value==='monthly')){changed=true;type.value='monthly';type.dispatchEvent(new Event('change',{bubbles:true}));}
    // A panel may invalidate its view shortly after a field changes: consult on the next pass, not in the same tick.
    if(changed&&!task.loaded&&retries-->0){setTimeout(preload,700);}
-   else if(!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
+   else if(task.load&&!task.loaded&&period?.value&&(!task.type||type?.value)){const button=enabled(task.root,task.load);if(button){task.loaded=true;button.click();}else if(retries-->0)setTimeout(preload,700);}}
   if(id==='comparar'&&ownComparison.querySelector('[data-oc-query]')?.hidden)enabled(ownComparison,'[data-oc-refresh]')?.click();};
  for(const task of Object.values(periodTasks))for(const selector of[task.period,task.type].filter(Boolean))task.root.querySelector(selector)?.addEventListener('change',event=>{if(!event.isTrusted)return;task.loaded=false;schedule();});
+ // Quien consulta por su cuenta ya tiene su lectura. La consulta automática que quedó esperando (el botón estaba ocupado, o
+ // el mes se acababa de completar) se da por hecha: si llegara después, vaciaría lo que la persona ya consultó o estaba eligiendo.
+ for(const task of Object.values(periodTasks))if(task.load)task.root.querySelector(task.load)?.addEventListener('click',()=>{task.loaded=true;});
  const schedule=()=>{retries=20;setTimeout(preload,0);};document.addEventListener('taskchange',event=>{if(event.detail?.id!==workspaceHost.dataset.activeTask)return;for(const task of Object.values(periodTasks))task.loaded=false;schedule();});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){for(const task of Object.values(periodTasks))task.loaded=false;schedule();}});document.addEventListener('municontrol:capabilities-ready',schedule);schedule();
 }

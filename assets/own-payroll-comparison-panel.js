@@ -1,8 +1,10 @@
 import {OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {OWN_RUN_NOMINAL,OWN_RUN_TYPES,hasOwnRunAccess,ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
-import {verifiedOwnLiquidationComparison,ownComparisonView,ownComparisonDocument} from './own-payroll-comparison-model.js';
-import {saveReport} from './report-document.js';
+import {verifiedOwnLiquidationComparison,ownComparisonView,ownComparisonDocument,ownComparisonUnit} from './own-payroll-comparison-model.js';
+import {saveReport,reportExactShown} from './report-document.js';
 import {ownLiquidationBootstrap,OWN_LIQ_REVIEW} from './own-payroll-liquidation-model.js';
+import {fetchOwnLiquidationDetail} from './own-payroll-liquidation-read.js';
+import {countWords} from './count-words.js';
 const endpoint='/api/internal-own-payroll-liquidation',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 
 export function mountOwnPayrollComparison(host){
@@ -30,26 +32,33 @@ export function mountOwnPayrollComparison(host){
   let value;try{value=JSON.parse(text);}catch{throw Error('No se pudo verificar la respuesta completa. Consultá nuevamente.');}
   if(!response.ok||value?.ok!==true)throw Error('No se pudo consultar todo el resultado. Consultá los cálculos nuevamente.');return value;
  }
+ // Cada cálculo comparado puede superar el JSON común: la lectura compartida lo pide completo si hace falta.
+ async function requestDetail(id){
+  if(!live())throw new DOMException('Pantalla oculta','AbortError');
+  let read;try{read=await fetchOwnLiquidationDetail(id,{signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error('No se pudo verificar la respuesta completa. Consultá nuevamente.');}
+  if([401,403].includes(read.status))throw Object.assign(Error(read.status===401?'La sesión venció. Volvé a ingresar.':'Tu cuenta ya no permite consultar esta nómina.'),{status:read.status});
+  if(!read.ok||read.payload?.ok!==true)throw Error('No se pudo consultar todo el resultado. Consultá los cálculos nuevamente.');return read.payload;
+ }
  async function session(){const next=ownRunWorkspaceAccess(await request('/api/internal-auth'));if(!hasOwnRunAccess(next.caps,model?.details.some(d=>d.reviewAccessRequired)?OWN_LIQ_REVIEW:OWN_RUN_NOMINAL))throw Object.assign(Error('Tu cuenta no permite leer o revisar estos resultados nominales propios.'),{status:403});if(access&&access.key!==next.key)throw Object.assign(Error('Cambió la cuenta o su vínculo municipal. Consultá nuevamente.'),{status:403});access=next;$('login').hidden=true;}
  async function perform(work){if(!live()||busy)return;const version=++seq;busy=true;const operation=new AbortController();controller=operation;controls();const timeout=setTimeout(()=>operation.abort(),45000);const valid=()=>version===seq&&live()&&!operation.signal.aborted;
   try{await work(()=>{if(!valid())throw new DOMException('Consulta invalidada','AbortError');});}
   catch(e){if(version===seq&&live()){clearResult();if([401,403].includes(e.status)){access=null;clearCatalog();$('login').hidden=e.status!==401;}status(e.name==='AbortError'?'Se interrumpió la consulta. Volvé a consultar antes de descargar.':e.message);}}
   finally{clearTimeout(timeout);if(version===seq){busy=false;controller=null;controls();}}
  }
- const label=r=>r.period+' · '+OWN_RUN_TYPES[r.liquidationType]+' · '+r.employeeCount+' legajos · '+new Date(r.createdAt).toLocaleString('es-AR')+' · '+r.id.slice(0,8);
+ const label=r=>r.period+' · '+OWN_RUN_TYPES[r.liquidationType]+' · '+countWords(r.employeeCount,'legajo','legajos')+' · '+new Date(r.createdAt).toLocaleString('es-AR')+' · '+r.id.slice(0,8);
  function option(r){const value=new Option(label(r)+(r.canConsult?'':' · Requiere permiso de revisión'),r.id);value.disabled=!r.canConsult;return value;}
  function targets(){const base=catalog?.runs.find(r=>r.id===$('base').value);$('target').replaceChildren(new Option('Elegí la comparada del mismo tipo',''));$('target').disabled=!base;for(const r of catalog?.runs??[])if(r.id!==base?.id&&r.liquidationType===base?.liquidationType)$('target').append(option(r));}
  function binding(d,boot){const c=d.capture,r=boot.runs.find(r=>r.id===d.id);if(!r||!r.canConsult||d.scopeVersion!==boot.scopeVersion||!c.saved||c.id!==r.id||c.createdAt!==r.createdAt||c.body.period!==r.period||c.body.liquidationType!==r.liquidationType||c.saved.result.employeeCount!==r.employeeCount||c.saved.resultSha256!==r.resultSha256)throw Error('Cambió un cálculo del catálogo o su acceso. Consultá nuevamente; no se descargó una parte.');}
  async function readPair(keys,valid){
   await session();valid();const before=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();const sources=[];
-  for(const id of keys){const d=(await request(endpoint+'?resource=detail&id='+encodeURIComponent(id))).data;valid();binding(d,before);sources.push(d);}
+  for(const id of keys){const d=(await requestDetail(id)).data;valid();binding(d,before);sources.push(d);}
   const fresh=await verifiedOwnLiquidationComparison(...sources);valid();const after=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();for(const d of sources)binding(d,after);
-  const rechecked=[];for(const id of keys){const d=(await request(endpoint+'?resource=detail&id='+encodeURIComponent(id))).data;valid();binding(d,after);rechecked.push(d);}
+  const rechecked=[];for(const id of keys){const d=(await requestDetail(id)).data;valid();binding(d,after);rechecked.push(d);}
   const verified=await verifiedOwnLiquidationComparison(...rechecked);valid();if(fresh.proof!==verified.proof)throw Error('Cambió el estado o la fuente durante la consulta. Compará nuevamente.');await session();valid();if(!hasOwnRunAccess(access.caps,verified.details.some(d=>d.reviewAccessRequired)?OWN_LIQ_REVIEW:OWN_RUN_NOMINAL))throw Object.assign(Error('Se retiró el permiso de revisión de estas liquidaciones.'),{status:403});return verified;
  }
  function render(){if(!model)return;const v=ownComparisonView(model,{view:$('view').value,change:$('change').value,search:$('search').value,page});page=v.page;
-  $('caption').textContent=$('view').value==='concepts'?'Conceptos de las dos corridas completas':'Totales originales de cada legajo';$('summary').textContent=v.filtered+' filas de pantalla · '+v.total+' en el detalle completo · '+v.changed+' con variación o ausencia · '+v.review+' para revisar.';$('page').textContent='Página '+v.page+' de '+v.pages;$('empty').hidden=v.filtered!==0;
-  $('rows').replaceChildren(...v.rows.map(r=>{const tr=node('tr');tr.dataset.ocLegajo=r.targetNumber??r.baseNumber;const employee=node('th',(r.baseNumber??'No figura')+' / '+(r.targetNumber??'No figura'));employee.scope='row';tr.append(employee,node('td',r.label));for(const side of ['before','after']){const td=node('td',r[side]?.amount??'No figura');if(r[side])td.append(node('small',r[side].unit));tr.append(td);}tr.append(node('td',r.delta??'No evaluable'),node('td',r.status));if(r.review&&r.ruleBefore&&r.ruleAfter){const details=node('details');details.append(node('summary','Ver reglas originales'),node('pre','Base:\n'+JSON.stringify(r.ruleBefore,null,2)+'\nComparada:\n'+JSON.stringify(r.ruleAfter,null,2)));tr.lastChild.append(details);}return tr;}));controls();
+  $('caption').textContent=$('view').value==='concepts'?'Conceptos de las dos corridas completas':'Totales originales de cada legajo';$('summary').textContent=countWords(v.filtered,'fila','filas')+' de pantalla · '+v.total+' en el detalle completo · '+v.changed+' con variación o ausencia · '+v.review+' para revisar.';$('page').textContent='Página '+v.page+' de '+v.pages;$('empty').hidden=v.filtered!==0;
+  $('rows').replaceChildren(...v.rows.map(r=>{const tr=node('tr');tr.dataset.ocLegajo=r.targetNumber??r.baseNumber;const employee=node('th',(r.baseNumber??'No figura')+' / '+(r.targetNumber??'No figura'));employee.scope='row';tr.append(employee,node('td',r.label));for(const side of ['before','after']){const td=node('td',r[side]?reportExactShown(r[side].amount):'No figura');if(r[side])td.append(node('small',ownComparisonUnit(r[side].unit)));tr.append(td);}tr.append(node('td',r.delta===null||r.delta===undefined?'No evaluable':reportExactShown(r.delta)),node('td',r.status));if(r.review&&r.ruleBefore&&r.ruleAfter){const details=node('details');details.append(node('summary','Ver reglas originales'),node('pre','Base:\n'+JSON.stringify(r.ruleBefore,null,2)+'\nComparada:\n'+JSON.stringify(r.ruleAfter,null,2)));tr.lastChild.append(details);}return tr;}));controls();
  }
  $('refresh').addEventListener('click',()=>perform(async valid=>{clearResult();clearCatalog();await session();valid();catalog=ownLiquidationBootstrap((await request(endpoint+'?resource=bootstrap')).data);valid();for(const r of catalog.runs)$('base').append(option(r));$('query').hidden=false;status(catalog.runs.some(r=>r.canConsult)?'Elegí dos cálculos del mismo tipo. Consultar y comparar no genera una nueva liquidación.':'No hay resultados calculados consultables para esta cuenta. Las opciones de otra persona requieren los permisos de revisión existentes.');}));
  $('base').addEventListener('change',()=>{cancel();clearResult();targets();controls();});$('target').addEventListener('change',()=>{cancel();clearResult();controls();});

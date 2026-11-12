@@ -96,9 +96,12 @@ export function sourceCostChart(cost) {
 
 export function ownPayrollCharts(summary) {
  if (!summary || !summary.participations) return [];
+ // Una línea necesita dos meses cerrados seguidos: un mes sin cierre corta el trazo (no es cero y no se une). Sin ningún
+ // tramo que dibujar quedarían puntos sueltos que casi no se ven; en ese caso van barras, que tampoco inventan el hueco.
+ const drawsSegment = summary.months.some((r, i) => i > 0 && r.gross !== null && summary.months[i - 1].gross !== null);
  return [{key: 'own-payroll-months', title: 'Liquidaciones cerradas por mes',
   subtitle: 'Mismo alcance del informe. Suma los tipos elegidos; sin cierre no equivale a cero. Importes en pesos.',
-  kind: 'line', unit: 'money', labels: summary.months.map(r => r.period), context: summary.months.map(r => r.coverage),
+  kind: drawsSegment ? 'line' : 'bar', unit: 'money', labels: summary.months.map(r => r.period), context: summary.months.map(r => r.coverage),
   series: [{name: 'Bruto', values: summary.months.map(r => r.gross)}, {name: 'Retenciones', values: summary.months.map(r => r.deduction)}, {name: 'Neto', values: summary.months.map(r => r.net)}]},
  {key: 'own-payroll-cost', title: 'Costo salarial por repartición',
   subtitle: 'Bruto más contribuciones patronales del alcance cerrado. Repartición conservada en cada cálculo; incluye correcciones negativas.',

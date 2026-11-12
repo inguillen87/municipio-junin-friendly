@@ -37,7 +37,7 @@ export function ownJurisdictionMapForCapture(capture){
 }
 export function ownClosedJurisdiction(employee,snapshotVersion){
  if(snapshotVersion==='own-close-snapshot.v1'){need(!Object.hasOwn(employee,'jurisdiction'),'El cierre original v1 no conserva una jurisdicción.');return {code:null,basis:'not_captured',sourceSha256:null};}
- need(['own-close-snapshot.v2','own-close-snapshot.v3'].includes(snapshotVersion),'No se verificó la versión del cierre.');return ownJurisdictionRecord(employee.jurisdiction);
+ need(['own-close-snapshot.v2','own-close-snapshot.v3','own-close-snapshot.v4','own-close-snapshot.v5'].includes(snapshotVersion),'No se verificó la versión del cierre.');return ownJurisdictionRecord(employee.jurisdiction);
 }
 export function ownJurisdictionLabel(value){ownJurisdictionRecord(value);return value.basis==='not_captured'?OWN_JURISDICTIONS.not_captured:value.code??OWN_JURISDICTIONS.not_reported;}
 export function ownJurisdictionSelect(items,choice='all'){

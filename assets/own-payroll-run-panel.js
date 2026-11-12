@@ -1,14 +1,16 @@
 import {ownRunBootstrap,ownRunCommand,OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollResponse} from './own-payroll-response.js';
+import {fetchOwnLiquidationDetail} from './own-payroll-liquidation-read.js';
 import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
 import {nativeRoster,nativeRosterScope} from './native-roster-model.js';
 import {mountPositionCapture} from './position-capture-panel.js';
-import {salaryUuid} from './native-salary-catalog-model.js';
+import {salaryUuid,SALARY_UNITS} from './native-salary-catalog-model.js';
 import {verifiedOwnLiquidationDetail,verifiedOwnLiquidationReceipt,ownLiquidationIndividual,ownLiquidationNextPreparation} from './own-payroll-liquidation-model.js';
 import {verifiedOwnAnnulReceipt,verifiedOwnAnnulDetail,ownAnnulNextPreparation} from './own-payroll-annulment-model.js';
 import {mountOwnPayrollIndividual} from './own-payroll-individual-panel.js';
-import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunEventCapabilities,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
+import {ownRunResult,verifiedRunCapture,ownRunRows,ownRunCsv,ownRunOfficialSummary,ownRunOfficialText} from './own-payroll-run-reader.js';
 
 import {ownRunDate,ownRunDateLabel,ownRunPeriodEnd} from './own-payroll-run-date.js';
 import {ownRunDepartmentsForAll,ownRunUnsectoredText} from './own-run-departments.js';
@@ -16,6 +18,7 @@ import {ownRunScopeAgreements,ownRunProgramCoverage,ownRunUnsectoredInAgreements
 import {OWN_RUN_COMMAND_VERSION} from './own-payroll-run-model.js';
 import {ownRunSourceReview,ownSourceReviewRows,ownSourceReviewCsv,OWN_SOURCE_ISSUES} from './own-payroll-source-review.js';
 import {OWN_PAYROLL_READINESS_FILTERS,OWN_PAYROLL_READINESS_ROSTER_URL,ownPayrollReadiness,ownPayrollReadinessUnavailable,ownPayrollReadinessAllowsNew,ownPayrollReadinessAllowsPreparation,ownPayrollReadinessUnchanged} from './own-payroll-readiness-model.js';
+import {countWords} from './count-words.js';
 const endpoint='/api/internal-own-payroll-run';
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const labelDate=value=>new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
@@ -30,6 +33,14 @@ const errors={
   OWN_RUN_SOURCE_VALUE_MISSING:'Falta un valor requerido en las novedades capturadas. Revisá importe y unidades; un dato ausente no se tomó como cero.',
   OWN_RUN_SELECTION_INVALID:'No se calculó: algún legajo elegido no está vigente en ese mes o le faltan datos del período (encuadre, antigüedad, jornada). Revisalos en «Datos del período» o elegí otro mes.',
   OWN_RUN_LIMIT:'El conjunto completo supera la capacidad. No se omitieron ni dividieron filas.',
+  OWN_RUN_SINGLE_AGREEMENT_REQUIRED:'Con las reglas vigentes se calcula un convenio por vez. Elegí el alcance «Convenios», marcá uno solo y volvé a calcular. No se creó ningún cálculo.',
+  OWN_RUN_OFFICIAL_POLICY_REQUIRED:'Las reglas aprobadas no definen los totales del recibo para ese convenio, mes y tipo de liquidación. Completalo en Reglas de cálculo. No se creó ningún cálculo.',
+  OWN_RUN_OFFICIAL_NOT_INSTALLED:'El cálculo con totales oficiales todavía no está instalado. Avisá a sistemas. No se creó ningún cálculo.',
+  OWN_RUN_OFFICIAL_NONPOSITIVE_NET_REVIEW_REQUIRED:'A algún legajo el neto le queda en cero o negativo. No se guardó el resultado: revisá sus descuentos y novedades y volvé a calcular.',
+  OWN_RUN_FAMILY_APPROVAL_REQUIRED:'Falta aprobar la declaración familiar de algún legajo para este mes. Un dato sin informar no se toma como cero. Aprobala y volvé a calcular.',
+  OWN_RUN_FAMILY_TARIFF_FACT_SOURCE_REQUIRED:'Falta aprobar la declaración familiar de algún legajo para este mes. Un dato sin informar no se toma como cero. Aprobala y volvé a calcular.',
+  OWN_RUN_FAMILY_TARIFF_FACT_MISSING:'A algún legajo le falta la región o el promedio semestral en su declaración familiar. Completala y volvé a calcular; no se supuso un valor.',
+  OWN_RUN_FORCED_RULE_REQUIRED:'Hay una novedad con importe forzado y las reglas no dicen cómo aplicarla. No se calculó y el importe forzado no se descartó: completá la regla en Reglas de cálculo.',
   OWN_RUN_PAY_RULE_MISSING:'El programa de liquidación no tiene reglas de haberes vigentes para algún convenio del alcance en este período. Reintentar no lo resuelve: completá el programa en Reglas de cálculo o elegí sólo convenios cubiertos, y prepará otro cálculo.',
   OWN_RUN_RULE_MISSING:'Una regla del programa usa otro concepto que no está vigente para ese convenio y tipo. Revisá el programa en Reglas de cálculo y prepará otro cálculo.',
   OWN_RUN_RULE_OVERLAP:'El programa tiene reglas superpuestas para el mismo convenio, concepto y tipo. Corregilo en Reglas de cálculo y prepará otro cálculo.',
@@ -68,7 +79,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Incidencias completas de las novedades capturadas"><table><caption>Incidencias por registro · búsqueda y página no limitan la descarga</caption><thead><tr><th>Legajo</th><th>Convenio</th><th>Concepto</th><th>Origen y fila</th><th>Estado</th><th>Acción sugerida</th></tr></thead><tbody data-own-source-rows></tbody></table></div>
     <nav class="own-run-actions" aria-label="Páginas de incidencias"><button class="button" type="button" data-own-source-prev>Anterior</button><span data-own-source-page></span><button class="button" type="button" data-own-source-next>Siguiente</button></nav>
   </section>
-  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p></div><button class="button" type="button" data-own-download disabled>Descargar CSV completo</button></header>
+  <section data-own-result hidden aria-labelledby="ownRunResultTitle"><header class="own-run-head"><div><h3 id="ownRunResultTitle" tabindex="-1">2 · Resultado calculado</h3><p data-own-result-summary></p><p data-own-result-official class="own-run-official" hidden></p></div><button class="button" type="button" data-own-download disabled>Descargar CSV completo</button></header>
     <p class="own-run-notice">Resultado calculado. Consultá el resumen individual para ver el estado de cada legajo.</p>
     <button class="button primary" type="button" data-own-review disabled>Revisar liquidación</button>
     <div class="own-run-scroll" tabindex="0" role="region" aria-label="Totales por legajo, tabla desplazable"><table><caption>Totales por legajo de la corrida guardada</caption><thead><tr><th>Legajo</th><th>Bruto</th><th>Retenciones</th><th>Neto calculado</th><th>Aportes patronales</th><th>Resumen</th></tr></thead><tbody data-own-totals></tbody></table></div><section data-own-individual hidden></section>
@@ -218,7 +229,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;departmentPlan=null;programDefinition=null;programData=null;rosterRows=null;computeBlocked=null;coverageMemo=null;
     invalidateReadiness();
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
-    $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
+    $('result-summary').textContent='';$('result-official').textContent='';$('result-official').hidden=true;$('range').textContent='';$('page').textContent='';$('search').value='';$('date').value='';$('confirm').checked=false;
   }
   const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
@@ -234,6 +245,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     let payload;try{payload=await readOwnPayrollResponse(response,{maxBytes:full?OWN_RUN_FULL_MAX_BYTES:OWN_RUN_MAX_RESPONSE,signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error(e.message||'La respuesta no pudo verificarse. Consultá el mismo intento.');}
     if(!response.ok||payload?.ok!==true){const error=Error(errors[payload?.code]??(response.status===401?'La sesión venció. Volvé a ingresar.':response.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=response.status;error.code=payload?.code;throw error;}
     return payload;
+  }
+  // Detalle de una liquidación guardada. Si no entra en el JSON común, la lectura compartida lo pide completo.
+  async function requestLiquidationDetail(id){
+    if(!live())throw Object.assign(Error('Pantalla no visible.'),{name:'AbortError'});
+    let read;try{read=await fetchOwnLiquidationDetail(id,{signal:controller?.signal});}catch(e){if(e.name==='AbortError')throw e;throw Error(e.message||'La respuesta no pudo verificarse. Consultá el mismo intento.');}
+    if(!read.ok||read.payload?.ok!==true){const error=Error(errors[read.payload?.code]??(read.status===401?'La sesión venció. Volvé a ingresar.':read.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=read.status;error.code=read.payload?.code;throw error;}
+    return read.payload;
   }
   async function session(required){
     const version=seq,payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
@@ -268,12 +286,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   function renderHistory(){
     $('history').replaceChildren();
     if(!boot?.runs.length){$('history').append(node('p','No hay cálculos propios guardados para esta cuenta.'));return;}
-    for(const r of boot.runs){const row=node('article'),description=node('div'),button=node('button','Consultar '+r.period+' · '+OWN_RUN_TYPES[r.liquidationType]);description.append(node('p',r.state==='calculated'?'Resultado calculado · consultar decisiones':'Cálculo sin terminar: se preparó y no llegó a calcular'),node('p',({all:'Todos los legajos propios',contracts:r.selectionValueCount+' legajos seleccionados',departments:r.selectionValueCount+' reparticiones',agreements:r.selectionValueCount+' convenios'})[r.selectionKind]+' · '+labelDate(r.createdAt)));button.type='button';button.className='button';button.dataset.ownOpen=r.key;button.addEventListener('click',()=>recover(r.key));description.append(node('p',ownRunDateLabel(r.liquidationDate)));row.append(description,button);$('history').append(row);}
+    for(const r of boot.runs){const row=node('article'),description=node('div'),button=node('button','Consultar '+r.period+' · '+OWN_RUN_TYPES[r.liquidationType]);description.append(node('p',r.state==='calculated'?'Resultado calculado · consultar decisiones':'Cálculo sin terminar: se preparó y no llegó a calcular'),node('p',({all:'Todos los legajos propios',contracts:countWords(r.selectionValueCount,'legajo seleccionado','legajos seleccionados'),departments:countWords(r.selectionValueCount,'repartición','reparticiones'),agreements:countWords(r.selectionValueCount,'convenio','convenios')})[r.selectionKind]+' · '+labelDate(r.createdAt)));button.type='button';button.className='button';button.dataset.ownOpen=r.key;button.addEventListener('click',()=>recover(r.key));description.append(node('p',ownRunDateLabel(r.liquidationDate)));row.append(description,button);$('history').append(row);}
   }
   function renderRows(){
-    if(!current?.saved)return;const view=ownRunWorkspaceRows(current,$('search').value,page);page=view.page;
-    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+r.unit),r.ruleReference])tr.append(node('td',text));return tr;}));
-    $('range').textContent=view.filtered+' conceptos de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
+    if(!current?.saved)return;const view=ownRunRows(current,$('search').value,page);page=view.page;
+    $('rows').replaceChildren(...view.rows.map(r=>{const tr=node('tr');for(const text of [r.employeeNumber,r.conceptCode,OWN_RUN_NATURES[r.nature],formatOwnRunDecimal(r.amount,r.unit==='money')+(r.unit==='money'?'':' · '+(SALARY_UNITS[r.unit]??r.unit).toLowerCase()),r.ruleReference])tr.append(node('td',text));return tr;}));
+    $('range').textContent=countWords(view.filtered,'concepto','conceptos')+' de la búsqueda · '+view.total+' en el resultado completo. La descarga incluye todos.';
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }
   function showCapture(value){
@@ -289,9 +307,10 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(c&&c.missing.length){computeBlocked=computeBlocked??'coverage';status('Captura sin resultado: el programa no cubre todo su alcance, así que reintentarla no la completa. '+ownRunCoverageText(c)+' Cuando el programa esté completo, prepará otro cálculo.','warning');}
       else status('Captura recuperada. Reintentá el mismo cálculo para completar su resultado.','warning');
       controls();return;}
-    const {input,result,people}=ownRunWorkspaceResult(value);$('result').hidden=false;
+    const {input,result,people}=ownRunResult(value);$('result').hidden=false;
     knownSavedKey=value.key;individual.clear();
-    $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+result.employeeCount+' legajos · '+result.rowCount+' conceptos · guardado '+labelDate(value.saved.recordedAt);
+    $('result-summary').textContent=result.period+' · '+OWN_RUN_TYPES[result.liquidationType]+' · '+ownRunDateLabel(value.body.liquidationDate)+' · '+countWords(result.employeeCount,'legajo','legajos')+' · '+countWords(result.rowCount,'concepto','conceptos')+' · guardado '+labelDate(value.saved.recordedAt);
+    const official=ownRunOfficialText(ownRunOfficialSummary(value));$('result-official').textContent=official;$('result-official').hidden=!official;
     $('totals').replaceChildren(...result.employeeTotals.map(t=>{const tr=node('tr');for(const text of [people.get(t.contractId).employeeNumber,...['gross','deduction','net','employer_contribution'].map(k=>formatOwnRunDecimal(t[k]))])tr.append(node('td',text));const cell=node('td'),button=node('button','Ver resumen');button.type='button';button.className='button';button.dataset.ownIndividualOpen=t.contractId;button.setAttribute('aria-label','Ver resumen del legajo '+people.get(t.contractId).employeeNumber);button.addEventListener('click',()=>openIndividual(t.contractId,button));cell.append(button);tr.append(cell);return tr;}));
     import('./own-run-charts.js').then(m=>{if(current===value)m.drawRunCharts($('result'),result);}).catch(()=>{});
     $('trace').replaceChildren();for(const [name,version]of Object.entries(input.sourceVersions))$('trace').append(node('dt',({population:'Padrón y encuadre',rules:'Programa y definiciones',novelties:'Novedades aprobadas'})[name]),node('dd',version));
@@ -380,7 +399,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   function openIndividual(contractId,trigger){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;individual.clear();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
-    const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(original.id))).data);
+    const detail=await verifiedOwnLiquidationDetail((await requestLiquidationDetail(original.id)).data);
     if(!valid())return;if(detail.id!==original.id||detail.capture.saved.resultSha256!==original.saved.resultSha256)throw Error('Cambió el resultado consultado. Actualizá esta corrida.');
     individual.show(ownLiquidationIndividual(detail,contractId),trigger);
   });}
@@ -395,7 +414,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       if(!valid())return;if(receipt.key!==context.key)throw Error('El comprobante pertenece a otro intento.');preparation=ownAnnulNextPreparation(detail,receipt,context.liquidationDate);
     }else{
       const receipt=await verifiedOwnLiquidationReceipt((await request('/api/internal-own-payroll-liquidation?resource=attempt&key='+encodeURIComponent(context.key))).data);
-      const detail=await verifiedOwnLiquidationDetail((await request('/api/internal-own-payroll-liquidation?resource=detail&id='+encodeURIComponent(context.runId))).data);
+      const detail=await verifiedOwnLiquidationDetail((await requestLiquidationDetail(context.runId)).data);
       if(!valid())return;preparation=ownLiquidationNextPreparation(detail,receipt);
       if(preparation.runId!==context.runId||preparation.receiptKey!==context.key)throw Error('El comprobante no corresponde a la anulación elegida.');
     }
@@ -404,12 +423,12 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     $('date').value=preparation.liquidationDate??'';$('period').value=preparation.period;$('type').value=preparation.liquidationType;$('kind').value=preparation.selection.kind;
     chosen=preparation.selection.kind==='contracts'?preparation.affected.map(e=>({contractId:e.contractId,legajo:e.employeeNumber,nombre:null,recordOrigin:'MUNICONTROL'})):[];
     renderKind();for(const option of $('codes').options)option.selected=preparation.selection.values.includes(option.value);
-    $('confirm').checked=false;status('Se prepararon los '+preparation.affected.length+' legajos exactos de la anulación. Revisá el período, la fecha, el tipo y el alcance antes de calcular. El próximo cálculo volverá a consultar el programa y las novedades aprobadas; todavía no se guardó otro resultado.');
+    $('confirm').checked=false;status((preparation.affected.length===1?'Se preparó el legajo exacto':'Se prepararon los '+preparation.affected.length+' legajos exactos')+' de la anulación. Revisá el período, la fecha, el tipo y el alcance antes de calcular. El próximo cálculo volverá a consultar el programa y las novedades aprobadas; todavía no se guardó otro resultado.');
   }
   async function recover(key=attempt?.key){if(!key||attempt&&!current?.saved&&key!==attempt.key)return;return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);
     if(!valid())return;
-    try{const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(key))).data,attempt?.key===key?attempt:null);if(valid())showCapture(value);}
+    try{const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(key))).data,attempt?.key===key?attempt:null);if(valid())showCapture(value);}
     catch(error){if(valid()&&error.status===404&&attempt?.key===key)notFound=true;throw error;}
   });}
   async function send(){if(!canPrepare()||!attempt&&!canStart()||busy||current?.saved)return;return perform(async valid=>{
@@ -435,7 +454,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     catch(error){
       if(error.status!==422||!valid()||!can(OWN_RUN_NOMINAL))throw error;
       const rejected=attempt;let registered=null,missing=false;
-      try{registered=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(rejected.key))).data,rejected);}
+      try{registered=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(rejected.key))).data,rejected);}
       catch(check){if(check.status===404)missing=true;else if(check.name==='AbortError')throw check;}
       if(!valid())return;
       if(registered){if(!registered.saved&&/^OWN_RUN_(PAY_RULE_MISSING|RULE_MISSING|RULE_OVERLAP|RULE_CYCLE)$/.test(error.code??''))computeBlocked=error.code;showCapture(registered);if(computeBlocked===error.code){status(error.message+' La captura quedó registrada sin resultado.','warning');controls();}return;}
@@ -444,15 +463,15 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones; su repartición la indica RR. HH. con la documentación del mes.':'';
       throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
     }
-    const value=await verifiedWorkspaceCapture(response.data,attempt);
+    const value=await verifiedRunCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
   async function download(){if(!current?.saved||!can(OWN_RUN_NOMINAL))return;const original=current;return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);
     if(!valid())return;
-    const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
+    const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
     if(!valid()||!value.saved)return;
-    const blob=new Blob([ownRunWorkspaceCsv(value)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');
+    const blob=new Blob([ownRunCsv(value)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');
     a.href=url;a.download='calculo-propio-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
     status('Se descargó el detalle completo del cálculo guardado. La búsqueda y la página no lo recortaron.','success');
   });}
@@ -464,7 +483,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   async function reviewSources(downloadCsv=false){if(!current||!can(OWN_RUN_NOMINAL)||downloadCsv&&!sourceReview)return;const original=current;clearSourceReview();return perform(async valid=>{
     await session(OWN_RUN_NOMINAL);if(!valid())return;
-    const value=await verifiedWorkspaceCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
+    const value=await verifiedRunCapture((await request(endpoint+'?resource=attempt&key='+encodeURIComponent(original.key))).data,{key:original.key,body:original.body});
     const reviewed=await ownRunSourceReview(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
     if(downloadCsv){const csv=await ownSourceReviewCsv(value,{key:original.key,body:original.body});if(!valid()||current!==original)return;
       const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=node('a');a.href=url;a.download='incidencias-novedades-'+value.body.period+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);

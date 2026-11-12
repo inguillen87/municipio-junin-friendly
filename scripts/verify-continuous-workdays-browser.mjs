@@ -71,6 +71,7 @@ try {
  await value('Rows').getByRole('button',{name:'Ver jornada',exact:true}).first().click();const detail=page.locator('.wd-detail').first();
  assert.match(await detail.innerText(),/pausa 00:15:00/);assert.match(await detail.innerText(),/Tiempo extra.*15:00:00/);
  assert.match(await detail.innerText(),/Referencias/);await detail.locator('summary').click();
+ await detail.locator('details ol').waitFor({state:'visible'});/* la secuencia se despliega con animación: se lee cuando terminó de abrirse */
  assert.match(await detail.innerText(),/Captura histórica/);assert.match(await detail.innerText(),/Recepción/);
  checks.push('detail explains ordinary intervals, pauses and extra through stable event references');
 

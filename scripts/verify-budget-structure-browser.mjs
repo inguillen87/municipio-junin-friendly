@@ -10,7 +10,7 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='GET'){res.writeHead(405);return res.end()}
  if(name==='/api/internal-auth'){if(delay)await new Promise(r=>setTimeout(r,delay));res.writeHead(denied?403:200,{'content-type':'application/json','cache-control':'no-store'});return res.end(JSON.stringify(auth))}
  if(name==='/'){res.setHeader('content-type','text/html');return res.end('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/assets/budget-structure.css"><link rel="stylesheet" href="/assets/structure-task-entry.css"><body style="margin:16px;font-family:Arial">'+entry+'<main></main><script>window.MuniControlCapabilityGate={ready:Promise.resolve({tenantCapabilities:new Set(["workforce.structure.read","workforce.employee.read"])})}</script><script type="module">import {mountAuthorizedBudgetStructure} from "/assets/budget-structure-workbench.js";mountAuthorizedBudgetStructure(document.querySelector("main"))</script></body></html>')}
- const file=name.startsWith('/assets/vendor/pdf')?path.join(root,'node_modules/pdfjs-dist/build',path.basename(name)):path.resolve(root,'.'+name);
+ const file=name.startsWith('/assets/vendor/pdf')?path.join(root,'node_modules/pdfjs-dist/legacy/build',path.basename(name)):path.resolve(root,'.'+name);
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);return res.end()}
  res.setHeader('content-type',name.endsWith('.css')?'text/css':'application/javascript');res.end(fs.readFileSync(file));
 });

@@ -118,7 +118,7 @@ export async function verifyOwnPeriodParticipation(options) {
   const exitReceipt=await db.run('SELECT native_employment_lifecycle_review_v2('+j(qa.actors.checker)+','+j({contractId:exiting.contractId,proposalId:exitProposal.proposalId,scopeVersion:exitReview.scopeVersion,decision:'approve',reason:'Baja revisada independientemente y exclusivamente sintética QA'})+','+q(randomUUID())+'::uuid)',true);
   assert.equal(exitReceipt.status,'approved');
   const newParticipation=await api('participation',{query:query(exiting.contractId)});assert.notEqual(newParticipation.source.version,oldParticipation.source.version);assert.equal(newParticipation.source.fullPeriod,false);
-  const staleScope=await api('run');await api('run',{body:{...legacyBody,scopeVersion:staleScope.scopeVersion,programVersion:staleScope.programVersion},expected:409});
+  const staleScope=await api('run'),staleCapture=await api('run',{body:{...legacyBody,scopeVersion:staleScope.scopeVersion,programVersion:staleScope.programVersion},expected:409});assert.equal(staleCapture.code,'OWN_RUN_SOURCE_IDENTITY_CHANGED');
   await approve(await prepare(exiting,'1'));
   ok(true,'independently approved partial exit invalidates previous participation; fresh documentary review restores calculation without erasing employment history');
   const runBoot=await api('run'),body={...legacyBody,scopeVersion:runBoot.scopeVersion,programVersion:runBoot.programVersion},missingKey=randomUUID(),before=await db.run('SELECT to_jsonb(count(*)) FROM own_payroll_run_result');

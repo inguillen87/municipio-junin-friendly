@@ -1,5 +1,8 @@
+import { normalizePayrollExpression, payrollExpressionUnit, evaluatePayrollExpression } from './own-payroll-expression.js';
 import { decimal, rational, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
 import {ownPayrollConditions,conditionUnit,conditionValue} from './own-payroll-conditions.js';
+import {ownPayrollFamilyFacts} from './own-payroll-family-facts.js';
+import {ownPayrollFamilyTariffs,familyTariffInputFields,normalizeFamilyTariffCapture,createFamilyTariffInputResolver} from './own-payroll-family-tariffs.js';
 
 export const OWN_PAYROLL_INPUT_VERSION = 'own-payroll-input.v1';
 export const OWN_PAYROLL_RESULT_VERSION = 'own-payroll-result.v1';
@@ -29,33 +32,12 @@ function list(v, maximum, allowEmpty = false) {
 }
 function unique(values, error = 'DUPLICATE') { require(new Set(values).size === values.length, error, 'Hay una referencia repetida o ambigua.'); }
 function expression(node, depth = 0, counter = { nodes: 0 }, namespaced = false, typedConditions = false) {
-  require(depth <= OWN_PAYROLL_LIMITS.depth && ++counter.nodes <= OWN_PAYROLL_LIMITS.nodes, 'EXPRESSION_LIMIT', 'La regla supera el límite de profundidad u operaciones declaradas.');
-  require(node && typeof node === 'object' && Object.getOwnPropertyDescriptor(node, 'op')?.value, 'EXPRESSION_INVALID', 'La operación de la regla no es válida.');
-  const child = v => expression(v, depth + 1, counter, namespaced, typedConditions);
-  if (node.op === 'literal') { shape(node, ['op', 'unit', 'value']); require(units.has(node.unit), 'UNIT_INVALID', 'La unidad no está declarada.'); decimal(node.value); return { ...node }; }
-  if (node.op === 'input') { shape(node, ['op', 'unit', 'key']); require(units.has(node.unit) && key(node.key), 'INPUT_INVALID', 'La entrada necesita nombre y unidad explícitos.'); return { ...node }; }
-  if (node.op === 'match' && typedConditions) {
-    shape(node,['op','key','type','operator','value']);
-    require(key(node.key)&&conditionUnit(node.type)&&['eq','ne'].includes(node.operator)&&conditionValue(node.type,node.value),'EXPRESSION_INVALID','La condición necesita un código o booleano exacto y una igualdad explícita.');return {...node};
-  }
-  if (node.op === 'concept' || namespaced && node.op === 'auxiliary') { shape(node, ['op', 'code', 'stage']); require(code(node.code) && ['exact', 'rounded'].includes(node.stage), 'REFERENCE_INVALID', 'La referencia necesita concepto o auxiliar y etapa explícita, antes o después de redondear.'); return { ...node }; }
-  if (node.op === 'round') { shape(node, ['op', 'value', 'rounding']); return { op: node.op, value: child(node.value), rounding: roundingPolicy(node.rounding) }; }
-  if (node.op === 'convert') {
-    shape(node, ['op', 'value', 'unit', 'factor', 'conversionReference']);
-    require(units.has(node.unit) && reference(node.conversionReference), 'CONVERSION_REQUIRED', 'La conversión requiere unidad, factor exacto y respaldo explícitos.'); decimal(node.factor);
-    return { ...node, value: child(node.value) };
-  }
-  if (['add', 'subtract', 'multiply', 'divide', 'min', 'max', 'compare'].includes(node.op)) {
-    shape(node, node.op === 'compare' ? ['op', 'operator', 'left', 'right'] : ['op', 'left', 'right']);
-    if (node.op === 'compare') require(['lt', 'le', 'eq', 'ne', 'ge', 'gt'].includes(node.operator), 'EXPRESSION_INVALID', 'La comparación no está admitida.');
-    return { ...node, left: child(node.left), right: child(node.right) };
-  }
-  if (node.op === 'choose') { shape(node, ['op', 'condition', 'then', 'else']); return { op: node.op, condition: child(node.condition), then: child(node.then), else: child(node.else) }; }
-  require(false, 'OPERATION_UNSUPPORTED', 'La operación no está implementada; no se ejecuta texto o una rutina externa.');
+  return normalizePayrollExpression(node, { limits: OWN_PAYROLL_LIMITS, namespaced, typedConditions }, depth, counter);
 }
 export function normalizeOwnPayrollInput(input) {
-  const typedConditions=ownPayrollConditions(input);
-  shape(input, ['version', 'period', 'liquidationType', 'selection', 'sourceVersions', 'populationComplete', 'totalsPrecision', 'employees', 'rules',...(typedConditions?['salaryConditionsVersion']:[])]);
+  const conditions=ownPayrollConditions(input), familyFacts=ownPayrollFamilyFacts(input), typedConditions=conditions||familyFacts;
+  shape(input, ['version', 'period', 'liquidationType', 'selection', 'sourceVersions', 'populationComplete', 'totalsPrecision', 'employees', 'rules',...(conditions?['salaryConditionsVersion']:[]),...(familyFacts?['familyPayrollFactsVersion']:[]),...familyTariffInputFields(input)]);
+  require(!ownPayrollFamilyTariffs(input)||familyFacts,'FAMILY_TARIFF_FACT_SOURCE_REQUIRED','El productor usa exclusivamente la captura familiar propia versionada.');
   require(!typedConditions||input.version===OWN_PAYROLL_NAMESPACED_INPUT_VERSION,'CONTRACT_INVALID','Las condiciones propias requieren referencias separadas y su versión explícita.');
   require([OWN_PAYROLL_INPUT_VERSION, OWN_PAYROLL_NAMESPACED_INPUT_VERSION].includes(input.version) && month(input.period) && types.has(input.liquidationType) && input.populationComplete === true && Number.isInteger(input.totalsPrecision) && input.totalsPrecision >= 0 && input.totalsPrecision <= 8, 'SCOPE_INVALID', 'Declarar período, tipo, población completa y precisión de totales es obligatorio.');
   shape(input.sourceVersions, ['population', 'rules', 'novelties']); require(Object.values(input.sourceVersions).every(hash), 'SOURCE_VERSION_REQUIRED', 'Cada fuente necesita una versión exacta.');
@@ -71,7 +53,9 @@ export function normalizeOwnPayrollInput(input) {
     unique(inputs.map(i => i.key)); return { ...e, inputs };
   }).sort((a, b) => order(a.contractId, b.contractId)); unique(employees.map(e => e.contractId));
   const rules = normalizeOwnPayrollRules(input.rules, { namespaced: input.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION, typedConditions });
-  return { ...input, selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
+  const familyTariffCapture=ownPayrollFamilyTariffs(input)?normalizeFamilyTariffCapture(input.familyTariffCapture,employees,input.period,input.liquidationType):null;
+  if(familyTariffCapture)require(familyTariffCapture.policies.every(p=>p.version===input.familyTariffsVersion),'FAMILY_TARIFF_VERSION_MISMATCH','La captura debe conservar la versión de la política declarada.');
+  return { ...input,...(familyTariffCapture?{familyTariffCapture}:{}), selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
 }
 export function normalizeOwnPayrollRules(raw, { namespaced = false, typedConditions = false } = {}) {
   require(!typedConditions||namespaced,'CONTRACT_INVALID','Las condiciones propias requieren referencias separadas.');
@@ -97,21 +81,10 @@ function compileRules(rules, budget = { operations: 0 }, namespaced = false) {
     if (compiled.has(code)) return compiled.get(code);
     require(visiting.size < OWN_PAYROLL_LIMITS.dependencyDepth, 'DEPENDENCY_LIMIT', 'La cadena de dependencias supera la capacidad declarada; no se omiten conceptos.');
     visiting.add(code); const dependencies = new Set();
-    function unit(n) {
-      require(++budget.operations <= OWN_PAYROLL_LIMITS.operations, 'EXPRESSION_LIMIT', 'La revisión supera su capacidad de operaciones. No se omiten reglas.');
-      if (['literal', 'input'].includes(n.op)) return n.unit;
-      if (n.op === 'match') return 'boolean';
-      if (n.op === 'concept' || n.op === 'auxiliary') { const id = referenceIdentity(n, namespaced); dependencies.add(id); return compile(id).unit; }
-      if (n.op === 'round') { const result = unit(n.value); require(result !== 'boolean', 'UNIT_MISMATCH', 'No se redondea una condición.'); return result; }
-      if (n.op === 'convert') { require(unit(n.value) !== 'boolean', 'UNIT_MISMATCH', 'No se convierte una condición en un importe.'); return n.unit; }
-      if (n.op === 'choose') { require(unit(n.condition) === 'boolean', 'UNIT_MISMATCH', 'La condición debe ser una comparación.'); const a = unit(n.then), b = unit(n.else); require(a === b && a !== 'boolean', 'UNIT_MISMATCH', 'Ambas alternativas deben declarar la misma unidad numérica.'); return a; }
-      const a = unit(n.left), b = unit(n.right);
-      require(a !== 'boolean' && b !== 'boolean', 'UNIT_MISMATCH', 'Una condición no es un valor numérico.');
-      if (n.op === 'multiply') { require(a === 'coefficient' || b === 'coefficient', 'CONVERSION_REQUIRED', 'El producto requiere un coeficiente explícito; no se infiere una conversión.'); return a === 'coefficient' ? b : a; }
-      if (n.op === 'divide') { require(b === 'coefficient' || a === b, 'UNIT_MISMATCH', 'La división mezcla unidades incompatibles.'); return a === b ? 'coefficient' : a; }
-      require(a === b, 'UNIT_MISMATCH', 'La regla mezcla unidades incompatibles.'); return n.op === 'compare' ? 'boolean' : a;
-    }
-    const r = map.get(code), computedUnit = unit(r.expression);
+    const r = map.get(code), computedUnit = payrollExpressionUnit(r.expression, {
+      consume: () => require(++budget.operations <= OWN_PAYROLL_LIMITS.operations, 'EXPRESSION_LIMIT', 'La revisión supera su capacidad de operaciones. No se omiten reglas.'),
+      referenceUnit: n => { const id = referenceIdentity(n, namespaced); dependencies.add(id); return compile(id).unit; }
+    });
     require(computedUnit === r.unit, 'UNIT_MISMATCH', 'La unidad del resultado no coincide con la definición.');
     const result = { rule: r, unit: r.unit, dependencies: [...dependencies].sort() }; visiting.delete(code); compiled.set(code, result); return result;
   }
@@ -135,7 +108,7 @@ export function validateOwnPayrollRulePeriods(raw, { namespaced = false, typedCo
   }
   return rules;
 }
-export function calculateOwnPayroll(raw) {
+function calculateOwnPayrollInternal(raw, metrics = null) {
   const snapshot = normalizeOwnPayrollInput(raw), { period, liquidationType, selection } = snapshot;
   const namespaced = snapshot.version === OWN_PAYROLL_NAMESPACED_INPUT_VERSION;
   const selectField = { contracts: 'contractId', agreements: 'agreementCode', departments: 'departmentCode' }[selection.kind];
@@ -143,37 +116,31 @@ export function calculateOwnPayroll(raw) {
   require(selected.length > 0 && (selection.kind === 'all' || selection.values.every(v => selected.some(e => e[selectField] === v))), 'POPULATION_MISSING', 'No se pudo verificar la totalidad de la población elegida.');
   const activeRules = snapshot.rules.filter(r => r.validFrom <= period && (r.validUntil === null || r.validUntil >= period) && r.liquidationTypes.includes(liquidationType));
   const agreements = new Map(); for (const r of activeRules) { const group = agreements.get(r.agreementCode) ?? []; group.push(r); agreements.set(r.agreementCode, group); }
-  const compiled = new Map([...agreements].map(([code, group]) => [code, compileRules(group, { operations: 0 }, namespaced)]));
-  let operations = 0, resultBytes = 0; const rows = [], employeeTotals = [];
+  const compiled = new Map([...agreements].map(([code, group]) => {
+    const budget = { operations: 0 }, rules = compileRules(group, budget, namespaced);
+    if (metrics) metrics.compilation += budget.operations;
+    return [code, rules];
+  }));
+  let operations = 0, resultBytes = 0; const rows = [], employeeTotals = [],familyTariffDecisions=[];
   for (const employee of selected) {
     const rules = compiled.get(employee.agreementCode);
     require(rules && [...rules.values()].some(r => ['remuneration', 'non_remuneration'].includes(r.rule.nature)), 'PAY_RULE_MISSING', 'Faltan reglas de haberes vigentes para un contrato del conjunto.');
-    const values = new Map(), inputs = new Map(employee.inputs.map(i => [i.key, i]));
+    const consume=()=>require(++operations <= OWN_PAYROLL_LIMITS.operations, 'COMPUTATION_LIMIT', 'El cálculo completo supera la capacidad declarada; no se entrega un resultado parcial.');
+    const tariffResolver=ownPayrollFamilyTariffs(snapshot)?createFamilyTariffInputResolver(snapshot.familyTariffCapture,employee,consume):null;
+    const values = new Map(), inputs = tariffResolver?.inputs??new Map(employee.inputs.map(i => [i.key, i]));
     function concept(code) {
       if (values.has(code)) return values.get(code);
       const { rule, dependencies } = rules.get(code), trace = [];
-      function evaluate(n) {
-        require(++operations <= OWN_PAYROLL_LIMITS.operations, 'COMPUTATION_LIMIT', 'El cálculo completo supera la capacidad declarada; no se entrega un resultado parcial.');
-        let value;
-        if (n.op === 'literal') value = decimal(n.value);
-        else if (n.op === 'input') { const input = inputs.get(n.key); require(input && input.value !== null, 'INPUT_MISSING', 'Falta una entrada necesaria; no se supone cero.'); require(input.unit === n.unit, 'UNIT_MISMATCH', 'La entrada tiene otra unidad.'); value = decimal(input.value); }
-        else if(n.op==='match'){const input=inputs.get(n.key);require(input&&input.value!==null,'INPUT_MISSING','Falta la condición necesaria; no se supone no, sin título ni cero.');require(input.unit===n.type&&conditionValue(input.unit,input.value),'UNIT_MISMATCH','La condición tiene otro tipo.');value=n.operator==='eq'?input.value===n.value:input.value!==n.value;}
-        else if (n.op === 'concept' || n.op === 'auxiliary') { const referenced = concept(referenceIdentity(n, namespaced)); value = n.stage === 'exact' ? referenced.exact : referenced.value; }
-        else if (n.op === 'round') value = quantize(evaluate(n.value), n.rounding).value;
-        else if (n.op === 'convert') value = exactMultiply(evaluate(n.value), decimal(n.factor));
-        else if (n.op === 'choose') { const condition = evaluate(n.condition); value = evaluate(condition ? n.then : n.else); }
-        else {
-          const a = evaluate(n.left), b = evaluate(n.right), compare = exactCompare(a, b);
-          if (n.op === 'compare') value = ({ lt: compare < 0, le: compare <= 0, eq: compare === 0, ne: compare !== 0, ge: compare >= 0, gt: compare > 0 })[n.operator];
-          else value = ({ add: exactAdd, subtract: exactSubtract, multiply: exactMultiply, divide: exactDivide, min: (a, b) => exactCompare(a, b) <= 0 ? a : b, max: (a, b) => exactCompare(a, b) >= 0 ? a : b })[n.op](a, b);
-        }
-        const isReference = n.op === 'concept' || n.op === 'auxiliary';
-        trace.push({ operation: n.op, reference: n.op === 'input'||n.op==='match' ? n.key : isReference ? referenceIdentity(n, namespaced) : null, stage: isReference ? n.stage : null, result: typeof value === 'boolean' ? value : exactEvidence(value) }); return value;
-      }
+      const evaluate = expression => evaluatePayrollExpression(expression, {
+        consume,
+        inputs, reference: n => concept(referenceIdentity(n, namespaced)),
+        referenceName: n => referenceIdentity(n, namespaced), trace
+      });
       const exact = evaluate(rule.expression), rounded = quantize(exact, rule.rounding);
       const calculated = { value: rounded.value, exact, row: { contractId: employee.contractId, employeeNumber: employee.employeeNumber, agreementCode: employee.agreementCode, departmentCode: employee.departmentCode, conceptCode: rule.code, nature: rule.nature, unit: rule.unit, amount: rounded.amount, exactValue: exactEvidence(exact), rounding: { ...rule.rounding }, ruleReference: rule.ruleReference, dependencies, trace } }; values.set(code, calculated); return calculated;
     }
     for (const code of [...rules.keys()].sort()) concept(code);
+    if(tariffResolver)familyTariffDecisions.push(...tariffResolver.decisions());
     const totals = { remuneration: rational(0n), non_remuneration: rational(0n), deduction: rational(0n), employer_contribution: rational(0n) };
     for (const calculated of values.values()) {
       resultBytes += new TextEncoder().encode(JSON.stringify(calculated.row)).byteLength;
@@ -184,5 +151,18 @@ export function calculateOwnPayroll(raw) {
     employeeTotals.push({ contractId: employee.contractId, ...Object.fromEntries(Object.entries({ ...totals, gross, net }).map(([k, v]) => [k, quantize(v, { precision: snapshot.totalsPrecision, mode: 'exact' }).amount])) });
   }
   rows.sort((a, b) => order(a.contractId, b.contractId) || order(a.conceptCode, b.conceptCode) || (namespaced ? order(a.nature, b.nature) : 0));
-  return { version: namespaced ? OWN_PAYROLL_NAMESPACED_RESULT_VERSION : OWN_PAYROLL_RESULT_VERSION, period, liquidationType, selection: { kind: selection.kind, values: [...selection.values] }, sourceVersions: { ...snapshot.sourceVersions }, employeeCount: selected.length, rowCount: rows.length, rows, employeeTotals, payrollCalculated: true, payrollPosted: false, municipalApprovalVerified: false, paymentExecuted: false };
+  if (metrics) metrics.evaluation = operations;
+  const result={ version: namespaced ? OWN_PAYROLL_NAMESPACED_RESULT_VERSION : OWN_PAYROLL_RESULT_VERSION, period, liquidationType, selection: { kind: selection.kind, values: [...selection.values] }, sourceVersions: { ...snapshot.sourceVersions }, employeeCount: selected.length, rowCount: rows.length, rows, employeeTotals, payrollCalculated: true, payrollPosted: false, municipalApprovalVerified: false, paymentExecuted: false };
+  if(ownPayrollFamilyTariffs(snapshot)){Object.assign(result,{familyTariffsVersion:snapshot.familyTariffsVersion,familyTariffDecisionCount:familyTariffDecisions.length,familyTariffDecisions});require(new TextEncoder().encode(JSON.stringify(result)).byteLength<=32*1024*1024,'RESULT_LIMIT','La evidencia completa de tarifas excede el límite; no se entrega un subconjunto.');}
+  return result;
+}
+
+
+// The historical API keeps the same output; only the new pure quantity core
+// requests metering. Metrics never enter a stored V1/V2 input or result.
+export function calculateOwnPayroll(raw) { return calculateOwnPayrollInternal(raw); }
+export function calculateOwnPayrollMetered(raw) {
+  const metrics = { compilation: 0, evaluation: 0 };
+  const result = calculateOwnPayrollInternal(raw, metrics);
+  return { result, metrics };
 }

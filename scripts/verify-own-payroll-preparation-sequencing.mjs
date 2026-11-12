@@ -14,6 +14,7 @@ import {bootstrap,program,uid,hash} from '../tests/fixtures/own-payroll-program-
 import {roster} from '../tests/fixtures/native-roster-synthetic.js';
 import {catalog as classification} from '../tests/fixtures/native-employee-synthetic.js';
 import {CATALOG_VERSION} from '../assets/native-employment-catalog-model.js';
+import {busyRetrySql} from '../lib/busy-read-retry.js';
 
 const root=path.resolve(import.meta.dirname,'..');
 export const preparationProgramUrl='/api/internal-own-payroll-program?resource=bootstrap';
@@ -36,8 +37,8 @@ function json(res,status,payload){const bytes=Buffer.from(JSON.stringify(payload
 export async function verifyPreparationSequencing({output,browserMode='chromium'}){
  assert.ok(['chromium','chrome'].includes(browserMode));
  const destination=path.resolve(output);assert.ok(destination.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(destination),'Use a new verification result path');fs.mkdirSync(path.dirname(destination),{recursive:true});
- const fixture=preparationFixture(),capabilities=[...new Set([...OWN_RUN_PREPARE,'workforce.structure.read'])],programEntered=deferred(),programRelease=deferred();
- const requests=[],clientRequests=[],failures=[],errors=[],pending=new Set(),changed=new Set();let browser,server,origin,programActive=false,report,sequence=0,checks=0;
+ const fixture=preparationFixture(),capabilities=[...new Set([...OWN_RUN_PREPARE,'workforce.structure.read'])],programEntered=deferred(),programRelease=deferred(),programAnswered=deferred(),rosterCollided=deferred();
+ const requests=[],clientRequests=[],failures=[],errors=[],pending=new Set(),changed=new Set();let browser,server,origin,programActive=false,programDone=false,report,sequence=0,checks=0;
  const check=(value,label)=>{assert.ok(value,label);checks++;};
  const catalog={version:CATALOG_VERSION,scopeVersion:hash('a'),catalog:{items:classification.items.map((item,i)=>({...item,key:'fictional-'+i,agreementCode:item.agreementCode??null})),version:hash('d'),origin:'GRH',revision:0,publishedAt:null},permissions:{canPropose:true,canReview:true},proposals:[],historyTruncated:false};
  const csp="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'";
@@ -51,10 +52,17 @@ export async function verifyPreparationSequencing({output,browserMode='chromium'
    if(url.pathname==='/api/internal-auth'){json(res,200,{ok:true,authenticated:true,sessionVersion:2,user:{id:uid(30),email:'fictional-preparation@example.invalid'},access:{context:'tenant',tenant:{id:fixture.tenantId,roleKey:'QA'},tenantCapabilities:capabilities},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
    if(url.pathname==='/api/internal-own-payroll-run'&&event.resource==='bootstrap'){json(res,200,{ok:true,data:fixture.run});return;}
    if(url.pathname==='/api/internal-employment-catalog'&&event.resource==='bootstrap'){json(res,200,{ok:true,data:catalog});return;}
-   if(url.pathname==='/api/internal-own-payroll-program'&&event.resource==='bootstrap'){programActive=true;programEntered.resolve();await programRelease.promise;programActive=false;event.status=200;json(res,200,{ok:true,data:fixture.program});return;}
+   if(url.pathname==='/api/internal-own-payroll-program'&&event.resource==='bootstrap'){programActive=true;programEntered.resolve();await programRelease.promise;programActive=false;event.status=200;json(res,200,{ok:true,data:fixture.program});programDone=true;programAnswered.resolve();return;}
    if(url.pathname==='/api/internal-data'&&event.resource==='nativeroster'){
     assert.equal(url.pathname+url.search,OWN_PAYROLL_READINESS_ROSTER_URL,'Full canonical own roster query must remain unchanged');
-    event.status=programActive?503:200;json(res,event.status,programActive?{ok:false,code:'INTERNAL_DATA_UNAVAILABLE',retryable:true,error:'Contención ficticia: el bootstrap sigue pendiente'}:{ok:true,data:fixture.roster});return;
+    // The published handler reads the roster through busyRetrySql; the same wrapper answers here, over a fictional source that
+    // is busy until the programme read has been answered, whichever of the two reaches the server first. Its retry is gated
+    // on that answer, never on a timer.
+    event.busyAttempts=0;
+    const source=busyRetrySql({query:async()=>{if(!programDone){event.busyAttempts++;rosterCollided.resolve();throw Error('NATIVE_EMPLOYMENT_LIFECYCLE_BUSY');}event.readInBusyWindow=programActive;return fixture.roster;}},{sleep:()=>programAnswered.promise});
+    try{const data=await source.query('fictional complete own roster');event.status=200;json(res,200,{ok:true,data});}
+    catch{event.status=503;json(res,503,{ok:false,code:'INTERNAL_DATA_UNAVAILABLE',retryable:true,error:'Contención ficticia: el bootstrap sigue pendiente'});}
+    return;
    }
    errors.push('Unexpected API '+url.pathname);json(res,400,{ok:false,code:'QA_UNEXPECTED_READ'});return;
   }
@@ -71,13 +79,16 @@ export async function verifyPreparationSequencing({output,browserMode='chromium'
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{pending.add(request);const url=new URL(request.url());if(url.origin!==origin)errors.push('Non-loopback request');if(url.pathname.startsWith('/api/'))clientRequests.push({id:++sequence,path:url.pathname,resource:url.searchParams.get('resource')});notify();});page.on('requestfinished',request=>{pending.delete(request);notify();});page.on('requestfailed',request=>{pending.delete(request);failures.push({path:new URL(request.url()).pathname,error:request.failure()?.errorText});notify();});
   await page.goto(origin+'/qa.html');
   // The pending programme response is a controlled I/O gate, not a timer or a
-  // database lock. One renderer task boundary exposes Promise.all's second GET.
+  // database lock. One renderer task boundary exposes a roster GET asked together with it.
   await Promise.race([programEntered.promise,page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false').then(()=>{throw Error('Programme read was never reached');})]);
   await page.evaluate(()=>document.readyState);const rosterStartedWhileProgramPending=clientRequests.some(event=>event.path==='/api/internal-data'&&event.resource==='nativeroster');
-  programRelease.resolve();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');await drain();
+  // Since 06/11 Calcular asks for its four reads together and the server retries a read that meets a short lock. A roster GET
+  // asked with the programme still pending must therefore meet the fictional contention before the programme is released.
+  if(rosterStartedWhileProgramPending)await Promise.race([rosterCollided.promise,page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false').then(()=>{throw Error('Roster read never met the pending programme read');})]);
+  programRelease.resolve();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false');await drain();const rosterReads=requests.filter(event=>event.path==='/api/internal-data');
   report={synthetic:true,sqlExecuted:false,actualPanel:true,sourceSha256:createHash('sha256').update(fs.readFileSync(path.join(root,'assets/own-payroll-run-panel.js'))).digest('hex'),rosterStartedWhileProgramPending,requests,clientRequests,failures,errors};
-  check(!rosterStartedWhileProgramPending,'Roster GET must wait until the programme read resolves');
-  check(requests.filter(event=>event.path==='/api/internal-data').every(event=>!event.programActive&&event.status===200),'No readiness roster read enters the fictional busy window');
+  check(rosterReads.length===1&&(rosterReads[0].busyAttempts>0)===rosterStartedWhileProgramPending,'One roster GET: it waits for the programme read, or the server retry absorbs the fictional contention it meets');
+  check(rosterReads.every(event=>event.status===200&&event.readInBusyWindow===false),'No readiness roster data is read inside the fictional busy window, and none is answered 503');
   check(await page.locator('[data-own-readiness]').getAttribute('data-state')==='success'&&await page.locator('[data-own-fields]').evaluate(element=>!element.disabled),'Actual panel enables preparation after both canonical complete reads');
   check(requests.every(event=>event.method==='GET'),'Preparation performs zero POSTs or automatic calculations');
   check(requests.filter(event=>event.path==='/api/internal-auth').length>=2,'Panel reauthorizes after reading programme and roster');

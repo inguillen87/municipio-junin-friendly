@@ -1,4 +1,5 @@
 import {verifiedWorkspaceCapture} from './own-payroll-run-workspace-model.js';
+import {ownHistoricalOfficialInput} from './own-payroll-historical-result-model.js';
 import {ownProgramBootstrap,ownProgramDefinition} from './own-payroll-program-model.js';
 import {salaryExact,salaryHash,salaryUuid,salarySerialized} from './native-salary-catalog-model.js';
 import {ownPayrollEmployeeNumber} from './own-payroll-engine.js';
@@ -23,7 +24,9 @@ export const OWN_SOURCE_ISSUES=Object.freeze({
 // Inspect declared input references only. No expression, conversion, rate or
 // monetary result is evaluated; the existing calculation and its hash stay intact.
 export async function ownRunSourceReview(capture,attempt=null){
- await verifiedWorkspaceCapture(capture,attempt);
+ // Un resultado con total oficial lo verifica entero su propio lector, y la pantalla ya lo hizo antes de llegar acá. Esta revisión
+ // mira sólo las fuentes capturadas: comprueba el sobre de la captura sin ese resultado, igual que el servidor.
+ await verifiedWorkspaceCapture(ownHistoricalOfficialInput(capture?.saved?.input)?{...capture,saved:null}:capture,attempt);
  const p=capture.payload,{period,liquidationType}=p;ownProgramBootstrap(p.programState);
  const program=p.programState.program;
  need(program.revision>0&&program.salaryVersion===p.programState.salaryCatalog.version,'Falta verificar el programa aprobado contra el catálogo capturado.');

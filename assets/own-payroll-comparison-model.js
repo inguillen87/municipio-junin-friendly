@@ -1,5 +1,6 @@
-import {salarySerialized} from './native-salary-catalog-model.js';
-import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
+import {salarySerialized,SALARY_UNITS} from './native-salary-catalog-model.js';
+import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
+import {ownHistoricalRunResult,ownHistoricalNamespaced,verifiedHistoricalCapture} from './own-payroll-historical-result-model.js';
 import {decimal,exactSubtract,quantize} from './own-payroll-exact.js';
 import {ownLiquidationDetail,verifiedOwnLiquidationDetail} from './own-payroll-liquidation-model.js';
 
@@ -10,7 +11,7 @@ const difference=(a,b)=>quantize(exactSubtract(decimal(b),decimal(a)),{precision
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const sourceProof=c=>[c.id,c.key,c.bodySha256,c.algorithmSha256,c.payloadSha256,c.createdAt,c.saved.inputSha256,c.saved.resultSha256,c.saved.recordedAt];
-const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(input.version!=='own-payroll-input.v2'||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
+const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(!ownHistoricalNamespaced(input)||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
 
 function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAfter=null){
  const present=!!before&&!!after,compatible=present&&before.nature===after.nature&&before.unit===after.unit,reasons=[];
@@ -29,14 +30,14 @@ function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAft
 // A contract UUID, never a converted employee number, joins the two immutable
 // results. Missing participation/concept is not an amount of zero.
 export function ownComparison(base,target,details=null){
- const b=ownRunWorkspaceResult(base),t=ownRunWorkspaceResult(target);
+ const b=ownHistoricalRunResult(base),t=ownHistoricalRunResult(target);
  need(b&&t,'Elegí dos resultados calculados y completos. Una captura pendiente no se compara.');
  need(base.id!==target.id&&base.key!==target.key,'Elegí dos cálculos distintos.');
  need(b.input.liquidationType===t.input.liquidationType,'Las liquidaciones deben ser del mismo tipo.');
  if(details){need(Array.isArray(details)&&details.length===2,'Falta el ámbito autorizado de ambas liquidaciones.');for(const [i,d]of details.entries()){ownLiquidationDetail(d);need(salarySerialized(d.capture)===salarySerialized(i===0?base:target),'La consulta autorizada no corresponde a su cálculo.');}need(details[0].scopeVersion===details[1].scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');}
  else need(base.body.scopeVersion===target.body.scopeVersion,'Las corridas no corresponden al mismo ámbito autorizado.');
  for(const [capture,value]of [[base,b],[target,t]])need(value.input.period===capture.body.period&&value.input.liquidationType===capture.body.liquidationType&&salarySerialized(value.input.selection)===salarySerialized(capture.body.selection),'El resultado no corresponde al período, tipo y alcance de su captura.');
- const namespaced=[b.input.version,t.input.version].includes('own-payroll-input.v2'),rowKey=r=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
+ const namespaced=[b.input,t.input].some(ownHistoricalNamespaced),rowKey=r=>r.contractId+':'+(namespaced?(r.nature==='auxiliary'?'auxiliary:':'concept:'):'')+r.conceptCode;
  const people=new Set([...b.result.employeeTotals,...t.result.employeeTotals].map(e=>e.contractId)),before=new Map(b.result.rows.map(r=>[rowKey(r),r])),after=new Map(t.result.rows.map(r=>[rowKey(r),r])),keys=new Set([...before.keys(),...after.keys()]);
  need(keys.size<=OWN_COMPARISON_MAX_ROWS&&people.size*4<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
  const baseTotals=new Map(b.result.employeeTotals.map(e=>[e.contractId,e])),targetTotals=new Map(t.result.employeeTotals.map(e=>[e.contractId,e])),totals=[];
@@ -52,7 +53,7 @@ export function ownComparison(base,target,details=null){
  if(base.algorithmSha256!==target.algorithmSha256)warnings.push('Cambió la versión del algoritmo. Revisá las fuentes antes de interpretar diferencias.');
  return freeze({base:structuredClone(base),target:structuredClone(target),details:details?structuredClone(details):null,rows,totals,warnings,employees:people.size,proof:salarySerialized([sourceProof(base),sourceProof(target),details?.map(d=>[d.scopeVersion,d.stateVersion])??null])});
 }
-export async function verifiedOwnComparison(base,target){await verifiedWorkspaceCapture(base);await verifiedWorkspaceCapture(target);return ownComparison(base,target);}
+export async function verifiedOwnComparison(base,target){await verifiedHistoricalCapture(base);await verifiedHistoricalCapture(target);return ownComparison(base,target);}
 export async function verifiedOwnLiquidationComparison(base,target){await verifiedOwnLiquidationDetail(base);await verifiedOwnLiquidationDetail(target);return ownComparison(base.capture,target.capture,[base,target]);}
 
 export function ownComparisonView(model,{view='concepts',change='all',search='',page=1,pageSize=25}={}){
@@ -60,9 +61,12 @@ export function ownComparisonView(model,{view='concepts',change='all',search='',
  const all=view==='concepts'?model.rows:model.totals,term=search.trim().toLowerCase(),filtered=all.filter(r=>(change==='all'||change==='changed'&&(r.changed||r.review)||change==='review'&&r.review||change==='unchanged'&&!r.changed&&!r.review)&&(!term||[r.baseNumber,r.targetNumber,r.label].some(v=>v?.toLowerCase().includes(term)))),pages=Math.max(1,Math.ceil(filtered.length/pageSize)),current=Math.min(page,pages);
  return {rows:filtered.slice((current-1)*pageSize,current*pageSize),filtered:filtered.length,total:all.length,page:current,pages,changed:all.filter(r=>r.changed).length,review:all.filter(r=>r.review).length};
 }
-const definition=r=>r?((OWN_RUN_NATURES[r.nature]??r.nature)+' / '+r.unit):'No figura';
+// La unidad se muestra en palabras («Pesos», «Horas»), nunca con la clave interna («money»). Una unidad desconocida se
+// muestra tal cual llegó: no se oculta ni se reemplaza.
+export const ownComparisonUnit=unit=>SALARY_UNITS[unit]??unit;
+const definition=r=>r?((OWN_RUN_NATURES[r.nature]??r.nature)+' / '+ownComparisonUnit(r.unit)):'No figura';
 export function ownComparisonDocument(model,view='concepts'){
  need(['concepts','totals'].includes(view),'Elegí conceptos o totales por legajo.');
  const m=ownComparison(model.base,model.target,model.details),rows=view==='concepts'?m.rows:m.totals;
- return {layout:'own-payroll-comparison.v1',title:view==='concepts'?'Comparación propia por legajo y concepto':'Comparación propia de totales por legajo',columns:['Legajo base','Legajo comparada',view==='concepts'?'Concepto':'Total calculado','Naturaleza / unidad: base a comparada','Base exacta','Comparada exacta','Diferencia exacta','Estado / revisión'].map(label=>({label,type:'text',width:26})),rows:rows.map(r=>[r.baseNumber??'No figura',r.targetNumber??'No figura',r.label,definition(r.before)+' a '+definition(r.after),r.before?.amount??'No figura',r.after?.amount??'No figura',r.delta??'No evaluable',r.status]),totals:[],metadata:[['Diferencia','Comparada menos base'],['Tipo',OWN_RUN_TYPES[m.base.body.liquidationType]],['Período base',m.base.body.period],['Período comparada',m.target.body.period],['Cálculo base',m.base.id],['Cálculo comparada',m.target.id],['Captura base SHA-256',m.base.payloadSha256],['Captura comparada SHA-256',m.target.payloadSha256],['Entrada base SHA-256',m.base.saved.inputSha256],['Entrada comparada SHA-256',m.target.saved.inputSha256],['Resultado base SHA-256',m.base.saved.resultSha256],['Resultado comparada SHA-256',m.target.saved.resultSha256],['Algoritmo base SHA-256',m.base.algorithmSha256],['Algoritmo comparada SHA-256',m.target.algorithmSha256],['Registros del alcance completo',rows.length],['Contratos distintos',m.employees]],notes:[...m.warnings,'Identidad enlazada por contrato propio. Los números de legajo se conservan exactamente, incluso letras, símbolos y ceros iniciales.','Una naturaleza o unidad diferente impide restar. Una regla o encuadre cambiado requiere revisión aunque el importe sea igual.','Las descargas contienen toda la comparación de la vista elegida; la búsqueda, el estado y la página no recortan filas.','Los totales provienen de cada resultado original. Los auxiliares no se suman como haberes ni se recalculan fórmulas.'],filename:'municontrol_comparacion_propia_'+view+'_'+m.base.body.period+'_'+m.target.body.period};
+ return {layout:'own-payroll-comparison.v1',title:view==='concepts'?'Comparación propia por legajo y concepto':'Comparación propia de totales por legajo',columns:['Legajo base','Legajo comparada',view==='concepts'?'Concepto':'Total calculado','Naturaleza / unidad: base a comparada','Base exacta','Comparada exacta','Diferencia exacta','Estado / revisión'].map(label=>({label,type:'text',width:26,...(/exacta$/.test(label)?{pdfExact:true}:{})})),rows:rows.map(r=>[r.baseNumber??'No figura',r.targetNumber??'No figura',r.label,definition(r.before)+' a '+definition(r.after),r.before?.amount??'No figura',r.after?.amount??'No figura',r.delta??'No evaluable',r.status]),totals:[],metadata:[['Diferencia','Comparada menos base'],['Tipo',OWN_RUN_TYPES[m.base.body.liquidationType]],['Período base',m.base.body.period],['Período comparada',m.target.body.period],['Cálculo base',m.base.id],['Cálculo comparada',m.target.id],['Captura base SHA-256',m.base.payloadSha256],['Captura comparada SHA-256',m.target.payloadSha256],['Entrada base SHA-256',m.base.saved.inputSha256],['Entrada comparada SHA-256',m.target.saved.inputSha256],['Resultado base SHA-256',m.base.saved.resultSha256],['Resultado comparada SHA-256',m.target.saved.resultSha256],['Algoritmo base SHA-256',m.base.algorithmSha256],['Algoritmo comparada SHA-256',m.target.algorithmSha256],['Registros del alcance completo',rows.length],['Contratos distintos',m.employees]],notes:[...m.warnings,'Identidad enlazada por contrato propio. Los números de legajo se conservan exactamente, incluso letras, símbolos y ceros iniciales.','Una naturaleza o unidad diferente impide restar. Una regla o encuadre cambiado requiere revisión aunque el importe sea igual.','Las descargas contienen toda la comparación de la vista elegida; la búsqueda, el estado y la página no recortan filas.','Los totales provienen de cada resultado original. Los auxiliares no se suman como haberes ni se recalculan fórmulas.'],filename:'municontrol_comparacion_propia_'+view+'_'+m.base.body.period+'_'+m.target.body.period};
 }
