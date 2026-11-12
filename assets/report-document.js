@@ -140,6 +140,15 @@ function statementCoverPage(d){
  text(left,H-31,'MuniControl | Documento de consulta sin firma, imputación ni pago',8);
  text(W-101,H-31,'Página 1',8);return ops;
 }
+const pdfTextWidth=(s,size,bold)=>{const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];let n=0;for(const character of String(s)){const point=character.codePointAt(0),code=point<=255?point:(chars[point]??63);n+=character===PDF_ARROW?PDF_ARROW_WIDTH:(metrics[code-32]??metrics[63-32]);}return n*size/1000;};
+// Encabezado de columna. Si todas sus palabras entran, se arma como siempre. Si una palabra no entra en su columna
+// («Participaciones», «Contribuciones»), se achica la letra de ese encabezado hasta que entra, en vez de partirla.
+export function reportPdfHeading(label,inner){
+ const max=Math.max(7,Math.floor(inner/4.5)),words=String(label).split(/\s+/);
+ if(words.every(word=>word.length<=max))return {parts:lines(label,max),size:8};
+ for(const size of [7.5,7,6.5,6])if(words.every(word=>pdfTextWidth(word,size,true)<=inner))return {parts:fitPdfCellLines([words.join(' ')],inner,size,true),size};
+ return {parts:lines(label,max),size:8};
+}
 export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y,pageHasData=false;
  const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
@@ -155,8 +164,8 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
   }
   y+=10;
   for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
-  const headings=d.columns.map((c,i)=>lines(c.label,Math.max(7,Math.floor((widths[i]-12)/4.5)))),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(p=>p.length*10+14)):32;
-  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach((parts,i)=>{parts.forEach((l,j)=>text(x+6,y+12+j*10,l,8,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
+  const headings=d.columns.map((c,i)=>reportPdfHeading(c.label,widths[i]-12)),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(h=>h.parts.length*10+14)):32;
+  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(x+6,y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
  if(d.payrollStatement)pages.push(statementCoverPage(d));head();
  d.rows.forEach((r,index)=>{
