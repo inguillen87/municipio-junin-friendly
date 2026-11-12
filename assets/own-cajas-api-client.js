@@ -3,8 +3,8 @@ import {ownReportQuery,verifiedOwnReportBundle,OWN_REPORT_MAX_BYTES} from './own
 import {verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_NOMINAL} from './own-payroll-close-model.js';
 import {ownRunWorkspaceAccess,hasOwnRunAccess} from './own-payroll-run-workspace-model.js';
 import {OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
-import {readOwnPayrollText} from './own-cajas-response.js';
-const CLOSE='/api/internal-own-payroll-close',AUTH='/api/internal-auth';
+import {OWN_RUN_FULL_JSON,OWN_RUN_FULL_MAX_BYTES,readOwnPayrollText} from './own-cajas-response.js';
+const CLOSE='/api/internal-own-payroll-close',AUTH='/api/internal-auth',CLOSE_LIMIT='OWN_CLOSE_LIMIT';
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 const fail=(code,message,status=null)=>{throw Object.assign(Error(message),{code,status});};
 const abort=()=>Object.assign(Error('Se retiró la lectura completa.'),{name:'AbortError',code:'CAJAS_RETIRED'});
@@ -32,25 +32,39 @@ export function createCajasApiClient({fetchImpl=globalThis.fetch}={}){
  let generation=0,accessKey=null,issued=new WeakMap();const controllers=new Set();
  const current=(stamp,signal)=>{if(stamp!==generation||signal?.aborted)throw abort();};
  function retire(){generation++;for(const controller of controllers)controller.abort();controllers.clear();accessKey=null;issued=new WeakMap();}
- async function request(target,params,budget,stamp,signal,maxBytes){
+ // Cada lectura va primero en JSON común. Sólo si el servidor responde que ese cierre completo no entra en la capacidad
+ // común (422 OWN_CLOSE_LIMIT) se repite la misma consulta en modo completo (`full`), que exige su tipo de contenido y
+ // los bytes anunciados. Los bytes de la respuesta común rechazada también cuentan en el presupuesto.
+ async function request(target,params,budget,stamp,signal,maxBytes,full=false){
   current(stamp,signal);
   const url=target+(params?'?'+new URLSearchParams(params):'');
+  // El cierre que ya necesitó el modo completo en esta misma lectura se vuelve a pedir directo así (el segundo control).
+  full=full||budget.large?.has(url)===true;
   let response;
   try{response=await fetchImpl(url,{method:'GET',credentials:'same-origin',cache:'no-store',
-    headers:{Accept:'application/json'},signal});}
+    headers:{Accept:full?OWN_RUN_FULL_JSON:'application/json'},signal});}
   catch(error){current(stamp,signal);if(error.name==='AbortError')throw error;
    fail('CAJAS_READ_UNAVAILABLE','No se pudo completar la lectura. Reintentá el conjunto entero.');}
   current(stamp,signal);
-  const {text,bytes}=await readOwnPayrollText(response,{maxBytes,
+  const complete=full&&response.ok,announced=response.headers?.get('x-municontrol-json-bytes');
+  if(complete&&(response.headers?.get('content-type')?.split(';')[0].trim().toLowerCase()!==OWN_RUN_FULL_JSON
+   ||announced===null||announced===undefined)){
+   await response.body?.cancel?.().catch(()=>{});
+   fail('CAJAS_RESPONSE_INVALID','La respuesta completa no se pudo verificar. Reintentá la lectura.',response.status);
+  }
+  const {text,bytes}=await readOwnPayrollText(response,{maxBytes:complete?OWN_RUN_FULL_MAX_BYTES:maxBytes,
     remaining:OWN_REPORT_MAX_BYTES-budget.bytes,signal});
   budget.bytes+=bytes;current(stamp,signal);
-  const announced=response.headers?.get('x-municontrol-json-bytes');
   if(announced!==null&&announced!==undefined&&(!/^(0|[1-9][0-9]*)$/.test(announced)||Number(announced)!==bytes))
    fail('CAJAS_RESPONSE_BYTES_INVALID','La respuesta no conserva el tamaño anunciado. Reintentá la lectura completa.',response.status);
   let payload;
   try{payload=JSON.parse(text);}catch{fail('CAJAS_RESPONSE_INVALID','La respuesta completa no se pudo verificar. Reintentá la lectura.');}
   if(!response.ok||payload?.ok!==true){
    const status=response.status;
+   if(target===CLOSE&&status===422&&payload?.code===CLOSE_LIMIT){
+    if(!full){budget.large?.add(url);return request(target,params,budget,stamp,signal,maxBytes,true);}
+    fail('CAJAS_SOURCE_LIMIT','La fuente completa supera la capacidad de lectura. No se recortó.',status);
+   }
    fail(status===401?'CAJAS_SESSION_EXPIRED':status===403?'CAJAS_ACCESS_RETIRED':'CAJAS_READ_UNAVAILABLE',
     status===401?'La sesión venció. Volvé a ingresar.':status===403?'Cambió el acceso. Se retiró la revisión.':
      'No se reunió la fuente completa. Reintentá sin reducir el alcance.',status);
@@ -80,7 +94,7 @@ export function createCajasApiClient({fetchImpl=globalThis.fetch}={}){
    fail('CAJAS_HISTORY_INACTIVE',CAJAS_SOURCE_MODES[mode].notice);
   const query=ownReportQuery(value);
   if(query.from!==query.to)fail('CAJAS_SINGLE_PERIOD_REQUIRED','El Excel requiere un período declarado.');
-  const stamp=generation,budget={bytes:0},before=await session(budget,stamp,signal,expectedKey);
+  const stamp=generation,budget={bytes:0,large:new Set()},before=await session(budget,stamp,signal,expectedKey);
   const details=[],receipts=[];
   for(const type of query.types){
    const detail=await verifiedOwnCloseDetail(await closeRead(

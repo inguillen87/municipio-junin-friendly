@@ -42,6 +42,21 @@ test('quien ya sabe que no entra lo pide completo de entrada, con un solo pedido
  assert.equal(read.full,true);assert.deepEqual(read.payload,payload);assert.deepEqual(s.calls.map(c=>c.accept),[OWN_RUN_FULL_JSON]);
 });
 
+test('con memoria (`known`), lo que una vez necesitó el modo completo se pide directo así la vez siguiente',async()=>{
+ const payload={ok:true,data:{grande:true}},known=new Set(),s=server(limit(),complete(payload),complete(payload),common(200,{ok:true,data:{chico:true}}));
+ const first=await fetchOwnClose(detailParams,{fetch:s.fetch,known});
+ assert.equal(first.full,true);assert.deepEqual([...known],[ownCloseUrl(detailParams)]);
+ const second=await fetchOwnClose(detailParams,{fetch:s.fetch,known});
+ assert.deepEqual(second,{status:200,ok:true,payload,bytes:bytesOf(payload).length,full:true});
+ // Otra consulta no hereda la marca, y la que entra en JSON común no se anota.
+ const other=await fetchOwnClose({resource:'group',id:KEY},{fetch:s.fetch,known});
+ assert.equal(other.full,false);assert.equal(known.size,1);
+ assert.deepEqual(s.calls.map(c=>c.accept),['application/json',OWN_RUN_FULL_JSON,OWN_RUN_FULL_JSON,'application/json']);
+ // Un rechazo en modo completo no deja marca.
+ const fresh=new Set(),r=server(limit(),limit());const rejected=await fetchOwnClose(detailParams,{fetch:r.fetch,known:fresh});
+ assert.equal(rejected.ok,false);assert.equal(fresh.size,0);
+});
+
 test('cualquier otro rechazo se devuelve tal cual, sin un segundo pedido; un 413 con el código del tope tampoco se repite',async()=>{
  for(const [status,code]of [[404,'OWN_CLOSE_NOT_FOUND'],[409,'OWN_CLOSE_STATE_CHANGED'],[503,'OWN_CLOSE_CONTRACT_INVALID'],[413,OWN_CLOSE_LIMIT],[422,'OWN_CLOSE_INPUT_INVALID']]){
   const payload={ok:false,code,error:'Rechazo sintético'},s=server(common(status,payload)),read=await fetchOwnClose({resource:'attempt',key:KEY},{fetch:s.fetch});
@@ -128,4 +143,17 @@ test('las pantallas que leen o registran cierres usan la lectura compartida',()=
  assert.match(close,/request\(\{resource:'attempt',key:attempt\.key\},isLarge\(attempt\.body\.period,attempt\.body\.liquidationType\)\)/);
  assert.match(close,/if\(current&&!isLarge\(current\.period,current\.liquidationType\)\)\{const v=await verifiedOwnCloseDetail\(/,'un detalle grande no se vuelve a pedir entero cada minuto');
  assert.ok(read('../scripts/build-friendly.mjs').includes("'assets/own-payroll-close-read.js'"),'el módulo se publica');
+ // Informes, Planilla y Salida bancaria leen cierres por la misma lectura: ninguna pide sólo JSON común.
+ const report=read('own-payroll-report-panel.js');
+ assert.match(report,/import \{fetchOwnClose\} from '\.\/own-payroll-close-read\.js';/);assert.match(report,/fetchOwnClose\(params,\{signal:controller\?\.signal,remaining,known:largeCloses\}\)/,'Informes conserva su presupuesto de bytes');
+ assert.doesNotMatch(report,/internal-own-payroll-close/);
+ for(const name of ['own-payroll-receipt-planilla-panel.js','own-bank-output-panel.js']){
+  const panel=read(name);
+  assert.match(panel,/import \{fetchOwnClose\} from '\.\/own-payroll-close-read\.js';/,name);
+  assert.match(panel,/fetchOwnClose\(\{resource:'group',id\},\{signal:current\?\.signal,known:largeCloses\}\)/,name);
+  assert.doesNotMatch(panel,/internal-own-payroll-close|OWN_CLOSE_MAX_BYTES/,name);
+ }
+ // Cajas conserva su propio lector (presupuesto, retiro y códigos propios) y negocia el modo completo sólo ante el tope.
+ const cajas=read('own-cajas-api-client.js');
+ assert.match(cajas,/if\(target===CLOSE&&status===422&&payload\?\.code===CLOSE_LIMIT\)\{/);assert.match(cajas,/Accept:full\?OWN_RUN_FULL_JSON:'application\/json'/);
 });

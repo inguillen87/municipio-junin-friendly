@@ -167,3 +167,44 @@ test('shared256MiB budget rejects the crossing group before aggregate validation
  assert.ok(fake.state.bytes>total);assert.ok(fake.state.groupReads<80);
  assert.equal(fake.state.detailReads,1);assert.equal(fake.state.authReads,1);assert.equal(fake.state.cancelled,1);
 });
+
+// Un cierre que no entra en JSON común (422 OWN_CLOSE_LIMIT): Cajas repite esa misma consulta en modo completo. Para todo
+// lo demás sigue pidiendo sólo JSON común: el servidor sintético rechaza cualquier otra negociación.
+const FULL='application/vnd.municontrol.payroll-full.v1+json';
+for(const resource of ['detail','group']){
+ test('a '+resource+' beyond common capacity is read whole in full mode, counted on the wire, and its bookend goes straight to full',async()=>{
+  const fake=syntheticApi(),client=createCajasApiClient(fake);fake.state.large=({params})=>params.resource===resource;
+  const loaded=await client.load(fake.input.query);
+  assert.equal(loaded.completeBundleVerified,true);assert.equal(loaded.bundle.employees.length,4);
+  assert.equal(loaded.bytesRead,fake.state.bytes,'the rejected common response is part of the wire total');
+  // auth, detail, group, detail (bookend), group (bookend), auth: one extra request for the first oversized read only.
+  assert.deepEqual(fake.state.calls.map(call=>call.resource),resource==='detail'
+   ?['auth','detail','detail','group','detail','group','auth']:['auth','detail','group','group','detail','group','auth']);
+  assert.deepEqual(fake.state.accepts,resource==='detail'
+   ?['common','common','full','common','full','common','common']:['common','common','common','full','common','full','common']);
+  assert.ok(fake.state.responses.filter(r=>r.params.resource===resource).every(r=>Number(r.announced)===r.wireBytes));
+ });
+}
+test('full mode demands its own content type and an announced byte count',async()=>{
+ for(const damage of [state=>{state.fullContentType='application/json';},state=>{state.announcedJsonBytes=null;}]){
+  const fake=syntheticApi(),client=createCajasApiClient(fake);fake.state.large=({params})=>params.resource==='group';damage(fake.state);
+  // Sólo la respuesta en modo completo queda abierta: si el lector la esperara entera, esta prueba no terminaría.
+  fake.state.keepOpenFor=({params})=>params.resource==='group'&&fake.state.accepts.at(-1)==='full';
+  await assert.rejects(client.load(fake.input.query),error=>error.code==='CAJAS_RESPONSE_INVALID');
+  assert.equal(fake.state.calls.at(-1).resource,'group','nothing is read after the unverifiable response');
+  assert.ok(fake.state.cancelled>=1,'the unverified stream is cancelled, not parsed');
+ }
+});
+test('a close beyond full capacity too is reported as a capacity limit, never trimmed, and stops the read',async()=>{
+ const fake=syntheticApi(),client=createCajasApiClient(fake);fake.state.large=({params})=>params.resource==='detail';
+ fake.state.mutate=({params,state})=>params.resource==='detail'&&state.accepts.at(-1)==='full'
+  ?{status:422,payload:{ok:false,code:'OWN_CLOSE_LIMIT',error:'synthetic'}}:null;
+ await assert.rejects(client.load(fake.input.query),error=>error.code==='CAJAS_SOURCE_LIMIT'&&error.status===422&&/No se recortó/.test(error.message));
+ assert.deepEqual(fake.state.calls.map(call=>call.resource),['auth','detail','detail']);
+});
+test('any other 422 is not renegotiated',async()=>{
+ const fake=syntheticApi(),client=createCajasApiClient(fake);
+ fake.state.mutate=({params})=>params.resource==='detail'?{status:422,payload:{ok:false,code:'OWN_CLOSE_INPUT_INVALID',error:'synthetic'}}:null;
+ await assert.rejects(client.load(fake.input.query),error=>error.code==='CAJAS_READ_UNAVAILABLE'&&error.status===422);
+ assert.deepEqual(fake.state.accepts,['common','common']);
+});

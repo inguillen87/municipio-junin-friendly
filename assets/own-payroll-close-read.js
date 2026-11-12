@@ -43,10 +43,13 @@ async function exchange(request,{signal,remaining,full}){
 
 // Consulta de un recurso de cierre: {resource:'detail',period,liquidationType}, {resource:'group',id} o
 // {resource:'attempt',key}. `remaining` es el presupuesto de bytes que le queda a quien llama. `full:true` saltea el JSON
-// común: es para volver a leer algo que ya se sabe que no entra.
-export function fetchOwnClose(params,{signal,remaining,full=false,fetch:send=globalThis.fetch}={}){
+// común: es para volver a leer algo que ya se sabe que no entra. `known` es un Set que la pantalla conserva: acá se anota
+// cada consulta que necesitó el modo completo y, mientras siga en el Set, se pide directo así (una lectura en vez de dos).
+export async function fetchOwnClose(params,{signal,remaining,full=false,known,fetch:send=globalThis.fetch}={}){
  const url=ownCloseUrl(params);
- return exchange(accept=>send(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:accept},signal}),{signal,remaining,full});
+ const read=await exchange(accept=>send(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:accept},signal}),{signal,remaining,full:full===true||known?.has(url)===true});
+ if(read.full&&read.ok)known?.add(url);
+ return read;
 }
 
 // Envío de una decisión con su clave de intento. El contenido se serializa una sola vez: el reenvío en modo completo
