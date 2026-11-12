@@ -71,7 +71,9 @@ test('relocated function metadata matches the checked schema and preserves canon
 
 test('source drift, lost guards and database-derived alternatives are refused',()=>{
  for(const patch of[{schema:'public'},{sourceCommit:'master'},{readyDefinition:'BEGIN NULL;END'},{fixtureBeforeSha256:'a'.repeat(64)},{databaseBody:'BEGIN NULL;END'}])assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,...patch}));
- assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p==='scripts/verify-own-period-participation.mjs'?'\n-- drift':'')}),/FIXTURE_SOURCE_CHANGED/);
+ for(const file of['scripts/verify-salary-auxiliary-namespace.mjs','scripts/verify-own-period-participation.mjs','scripts/lib/qa-run-capture-lock.mjs']){
+  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,read:p=>read(p)+(p===file?'\n-- drift':'')}),error=>error.code==='ERR_ASSERTION'&&error.message.split('\n')[0]==='PERIOD_CLASSIFICATION_QA_FIXTURE_SOURCE_CHANGED: '+file&&error.expected===artifact.fixtureSourceHashes[file]&&error.actual!==error.expected);
+ }
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,relocate:s=>relocate(s).replaceAll('SQL130_NEW_OBJECTS_NOT_EMPTY','lost')}),/READY_GUARD_LOST/);
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,batch:{...batch,beforePins:batch.beforePins.map(p=>p.name==='municipal_adoption_ready_v1'?{...p,sha256:'b'.repeat(64)}:p)}}));
 });
@@ -100,11 +102,13 @@ test('the QA predecessor refuses altered138, altered strict body, public grants 
  assert.throws(()=>buildOwnPeriodClassificationQaRelocation({...options,predecessorDefinition:'BEGIN NULL;END'}),/UNKNOWN_OPTION/);
 });
 
-test('the explicit observer R2 source epoch preserves the original business fixture and live source hashes',()=>{
+test('the reviewed capture-lock source epoch preserves the original business fixture and live source hashes',()=>{
  assert.equal(artifact.fixtureChain,'legacy-native-payroll-without-final-source.v1');
- assert.equal(Object.keys(artifact.fixtureSourceHashes).length,7);
- assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'37b235e6fb7e58c606408ab7a92b3418118d16c4e0bead850cd2249bf187a442');
+ assert.equal(Object.keys(artifact.fixtureSourceHashes).length,8);
+ assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'c497249eebf71900e0e68ae1e7f2980a0e9634569615c83f4f3a5ad545795e2b');
+ assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-lock-observation.mjs'],'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9');
+ assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-run-capture-lock.mjs'],'dc7f78cde977895d7ea6215d1ba7ca97ad7c862789db4a3ef88e1d57ff301107');
  assert.deepEqual(artifact.sourceHashes,batch.sourceHashes);
  assert.equal(artifact.productionCompatible,false);assert.equal(artifact.normal165Installed,false);assert.equal(artifact.finalSourceFixture,false);
 });
