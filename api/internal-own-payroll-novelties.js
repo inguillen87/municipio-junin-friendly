@@ -8,6 +8,7 @@ import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact} from '../assets/native-salary-catalog-model.js';
 import {ownNoveltyCommand,OWN_NOVELTY_MAX_BYTES,OWN_NOVELTY_READ,OWN_NOVELTY_CAPS} from '../assets/own-payroll-novelties-model.js';
 import {noveltyFail,ownNoveltyError,ownNoveltyOperation} from '../lib/internal-own-payroll-novelties.js';
+import {ownPeriodReadScopeKey,recoverOwnPeriodRead} from '../lib/own-period-read-recovery.js';
 export const config={api:{bodyParser:false}};
 export function createOwnNoveltyHandler(deps={}){
  const env=deps.env??process.env,authorize=deps.requireAccess??requireCompatibleInternalAccess,getSql=deps.getSql??getActionCenterSql,sessionFor=deps.sessionFor??actionMutationSession;
@@ -23,16 +24,25 @@ export function createOwnNoveltyHandler(deps={}){
   else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='id|resource'){operation='detail';input={id:q.id};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
   else noveltyFail('QUERY_INVALID',400,'Consulta inválida.');
-  const access=await authorize(req,res,{env,requiredCapabilities:OWN_NOVELTY_READ,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});if(!access)return;
-  if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,OWN_NOVELTY_READ))noveltyFail('FORBIDDEN',403,'Tu membresía no permite consultar novedades propias.');
-  const session=sessionFor(access,env);employeeContext(access.principal,session);
+  const accessOptions={env,requiredCapabilities:OWN_NOVELTY_READ,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false};
+  const assertAccess=a=>{if(a.mode!=='managed'||a.principal?.tenant?.source!=='membership'||!principalHasCapabilities(a.principal,OWN_NOVELTY_READ))noveltyFail('FORBIDDEN',403,'Tu membresía no permite consultar novedades propias.');};
+  let access=await authorize(req,res,accessOptions);if(!access)return;assertAccess(access);
+  let session=sessionFor(access,env);employeeContext(access.principal,session);
   if(method==='POST'){
    if(!principalHasCapabilities(access.principal,['payroll.novelty.prepare'])&&!principalHasCapabilities(access.principal,['payroll.novelty.approve']))noveltyFail('FORBIDDEN',403,'Tu membresía no permite registrar ni decidir novedades.');
    const body=await readRawPrivateJson(req,{maxBytes:OWN_NOVELTY_MAX_BYTES+64,maxDepth:16,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>noveltyFail(kind==='large'?'LIMIT':'INPUT_INVALID',kind==='large'?413:400,'El envío debe estar completo y no contener campos ambiguos.')});
    if(!salaryExact(body,['operation','payload'])||body.operation!=='command')noveltyFail('INPUT_INVALID',400,'Operación inválida.');const command=ownNoveltyCommand(body.payload);
    if(!principalHasCapabilities(access.principal,[OWN_NOVELTY_CAPS[command.command]]))noveltyFail('FORBIDDEN',403,'Tu membresía no permite esta operación.');operation='command';input={body:command,key:schoolCertificateHttp.header(req,'idempotency-key')};
   }
-  const data=await ownNoveltyOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
+  // Una lectura que choca con un candidato de escritura (409 OWN_NOVELTY_BUSY) se recupera como en los demás circuitos
+  // del período: una espera, una reautorización completa y, si la cuenta y el ámbito son los mismos, una sola lectura más.
+  const sql=await getSql(env),read=()=>ownNoveltyOperation(sql,access.principal,session,operation,input),scope=method==='GET'?ownPeriodReadScopeKey(access.principal,session):null;
+  const data=method==='GET'?await recoverOwnPeriodRead({method,operation,busyCode:'OWN_NOVELTY_BUSY',read,reauthorize:async()=>{
+   const next=await authorize(req,res,accessOptions);if(!next)return false;assertAccess(next);const nextSession=sessionFor(next,env);
+   if(ownPeriodReadScopeKey(next.principal,nextSession)!==scope)noveltyFail('SCOPE_CHANGED',409,'Cambió la cuenta, la sesión o el ámbito municipal. Volvé a abrir la consulta.');
+   access=next;session=nextSession;return true;
+  }}):await read();
+  if(data===null)return;if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
  }catch(e){const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):ownNoveltyError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};
 }
 export default createOwnNoveltyHandler();
