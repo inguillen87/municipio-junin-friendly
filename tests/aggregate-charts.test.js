@@ -60,9 +60,23 @@ test('native report chart shares the exact full selection and sums gross plus em
  assert.equal(doc.chartSummary.departments[0].cost, '275.26');
  assert.equal(JSON.stringify(f), before);
  assert.doesNotMatch(JSON.stringify(doc.chartSummary), /contractId|employeeNumber|runId|dni|1001|1002/);
- const [trend] = ownPayrollCharts(doc.chartSummary), option = aggregateOption(moduleStub, trend);
- assert.ok(option.series.every(s => s.smooth === false && s.connectNulls === false));
+ // Un solo mes cerrado se dibuja con barras: una línea de un punto son tres marcas sueltas.
+ const [single] = ownPayrollCharts(doc.chartSummary), bars = aggregateOption(moduleStub, single);
+ assert.equal(single.kind, 'bar'); assert.equal(single.horizontal, undefined);
+ assert.deepEqual(bars.series.map(s => [s.type, s.name, s.data.length]), [['bar', 'Bruto', 1], ['bar', 'Retenciones', 1], ['bar', 'Neto', 1]]);
+ // Con dos meses cerrados seguidos, línea sin suavizar y sin unir huecos, desde cero.
+ const months = [{period: '2026-10', coverage: '', gross: '245.22', deduction: '7.36', net: '237.86'}, {period: '2026-11', coverage: '', gross: '250.00', deduction: '7.50', net: '242.50'}];
+ const [trend] = ownPayrollCharts({...doc.chartSummary, months}), option = aggregateOption(moduleStub, trend);
+ assert.equal(trend.kind, 'line');
+ assert.ok(option.series.every(s => s.type === 'line' && s.smooth === false && s.connectNulls === false));
  assert.equal(option.yAxis.scale, false);
+ // Un mes sin cierre no cuenta como dato: dos meses con uno solo cerrado siguen siendo barras, y el hueco no es cero.
+ const [gap] = ownPayrollCharts({...doc.chartSummary, months: [{period: '2026-10', coverage: 'Sin cierre', gross: null, deduction: null, net: null}, months[1]]});
+ assert.equal(gap.kind, 'bar'); assert.deepEqual(aggregateOption(moduleStub, gap).series[0].data, [null, 250]);
+ // Dos meses cerrados separados por uno sin cierre tampoco tienen tramo que dibujar: barras. Con un tramo alcanza para la línea.
+ const hole = {period: '2026-10', coverage: 'Sin cierre', gross: null, deduction: null, net: null}, sep = {...months[0], period: '2026-09'}, aug = {...months[0], period: '2026-08'};
+ assert.equal(ownPayrollCharts({...doc.chartSummary, months: [sep, hole, months[1]]})[0].kind, 'bar');
+ assert.equal(ownPayrollCharts({...doc.chartSummary, months: [aug, sep, hole, months[1]]})[0].kind, 'line');
 });
 test('an unclosed month and an empty selected population never become a zero-valued payroll', () => {
  const oct = historicalReportFixture('2026-10', 'monthly'), sep = historicalReportFixture('2026-09', 'monthly');

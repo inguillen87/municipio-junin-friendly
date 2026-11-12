@@ -106,7 +106,7 @@ export function mountOwnPayrollLiquidation(host,{onCalculate}={}){
  // pide revisar de nuevo. Si la respuesta es idéntica a la que está en pantalla no se rearma nada: antes cada minuto
  // deseleccionaba los legajos elegidos, destildaba la confirmación y vaciaba la búsqueda de una decisión a medio preparar.
  // Un detalle que sólo entra en la lectura completa (decenas de MB) no se vuelve a traer cada minuto: el servidor rechaza una
- // decisión sobre un estado que cambió (STATE_CHANGED) y «Actualizar acceso y corridas» lo trae de nuevo.
+ // decisión sobre un estado que cambió (STATE_CHANGED). Se vuelve a leer al abrir otra vez la corrida, y después de cada decisión.
  const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(current?.reviewAccessRequired?OWN_LIQ_REVIEW:current||attempt?OWN_LIQ_NOMINAL:OWN_LIQ_READ);if(current&&!completeIds.has(current.id))await loadDetail(current.id,valid,null,{keepUnchanged:true});if(valid())controls();});},60000);
  window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capability);},{once:true});controls();return {refresh,queueConsult(context){if(busy||attempt&&!receipt||!salaryUuid(context?.runId)||!salaryHash(context?.resultSha256)||context.contractId!==null&&!salaryUuid(context.contractId)||typeof context?.accessKey!=='string'||!context.accessKey)return false;queuedConsult=Object.freeze({...context});return true;}};
 }
