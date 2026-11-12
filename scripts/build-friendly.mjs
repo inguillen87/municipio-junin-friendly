@@ -520,6 +520,7 @@ const shellFiles = [
   'assets/payroll-native-monthly-review.css',
   'assets/own-payroll-novelties-model.js',
   'assets/own-payroll-novelties-panel.js',
+  'assets/own-payroll-novelties-extra.js',
   'assets/grh-entity-formats.js',
   'assets/grh-concept-dictionary.js',
   'assets/section-tabs.js',
