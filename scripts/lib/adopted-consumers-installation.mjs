@@ -11,6 +11,31 @@ export const ADOPTED_CONSUMERS_SOURCE_SHA=Object.freeze({...ADOPTION_INSTALL_SHA
 const version='adopted-consumers-installation.v1',prefix='municontrol_adopted_consumers_install.';
 export function adoptedConsumersConditional(statements,condition){return `DO $conditional$ BEGIN IF ${condition} THEN ${statements.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $conditional$`;}
 const conditional=adoptedConsumersConditional;
+// Keep the original backend options separately from the semantic fingerprint.
+const monthlyAttributeOptions="SELECT jsonb_agg(jsonb_build_object('attnum',a.attnum,'attname',a.attname,'options',a.attoptions) ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid=to_regclass('public.payroll_novelty_row') AND a.attnum>=(SELECT attnum FROM pg_attribute WHERE attrelid=a.attrelid AND attname='legajo_snapshot')";
+const attributeVersionAudit=`DECLARE previous jsonb:=current_setting('${prefix}attribute_options_before')::jsonb;following jsonb:=current_setting('${prefix}attribute_options_after')::jsonb;old_column jsonb;new_column jsonb;old_options jsonb;new_options jsonb;old_versions jsonb;new_versions jsonb;old_version numeric;new_version numeric;shared_version numeric;versioned integer:=0; BEGIN
+ IF jsonb_array_length(previous)=0 OR jsonb_array_length(previous)<>jsonb_array_length(following) THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_PRIOR_STATE_CHANGED';END IF;
+ FOR old_column IN SELECT value FROM jsonb_array_elements(previous) LOOP
+  SELECT value INTO new_column FROM jsonb_array_elements(following) WHERE value->'attnum'=old_column->'attnum';
+  IF new_column IS NULL OR old_column-'options' IS DISTINCT FROM new_column-'options' THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_PRIOR_STATE_CHANGED';END IF;
+  old_options:=CASE WHEN old_column->'options'='null'::jsonb THEN '[]'::jsonb ELSE old_column->'options' END;
+  new_options:=CASE WHEN new_column->'options'='null'::jsonb THEN '[]'::jsonb ELSE new_column->'options' END;
+  IF (SELECT coalesce(jsonb_agg(v ORDER BY ord),'[]'::jsonb) FROM jsonb_array_elements(old_options) WITH ORDINALITY z(v,ord) WHERE v#>>'{}' !~ '^pg_attver=[0-9]+$') IS DISTINCT FROM (SELECT coalesce(jsonb_agg(v ORDER BY ord),'[]'::jsonb) FROM jsonb_array_elements(new_options) WITH ORDINALITY z(v,ord) WHERE v#>>'{}' !~ '^pg_attver=[0-9]+$') THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_OPTIONS_CHANGED';END IF;
+  SELECT coalesce(jsonb_agg(v),'[]'::jsonb) INTO old_versions FROM jsonb_array_elements_text(old_options) z(v) WHERE split_part(v,'=',1)='pg_attver';
+  SELECT coalesce(jsonb_agg(v),'[]'::jsonb) INTO new_versions FROM jsonb_array_elements_text(new_options) z(v) WHERE split_part(v,'=',1)='pg_attver';
+  IF jsonb_array_length(old_versions)>1 OR jsonb_array_length(new_versions)>1 OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(old_versions||new_versions) z(v) WHERE v !~ '^pg_attver=[1-9][0-9]{0,19}$') THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INVALID';END IF;
+  old_version:=split_part(old_versions->>0,'=',2)::numeric;new_version:=split_part(new_versions->>0,'=',2)::numeric;
+  IF coalesce(old_version,0)>18446744073709551615 OR coalesce(new_version,0)>18446744073709551615 THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INVALID';END IF;
+  IF current_setting('${prefix}mode')='repeat' THEN
+   IF old_column IS DISTINCT FROM new_column THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_CHANGED';END IF;
+  ELSIF old_version IS NOT NULL OR new_version IS NOT NULL THEN
+   IF new_version IS NULL OR new_version<=coalesce(old_version,0) OR shared_version IS NOT NULL AND new_version<>shared_version THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INCREMENT';END IF;
+   shared_version:=new_version;versioned:=versioned+1;
+  END IF;
+ END LOOP;
+ IF current_setting('${prefix}mode')<>'repeat' AND versioned NOT IN(0,jsonb_array_length(previous)) THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_ATTRIBUTE_VERSION_INCREMENT';END IF;
+ END;`;
+
 function monthlyCheck(adapted){return `DO $monthly$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='public.payroll_novelty_row'::regclass AND attname='legajo_snapshot' AND atttypid='varchar'::regtype AND atttypmod=${adapted?68:24} AND attnotnull AND NOT attisdropped)
  OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.payroll_novelty_row'::regclass AND conname='payroll_novelty_row_legajo_ck' AND contype='c' AND convalidated AND NOT condeferrable AND NOT condeferred AND pg_get_constraintdef(oid)=${q(adapted?MONTHLY_ADOPTED_CONSTRAINT:"CHECK (((legajo_snapshot)::text ~ '^(0|[1-9][0-9]{0,19})$'::text))")})
@@ -30,7 +55,14 @@ export function buildAdoptedConsumersInstallation({read,sourceCommit}){
   s=once(s,"CASE WHEN p.oid=to_regprocedure('public.grh_effective_baseline_guard_v1()')",'CASE WHEN p.oid IN('+adaptedOids+')');
   // Only the reviewed varchar widening and named CHECK replacement are excluded.
   // Every other column/default/constraint/index/ACL and every row is fingerprinted.
-  s=once(s,"'attribute',to_jsonb(a)","'attribute',CASE WHEN c.oid=to_regclass('public.payroll_novelty_row') AND a.attname='legajo_snapshot' THEN jsonb_set(to_jsonb(a),'{atttypmod}','24'::jsonb) ELSE to_jsonb(a) END");
+  // PG17.12+ versions the altered attribute AND every following attribute in
+  // the reserved pg_attver option. Normalize only that backend-maintained key
+  // in this reviewed ALTER TYPE's exact range. Other options/columns/tables stay
+  // byte-sensitive; the raw versions are audited below and retained in proof.
+  const affected="c.oid=to_regclass('public.payroll_novelty_row') AND a.attnum>=(SELECT attnum FROM pg_attribute WHERE attrelid=c.oid AND attname='legajo_snapshot')";
+  const options="coalesce((SELECT jsonb_agg(v ORDER BY ord) FROM unnest(a.attoptions) WITH ORDINALITY x(v,ord) WHERE v !~ '^pg_attver=[0-9]+$'),'null'::jsonb)";
+  s=once(s,"'attribute',to_jsonb(a)","'attribute',CASE WHEN "+affected+" THEN jsonb_set(CASE WHEN a.attname='legajo_snapshot' THEN jsonb_set(to_jsonb(a),'{atttypmod}','24'::jsonb) ELSE to_jsonb(a) END,'{attoptions}',"+options+") ELSE to_jsonb(a) END");
+  s=once(s," PERFORM set_config('"+prefix+slot+"'",` PERFORM set_config('${prefix}attribute_options_${slot}',coalesce((${monthlyAttributeOptions}),'[]'::jsonb)::text,true);\n PERFORM set_config('${prefix}${slot}'`);
   // PG18 rebuilds this column's NOT NULL constraint during varchar widening.
   // Normalize its OID only; retain all semantic/security fields. Sort the
   // monthly constraints by name so that this internal OID change cannot reorder
@@ -61,10 +93,10 @@ export function buildAdoptedConsumersInstallation({read,sourceCommit}){
  const ownCountCheck=`DO $objects$ BEGIN
  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${baseCondition})<>47 OR (SELECT count(*) FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${helperCondition})<>5
  THEN RAISE EXCEPTION 'ADOPTED_CONSUMERS_PARTIAL_STATE';END IF;END $objects$`;
- const priorAudit=base.statements.at(-3).replaceAll('municontrol_adoption_install.',prefix).replaceAll('ADOPTION_INSTALL_','ADOPTED_CONSUMERS_');assert.ok(priorAudit.includes("old-'triggers' IS DISTINCT FROM new-'triggers'"));
+ const priorAudit=once(base.statements.at(-3).replaceAll('municontrol_adoption_install.',prefix).replaceAll('ADOPTION_INSTALL_','ADOPTED_CONSUMERS_'),'BEGIN\n','BEGIN\n '+attributeVersionAudit+'\n');assert.ok(priorAudit.includes("old-'triggers' IS DISTINCT FROM new-'triggers'"));
  const dataProof=base.statements.at(-2).replaceAll('municontrol_adoption_install.',prefix);
  const objects=`SELECT jsonb_build_object('functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${baseCondition} OR ${helperCondition} OR p.oid IN(${adaptedOids})),
- 'adoptionTables',(${base.tableShapeSql}),'monthlyColumn',(SELECT to_jsonb(a) FROM pg_attribute a WHERE a.attrelid='public.payroll_novelty_row'::regclass AND a.attname='legajo_snapshot'),
+ 'adoptionTables',(${base.tableShapeSql}),'monthlyAttributeOptions',(${monthlyAttributeOptions}),'monthlyColumn',(SELECT to_jsonb(a) FROM pg_attribute a WHERE a.attrelid='public.payroll_novelty_row'::regclass AND a.attname='legajo_snapshot'),
  'monthlyConstraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.conname COLLATE "C") FROM pg_constraint k WHERE k.conrelid='public.payroll_novelty_row'::regclass AND k.conname IN('payroll_novelty_row_legajo_ck','payroll_novelty_row_legajo_snapshot_not_null')))`;
  const proof=`SELECT jsonb_build_object('version',${q(version)},'sourceCommit',${q(sourceCommit)},'sourceHashes',${q(JSON.stringify(ADOPTED_CONSUMERS_SOURCE_SHA))}::jsonb,'mode',coalesce(current_setting('${prefix}mode',true),'verify'),
  'allChecksPassed',true,'newTables',4,'newFunctions',52,'adaptedFunctions',20,'runtimeFacades',13,'adoptionWriterGranted',false,'roleAssignmentsAdded',0,'nominalRowsReturned',0,

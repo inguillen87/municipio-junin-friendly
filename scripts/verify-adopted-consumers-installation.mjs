@@ -7,12 +7,19 @@ import {createOwnReceiptPsqlQa} from './lib/own-payroll-receipt-qa.mjs';import {
 import {ownRunOperation,RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';import {ownLiquidationOperation} from '../lib/internal-own-payroll-liquidation.js';import {ownCloseOperation,OWN_CLOSE_WRITE} from '../lib/internal-own-payroll-close.js';import {ownReceiptOperation} from '../lib/internal-own-payroll-receipts.js';
 import {OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,emptyOwnReceiptParams} from '../assets/own-payroll-receipt-model.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8');
+// The retained receipt precedes the installation, not the current month. Use
+// two UTC months so this synthetic compatibility test never expires at rollover.
+export function adoptedConsumersQaPeriods(instant=new Date()){
+ assert.ok(instant instanceof Date&&Number.isFinite(instant.getTime()),'QA_PERIOD_CLOCK_INVALID');
+ const current=instant.toISOString().slice(0,7)<'2026-10'?'2026-10':instant.toISOString().slice(0,7),[year,month]=current.split('-').map(Number);
+ return [current,new Date(Date.UTC(year,month,1)).toISOString().slice(0,7)];
+}
 export async function verifyAdoptedConsumersInstallation({major,psql,output,sourceCommit}){
  assert.ok([17,18].includes(major));assert.match(sourceCommit,/^[a-f0-9]{40}$/);const binary=fs.realpathSync(psql),expected=path.join(root,'verification','postgresql-qa-20261004','pg'+major,'pgsql','bin','psql.exe');assert.equal(binary.toLowerCase(),fs.realpathSync(expected).toLowerCase());
  const destination=path.resolve(output);assert.ok(destination.startsWith(path.join(root,'verification')+path.sep));assert.ok(!fs.existsSync(destination));fs.mkdirSync(destination);
  const env={...process.env};for(const k of Object.keys(env))if(/^PG/i.test(k))delete env[k];let step=0,checks=0;const steps=[];
  const run=(sql,error)=>{const name=String(++step).padStart(3,'0'),file=path.join(destination,name+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});const r=spawnSync(binary,['-X','-q','-A','-t','--no-password','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',String(55400+major),'-U','postgres','-d','own_payroll_run_qa','-f',file],{encoding:'utf8',maxBuffer:8*1024*1024,env,windowsHide:true});fs.writeFileSync(path.join(destination,name+'.log'),r.stdout+r.stderr);steps.push({step,expectedRejection:!!error,status:r.status});if(error){assert.equal(r.status,3,'Expected rejection at step '+name);assert.ok(r.stderr.includes('ERROR:  '+error),'Unexpected rejection: '+r.stderr.slice(-2500));return;}assert.equal(r.status,0,'SQL step '+name+' failed: '+r.stderr.slice(-3200));return r.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);};
- const batch=buildAdoptedConsumersInstallation({read,sourceCommit});const proofs=[];
+ const batch=buildAdoptedConsumersInstallation({read,sourceCommit}),[previousPeriod,nextPeriod]=adoptedConsumersQaPeriods();const proofs=[];
  for(const scenario of ['first','upgrade']){
   const qa=buildAdoptedConsumersInstallationQa(major),{schema}=qa,relocated=relocateAdoptedConsumersInstallation(batch,qa);let seeded=false;
   const transaction=(sql,{readOnly=false,rollback=false}={})=>`BEGIN ISOLATION LEVEL REPEATABLE READ ${readOnly?'READ ONLY':''};SET LOCAL timezone='UTC';SET LOCAL statement_timeout='180s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${schema},public,pg_temp;DO $local$ BEGIN ${qa.pins} END $local$;\n${sql.join(';\n')};\n${rollback?'ROLLBACK':'COMMIT'};`;
@@ -33,15 +40,15 @@ export async function verifyAdoptedConsumersInstallation({major,psql,output,sour
    return {capture,key,body,closed,closeKey,closeBody,preview,receiptKey,command,event,stored};
   };
   try{
-   run(qa.sql);seeded=true;const old=await cycle('2026-10');assert.equal(old.preview.snapshot.version,'own-receipt-snapshot.v1');assert.equal(old.preview.snapshot.recordCount,26);checks+=2;
+   run(qa.sql);seeded=true;const old=await cycle(previousPeriod);assert.equal(old.preview.snapshot.version,'own-receipt-snapshot.v1');assert.equal(old.preview.snapshot.recordCount,26);checks+=2;
    if(scenario==='upgrade'){run(transaction(relocated.baseStatements));await adoptSyntheticReceiptContracts(db,qa);assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM employment_adoption_application'),3);checks++;}
    const beforeFault=databaseProof();run(transaction([...relocated.statements,"DO $fault$ BEGIN RAISE EXCEPTION 'QA_ADOPTED_CONSUMERS_COMMIT_INTERRUPTED';END $fault$"]),'QA_ADOPTED_CONSUMERS_COMMIT_INTERRUPTED');assert.deepEqual(databaseProof(),beforeFault);checks++;
    const installed=JSON.parse(run(transaction(relocated.statements)));assert.equal(installed.mode,scenario);checks++;same(installed,proof());same(installed,JSON.parse(run(transaction(relocated.statements))));
    assert.deepEqual(await receiptOp(maker,'batch',{id:old.event.batchId}),old.stored);assert.deepEqual((await runOp('calculate',{key:old.key,body:old.body})).saved,old.capture.saved);assert.deepEqual(await closeOp('command',{key:old.closeKey,body:old.closeBody}),{...old.closed,replayed:true});checks+=3;
    const oldReplay=await receiptOp(maker,'attempt',{key:old.receiptKey});assert.equal(oldReplay.batchId,old.event.batchId);assert.equal(oldReplay.snapshotSha256,old.event.snapshotSha256);checks+=2;
    if(scenario==='first')await adoptSyntheticReceiptContracts(db,qa);
-   const owned=await cycle('2026-11');assert.equal(owned.preview.snapshot.version,'own-receipt-snapshot.v2');assert.equal(owned.preview.snapshot.recordCount,29);assert.ok(owned.preview.snapshot.records.some(r=>r.employeeNumber==='A/3501'));checks+=3;
-   const review={command:'approve',scopeVersion:(await receiptOp(reviewer,'list',{period:'2026-11'})).scopeVersion,sourceVersion:owned.stored.snapshot.sourceVersion,params:null,batchId:owned.event.batchId,batchSha256:owned.stored.snapshotSha256,reason:'Revisión independiente exclusivamente sintética QA',reviewConfirmed:true};await receiptOp(reviewer,'command',{key:randomUUID(),body:review});assert.equal((await receiptOp(reviewer,'batch',{id:owned.event.batchId})).state,'approved');checks++;
+   const owned=await cycle(nextPeriod);assert.equal(owned.preview.snapshot.version,'own-receipt-snapshot.v2');assert.equal(owned.preview.snapshot.recordCount,29);assert.ok(owned.preview.snapshot.records.some(r=>r.employeeNumber==='A/3501'));checks+=3;
+   const review={command:'approve',scopeVersion:(await receiptOp(reviewer,'list',{period:nextPeriod})).scopeVersion,sourceVersion:owned.stored.snapshot.sourceVersion,params:null,batchId:owned.event.batchId,batchSha256:owned.stored.snapshotSha256,reason:'Revisión independiente exclusivamente sintética QA',reviewConfirmed:true};await receiptOp(reviewer,'command',{key:randomUUID(),body:review});assert.equal((await receiptOp(reviewer,'batch',{id:owned.event.batchId})).state,'approved');checks++;
    const history=proof();assert.equal(history.counts.employment_adoption_application.count,3);checks++;same(history,JSON.parse(run(transaction(relocated.statements))));same(history,proof());
    const failures=[
     ['ALTER FUNCTION own_receipt_snapshot_v1(jsonb,jsonb) COST 101','ADOPTED_CONSUMERS_AFTER_METADATA'],
