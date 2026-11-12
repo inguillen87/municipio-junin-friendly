@@ -23,3 +23,21 @@ test('historial vacío no indica elegir una corrida inexistente y distingue impo
  assert.match(ownDecisionHistoryText([{canConsult:true}],false),/no puede consultar/);
  assert.match(ownDecisionHistoryText([{canConsult:true}],true),/Elegí una corrida/);
 });
+
+test('el conteo de legajos concuerda en número: «1 legajo afectado», «29 legajos afectados»', async () => {
+  const { ownLegajoCount } = await import('../assets/own-payroll-liquidation-panel.js');
+  assert.equal(ownLegajoCount(1, 'afectado', 'afectados'), '1 legajo afectado');
+  assert.equal(ownLegajoCount(29, 'afectado', 'afectados'), '29 legajos afectados');
+  assert.equal(ownLegajoCount(1, 'registrado', 'registrados'), '1 legajo registrado');
+  assert.equal(ownLegajoCount(0, 'registrado', 'registrados'), '0 legajos registrados');
+  const fs = await import('node:fs');
+  const liquidation = fs.readFileSync(new URL('../assets/own-payroll-liquidation-panel.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(liquidation, /\} legajos (registrados|afectados)/, 'ningún conteo queda con el plural fijo');
+  assert.equal(liquidation.split("ownLegajoCount(v.affected.length,'registrado','registrados')").length - 1, 2);
+  assert.match(liquidation, /ownLegajoCount\(v\.count,'afectado','afectados'\)\} de esta corrida\./);
+  // Cerrar: «Cierre registrado» y «Reapertura registrada», y el singular del conteo.
+  const close = fs.readFileSync(new URL('../assets/own-payroll-close-panel.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(close, /'Cierre':'Reapertura'\} registrada/);
+  assert.equal(close.split("v.body.command==='close'?'Cierre registrado':'Reapertura registrada'").length - 1, 2);
+  assert.equal(close.split("v.snapshot.employeeCount===1?'1 legajo':v.snapshot.employeeCount+' legajos'").length - 1, 2);
+});
