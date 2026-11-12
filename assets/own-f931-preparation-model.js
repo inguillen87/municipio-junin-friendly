@@ -1,7 +1,9 @@
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {verifiedOwnReportBundle} from './own-payroll-report-model.js';
 import {OWN_REPORT_CENSUS_VERSION} from './own-payroll-report-census-model.js';
-import {verifiedWorkspaceCapture,ownRunWorkspaceResult} from './own-payroll-run-workspace-model.js';
+import {verifiedWorkspaceCapture} from './own-payroll-run-workspace-model.js';
+import {ownHistoricalOfficialInput} from './own-payroll-historical-result-model.js';
+import {ownRunResult,verifiedRunCapture} from './own-payroll-run-reader.js';
 import {participationRules} from './own-period-participation-program.js';
 import {OWN_JURISDICTIONS,ownClosedJurisdiction,ownJurisdictionSelect,ownJurisdictionMapForCapture} from './own-payroll-jurisdiction-model.js';
 import {decimal,exactAdd,rational,quantize} from './own-payroll-exact.js';
@@ -30,12 +32,15 @@ export async function prepareOwnF931(value,details,receipts,fiscalCensus=null){r
 export async function prepareOwnF931Historical(value,censuses,receipts,captures,fiscalCensus=null){
  need(Array.isArray(censuses)&&censuses.every(d=>d?.version===OWN_REPORT_CENSUS_VERSION),'El histórico requiere el censo completo de cierres conservados.');
  need(Array.isArray(captures),'Faltan las capturas originales completas de los cierres.');
- const originals=structuredClone(captures);for(const capture of originals)await verifiedHistoricalCapture(capture);
+ const originals=[];for(const capture of structuredClone(captures))originals.push(await verifiedHistoricalCapture(capture));
  return prepareOwnF931Core(value,censuses,receipts,fiscalCensus,originals);
 }
 // Verifica sólo entradas congeladas y su programa guardado: mismo contrato que checkedSaved en
 // lib/internal-own-payroll-run.js. No consulta fuentes vivas ni recalcula nada.
 async function verifiedHistoricalCapture(capture){
+ // Una corrida con total oficial (V4/V5) se comprueba con su propio lector: verifica la captura original y repite el cálculo
+ // entero, que incluye lo que abajo se coteja para las corridas anteriores. Devuelve su copia privada ya verificada.
+ if(ownHistoricalOfficialInput(capture?.saved?.input))return verifiedRunCapture(capture);
  await verifiedWorkspaceCapture(capture);const p=capture.payload,input=capture.saved?.input;need(input,'Falta el cálculo guardado original del cierre.');
  const digest=async value=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(b=>b.toString(16).padStart(2,'0')).join('');
  const versions={population:p.population.version,rules:await digest({program:p.programState.program,salary:p.programState.salaryCatalog}),novelties:await digest({monthly:p.monthly,fixed:p.fixed.export.data})};
@@ -48,7 +53,7 @@ async function verifiedHistoricalCapture(capture){
 function historicalClosedSources(bundle,captures){
  const expected=new Set(bundle.employees.map(r=>r.employee.runId)),runs=new Map();
  need(captures.length===expected.size,'Faltan capturas originales completas de los cierres.');
- for(const capture of captures){need(expected.has(capture.id)&&!runs.has(capture.id),'Una captura está repetida o es ajena al histórico cerrado.');const verified=ownRunWorkspaceResult(capture);need(verified,'Falta el resultado guardado de una captura original.');runs.set(capture.id,{capture,jurisdictions:ownJurisdictionMapForCapture(capture),people:new Map(verified.input.employees.map(e=>[e.contractId,e])),totals:new Map(verified.result.employeeTotals.map(e=>[e.contractId,e])),rows:verified.result.rows});}
+ for(const capture of captures){need(expected.has(capture.id)&&!runs.has(capture.id),'Una captura está repetida o es ajena al histórico cerrado.');const verified=ownRunResult(capture);need(verified,'Falta el resultado guardado de una captura original.');runs.set(capture.id,{capture,jurisdictions:ownJurisdictionMapForCapture(capture),people:new Map(verified.input.employees.map(e=>[e.contractId,e])),totals:new Map(verified.result.employeeTotals.map(e=>[e.contractId,e])),rows:verified.result.rows});}
  for(const item of bundle.employees){const e=item.employee,run=runs.get(e.runId),c=run.capture,saved=c.saved,person=run.people.get(e.contractId),closed=item.source.snapshot.concepts.filter(r=>r.contractId===e.contractId),rows=run.rows.filter(r=>r.contractId===e.contractId);
  if(item.source.snapshot.version!=='own-close-snapshot.v1'){const jurisdiction=run.jurisdictions===null?{code:null,basis:'not_captured',sourceSha256:null}:run.jurisdictions.get(e.contractId);need(jurisdiction&&salarySerialized(ownClosedJurisdiction(e,item.source.snapshot.version))===salarySerialized(jurisdiction),'La jurisdicción del cierre no corresponde a su misma captura original.');}
  need(saved.input.period===item.period&&saved.input.liquidationType===item.type&&c.body.period===item.period&&c.body.liquidationType===item.type&&saved.inputSha256===e.inputSha256&&saved.resultSha256===e.resultSha256&&person&&['employeeNumber','agreementCode','departmentCode'].every(k=>person[k]===e[k])&&saved.input.totalsPrecision===e.precision&&salarySerialized(run.totals.get(e.contractId))===salarySerialized(e.totals)&&salarySerialized(rows)===salarySerialized(closed),'La captura guardada no corresponde a los conceptos, importes e identidad del cierre original.');
