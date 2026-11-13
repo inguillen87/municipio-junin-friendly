@@ -1,4 +1,6 @@
 import { requireNativeMonthlyPreparation } from './payroll-native-monthly-model.js';
+import { conceptText } from './code-name-help.js';
+import { costCenterText } from './grh-cost-centers.js';
 
 const element = (tag, text) => {
   const node = document.createElement(tag);
@@ -43,8 +45,8 @@ export function mountNativeMonthlyReview(host, onChange) {
       const fields = [
         ['Período', draft.periodMonth.slice(0, 7)],
         ['Liquidación', 'Mensual'],
-        ['Concepto', row.conceptSourceId],
-        ['Área / centro de costo', row.costCenterSourceId ?? 'No informado'],
+        ['Concepto', conceptText(row.conceptSourceId)],
+        ['Área / centro de costo', row.costCenterSourceId == null ? 'No informado' : costCenterText(row.costCenterSourceId)],
         ['Mes de ajuste', row.adjustmentMonth?.slice(0, 7) ?? 'No informado'],
         ['Unidades informadas', row.quantityDecimal === null ? 'No informadas' : row.quantityDecimal.replace('.', ',')],
         ['Importe manual', amount(row.amountCents)],

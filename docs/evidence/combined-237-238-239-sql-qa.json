@@ -1,0 +1,303 @@
+{
+  "schema": "municontrol-public-combined-sql-qa.v1",
+  "installerSha256": "62bcb845b858c156e604b7082df8084ceac39172b724de2b40894246b4695503",
+  "status": "PASS_LOCAL_QA_NOT_INSTALLED",
+  "syntheticOnly": true,
+  "productionConnections": 0,
+  "qa": {
+    "postgres17": {
+      "version": "postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1)",
+      "status": "PASS",
+      "passed": 20,
+      "failed": 0,
+      "clusterStopped": true,
+      "receiptSha256": "5fca0a16f38479ceca9e884a8c0ed69b0bc80bf832eb3a6b9fb5e4b6e1282ffc",
+      "tests": [
+        {
+          "name": "fresh_loopback_empty_database",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_141a_sql_baseline_and_five_additional_original_facades",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_44e6_a7fd_parent_installed_in_lab",
+          "status": "PASS"
+        },
+        {
+          "name": "real_238_iam_view_exact_preimage_loaded_without_identity_or_grant_dml",
+          "status": "PASS"
+        },
+        {
+          "name": "existing_synthetic_data_fixture_with_real_constraints_and_triggers",
+          "status": "PASS",
+          "detail": {
+            "tableCount": 91,
+            "populatedTables": 15,
+            "rowCount": 81,
+            "sha256": "a5be1e0e9a4527dcd5b7a83c3e2a35303d77324d436422d1e5ae476d4caed985"
+          }
+        },
+        {
+          "name": "all_510_preimage_metadata_pins_and_81_absent_names_pass",
+          "status": "PASS"
+        },
+        {
+          "name": "pre_pure_select_diagnostic_passes_in_read_only_transaction",
+          "status": "PASS",
+          "detail": {
+            "phase": "pre",
+            "passed": true,
+            "mismatches": [],
+            "observedAt": "2026-11-13T01:08:39.152876-03:00",
+            "expectedCount": 510,
+            "familiesMatch": true,
+            "matchingCount": 510,
+            "iamViewMatches": true,
+            "readinessMatch": true,
+            "absentNamesMatch": true,
+            "closeColumnsMatch": true,
+            "destinationMatches": true,
+            "nativeTableMatches": true,
+            "closeConstraintsMatch": true,
+            "requiredRelationsMatch": true
+          }
+        },
+        {
+          "name": "late_238_guard_rolls_back_all_payroll_ddl_and_preserves_business_bytes",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_preimages_restored_before_final_combined_install",
+          "status": "PASS"
+        },
+        {
+          "name": "post_pure_select_diagnostic_passes_in_read_only_transaction",
+          "status": "PASS",
+          "detail": {
+            "phase": "post",
+            "passed": true,
+            "mismatches": [],
+            "observedAt": "2026-11-13T01:08:39.72297-03:00",
+            "expectedCount": 591,
+            "familiesMatch": true,
+            "matchingCount": 591,
+            "iamViewMatches": true,
+            "readinessMatch": true,
+            "absentNamesMatch": true,
+            "closeColumnsMatch": true,
+            "destinationMatches": true,
+            "nativeTableMatches": true,
+            "closeConstraintsMatch": true,
+            "requiredRelationsMatch": true
+          }
+        },
+        {
+          "name": "selected_baseline_committed_postflight_591_and_business_bytes_unchanged",
+          "status": "PASS"
+        },
+        {
+          "name": "native_event_table_has_no_unrequested_rows",
+          "status": "PASS"
+        },
+        {
+          "name": "selected_baseline_readiness_and_family_30_62_complete",
+          "status": "PASS"
+        },
+        {
+          "name": "all_591_selected_function_definitions_and_metadata_observed",
+          "status": "PASS"
+        },
+        {
+          "name": "restoring_237_coverage_body_invalidates_both_239_families",
+          "status": "PASS",
+          "detail": {
+            "quantityComplete": false,
+            "officialComplete": false
+          }
+        },
+        {
+          "name": "restoring_237_coverage_body_invalidates_both_239_families_rollback_restores_exact_composed_family",
+          "status": "PASS"
+        },
+        {
+          "name": "coverage_metadata_drift_invalidates_both_239_families",
+          "status": "PASS",
+          "detail": {
+            "quantityComplete": false,
+            "officialComplete": false
+          }
+        },
+        {
+          "name": "coverage_metadata_drift_invalidates_both_239_families_rollback_restores_exact_composed_family",
+          "status": "PASS"
+        },
+        {
+          "name": "combined_238_exact_postimage_preserved_after_payroll_attestation_negatives",
+          "status": "PASS"
+        },
+        {
+          "name": "selected_source_postflight_after_functional_hook",
+          "status": "PASS"
+        }
+      ]
+    },
+    "postgres18": {
+      "version": "postgres (PostgreSQL) 18.7 (Debian 18.7-1.pgdg13+2)",
+      "status": "PASS",
+      "passed": 20,
+      "failed": 0,
+      "clusterStopped": true,
+      "receiptSha256": "8807559209ad18f49713edefc9392a7bdfa127ae78ae3d892eda79d8e3533d0a",
+      "tests": [
+        {
+          "name": "fresh_loopback_empty_database",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_141a_sql_baseline_and_five_additional_original_facades",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_44e6_a7fd_parent_installed_in_lab",
+          "status": "PASS"
+        },
+        {
+          "name": "real_238_iam_view_exact_preimage_loaded_without_identity_or_grant_dml",
+          "status": "PASS"
+        },
+        {
+          "name": "existing_synthetic_data_fixture_with_real_constraints_and_triggers",
+          "status": "PASS",
+          "detail": {
+            "tableCount": 91,
+            "populatedTables": 15,
+            "rowCount": 81,
+            "sha256": "93b6d8f3668d3d8dd3287fbf577b8c10fc334f6f679fc6ade92a60a572a3f058"
+          }
+        },
+        {
+          "name": "all_510_preimage_metadata_pins_and_81_absent_names_pass",
+          "status": "PASS"
+        },
+        {
+          "name": "pre_pure_select_diagnostic_passes_in_read_only_transaction",
+          "status": "PASS",
+          "detail": {
+            "phase": "pre",
+            "passed": true,
+            "mismatches": [],
+            "observedAt": "2026-11-13T01:08:39.261519-03:00",
+            "expectedCount": 510,
+            "familiesMatch": true,
+            "matchingCount": 510,
+            "iamViewMatches": true,
+            "readinessMatch": true,
+            "absentNamesMatch": true,
+            "closeColumnsMatch": true,
+            "destinationMatches": true,
+            "nativeTableMatches": true,
+            "closeConstraintsMatch": true,
+            "requiredRelationsMatch": true
+          }
+        },
+        {
+          "name": "late_238_guard_rolls_back_all_payroll_ddl_and_preserves_business_bytes",
+          "status": "PASS"
+        },
+        {
+          "name": "exact_preimages_restored_before_final_combined_install",
+          "status": "PASS"
+        },
+        {
+          "name": "post_pure_select_diagnostic_passes_in_read_only_transaction",
+          "status": "PASS",
+          "detail": {
+            "phase": "post",
+            "passed": true,
+            "mismatches": [],
+            "observedAt": "2026-11-13T01:08:39.830194-03:00",
+            "expectedCount": 591,
+            "familiesMatch": true,
+            "matchingCount": 591,
+            "iamViewMatches": true,
+            "readinessMatch": true,
+            "absentNamesMatch": true,
+            "closeColumnsMatch": true,
+            "destinationMatches": true,
+            "nativeTableMatches": true,
+            "closeConstraintsMatch": true,
+            "requiredRelationsMatch": true
+          }
+        },
+        {
+          "name": "selected_baseline_committed_postflight_591_and_business_bytes_unchanged",
+          "status": "PASS"
+        },
+        {
+          "name": "native_event_table_has_no_unrequested_rows",
+          "status": "PASS"
+        },
+        {
+          "name": "selected_baseline_readiness_and_family_30_62_complete",
+          "status": "PASS"
+        },
+        {
+          "name": "all_591_selected_function_definitions_and_metadata_observed",
+          "status": "PASS"
+        },
+        {
+          "name": "restoring_237_coverage_body_invalidates_both_239_families",
+          "status": "PASS",
+          "detail": {
+            "quantityComplete": false,
+            "officialComplete": false
+          }
+        },
+        {
+          "name": "restoring_237_coverage_body_invalidates_both_239_families_rollback_restores_exact_composed_family",
+          "status": "PASS"
+        },
+        {
+          "name": "coverage_metadata_drift_invalidates_both_239_families",
+          "status": "PASS",
+          "detail": {
+            "quantityComplete": false,
+            "officialComplete": false
+          }
+        },
+        {
+          "name": "coverage_metadata_drift_invalidates_both_239_families_rollback_restores_exact_composed_family",
+          "status": "PASS"
+        },
+        {
+          "name": "combined_238_exact_postimage_preserved_after_payroll_attestation_negatives",
+          "status": "PASS"
+        },
+        {
+          "name": "selected_source_postflight_after_functional_hook",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "original237BroadSuitesRepeated": false,
+  "counting": "20 checks per engine include setup and integration guards; the groups and earlier seasonal tests are not additive unique cases.",
+  "pureSelectDiagnostics": {
+    "preflightSha256": "c90a0cbafbd2e29f1a833d65844b1f3d20d02af8ce9e5e4d885da94d7af5e6e3",
+    "postflightSha256": "487d74dc099195fd0c663cc73a30461aa3adee56056c52913c09ae0b913c9f04"
+  },
+  "guardedFunctions": {
+    "payrollBefore": 510,
+    "payrollAfter": 591,
+    "independentIamView": 1
+  },
+  "payrollFamilyMemberCounts": {
+    "quantity": 30,
+    "official": 62
+  },
+  "productionInstalled": false,
+  "ciAndPreview": "Separate candidate checks still required.",
+  "businessDataWritesByInstaller": 0
+}

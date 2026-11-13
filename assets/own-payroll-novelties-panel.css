@@ -3,6 +3,13 @@
 .own-novelties-import{margin:16px 0;padding:12px 14px;border:1px dashed #9cc4bb;border-radius:10px;background:#f6fbf9}
 .own-novelties-import>summary{cursor:pointer;font-weight:700;color:#14524c;min-height:32px}
 .own-novelties-import [data-n-import-result]{margin-top:10px}
+.own-novelties-import [data-n-import-legajo]{display:inline-block;width:auto;max-width:100%;min-height:40px;margin:4px 0 4px 6px}
+.own-novelties-import [data-n-import-several] li{margin:6px 0}
+.own-novelties-paste{margin:14px 0 4px;padding:10px 12px;border:1px solid #cfe0db;border-radius:8px;background:#fff}
+.own-novelties-restored{margin:12px 0;padding:10px 14px;border:1px solid #b9d8d0;border-left:4px solid #14766d;border-radius:8px;background:#eef7f4;color:#14433e;font-weight:600}
+.own-novelties-paste-values{margin:8px 0;padding:8px 12px;border:1px solid #cfe0db;border-radius:8px}.own-novelties-paste-values legend{font-weight:600;font-size:.9rem;color:#14524c;padding:0 6px}.own-novelties-paste-values [data-n-paste-value-list]{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:2px 16px;max-height:220px;overflow-y:auto}
+.own-novelties-paste>summary{cursor:pointer;font-weight:600;color:#14524c;min-height:32px}
+.own-novelties-paste textarea{display:block;width:100%;min-height:96px;margin-top:4px;padding:8px;border:1px solid #afc1ba;border-radius:6px;box-sizing:border-box;font:inherit;font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre;overflow:auto;tab-size:14}
 .own-novelties-import [data-n-import-result] ul{max-height:220px;overflow-y:auto;margin:6px 0;padding-left:20px;font-size:.9rem}
 /* 06/11 · carga guiada: pasos, buscador de legajos sin lista eterna, conceptos con catálogo, datos opcionales plegados */
 .own-novelties-step{display:flex;align-items:flex-start;gap:12px;margin:20px 0 6px}
@@ -25,3 +32,4 @@
 @media(prefers-reduced-motion:reduce){.own-novelties-step-n,.own-novelties-chip{animation:none}}
 .own-novelties-extras{font-size:.86rem;line-height:1.45;color:#3f5b60;min-width:12rem;max-width:26rem;overflow-wrap:anywhere}.own-novelties-extras span{display:block}.own-novelties-extras span+span{margin-top:2px}
 .own-novelties label>small{font-weight:400;color:#3f5b60;line-height:1.4}
+.own-novelties-who b{display:block;font-weight:700}.own-novelties-who span{display:block;font-size:.86rem;color:#3f5b60;max-width:18rem;overflow-wrap:anywhere}.own-novelties-table td small{display:block;margin-top:2px;font-size:.8rem;line-height:1.3;color:#3f5b60;max-width:16rem;overflow-wrap:anywhere}
