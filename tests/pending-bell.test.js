@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {bellState, rememberedKeys, ago, periodText} from '../assets/pending-bell-model.js';
+import {bellState, bellSeen, rememberedKeys, ago, periodText} from '../assets/pending-bell-model.js';
 import {SALARY_CONDITIONS_PENDING_VERSION, salaryConditionsPending} from '../assets/own-contract-salary-conditions-pending.js';
 
 const id = n => 'aaaaaaaa-aaaa-4aaa-8aaa-' + String(n).padStart(12, '0');
@@ -77,6 +77,25 @@ test('lo que espera a esta persona en cualquier circuito de la bandeja cuenta en
  assert.deepEqual(state.circuits.map(c => [c.title, c.mine, c.sure, c.href]), [['Maestro salarial', 1, true, '/nomina#parametros'], ['Lotes mensuales', 1, true, '/novedades#lotes']]);
  assert.equal(state.elsewhere, 1, 'el lote que decide otra persona no cuenta para vos, pero se dice que existe');
  assert.deepEqual(state.covered, ['Maestro salarial', 'Programa de cálculo', 'Lotes mensuales']); assert.equal(state.complete, true);
+});
+
+// Pedido de Marcelo (12/11): con 50 novedades fijas esperando, la campanita decía «50». El número cuenta avisos: uno por
+// circuito con pendientes, uno por propuesta de la consulta liviana y uno por decisión sobre lo propio todavía no mostrada.
+test('el número rojo cuenta avisos, no filas: 50 novedades fijas esperando son un aviso y el 50 se lee adentro', () => {
+ const light = [{key: 'condiciones', title: 'Condiciones salariales', href: '/nomina#condiciones', pending: {complete: true, counts: {toReview: 0, decided: 1}, toReview: [],
+  decided: [{eventId: '00000000-0000-4000-8000-000000000003', proposalId: '00000000-0000-4000-8000-000000000002', period: '2026-10', status: 'approved', actorLabel: 'Revisión municipal', recordedAt: '2026-11-10T12:00:00Z'}]}}];
+ const state = bellState(light, [], [circuit('fixed', 'Novedades fijas', 50, 50, '/novedades#fijas')]);
+ assert.deepEqual([state.waiting, state.notices, state.news, state.count, state.badge, state.total], [50, 1, 1, 2, '2', 51]);
+ assert.equal(state.label, '2 avisos · 50 pendientes te esperan y 1 novedad de lo tuyo');
+ assert.deepEqual(state.circuits.map(c => [c.title, c.mine]), [['Novedades fijas', 50]], 'la cantidad de propuestas sigue disponible para el texto del aviso');
+ const opened = bellSeen(state);
+ assert.deepEqual([opened.waiting, opened.notices, opened.news, opened.count, opened.badge, opened.total, opened.label], [50, 1, 0, 1, '1', 50, '1 aviso · 50 pendientes te esperan'], 'al abrir la lista queda el aviso que espera decisión');
+ const more = bellState(light, state.shownKeys, [circuit('fixed', 'Novedades fijas', 51, 51, '/novedades#fijas')]);
+ assert.deepEqual([more.count, more.badge, more.total], [1, '1', 51], 'una fila más en el mismo aviso no sube el número; sí cambia el total que se anuncia');
+ const another = bellState(light, state.shownKeys, [circuit('fixed', 'Novedades fijas', 51, 51, '/novedades#fijas'), circuit('salary-master', 'Maestro salarial', 1, 1)]);
+ assert.deepEqual([another.count, another.badge, another.label], [2, '2', '2 avisos · 52 pendientes te esperan'], 'otro circuito con pendientes es un aviso nuevo');
+ const many = bellState([], [], Array.from({length: 120}, (_, i) => circuit('c' + i, 'Circuito ' + i, 2, 2)));
+ assert.deepEqual([many.count, many.badge, many.waiting], [120, '99+', 240]);
 });
 
 test('un circuito que no dice cuáles decide esta persona avisa todas y lo aclara; uno sin pendientes no aparece', () => {

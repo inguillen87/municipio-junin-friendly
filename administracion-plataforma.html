@@ -1336,6 +1336,7 @@
         key: key,
         label: text(first(row.label, row.name, row.title), titleize(key)),
         description: text(first(row.description, row.help, row.explanation), 'Capacidad publicada por el backend.'),
+        scopeKind: text(first(row.scopeKind, row.scope, row.scope_kind), 'unknown'),
         conflictsWith: conflicts,
         roleKey: roleKey || ''
       };
@@ -2024,9 +2025,18 @@
       var tenantKeys = new Set(state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).reduce(function (all, role) {
         return all.concat(role.capabilities.map(function (capability) { return capability.key; }));
       }, []));
+      // Para una membresía municipal se ofrece todo el catálogo publicado menos lo exclusivo de plataforma. Antes sólo se
+      // ofrecía lo que algún rol municipal trae de fábrica, y una capacidad publicada fuera de los roles no se podía otorgar.
+      var platformKeys = new Set(state.roles.filter(function (role) { return role.scopeKind === 'platform'; }).reduce(function (all, role) {
+        return all.concat(role.capabilities.map(function (capability) { return capability.key; }));
+      }, []));
       var catalog = String(prefix || '').indexOf('roleMatrix') === 0
         ? state.capabilities.slice()
-        : state.capabilities.filter(function (capability) { return tenantKeys.has(capability.key); });
+        : state.capabilities.filter(function (capability) {
+          if (capability.scopeKind === 'tenant') return true;
+          if (capability.scopeKind !== 'unknown') return false;
+          return tenantKeys.has(capability.key) || (!platformKeys.has(capability.key) && capability.key.indexOf('platform.') !== 0);
+        });
       selected.forEach(function (key) {
         if (!catalog.some(function (capability) { return capability.key === key; })) catalog.push(capabilityByKey(key));
       });
@@ -3024,7 +3034,8 @@
       var user = state.selectedUser;
       if (!user) return;
       var selected = capabilityKeysFrom(el.userAccessCapabilities);
-      var reviewedPairs = reviewedSodBaseline(user, el.userAccessRole.value, state.context.tenantId);
+      // La línea base revisada es de la membresía y de su municipio; el filtro administrativo sólo decide qué filas se listan.
+      var reviewedPairs = reviewedSodBaseline(user, el.userAccessRole.value, state.context.tenantId || user.tenantId);
       var conflicts = sodConflicts(new Set(selected), reviewedPairs);
       var selectedRoleAdministrative = administrativeOnlyRole(el.userAccessRole.value);
       var operationalKeys = new Set(state.operationalCatalog.scopeCapabilities.map(function (capability) { return capability.key; }));
@@ -3046,6 +3057,23 @@
       el.issueInvitationButton.textContent = user.invitation.status === 'issued' ? 'Invitación emitida' : user.invitation.status === 'accepted' ? 'Invitación aceptada' : 'Emitir invitación';
       el.reactivateMembershipButton.disabled = !mutationAllowed('request_membership_reactivation', true)
         || !user.membershipId || !versionReady || !reasonReady || normalizeUserStatus(user.status) !== 'suspended';
+    }
+
+    // El directorio de «Plataforma completa» llega sin la constancia de los pares ya revisados del rol: sólo la entrega
+    // la consulta del municipio de la membresía. Sin ella, la ficha marcaba como conflicto nuevo lo que el rol ya trae y
+    // dejaba «Actualizar acceso» apagado. Se pide para esa misma fila y versión; si no coincide o falla, sigue bloqueando.
+    async function loadSodBaselineFor(user) {
+      if (!user || user.sodEditBaseline || !user.tenantId || !user.membershipId || state.context.tenantId === user.tenantId) return;
+      try {
+        var payload = await requestJson(contextQuery('users', user.tenantId));
+        var match = findArray(payload, ['users','items','memberships','invitations']).map(normalizeUser).find(function (row) {
+          return row.id === user.id && row.membershipId === user.membershipId && row.tenantId === user.tenantId
+            && row.roleKey === user.roleKey && Number(row.version) === Number(user.version);
+        });
+        if (!match || !match.sodEditBaseline || state.selectedUser !== user) return;
+        user.sodEditBaseline = match.sodEditBaseline;
+        updateUserAccessGate();
+      } catch (error) { /* sin constancia la ficha conserva el bloqueo; el backend valida igual al guardar */ }
     }
 
     function openUserDetail(userId) {
@@ -3077,6 +3105,7 @@
       updateUserAccessGate();
       renderOperationalWorkbench(user);
       openDialog(el.userDetailDialog);
+      loadSodBaselineFor(user);
     }
 
     function renderConflictBox(box, conflicts, commandReady) {

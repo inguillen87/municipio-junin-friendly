@@ -1,0 +1,252 @@
+{
+  "schema": "municontrol-ui-eleven-device-qa.v1",
+  "startedAtUtc": "2026-11-13T03:40:17.642Z",
+  "baseCommit": "3d59c5278151de0df4cd08aa73a0c8e833ab5d35",
+  "candidateTree": "65884d9afef6aa2332a2d68f0f431319a38852dd",
+  "commands": [
+    {
+      "name": "git-base",
+      "startedAtUtc": "2026-11-13T03:40:17.643Z",
+      "completedAtUtc": "2026-11-13T03:40:17.673Z",
+      "exitCode": 0,
+      "logSha256": "1de5bfc3d9fa56498b366668d5ad9f372e2674b7518cd79685de76f753985595"
+    },
+    {
+      "name": "git-tree-before",
+      "startedAtUtc": "2026-11-13T03:40:17.674Z",
+      "completedAtUtc": "2026-11-13T03:40:17.704Z",
+      "exitCode": 0,
+      "logSha256": "8f13eb8d7436c6b89dd11ca99bf98a72a22279755043138255bf52146e0f205b"
+    },
+    {
+      "name": "git-apply-scope",
+      "startedAtUtc": "2026-11-13T03:40:17.708Z",
+      "completedAtUtc": "2026-11-13T03:40:17.747Z",
+      "exitCode": 0,
+      "logSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "name": "git-tree",
+      "startedAtUtc": "2026-11-13T03:40:17.747Z",
+      "completedAtUtc": "2026-11-13T03:40:17.803Z",
+      "exitCode": 0,
+      "logSha256": "2d126322b6b618a55f6b0b73a24161c369ac0935434e256595c867c690fd5a03"
+    },
+    {
+      "name": "unit",
+      "startedAtUtc": "2026-11-13T03:40:17.839Z",
+      "completedAtUtc": "2026-11-13T03:40:17.949Z",
+      "exitCode": 0,
+      "logSha256": "6f1908864628cc64eddc773281a7f80450adef970c5bf1b42a659946c8f09525"
+    },
+    {
+      "name": "build",
+      "startedAtUtc": "2026-11-13T03:40:17.955Z",
+      "completedAtUtc": "2026-11-13T03:40:23.081Z",
+      "exitCode": 0,
+      "logSha256": "d435d2d768f0527eaaf38b3c4cf7e3477cdb655e2c089ea8181ab12d75f6bd2b"
+    },
+    {
+      "name": "entity-import",
+      "startedAtUtc": "2026-11-13T03:40:23.085Z",
+      "completedAtUtc": "2026-11-13T03:40:24.489Z",
+      "exitCode": 0,
+      "logSha256": "4f70be65e62d46ce0f95fbd44ea1c598795815048b00dc3873cc0fc63759fe52"
+    },
+    {
+      "name": "admin-access",
+      "startedAtUtc": "2026-11-13T03:40:24.492Z",
+      "completedAtUtc": "2026-11-13T03:40:26.638Z",
+      "exitCode": 0,
+      "logSha256": "c4c8d7593f8f535351368e9020546eea46f7527ea1d791fa91c457e5419696aa"
+    },
+    {
+      "name": "pending-bell",
+      "startedAtUtc": "2026-11-13T03:40:26.642Z",
+      "completedAtUtc": "2026-11-13T03:40:27.639Z",
+      "exitCode": 0,
+      "logSha256": "56c06558c0b4dffaf995f5e7a8480fd261ac41ee32b9fab58d0d0a0bfed622a3"
+    },
+    {
+      "name": "git-worktree-clean",
+      "startedAtUtc": "2026-11-13T03:40:27.645Z",
+      "completedAtUtc": "2026-11-13T03:40:27.676Z",
+      "exitCode": 0,
+      "logSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "name": "git-tree-final",
+      "startedAtUtc": "2026-11-13T03:40:27.676Z",
+      "completedAtUtc": "2026-11-13T03:40:27.703Z",
+      "exitCode": 0,
+      "logSha256": "2d126322b6b618a55f6b0b73a24161c369ac0935434e256595c867c690fd5a03"
+    }
+  ],
+  "sourcePins": [
+    {
+      "path": "administracion-plataforma.html",
+      "sha256": "200e40a37c12fd82e66bb12d0a33a41f3e009e5aae590abbe640280cde4cdfe1"
+    },
+    {
+      "path": "assets/code-name-help.js",
+      "sha256": "c949abdf710cc204573beec4c838908f7898cc1aedfd1e9b1ca1a2ccf5c378b7"
+    },
+    {
+      "path": "assets/grh-cost-centers.js",
+      "sha256": "06a1343e41a2fb1a8e8ee1ae209aacac505d9ff34b9482b2a7bf3653d73df0d0"
+    },
+    {
+      "path": "assets/grh-entity-formats.js",
+      "sha256": "87f2f7bf0bc7cef9b77ac544e2272138f3edb39d6100e63241a692b866ea87bd"
+    },
+    {
+      "path": "assets/money-entry.js",
+      "sha256": "71916c604e49c2e4d4d275cd70ffcbad52d7f86141ea747417340a5eeb1dc8e1"
+    },
+    {
+      "path": "assets/own-payroll-imputation-panel.js",
+      "sha256": "7ace2eed9cc055517a39f4a7c030d0b6605e0af352cb342e30c2214f28fce8a7"
+    },
+    {
+      "path": "assets/own-payroll-novelties-extra.js",
+      "sha256": "5dfa3d6ff5c29a17f79f41fdd3b17b17acb6350328c09e576c9249655c5b8b1f"
+    },
+    {
+      "path": "assets/own-payroll-novelties-panel.css",
+      "sha256": "91f44b55fbf040a041d6983b55b84ecbe32593319bd902307676f79772b17722"
+    },
+    {
+      "path": "assets/own-payroll-novelties-panel.js",
+      "sha256": "5d8f6f7df347c3c1faaafebf6af610995af240c33018b72943d7e999130f3c4d"
+    },
+    {
+      "path": "assets/payroll-fixed-novelties.js",
+      "sha256": "6a4d4dcb105b76ea3f0f0312f49dc8fc8ec6d814b47cedd316f2e62ecc557654"
+    },
+    {
+      "path": "assets/payroll-grh-import-concept-help.js",
+      "sha256": "b5811a6e62443b98b2f965ca7e1ff9b278de4c4872a68b71dbe304c773126a7b"
+    },
+    {
+      "path": "assets/payroll-monthly-annul.js",
+      "sha256": "1ac99e5171a354163b28ba061b57def70e24faf8ba9cea79572054fcc6b41b28"
+    },
+    {
+      "path": "assets/payroll-monthly-correction.js",
+      "sha256": "4167e2e1ff67a2c337184867e22dbfd8b567986cb5f26872f5dddeb9218f72df"
+    },
+    {
+      "path": "assets/payroll-monthly-decisions.js",
+      "sha256": "3b44f70c6c0886155cf3473f8892d7203dc5c6e1522e956ec2b5659c43c1d1b6"
+    },
+    {
+      "path": "assets/payroll-native-monthly-review.js",
+      "sha256": "4f792808ed27c29a8f9086298024cd85a73a4032543771712f82d2cf1376fc24"
+    },
+    {
+      "path": "assets/payroll-novelty-review-panel.js",
+      "sha256": "cef532f2f218977e82a74995ed5f2f62ff0621dbc48ad161a61643691ce29756"
+    },
+    {
+      "path": "assets/payroll-novelty-review.css",
+      "sha256": "64c6c34806a836c3a6db7fff47ed84d537d8e5d1c1437eb5595dd256abdfa25b"
+    },
+    {
+      "path": "assets/payroll-novelty-txt-panel.js",
+      "sha256": "78f1bab5d6e3d77290de0325e3d7ece0cdb59598a5ad6c5ad2e2cf6f397a6ed4"
+    },
+    {
+      "path": "assets/payroll-novelty-workbench.js",
+      "sha256": "bf8a8e42012a8599a2f8769937c62952b61035b829631f3ec30e00232cef119c"
+    },
+    {
+      "path": "assets/pending-bell-model.js",
+      "sha256": "cb68108e4f58ee216232a6f8c65fd6e77a6433d6d652253031fb52d8a71d8f01"
+    },
+    {
+      "path": "assets/pending-bell.js",
+      "sha256": "6254830f41d1572cf477ed4b2339402b272e6e3b44703b994bfef57bc14f57fc"
+    },
+    {
+      "path": "importar-novedades-grh.html",
+      "sha256": "9c157b8ce8cfe7e465f00b3b80f61cd85d9044e1a45d8ee7a8646293a29b5c50"
+    },
+    {
+      "path": "scripts/build-friendly.mjs",
+      "sha256": "f4a812ae7c491837fd9d0a70e3d906890e16c5a90e1913b01adc9af7b3b37887"
+    },
+    {
+      "path": "scripts/verify-admin-access-ficha-browser.mjs",
+      "sha256": "e115626f1909771361c50de810de329efd817832aedbc6026c3cc1585548b946"
+    },
+    {
+      "path": "scripts/verify-entity-import-browser.mjs",
+      "sha256": "ba9fa439b5f88131905fe25d35630d0baa315cd9f2487be57a872ac41dc0e2e7"
+    },
+    {
+      "path": "scripts/verify-monthly-approved-annulments-browser.mjs",
+      "sha256": "e4a1c6115550a6a77844d6933fc4a0dee9b907f9724f4bb221358cc82268db11"
+    },
+    {
+      "path": "scripts/verify-native-monthly-novelties-browser.mjs",
+      "sha256": "a7b6f12945885af62f6beb2116085f6b7c607c6c0287509adad8b68c2f42062c"
+    },
+    {
+      "path": "scripts/verify-novelty-batch-controls.mjs",
+      "sha256": "693cde7a1c957481eb9308cfa248447f24091d4d8d2a4b49ff0c534f594fac64"
+    },
+    {
+      "path": "scripts/verify-novelty-review-056.mjs",
+      "sha256": "c65f1c6b5bae428c5c35324d6dea2920dee25fe918aeadb607ba0ea51222f7e8"
+    },
+    {
+      "path": "scripts/verify-own-payroll-imputation-ui.mjs",
+      "sha256": "a611bf0141ebd6ee8cb213d7aa6dd23dccd7e4436ef6290a96e15277b004b9f6"
+    },
+    {
+      "path": "scripts/verify-own-payroll-novelties-browser.mjs",
+      "sha256": "38703378cf02dcd58dd2ff9e7aa48efb68ad7ce73f59b770d5bc62da20b8eba3"
+    },
+    {
+      "path": "scripts/verify-payroll-monthly-decisions-browser.mjs",
+      "sha256": "4bd97cd2db1b8238231217c8408576c6920449ab0e4941d4cfe3abb84be76aab"
+    },
+    {
+      "path": "scripts/verify-pending-bell-browser.mjs",
+      "sha256": "df7c72d6486f51308ce1209705c1a7cebc64ee7d294a6885e700af47502fb991"
+    },
+    {
+      "path": "tests/admin-access-sod-baseline.test.mjs",
+      "sha256": "80811465f842e65197272d74ec9cc33f52d87a2d4b7339e1eff335e0519bd1a7"
+    },
+    {
+      "path": "tests/grh-cost-centers.test.js",
+      "sha256": "b46a17efd5067e4495f3939827e38a5a9358d0695ab6f7e768bb234c662bc09a"
+    },
+    {
+      "path": "tests/grh-entity-formats.test.js",
+      "sha256": "f019e38b00f38f06c76df4232da4cd3dc07444ced09bcdbb34ac30707719e27f"
+    },
+    {
+      "path": "tests/money-entry.test.js",
+      "sha256": "7698233635a33798f1d84d7a780f79c34563960ef068a2afbd3271604fe76b17"
+    },
+    {
+      "path": "tests/novelty-saved-panel.test.js",
+      "sha256": "cc73a37d3895c520acc55465e3f325ed03cc19d83d24a585b11abfa0b3534eab"
+    },
+    {
+      "path": "tests/own-payroll-novelties-extra.test.js",
+      "sha256": "2da9b199f043e508431cc6cb0a23056bac21c7bc449493d6f7c72efed67545bc"
+    },
+    {
+      "path": "tests/pending-bell.test.js",
+      "sha256": "4d92773e09701439f8fd2a596913c6242582d42710791dc9e73683ae6a7780e1"
+    }
+  ],
+  "municipalSessionsUsed": 0,
+  "productionConnections": 0,
+  "municipalWrites": 0,
+  "status": "PASS",
+  "completedAtUtc": "2026-11-13T03:40:27.703Z"
+}

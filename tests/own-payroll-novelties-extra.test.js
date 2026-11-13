@@ -49,7 +49,7 @@ test('lo guardado se lee con su nombre, y el de origen entre comillas',()=>{
 test('los demás datos de la fila se muestran completos y sólo si están informados',()=>{
   assert.deepEqual(ownNoveltyRowExtras(row(1)),[]);
   assert.deepEqual(ownNoveltyRowExtras(row(1,{forced:true,costCenterSourceId:'19',adjustmentMonth:'2026-10-01',movementType:'m',legalInstrument:'Resolución 12/2026',observation:'Fuente: legamov'})),
-    ['Importe forzado','Centro de costo 19','Mes de ajuste 10/2026','Movimiento: «m» (tal como figura en el origen)','Instrumento: Resolución 12/2026','Observación: Fuente: legamov']);
+    ['Importe forzado','Centro de costo 19 · I.B.Z.E.','Mes de ajuste 10/2026','Movimiento: «m» (tal como figura en el origen)','Instrumento: Resolución 12/2026','Observación: Fuente: legamov']);
   assert.deepEqual(ownNoveltyRowExtras(row(1,{costCenterSourceId:'0',movementType:'standard'})),['Centro de costo 0','Movimiento: Normal']);
 });
 
@@ -58,7 +58,9 @@ test('la pantalla usa el campo de origen, muestra los demás datos en la revisi�
   assert.match(panel,/<option value="\$\{OWN_NOVELTY_MOVEMENT_OTHER\}">Otro movimiento documentado<\/option>/);
   assert.match(panel,/movementType:ownNoveltyMovementValue\(\$\('movement'\)\.value,\$\('movement-other'\)\.value\)/);
   assert.doesNotMatch(panel,/movementType:\$\('movement'\)\.value/);
-  assert.match(panel,/\['Fila','Legajo','Concepto','Unidades','Importe en pesos','Otros datos',\.\.\.\(editable\?\['Acción'\]:\[\]\)\]/);
+  assert.match(panel,/\['Fila','Persona','Concepto','Unidades','Importe en pesos','Otros datos',\.\.\.\(editable\?\['Acción'\]:\[\]\)\]/);
+  // Al revisar se lee quién es y qué concepto es, no sólo los números.
+  assert.match(panel,/td\.append\(node\('b','Legajo '\+value\)\);if\(name\)td\.append\(node\('span',name\)\);/);assert.match(panel,/td\.textContent=known\?known\.code\+' · '\+known\.label:String\(value\);/);
   assert.match(panel,/extras=ownNoveltyRowExtras\(r\)/);
   assert.match(build,/'assets\/own-payroll-novelties-extra\.js'/);
 });

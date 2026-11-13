@@ -1,6 +1,6 @@
 // Campanita de pendientes (pantalla). Recibe quién lee y cómo se consulta; no conoce ninguna API municipal.
 // La monta pending-bell-mount.js, que es quien conoce las consultas livianas del servidor.
-import {bellState, rememberedKeys, ago, periodText} from './pending-bell-model.js';
+import {bellState, bellSeen, rememberedKeys, ago, periodText} from './pending-bell-model.js';
 
 const node = (tag, text, className) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e; };
 const BELL = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 3a6 6 0 0 0-6 6v3.2c0 .9-.3 1.7-.9 2.4L4 16v1h16v-1l-1.1-1.4a3.8 3.8 0 0 1-.9-2.4V9a6 6 0 0 0-6-6Zm-2.2 16a2.3 2.3 0 0 0 4.4 0Z" fill="currentColor"/></svg>';
@@ -50,7 +50,8 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
   function paint() {
     const text = state ? state.label : failed ? 'Pendientes: no se pudo consultar' : 'Pendientes: consultando';
     badge.hidden = !state?.badge; badge.textContent = state?.badge ?? ''; button.setAttribute('aria-label', state ? 'Pendientes: ' + text : text); button.classList.toggle('has-pending', !!state?.count);
-    if (state && state.count !== announced) { if (announced >= 0 && state.count > announced) live.textContent = 'Nuevo pendiente: ' + text + '.'; announced = state.count; }
+    // El número cuenta avisos; el anuncio para lectores de pantalla se dispara también cuando un aviso que ya estaba suma propuestas.
+    if (state && state.total !== announced) { if (announced >= 0 && state.total > announced) live.textContent = 'Nuevo pendiente: ' + text + '.'; announced = state.total; }
     if (!panel.hidden) render();
   }
   async function load() {
@@ -63,7 +64,7 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
   function open() {
     panel.hidden = false; button.setAttribute('aria-expanded', 'true'); render(); panel.focus();
     // Abrir la lista marca como vistas las decisiones que se muestran, por su identificador; lo que espera tu decisión sigue contando hasta que decidas.
-    if (state?.news) { remember(rememberedKeys(state, seen())); state = {...state, news: 0, count: state.waiting, badge: state.waiting > 99 ? '99+' : state.waiting ? String(state.waiting) : ''}; announced = state.count; badge.hidden = !state.badge; badge.textContent = state.badge; }
+    if (state?.news) { remember(rememberedKeys(state, seen())); state = bellSeen(state); announced = state.total; badge.hidden = !state.badge; badge.textContent = state.badge; button.setAttribute('aria-label', 'Pendientes: ' + state.label); }
   }
   button.addEventListener('click', () => panel.hidden ? open() : close());
   root.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(true); } });
