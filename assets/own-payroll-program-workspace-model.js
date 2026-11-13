@@ -1,3 +1,4 @@
+import {ownProgramCatalogueValues} from './own-payroll-catalogue-values.js';
 import {ownProgramBootstrap,ownProgramStructure,ownProgramDefinition,ownProgramHistory,ownProgramCommand,ownProgramReceipt,ownProgramRuleKey} from './own-payroll-program-model.js';
 import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
@@ -26,7 +27,7 @@ export function programWorkspaceGuidance(value){
  const catalogMatches=programApproved&&boot.program.salaryVersion===boot.salaryCatalog.version;
  const pending=boot.proposals.filter(p=>p.status==='pending');
  return {
-  state:!catalogApproved?'catalog_required':!programApproved?'program_required':!catalogMatches?'catalog_changed':'linked',
+  state:!catalogApproved?'catalog_required':!programApproved?'program_required':ownProgramCatalogueValues(boot.program.definition)?'period_values':!catalogMatches?'catalog_changed':'linked',
   canPrepare:catalogApproved&&boot.permissions.canPropose,
   preparationAllowed:boot.permissions.canPropose,
   reviewAllowed:boot.permissions.canReview,
@@ -97,6 +98,7 @@ export function describeProgramExpression(node){
  };return show(node);
 }
 export const PROGRAM_POLICY_LABELS=Object.freeze({
+ catalogueValueResolutionVersion:'Valores salariales aprobados por período; fórmula y aprobación original conservadas',
  cappedDeductionsVersion:'Formato de descuentos con límite',cappedDeductionPolicies:'Pedido, reserva y orden de los descuentos',
  conditionalSourcesVersion:'Formato de las fuentes condicionales',conditionalSourcePolicies:'Cuándo resolver una escala o jornada',
  quantityOnlyInputsVersion:'Formato de entradas sólo de cantidad',quantityOnlyInputPolicies:'Políticas de cantidad y rechazo de importes incompatibles',

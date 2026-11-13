@@ -14,6 +14,7 @@ const messages=Object.freeze({
  roster_required:{title:'Primero: incorporar el padrón propio',description:'No hay legajos registrados o adoptados en el padrón propio consultado. Revisá las propuestas de adopción en Personas o registrá un alta propia. Los registros históricos se conservan; todavía no integran este cálculo.',href:MUNICIPAL_ADOPTION_PENDING_HREF,action:'Revisar adopción del padrón en Personas'},
  catalog_required:{title:'Siguiente paso: aprobar el maestro salarial',description:'El maestro salarial propio todavía no tiene una aprobación registrada. Revisá conceptos, valores y vigencias en Parámetros antes de preparar las reglas.',href:'/nomina#parametros',action:'Revisar parámetros salariales'},
  program_required:{title:'Falta cargar la configuración de cálculo',description:'Podés elegir el período, la fecha, el tipo y el alcance como borrador. El motor todavía no tiene una configuración de cálculo vigente. Completá sus reglas y fuentes en Reglas de cálculo. La selección no certifica la elegibilidad de los legajos.',href:'/nomina#reglas',action:'Completar configuración de cálculo'},
+ period_values:{title:'Fórmula aprobada y valores por período',description:'Podés preparar otro mes con la misma fórmula. El cálculo exige sus valores aprobados exactos, conserva el catálogo capturado y rechaza datos ausentes o incompatibles.',href:null,action:null},
  catalog_changed:{title:'Actualizar las reglas con el maestro vigente',description:'El programa aprobado usa otra revisión del maestro salarial. Revisá la propuesta de reglas con los valores actuales; se conserva el programa anterior.',href:'/nomina#reglas',action:'Revisar reglas de cálculo'},
  linked:{title:'Padrón propio, maestro y programa consultados',description:'Podés preparar el período, la fecha, el tipo y el alcance. El cálculo verifica nuevamente la vigencia y los datos aprobados de cada legajo; esta consulta no certifica su elegibilidad ni ejecuta una liquidación.',href:null,action:null},
 });
@@ -26,7 +27,7 @@ export function ownPayrollReadiness({run,program,roster},tenantId){
  verified.add(result);return result;
 }
 // Draft selection proves registration and the current salary master, not payroll eligibility.
-export const ownPayrollReadinessAllowsPreparation=value=>verified.has(value)&&value.rosterTotal>0&&value.catalogRevision>0&&['program_required','linked'].includes(value.state);
-export const ownPayrollReadinessAllowsNew=value=>verified.has(value)&&value.state==='linked';
+export const ownPayrollReadinessAllowsPreparation=value=>verified.has(value)&&value.rosterTotal>0&&value.catalogRevision>0&&['program_required','linked','period_values'].includes(value.state);
+export const ownPayrollReadinessAllowsNew=value=>verified.has(value)&&['linked','period_values'].includes(value.state);
 export function ownPayrollReadinessUnchanged(before,after){return verified.has(before)&&verified.has(after)&&['state','scopeVersion','programVersion','salaryVersion','rosterSnapshot'].every(k=>before[k]===after[k]);}
 export function ownPayrollProgramSummary(value){const p=ownProgramBootstrap(value);return (p.program.revision>0?'Programa aprobado: revisión '+p.program.revision:'Sin programa aprobado')+'. '+(p.salaryCatalog.revision>0?'Maestro salarial aprobado: revisión '+p.salaryCatalog.revision:'Maestro salarial pendiente de aprobación')+'.';}

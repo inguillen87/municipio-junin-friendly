@@ -1,3 +1,4 @@
+import {verifyCatalogueValueInputs} from './own-payroll-catalogue-values.js';
 import {verifyConditionalSourceCapture,verifyConditionalSourceInputs} from './own-payroll-conditional-sources.js';
 import {verifyCappedSource} from './own-payroll-capped-deductions.js';
 import {optionalScaleResolver,verifyOptionalScaleInputs} from './own-payroll-optional-scales.js';
@@ -56,6 +57,7 @@ export function ownRunCapture(v, attempt = null) {
   if (ownProgramAgreementWorkingTime(v.payload.programState?.program?.definition)) agreementWorkingTimeCapture(v.payload.agreementWorkingTime, v.payload.population?.employees ?? [], v.body.period);
   if(ownPayrollConditions(v.payload.programState?.program?.definition))(v.payload.programState.program.definition.salaryConditionsVersion===SALARY_NATIVE_VERSION?salaryNativeCapture:salaryConditionsCapture)(v.payload.salaryConditions,v.payload.population?.employees??[],v.body.period);
   if(ownPayrollFamilyFacts(v.payload.programState?.program?.definition))familyPayrollFactsCapture(v.payload.familyPayrollFacts,v.payload.population?.employees??[],v.body.period);
+  verifyCatalogueValueInputs(v.payload,v.saved?.input??null);
   verifyDeclaredAdjustmentCapture(v.payload);
   if(v.saved===null)optionalScaleResolver(v.payload);else verifyOptionalScaleInputs(v.payload,v.saved.input);
   if(v.saved===null)verifyConditionalSourceCapture(v.payload);else verifyConditionalSourceInputs(v.payload,v.saved.input);
