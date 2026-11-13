@@ -1,5 +1,7 @@
 import { noveltyReviewPage, noveltyIssuesCsv, noveltyBatchControl, noveltyControlCsv, NOVELTY_REVIEW_KINDS } from './payroll-novelty-review.js';
 import { savedNoveltyBatch } from './payroll-native-monthly-model.js';
+import { conceptText, conceptName } from './code-name-help.js';
+import { costCenterText } from './grh-cost-centers.js';
 const el = (tag, text, cls) => {
   const n = document.createElement(tag);
   if (text !== undefined) n.textContent = text;
@@ -79,7 +81,7 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
     summaryBody.replaceChildren();
     for (const c of fullControl.concepts) {
       const tr = el('tr'); tr.dataset.reviewConcept = c.conceptSourceId;
-      const th = el('th', c.conceptSourceId); th.scope = 'row'; tr.append(th);
+      const th = el('th', conceptText(c.conceptSourceId)); th.scope = 'row'; tr.append(th);
       for (const text of [`${c.rows} filas / ${c.distinctLegajos} legajos`, `${amount(c.knownAmountCents)}${c.missing ? ' · parcial' : ''}`, c.missing, c.forced, `${c.zero} / ${c.negative}`, c.adjustments]) tr.append(el('td', String(text)));
       const open = el('button', 'Ver filas', 'button compact'); open.type = 'button';
       open.dataset.reviewConceptOpen = c.conceptSourceId; open.setAttribute('aria-label', 'Ver filas del concepto ' + c.conceptSourceId);
@@ -110,11 +112,14 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
       for (const value of [row.rowOrdinal, row.legajo, row.conceptSourceId, row.quantityDecimal ?? 'No informado', amount(row.amountCents), row.forced ? 'Sí' : 'No']) {
         const td = el('td', String(value)); if (value === 'No informado') td.className = 'novelty-unvalued'; tr.append(td);
       }
+      // El concepto se lee con su denominación debajo del código; la columna no se ensancha en pantallas chicas.
+      const conceptCell = tr.children[2], name = conceptName(row.conceptSourceId); conceptCell.className = 'novelty-review-concept';
+      if (name) conceptCell.append(el('small', name));
       if (saved) tr.append(el('td', row.issues.length ? row.issues.map(issue => `${issue.blocking ? 'Bloqueante' : 'Aviso'}: ${issueLabel(issue)}`).join(' · ') : 'Sin observaciones'));
       const cell = el('td'), details = el('details');
       const summary = el('summary', 'Ver campos'); summary.setAttribute('aria-label', `Ver todos los campos de la fila ${row.rowOrdinal}`);
       const list = el('dl', undefined, 'novelty-row-fields');
-      for (const [label, value] of [['Centro de costo', row.costCenterSourceId], ['Mes de ajuste', row.adjustmentMonth?.slice(0, 7)], ['Movimiento', row.movementType], ['Instrumento legal', row.legalInstrument], ['Observación', row.observation]]) {
+      for (const [label, value] of [['Centro de costo', row.costCenterSourceId == null ? null : costCenterText(row.costCenterSourceId)], ['Mes de ajuste', row.adjustmentMonth?.slice(0, 7)], ['Movimiento', row.movementType], ['Instrumento legal', row.legalInstrument], ['Observación', row.observation]]) {
         list.append(el('dt', label), el('dd', value ?? 'No informado'));
       }
       details.append(summary, list); cell.append(details); tr.append(cell); body.append(tr);
@@ -140,7 +145,7 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
       nativeScope = subject ? Object.freeze(structuredClone(subject)) : null;
       rows = value.map(row => Object.freeze({ ...row }));
       const all = el('option', 'Todos los conceptos'); all.value = 'all'; concept.append(all);
-      for (const c of fullControl.concepts) { const option = el('option', `${c.conceptSourceId} · ${c.rows} filas`); option.value = c.conceptSourceId; concept.append(option); }
+      for (const c of fullControl.concepts) { const option = el('option', `${conceptText(c.conceptSourceId)} · ${c.rows} filas`); option.value = c.conceptSourceId; concept.append(option); }
       concept.value = 'all'; renderControl(); render(); host.hidden = false;
     },
     clear() { rows = null; fullControl = null; nativeScope = null; page = 1; summaryBox.open = false; summaryBody.replaceChildren(); summaryTitle.textContent = 'Control de todos los conceptos'; totals.textContent = ''; concept.replaceChildren(); body.replaceChildren(); kpis.replaceChildren(); range.textContent = ''; search.value = ''; kind.value = 'all'; issueKind.value = 'all'; captionNode.textContent = ''; note.textContent = ''; host.hidden = true; },

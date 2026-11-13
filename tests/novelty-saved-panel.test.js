@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import * as review from '../assets/payroll-novelty-review.js';
 import {savedNoveltyBatch} from '../assets/payroll-native-monthly-model.js';
+import {conceptText,conceptName} from '../assets/code-name-help.js';
+import {costCenterText} from '../assets/grh-cost-centers.js';
 import {batch} from './fixtures/novelty-saved-review-synthetic.js';
 
 function panels(issueLabel=issue=>issue.code){
@@ -37,7 +39,7 @@ function panels(issueLabel=issue=>issue.code){
     body.id=saved?'detailRows':'previewRows';head.append(tr);table.append(head,body);wrap.append(table);host.append(caption,wrap);root.append(host);return host;
   };
   const source=fs.readFileSync('assets/payroll-novelty-review-panel.js','utf8');
-  const context={...review,savedNoveltyBatch,document:{createElement:tag=>new Element(tag)},
+  const context={...review,savedNoveltyBatch,conceptText,conceptName,costCenterText,document:{createElement:tag=>new Element(tag)},
     URL:{createObjectURL(){throw Error('No saved review download is authorized here');}},setTimeout};
   vm.createContext(context);vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/export function /g,'function '),context);
   const savedHost=makeHost(true),draftHost=makeHost(false);
@@ -55,6 +57,22 @@ test('draft and saved reviews coexist with unique controls and truthful scope',(
   assert.match(h.q('savedReviewScope').textContent,/60 filas del lote completo/);
   assert.equal(h.savedHost.querySelector('#reviewControlDownload'),null);
   assert.ok(h.draftHost.querySelector('#reviewControlDownload'));
+});
+
+test('the review reads concept and cost centre by name; codes stay as the stored value',()=>{
+  const h=panels(),b=batch();b.rows[0].costCenterSourceId='42';b.rows[1].conceptSourceId='999999';b.rows[1].costCenterSourceId='777';
+  h.saved.setBatch(b);
+  const rows=h.q('detailRows').children;
+  const cell=rows[0].children[2];assert.equal(cell.className,'novelty-review-concept');assert.equal(cell.textContent,'614CAJA DE AHORRO Y SEG.-PREST-(410)');
+  assert.equal(cell.children.length,1);assert.equal(cell.children[0].tagName,'small');assert.equal(cell.children[0].textContent,'CAJA DE AHORRO Y SEG.-PREST-(410)');
+  assert.match(rows[0].textContent,/42 · Celadora Jardines Maternales/);
+  // Un código fuera de las listas de referencia se muestra tal cual: no se le inventa nombre ni se oculta.
+  assert.equal(rows[1].children[2].textContent,'999999');assert.equal(rows[1].children[2].children.length,0);assert.match(rows[1].textContent,/777/);assert.match(rows[2].textContent,/No informado/);
+  const control=h.q('savedReviewConceptRows').children.find(tr=>tr.dataset.reviewConcept==='614');
+  assert.match(control.children[0].textContent,/^614 · CAJA DE AHORRO Y SEG\.-PREST-\(410\)/);
+  const options=h.q('savedReviewConcept').children;
+  assert.ok(options.some(o=>o.value==='614'&&/^614 · CAJA DE AHORRO Y SEG\.-PREST-\(410\) · 59 filas$/.test(o.textContent)));
+  assert.ok(options.some(o=>o.value==='999999'&&o.textContent==='999999 · 1 filas'));
 });
 
 test('saved panel visits all pages, shows full fields and preserves full totals under a search',()=>{

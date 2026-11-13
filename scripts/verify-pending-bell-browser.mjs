@@ -80,8 +80,8 @@ try {
     {key: 'program', title: 'Programa de cálculo', href: '/nomina#reglas', count: 0, reviewable: 0},
     {key: 'adoption', title: 'Altas al padrón propio', href: '/personal?adopcion=pendientes#legajos', error: true}];
     document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
-  await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '4'); await button.click();
-  check((await button.getAttribute('aria-label')) === 'Pendientes: 4 pendientes te esperan', 'una propuesta del maestro, un lote y dos licencias suman al número rojo');
+  await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '3'); await button.click();
+  check((await button.getAttribute('aria-label')) === 'Pendientes: 3 avisos · 4 pendientes te esperan', 'el número rojo cuenta avisos: maestro, lotes y licencias son tres, aunque las licencias traigan dos pendientes');
   const waiting = panel.locator('.mc-bell-item');
   check(await waiting.count() === 3 && (await waiting.nth(0).locator('strong').innerText()) === 'Maestro salarial' && (await waiting.nth(0).locator('.mc-bell-who').innerText()) === '1 espera tu decisión.' && (await waiting.nth(0).locator('a').getAttribute('href')) === '/nomina#parametros', 'cada circuito con algo para vos aparece con su cantidad y lleva a su pantalla');
   check((await waiting.nth(2).locator('.mc-bell-who').innerText()) === '2 pendientes. Al abrirlos se ve cuáles decidís vos.', 'si el circuito no dice cuáles son tuyos, avisa todos y lo aclara');
@@ -89,6 +89,17 @@ try {
   check(await page.evaluate(() => [...document.querySelectorAll('.mc-bell-go,.mc-bell-all')].every(a => a.getBoundingClientRect().height >= 44)), 'los enlaces de los circuitos y el de la bandeja miden 44px o más');
   await page.screenshot({path: path.join(output, 'campanita-circuitos.png'), clip: {x: 866, y: 0, width: 500, height: 700}});
   await page.keyboard.press('Escape');
+  // Pedido del dueño (12/11): 50 novedades fijas esperando mostraban «50». Es un aviso; el 50 se lee adentro.
+  await page.evaluate(() => { window.qa.kept = window.qa.circuits; window.qa.circuits = [{key: 'fixed', title: 'Novedades fijas', href: '/novedades#fijas', count: 50, reviewable: 50}]; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
+  await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '1'); await button.click();
+  check((await button.getAttribute('aria-label')) === 'Pendientes: 1 aviso · 50 pendientes te esperan' && await waiting.count() === 1 && (await waiting.nth(0).locator('strong').innerText()) === 'Novedades fijas' && (await waiting.nth(0).locator('.mc-bell-who').innerText()) === '50 esperan tu decisión.', 'cincuenta propuestas del mismo circuito son un aviso: el número dice 1 y el aviso dice 50');
+  await page.screenshot({path: path.join(output, 'campanita-un-aviso-cincuenta.png'), clip: {x: 866, y: 0, width: 500, height: 420}});
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { window.qa.circuits = [{key: 'fixed', title: 'Novedades fijas', href: '/novedades#fijas', count: 51, reviewable: 51}]; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
+  await page.waitForFunction(() => document.querySelector('.mc-bell-live').textContent.startsWith('Nuevo pendiente: 1 aviso · 51 pendientes te esperan'));
+  check((await badge.innerText()) === '1', 'una propuesta más en el mismo aviso se anuncia para lectores de pantalla y no cambia el número');
+  await page.evaluate(() => { window.qa.circuits = window.qa.kept; document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
+  await page.waitForFunction(() => document.querySelector('.mc-bell-badge').textContent === '3');
   await page.evaluate(() => { for (const s of window.qa.sources) { delete s.pending; s.error = true; } window.qa.circuits = window.qa.circuits.map(c => ({key: c.key, title: c.title, href: c.href, error: true})); document.dispatchEvent(new CustomEvent('mc:pending-refresh')); });
   await page.waitForFunction(() => document.querySelector('.mc-bell-badge').hidden === true); await button.click();
   check((await panel.innerText()).includes('No se pudo consultar ningún circuito. Se vuelve a intentar solo en un minuto.') && !(await panel.innerText()).includes('No hay nada esperándote'), 'si ningún circuito respondió no dice «no hay nada»: dice que no pudo consultar');

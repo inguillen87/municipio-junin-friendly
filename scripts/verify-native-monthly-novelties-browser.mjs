@@ -222,6 +222,7 @@ try{
   await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();
   const reviewText=await page.locator('#nativeMonthlyReview').innerText();
   for(const value of ['2026-09','Mensual','44','9','2026-08','1,000001','90.071.992.547.409,93','standard','Resolución QA 2026','Fundamento sintético completo','Modo forzado'])assert.ok(reviewText.includes(value),value);
+  /* La revisión se lee con nombres: el concepto y el centro de costo llevan su denominación, no sólo el código. */for(const value of ['44 · MAYOR DEDICACION','9 · Cultura'])assert.ok(reviewText.includes(value),value);checks.push('native review reads the concept and the cost centre by name, not by code alone');
   const beforeReview=posts.length;await page.locator('#prepareButton').evaluate(node=>node.dispatchEvent(new Event('click')));assert.equal(posts.length,beforeReview);
   assert.equal(await page.locator('#nativeMonthlyReviewConfirm').isChecked(),false);
   await page.locator('#nativeMonthlyReviewConfirm').check();await page.locator('#conceptSourceId').fill('45');assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);assert.equal(await page.locator('#prepareButton').isDisabled(),true);

@@ -2,6 +2,8 @@ import {savedNoveltyBatch, sameNoveltyDecision} from './payroll-native-monthly-m
 import {monthlyDecisionAccess, monthlyDecisionAllowed, sameMonthlyDecisionAccess, monthlyDecisionPlan,
   monthlyDecisionUnchanged, monthlyDecisionAttempt, assertMonthlyDecisionReceipt, MONTHLY_DECISION_COMMANDS, MONTHLY_DECISION_LIMITS} from './payroll-monthly-decisions-model.js';
 
+import {conceptText} from './code-name-help.js';
+import {costCenterText} from './grh-cost-centers.js';
 const API='/api/internal-payroll-novelties?version=2';
 const el=(tag,text,id)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(id)node.id='monthlyDecision'+id;return node;};
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
@@ -96,11 +98,11 @@ export function mountMonthlyDecisions(host,{request,renderList,onLockChange,onCh
       section.append(el('summary',`Lote ${shortId(b.id)} · ${b.periodMonth.slice(0,7)} · ${types[b.payrollType]} · ${b.rowCount} filas · ${states[b.status]}`));
       section.append(el('p',`Versión ${b.version} · ${b.contractVersion==='payroll-novelty-batch.v2'?'Alta propia de MuniControl':'Origen histórico'} · ${b.blockingIssueCount ?? 0} bloqueantes · ${b.warningIssueCount ?? 0} avisos`));
       for(const row of b.rows){const item=el('details');item.dataset.monthlyDecisionRow=String(row.rowOrdinal);
-        item.append(el('summary',`Fila ${row.rowOrdinal} · Legajo ${row.legajo} · Concepto ${row.conceptSourceId}`));
+        item.append(el('summary',`Fila ${row.rowOrdinal} · Legajo ${row.legajo} · Concepto ${conceptText(row.conceptSourceId)}`));
         const values=[['Persona',row.subject?.employeeName ?? 'Nombre no informado'],['Vínculo de origen',row.employmentContractId],
           ['Registro propio',row.subject?.registrationId ?? 'No corresponde'],['Fecha de alta propia',row.subject?.registeredAt ?? 'No corresponde'],
           ['Identidad vigente',row.identityCurrent===false?'Cambió; sólo admite las decisiones habilitadas por el servidor':row.identityCurrent===true?'Verificada':'Fuente histórica'],
-          ['Legajo',row.legajo],['Concepto',row.conceptSourceId],['Centro de costo',row.costCenterSourceId],['Mes de ajuste',row.adjustmentMonth],
+          ['Legajo',row.legajo],['Concepto',conceptText(row.conceptSourceId)],['Centro de costo',row.costCenterSourceId==null?row.costCenterSourceId:costCenterText(row.costCenterSourceId)],['Mes de ajuste',row.adjustmentMonth],
           ['Unidades exactas',row.quantityDecimal],['Importe informado',amount(row.amountCents)],['Movimiento',row.movementType],
           ['Instrumento legal',row.legalInstrument],['Observación',row.observation],['Forzado',row.forced?'Sí':'No'],
           ['Validaciones',row.issues.length?row.issues.map(i=>`${i.code} · ${i.severity} · ${i.blocking?'Bloqueante':'Aviso'}${i.details?' · '+JSON.stringify(i.details):''}`).join('\n'):'Sin observaciones']];

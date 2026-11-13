@@ -4,6 +4,8 @@
 // El modelo admite como movimiento cualquier código corto en minúsculas (el mismo patrón que valida el servidor). La
 // pantalla ofrece los dos habituales y, además, cargar el código de origen sin traducirlo: una novedad tomada de otro
 // sistema conserva su movimiento exacto y acá no se le asigna un significado que no esté documentado.
+import {costCenterText} from './grh-cost-centers.js';
+
 export const OWN_NOVELTY_MOVEMENTS=Object.freeze({standard:'Normal',adjustment:'Ajuste'});
 export const OWN_NOVELTY_MOVEMENT_OTHER='__source';
 const SOURCE_MOVEMENT=/^[a-z0-9][a-z0-9._-]{0,31}$/;
@@ -33,7 +35,7 @@ const monthText=value=>{const m=/^(\d{4})-(\d{2})-01$/.exec(typeof value==='stri
 export function ownNoveltyRowExtras(values){
   const out=[];
   if(values.forced)out.push('Importe forzado');
-  if(values.costCenterSourceId!==null&&values.costCenterSourceId!==undefined)out.push('Centro de costo '+values.costCenterSourceId);
+  if(values.costCenterSourceId!==null&&values.costCenterSourceId!==undefined)out.push('Centro de costo '+costCenterText(values.costCenterSourceId));
   if(values.adjustmentMonth)out.push('Mes de ajuste '+monthText(values.adjustmentMonth));
   if(values.movementType)out.push('Movimiento: '+ownNoveltyMovementLabel(values.movementType));
   if(values.legalInstrument)out.push('Instrumento: '+values.legalInstrument);
