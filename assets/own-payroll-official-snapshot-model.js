@@ -1,3 +1,4 @@
+import {approvedCatalogueMatches,verifyCatalogueValueInputs} from './own-payroll-catalogue-values.js';
 import {cappedInputFields,cappedResultFields,normalizeCappedCapture,verifyCappedSource,cappedContractResult,verifyCappedEconomicSource} from './own-payroll-capped-deductions.js';
 import {verifyOptionalScaleInputs} from './own-payroll-optional-scales.js';
 import {verifyQuantityOnlyInput} from './own-payroll-quantity-only-capture.js';
@@ -69,11 +70,12 @@ export function ownOfficialCapture(capture){
  need(!Object.hasOwn(definition,'fixedForcedAmountsVersion')&&!Object.hasOwn(definition,'fixedForcedAmountsPolicy'),'La composición de importes forzados sigue requiriendo su circuito propio.');
  ownProgramBootstrap(payload.programState);
  monthlyForcedCaptureSourceRecords(payload,input,result);
+ verifyCatalogueValueInputs(payload,input);
  verifyOptionalScaleInputs(payload,input);
  verifyDeclaredAdjustmentInput(payload,input,result);
  verifyQuantityOnlyInput(payload,input);
  verifyCappedSource(payload,input,result);
- need(program.revision>0&&program.salaryVersion===payload.programState.salaryCatalog.version,'La captura debe conservar el programa aprobado y su catálogo original.');
+ need(approvedCatalogueMatches(payload),'La captura debe conservar el programa aprobado y su catálogo original.');
  const normalize=input.version==='own-payroll-input.v5'?normalizeOwnPayrollRowEmissionInput:normalizeOwnPayrollOfficialInput;
  const calculate=input.version==='own-payroll-input.v5'?calculateOwnPayrollWithRowEmission:calculateOwnPayrollWithOfficialTotals;
  need(same(normalize(input),input),'La entrada original no conserva su representación canónica.');

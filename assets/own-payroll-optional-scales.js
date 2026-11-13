@@ -1,3 +1,4 @@
+import {approvedCatalogueMatches} from './own-payroll-catalogue-values.js';
 // Opt-in policy: absence of approved scale configuration, never a personal fact.
 import {payrollRequire as require,decimal,quantize} from './own-payroll-exact.js';
 import {salaryExact,salaryHash,salaryUuid,salaryItems,salaryRowKey,salarySerialized} from './native-salary-catalog-model.js';
@@ -44,7 +45,7 @@ export function optionalScaleResolver({programState,sourceInventory,period}){
   &&[proof.tenantId,proof.sourceBindingId,proof.approvalId,proof.proposalId].every(salaryUuid)
   &&Number.isSafeInteger(proof.revision)&&proof.revision>0&&proof.revision===catalog?.revision
   &&[proof.catalogueVersion,proof.itemsSha256].every(salaryHash)&&proof.catalogueVersion===catalog?.version
-  &&programState.program.revision>0&&programState.program.salaryVersion===catalog.version
+  &&approvedCatalogueMatches({programState,sourceInventory,period})
   &&Number.isSafeInteger(proof.itemCount)&&proof.itemCount>0&&proof.itemCount<=10000
   &&Array.isArray(catalog.items)&&proof.itemCount===catalog.items.length&&policyMonth(period),
  'OPTIONAL_SCALE_CAPTURE_INVALID','Falta el catálogo aprobado completo y su prueba original de integridad.');

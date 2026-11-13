@@ -1,3 +1,4 @@
+import {ownProgramCatalogueValues} from './own-payroll-catalogue-values.js';
 import {ownProgramBootstrap,ownProgramNamespaced} from './own-payroll-program-model.js';
 import {salaryRowKey} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES} from './own-payroll-run-workspace-model.js';
@@ -21,7 +22,7 @@ export function programCoverage(value,{period,liquidationType}){
   return {key:salaryRowKey(d),agreementCode:d.agreementCode,kind,code:d.code,validFrom:d.validFrom,validUntil:d.validUntil,state};
  });
  const linked=boot.program.revision>0&&boot.program.salaryVersion===boot.salaryCatalog.version;
- const state=boot.salaryCatalog.revision===0?'catalog_required':boot.program.revision===0?'program_required':!linked?'catalog_changed':'linked';
+ const state=boot.salaryCatalog.revision===0?'catalog_required':boot.program.revision===0?'program_required':ownProgramCatalogueValues(definition)?'period_values':!linked?'catalog_changed':'linked';
  const counts=Object.fromEntries(Object.keys(COVERAGE_STATES).map(s=>[s,rows.filter(r=>r.state===s).length]));
  const report=freeze({version:'own-program-coverage.v1',period,liquidationType,catalogRevision:boot.salaryCatalog.revision,programRevision:boot.program.revision,catalogVersion:boot.salaryCatalog.version,programVersion:boot.program.version,state,linked,rows,counts,catalogRows:boot.salaryCatalog.items.length,scales:boot.salaryCatalog.items.filter(d=>d.kind==='scale').length,payrollCalculated:false,payrollPosted:false,homologated:false});
  verified.add(report);return report;
@@ -30,6 +31,6 @@ export function programCoverageCsv(report){
  if(!verified.has(report))throw Error('Revisá nuevamente la consulta completa antes de descargar.');
  // Only fixed labels and validated codes/months/revision numbers. No names,
  // amounts, formula text, free references, UUIDs or raw source material.
- const lines=[['Periodo','Tipo','Revision maestro','Revision programa','Vinculo','Convenio','Clase de codigo','Codigo','Desde','Hasta','Estado','Accion sugerida'],...report.rows.map(r=>[report.period,OWN_RUN_TYPES[report.liquidationType],report.catalogRevision,report.programRevision,report.linked?'Misma revision':'Revisar versiones',r.agreementCode,{concept:'Concepto',auxiliary:'Auxiliar',legacy_auxiliary:'Auxiliar historico'}[r.kind],r.code,r.validFrom,r.validUntil??'',COVERAGE_STATES[r.state],COVERAGE_ACTIONS[r.state]])];
+ const lines=[['Periodo','Tipo','Revision maestro','Revision programa','Vinculo','Convenio','Clase de codigo','Codigo','Desde','Hasta','Estado','Accion sugerida'],...report.rows.map(r=>[report.period,OWN_RUN_TYPES[report.liquidationType],report.catalogRevision,report.programRevision,report.state==='period_values'?'Valores aprobados por periodo':report.linked?'Misma revision':'Revisar versiones',r.agreementCode,{concept:'Concepto',auxiliary:'Auxiliar',legacy_auxiliary:'Auxiliar historico'}[r.kind],r.code,r.validFrom,r.validUntil??'',COVERAGE_STATES[r.state],COVERAGE_ACTIONS[r.state]])];
  const cell=v=>'"'+String(v).replaceAll('"','""')+'"';return '\uFEFF'+lines.map(row=>row.map(cell).join(';')).join('\r\n')+'\r\n';
 }

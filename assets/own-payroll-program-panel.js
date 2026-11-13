@@ -322,6 +322,7 @@ export function mountOwnPayrollProgram(container){
   const guidance=programWorkspaceGuidance(boot),messages={
    catalog_required:['Primero: aprobar el maestro salarial propio','Todavía no hay una revisión aprobada de conceptos y escalas. Prepará el maestro con sus vigencias y respaldo; debe decidirse por una persona habilitada antes de preparar reglas.'],
    program_required:['Siguiente paso: preparar y revisar las reglas','El maestro salarial tiene una revisión aprobada. Todavía no hay un programa propio aprobado. Prepará las fórmulas, entradas, unidades y vigencias para su decisión registrada.'],
+   period_values:['Fórmula reutilizable y valores por período','La aprobación de la fórmula se conserva. Cada cálculo exige el catálogo aprobado completo, los valores exactos del mes y las mismas unidades y fuentes originales. Las liquidaciones anteriores conservan su propio catálogo.'],
    catalog_changed:['Revisar las reglas con el maestro actualizado','El programa aprobado utiliza otra revisión del maestro salarial. Revisá todas las reglas y fuentes con el maestro actual y enviá una nueva propuesta. El programa anterior conserva su historial.'],
    linked:['Programa y maestro vinculados','El programa aprobado conserva la misma revisión del maestro consultado. Los cálculos requieren además su población, novedades, fuentes y decisiones verificadas.'],
   };

@@ -12,6 +12,7 @@ import {chromium} from 'playwright';
 import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {ownPayrollFullQaInstallation} from './lib/own-payroll-full-qa.mjs';
 import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
+import {agreementQaHttpTasks} from './lib/own-agreement-working-time-browser.mjs';
 import {createOwnProgramHandler} from '../api/internal-own-payroll-program.js';
 import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';
 import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog.js';
@@ -33,13 +34,16 @@ const pageRoot=args.built?path.join(root,'public'):root,output=path.resolve(args
 const qa=buildOwnPayrollDurableQa(major,{seedProgram:false,declaredDate:true}),executable=args.psql??'psql',db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 let installed=false,server,browser,diagnosticPage,held=null,hold=false,lose=false,unregisteredSend=false,expired=false,changedSession=false,checks=0,posts=0,bootRequests=0;
-const writes=[],errors=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;},env={};let report;
+const httpTasks=agreementQaHttpTasks(),writes=[],errors=[],sqlDiagnostics=[],check=(value,label)=>{assert.ok(value,label);checks++;},env={};let report;
 let checkerUiAdmitted=false;
  const permissions=key=>[...new Set([...PROGRAM_READ,...PROGRAM_CAPS[key==='maker'?'propose':'approve'],...(key==='maker'?[...PROGRAM_CAPS.approve,...RUN_CALCULATE,'payroll.read']:[]),...(key==='checker'&&checkerUiAdmitted?['payroll.read']:[])])];
 const actorKey=req=>req.headers['x-qa-actor']==='checker'?'checker':'maker';
 const session=key=>{const a=qa.actors[key];return {email:a.actorEmail,id:a.actorSessionId,version:a.actorSessionVersion,releaseSha:a.releaseSha};};
 const principal=key=>{const a=qa.actors[key];return {user:{email:a.actorEmail},tenant:{source:'membership',id:a.tenantId,membershipId:a.membershipId,effectiveCapabilities:permissions(key)}};};
 const renderQuery=(query,values)=>query.replaceAll('public.own_program_',qa.schema+'.own_program_').replaceAll('public.native_employment_catalog_',qa.schema+'.native_employment_catalog_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
+// DOM readiness does not imply that other real HTTP handlers have committed.
+// Wait only before out-of-band fixture SQL; product requests keep their original concurrency.
+const fixtureSql=async(...query)=>{await httpTasks.drain();return db.run(...query);};
 const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(actorKey(req)),qaActor:actorKey(req)}),sessionFor:access=>session(access.qaActor),getSql:async()=>({query:async(query,values)=>{
  try{
   if(query.startsWith('SELECT public.own_run_'))return await db.query(query,values);
@@ -85,13 +89,13 @@ try{
  const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const handlers={'/api/internal-own-payroll-program':createOwnProgramHandler(deps),'/api/internal-own-payroll-run':createOwnRunHandler(deps),'/api/internal-employment-catalog':createEmploymentCatalogHandler(deps)};
  const directoryHandler=createInternalDataHandler({env,requireCompatibleInternalAccess:deps.requireAccess,actionMutationSession:deps.sessionFor,getInternalSql:async()=>readinessSql});
- server=http.createServer((req,res)=>{
+ server=http.createServer((req,res)=>{void httpTasks.run(async()=>{
   const url=new URL(req.url,'http://local.invalid');res.setHeader('Cache-Control','no-store');const json=(status,value)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(value));
   if(req.method==='GET'&&url.pathname==='/api/internal-auth'){
    const key=actorKey(req),a=qa.actors[key];json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:changedSession?'another-qa-session':a.actorSessionId,email:a.actorEmail},access:{context:'tenant',tenant:{id:a.tenantId,roleKey:'QA'},tenantCapabilities:permissions(key),platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+(expired?-3600000:3600000)).toISOString()});return;
   }
   if(req.method==='GET'&&url.pathname==='/api/internal-data'){
-   if(url.searchParams.get('resource')==='nativeroster'){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
+   if(url.searchParams.get('resource')==='nativeroster'){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};await directoryHandler(req,res).catch(e=>json(500,{ok:false,error:e.message}));return;}
    if(url.searchParams.get('resource')==='employees'){const page=Number(url.searchParams.get('page'));json(200,{ok:true,version:'employee-picker.v1',data:page===1?[{contractId:sources.contractId,legajo:'19041',nombre:'Corrida propia QA',sector:'20',convenio:'1',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'}]:[],pagination:{page,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}});return;}
    json(503,{ok:false,error:'Synthetic historical dashboard unavailable'});return;
   }
@@ -99,33 +103,33 @@ try{
    req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{res.setHeader('Content-Type','application/json');
     if(hold&&req.method==='GET'&&url.pathname==='/api/internal-own-payroll-program'&&url.searchParams.get('resource')==='bootstrap'){hold=false;held=()=>{if(!res.destroyed)res.end(JSON.stringify(value));};}else res.end(JSON.stringify(value));return res;};
    if(url.pathname==='/api/internal-own-payroll-program'&&req.method==='GET')bootRequests++;
-   if(req.method==='POST'){posts++;if(unregisteredSend&&url.pathname==='/api/internal-own-payroll-program'){unregisteredSend=false;json(503,{ok:false,error:'Synthetic request did not reach the SQL writer'});return;}}handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
+   if(req.method==='POST'){posts++;if(unregisteredSend&&url.pathname==='/api/internal-own-payroll-program'){unregisteredSend=false;json(503,{ok:false,error:'Synthetic request did not reach the SQL writer'});return;}}await handlers[url.pathname](req,res).catch(e=>json(500,{ok:false,error:e.message}));return;
   }
   if(req.method!=='GET'){json(405,{ok:false});return;}const file=url.pathname==='/nomina-control.html'?path.join(pageRoot,'nomina-control.html'):path.resolve(pageRoot,'.'+decodeURIComponent(url.pathname));
   if(!(url.pathname==='/nomina-control.html'||file.startsWith(path.join(pageRoot,'assets')+path.sep)&&/\.(?:js|css|png|svg|webp)$/.test(file))||!fs.existsSync(file)){res.writeHead(404).end();return;}
   res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'image/svg+xml'}).end(fs.readFileSync(file));
- });
+ }).catch(e=>{errors.push('HTTP QA: '+e.message);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'}).end('{"ok":false}');else res.destroy();});});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
  browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:args.browser==='chromium'?{}:{channel:args.browser})});
  const makerContext=await browser.newContext({viewport:{width:1440,height:1000}}),page=await makerContext.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await makerContext.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});diagnosticPage=page;page.on('pageerror',e=>errors.push(e.message));
- const select=key=>page.locator('[data-program-'+key+']'),settled=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden,{},{timeout:20000});
+ const select=key=>page.locator('[data-program-'+key+']'),settled=async(target=page)=>{await target.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden,{},{timeout:20000});await httpTasks.drain();};
  await page.goto(origin+'/nomina-control.html#reglas');await settled();check(posts===0,'opening actual rules task never saves or calculates');
  check(await page.locator('.own-program h2').innerText()==='Reglas de cálculo','actual product task is visible');
  check(await select('rule-select').locator('option').count()===0&&await select('binding-select').locator('option').count()===0,'first installation starts without inventing an approved program');
  const fixture=syntheticProgram();
- const exactBoot=await db.run('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)');
+ const exactBoot=await fixtureSql('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)');
  const unsafe=syntheticCommand({program:historicalProgram(),scopeVersion:exactBoot.scopeVersion,baseVersion:exactBoot.program.version,salaryVersion:exactBoot.salaryCatalog.version});
- await assert.rejects(db.run('SELECT own_program_command_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb,'+q(JSON.stringify(unsafe))+'::jsonb,gen_random_uuid())'),/OWN_PROGRAM_PRECISION_REQUIRED/);checks++;
- check((await db.run('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)')).proposals.length===0,'direct non-exact command cannot bypass the editor or leave a partial proposal');
+ await assert.rejects(fixtureSql('SELECT own_program_command_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb,'+q(JSON.stringify(unsafe))+'::jsonb,gen_random_uuid())'),/OWN_PROGRAM_PRECISION_REQUIRED/);checks++;
+ check((await fixtureSql('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)')).proposals.length===0,'direct non-exact command cannot bypass the editor or leave a partial proposal');
  if(args['reference-scales']){
   Object.assign(fixture.bindings.find(b=>b.key==='base'),{sourceKind:'scale_reference',sourceCode:'8900',sourceAgreementCode:'4',sourceCategoryCode:'13'});
   const definition=p=>'SELECT own_program_definition_v1('+q(JSON.stringify(p))+'::jsonb,own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)#>\'{salaryCatalog,items}\')';
-  assert.deepEqual(await db.run(definition(fixture)),fixture);checks++;
-  assert.deepEqual(await db.run(definition(syntheticProgram())),syntheticProgram());checks++;
+  assert.deepEqual(await fixtureSql(definition(fixture)),fixture);checks++;
+  assert.deepEqual(await fixtureSql(definition(syntheticProgram())),syntheticProgram());checks++;
   for(const [change,code] of [[b=>delete b.sourceCategoryCode,'BINDING_INVALID'],[b=>b.sourceAgreementCode='9','SOURCE_DEFINITION_MISSING'],[b=>b.sourceCategoryCode='6-D','BINDING_INVALID'],[b=>b.sourceCategoryCode='99','SOURCE_DEFINITION_MISSING'],[b=>b.sourceCategoryCode=13,'BINDING_INVALID'],[b=>b.onMissing='zero','BINDING_INVALID'],[b=>b.combine='sum','BINDING_INVALID'],[b=>b.unit='hours','BINDING_INVALID']]){
-   const p=structuredClone(fixture);change(p.bindings.find(b=>b.key==='base'));await assert.rejects(db.run(definition(p)),new RegExp('OWN_PROGRAM_'+code));checks++;
+   const p=structuredClone(fixture);change(p.bindings.find(b=>b.key==='base'));await assert.rejects(fixtureSql(definition(p)),new RegExp('OWN_PROGRAM_'+code));checks++;
   }
-  await assert.rejects(db.run('SELECT own_program_definition_v1('+q(JSON.stringify(fixture))+"::jsonb,(SELECT jsonb_agg(CASE WHEN i->>'kind'='scale' AND i->>'categoryCode'='13' THEN i||jsonb_build_object('validUntil','2026-10') ELSE i END) FROM jsonb_array_elements(own_program_bootstrap_v1("+q(JSON.stringify(qa.actors.maker))+"::jsonb)#>'{salaryCatalog,items}') i))"),/OWN_PROGRAM_SOURCE_DEFINITION_MISSING/);checks++;
+  await assert.rejects(fixtureSql('SELECT own_program_definition_v1('+q(JSON.stringify(fixture))+"::jsonb,(SELECT jsonb_agg(CASE WHEN i->>'kind'='scale' AND i->>'categoryCode'='13' THEN i||jsonb_build_object('validUntil','2026-10') ELSE i END) FROM jsonb_array_elements(own_program_bootstrap_v1("+q(JSON.stringify(qa.actors.maker))+"::jsonb)#>'{salaryCatalog,items}') i))"),/OWN_PROGRAM_SOURCE_DEFINITION_MISSING/);checks++;
  }
  for(const binding of fixture.bindings){await select('add-binding').click();const fields=[['binding-agreement','agreementCode',false],['binding-key','key',false],['binding-source','sourceKind',true],...(binding.sourceKind==='scale_reference'?[['binding-source-agreement','sourceAgreementCode',true],['binding-code','sourceCode',true],['binding-source-category','sourceCategoryCode',true]]:[['binding-code','sourceCode',false]]),['binding-unit','unit',true],['binding-missing','onMissing',true],['binding-combine','combine',true],['binding-reference','ruleReference',false]];for(const [field,key,dropdown] of fields){const input=page.locator('[data-program-field="'+field+'"]');if(dropdown)await input.selectOption(binding[key]);else await input.fill(binding[key]);}}
  if(args['reference-scales']){
@@ -155,25 +159,25 @@ try{
  await select('confirm').check();unregisteredSend=true;await select('send').click();await page.waitForFunction(()=>document.querySelector('.own-program').getAttribute('aria-busy')==='false');await select('recover').click();await select('revise').waitFor({state:'visible'});check(await select('fields').evaluate(el=>el.disabled),'a confirmed absent attempt remains locked until explicit review');await select('revise').click();await settled();
  check(await select('rule-select').locator('option').count()===6&&await select('binding-select').locator('option').count()===2&&await select('reason').inputValue()==='Primer programa sintético completo, sin norma municipal'&&posts===1&&await select('send').isHidden(),'review after exact GET404 preserves all draft rules and reason without automatic sending');
  await select('prepare').click();check(await select('send').isDisabled()&&await select('impact-table').locator('tbody tr').count()===8,'restored preparation requires another full review and explicit confirmation');await select('confirm').check();await select('send').click();await select('receipt').waitFor({state:'visible'});
- const firstProposal=await db.run("SELECT jsonb_build_object('id',id,'definition',body->'program') FROM own_payroll_program_event WHERE command='propose'");assert.deepEqual(firstProposal.definition,fixture,'all program fields survive actual form authoring without omission');checks++;
+ const firstProposal=await fixtureSql("SELECT jsonb_build_object('id',id,'definition',body->'program') FROM own_payroll_program_event WHERE command='propose'");assert.deepEqual(firstProposal.definition,fixture,'all program fields survive actual form authoring without omission');checks++;
  // Preserve the narrow reviewer negative before admitting the positive full-page
   // fixture. The page has always required payroll.read; the program API remains narrower.
-  const narrowPosts=posts,narrowWrites=writes.length,narrowLedger=await db.run("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))");
+  const narrowPosts=posts,narrowWrites=writes.length,narrowLedger=await fixtureSql("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))");
   const narrowContext=await browser.newContext({extraHTTPHeaders:{'x-qa-actor':'checker'}}),narrowPage=await narrowContext.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await narrowContext.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
   try{
     await narrowPage.goto(origin+'/nomina-control.html#reglas');await narrowPage.evaluate(async()=>{await window.MuniControlCapabilityGate.ready;});
     check(!permissions('checker').includes('payroll.read')&&await narrowPage.locator('#mainContent').isHidden()&&await narrowPage.locator('.own-program').isHidden()&&!await narrowPage.locator('[data-program-send]').isVisible(),'the original narrow checker is denied the full payroll page without payroll.read');
   }finally{await narrowContext.close();}
-  assert.deepEqual(await db.run("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))"),narrowLedger);check(posts===narrowPosts&&writes.length===narrowWrites,'denied narrow reviewer adds no POST, program event or payroll capture');
+  assert.deepEqual(await fixtureSql("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'captures',(SELECT count(*) FROM own_payroll_run_capture))"),narrowLedger);check(posts===narrowPosts&&writes.length===narrowWrites,'denied narrow reviewer adds no POST, program event or payroll capture');
   const capabilitySnapshot="SELECT coalesce(jsonb_agg(jsonb_build_object('memberId',membership_id,'capabilityKey',capability_key) ORDER BY membership_id,capability_key COLLATE \"C\"),'[]'::jsonb) FROM capabilities";
-  const beforeUiCapabilities=await db.run(capabilitySnapshot),beforeCheckerPermissions=permissions('checker'),beforeMakerPermissions=permissions('maker');
+  const beforeUiCapabilities=await fixtureSql(capabilitySnapshot),beforeCheckerPermissions=permissions('checker'),beforeMakerPermissions=permissions('maker');
   assert.ok(!beforeUiCapabilities.some(r=>r.memberId===qa.ids.checker&&r.capabilityKey==='payroll.read'),'fixture checker must start narrow');
-  await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.checker)+"::uuid,'payroll.read')");
+  await fixtureSql("INSERT INTO capabilities VALUES("+q(qa.ids.checker)+"::uuid,'payroll.read')");
   const expectedUiCapabilities=[...beforeUiCapabilities,{memberId:qa.ids.checker,capabilityKey:'payroll.read'}].sort((a,b)=>a.memberId<b.memberId?-1:a.memberId>b.memberId?1:a.capabilityKey<b.capabilityKey?-1:a.capabilityKey>b.capabilityKey?1:0);
-  assert.deepEqual(await db.run(capabilitySnapshot),expectedUiCapabilities,'only one capability row of the isolated checker fixture may change');checkerUiAdmitted=true;
+  assert.deepEqual(await fixtureSql(capabilitySnapshot),expectedUiCapabilities,'only one capability row of the isolated checker fixture may change');checkerUiAdmitted=true;
   assert.deepEqual(permissions('checker'),[...beforeCheckerPermissions,'payroll.read']);assert.deepEqual(permissions('maker'),beforeMakerPermissions);check(posts===narrowPosts&&writes.length===narrowWrites,'positive full-page reviewer fixture declares only payroll.read; maker, identities and program commands stay unchanged');
   const initialReviewerContext=await browser.newContext({extraHTTPHeaders:{'x-qa-actor':'checker'}}),initialReviewer=await initialReviewerContext.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await initialReviewerContext.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});initialReviewer.on('pageerror',e=>errors.push(e.message));const initialReview=key=>initialReviewer.locator('[data-program-'+key+']');
- await initialReviewer.goto(origin+'/nomina-control.html#reglas');await initialReviewer.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden);await initialReview('review-tab').click();await initialReview('proposal-select').selectOption(firstProposal.id);await initialReview('decision').selectOption('approve');await initialReview('decision-reason').fill('Primera aprobación independiente sintética completa');await initialReview('review-decision').click();await initialReview('confirm').check();await initialReview('send').click();await initialReview('receipt').waitFor({state:'visible'});check((await initialReview('receipt').innerText()).includes('revisión 1'),'first approved program starts at revision one');await initialReviewerContext.close();
+ await initialReviewer.goto(origin+'/nomina-control.html#reglas');await settled(initialReviewer);await initialReview('review-tab').click();await initialReview('proposal-select').selectOption(firstProposal.id);await initialReview('decision').selectOption('approve');await initialReview('decision-reason').fill('Primera aprobación independiente sintética completa');await initialReview('review-decision').click();await initialReview('confirm').check();await initialReview('send').click();await initialReview('receipt').waitFor({state:'visible'});check((await initialReview('receipt').innerText()).includes('revisión 1'),'first approved program starts at revision one');await initialReviewerContext.close();
  await select('new').click();await settled();check(await select('rule-select').locator('option').count()===6&&await select('binding-select').locator('option').count()===2,'all newly approved rules and sources can be edited');
  check(await select('rule-editor').getByRole('button',{name:'Retirar esta regla de la preparación'}).isDisabled(),'approved rule history cannot be removed in the editor');
  await select('rule-select').selectOption('1');await page.locator('[data-program-field="expression-right-value"]').fill('0.13');await page.locator('[data-program-field="ruleReference"]').fill('Cambio de coeficiente inventado QA');await select('reason').fill('Propuesta sintética con revisión completa independiente');await select('prepare').click();
@@ -181,7 +185,7 @@ try{
  let copiedDefinition=null;const reviewRows=args['multi-copy']?24:8;
  if(args['multi-copy']){
   const source=structuredClone(fixture);source.rules[1].expression.right.value='0.13';source.rules[1].ruleReference='Cambio de coeficiente inventado QA';
-  const current=await db.run('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)');
+  const current=await fixtureSql('SELECT own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)');
   copiedDefinition=prepareProgramCopies(current,source,{sourceKeys:source.rules.map(ownProgramRuleKey),targets:['2','4'],validFrom:'2026-10',validUntil:null,ruleReference:'Cambio conjunto inventado QA',mode:'add'}).program;
   await select('copy').locator('summary').click();await select('copy-multiple').check();await select('copy-select-filtered').click();for(const agreement of ['2','4'])await page.locator('[data-program-copy-target="'+agreement+'"]').check();
   await select('copy-from').fill('2026-10');await select('copy-mode').selectOption('add');await select('copy-reference').fill('Cambio conjunto inventado QA');await select('copy-preview').click();await settled();
@@ -194,21 +198,21 @@ try{
  check(lostState.posts===4&&lostState.fieldDisabled&&lostState.inputDisabled&&lostState.recoverVisible,'lost committed reply keeps original attempt and locks editing: '+JSON.stringify(lostState));
  await page.evaluate(()=>document.querySelector('[data-program-reason]').value='Texto distinto forzado en la interfaz');await select('send').click();await select('receipt').waitFor({state:'visible'});
  check(writes.length===4&&writes[2].key===writes[3].key&&JSON.stringify(writes[2].body)===JSON.stringify(writes[3].body),'replay retains exact body and key despite forced DOM edit');
- const pending=await db.run("SELECT jsonb_build_object('id',id,'sha',request_sha256,'body',body) FROM own_payroll_program_event WHERE command='propose' ORDER BY recorded_at DESC LIMIT 1");
+ const pending=await fixtureSql("SELECT jsonb_build_object('id',id,'sha',request_sha256,'body',body) FROM own_payroll_program_event WHERE command='propose' ORDER BY recorded_at DESC LIMIT 1");
  if(copiedDefinition){assert.deepEqual(pending.body.program,copiedDefinition,'the actual SQL ledger preserves every selected formula, destination and source');checks++;}
- const boot=await db.run('SELECT '+qa.schema+'.own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)',true);
+ const boot=await fixtureSql('SELECT '+qa.schema+'.own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)',true);
  const unauthorized={command:'approve',scopeVersion:boot.scopeVersion,baseVersion:pending.body.baseVersion,salaryVersion:pending.body.salaryVersion,proposalId:pending.id,proposalSha256:pending.sha,program:null,reason:'Self approval must be denied in synthetic QA',reviewConfirmed:true};
  const denied=await makerContext.request.post(origin+'/api/internal-own-payroll-program',{headers:{Origin:origin,'Idempotency-Key':randomUUID()},data:{operation:'command',payload:unauthorized}});
  check(denied.status()===403&&(await denied.json()).code==='OWN_PROGRAM_INDEPENDENT_REQUIRED','real SQL forbids self approval even with both capabilities');
  await select('new').click();await settled();await select('review-tab').click();await select('proposal-select').selectOption(pending.id);
  check(await select('decision-fields').evaluate(el=>el.disabled),'own pending proposal cannot be decided in the UI');
  const reviewerContext=await browser.newContext({viewport:{width:1440,height:1000},extraHTTPHeaders:{'x-qa-actor':'checker'}}),reviewer=await reviewerContext.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await reviewerContext.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});reviewer.on('pageerror',e=>errors.push(e.message));const review=key=>reviewer.locator('[data-program-'+key+']');
- await reviewer.goto(origin+'/nomina-control.html#reglas');await reviewer.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-program-content]').hidden);
+ await reviewer.goto(origin+'/nomina-control.html#reglas');await settled(reviewer);
  check(await review('fields').evaluate(el=>el.disabled),'review-only account cannot edit a program');await review('review-tab').click();await review('proposal-select').selectOption(pending.id);
  check(await review('proposal-detail').locator('tbody tr').count()===reviewRows&&!(await review('decision-fields').evaluate(el=>el.disabled)),'independent reviewer receives the complete saved proposal');
  await review('decision').selectOption('approve');await review('decision-reason').fill('Aprobación independiente sintética sin norma municipal');await review('review-decision').click();await review('confirm').check();await review('send').click();await review('receipt').waitFor({state:'visible'});
  check((await review('receipt').innerText()).includes('revisión 2'),'actual approval advances the own program revision');
- const beforeCalculation=await db.run("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'runs',(SELECT count(*) FROM own_payroll_run_capture),'program',own_program_bootstrap_v1("+q(JSON.stringify(qa.actors.maker))+"::jsonb)->'program')");
+ const beforeCalculation=await fixtureSql("SELECT jsonb_build_object('events',(SELECT count(*) FROM own_payroll_program_event),'runs',(SELECT count(*) FROM own_payroll_run_capture),'program',own_program_bootstrap_v1("+q(JSON.stringify(qa.actors.maker))+"::jsonb)->'program')");
  check(beforeCalculation.events===4&&beforeCalculation.runs===0&&beforeCalculation.program.revision===2,'two proposed programs and their independent approvals, one replay and no hidden payroll calculation: '+JSON.stringify({events:beforeCalculation.events,runs:beforeCalculation.runs,revision:beforeCalculation.program.revision}));
  if(copiedDefinition){assert.deepEqual(beforeCalculation.program.definition,copiedDefinition,'approved program exactly retains the entire joint copy on a new committed connection');checks++;}
  await page.screenshot({path:prefix+'-desktop.png',fullPage:true});
@@ -218,7 +222,7 @@ try{
  // The next actual product task must use the program just approved in this UI.
  await openQaPayrollSidebarTask(page,{profile:'payroll-sidebar',task:'calculo'});await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
  await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-period-end]').click();await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
- const result=await db.run("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
+ const result=await fixtureSql("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
  const expected110=args['reference-scales']?'26.17550000':'13.01300000';
  check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount===expected110,'actual own run uses the approved UI coefficient and exact reference scale when declared');
  check(result.programVersion===beforeCalculation.program.version&&result.requestProgramVersion===beforeCalculation.program.version,'saved own run is linked to the exact newly approved program');
@@ -231,14 +235,14 @@ try{
  check(await select('content').isHidden()&&await select('login').isVisible(),'expired HTTP200 auth withdraws all private views');expired=false;
  changedSession=true;await review('refresh').click();await reviewer.waitForFunction(()=>document.querySelector('.own-program').getAttribute('aria-busy')==='false');
  check(await review('content').isHidden()&&(await review('status').innerText()).includes('Cambió la sesión'),'another session cannot recover or resend an approval attempt');changedSession=false;
- await select('refresh').click();await settled();await db.run("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.parameter.read'");await select('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-program').getAttribute('aria-busy')==='false');
+ await select('refresh').click();await settled();await fixtureSql("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.parameter.read'");await select('refresh').click();await page.waitForFunction(()=>document.querySelector('.own-program').getAttribute('aria-busy')==='false');
  check(await select('content').isHidden()&&await select('send').isDisabled(),'actual SQL revocation withdraws program despite stale HTTP capability fixture');
  check(await page.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('own-payroll-program')||v.includes('19041')||v.includes('coeficiente inventado'))),'rules and nominal results are not stored in browser storage');
  check(errors.length===0,'no unhandled browser errors: '+errors.join(';'));
- report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,readinessFixture,actualReadinessProgramAndRoster:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:expected110,...(referenceInstallation?{referenceScale:true,referenceInstallation}:{}),...(copiedDefinition?{multiCopy:{sources:6,targets:2,rules:18,bindings:6,exactDefinitionDurable:true}}:{}),separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
+ report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,fixtureSqlWaitsForHttpCompletion:true,readinessFixture,actualReadinessProgramAndRoster:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:expected110,...(referenceInstallation?{referenceScale:true,referenceInstallation}:{}),...(copiedDefinition?{multiCopy:{sources:6,targets:2,rules:18,bindings:6,exactDefinitionDurable:true}}:{}),separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true,productiveInstallation:false};if(diagnosticPage){report.browserDiagnostic=await diagnosticPage.evaluate(()=>({status:document.querySelector('[data-program-status]')?.textContent,busy:document.querySelector('.own-program')?.getAttribute('aria-busy'),url:location.pathname+location.hash,contentHidden:document.querySelector('[data-program-content]')?.hidden})).catch(()=>null);await diagnosticPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
  held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));
- if(installed){try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');const removed=await db.run("SELECT jsonb_build_object('removed',to_regnamespace("+q(qa.schema)+") IS NULL)");assert.equal(removed.removed,true);report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}
+ if(installed){try{await httpTasks.drain();await db.run('DROP SCHEMA '+qa.schema+' CASCADE');const removed=await db.run("SELECT jsonb_build_object('removed',to_regnamespace("+q(qa.schema)+") IS NULL)");assert.equal(removed.removed,true);report.syntheticSchemaRemoved=true;}catch(e){report.cleanupError=e.message;process.exitCode=1;}}
  fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }

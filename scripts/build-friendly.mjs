@@ -351,6 +351,7 @@ const shellFiles = [
   'assets/own-payroll-family-facts.js',
   'assets/own-payroll-family-tariffs.js',
   'assets/own-payroll-policy-validity.js',
+  'assets/own-payroll-catalogue-values.js',
   'assets/own-payroll-optional-scales.js',
   'assets/own-payroll-conditional-sources.js',
   'assets/own-payroll-official-program.js',
