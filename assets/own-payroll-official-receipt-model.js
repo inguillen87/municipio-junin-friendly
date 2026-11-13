@@ -1,3 +1,4 @@
+import {cappedResultFields} from './own-payroll-capped-deductions.js';
 // Explicit V4/V5 receipt reader. Economic rows and emission decisions remain
 // immutable; only the frozen receipt selector controls the visible projection.
 import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-model.js';
@@ -14,7 +15,7 @@ const rowKey=row=>(row.nature==='auxiliary'?'auxiliary:':'concept:')+(row.concep
 export const hasOwnOfficialReceipt=record=>['own-payroll-input.v4','own-payroll-input.v5'].includes(record?.inputVersion);
 
 export function ownOfficialReceiptRecord(record,validateLegacyRecord){
- need(hasOwnOfficialReceipt(record)&&salaryExact(record,[...baseKeys,...evidenceKeys])&&record.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION,'No se verificó la versión explícita ni la evidencia económica del recibo.');
+ need(hasOwnOfficialReceipt(record)&&salaryExact(record,[...baseKeys,...evidenceKeys,...cappedResultFields(record)])&&record.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION,'No se verificó la versión explícita ni la evidencia económica del recibo.');
  need(record.resultVersion===record.inputVersion.replace('input','result')&&[record.inputSha256,record.resultSha256,record.payloadSha256].every(salaryHash),'No se verificaron las huellas originales del cálculo del recibo.');
  need(Array.isArray(record.economicConcepts)&&Array.isArray(record.economicRows)&&record.economicConceptCount===record.economicConcepts.length&&record.economicRows.length===record.economicConceptCount&&record.economicConceptCount<=250000,'Faltan renglones económicos de la copia conservada.');
  // Reuse the historical identity, label, decimal and line-total checks on a
@@ -23,7 +24,7 @@ export function ownOfficialReceiptRecord(record,validateLegacyRecord){
  view.concepts=record.economicConcepts;view.totals=record.lineTotals;
  validateLegacyRecord(view);
  need(record.sourceEvidence.runId===record.runId&&record.sourceEvidence.inputVersion===record.inputVersion&&record.sourceEvidence.resultVersion===record.resultVersion&&record.sourceEvidence.payloadSha256===record.payloadSha256&&record.sourceEvidence.inputSha256===record.inputSha256&&record.sourceEvidence.resultSha256===record.resultSha256,'La evidencia del recibo no corresponde al cálculo original conservado.');
- ownOfficialEconomicEvidence({contractId:record.contractId,rows:record.economicRows,totals:{contractId:record.contractId,...record.totals},lineTotals:{contractId:record.contractId,...record.lineTotals},totalReconciliation:record.totalReconciliation,quantities:record.quantities,familyTariffDecisions:record.familyTariffDecisions,familyTariffRecord:record.familyTariffRecord,rowEmissions:record.rowEmissions,receiptRowKeys:record.receiptRowKeys,sourceEvidence:record.sourceEvidence,precision:record.precision,inputVersion:record.inputVersion,resultVersion:record.resultVersion});
+ ownOfficialEconomicEvidence({contractId:record.contractId,rows:record.economicRows,totals:{contractId:record.contractId,...record.totals},lineTotals:{contractId:record.contractId,...record.lineTotals},totalReconciliation:record.totalReconciliation,quantities:record.quantities,familyTariffDecisions:record.familyTariffDecisions,familyTariffRecord:record.familyTariffRecord,rowEmissions:record.rowEmissions,receiptRowKeys:record.receiptRowKeys,...Object.fromEntries(cappedResultFields(record).map(k=>[k,record[k]])),sourceEvidence:record.sourceEvidence,precision:record.precision,inputVersion:record.inputVersion,resultVersion:record.resultVersion});
  const rows=new Map(record.economicRows.map(row=>[rowKey(row),row]));
  const labels=new Map(record.economicConcepts.map(concept=>[rowKey(concept),concept]));
  need(rows.size===record.economicRows.length&&labels.size===record.economicConcepts.length,'Hay un renglón económico duplicado en el recibo.');

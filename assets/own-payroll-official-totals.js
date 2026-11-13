@@ -1,3 +1,4 @@
+import {cappedResultFields,normalizeCappedCapture,calculateCappedEffects} from './own-payroll-capped-deductions.js';
 import { normalizeOwnPayrollQuantityInput, calculateOwnPayrollWithQuantities } from './own-payroll-quantity.js';
 import { decimal, rational, exactAdd, exactSubtract, exactCompare, exactEvidence, quantize, payrollRequire as require } from './own-payroll-exact.js';
 import { salarySerialized } from './native-salary-catalog-model.js';
@@ -91,11 +92,12 @@ export function normalizeOwnPayrollOfficialInput(raw){
  // Descriptors prevent getter evaluation before delegating to that boundary.
  require(raw&&Object.getPrototypeOf(raw)===Object.prototype&&Object.values(Object.getOwnPropertyDescriptors(raw)).every(d=>Object.hasOwn(d,'value')&&d.enumerable),'OFFICIAL_TOTALS_CONTRACT_INVALID','No se admiten accesores en la captura.');
  require(raw.version===OWN_PAYROLL_OFFICIAL_INPUT_VERSION,'OFFICIAL_TOTALS_VERSION_INVALID','La nueva salida necesita captura explícita V4.');
- const{officialTotalsPolicy:rawPolicy,officialTotalsCapture:rawCapture,...monetary}=raw;
+ const{officialTotalsPolicy:rawPolicy,officialTotalsCapture:rawCapture,cappedDeductionsVersion,cappedDeductionCapture,...monetary}=raw;
  const {policy,capture,context}=normalizeOfficialTotalsEvidence(raw);
  const input=normalizeOwnPayrollQuantityInput({...monetary,version:'own-payroll-input.v3'});
  require(input.period===context.period&&input.liquidationType===context.liquidationType&&input.totalsPrecision===2,'OFFICIAL_TOTALS_SCOPE_INVALID','La política no corresponde al período o precisión capturados.');
- return{...input,version:OWN_PAYROLL_OFFICIAL_INPUT_VERSION,officialTotalsPolicy:policy,...(capture?{officialTotalsCapture:capture}:{})};
+ const capped=normalizeCappedCapture(raw,input.rules,policy);if(capped.cappedDeductionCapture)require(capped.cappedDeductionCapture.period===input.period&&capped.cappedDeductionCapture.liquidationType===input.liquidationType,'CAPPED_CAPTURE_INVALID','El límite capturado pertenece al período y tipo originales.');
+ return{...input,...capped,version:OWN_PAYROLL_OFFICIAL_INPUT_VERSION,officialTotalsPolicy:policy,...(capture?{officialTotalsCapture:capture}:{})};
 }
 
 function project(result,policy,capture=null){
@@ -135,13 +137,15 @@ function project(result,policy,capture=null){
  return{...result,version:OWN_PAYROLL_OFFICIAL_RESULT_VERSION,officialTotalsVersion:capture?OWN_PAYROLL_OFFICIAL_TOTALS_V2_VERSION:OWN_PAYROLL_OFFICIAL_TOTALS_VERSION,officialTotalsPolicy:structuredClone(policy),...(capture?{officialTotalsCapture:structuredClone(capture)}:{}),lineEmployeeTotals:structuredClone(result.employeeTotals),employeeTotals,totalReconciliations};
 }
 export function calculateOwnPayrollWithOfficialTotals(raw){
- const normalized=normalizeOwnPayrollOfficialInput(raw),{officialTotalsPolicy,officialTotalsCapture,...quantity}=normalized;
+ const normalized=normalizeOwnPayrollOfficialInput(raw),{officialTotalsPolicy,officialTotalsCapture,cappedDeductionsVersion,cappedDeductionCapture,...quantity}=normalized;
  const result=calculateOwnPayrollWithQuantities({...quantity,version:'own-payroll-input.v3'});
+ const cappedEffects=calculateCappedEffects(normalized,result.rows,result.employeeTotals.map(e=>e.contractId));
  let projected;
  try{projected=project(result,officialTotalsPolicy,officialTotalsCapture);}catch(error){
   if(error?.code==='OFFICIAL_NONPOSITIVE_NET_REVIEW_REQUIRED')error.calculationForReview=result;
   throw error;
  }
+ projected={...projected,...cappedEffects};
  require(new TextEncoder().encode(salarySerialized(projected)).byteLength<=32*1024*1024,'RESULT_LIMIT','La proyección completa supera la capacidad; no se recorta.');
  return projected;
 }
@@ -152,10 +156,10 @@ export function calculateOwnPayrollWithOfficialTotals(raw){
  */
 export function verifyOwnPayrollOfficialProjection(rawInput, storedResult){
  const input=normalizeOwnPayrollOfficialInput(rawInput);
- shape(storedResult,['version','period','liquidationType','selection','sourceVersions','employeeCount','rowCount','rows','employeeTotals','payrollCalculated','payrollPosted','municipalApprovalVerified','paymentExecuted','quantityCount','quantities','officialTotalsVersion','officialTotalsPolicy',...(input.officialTotalsCapture?['officialTotalsCapture']:[]),'lineEmployeeTotals','totalReconciliations']);
+ shape(storedResult,[...cappedResultFields(input.cappedDeductionsVersion?{cappedDeductionsVersion:input.cappedDeductionsVersion}:{}),'version','period','liquidationType','selection','sourceVersions','employeeCount','rowCount','rows','employeeTotals','payrollCalculated','payrollPosted','municipalApprovalVerified','paymentExecuted','quantityCount','quantities','officialTotalsVersion','officialTotalsPolicy',...(input.officialTotalsCapture?['officialTotalsCapture']:[]),'lineEmployeeTotals','totalReconciliations']);
  require(storedResult.version===OWN_PAYROLL_OFFICIAL_RESULT_VERSION&&storedResult.officialTotalsVersion===(input.officialTotalsCapture?OWN_PAYROLL_OFFICIAL_TOTALS_V2_VERSION:OWN_PAYROLL_OFFICIAL_TOTALS_VERSION)&&salarySerialized(storedResult.officialTotalsPolicy)===salarySerialized(input.officialTotalsPolicy)&&salarySerialized(storedResult.officialTotalsCapture??null)===salarySerialized(input.officialTotalsCapture??null),'OFFICIAL_STORED_POLICY_MISMATCH','El resultado debe conservar exactamente la política y cadena capturadas.');
- const{officialTotalsVersion,officialTotalsPolicy,officialTotalsCapture,lineEmployeeTotals,totalReconciliations,...quantityResult}=storedResult;
- const reconstructed=project({...quantityResult,version:'own-payroll-result.v3',employeeTotals:lineEmployeeTotals},input.officialTotalsPolicy,input.officialTotalsCapture);
+ const{officialTotalsVersion,officialTotalsPolicy,officialTotalsCapture,lineEmployeeTotals,totalReconciliations,cappedDeductionsVersion,cappedDeductionEffectCount,cappedDeductionEffects,...quantityResult}=storedResult;
+ const projected=project({...quantityResult,version:'own-payroll-result.v3',employeeTotals:lineEmployeeTotals},input.officialTotalsPolicy,input.officialTotalsCapture),reconstructed={...projected,...calculateCappedEffects(input,projected.rows,projected.employeeTotals.map(e=>e.contractId))};
  require(salarySerialized(reconstructed)===salarySerialized(storedResult),'OFFICIAL_STORED_PROJECTION_MISMATCH','La conciliación guardada no coincide con sus renglones exactos; no se reemplaza ni se oculta.');
  return storedResult;
 }

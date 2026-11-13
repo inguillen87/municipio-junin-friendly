@@ -41,9 +41,19 @@ function circuitItem(c) {
   const mine = c.reviewable === null ? c.count : c.reviewable;
   return {key: c.key, title: c.title, href: c.href, mine, sure: c.reviewable !== null, others: c.count - mine};
 }
-// El número rojo cuenta lo que espera una decisión de esta persona más las decisiones sobre lo suyo que todavía no
-// se le mostraron. «Visto» son los identificadores de eventos realmente mostrados, no la hora en que abrió la lista.
+// El número rojo cuenta AVISOS, no filas: un circuito con 50 propuestas esperando es un aviso (el 50 se lee adentro),
+// cada propuesta de la consulta liviana es un aviso y cada decisión sobre lo propio todavía no mostrada es otro.
+// Así, cada vez que el número sube es porque llegó algo nuevo, no porque un lote trae muchas filas.
+// «Visto» son los identificadores de eventos realmente mostrados, no la hora en que abrió la lista.
 // Una fuente que falla o no cumple su forma no aporta cero: se cuenta como sin respuesta.
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+// Texto del botón para quien no ve el número: con avisos agrupados dice primero cuántos avisos son y después el detalle.
+export function bellLabel(waiting, notices, news) {
+  const count = notices + news; if (!count) return 'Sin pendientes';
+  const detail = (waiting ? plural(waiting, 'pendiente te espera', 'pendientes te esperan') : '') + (waiting && news ? ' y ' : '') + (news ? plural(news, 'novedad de lo tuyo', 'novedades de lo tuyo') : '');
+  return notices === waiting ? detail : plural(count, 'aviso', 'avisos') + ' · ' + detail;
+}
+export const bellBadge = count => count > 99 ? '99+' : count ? String(count) : '';
 export function bellState(sources, seenKeys = [], circuitReads = []) {
   if (!Array.isArray(sources) || !Array.isArray(seenKeys) || !Array.isArray(circuitReads)) throw new TypeError('PENDING_BELL_INVALID');
   const seen = new Set(seenKeys.filter(k => typeof k === 'string')), toReview = [], decided = [], failed = [], covered = [], circuits = [];
@@ -54,10 +64,12 @@ export function bellState(sources, seenKeys = [], circuitReads = []) {
   for (const source of sources) { const items = sourceItems(source); if (!items) { failed.push(source.title); continue; } covered.push(source.title); toReview.push(...items.toReview); decided.push(...items.decided); }
   toReview.sort((a, b) => Date.parse(a.when) - Date.parse(b.when)); decided.sort((a, b) => Date.parse(b.when) - Date.parse(a.when));
   for (const r of decided) r.fresh = !seen.has(r.key);
-  const waiting = toReview.length + circuits.reduce((n, c) => n + c.mine, 0), news = decided.filter(r => r.fresh).length, count = waiting + news;
-  const label = count ? (waiting ? waiting + (waiting === 1 ? ' pendiente te espera' : ' pendientes te esperan') : '') + (waiting && news ? ' y ' : '') + (news ? news + (news === 1 ? ' novedad de lo tuyo' : ' novedades de lo tuyo') : '') : 'Sin pendientes';
-  return {toReview, decided, circuits, elsewhere, waiting, news, count, badge: count > 99 ? '99+' : count ? String(count) : '', label, covered, failed, complete: failed.length === 0,
+  // waiting: cuántas propuestas esperan su decisión (se dice en el texto). notices: en cuántos avisos llegan (se cuenta en el número).
+  const waiting = toReview.length + circuits.reduce((n, c) => n + c.mine, 0), notices = toReview.length + circuits.length, news = decided.filter(r => r.fresh).length, count = notices + news;
+  return {toReview, decided, circuits, elsewhere, waiting, notices, news, count, total: waiting + news, badge: bellBadge(count), label: bellLabel(waiting, notices, news), covered, failed, complete: failed.length === 0,
     shownKeys: decided.map(r => r.key)};
 }
+// Al abrir la lista, las decisiones mostradas dejan de contar; los avisos que esperan una decisión siguen hasta que se decida.
+export const bellSeen = state => ({...state, news: 0, count: state.notices, total: state.waiting, badge: bellBadge(state.notices), label: bellLabel(state.waiting, state.notices, 0)});
 // Lo que se guarda como visto: sólo claves de decisiones que siguen existiendo, para que no crezca sin límite.
 export const rememberedKeys = (state, previous = []) => [...new Set([...previous.filter(k => state.shownKeys.includes(k)), ...state.shownKeys])].slice(0, 2000);

@@ -5,10 +5,18 @@ import {FAMILY_PAYROLL_FACTS_READ,FAMILY_PAYROLL_FACTS_MAX_BYTES,familyPayrollFa
 import {FAMILY_FACT_FIELDS,familyFactsDraft,familyFactsView,familyFactsTotals,familyFactsCsv,familyFactsFile,familyFactsPreparationFile,familyFactsComparison} from './own-contract-family-payroll-facts-workspace.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {previousPeriod,periodName,carryForward,carrySummary,carryAvailable} from './period-carry-forward.js';
+import {mountOwnContractFamilySelection} from './own-contract-family-payroll-facts-selection-panel.js';
 const endpoint='/api/internal-own-contract-family-payroll-facts',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const states={pending:'Pendiente de revisión',approved:'Aprobada',rejected:'Rechazada'},capsFor=command=>[...FAMILY_PAYROLL_FACTS_READ,command==='propose'?'payroll.parameter.prepare':'payroll.parameter.approve'];
 const frozen=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(frozen);Object.freeze(v);}return v;};
 export function mountOwnContractFamilyPayrollFacts(container){
+ if(!container||container.dataset.familyFactsWorkspaceMounted)return;container.dataset.familyFactsWorkspaceMounted='true';
+ const selected=node('div');container.append(selected);mountOwnContractFamilySelection(selected);
+ const history=node('details');history.className='family-selected-legacy';history.dataset.familyLegacyHistory='';history.append(node('summary','Conjunto completo: propuestas e historial'),node('p','Acá se conservan las declaraciones completas anteriores y sus propuestas pendientes. Para trabajar sólo algunos contratos, usá la selección de arriba.'));
+ const legacy=node('div');history.append(legacy);container.append(history);let mounted=false;
+ history.addEventListener('toggle',()=>{if(history.open&&!mounted){mounted=true;mountOwnContractFamilyPayrollFactsV1(legacy);document.dispatchEvent(new CustomEvent('taskchange',{detail:{id:'familia'}}));}});
+}
+export function mountOwnContractFamilyPayrollFactsV1(container){
  if(!container||container.dataset.familyFactsMounted)return;container.dataset.familyFactsMounted='true';
  if(!document.querySelector('link[data-family-facts-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-family-payroll-facts-panel.css',import.meta.url).href;link.dataset.familyFactsStyle='';document.head.append(link);}
  const host=node('section');host.className='own-family-facts';host.setAttribute('aria-label','Asignaciones familiares del período');
@@ -27,7 +35,7 @@ export function mountOwnContractFamilyPayrollFacts(container){
  <div class="family-facts-actions"><label class="family-facts-check" data-family-facts-confirm-row hidden><input type="checkbox" data-family-facts-confirm>Revisé el período, el conjunto completo, los valores anteriores y propuestos, las constancias y el fundamento.</label><button type="button" data-family-facts-send hidden>Registrar propuesta completa</button><button type="button" data-family-facts-recover hidden>Consultar el mismo intento</button><button type="button" data-family-facts-retry hidden>Reintentar el mismo envío</button><button type="button" data-family-facts-new hidden>Iniciar otra preparación</button></div><p data-family-facts-receipt role="status" hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-family-facts-'+key+']');
  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,detail=null,prepared=null,attempt=null,receipt=null,notFound=false,page=1,diffPage=1,changes=[],comparisonSubjects=new Map();
- const live=()=>active&&!stopped&&!document.hidden&&host.isConnected,can=required=>live()&&required.every(c=>access?.caps.has(c));
+ const live=()=>active&&!stopped&&!document.hidden&&host.isConnected&&!host.closest('[data-family-legacy-history]:not([open])'),can=required=>live()&&required.every(c=>access?.caps.has(c));
  const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
  function controls(){
   $('access').disabled=busy||!live();$('access').hidden=!!access;$('target').disabled=busy||!!attempt||!can(FAMILY_PAYROLL_FACTS_READ);

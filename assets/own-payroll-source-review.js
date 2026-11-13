@@ -1,3 +1,4 @@
+import {approvedCatalogueMatches} from './own-payroll-catalogue-values.js';
 import {verifiedWorkspaceCapture} from './own-payroll-run-workspace-model.js';
 import {ownHistoricalOfficialInput} from './own-payroll-historical-result-model.js';
 import {ownProgramBootstrap,ownProgramDefinition} from './own-payroll-program-model.js';
@@ -29,7 +30,7 @@ export async function ownRunSourceReview(capture,attempt=null){
  await verifiedWorkspaceCapture(ownHistoricalOfficialInput(capture?.saved?.input)?{...capture,saved:null}:capture,attempt);
  const p=capture.payload,{period,liquidationType}=p;ownProgramBootstrap(p.programState);
  const program=p.programState.program;
- need(program.revision>0&&program.salaryVersion===p.programState.salaryCatalog.version,'Falta verificar el programa aprobado contra el catálogo capturado.');
+ need(approvedCatalogueMatches(p),'Falta verificar el programa aprobado contra el catálogo capturado.');
  const definition=ownProgramDefinition(program.definition,p.programState.salaryCatalog.items),population=p.population;
  need(salaryExact(population,['complete','version','employees'])&&population.complete===true&&salaryHash(population.version)&&Array.isArray(population.employees)&&population.employees.length>0&&population.employees.length<=10000);
  const people=new Map(),byAgreement=new Map();

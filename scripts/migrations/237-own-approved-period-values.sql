@@ -1,0 +1,1543 @@
+-- Local candidate237 only. Parent235 f5c0d1. Not installed in production.
+BEGIN;
+SET LOCAL statement_timeout='120s';
+SET LOCAL lock_timeout='5s';
+DO $pre$ BEGIN
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)')) IS DISTINCT FROM 'ee346d9d1c970af29c2b2ec66bb6a485a9febcbce4a8a3e93ad92fea63f85ad2' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_close_official_capture_check_candidate_v1(jsonb,text,text)')) IS DISTINCT FROM '75ed8c0084c03b047f39e1f66d3b1de8493559d65f259340973f1dcb0965f886' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_close_official_capture_check_candidate_v1(jsonb,text,text)';END IF;
+ IF to_regprocedure('public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb)';END IF;
+ IF to_regprocedure('public.own_program_catalogue_value_contracts_v1(jsonb,jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_program_catalogue_value_contracts_v1(jsonb,jsonb)';END IF;
+ IF to_regprocedure('public.own_program_catalogue_value_rules_v1(jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_program_catalogue_value_rules_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_definition_v1(jsonb,jsonb)')) IS DISTINCT FROM '236a0a565f1c63d3eaba31f18f26ec45c7808a692b46d431a4ffafc1581e7ae4' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_program_definition_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_quantity_definition_v1(jsonb,jsonb)')) IS DISTINCT FROM '0ae646c0604a9ecf8a0baac398e42cb7bf1b15f5009257ae916c2fb64b7bd761' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_program_quantity_definition_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_capture_v1(jsonb,jsonb,uuid,text)')) IS DISTINCT FROM 'e50feffdc3d453212fce1b8f9731042c5a4336f8b1c17fa23364717e4f37dcad' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_capture_v1(jsonb,jsonb,uuid,text)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_expected_inputs_v1(jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_expected_inputs_v1(jsonb)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_frozen_v1(jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_frozen_v1(jsonb)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_matches_v1(jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_matches_v1(jsonb)';END IF;
+ IF to_regprocedure('public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb)') IS NOT NULL THEN RAISE EXCEPTION 'C237_NEW_FUNCTION_ALREADY_EXISTS: public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '5ccf4629ee1a03dc5c99ebefbae0cbb2bd7a9f4fe65dba852b981e22d797d6fa' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_official_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '7b82c6747d09772e8951715b20aea22526571e8ba1c3c8b4eeba011455748444' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_official_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_official_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '65a3ce776f9cf8a293f72fbee44cf582ec74067fc58d1e4d82074d8afeb27505' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_official_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_quantity_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM 'fa0d2ab6488d984385e3656a530d2c6cfbd773ae3083bbf4bef15cff317e8cd0' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_quantity_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_quantity_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '0bf5d1a9e438248011c32cdc9b1181ca550fe1c24bbba377f72cc583b4a7b10b' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_quantity_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM 'aeb44459353131a50385ad9b85fa22b8e5cb6de4fdc98f409197366aa826017e' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_complete_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_conditional_expected_inputs_v1(jsonb)')) IS DISTINCT FROM 'bb10a678a096d84f9705414b033f65f245cef458b07458a55a75e9f7fd27101c' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_conditional_expected_inputs_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_monthly_forced_capture_check_candidate_v1(jsonb,jsonb,jsonb)')) IS DISTINCT FROM '5795a3e8758a36ffea344db81d15ca360c5ebfbea6ebfa3466d1be355bb3b411' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_monthly_forced_capture_check_candidate_v1(jsonb,jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_official_capture_check_v1(jsonb,jsonb,jsonb,jsonb,jsonb,jsonb)')) IS DISTINCT FROM '67351e0ae136b475308ffb22995c4752848e9a87d69288e21150f5a7eb78a608' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_official_capture_check_v1(jsonb,jsonb,jsonb,jsonb,jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_optional_scale_expected_inputs_v1(jsonb)')) IS DISTINCT FROM 'd73eb01ec670e34ab4a6b05e19b0a6551dacec6115d2e8d1b09b2da9fdd83dd2' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_optional_scale_expected_inputs_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_quantity_check_v1(jsonb,jsonb,jsonb,jsonb)')) IS DISTINCT FROM '5943b5f90e78e3d20e5445c4bd6b9832d992532fe712350dbdb2cd2977c6b134' THEN RAISE EXCEPTION 'C237_PREIMAGE_CHANGED: public.own_run_quantity_check_v1(jsonb,jsonb,jsonb,jsonb)';END IF;
+END $pre$;
+CREATE OR REPLACE FUNCTION public.municipal_owner_program_command_core_v1(p jsonb, body jsonb, key uuid, decision_mode text, owner_command jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;cmd text;current_program jsonb;catalog jsonb;proposal public.own_payroll_program_event;prior public.own_payroll_program_event;definition jsonb;eid uuid:=gen_random_uuid();pid uuid;rev integer;fingerprint text;receipt_value jsonb;baseline jsonb;source_items jsonb;field text;
+ authority_value jsonb;preview_value jsonb;owner_value jsonb;existing jsonb;inserted public.own_payroll_program_event;
+BEGIN
+ IF decision_mode='owner' THEN authority_value:=public.municipal_owner_program_context_v1(p);PERFORM public.municipal_owner_program_command_check_v1(owner_command);
+ ELSIF decision_mode IS DISTINCT FROM 'independent' OR owner_command IS NOT NULL THEN RAISE EXCEPTION 'OWNER_PROGRAM_AUTHORITY_REQUIRED';END IF;
+ ctx:=public.native_salary_administrative_context_v1(p);cmd:=body->>'command';
+ FOREACH field IN ARRAY ARRAY['command','scopeVersion','baseVersion','salaryVersion','reason'] LOOP IF jsonb_typeof(body->field) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;END LOOP;
+ IF jsonb_typeof(body->'reviewConfirmed') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF NOT public.own_program_exact_v1(body,ARRAY['command','scopeVersion','baseVersion','salaryVersion','proposalId','proposalSha256','program','reason','reviewConfirmed']) OR coalesce(cmd IN('propose','approve','reject'),false) IS NOT TRUE OR NOT public.own_program_text_v1(body->'reason',10,1000) OR key IS NULL OR key::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' OR octet_length(body::text)>4194304 OR body->>'scopeVersion' IS NULL OR body->>'scopeVersion'!~'^[a-f0-9]{64}$' OR body->>'baseVersion' IS NULL OR body->>'baseVersion'!~'^[a-f0-9]{64}$' OR body->>'salaryVersion' IS NULL OR body->>'salaryVersion'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF decision_mode='independent' THEN
+ IF NOT public.action_center_context_has_capability(ctx,CASE cmd WHEN 'propose' THEN 'payroll.parameter.prepare' ELSE 'payroll.parameter.approve' END) THEN RAISE EXCEPTION 'OWN_PROGRAM_FORBIDDEN';END IF;
+ ELSIF cmd IS DISTINCT FROM 'approve' THEN RAISE EXCEPTION 'OWNER_PROGRAM_INPUT_INVALID';END IF;
+ IF ctx->>'actorPersonId' IS NULL OR NOT coalesce((ctx->>'parameterActorVerified')::boolean,false) THEN RAISE EXCEPTION 'OWN_PROGRAM_EMPLOYMENT_REQUIRED';END IF;
+ PERFORM public.own_program_lock_v1(ctx);fingerprint:=encode(public.digest(public.native_salary_serialized_v1(body),'sha256'),'hex');
+ IF decision_mode='owner' THEN
+  IF body IS DISTINCT FROM jsonb_build_object('command','approve','scopeVersion',owner_command->>'scopeVersion','baseVersion',owner_command->>'baseVersion','salaryVersion',owner_command->>'salaryVersion','proposalId',owner_command->>'proposalId','proposalSha256',owner_command->>'proposalSha256','program',NULL,'reason',owner_command->>'reason','reviewConfirmed',true) THEN RAISE EXCEPTION 'OWNER_PROGRAM_INPUT_INVALID';END IF;
+  existing:=public.municipal_owner_program_stored_v1(p,key,true);
+  IF existing IS NOT NULL THEN IF existing->'command' IS DISTINCT FROM owner_command THEN RAISE EXCEPTION 'OWN_PROGRAM_IDEMPOTENCY_REUSE';END IF;RETURN existing;END IF;
+ ELSE
+ SELECT * INTO prior FROM public.own_payroll_program_event cap WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid AND actor_membership_id=(ctx->>'membershipId')::uuid AND request_key=key;
+ IF FOUND THEN IF EXISTS(SELECT 1 FROM public.municipal_owner_program_provenance WHERE event_id=prior.id) THEN RAISE EXCEPTION 'OWN_PROGRAM_IDEMPOTENCY_REUSE';END IF;IF prior.request_sha256<>fingerprint THEN RAISE EXCEPTION 'OWN_PROGRAM_IDEMPOTENCY_REUSE';END IF;RETURN public.own_program_attempt_v1(p,key);END IF;
+ END IF;
+ IF body->>'scopeVersion' IS DISTINCT FROM public.native_salary_scope_v1(ctx) THEN RAISE EXCEPTION 'OWN_PROGRAM_SCOPE_CHANGED';END IF;
+ current_program:=public.own_program_current_v1(ctx);catalog:=public.native_salary_catalog_v1(ctx);rev:=(current_program->>'revision')::integer;
+ IF cmd='propose' THEN
+  IF body->'proposalId'<>'null' OR body->'proposalSha256'<>'null' OR body->'reviewConfirmed'<>'false' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  IF body->>'baseVersion' IS DISTINCT FROM current_program->>'version' OR body->>'salaryVersion' IS DISTINCT FROM catalog->>'version' OR (catalog->>'revision')::integer=0 THEN RAISE EXCEPTION 'OWN_PROGRAM_BASE_CHANGED';END IF;
+  definition:=public.own_program_definition_composed_v1(body->'program',catalog->'items');IF current_program#>>'{definition,catalogueValueResolutionVersion}'='own-approved-period-values.v1' AND definition->>'catalogueValueResolutionVersion' IS DISTINCT FROM 'own-approved-period-values.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;IF current_program#>>'{definition,optionalScalesVersion}'='own-payroll-optional-scales.v1' AND definition->>'optionalScalesVersion' IS DISTINCT FROM 'own-payroll-optional-scales.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;PERFORM public.own_program_family_tariff_history_candidate_v2(current_program->'definition',definition);PERFORM public.own_program_source_coverage_history_v1(current_program->'definition',definition);PERFORM public.own_program_row_emission_history_candidate_v1(current_program->'definition',definition);PERFORM public.own_program_monthly_forced_history_candidate_v1(current_program->'definition',definition);PERFORM public.own_program_declared_adjustments_history_v1(current_program->'definition',definition);PERFORM public.own_program_quantity_only_history_v1(current_program->'definition',definition);PERFORM public.own_program_conditional_history_v1(current_program->'definition',definition);PERFORM public.own_program_capped_history_v1(current_program->'definition',definition);IF definition ? 'quantityPhasesVersion' OR definition ? 'officialTotalsVersion' OR definition ? 'familyTariffsVersion' OR definition ? 'rowEmissionVersion' OR definition ? 'rowEmissionPolicies' OR definition ? 'monthlyForcedAmountsVersion' OR definition ? 'monthlyForcedAmountPolicies' THEN
+   DECLARE quantity_family jsonb;official_family jsonb;
+   BEGIN
+    -- Admission comes from the installed server families. No request field can
+    -- supply, waive or replace the operational attestation.
+    IF definition->>'quantityPhasesVersion' IS DISTINCT FROM 'own-payroll-quantity-phases.v1'
+     OR definition->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+     OR to_regprocedure('public.own_run_quantity_family_v1()') IS NULL
+    THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    quantity_family:=public.own_run_quantity_family_v1();
+    IF public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE
+    THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    IF definition ?| ARRAY['officialTotalsVersion','officialTotalsPolicies','familyTariffsVersion','rowEmissionVersion','rowEmissionPolicies','monthlyForcedAmountsVersion','monthlyForcedAmountPolicies'] THEN
+     IF coalesce(definition->>'officialTotalsVersion' IN('own-payroll-official-totals.v1','own-payroll-official-totals.v2'),false) IS NOT TRUE
+      OR to_regprocedure('public.own_run_official_family_v1()') IS NULL
+     THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+     official_family:=public.own_run_official_family_v1();
+     IF public.own_run_official_family_shape_v1(official_family,'own-run-official-totals-family.v1') IS NOT TRUE
+      OR EXISTS(SELECT 1 FROM jsonb_array_elements(quantity_family->'members') q
+       WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(official_family->'members') o WHERE o=q))
+     THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    END IF;
+   END;
+  END IF;IF definition IS DISTINCT FROM body->'program' OR definition=current_program->'definition' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  PERFORM public.own_program_quantity_history_v1(current_program->'definition',definition);PERFORM public.own_program_official_history_v1(current_program->'definition',definition);
+  IF current_program#>>'{definition,monthlyDayDeclarationVersion}'='own-monthly-approved-days.v1' AND definition->>'monthlyDayDeclarationVersion' IS DISTINCT FROM 'own-monthly-approved-days.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,monthlyDaysVersion}'='own-monthly-day-facts.v2' AND definition->>'monthlyDaysVersion' IS DISTINCT FROM 'own-monthly-day-facts.v2' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,periodParticipation,version}'='own-period-participation.v1' AND definition#>>'{periodParticipation,version}' IS DISTINCT FROM 'own-period-participation.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,fixedForcedAmountsVersion}'='own-fixed-forced-amount.v1' AND definition->>'fixedForcedAmountsVersion' IS DISTINCT FROM 'own-fixed-forced-amount.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(current_program#>'{definition,fixedForcedAmountsPolicy,policies}','[]'::jsonb)) old_policy WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(definition#>'{fixedForcedAmountsPolicy,policies}','[]'::jsonb)) new_policy WHERE new_policy=old_policy)) THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1' AND definition->>'familyPayrollFactsVersion' IS DISTINCT FROM 'own-contract-family-payroll-facts.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') AND coalesce(definition->>'salaryConditionsVersion' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2'),false) IS NOT TRUE OR current_program#>>'{definition,salaryConditionsVersion}'='own-contract-salary-conditions.v2' AND definition->>'salaryConditionsVersion' IS DISTINCT FROM 'own-contract-salary-conditions.v2' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,periodContextVersion}'='own-payroll-period-context.v1' AND definition->>'periodContextVersion' IS DISTINCT FROM 'own-payroll-period-context.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' AND definition->>'agreementWorkingTimeVersion' IS DISTINCT FROM 'own-agreement-working-time.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,workingTimeVersion}'='own-contract-working-time.v1' AND definition->>'workingTimeVersion' IS DISTINCT FROM 'own-contract-working-time.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,employmentFactsVersion}'='own-salary-seniority.v1' AND definition->>'employmentFactsVersion' IS DISTINCT FROM 'own-salary-seniority.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF current_program#>>'{definition,namespaceVersion}'='own-payroll-namespaces.v2' AND definition->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(nullif(current_program->'definition','null')->'rules','[]')) old WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(definition->'rules') n WHERE jsonb_build_array(n->>'agreementCode',n->>'code',n->>'validFrom',n->'liquidationTypes')=jsonb_build_array(old->>'agreementCode',old->>'code',old->>'validFrom',old->'liquidationTypes') AND(definition->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2' OR(n->>'nature'='auxiliary')=(old->>'nature'='auxiliary')))) THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;
+  IF EXISTS(
+   SELECT 1 FROM jsonb_array_elements(definition->'rules') candidate(value)
+   WHERE NOT EXISTS(
+    SELECT 1 FROM jsonb_array_elements(coalesce(nullif(current_program->'definition','null')->'rules','[]')) historical(value)
+    WHERE jsonb_set(candidate.value-'validUntil','{expression}',public.own_participation_expression_v1(candidate.value,definition))=jsonb_set(historical.value-'validUntil','{expression}',public.own_participation_expression_v1(historical.value,current_program->'definition'))
+    AND (candidate.value->'validUntil'=historical.value->'validUntil' OR candidate.value->'validUntil'<>'null'::jsonb AND (historical.value->'validUntil'='null'::jsonb OR candidate.value->>'validUntil'<=historical.value->>'validUntil'))
+   ) AND (NOT (candidate.value#>>'{rounding,mode}'='exact' OR (candidate.value#>>'{rounding,mode}'='half_up' AND candidate.value#>'{rounding,precision}'='2'::jsonb)) OR jsonb_path_exists(candidate.value,
+    '$.expression.** ? ((@.op == "round" || @.op == "quantity_phase" && @.stage == "rounded") && !(@.rounding.mode == "exact" || (@.rounding.mode == "half_up" && @.rounding.precision == 2)))'))
+  ) THEN RAISE EXCEPTION 'OWN_PROGRAM_PRECISION_REQUIRED';END IF;
+  pid:=eid;baseline:=current_program->'definition';source_items:=catalog->'items';
+ ELSE
+  IF body->'program'<>'null' OR body->'reviewConfirmed'<>'true' OR jsonb_typeof(body->'proposalId') IS DISTINCT FROM 'string' OR body->>'proposalId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' OR jsonb_typeof(body->'proposalSha256') IS DISTINCT FROM 'string' OR body->>'proposalSha256'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  pid:=(body->>'proposalId')::uuid;SELECT * INTO proposal FROM public.own_payroll_program_event WHERE id=pid AND command='propose' AND tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid;
+  IF NOT FOUND THEN RAISE EXCEPTION 'OWN_PROGRAM_NOT_FOUND';END IF;IF EXISTS(SELECT 1 FROM public.own_payroll_program_event WHERE proposal_id=pid) THEN RAISE EXCEPTION 'OWN_PROGRAM_DECIDED';END IF;
+  IF decision_mode='independent' THEN
+  IF NOT(public.own_program_proposal_v1(ctx,proposal)->>'canReview')::boolean THEN RAISE EXCEPTION 'OWN_PROGRAM_INDEPENDENT_REQUIRED';END IF;
+  ELSE
+   preview_value:=public.municipal_owner_program_preview_v1(p,pid);
+   IF preview_value->'context' IS DISTINCT FROM authority_value OR owner_command->>'previewSha256' IS DISTINCT FROM preview_value->>'previewSha256'
+    OR owner_command->>'definitionSha256' IS DISTINCT FROM preview_value->>'definitionSha256' OR owner_command->>'salaryItemsSha256' IS DISTINCT FROM preview_value->>'salaryItemsSha256'
+    OR owner_command->>'proposalSha256' IS DISTINCT FROM proposal.request_sha256 OR owner_command->>'baseVersion' IS DISTINCT FROM proposal.body->>'baseVersion' OR owner_command->>'salaryVersion' IS DISTINCT FROM proposal.body->>'salaryVersion'
+   THEN RAISE EXCEPTION 'OWNER_PROGRAM_PREVIEW_CHANGED';END IF;
+  END IF;
+  IF body->>'proposalSha256' IS DISTINCT FROM proposal.request_sha256 OR body->>'baseVersion' IS DISTINCT FROM proposal.body->>'baseVersion' OR body->>'salaryVersion' IS DISTINCT FROM proposal.body->>'salaryVersion' THEN RAISE EXCEPTION 'OWN_PROGRAM_PROPOSAL_CHANGED';END IF;
+  baseline:=proposal.base_definition;source_items:=proposal.base_salary_items;
+  IF cmd='approve' THEN IF body->>'baseVersion' IS DISTINCT FROM current_program->>'version' OR body->>'salaryVersion' IS DISTINCT FROM catalog->>'version' THEN RAISE EXCEPTION 'OWN_PROGRAM_BASE_CHANGED';END IF;definition:=public.own_program_definition_composed_v1(proposal.body->'program',catalog->'items');IF current_program#>>'{definition,catalogueValueResolutionVersion}'='own-approved-period-values.v1' AND definition->>'catalogueValueResolutionVersion' IS DISTINCT FROM 'own-approved-period-values.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;IF current_program#>>'{definition,optionalScalesVersion}'='own-payroll-optional-scales.v1' AND definition->>'optionalScalesVersion' IS DISTINCT FROM 'own-payroll-optional-scales.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;PERFORM public.own_program_family_tariff_history_candidate_v2(current_program->'definition',definition);PERFORM public.own_program_source_coverage_history_v1(current_program->'definition',definition);PERFORM public.own_program_row_emission_history_candidate_v1(current_program->'definition',definition);PERFORM public.own_program_monthly_forced_history_candidate_v1(current_program->'definition',definition);PERFORM public.own_program_declared_adjustments_history_v1(current_program->'definition',definition);PERFORM public.own_program_quantity_only_history_v1(current_program->'definition',definition);PERFORM public.own_program_conditional_history_v1(current_program->'definition',definition);PERFORM public.own_program_capped_history_v1(current_program->'definition',definition);IF definition ? 'quantityPhasesVersion' OR definition ? 'officialTotalsVersion' OR definition ? 'familyTariffsVersion' OR definition ? 'rowEmissionVersion' OR definition ? 'rowEmissionPolicies' OR definition ? 'monthlyForcedAmountsVersion' OR definition ? 'monthlyForcedAmountPolicies' THEN
+   DECLARE quantity_family jsonb;official_family jsonb;
+   BEGIN
+    -- Admission comes from the installed server families. No request field can
+    -- supply, waive or replace the operational attestation.
+    IF definition->>'quantityPhasesVersion' IS DISTINCT FROM 'own-payroll-quantity-phases.v1'
+     OR definition->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+     OR to_regprocedure('public.own_run_quantity_family_v1()') IS NULL
+    THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    quantity_family:=public.own_run_quantity_family_v1();
+    IF public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE
+    THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    IF definition ?| ARRAY['officialTotalsVersion','officialTotalsPolicies','familyTariffsVersion','rowEmissionVersion','rowEmissionPolicies','monthlyForcedAmountsVersion','monthlyForcedAmountPolicies'] THEN
+     IF coalesce(definition->>'officialTotalsVersion' IN('own-payroll-official-totals.v1','own-payroll-official-totals.v2'),false) IS NOT TRUE
+      OR to_regprocedure('public.own_run_official_family_v1()') IS NULL
+     THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+     official_family:=public.own_run_official_family_v1();
+     IF public.own_run_official_family_shape_v1(official_family,'own-run-official-totals-family.v1') IS NOT TRUE
+      OR EXISTS(SELECT 1 FROM jsonb_array_elements(quantity_family->'members') q
+       WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(official_family->'members') o WHERE o=q))
+     THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PREPARATION_ONLY';END IF;
+    END IF;
+   END;
+  END IF;IF current_program#>>'{definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1' AND definition->>'familyPayrollFactsVersion' IS DISTINCT FROM 'own-contract-family-payroll-facts.v1' THEN RAISE EXCEPTION 'OWN_PROGRAM_HISTORY_REQUIRED';END IF;rev:=rev+1;current_program:=jsonb_build_object('version',encode(public.digest(jsonb_build_array('own-payroll-program.v1',ctx->>'tenantId',ctx->>'sourceBindingId',rev,eid,definition)::text,'sha256'),'hex'));END IF;
+ END IF;
+ IF rev>1000 OR (SELECT count(*) FROM public.own_payroll_program_event cap WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid AND command='propose')>=1000 AND cmd='propose' THEN RAISE EXCEPTION 'OWN_PROGRAM_LIMIT';END IF;
+ IF NOT pg_try_advisory_xact_lock(hashtextextended('own-program:capacity:v1',0)) THEN RAISE EXCEPTION 'OWN_PROGRAM_BUSY';END IF;
+ IF (SELECT coalesce(sum(octet_length(cap.body::text)+octet_length(cap.base_definition::text)+octet_length(cap.base_salary_items::text)+octet_length(cap.receipt::text)),0) FROM public.own_payroll_program_event cap)+4*octet_length(body::text)+octet_length(baseline::text)+octet_length(source_items::text)>268435456 OR (SELECT coalesce(sum(octet_length(cap.body::text)+octet_length(cap.base_definition::text)+octet_length(cap.base_salary_items::text)+octet_length(cap.receipt::text)),0) FROM public.own_payroll_program_event cap WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid)+4*octet_length(body::text)+octet_length(baseline::text)+octet_length(source_items::text)>33554432 THEN RAISE EXCEPTION 'OWN_PROGRAM_LIMIT';END IF;
+ receipt_value:=jsonb_build_object('version','own-payroll-program.v1','eventId',eid,'proposalId',pid,'requestKey',key,'requestSha256',fingerprint,'body',body,'status',CASE cmd WHEN 'propose' THEN 'pending' WHEN 'approve' THEN 'approved' ELSE 'rejected' END,'revision',rev,'programVersion',current_program->>'version','replayed',false,'payrollCalculated',false,'payrollPosted',false);
+ INSERT INTO public.own_payroll_program_event(id,tenant_id,source_binding_id,proposal_id,command,body,base_definition,base_salary_items,revision,actor_membership_id,actor_person_id,actor_email,actor_session_id,actor_session_version,release_sha,actor_label,request_key,request_sha256,receipt)
+ VALUES(eid,(ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,CASE WHEN cmd='propose' THEN NULL ELSE pid END,cmd,body,coalesce(baseline,'null'),source_items,rev,(ctx->>'membershipId')::uuid,(ctx->>'actorPersonId')::uuid,ctx->>'actorEmail',(p->>'actorSessionId')::uuid,(p->>'actorSessionVersion')::integer,p->>'releaseSha',ctx->>'actorLabel',key,fingerprint,receipt_value) RETURNING * INTO inserted;
+ IF decision_mode='independent' THEN RETURN receipt_value;END IF;
+ owner_value:=public.municipal_owner_program_receipt_v1(inserted,preview_value,owner_command);
+ INSERT INTO public.municipal_owner_program_provenance(event_id,tenant_id,source_binding_id,decision_mode,independence,preview,command,command_sha256,receipt)
+ VALUES(inserted.id,inserted.tenant_id,inserted.source_binding_id,'owner',false,preview_value,owner_command,public.employment_adoption_hash_v1(jsonb_build_object('operation','approve_owner','body',owner_command)),owner_value);
+ RETURN jsonb_build_object('version','municipal-owner-program-attempt.v1','authorization',authority_value,'preview',preview_value,'command',owner_command,'receipt',owner_value);
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_close_official_capture_check_candidate_v1(capture jsonb,period_value text,type_value text)
+RETURNS void LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+SET search_path=pg_catalog,public,pg_temp AS $fn$
+DECLARE saved jsonb:=capture->'saved'; i jsonb:=saved->'input';r jsonb:=saved->'result';p jsonb:=capture->'payload';programme jsonb:=p#>'{programState,program,definition}'; policies jsonb;phases jsonb;
+BEGIN
+ PERFORM public.own_run_catalogue_values_input_verify_v1(p,i);
+ PERFORM public.own_run_capped_verify_v1(p,i,r);
+ PERFORM public.own_run_monthly_forced_capture_check_candidate_v1(p,i,r);
+ IF jsonb_typeof(capture) IS DISTINCT FROM 'object' OR jsonb_typeof(p) IS DISTINCT FROM 'object'
+ OR jsonb_typeof(saved) IS DISTINCT FROM 'object' OR jsonb_typeof(i) IS DISTINCT FROM 'object' OR jsonb_typeof(r) IS DISTINCT FROM 'object'
+ OR coalesce(capture->>'id','') !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR capture->>'payloadSha256' IS DISTINCT FROM public.own_run_hash_v1(p)
+ OR saved->>'inputSha256' IS DISTINCT FROM public.own_run_hash_v1(i)
+ OR saved->>'resultSha256' IS DISTINCT FROM public.own_run_hash_v1(r)
+ OR i->>'version' NOT IN('own-payroll-input.v4','own-payroll-input.v5')
+ OR r->>'version' IS DISTINCT FROM replace(i->>'version','input','result')
+ OR i->>'period' IS DISTINCT FROM period_value OR i->>'liquidationType' IS DISTINCT FROM type_value
+ OR p->>'period' IS DISTINCT FROM period_value OR p->>'liquidationType' IS DISTINCT FROM type_value
+ OR p->'selection' IS DISTINCT FROM i->'selection'
+ THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_CAPTURE_INVALID';END IF;
+ IF programme ? 'fixedForcedAmountsVersion' OR programme ? 'fixedForcedAmountsPolicy'
+ THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FIXED_FORCED_COMPOSITION_REQUIRED';END IF;
+ IF i->'rules' IS DISTINCT FROM public.own_participation_rules_v1(programme)
+ OR i->'totalsPrecision' IS DISTINCT FROM programme->'totalsPrecision'
+ OR i#>>'{sourceVersions,population}' IS DISTINCT FROM p#>>'{population,version}'
+ OR i#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',p#>'{programState,program}','salary',p#>'{programState,salaryCatalog}'))
+ OR i#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',p->'monthly','fixed',p#>'{fixed,export,data}'))
+ OR p#>'{population,complete}' IS DISTINCT FROM 'true'::jsonb
+ THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_SOURCE_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(x ORDER BY public.own_program_quantity_key_v1(x) COLLATE "C"),'[]') INTO phases
+ FROM jsonb_array_elements(public.own_program_quantity_effective_v1(programme)) x;
+ IF i->'quantityPhasesVersion' IS DISTINCT FROM programme->'quantityPhasesVersion' OR i->'quantityPhases' IS DISTINCT FROM phases
+ THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_QUANTITY_PHASES_INVALID';END IF;
+ IF (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId' COLLATE "C") FROM jsonb_array_elements(i->'employees') e)
+ IS DISTINCT FROM(SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId' COLLATE "C") FROM jsonb_array_elements(p#>'{population,employees}') e)
+ OR EXISTS(SELECT 1 FROM jsonb_array_elements(i->'employees') e JOIN jsonb_array_elements(p#>'{population,employees}') x ON x->'contractId'=e->'contractId'
+ WHERE e->'employeeNumber' IS DISTINCT FROM x->'employeeNumber' OR e->'agreementCode' IS DISTINCT FROM x->'agreementCode' OR e->'departmentCode' IS DISTINCT FROM x->'departmentCode')
+ THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_POPULATION_INVALID';END IF;
+ IF programme->>'officialTotalsVersion'='own-payroll-official-totals.v2' THEN
+  SELECT coalesce(jsonb_agg(x ORDER BY n),'[]') INTO policies FROM jsonb_array_elements(public.own_program_official_policies_candidate_v2(programme->'officialTotalsPolicies','own-payroll-official-totals.v2')) WITH ORDINALITY z(x,n) WHERE x->'agreementCode'=i#>'{officialTotalsPolicy,agreementCode}' AND x->>'liquidationType'=type_value;
+  IF i->'officialTotalsCapture' IS DISTINCT FROM public.own_run_official_policy_capture_candidate_v2(policies,period_value,type_value,i#>>'{officialTotalsPolicy,agreementCode}') THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_POLICY_INVALID';END IF;
+  policies:=public.own_policy_active_candidate_v1(policies,'official-totals',period_value,type_value,i#>>'{officialTotalsPolicy,agreementCode}');
+ ELSE
+  IF i ? 'officialTotalsCapture' OR programme->>'officialTotalsVersion' IS DISTINCT FROM 'own-payroll-official-totals.v1' THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_POLICY_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(x),'[]') INTO policies FROM jsonb_array_elements(programme->'officialTotalsPolicies') x
+ WHERE x->'agreementCode'=i#>'{officialTotalsPolicy,agreementCode}' AND x->>'period'=period_value AND x->>'liquidationType'=type_value;
+ END IF;
+ IF jsonb_array_length(policies)<>1 OR policies->0 IS DISTINCT FROM i->'officialTotalsPolicy'
+ THEN RAISE EXCEPTION 'OWN_CLOSE_ORIGINAL_POLICY_INVALID';END IF;
+ IF i->>'version'='own-payroll-input.v5' THEN
+  PERFORM public.own_run_row_emission_capture_check_v1(p,i,r);
+ ELSE
+  IF i ? 'rowEmissionVersion' OR i ? 'rowEmissionPolicies' OR r ? 'rowEmissions' OR r ? 'receiptRowKeys'
+  OR programme ? 'rowEmissionVersion' OR programme ? 'rowEmissionPolicies'
+  THEN RAISE EXCEPTION 'OWN_CLOSE_EMISSION_OPT_IN_REQUIRED';END IF;
+  IF i ? 'familyTariffsVersion' OR r ? 'familyTariffsVersion' OR programme ? 'familyTariffsVersion' THEN
+   PERFORM public.own_run_family_tariff_result_verify_candidate_v2(p,i,r);
+  ELSE
+   PERFORM public.own_run_family_input_verify_v1(p,i);
+   PERFORM public.own_run_official_result_check_v1(i,r);
+  END IF;
+ END IF;
+END $fn$;
+
+CREATE FUNCTION public.own_program_catalogue_value_available_v1(items jsonb,bound jsonb,consumer jsonb) RETURNS boolean
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+ SELECT count(*)>0 AND count(DISTINCT item->'nature')=1 FROM jsonb_array_elements(items) item
+ WHERE item->'active'='true'::jsonb
+  AND item->>'kind'=CASE WHEN bound->>'sourceKind' IN('scale','scale_reference') THEN 'scale' WHEN bound->>'sourceKind'='auxiliary_parameter' THEN 'auxiliary' ELSE 'concept' END
+  AND item->>'code'=bound->>'sourceCode' AND item->>'unit'=bound->>'unit'
+  AND item->>'agreementCode'=CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->>'sourceAgreementCode' ELSE bound->>'agreementCode' END
+  AND(item->>'kind'<>'concept' OR item->>'nature'<>'auxiliary')
+  AND(bound->>'sourceKind'<>'scale_reference' OR item->>'categoryCode'=bound->>'sourceCategoryCode')
+  AND item->>'validFrom'<=coalesce(consumer->>'validUntil','9999-12') AND consumer->>'validFrom'<=coalesce(item->>'validUntil','9999-12')
+$function$;
+
+ALTER FUNCTION public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_program_catalogue_value_contracts_v1(programme jsonb,items jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE bound jsonb;consumers jsonb;consumer jsonb;rules jsonb;matching jsonb;result_value jsonb:='[]';
+BEGIN
+ IF programme->>'catalogueValueResolutionVersion' IS DISTINCT FROM 'own-approved-period-values.v1' OR programme->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_PROGRAM_INVALID';END IF;
+ rules:=public.own_program_catalogue_value_rules_v1(programme);
+ FOR bound IN SELECT item FROM jsonb_array_elements(programme->'bindings') item WHERE item->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') ORDER BY item->>'agreementCode' COLLATE "C",item->>'key' COLLATE "C" LOOP
+  SELECT coalesce(jsonb_agg(item),'[]') INTO consumers FROM jsonb_array_elements(rules) item WHERE item->>'agreementCode'=bound->>'agreementCode'
+   AND jsonb_path_exists(item->'expression','$.** ? ((@.op == "input" || @.op == "match") && @.key == $key)',jsonb_build_object('key',bound->'key'));
+  IF jsonb_array_length(consumers)=0 THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_DEFINITION_MISSING';END IF;
+  FOR consumer IN SELECT item FROM jsonb_array_elements(consumers) item LOOP
+   IF public.own_program_catalogue_value_available_v1(items,bound,consumer) IS NOT TRUE THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_DEFINITION_MISSING';END IF;
+  END LOOP;
+  SELECT coalesce(jsonb_agg(item),'[]') INTO matching FROM jsonb_array_elements(items) item
+   WHERE item->'active'='true'::jsonb
+    AND item->>'kind'=CASE WHEN bound->>'sourceKind' IN('scale','scale_reference') THEN 'scale' WHEN bound->>'sourceKind'='auxiliary_parameter' THEN 'auxiliary' ELSE 'concept' END
+    AND item->>'code'=bound->>'sourceCode' AND item->>'unit'=bound->>'unit'
+    AND item->>'agreementCode'=CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->>'sourceAgreementCode' ELSE bound->>'agreementCode' END
+    AND(item->>'kind'<>'concept' OR item->>'nature'<>'auxiliary') AND(bound->>'sourceKind'<>'scale_reference' OR item->>'categoryCode'=bound->>'sourceCategoryCode')
+    AND EXISTS(SELECT 1 FROM jsonb_array_elements(consumers) used WHERE item->>'validFrom'<=coalesce(used->>'validUntil','9999-12') AND used->>'validFrom'<=coalesce(item->>'validUntil','9999-12'));
+  IF(SELECT count(DISTINCT item->'nature') FROM jsonb_array_elements(matching) item)<>1 THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_SOURCE_CHANGED';END IF;
+  result_value:=result_value||jsonb_build_array(jsonb_build_object('bindingAgreementCode',bound->>'agreementCode','key',bound->>'key','sourceKind',bound->>'sourceKind',
+   'kind',CASE WHEN bound->>'sourceKind' IN('scale','scale_reference') THEN 'scale' WHEN bound->>'sourceKind'='auxiliary_parameter' THEN 'auxiliary' ELSE 'concept' END,
+   'code',bound->>'sourceCode','agreementCode',CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->>'sourceAgreementCode' ELSE bound->>'agreementCode' END,
+   'categorySelector',CASE bound->>'sourceKind' WHEN 'scale' THEN 'employee' WHEN 'scale_reference' THEN 'explicit' ELSE 'none' END,
+   'categoryCode',CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->>'sourceCategoryCode' ELSE NULL END,'unit',bound->>'unit','nature',matching#>'{0,nature}'));
+ END LOOP;
+ RETURN result_value;
+END $function$;
+
+ALTER FUNCTION public.own_program_catalogue_value_contracts_v1(jsonb,jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_program_catalogue_value_contracts_v1(jsonb,jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_program_catalogue_value_contracts_v1(jsonb,jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_program_catalogue_value_rules_v1(programme jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+ SELECT public.own_participation_rules_v1(programme)||CASE WHEN programme->>'quantityPhasesVersion'='own-payroll-quantity-phases.v1' THEN public.own_program_quantity_effective_v1(programme) ELSE '[]'::jsonb END
+$function$;
+
+ALTER FUNCTION public.own_program_catalogue_value_rules_v1(jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_program_catalogue_value_rules_v1(jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_program_catalogue_value_rules_v1(jsonb) TO neondb_owner;
+CREATE OR REPLACE FUNCTION public.own_program_definition_v1(p jsonb, items jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ IMMUTABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+DECLARE period_values boolean:=coalesce(p->>'catalogueValueResolutionVersion'='own-approved-period-values.v1',false);conditional_sources boolean:=coalesce(p->>'conditionalSourcesVersion'='own-payroll-conditional-sources.v1',false);optional_scales boolean:=coalesce(p->>'optionalScalesVersion'='own-payroll-optional-scales.v1',false);tariffs boolean:=p ? 'familyTariffsVersion' OR p ? 'familyTariffPolicies';tariff_options jsonb;family_facts boolean:=coalesce(p->>'familyPayrollFactsVersion'='own-contract-family-payroll-facts.v1',false);presence boolean:=coalesce(p->>'noveltyPresenceVersion'='own-payroll-novelty-presence.v1',false);declared_days boolean:=coalesce(p->>'monthlyDayDeclarationVersion'='own-monthly-approved-days.v1',false);monthly_days boolean:=coalesce(p->>'monthlyDaysVersion'='own-monthly-day-facts.v2',false);day_codes text[];day_rule boolean;forced boolean:=p ? 'fixedForcedAmountsVersion' OR p ? 'fixedForcedAmountsPolicy';period_context boolean:=coalesce(p->>'periodContextVersion'='own-payroll-period-context.v1',false);agreement_working boolean:=coalesce(p->>'agreementWorkingTimeVersion'='own-agreement-working-time.v1',false);conditions boolean:=coalesce(p->>'salaryConditionsVersion' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2'),false);working boolean:=coalesce(p->>'workingTimeVersion'='own-contract-working-time.v1',false);r jsonb;b jsonb;i jsonb;node jsonb;matching jsonb;period text;kind_type text;normalized jsonb;used_keys text[]:='{}';binding_id text;field text;group_row record;active_rules jsonb;done_codes text[];ready_codes text[];wave integer;checked integer:=0;work integer:=0;part boolean:=coalesce(p#>>'{periodParticipation,version}'='own-period-participation.v1',false);facts boolean:=coalesce(p->>'employmentFactsVersion'='own-salary-seniority.v1',false);ns boolean:=coalesce(p->>'namespaceVersion'='own-payroll-namespaces.v2',false);
+BEGIN
+ IF p ? 'catalogueValueResolutionVersion' AND (NOT period_values OR NOT ns) THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_PROGRAM_INVALID';END IF;
+ IF NOT public.own_program_exact_v1(p,(CASE WHEN ns THEN ARRAY['namespaceVersion','rules','bindings','totalsPrecision'] ELSE ARRAY['rules','bindings','totalsPrecision'] END)||CASE WHEN period_values THEN ARRAY['catalogueValueResolutionVersion'] ELSE ARRAY[]::text[] END||CASE WHEN conditional_sources THEN ARRAY['conditionalSourcesVersion','conditionalSourcePolicies'] ELSE ARRAY[]::text[] END||CASE WHEN optional_scales THEN ARRAY['optionalScalesVersion'] ELSE ARRAY[]::text[] END||CASE WHEN presence THEN ARRAY['noveltyPresenceVersion'] ELSE ARRAY[]::text[] END||CASE WHEN facts THEN ARRAY['employmentFactsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN part THEN ARRAY['periodParticipation'] ELSE ARRAY[]::text[] END||CASE WHEN working THEN ARRAY['workingTimeVersion'] ELSE ARRAY[]::text[] END||CASE WHEN agreement_working THEN ARRAY['agreementWorkingTimeVersion'] ELSE ARRAY[]::text[] END||CASE WHEN period_context THEN ARRAY['periodContextVersion'] ELSE ARRAY[]::text[] END||CASE WHEN conditions THEN ARRAY['salaryConditionsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN family_facts THEN ARRAY['familyPayrollFactsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN tariffs THEN ARRAY['familyTariffsVersion','familyTariffPolicies'] ELSE ARRAY[]::text[] END||CASE WHEN monthly_days THEN ARRAY['monthlyDaysVersion','monthlyDaysPolicy'] ELSE ARRAY[]::text[] END||CASE WHEN declared_days THEN ARRAY['monthlyDayDeclarationVersion'] ELSE ARRAY[]::text[] END||CASE WHEN forced THEN ARRAY['fixedForcedAmountsVersion','fixedForcedAmountsPolicy'] ELSE ARRAY[]::text[] END) OR jsonb_typeof(p->'totalsPrecision') IS DISTINCT FROM 'number' OR p->>'totalsPrecision'!~'^[0-8]$' OR jsonb_typeof(p->'rules') IS DISTINCT FROM 'array' OR jsonb_array_length(p->'rules') NOT BETWEEN 1 AND 1000 OR jsonb_typeof(p->'bindings') IS DISTINCT FROM 'array' OR jsonb_array_length(p->'bindings')>1000 THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF presence AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF forced THEN PERFORM public.own_fixed_forced_policy_v1(p);ELSIF jsonb_path_exists(p,'$.rules[*].expression.** ? (@.op == "quantity_phase")') THEN RAISE EXCEPTION 'OWN_PROGRAM_FORCED_LINEAGE_REQUIRED';END IF;
+  IF part THEN IF NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;PERFORM public.own_participation_policy_v1(p);END IF;
+ IF monthly_days AND (NOT ns OR NOT part OR coalesce(public.own_program_exact_v1(p->'monthlyDaysPolicy',ARRAY['version','basis','unit','recognizedDays','baseDays','partial','reference']) AND p#>>'{monthlyDaysPolicy,version}'='own-monthly-day-policy.v1' AND p#>>'{monthlyDaysPolicy,basis}'='verified_full_month' AND p#>>'{monthlyDaysPolicy,unit}'='days' AND p#>'{monthlyDaysPolicy,recognizedDays}'='"30"'::jsonb AND p#>'{monthlyDaysPolicy,baseDays}'='"30"'::jsonb AND p#>>'{monthlyDaysPolicy,partial}'='reject' AND public.own_program_text_v1(p#>'{monthlyDaysPolicy,reference}',3,180),false) IS NOT TRUE) THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DAY_POLICY_INVALID';END IF;
+ IF declared_days AND(NOT ns OR NOT part) THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DECLARED_DAYS_POLICY_INVALID';END IF;
+ IF family_facts AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF tariffs THEN tariff_options:=public.own_program_family_tariff_options_candidate_v2(p);END IF;
+ IF conditions AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF period_context AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF agreement_working AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF working AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF facts AND NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p->'bindings') AS bound_limit(value) GROUP BY bound_limit.value->>'agreementCode' HAVING count(*)>512) THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+ FOR b IN SELECT value FROM jsonb_array_elements(p->'bindings') LOOP
+  FOREACH field IN ARRAY ARRAY['agreementCode','key','unit','sourceKind',CASE WHEN b->>'sourceKind' IN('family_fact','monthly_day_declaration_fact','monthly_day_fact','employment_fact','period_fact','period_context_fact','conditional_working_time_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') THEN 'sourceField' ELSE 'sourceCode' END,'onMissing','combine','ruleReference'] LOOP IF jsonb_typeof(b->field) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;END LOOP;
+  IF NOT public.own_program_exact_v1(b,CASE WHEN b->>'sourceKind' IN('family_fact','monthly_day_declaration_fact','monthly_day_fact','employment_fact','period_fact','period_context_fact','conditional_working_time_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') THEN ARRAY['agreementCode','key','unit','sourceKind','sourceField','onMissing','combine','ruleReference'] WHEN b->>'sourceKind'='scale_reference' THEN ARRAY['agreementCode','key','unit','sourceKind','sourceCode','onMissing','combine','ruleReference','sourceAgreementCode','sourceCategoryCode'] ELSE ARRAY['agreementCode','key','unit','sourceKind','sourceCode','onMissing','combine','ruleReference'] END) OR b->>'agreementCode' IS NULL OR b->>'agreementCode'!~'^[0-9]{1,9}$' OR (b->>'sourceKind' NOT IN('family_fact','monthly_day_declaration_fact','monthly_day_fact','employment_fact','period_fact','period_context_fact','conditional_working_time_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') AND(b->>'sourceCode' IS NULL OR b->>'sourceCode'!~'^[0-9]{1,9}$')) OR b->>'key' IS NULL OR b->>'key'!~'^[A-Za-z][A-Za-z0-9_]{0,63}$' OR coalesce(b->>'unit' IN('money','hours','minutes','days','percent','units','coefficient') OR conditions AND b->>'sourceKind' IN('salary_condition_fact','classification_fact') AND b->>'unit' IN('code','boolean') OR family_facts AND b->>'sourceKind'='family_fact' AND b->>'unit'='code',false) IS NOT TRUE OR coalesce(b->>'sourceKind' IN('conditional_scale','optional_scale','family_tariff','parameter','auxiliary_parameter','scale','scale_reference','monthly_quantity','monthly_amount','fixed_quantity','fixed_amount','monthly_presence','fixed_presence','family_fact','monthly_day_declaration_fact','monthly_day_fact','employment_fact','period_fact','period_context_fact','conditional_working_time_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') AND(b->>'sourceKind' NOT IN('monthly_presence','fixed_presence') OR presence) AND(b->>'sourceKind'<>'monthly_day_declaration_fact' OR declared_days) AND(b->>'sourceKind'<>'monthly_day_fact' OR monthly_days) AND(b->>'sourceKind'<>'employment_fact' OR facts) AND(b->>'sourceKind'<>'period_fact' OR part) AND(b->>'sourceKind'<>'working_time_fact' OR working) AND(b->>'sourceKind'<>'agreement_time_fact' OR agreement_working) AND(b->>'sourceKind'<>'period_context_fact' OR period_context) AND(b->>'sourceKind'<>'salary_condition_fact' OR conditions) AND(b->>'sourceKind'<>'classification_fact' OR conditions) AND(b->>'sourceKind'<>'family_fact' OR family_facts) AND(b->>'sourceKind' NOT IN('conditional_scale','conditional_working_time_fact') OR conditional_sources AND ns AND p->>'salaryConditionsVersion'='own-contract-salary-conditions.v2') AND(b->>'sourceKind'<>'optional_scale' OR optional_scales AND ns) AND(b->>'sourceKind'<>'family_tariff' OR tariffs) AND (b->>'sourceKind'<>'auxiliary_parameter' OR ns),false) IS NOT TRUE OR coalesce(CASE WHEN b->>'sourceKind' IN('monthly_presence','fixed_presence') THEN b->>'combine'='any' ELSE b->>'combine' IN('single','sum') END,false) IS NOT TRUE OR coalesce(b->>'onMissing' IN('error','zero'),false) IS NOT TRUE OR NOT public.own_program_text_v1(b->'ruleReference',3,180) THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='conditional_scale' AND(b->>'unit'<>'money' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_CONDITIONAL_SOURCE_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='conditional_working_time_fact' AND NOT working THEN RAISE EXCEPTION 'OWN_PROGRAM_CONDITIONAL_SOURCE_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='optional_scale' AND(b->>'unit'<>'money' OR b->>'combine'<>'single' OR b->>'onMissing'<>'zero') THEN RAISE EXCEPTION 'OWN_PROGRAM_OPTIONAL_SCALE_BINDING_INVALID';END IF;
+  IF b->>'sourceKind' IN('monthly_presence','fixed_presence') AND(NOT presence OR b->>'unit'<>'coefficient' OR b->>'combine'<>'any' OR b->>'onMissing'<>'zero') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='family_fact' AND(NOT family_facts OR b->>'unit' IS DISTINCT FROM CASE b->>'sourceField' WHEN 'spouse' THEN 'units' WHEN 'children' THEN 'units' WHEN 'childrenWithDisability' THEN 'units' WHEN 'prenatal' THEN 'units' WHEN 'largeFamily' THEN 'units' WHEN 'preschool' THEN 'units' WHEN 'preschoolWithDisability' THEN 'units' WHEN 'primary' THEN 'units' WHEN 'primaryWithDisability' THEN 'units' WHEN 'secondary' THEN 'units' WHEN 'secondaryWithDisability' THEN 'units' WHEN 'dependants' THEN 'units' WHEN 'prenatalAdjustmentMonths' THEN 'units' WHEN 'tariffRegion' THEN 'code' WHEN 'semesterAverage' THEN 'money' ELSE NULL END OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='classification_fact' AND(NOT conditions OR b->>'sourceField' NOT IN('categoryCode','agreementCode') OR b->>'unit'<>'code' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='salary_condition_fact' AND(NOT conditions OR b->>'unit' IS DISTINCT FROM CASE b->>'sourceField' WHEN 'partialSeniorityYears' THEN 'units' WHEN 'titleStatus' THEN 'code' WHEN 'titleCode' THEN 'code' WHEN 'titlePercentage' THEN 'percent' WHEN 'unhealthyWork' THEN 'boolean' WHEN 'teacherPayEnabled' THEN CASE WHEN p->>'salaryConditionsVersion'='own-contract-salary-conditions.v2' THEN 'boolean' END WHEN 'teacherReferenceAmount' THEN CASE WHEN p->>'salaryConditionsVersion'='own-contract-salary-conditions.v2' THEN 'money' END WHEN 'housingHigherDedicationPayEnabled' THEN CASE WHEN p->>'salaryConditionsVersion'='own-contract-salary-conditions.v2' THEN 'boolean' END WHEN 'payrollMonthBaseDays' THEN CASE WHEN p->>'salaryConditionsVersion'='own-contract-salary-conditions.v2' THEN 'days' END ELSE NULL END OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='period_context_fact' AND(b->>'sourceField'<>'monthNumber' OR b->>'unit'<>'units' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='agreement_time_fact' AND(b->>'sourceField'<>'monthlyHours' OR b->>'unit'<>'hours' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind' IN('conditional_working_time_fact','working_time_fact') AND(b->>'sourceField' NOT IN('dailyHours','monthlyHours') OR b->>'unit'<>'hours' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind' IN('monthly_day_fact','monthly_day_declaration_fact') AND(b->>'sourceField' NOT IN('recognizedDays','baseDays') OR b->>'unit'<>'days' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DAY_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='period_fact' AND(b->>'sourceField' NOT IN('recognizedUnits','baseUnits') OR b->>'unit'<>'units' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='employment_fact' AND(b->>'sourceField' NOT IN('seniorityYears','seniorityMonths') OR b->>'unit'<>'units' OR b->>'combine'<>'single' OR b->>'onMissing'<>'error') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind'='scale_reference' AND(jsonb_typeof(b->'sourceAgreementCode') IS DISTINCT FROM 'string' OR b->>'sourceAgreementCode'!~'^[0-9]{1,9}$' OR jsonb_typeof(b->'sourceCategoryCode') IS DISTINCT FROM 'string' OR b->>'sourceCategoryCode'!~'^[0-9]{1,9}$') THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+  IF b->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') AND(b->>'combine'<>'single' OR b->>'onMissing'<>'error') OR b->>'sourceKind' IN('scale','scale_reference','monthly_amount','fixed_amount') AND b->>'unit'<>'money' THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p->'bindings') x GROUP BY x->>'agreementCode',x->>'key' HAVING count(*)>1) THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_DUPLICATE';END IF;
+ FOR r IN SELECT value FROM jsonb_array_elements(p->'rules') LOOP
+  FOREACH field IN ARRAY ARRAY['code','agreementCode','nature','unit','validFrom','ruleReference'] LOOP IF jsonb_typeof(r->field) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;END LOOP;
+  IF jsonb_typeof(r->'validUntil') NOT IN('string','null') THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  IF NOT public.own_program_exact_v1(r,ARRAY['code','agreementCode','nature','unit','validFrom','validUntil','liquidationTypes','ruleReference','rounding','expression']) OR r->>'code' IS NULL OR r->>'code'!~'^[0-9]{1,9}$' OR r->>'agreementCode' IS NULL OR r->>'agreementCode'!~'^[0-9]{1,9}$' OR coalesce(r->>'nature' IN('remuneration','non_remuneration','deduction','employer_contribution','auxiliary'),false) IS NOT TRUE OR coalesce(r->>'unit' IN('money','hours','minutes','days','percent','units','coefficient'),false) IS NOT TRUE OR r->>'nature'<>'auxiliary' AND r->>'unit'<>'money' OR r->>'validFrom' IS NULL OR r->>'validFrom'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' OR (r->'validUntil'<>'null' AND(r->>'validUntil'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' OR r->>'validUntil'<r->>'validFrom')) OR NOT public.own_program_text_v1(r->'ruleReference',3,180) OR NOT public.own_program_rounding_v1(r->'rounding') OR jsonb_typeof(r->'liquidationTypes') IS DISTINCT FROM 'array' OR jsonb_array_length(r->'liquidationTypes') NOT BETWEEN 1 AND 7 THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(r->'liquidationTypes') t WHERE jsonb_typeof(t)<>'string' OR t#>>'{}' NOT IN('monthly','first_fortnight','sac','vacation','supplementary','final','other')) OR (SELECT count(*)<>count(DISTINCT t) FROM jsonb_array_elements_text(r->'liquidationTypes') t) THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;
+  node:=CASE WHEN ns THEN public.own_program_node_v2(public.own_participation_expression_v1(r,p)) ELSE public.own_program_node_v1(public.own_participation_expression_v1(r,p)) END;
+  IF NOT (conditions OR family_facts) AND jsonb_path_exists(r->'expression','$.** ? (@.op == "match")') THEN RAISE EXCEPTION 'OWN_PROGRAM_OPERATION_UNSUPPORTED';END IF;
+  work:=work+(node->>'nodes')::integer;IF work>3000000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+  SELECT jsonb_agg(d) INTO matching FROM jsonb_array_elements(items) d WHERE d->>'active'='true' AND d->>'kind'=CASE WHEN ns AND r->>'nature'='auxiliary' THEN 'auxiliary' ELSE 'concept' END AND d->>'agreementCode'=r->>'agreementCode' AND d->>'code'=r->>'code' AND d->>'nature'=r->>'nature' AND(r->>'nature'<>'auxiliary' OR d->>'unit'=r->>'unit');
+  IF NOT public.own_program_coverage_v1(matching,r->>'validFrom',r->>'validUntil') THEN RAISE EXCEPTION 'OWN_PROGRAM_DEFINITION_MISSING';END IF;
+  FOR i IN SELECT value FROM jsonb_array_elements(node->'inputs') LOOP
+   SELECT x INTO b FROM jsonb_array_elements(p->'bindings') x WHERE x->>'agreementCode'=r->>'agreementCode' AND x->>'key'=i->>'key';
+   IF NOT FOUND OR b->>'unit' IS DISTINCT FROM i->>'unit' THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_MISSING';END IF;binding_id:=(b->>'agreementCode')||':'||(b->>'key');used_keys:=used_keys||binding_id;
+   IF b->>'sourceKind'='optional_scale' AND(r->>'nature'='auxiliary' OR r->>'code' IS DISTINCT FROM b->>'sourceCode') THEN RAISE EXCEPTION 'OWN_PROGRAM_OPTIONAL_SCALE_CONSUMER_INVALID';END IF;
+   IF period_values AND b->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') THEN
+    IF public.own_program_catalogue_value_available_v1(items,b,r) IS NOT TRUE THEN RAISE EXCEPTION 'OWN_PROGRAM_SOURCE_DEFINITION_MISSING';END IF;
+   ELSIF b->>'sourceKind' NOT IN('conditional_scale','optional_scale','family_tariff','family_fact','monthly_day_declaration_fact','monthly_day_fact','employment_fact','period_fact','period_context_fact','conditional_working_time_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') THEN
+   SELECT jsonb_agg(d) INTO matching FROM jsonb_array_elements(items) d WHERE d->>'active'='true' AND d->>'agreementCode'=CASE WHEN b->>'sourceKind'='scale_reference' THEN b->>'sourceAgreementCode' ELSE b->>'agreementCode' END AND(b->>'sourceKind'<>'scale_reference' OR d->>'categoryCode'=b->>'sourceCategoryCode') AND d->>'code'=b->>'sourceCode' AND d->>'kind'=CASE WHEN b->>'sourceKind' IN('scale','scale_reference') THEN 'scale' WHEN b->>'sourceKind'='auxiliary_parameter' THEN 'auxiliary' ELSE 'concept' END AND(NOT ns OR d->>'kind'<>'concept' OR d->>'nature'<>'auxiliary') AND(b->>'sourceKind' IN('scale','scale_reference','monthly_amount','fixed_amount','monthly_presence','fixed_presence') OR d->>'unit'=b->>'unit') AND(b->>'sourceKind' NOT IN('parameter','auxiliary_parameter') OR d->'value'<>'null');
+   IF NOT public.own_program_coverage_v1(matching,r->>'validFrom',r->>'validUntil') THEN RAISE EXCEPTION 'OWN_PROGRAM_SOURCE_DEFINITION_MISSING';END IF;END IF;
+  END LOOP;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p->'rules') WITH ORDINALITY a(value,n),jsonb_array_elements(p->'rules') WITH ORDINALITY other(value,m) WHERE a.n<other.m AND a.value->>'agreementCode'=other.value->>'agreementCode' AND a.value->>'code'=other.value->>'code' AND(NOT ns OR(a.value->>'nature'='auxiliary')=(other.value->>'nature'='auxiliary')) AND coalesce(a.value->>'validUntil','9999-12')>=other.value->>'validFrom' AND coalesce(other.value->>'validUntil','9999-12')>=a.value->>'validFrom' AND EXISTS(SELECT 1 FROM jsonb_array_elements_text(a.value->'liquidationTypes') t WHERE other.value->'liquidationTypes' ? t)) THEN RAISE EXCEPTION 'OWN_PROGRAM_OVERLAP';END IF;
+ FOR group_row IN SELECT DISTINCT x->>'agreementCode' agreement,t.kind FROM jsonb_array_elements(p->'rules') x CROSS JOIN LATERAL jsonb_array_elements_text(x->'liquidationTypes') t(kind) LOOP
+  kind_type:=group_row.kind;
+  FOR period IN SELECT DISTINCT v FROM(SELECT x->>'validFrom' v FROM jsonb_array_elements(p->'rules') x WHERE x->>'agreementCode'=group_row.agreement AND x->'liquidationTypes' ? kind_type UNION SELECT to_char((x->>'validUntil'||'-01')::date+interval '1 month','YYYY-MM') FROM jsonb_array_elements(p->'rules') x WHERE x->>'agreementCode'=group_row.agreement AND x->'liquidationTypes' ? kind_type AND x->'validUntil'<>'null') s LOOP
+   SELECT coalesce(jsonb_agg(x),'[]') INTO active_rules FROM jsonb_array_elements(p->'rules') x WHERE x->>'agreementCode'=group_row.agreement AND x->'liquidationTypes' ? kind_type AND x->>'validFrom'<=period AND coalesce(x->>'validUntil','9999-12')>=period;
+   checked:=checked+jsonb_array_length(active_rules);IF checked>50000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+   done_codes:='{}';day_codes:='{}';wave:=0;
+   WHILE cardinality(done_codes)<jsonb_array_length(active_rules) LOOP
+    wave:=wave+1;IF wave>64 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;ready_codes:='{}';
+    FOR r IN SELECT x FROM jsonb_array_elements(active_rules) x WHERE NOT((CASE WHEN ns THEN (CASE WHEN x->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(x->>'code') ELSE x->>'code' END)=ANY(done_codes)) LOOP
+     node:=CASE WHEN ns THEN public.own_program_node_v2(public.own_participation_expression_v1(r,p)) ELSE public.own_program_node_v1(public.own_participation_expression_v1(r,p)) END;
+     work:=work+2*(node->>'nodes')::integer;IF work>3000000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+     IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(node->'refs') c WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(active_rules) target WHERE (CASE WHEN ns THEN (CASE WHEN target->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(target->>'code') ELSE target->>'code' END)=c)) THEN RAISE EXCEPTION 'OWN_PROGRAM_DEPENDENCY';END IF;
+     IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(node->'refs') c WHERE NOT(c=ANY(done_codes))) THEN
+      IF monthly_days OR declared_days THEN
+       day_rule:=EXISTS(SELECT 1 FROM jsonb_array_elements(node->'inputs') inp JOIN jsonb_array_elements(p->'bindings') bound ON bound->>'agreementCode'=r->>'agreementCode' AND bound->>'key'=inp->>'key' WHERE bound->>'sourceKind' IN('monthly_day_fact','monthly_day_declaration_fact')) OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(node->'refs') ref WHERE ref=ANY(day_codes));
+       IF day_rule THEN
+        IF kind_type<>'monthly' THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DAY_TYPE_UNSUPPORTED';END IF;
+        IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p#>'{periodParticipation,treatments}') treatment WHERE treatment->>'ruleKey'=public.own_participation_rule_key_v1(r) AND treatment->>'treatment'='declared_formula') THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DAY_DOUBLE_FRACTION';END IF;
+        day_codes:=array_append(day_codes,(CASE WHEN r->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(r->>'code'));
+       END IF;
+      END IF;
+      IF (CASE WHEN ns THEN public.own_program_unit_v2(public.own_participation_expression_v1(r,p),active_rules,group_row.agreement,period,kind_type,ARRAY[(CASE WHEN r->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(r->>'code')]) ELSE public.own_program_unit_v1(public.own_participation_expression_v1(r,p),active_rules,group_row.agreement,period,kind_type,ARRAY[r->>'code']) END) IS DISTINCT FROM r->>'unit' THEN RAISE EXCEPTION 'OWN_PROGRAM_UNIT_MISMATCH';END IF;ready_codes:=ready_codes||(CASE WHEN ns THEN (CASE WHEN r->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(r->>'code') ELSE r->>'code' END);
+     END IF;
+    END LOOP;
+    IF cardinality(ready_codes)=0 THEN RAISE EXCEPTION 'OWN_PROGRAM_CYCLE';END IF;done_codes:=done_codes||ready_codes;
+   END LOOP;
+  END LOOP;
+ END LOOP;
+ IF monthly_days AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p->'bindings') bound(value) WHERE bound.value->>'sourceKind'='monthly_day_fact') THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DAY_BINDING_INVALID';END IF;
+ IF declared_days AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p->'bindings') bound(value) WHERE bound.value->>'sourceKind'='monthly_day_declaration_fact') THEN RAISE EXCEPTION 'OWN_PROGRAM_MONTHLY_DECLARED_DAYS_BINDING_INVALID';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p->'bindings') bound(value) WHERE NOT((bound.value->>'agreementCode')||':'||(bound.value->>'key')=ANY(used_keys))) THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_UNUSED';END IF;
+ SELECT jsonb_build_object('rules',(SELECT jsonb_agg(x ORDER BY (x->>'agreementCode') COLLATE "C",(x->>'code') COLLATE "C",(CASE WHEN ns THEN (CASE WHEN x->>'nature'='auxiliary' THEN 'auxiliary:' ELSE 'concept:' END)||(x->>'code') ELSE '' END) COLLATE "C",x->>'validFrom',(SELECT string_agg(t,',' ORDER BY t COLLATE "C") FROM jsonb_array_elements_text(x->'liquidationTypes') t) COLLATE "C") FROM jsonb_array_elements(p->'rules') x),'bindings',(SELECT coalesce(jsonb_agg(x ORDER BY (x->>'agreementCode') COLLATE "C",(x->>'key') COLLATE "C"),'[]') FROM jsonb_array_elements(p->'bindings') x),'totalsPrecision',p->'totalsPrecision') INTO normalized;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p->'rules') rule_row(value) WHERE rule_row.value->'liquidationTypes' IS DISTINCT FROM(SELECT jsonb_agg(t ORDER BY t COLLATE "C") FROM jsonb_array_elements_text(rule_row.value->'liquidationTypes') t)) THEN RAISE EXCEPTION 'OWN_PROGRAM_INPUT_INVALID';END IF;IF conditional_sources THEN IF NOT ns OR p->>'salaryConditionsVersion' IS DISTINCT FROM 'own-contract-salary-conditions.v2' THEN RAISE EXCEPTION 'OWN_PROGRAM_CONDITIONAL_SOURCE_POLICY_INVALID';END IF;normalized:=normalized||jsonb_build_object('conditionalSourcesVersion','own-payroll-conditional-sources.v1','conditionalSourcePolicies',p->'conditionalSourcePolicies');END IF;IF optional_scales THEN IF NOT ns THEN RAISE EXCEPTION 'OWN_PROGRAM_OPTIONAL_SCALE_BINDING_INVALID';END IF;normalized:=normalized||jsonb_build_object('optionalScalesVersion','own-payroll-optional-scales.v1');END IF;IF presence THEN normalized:=normalized||jsonb_build_object('noveltyPresenceVersion','own-payroll-novelty-presence.v1');END IF;IF ns THEN normalized:=normalized||jsonb_build_object('namespaceVersion','own-payroll-namespaces.v2');END IF;IF facts THEN normalized:=normalized||jsonb_build_object('employmentFactsVersion','own-salary-seniority.v1');END IF;IF part THEN normalized:=normalized||jsonb_build_object('periodParticipation',public.own_participation_policy_v1(p));END IF;IF working THEN normalized:=normalized||jsonb_build_object('workingTimeVersion','own-contract-working-time.v1');END IF;IF agreement_working THEN normalized:=normalized||jsonb_build_object('agreementWorkingTimeVersion','own-agreement-working-time.v1');END IF;IF period_context THEN normalized:=normalized||jsonb_build_object('periodContextVersion','own-payroll-period-context.v1');END IF;IF conditions THEN normalized:=normalized||jsonb_build_object('salaryConditionsVersion',p->'salaryConditionsVersion');END IF;IF monthly_days THEN normalized:=normalized||jsonb_build_object('monthlyDaysVersion','own-monthly-day-facts.v2','monthlyDaysPolicy',p->'monthlyDaysPolicy');END IF;IF declared_days THEN normalized:=normalized||jsonb_build_object('monthlyDayDeclarationVersion','own-monthly-approved-days.v1');END IF;IF forced THEN normalized:=normalized||jsonb_build_object('fixedForcedAmountsVersion',p->'fixedForcedAmountsVersion','fixedForcedAmountsPolicy',p->'fixedForcedAmountsPolicy');END IF;IF family_facts THEN normalized:=normalized||jsonb_build_object('familyPayrollFactsVersion','own-contract-family-payroll-facts.v1');END IF;IF tariffs THEN normalized:=normalized||tariff_options;END IF;IF period_values THEN normalized:=normalized||jsonb_build_object('catalogueValueResolutionVersion','own-approved-period-values.v1');PERFORM public.own_program_catalogue_value_contracts_v1(normalized,items);END IF;RETURN normalized;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_program_quantity_definition_v1(p jsonb,items jsonb) RETURNS jsonb LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE monetary jsonb;normalized jsonb;conditions boolean;phases jsonb:='[]';q jsonb;effective jsonb;lowered jsonb;raw_rules jsonb;rule_keys text[]:='{}';quantity_keys text[]:='{}';r jsonb;i jsonb;info jsonb;bound jsonb;matching jsonb;owner_rule jsonb;period text;kind_type text;agreement text;active_phases jsonb;active_amounts jsonb;active_norm jsonb;policy_ctx jsonb;walk_state jsonb;inactive_use_detail jsonb;checks integer:=0;work integer:=0;
+BEGIN
+ IF jsonb_typeof(p) IS DISTINCT FROM 'object' OR p->'quantityPhasesVersion' IS DISTINCT FROM '"own-payroll-quantity-phases.v1"'::jsonb OR p->'namespaceVersion' IS DISTINCT FROM '"own-payroll-namespaces.v2"'::jsonb
+  OR jsonb_typeof(p->'quantityPhases') IS DISTINCT FROM 'array' OR (CASE WHEN jsonb_typeof(p->'quantityPhases')='array' THEN jsonb_array_length(p->'quantityPhases') ELSE 0 END) NOT BETWEEN 1 AND 1000 THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_INVALID';END IF;
+ monetary:=p-'quantityPhasesVersion'-'quantityPhases';
+ conditions:=coalesce(monetary->>'salaryConditionsVersion' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2'),false) OR coalesce(monetary->>'familyPayrollFactsVersion'='own-contract-family-payroll-facts.v1',false);
+ BEGIN
+  normalized:=public.own_program_definition_v1(monetary,items);
+ EXCEPTION WHEN raise_exception THEN
+  IF SQLERRM IS DISTINCT FROM 'OWN_PROGRAM_BINDING_UNUSED' THEN RAISE;END IF;
+  normalized:=NULL;
+ END;
+ -- Mismo used_keys que el legacy: entradas de own_program_node_v2 sobre la expresión con participación.
+ FOR r IN SELECT xr FROM jsonb_array_elements(monetary->'rules') xr LOOP
+  info:=public.own_program_node_v2(public.own_participation_expression_v1(r,monetary));
+  rule_keys:=rule_keys||ARRAY(SELECT (r->>'agreementCode')||':'||(xi->>'key') FROM jsonb_array_elements(info->'inputs') xi);
+ END LOOP;
+ IF normalized IS NULL THEN
+  normalized:=public.own_program_definition_v1(jsonb_set(monetary,'{bindings}',(SELECT coalesce(jsonb_agg(y.xb ORDER BY y.o),'[]') FROM jsonb_array_elements(monetary->'bindings') WITH ORDINALITY y(xb,o) WHERE ((y.xb->>'agreementCode')||':'||(y.xb->>'key'))=ANY(rule_keys))),items);
+ END IF;
+ normalized:=jsonb_set(normalized,'{bindings}',(SELECT coalesce(jsonb_agg(xb ORDER BY (xb->>'agreementCode') COLLATE "C",(xb->>'key') COLLATE "C"),'[]') FROM jsonb_array_elements(monetary->'bindings') xb));
+ -- Fases: forma, orden canónico, superposición y combinación prohibida.
+ FOR q IN SELECT xq FROM jsonb_array_elements(p->'quantityPhases') xq LOOP
+  phases:=phases||jsonb_build_array(public.own_program_quantity_phase_v1(q,conditions));
+ END LOOP;
+ SELECT jsonb_agg(xq ORDER BY public.own_program_quantity_key_v1(xq) COLLATE "C") INTO phases FROM jsonb_array_elements(phases) xq;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(phases) WITH ORDINALITY pa(av,ai),jsonb_array_elements(phases) WITH ORDINALITY pb(bv,bi)
+   WHERE pa.ai<pb.bi AND pa.av->>'agreementCode'=pb.bv->>'agreementCode' AND pa.av->>'code'=pb.bv->>'code'
+   AND EXISTS(SELECT 1 FROM jsonb_array_elements_text(pa.av->'liquidationTypes') xt WHERE (pb.bv->'liquidationTypes') ? xt)
+   AND NOT(coalesce(pa.av->>'validUntil','9999-12')<pb.bv->>'validFrom' OR coalesce(pb.bv->>'validUntil','9999-12')<pa.av->>'validFrom')) THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_PHASE_OVERLAP';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(phases) xq WHERE xq#>>'{amountUse,kind}'='embedded' AND xq#>>'{periodTreatment,kind}'='fraction') THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_EMBED_FRACTION_UNSUPPORTED';END IF;
+ normalized:=normalized||jsonb_build_object('quantityPhasesVersion','own-payroll-quantity-phases.v1','quantityPhases',phases);
+ effective:=public.own_program_quantity_effective_v1(normalized);
+ lowered:=public.own_participation_rules_v1(normalized);
+ raw_rules:=normalized->'rules';
+ -- Revisión por cada segmento de vigencia × tipo × convenio con cantidades.
+ FOR period IN SELECT s.xm FROM(
+   SELECT xr->>'validFrom' AS xm FROM jsonb_array_elements(lowered) xr
+   UNION SELECT to_char(((xr->>'validUntil')||'-01')::date+interval '1 month','YYYY-MM') FROM jsonb_array_elements(lowered) xr WHERE jsonb_typeof(xr->'validUntil')='string'
+   UNION SELECT xq->>'validFrom' FROM jsonb_array_elements(effective) xq
+   UNION SELECT to_char(((xq->>'validUntil')||'-01')::date+interval '1 month','YYYY-MM') FROM jsonb_array_elements(effective) xq WHERE jsonb_typeof(xq->'validUntil')='string') s ORDER BY s.xm COLLATE "C" LOOP
+  FOR kind_type IN SELECT s.xt FROM(SELECT DISTINCT xt FROM jsonb_array_elements(effective) xq CROSS JOIN LATERAL jsonb_array_elements_text(xq->'liquidationTypes') xt) s ORDER BY s.xt COLLATE "C" LOOP
+   FOR agreement IN SELECT s.xa FROM(SELECT DISTINCT xq->>'agreementCode' AS xa FROM jsonb_array_elements(effective) xq) s ORDER BY s.xa COLLATE "C" LOOP
+    SELECT coalesce(jsonb_agg(xq),'[]') INTO active_phases FROM jsonb_array_elements(effective) xq WHERE xq->>'agreementCode'=agreement AND public.own_program_quantity_active_v1(xq,period,kind_type);
+    IF jsonb_array_length(active_phases)=0 THEN CONTINUE;END IF;
+    checks:=checks+jsonb_array_length(active_phases);IF checks>50000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+    SELECT coalesce(jsonb_agg(xr),'[]') INTO active_amounts FROM jsonb_array_elements(lowered) xr WHERE xr->>'agreementCode'=agreement AND public.own_program_quantity_active_v1(xr,period,kind_type);
+    SELECT jsonb_build_object(
+      'definition','quantity:'||(qrow.value->>'agreementCode')||':'||(qrow.value->>'code'),
+      'sourceReference',qrow.value->>'sourceReference','period',period,'liquidationType',kind_type,
+      'destination',urow.value->>'rule',
+      'path',coalesce((SELECT string_agg(pathpart.segment,'.' ORDER BY pathpart.ordinal) FROM jsonb_array_elements_text(urow.value->'path') WITH ORDINALITY pathpart(segment,ordinal)),'$'))
+      INTO inactive_use_detail
+      FROM jsonb_array_elements(active_phases) WITH ORDINALITY qrow(value,ordinal)
+      CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN qrow.value#>>'{amountUse,kind}'='embedded' THEN qrow.value#>'{amountUse,uses}' ELSE '[]'::jsonb END) WITH ORDINALITY urow(value,ordinal)
+      WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(active_amounts) xr WHERE public.own_program_quantity_identity_v1(xr)=urow.value->>'rule')
+      ORDER BY qrow.ordinal,urow.ordinal LIMIT 1;
+    IF inactive_use_detail IS NOT NULL THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_EMBED_USE_INACTIVE' USING DETAIL=inactive_use_detail::text;END IF;
+    SELECT coalesce(jsonb_agg(xq),'[]') INTO active_norm FROM jsonb_array_elements(phases) xq WHERE xq->>'agreementCode'=agreement AND public.own_program_quantity_active_v1(xq,period,kind_type);
+    policy_ctx:=jsonb_build_object(
+     'quantities',(SELECT coalesce(jsonb_object_agg(xq->>'code',xq),'{}') FROM jsonb_array_elements(active_norm) xq),
+     'amounts',(SELECT coalesce(jsonb_object_agg(public.own_program_quantity_identity_v1(xr),xr),'{}') FROM jsonb_array_elements(raw_rules) xr WHERE xr->>'agreementCode'=agreement AND public.own_program_quantity_active_v1(xr,period,kind_type)),
+     'fractions',(SELECT coalesce(jsonb_agg(public.own_program_quantity_identity_v1(xr)),'[]') FROM jsonb_array_elements(raw_rules) xr WHERE xr->>'agreementCode'=agreement AND public.own_program_quantity_active_v1(xr,period,kind_type) AND public.own_program_quantity_treatment_v1(normalized,xr)='fraction'));
+    FOR q IN SELECT xq FROM jsonb_array_elements(active_norm) xq ORDER BY public.own_program_quantity_key_v1(xq) COLLATE "C" LOOP
+     IF q#>>'{amountUse,kind}'<>'independent' AND q#>>'{periodTreatment,kind}'<>'fraction' THEN CONTINUE;END IF;
+     IF q#>>'{amountUse,kind}'='independent' AND q->>'stage'='rounded' AND q#>>'{rounding,mode}'<>'exact' THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_NONEXACT_POLICY_NOT_ADMITTED';END IF;
+     walk_state:=public.own_program_quantity_policy_walk_v1(q->'expression',policy_ctx,q#>>'{amountUse,kind}'='independent',q#>>'{periodTreatment,kind}'='fraction',0,jsonb_build_object('seen',jsonb_build_array('quantity:'||(q->>'code')),'work',0));
+     work:=work+(walk_state->>'work')::integer;IF work>3000000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+    END LOOP;
+    work:=work+public.own_program_quantity_plan_v1(active_amounts,active_phases,conditions);
+    IF work>3000000 THEN RAISE EXCEPTION 'OWN_PROGRAM_EXPRESSION_LIMIT';END IF;
+   END LOOP;
+  END LOOP;
+ END LOOP;
+ -- Definición del dueño y bindings N/I de cada fase sobre su vigencia completa.
+ FOR q IN SELECT xq FROM jsonb_array_elements(effective) xq LOOP
+  SELECT y.xr INTO owner_rule FROM jsonb_array_elements(raw_rules) WITH ORDINALITY y(xr,o) WHERE y.xr->>'agreementCode'=q->>'agreementCode' AND y.xr->>'code'=q->>'code' AND y.xr->>'nature'<>'auxiliary' AND public.own_program_quantity_active_v1(y.xr,q->>'validFrom',q#>>'{liquidationTypes,0}') ORDER BY y.o LIMIT 1;
+  IF owner_rule IS NULL THEN RAISE EXCEPTION 'OWN_PROGRAM_QUANTITY_OWNER_MISSING';END IF;
+  SELECT jsonb_agg(xd) INTO matching FROM jsonb_array_elements(items) xd WHERE xd->>'active'='true' AND xd->>'kind'='concept' AND xd->>'agreementCode'=owner_rule->>'agreementCode' AND xd->>'code'=owner_rule->>'code' AND xd->>'nature'=owner_rule->>'nature';
+  IF NOT public.own_program_coverage_v1(matching,q->>'validFrom',q->>'validUntil') THEN RAISE EXCEPTION 'OWN_PROGRAM_DEFINITION_MISSING';END IF;
+  info:=public.own_program_quantity_node_v1(q->'expression',conditions);
+  FOR i IN SELECT xi FROM jsonb_array_elements(info->'inputs') xi LOOP
+   SELECT xb INTO bound FROM jsonb_array_elements(normalized->'bindings') xb WHERE xb->>'agreementCode'=q->>'agreementCode' AND xb->>'key'=i->>'key' LIMIT 1;
+   IF bound IS NULL OR bound->>'unit' IS DISTINCT FROM i->>'unit' THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_MISSING';END IF;
+   IF bound->>'sourceKind' IN('conditional_scale','conditional_working_time_fact') THEN RAISE EXCEPTION 'OWN_PROGRAM_CONDITIONAL_SOURCE_CONSUMER_INVALID';END IF;
+   IF bound->>'sourceKind'='optional_scale' THEN RAISE EXCEPTION 'OWN_PROGRAM_OPTIONAL_SCALE_CONSUMER_INVALID';END IF;
+   IF bound->>'sourceKind'='family_tariff' THEN RAISE EXCEPTION 'OWN_PROGRAM_FAMILY_TARIFF_QUANTITY_UNSUPPORTED';END IF;
+   quantity_keys:=quantity_keys||((bound->>'agreementCode')||':'||(bound->>'key'));
+   IF bound->>'sourceKind'='family_fact' AND(
+    monetary->>'familyPayrollFactsVersion' IS DISTINCT FROM 'own-contract-family-payroll-facts.v1'
+    OR public.own_program_exact_v1(bound,ARRAY['agreementCode','key','unit','sourceKind','sourceField','combine','onMissing','ruleReference']) IS NOT TRUE
+    OR bound->>'unit' IS DISTINCT FROM CASE bound->>'sourceField' WHEN 'spouse' THEN 'units' WHEN 'children' THEN 'units' WHEN 'childrenWithDisability' THEN 'units' WHEN 'prenatal' THEN 'units' WHEN 'largeFamily' THEN 'units' WHEN 'preschool' THEN 'units' WHEN 'preschoolWithDisability' THEN 'units' WHEN 'primary' THEN 'units' WHEN 'primaryWithDisability' THEN 'units' WHEN 'secondary' THEN 'units' WHEN 'secondaryWithDisability' THEN 'units' WHEN 'dependants' THEN 'units' WHEN 'prenatalAdjustmentMonths' THEN 'units' WHEN 'tariffRegion' THEN 'code' WHEN 'semesterAverage' THEN 'money' ELSE NULL END
+    OR bound->>'combine' IS DISTINCT FROM 'single' OR bound->>'onMissing' IS DISTINCT FROM 'error'
+   ) THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_INVALID';END IF;
+   IF p->>'catalogueValueResolutionVersion'='own-approved-period-values.v1' AND bound->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') THEN
+    IF public.own_program_catalogue_value_available_v1(items,bound,q) IS NOT TRUE THEN RAISE EXCEPTION 'OWN_PROGRAM_SOURCE_DEFINITION_MISSING';END IF;
+   ELSIF bound->>'sourceKind' NOT IN('family_fact','employment_fact','period_fact','period_context_fact','working_time_fact','agreement_time_fact','salary_condition_fact','classification_fact') THEN
+    SELECT jsonb_agg(xd) INTO matching FROM jsonb_array_elements(items) xd WHERE xd->>'active'='true' AND xd->>'agreementCode'=CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->>'sourceAgreementCode' ELSE bound->>'agreementCode' END AND(bound->>'sourceKind'<>'scale_reference' OR xd->>'categoryCode'=bound->>'sourceCategoryCode') AND xd->>'code'=bound->>'sourceCode' AND xd->>'kind'=CASE WHEN bound->>'sourceKind' IN('scale','scale_reference') THEN 'scale' WHEN bound->>'sourceKind'='auxiliary_parameter' THEN 'auxiliary' ELSE 'concept' END AND(xd->>'kind'<>'concept' OR xd->>'nature'<>'auxiliary') AND(bound->>'sourceKind' IN('scale','scale_reference','monthly_amount','fixed_amount','monthly_presence','fixed_presence') OR xd->>'unit'=bound->>'unit') AND(bound->>'sourceKind' NOT IN('parameter','auxiliary_parameter') OR xd->'value'<>'null');
+    IF NOT public.own_program_coverage_v1(matching,q->>'validFrom',q->>'validUntil') THEN RAISE EXCEPTION 'OWN_PROGRAM_SOURCE_DEFINITION_MISSING';END IF;
+   END IF;
+  END LOOP;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(normalized->'bindings') xb WHERE NOT(((xb->>'agreementCode')||':'||(xb->>'key'))=ANY(rule_keys||quantity_keys))) THEN RAISE EXCEPTION 'OWN_PROGRAM_BINDING_UNUSED';END IF;
+ IF p->>'catalogueValueResolutionVersion'='own-approved-period-values.v1' THEN PERFORM public.own_program_catalogue_value_contracts_v1(normalized,items);END IF;
+ RETURN normalized;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_capture_v1(p jsonb, body jsonb, key uuid, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE catalogue_values jsonb;official_proof jsonb;official_scoped jsonb;emission_enabled boolean;family_facts jsonb;quantity_enabled boolean;official_enabled boolean;quantity_family jsonb;official_family jsonb;quantity_effective jsonb;quantity_inventory jsonb;official_policy jsonb;official_found jsonb;official_counts jsonb;declared_day_facts jsonb;population_sources jsonb;needs_participation boolean;day_facts jsonb;day_scope jsonb;classification_value jsonb;classifications jsonb:='[]';condition_facts jsonb;working_facts jsonb;agreement_facts jsonb;period_context jsonb;period_facts jsonb;ctx jsonb;prior public.own_payroll_run_capture;c public.own_payroll_run_capture;reg record;s jsonb;program_state jsonb;employees jsonb:='[]';ids uuid[]:='{}';batches jsonb:='[]';native_batches jsonb:='[]';b record;batch_data jsonb;list_value jsonb;export_value jsonb;list_rows jsonb;export_rows jsonb;population jsonb;payload_value jsonb;inventory jsonb;first_date date;last_date date;kind text;v text;fingerprint text;field text;
+BEGIN ctx:=public.own_run_context_v1(p,true,true);
+ IF body ? 'version' THEN
+  IF body->>'version' IS DISTINCT FROM 'own-payroll-run-command.v2' OR jsonb_typeof(body->'liquidationDate') IS DISTINCT FROM 'string' OR body->>'liquidationDate'!~'^(19|20)[0-9]{2}-[0-9]{2}-[0-9]{2}$' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+  BEGIN
+   IF to_char((body->>'liquidationDate')::date,'YYYY-MM-DD') IS DISTINCT FROM body->>'liquidationDate' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+  EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END;
+ END IF;
+ IF NOT public.own_program_exact_v1(body,ARRAY['period','liquidationType','selection','scopeVersion','programVersion','populationDomain']||CASE WHEN body ? 'version' THEN ARRAY['version','liquidationDate'] ELSE ARRAY[]::text[] END) OR NOT public.own_program_exact_v1(body->'selection',ARRAY['kind','values']) OR octet_length(body::text)>524288 THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ FOREACH field IN ARRAY ARRAY['period','liquidationType','scopeVersion','programVersion','populationDomain'] LOOP IF jsonb_typeof(body->field) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;END LOOP;
+ IF coalesce(body->>'period','')!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' OR body->>'liquidationType' NOT IN('monthly','first_fortnight','sac','vacation','supplementary','final','other') OR body->>'populationDomain'<>'native_registered' OR coalesce(body->>'scopeVersion','')!~'^[a-f0-9]{64}$' OR coalesce(body->>'programVersion','')!~'^[a-f0-9]{64}$' OR coalesce(algorithm,'')!~'^[a-f0-9]{64}$' OR key IS NULL OR key::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ kind:=body#>>'{selection,kind}';IF jsonb_typeof(body#>'{selection,kind}') IS DISTINCT FROM 'string' OR kind NOT IN('all','contracts','agreements','departments') OR jsonb_typeof(body#>'{selection,values}') IS DISTINCT FROM 'array' OR jsonb_array_length(body#>'{selection,values}')>10000 THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;
+ IF (kind='all')<>(jsonb_array_length(body#>'{selection,values}')=0) OR EXISTS(SELECT 1 FROM jsonb_array_elements(body#>'{selection,values}') x WHERE jsonb_typeof(x)<>'string' OR x#>>'{}'!~CASE WHEN kind='contracts' THEN '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' ELSE '^[0-9]{1,9}$' END) OR (SELECT count(*)<>count(DISTINCT x) FROM jsonb_array_elements_text(body#>'{selection,values}') x) OR body#>'{selection,values}' IS DISTINCT FROM(SELECT coalesce(jsonb_agg(x ORDER BY x COLLATE "C"),'[]') FROM jsonb_array_elements_text(body#>'{selection,values}') x) THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;
+ PERFORM public.own_run_lock_v1(ctx);fingerprint:=public.own_run_hash_v1(body);
+ SELECT * INTO prior FROM public.own_payroll_run_capture WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid AND actor_membership_id=(ctx->>'membershipId')::uuid AND request_key=key;
+ IF FOUND THEN PERFORM public.own_run_owned_v1(ctx,prior);IF prior.body<>body OR prior.body_sha256<>fingerprint THEN RAISE EXCEPTION 'OWN_RUN_IDEMPOTENCY_REUSE';END IF;IF NOT EXISTS(SELECT 1 FROM public.own_payroll_run_result WHERE capture_id=prior.id) THEN PERFORM public.own_close_guard_v1(ctx,prior.body->>'period',prior.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(prior.payload#>'{population,employees}'))); END IF;RETURN public.own_run_receipt_v1(prior,true);END IF;
+ IF body->>'scopeVersion'<>public.native_salary_scope_v1(ctx) THEN RAISE EXCEPTION 'OWN_RUN_SCOPE_CHANGED';END IF;
+ -- SHARE locks prevent concurrent source changes during this read-committed
+ -- transaction. Existing advisory locks remain effective. No source mutation.
+ LOCK TABLE public.person_identity,public.employment_contract,public.native_employee_registration,public.native_employment_change_review,public.native_employment_lifecycle_review,public.employment_adoption_application,public.employment_adoption_decision,public.employment_adoption_proposal,public.native_salary_event,public.own_payroll_program_event,public.payroll_novelty_batch,public.payroll_novelty_row,public.payroll_novelty_issue,public.payroll_novelty_event,public.payroll_fixed_novelty,public.payroll_fixed_novelty_event,public.own_period_classification_event,public.employment_adoption_seal IN SHARE MODE NOWAIT;
+ program_state:=public.own_program_bootstrap_v1(p);
+ IF program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN LOCK TABLE public.own_salary_conditions_event IN SHARE MODE NOWAIT;END IF;
+ IF program_state#>>'{program,definition,salaryConditionsVersion}'='own-contract-salary-conditions.v2' THEN LOCK TABLE public.own_salary_conditions_native_event IN SHARE MODE NOWAIT;END IF;
+ IF body->>'programVersion'<>program_state#>>'{program,version}' THEN RAISE EXCEPTION 'OWN_RUN_PROGRAM_CHANGED';END IF;
+ IF program_state#>>'{program,definition,catalogueValueResolutionVersion}'='own-approved-period-values.v1' THEN catalogue_values:=public.own_run_catalogue_values_capture_v1((ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,program_state);END IF;
+ IF (program_state#>>'{program,revision}')::integer<1 OR (catalogue_values IS NULL AND program_state#>>'{program,salaryVersion}' IS DISTINCT FROM program_state#>>'{salaryCatalog,version}') THEN RAISE EXCEPTION 'OWN_RUN_PROGRAM_REQUIRED';END IF;
+ -- Versioned quantity/official composition. Families are server attestations,
+ -- never caller-provided data. Legacy captures retain their original path.
+ quantity_enabled:=(program_state#>'{program,definition}') ? 'quantityPhasesVersion';
+ official_enabled:=(program_state#>'{program,definition}') ? 'officialTotalsVersion' OR (program_state#>'{program,definition}') ? 'officialTotalsPolicies';
+ IF official_enabled AND NOT quantity_enabled THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_PROGRAM_REQUIRED';END IF;
+ emission_enabled:=(program_state#>'{program,definition}') ?| ARRAY['rowEmissionVersion','rowEmissionPolicies'];
+ IF emission_enabled THEN
+  IF NOT official_enabled THEN RAISE EXCEPTION 'OWN_RUN_ROW_EMISSION_PROGRAM_REQUIRED';END IF;
+  PERFORM public.own_program_row_emission_options_candidate_v1(program_state#>'{program,definition}');
+ END IF;
+ IF (program_state#>'{program,definition}') ? 'familyTariffsVersion' AND NOT official_enabled THEN RAISE EXCEPTION 'OWN_RUN_FAMILY_TARIFF_V4_REQUIRED';END IF;
+ IF quantity_enabled THEN
+  IF program_state#>>'{program,definition,quantityPhasesVersion}' IS DISTINCT FROM 'own-payroll-quantity-phases.v1' OR program_state#>>'{program,definition,namespaceVersion}' IS DISTINCT FROM 'own-payroll-namespaces.v2' THEN RAISE EXCEPTION 'OWN_RUN_PROGRAM_REQUIRED';END IF;
+  IF to_regprocedure('public.own_run_quantity_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+  quantity_family:=public.own_run_quantity_family_v1();
+  IF public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+  IF official_enabled THEN
+   IF coalesce(program_state#>>'{program,definition,officialTotalsVersion}' IN('own-payroll-official-totals.v1','own-payroll-official-totals.v2'),false) IS NOT TRUE OR to_regprocedure('public.own_run_official_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FAMILY_REQUIRED';END IF;
+   official_family:=public.own_run_official_family_v1();
+   IF public.own_run_official_family_shape_v1(official_family,'own-run-official-totals-family.v1') IS NOT TRUE OR EXISTS(SELECT 1 FROM jsonb_array_elements(quantity_family->'members') q WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(official_family->'members') o WHERE o=q)) THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FAMILY_REQUIRED';END IF;
+   IF (CASE WHEN emission_enabled OR coalesce((program_state#>'{program,definition}') ?| ARRAY['cappedDeductionsVersion','cappedDeductionPolicies','sourceCoverageVersion','sourceCoveragePolicies','monthlyDeclaredAdjustmentsVersion','monthlyDeclaredAdjustmentPolicies','quantityOnlyInputsVersion','quantityOnlyInputPolicies','conditionalSourcesVersion','conditionalSourcePolicies'],false) THEN public.own_program_definition_composed_v1(program_state#>'{program,definition}',program_state#>'{salaryCatalog,items}') ELSE public.own_program_definition_official_v1(program_state#>'{program,definition}',program_state#>'{salaryCatalog,items}') END) IS DISTINCT FROM program_state#>'{program,definition}' THEN RAISE EXCEPTION 'OWN_RUN_PROGRAM_REQUIRED';END IF;
+  ELSE
+   IF (CASE WHEN coalesce((program_state#>'{program,definition}') ?| ARRAY['cappedDeductionsVersion','cappedDeductionPolicies','sourceCoverageVersion','sourceCoveragePolicies','monthlyDeclaredAdjustmentsVersion','monthlyDeclaredAdjustmentPolicies','quantityOnlyInputsVersion','quantityOnlyInputPolicies','conditionalSourcesVersion','conditionalSourcePolicies'],false) THEN public.own_program_definition_composed_v1(program_state#>'{program,definition}',program_state#>'{salaryCatalog,items}') ELSE public.own_program_quantity_definition_v1(program_state#>'{program,definition}',program_state#>'{salaryCatalog,items}') END) IS DISTINCT FROM program_state#>'{program,definition}' THEN RAISE EXCEPTION 'OWN_RUN_PROGRAM_REQUIRED';END IF;
+  END IF;
+  quantity_effective:=public.own_program_quantity_effective_v1(program_state#>'{program,definition}');
+ END IF;
+ -- Only actual period_fact bindings need157 for an opted193 monthly programme.
+ -- Legacy programmes and other types retain the original participation contract.
+ needs_participation:=program_state#>>'{program,definition,periodParticipation,version}'='own-period-participation.v1'
+  AND(NOT coalesce(program_state#>>'{program,definition,monthlyDayDeclarationVersion}'='own-monthly-approved-days.v1' AND body->>'liquidationType'='monthly',false)
+   OR EXISTS(SELECT 1 FROM jsonb_array_elements(program_state#>'{program,definition,bindings}') bound WHERE bound->>'sourceKind'='period_fact'));
+ first_date:=(body->>'period'||'-01')::date;last_date:=(first_date+interval '1 month - 1 day')::date;
+ FOR reg IN SELECT n.*,n.contract_id AS employment_contract_id,ec.legacy_legajo,ec.agreement_code,ec.category_code,ec.sector_source_id FROM public.native_employee_registration n JOIN public.employment_contract ec ON ec.id=n.contract_id WHERE n.tenant_id=(ctx->>'tenantId')::uuid AND n.source_binding_id=(ctx->>'sourceBindingId')::uuid AND ec.tenant_id=n.tenant_id AND ec.source_system='MUNICONTROL' AND ec.source_batch_id IS NULL AND(kind<>'contracts' OR body#>'{selection,values}' ? ec.id::text) ORDER BY ec.id LOOP
+  IF NOT public.payroll_fixed_registry_range_v2(ctx||jsonb_build_object('certifiedBindingId',ctx->>'sourceBindingId'),reg.employment_contract_id,first_date,last_date,false) THEN IF kind='contracts' THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;CONTINUE;END IF;
+  classification_value:=public.own_period_classification_resolve_v1(ctx,reg.employment_contract_id,body->>'period');
+  IF kind IN('agreements','departments') AND (body#>'{selection,values}' ? (classification_value#>>ARRAY['definition',CASE kind WHEN 'agreements' THEN 'agreementCode' ELSE 'sectorCode' END])) IS NOT TRUE THEN CONTINUE;END IF;
+  IF NOT public.payroll_fixed_registry_range_v2(ctx||jsonb_build_object('certifiedBindingId',ctx->>'sourceBindingId'),reg.employment_contract_id,first_date,last_date,true) AND program_state#>>'{program,definition,periodParticipation,version}' IS DISTINCT FROM 'own-period-participation.v1' THEN RAISE EXCEPTION 'OWN_RUN_PRORATION_REQUIRED';END IF;
+  -- Current classification is not a historical reconstruction. Never apply
+  -- a later registration/correction retroactively to an earlier payroll.
+  -- The shared resolver above retains this guard unless explicit facts were approved.
+  s:=public.payroll_fixed_registry_subject_v2(ctx,reg.employment_contract_id,true)->'subject';
+  IF s->>'origin'<>'MUNICONTROL' OR s->>'contractId'<>reg.employment_contract_id::text OR s->>'legajo'<>reg.legacy_legajo OR coalesce((classification_value#>>'{definition,agreementCode}'),'')!~'^[0-9]{1,9}$' OR coalesce((classification_value#>>'{definition,categoryCode}'),'')!~'^[0-9]{1,9}$' OR coalesce((classification_value#>>'{definition,sectorCode}'),'')!~'^[0-9]{1,9}$' THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;
+  ids:=array_append(ids,reg.employment_contract_id);employees:=employees||jsonb_build_array(jsonb_build_object('contractId',reg.employment_contract_id,'employeeNumber',reg.legacy_legajo,'agreementCode',(classification_value#>>'{definition,agreementCode}'),'categoryCode',(classification_value#>>'{definition,categoryCode}'),'departmentCode',(classification_value#>>'{definition,sectorCode}'),'identityToken',s->>'identityToken','origin','MUNICONTROL'));
+  classifications:=classifications||jsonb_build_array(classification_value||jsonb_build_object('identityToken',s->>'identityToken'));
+  IF cardinality(ids)>10000 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ END LOOP;
+ IF cardinality(ids)=0 OR kind='contracts' AND cardinality(ids)<>jsonb_array_length(body#>'{selection,values}') OR kind IN('agreements','departments') AND EXISTS(SELECT 1 FROM jsonb_array_elements_text(body#>'{selection,values}') chosen WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(employees) e WHERE e->>CASE kind WHEN 'agreements' THEN 'agreementCode' ELSE 'departmentCode' END=chosen)) THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;
+ population:=jsonb_build_object('complete',true,'version',public.own_run_hash_v1(employees),'employees',employees);
+ FOR b IN SELECT nb.id FROM public.payroll_novelty_batch nb WHERE nb.tenant_id=(ctx->>'tenantId')::uuid AND nb.certified_binding_id=(ctx->>'sourceBindingId')::uuid AND nb.period_month=first_date AND nb.payroll_type=body->>'liquidationType' AND nb.status='approved' AND EXISTS(SELECT 1 FROM public.payroll_novelty_row nr WHERE nr.batch_id=nb.id AND nr.employment_contract_id=ANY(ids)) ORDER BY nb.id LOOP
+  batch_data:=public.payroll_novelty_export_v2(p,b.id)->'data';
+  IF batch_data IS NULL OR batch_data->>'contractVersion'<>'payroll-novelty-batch.v2' OR EXISTS(SELECT 1 FROM jsonb_array_elements(batch_data->'rows') r WHERE NOT((r->>'employmentContractId')::uuid=ANY(ids))) THEN RAISE EXCEPTION 'OWN_RUN_SELECTION_INVALID';END IF;
+  batches:=batches||jsonb_build_array(batch_data);IF jsonb_array_length(batches)>10000 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ END LOOP;
+ native_batches:=public.own_novelty_sources_v1(p,first_date,body->>'liquidationType',ids);
+ s:=public.own_run_fixed_v1(p,first_date,ids,body->>'liquidationType');list_value:=s#>'{list,data}';export_value:=s#>'{export,data}';
+ inventory:=jsonb_build_object('populationDomain','native_registered','departmentSource','sourceInventory.periodClassifications.rows[].definition.sectorCode','monthlyBatches',jsonb_array_length(batches),'ownNativeBatches',jsonb_array_length(native_batches),'fixedScope','approved_selected_native','fixedSnapshotToken',list_value->>'snapshotToken','fixedListCount',list_value->'total','fixedExportCount',export_value->'total','fixedExportSha256',public.own_run_hash_v1(export_value));
+  inventory:=inventory||jsonb_build_object('periodClassifications',jsonb_build_object('version','own-period-classification-capture.v1','complete',true,'total',cardinality(ids),'rows',classifications),'jurisdictions',jsonb_build_object('version','own-run-jurisdictions.v1','complete',true,'total',cardinality(ids),'rows',(SELECT coalesce(jsonb_agg(jsonb_build_object('contractId',r->>'contractId','employeeNumber',e->>'employeeNumber','registrationId',r->>'registrationId','identityToken',r->>'identityToken','jurisdictionCode',r#>'{definition,jurisdictionCode}') ORDER BY r->>'contractId' COLLATE "C"),'[]') FROM jsonb_array_elements(classifications) r JOIN jsonb_array_elements(employees) e ON e->>'contractId'=r->>'contractId')));
+  IF program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN
+  s:=public.own_seniority_capture_v1(ctx,employees,body->>'period');
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'employmentFacts',s))));
+  inventory:=inventory||jsonb_build_object('employmentFacts',jsonb_build_object('version',s->>'version','total',jsonb_array_length(s->'records'),'complete',true));
+ END IF;
+ IF needs_participation THEN
+  period_facts:=public.own_participation_capture_v1(ctx,employees,body->>'period');
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'periodParticipation',period_facts)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('periodParticipation',jsonb_build_object('version',period_facts->>'version','total',jsonb_array_length(period_facts->'records'),'complete',true));
+ END IF;
+ IF program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN
+  working_facts:=public.own_working_time_capture_v1(ctx,employees,body->>'period');
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'workingTime',working_facts)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('workingTime',jsonb_build_object('version',working_facts->>'version','total',jsonb_array_length(working_facts->'records'),'complete',true));
+ END IF;
+ IF program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN
+  condition_facts:=CASE WHEN program_state#>>'{program,definition,salaryConditionsVersion}'='own-contract-salary-conditions.v2' THEN public.own_salary_conditions_native_capture_v2(ctx,employees,body->>'period') ELSE public.own_salary_conditions_capture_v1(ctx,employees,body->>'period') END;
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'salaryConditions',condition_facts)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN jsonb_build_object('workingTime',working_facts) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('salaryConditions',jsonb_build_object('version',condition_facts->>'version','total',jsonb_array_length(condition_facts->'records'),'complete',true));
+ END IF;
+ IF program_state#>>'{program,definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' THEN
+  agreement_facts:=public.own_agreement_working_time_capture_v1(ctx,employees,body->>'period');
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'agreementWorkingTime',agreement_facts)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN jsonb_build_object('workingTime',working_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN jsonb_build_object('salaryConditions',condition_facts) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('agreementWorkingTime',jsonb_build_object('version',agreement_facts->>'version','total',jsonb_array_length(agreement_facts->'records'),'complete',true));
+ END IF;
+ IF program_state#>>'{program,definition,periodContextVersion}'='own-payroll-period-context.v1' THEN
+  IF jsonb_typeof(body->'period') IS DISTINCT FROM 'string' OR length(body->>'period')<>7 OR body->>'period'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+  period_context:=jsonb_build_object('version','own-payroll-period-context.v1','period',body->>'period','monthNumber',CASE WHEN substring(body->>'period',6,1)='0' THEN right(body->>'period',1) ELSE right(body->>'period',2) END);
+  period_context:=period_context||jsonb_build_object('sha256',public.own_run_hash_v1(period_context));
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'periodContext',period_context)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN jsonb_build_object('workingTime',working_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' THEN jsonb_build_object('agreementWorkingTime',agreement_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN jsonb_build_object('salaryConditions',condition_facts) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('periodContext',jsonb_build_object('version',period_context->>'sha256','total',1,'complete',true));
+ END IF;
+ IF program_state#>>'{program,definition,monthlyDaysVersion}'='own-monthly-day-facts.v2' AND body->>'liquidationType'='monthly' THEN
+  day_facts:=public.own_monthly_day_capture_v2(p,ctx,employees,body->>'period',body->>'liquidationType',program_state);day_scope:=day_facts->'scope';
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(jsonb_build_object('employees',employees,'monthlyDays',day_facts,'monthlyDaysScope',day_scope)||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN jsonb_build_object('workingTime',working_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' THEN jsonb_build_object('agreementWorkingTime',agreement_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN jsonb_build_object('salaryConditions',condition_facts) ELSE '{}'::jsonb END||CASE WHEN program_state#>>'{program,definition,periodContextVersion}'='own-payroll-period-context.v1' THEN jsonb_build_object('periodContext',period_context) ELSE '{}'::jsonb END)));
+  inventory:=inventory||jsonb_build_object('monthlyDays',jsonb_build_object('version',day_facts->>'version','total',jsonb_array_length(day_facts->'records'),'complete',true,'authority','approved_program_full_month','programApprovalId',program_state#>>'{program,approvalId}'));
+ END IF;
+
+ -- Complete approved193 facts are read under the helper's SHARE NOWAIT lock.
+ -- No approval, derivation or update follows insertion of the immutable capture.
+ IF program_state#>>'{program,definition,monthlyDayDeclarationVersion}'='own-monthly-approved-days.v1' AND body->>'liquidationType'='monthly' THEN
+  -- Same explicit partial157 readiness required by approved-input JS; only new193 opt-in.
+  IF needs_participation AND EXISTS(SELECT 1 FROM jsonb_array_elements(period_facts->'records') fact WHERE NOT coalesce((fact->>'fullPeriod')::boolean,false) AND(coalesce((fact#>>'{configuration,revision}')::integer,0)<1 OR fact#>>'{configuration,definition,recognizedUnits}' IS NULL OR fact#>>'{configuration,definition,baseUnits}' IS NULL)) THEN RAISE EXCEPTION 'OWN_RUN_PRORATION_REQUIRED';END IF;
+  declared_day_facts:=public.own_monthly_days_capture_v1(ctx,employees,body->>'period');
+  population_sources:=jsonb_build_object('employees',employees)
+   ||CASE WHEN program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN jsonb_build_object('employmentFacts',s) ELSE '{}'::jsonb END
+   ||CASE WHEN needs_participation THEN jsonb_build_object('periodParticipation',period_facts) ELSE '{}'::jsonb END
+   ||CASE WHEN program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN jsonb_build_object('workingTime',working_facts) ELSE '{}'::jsonb END
+   ||CASE WHEN program_state#>>'{program,definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' THEN jsonb_build_object('agreementWorkingTime',agreement_facts) ELSE '{}'::jsonb END
+   ||CASE WHEN program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN jsonb_build_object('salaryConditions',condition_facts) ELSE '{}'::jsonb END
+   ||CASE WHEN program_state#>>'{program,definition,periodContextVersion}'='own-payroll-period-context.v1' THEN jsonb_build_object('periodContext',period_context) ELSE '{}'::jsonb END
+   ||CASE WHEN day_facts IS NOT NULL THEN jsonb_build_object('monthlyDays',day_facts,'monthlyDaysScope',day_scope) ELSE '{}'::jsonb END
+   ||jsonb_build_object('monthlyDayDeclarations',declared_day_facts);
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(population_sources)));
+  inventory:=inventory||jsonb_build_object('monthlyDayDeclarations',jsonb_build_object('version',declared_day_facts->>'version','total',jsonb_array_length(declared_day_facts->'records'),'complete',true,'authority','independently_approved_monthly_declaration'));
+ END IF;
+ IF quantity_enabled THEN
+  SELECT coalesce(jsonb_agg(jsonb_build_object('agreementCode',a.code,'employees',a.total,'declared',(SELECT count(*) FROM jsonb_array_elements(program_state#>'{program,definition,quantityPhases}') q WHERE q->>'agreementCode'=a.code),'active',(SELECT coalesce(jsonb_agg(public.own_program_quantity_key_v1(q) ORDER BY public.own_program_quantity_key_v1(q) COLLATE "C"),'[]') FROM jsonb_array_elements(quantity_effective) q WHERE q->>'agreementCode'=a.code AND public.own_program_quantity_active_v1(q,body->>'period',body->>'liquidationType'))) ORDER BY a.code COLLATE "C"),'[]') INTO quantity_inventory FROM(SELECT e->>'agreementCode' code,count(*) total FROM jsonb_array_elements(employees) e GROUP BY e->>'agreementCode') a;
+  inventory:=inventory||jsonb_build_object('quantityPhases',jsonb_build_object('version','own-run-quantity-capture.v1','quantityPhasesVersion','own-payroll-quantity-phases.v1','period',body->'period','liquidationType',body->'liquidationType','definitionSha256',public.own_run_hash_v1(program_state#>'{program,definition,quantityPhases}'),'family',quantity_family,'agreements',quantity_inventory));
+ END IF;
+ IF official_enabled THEN
+  IF(SELECT count(DISTINCT e->>'agreementCode') FROM jsonb_array_elements(employees) e)<>1 THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_MULTIPLE_AGREEMENTS_UNSUPPORTED';END IF;
+  IF program_state#>>'{program,definition,officialTotalsVersion}'='own-payroll-official-totals.v2' THEN
+   SELECT coalesce(jsonb_agg(item ORDER BY n),'[]') INTO official_scoped FROM jsonb_array_elements(public.own_program_official_policies_candidate_v2(program_state#>'{program,definition,officialTotalsPolicies}','own-payroll-official-totals.v2')) WITH ORDINALITY z(item,n) WHERE item->'agreementCode'=employees#>'{0,agreementCode}' AND item->'liquidationType'=body->'liquidationType';
+   official_proof:=public.own_run_official_policy_capture_candidate_v2(official_scoped,body->>'period',body->>'liquidationType',employees#>>'{0,agreementCode}');
+   official_found:=public.own_policy_active_candidate_v1(official_scoped,'official-totals',body->>'period',body->>'liquidationType',employees#>>'{0,agreementCode}');
+  ELSE
+  SELECT coalesce(jsonb_agg(official_candidate.value),'[]') INTO official_found FROM jsonb_array_elements(program_state#>'{program,definition,officialTotalsPolicies}') official_candidate(value) WHERE official_candidate.value->'agreementCode'=employees#>'{0,agreementCode}' AND official_candidate.value->'period'=body->'period' AND official_candidate.value->'liquidationType'=body->'liquidationType';
+  END IF;
+  IF jsonb_array_length(official_found)<>1 THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_POLICY_REQUIRED';END IF;
+  official_policy:=official_found->0;
+  SELECT jsonb_object_agg(official_contribution.key,jsonb_array_length(official_contribution.value)) INTO official_counts FROM jsonb_each(official_policy->'contributions') official_contribution;
+  inventory:=inventory||jsonb_build_object('officialTotals',jsonb_build_object('version',CASE WHEN official_proof IS NULL THEN 'own-run-official-totals-capture.v1' ELSE 'own-run-official-totals-capture.v2' END,'officialTotalsVersion',program_state#>'{program,definition,officialTotalsVersion}','period',body->'period','liquidationType',body->'liquidationType','policySha256',public.own_run_hash_v1(official_policy),'agreementCode',official_policy->'agreementCode','totalCodes',official_policy->'totalCodes','contributionCounts',official_counts,'family',official_family)||CASE WHEN official_proof IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('officialTotalsCapture',official_proof) END);
+ END IF;
+ IF program_state#>>'{program,definition,optionalScalesVersion}'='own-payroll-optional-scales.v1' THEN
+  inventory:=inventory||jsonb_build_object('optionalScales',public.own_run_optional_scale_catalogue_v1((ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,program_state->'salaryCatalog'));
+ END IF;
+ IF program_state#>>'{program,definition,conditionalSourcesVersion}'='own-payroll-conditional-sources.v1' THEN
+  inventory:=inventory||jsonb_build_object('conditionalSources',public.own_run_conditional_catalogue_v1((ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,program_state->'salaryCatalog'));
+ END IF;
+ IF catalogue_values IS NOT NULL THEN inventory:=inventory||jsonb_build_object('catalogueValues',catalogue_values);END IF;
+ payload_value:=jsonb_build_object('programState',program_state,'population',population,'monthly',CASE WHEN jsonb_array_length(native_batches)=0 AND NOT coalesce((program_state#>'{program,definition}') ?| ARRAY['cappedDeductionsVersion','cappedDeductionPolicies','sourceCoverageVersion','sourceCoveragePolicies','quantityOnlyInputsVersion','quantityOnlyInputPolicies'],false) THEN jsonb_build_object('complete',true,'batches',batches) ELSE jsonb_build_object('complete',true,'batches',batches,'nativeBatches',native_batches) END,'fixed',jsonb_build_object('list',jsonb_build_object('ok',true,'data',list_value),'export',jsonb_build_object('ok',true,'data',export_value)),'period',body->>'period','liquidationType',body->>'liquidationType','selection',body->'selection','sourceInventory',inventory);
+ IF program_state#>>'{program,definition,employmentFactsVersion}'='own-salary-seniority.v1' THEN payload_value:=payload_value||jsonb_build_object('employmentFacts',s);END IF;
+ IF needs_participation THEN payload_value:=payload_value||jsonb_build_object('periodParticipation',period_facts);END IF;
+ IF program_state#>>'{program,definition,workingTimeVersion}'='own-contract-working-time.v1' THEN payload_value:=payload_value||jsonb_build_object('workingTime',working_facts);END IF;
+ IF program_state#>>'{program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN payload_value:=payload_value||jsonb_build_object('salaryConditions',condition_facts);END IF;
+ IF program_state#>>'{program,definition,agreementWorkingTimeVersion}'='own-agreement-working-time.v1' THEN payload_value:=payload_value||jsonb_build_object('agreementWorkingTime',agreement_facts);END IF;
+ IF program_state#>>'{program,definition,periodContextVersion}'='own-payroll-period-context.v1' THEN payload_value:=payload_value||jsonb_build_object('periodContext',period_context);END IF;
+ IF day_facts IS NOT NULL THEN payload_value:=payload_value||jsonb_build_object('monthlyDays',day_facts,'monthlyDaysScope',day_scope);END IF;
+ IF declared_day_facts IS NOT NULL THEN payload_value:=payload_value||jsonb_build_object('monthlyDayDeclarations',declared_day_facts);END IF;
+
+ -- Family consumption is opt-in. The original SQL226 helper takes its SHARE
+ -- NOWAIT lock and captures every selected identity before the run is inserted.
+ IF program_state#>>'{program,definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1' THEN
+  family_facts:=public.own_family_payroll_facts_capture_v1(ctx,employees,body->>'period');
+  payload_value:=payload_value||jsonb_build_object('familyPayrollFacts',family_facts);
+  population_sources:=jsonb_build_object('employees',employees);
+  FOREACH field IN ARRAY ARRAY['employmentFacts','periodParticipation','workingTime','agreementWorkingTime','salaryConditions','periodContext','monthlyDays','monthlyDaysScope','monthlyDayDeclarations','familyPayrollFacts'] LOOP
+   IF payload_value ? field THEN population_sources:=population_sources||jsonb_build_object(field,payload_value->field);END IF;
+  END LOOP;
+  population:=jsonb_set(population,'{version}',to_jsonb(public.own_run_hash_v1(population_sources)));
+  inventory:=inventory||jsonb_build_object('familyPayrollFacts',jsonb_build_object('version',family_facts->>'version','total',jsonb_array_length(family_facts->'records'),'complete',true,'authority','approved_family_declaration'));
+  payload_value:=jsonb_set(jsonb_set(payload_value,'{population}',population),'{sourceInventory}',inventory);
+  PERFORM public.own_run_family_expected_inputs_v1(payload_value);
+ END IF;
+ IF program_state#>>'{program,definition,familyTariffsVersion}' IN('own-payroll-family-tariffs.v2','own-payroll-family-tariffs.v3','own-payroll-family-tariffs.v4') THEN
+  inventory:=inventory||jsonb_build_object('familyTariffs',public.own_run_family_tariff_native_capture_candidate_v2(payload_value));
+  payload_value:=jsonb_set(payload_value,'{sourceInventory}',inventory);
+ END IF;
+ IF emission_enabled THEN
+  inventory:=inventory||jsonb_build_object('rowEmission',public.own_run_row_emission_inventory_candidate_v1(payload_value,official_family));
+  payload_value:=jsonb_set(payload_value,'{sourceInventory}',inventory);
+ END IF;
+ PERFORM public.own_run_catalogue_values_expected_inputs_v1(payload_value);
+ PERFORM public.own_run_source_coverage_check_v1(payload_value);
+ IF program_state#>>'{program,definition,monthlyDeclaredAdjustmentsVersion}'='own-monthly-declared-adjustments.v1' THEN
+  payload_value:=jsonb_set(payload_value,'{monthly,nativeBatches}',native_batches);
+  payload_value:=jsonb_set(payload_value,'{sourceInventory,declaredAdjustments}',public.own_run_declared_adjustments_capture_v1(payload_value));
+ END IF;
+ IF program_state#>>'{program,definition,optionalScalesVersion}'='own-payroll-optional-scales.v1' THEN PERFORM public.own_run_optional_scale_expected_inputs_v1(payload_value);END IF;
+ PERFORM public.own_run_quantity_only_expected_inputs_v1(payload_value);
+ IF program_state#>>'{program,definition,conditionalSourcesVersion}'='own-payroll-conditional-sources.v1' THEN PERFORM public.own_run_conditional_expected_inputs_v1(payload_value);END IF;
+ IF program_state#>>'{program,definition,cappedDeductionsVersion}'='own-capped-deductions.v1' THEN payload_value:=jsonb_set(payload_value,'{sourceInventory,cappedDeductions}',public.own_run_capped_inventory_v1(payload_value));END IF;
+ PERFORM public.own_run_capped_verify_v1(payload_value,NULL,NULL);
+ IF octet_length(payload_value::text)+octet_length(body::text)+8192>4194304 OR (SELECT count(*) FROM public.own_payroll_run_capture WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid)>=1000 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(payload_value::text)+octet_length(body::text));
+ PERFORM public.own_close_guard_v1(ctx,body->>'period',body->>'liquidationType',ids);
+ INSERT INTO public.own_payroll_run_capture(tenant_id,source_binding_id,actor_membership_id,actor_person_id,actor_email,actor_session_id,actor_session_version,release_sha,request_key,body,body_sha256,algorithm_sha256,payload,payload_sha256) VALUES((ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,(ctx->>'membershipId')::uuid,(ctx->>'actorPersonId')::uuid,ctx->>'actorEmail',(p->>'actorSessionId')::uuid,(p->>'actorSessionVersion')::integer,p->>'releaseSha',key,body,fingerprint,algorithm,payload_value,public.own_run_hash_v1(payload_value)) RETURNING * INTO c;
+ RETURN public.own_run_receipt_v1(c,false);END $function$;
+
+CREATE FUNCTION public.own_run_catalogue_values_capture_v1(tenant uuid,binding uuid,program_state jsonb) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET "TimeZone"='UTC' AS $function$
+DECLARE programme jsonb:=program_state->'program';catalogue jsonb;approval public.own_payroll_program_event;proposal public.own_payroll_program_event;originals jsonb;contracts jsonb;expected_program jsonb;
+BEGIN
+ IF tenant IS NULL OR binding IS NULL OR public.own_program_exact_v1(programme,ARRAY['version','revision','definition','salaryVersion','proposalId','approvalId']) IS NOT TRUE
+  OR programme#>>'{definition,catalogueValueResolutionVersion}' IS DISTINCT FROM 'own-approved-period-values.v1'
+  OR programme#>>'{definition,namespaceVersion}' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+  OR jsonb_typeof(programme->'revision') IS DISTINCT FROM 'number' OR programme->>'revision'!~'^(?:[1-9][0-9]{0,2}|1000)$'
+  OR jsonb_typeof(program_state->'proposals') IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ SELECT * INTO approval FROM public.own_payroll_program_event WHERE id::text=programme->>'approvalId' AND tenant_id=tenant AND source_binding_id=binding AND command='approve' AND revision=(programme->>'revision')::integer;
+ IF NOT FOUND OR approval.proposal_id::text IS DISTINCT FROM programme->>'proposalId' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ SELECT * INTO proposal FROM public.own_payroll_program_event WHERE id=approval.proposal_id AND tenant_id=tenant AND source_binding_id=binding AND command='propose';
+ IF NOT FOUND THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ expected_program:=jsonb_build_object('version',encode(public.digest(jsonb_build_array('own-payroll-program.v1',tenant::text,binding::text,approval.revision,approval.id,proposal.body->'program')::text,'sha256'),'hex'),
+  'revision',approval.revision,'definition',proposal.body->'program','salaryVersion',proposal.body->>'salaryVersion','proposalId',proposal.id,'approvalId',approval.id);
+ IF programme IS DISTINCT FROM expected_program THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(item),'[]') INTO originals FROM jsonb_array_elements(program_state->'proposals') item WHERE item->>'id'=proposal.id::text;
+ IF jsonb_array_length(originals)<>1 OR originals->0 IS DISTINCT FROM public.own_program_proposal_v1(jsonb_build_object('tenantId',tenant::text,'sourceBindingId',binding::text),proposal)
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ PERFORM public.native_salary_items_v1(proposal.base_salary_items);
+ BEGIN catalogue:=public.own_run_optional_scale_catalogue_v1(tenant,binding,program_state->'salaryCatalog');
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM LIKE 'OWN_RUN_OPTIONAL_SCALE_%' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';ELSE RAISE;END IF;END;
+ contracts:=public.own_program_catalogue_value_contracts_v1(programme->'definition',proposal.base_salary_items);
+ RETURN catalogue||jsonb_build_object('version','own-approved-period-values-capture.v1','programVersion',programme->>'version','programApprovalId',approval.id,'programProposalId',proposal.id,
+  'programSalaryVersion',programme->>'salaryVersion','originalItemsSha256',public.own_run_hash_v1(proposal.base_salary_items),'sourceContractsSha256',public.own_run_hash_v1(contracts),'sourceContracts',contracts);
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_run_catalogue_values_expected_inputs_v1(payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE programme jsonb:=payload#>'{programState,program,definition}';proof jsonb:=payload#>'{sourceInventory,catalogueValues}';catalogue jsonb:=payload#>'{programState,salaryCatalog}';
+ period_value text:=payload->>'period';type_value text:=payload->>'liquidationType';employees jsonb:=payload#>'{population,employees}';rules jsonb;active_bindings jsonb;indexed_rows jsonb;indexed_contracts jsonb;
+ expected jsonb:='[]';inputs jsonb;e jsonb;bound jsonb;contract_value jsonb;row_value jsonb;category_value text;value_text text;evidence jsonb;
+BEGIN
+ IF programme->>'catalogueValueResolutionVersion' IS DISTINCT FROM 'own-approved-period-values.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;RETURN '[]';
+ END IF;
+ PERFORM public.own_run_catalogue_values_frozen_v1(payload);
+ IF jsonb_typeof(employees) IS DISTINCT FROM 'array' OR payload#>'{population,complete}' IS DISTINCT FROM 'true'::jsonb OR jsonb_array_length(employees) NOT BETWEEN 1 AND 10000
+  OR period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+  OR type_value IS NULL OR type_value NOT IN('monthly','first_fortnight','sac','vacation','supplementary','final','other')
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(employees) item GROUP BY item->>'contractId' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+ rules:=public.own_program_catalogue_value_rules_v1(programme);
+ SELECT coalesce(jsonb_agg(bound_item ORDER BY bound_item->>'agreementCode' COLLATE "C",bound_item->>'key' COLLATE "C"),'[]') INTO active_bindings
+ FROM jsonb_array_elements(programme->'bindings') bound_item
+ WHERE bound_item->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') AND EXISTS(
+  SELECT 1 FROM jsonb_array_elements(rules) used WHERE used->>'agreementCode'=bound_item->>'agreementCode'
+   AND used->>'validFrom'<=period_value AND coalesce(used->>'validUntil','9999-12')>=period_value AND used->'liquidationTypes' ? type_value
+   AND jsonb_path_exists(used->'expression','$.** ? ((@.op == "input" || @.op == "match") && @.key == $key)',jsonb_build_object('key',bound_item->'key')));
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(catalogue->'items') item WHERE item->'active'='true'::jsonb AND item->>'validFrom'<=period_value AND coalesce(item->>'validUntil','9999-12')>=period_value
+  GROUP BY item->>'kind',item->>'agreementCode',item->>'code',item->>'categoryCode' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ SELECT coalesce(jsonb_object_agg((item->>'kind')||':'||(item->>'agreementCode')||':'||(item->>'code')||':'||coalesce(item->>'categoryCode',''),item),'{}') INTO indexed_rows
+  FROM jsonb_array_elements(catalogue->'items') item WHERE item->'active'='true'::jsonb AND item->>'validFrom'<=period_value AND coalesce(item->>'validUntil','9999-12')>=period_value;
+ SELECT coalesce(jsonb_object_agg((item->>'bindingAgreementCode')||':'||(item->>'key'),item),'{}') INTO indexed_contracts FROM jsonb_array_elements(proof->'sourceContracts') item;
+ FOR e IN SELECT item FROM jsonb_array_elements(employees) item ORDER BY item->>'contractId' COLLATE "C" LOOP
+  IF jsonb_typeof(e->'contractId') IS DISTINCT FROM 'string' OR e->>'contractId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+   OR jsonb_typeof(e->'identityToken') IS DISTINCT FROM 'string' OR e->>'identityToken'!~'^[a-f0-9]{64}$'
+   OR e->>'origin' IS DISTINCT FROM 'MUNICONTROL' OR jsonb_typeof(e->'agreementCode') IS DISTINCT FROM 'string' OR e->>'agreementCode'!~'^[0-9]{1,9}$'
+   OR jsonb_typeof(e->'categoryCode') IS DISTINCT FROM 'string' OR e->>'categoryCode'!~'^[0-9]{1,9}$'
+  THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+  inputs:='[]';
+  FOR bound IN SELECT item FROM jsonb_array_elements(active_bindings) item WHERE item->>'agreementCode'=e->>'agreementCode' ORDER BY item->>'key' COLLATE "C" LOOP
+   contract_value:=indexed_contracts->((bound->>'agreementCode')||':'||(bound->>'key'));
+   IF contract_value IS NULL OR bound->>'combine' IS DISTINCT FROM 'single' OR bound->>'onMissing' IS DISTINCT FROM 'error' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+   category_value:=CASE WHEN contract_value->>'categorySelector'='employee' THEN e->>'categoryCode' ELSE contract_value->>'categoryCode' END;
+   row_value:=indexed_rows->((contract_value->>'kind')||':'||(contract_value->>'agreementCode')||':'||(contract_value->>'code')||':'||coalesce(category_value,''));
+   IF row_value IS NULL OR row_value->'value'='null'::jsonb THEN
+    RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_MISSING' USING DETAIL=jsonb_build_object('period',period_value,'bindingAgreementCode',bound->>'agreementCode','key',bound->>'key','sourceKind',bound->>'sourceKind','agreementCode',contract_value->>'agreementCode','categoryCode',category_value,'code',contract_value->>'code')::text;
+   END IF;
+   IF row_value->'unit' IS DISTINCT FROM contract_value->'unit' OR row_value->'nature' IS DISTINCT FROM contract_value->'nature'
+    OR bound->'unit' IS DISTINCT FROM contract_value->'unit' OR bound->'sourceKind' IS DISTINCT FROM contract_value->'sourceKind' OR bound->'sourceCode' IS DISTINCT FROM contract_value->'code'
+    OR(CASE WHEN bound->>'sourceKind'='scale_reference' THEN bound->'sourceAgreementCode' ELSE bound->'agreementCode' END) IS DISTINCT FROM contract_value->'agreementCode'
+    OR(bound->>'sourceKind'='scale_reference' AND bound->'sourceCategoryCode' IS DISTINCT FROM contract_value->'categoryCode')
+   THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_SOURCE_CHANGED';END IF;
+   value_text:=(row_value->>'value')::numeric(30,8)::text;
+   evidence:=jsonb_build_object('version','own-approved-period-value-resolution.v1','catalogueVersion',proof->>'catalogueVersion','approvalId',proof->>'approvalId','itemsSha256',proof->>'itemsSha256',
+    'programVersion',payload#>>'{programState,program,version}','sourceContract',contract_value,'period',period_value,'contractId',e->>'contractId','identityToken',e->>'identityToken','categoryCode',e->>'categoryCode','rowKey',public.native_salary_row_key_v1(row_value),'value',value_text);
+   inputs:=inputs||jsonb_build_array(jsonb_build_object('key',bound->>'key','unit',bound->>'unit','value',value_text,'sourceReference','Catálogo por período:'||(proof->>'catalogueVersion')||':'||public.own_run_hash_v1(evidence)));
+  END LOOP;
+  expected:=expected||jsonb_build_array(jsonb_build_object('contractId',e->>'contractId','employeeNumber',e->>'employeeNumber','agreementCode',e->>'agreementCode','departmentCode',e->>'departmentCode','inputs',inputs));
+ END LOOP;
+ RETURN expected;
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_expected_inputs_v1(jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_expected_inputs_v1(jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_expected_inputs_v1(jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_run_catalogue_values_frozen_v1(payload jsonb) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE programme jsonb:=payload#>'{programState,program}';catalogue jsonb:=payload#>'{programState,salaryCatalog}';proof jsonb:=payload#>'{sourceInventory,catalogueValues}';
+ originals jsonb;original jsonb;contracts jsonb;expected jsonb;other jsonb;field text;family text;
+BEGIN
+ -- Frozen readers do not consult mutable/latest state. Capture and completion
+ -- separately authenticate these same identities against immutable events.
+ IF programme#>>'{definition,catalogueValueResolutionVersion}' IS DISTINCT FROM 'own-approved-period-values.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+  RETURN programme->>'salaryVersion' IS NOT DISTINCT FROM catalogue->>'version';
+ END IF;
+ IF public.own_program_exact_v1(programme,ARRAY['version','revision','definition','salaryVersion','proposalId','approvalId']) IS NOT TRUE
+  OR programme#>>'{definition,namespaceVersion}' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+  OR jsonb_typeof(programme->'revision') IS DISTINCT FROM 'number' OR programme->>'revision'!~'^(?:[1-9][0-9]{0,2}|1000)$'
+  OR public.own_program_exact_v1(catalogue,ARRAY['version','revision','items']) IS NOT TRUE
+  OR jsonb_typeof(catalogue->'revision') IS DISTINCT FROM 'number' OR catalogue->>'revision'!~'^(?:[1-9][0-9]{0,2}|1000)$'
+  OR jsonb_typeof(catalogue->'items') IS DISTINCT FROM 'array' OR jsonb_array_length(catalogue->'items') NOT BETWEEN 1 AND 10000
+  OR jsonb_typeof(payload#>'{programState,proposals}') IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ FOREACH field IN ARRAY ARRAY['tenantId','sourceBindingId','approvalId','proposalId','programApprovalId','programProposalId'] LOOP
+  IF jsonb_typeof(proof->field) IS DISTINCT FROM 'string' OR proof->>field!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ END LOOP;
+ FOREACH field IN ARRAY ARRAY['catalogueVersion','itemsSha256','programVersion','programSalaryVersion','originalItemsSha256','sourceContractsSha256'] LOOP
+  IF jsonb_typeof(proof->field) IS DISTINCT FROM 'string' OR proof->>field!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ END LOOP;
+ SELECT coalesce(jsonb_agg(item),'[]') INTO originals FROM jsonb_array_elements(payload#>'{programState,proposals}') item WHERE item->>'id'=programme->>'proposalId';original:=originals->0;
+ IF jsonb_array_length(originals)<>1 OR original->>'status' IS DISTINCT FROM 'approved' OR original#>>'{decision,command}' IS DISTINCT FROM 'approve'
+  OR original#>'{decision,revision}' IS DISTINCT FROM programme->'revision' OR original->'salaryVersion' IS DISTINCT FROM programme->'salaryVersion' OR original->'definition' IS DISTINCT FROM programme->'definition'
+  OR jsonb_typeof(original->'salaryItems') IS DISTINCT FROM 'array' OR jsonb_array_length(original->'salaryItems') NOT BETWEEN 1 AND 10000
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ PERFORM public.native_salary_items_v1(original->'salaryItems');PERFORM public.native_salary_items_v1(catalogue->'items');
+ contracts:=public.own_program_catalogue_value_contracts_v1(programme->'definition',original->'salaryItems');
+ expected:=jsonb_build_object('version','own-approved-period-values-capture.v1','complete',true,'tenantId',proof->>'tenantId','sourceBindingId',proof->>'sourceBindingId',
+  'revision',catalogue->'revision','approvalId',proof->>'approvalId','proposalId',proof->>'proposalId','catalogueVersion',catalogue->>'version','itemsSha256',public.own_run_hash_v1(catalogue->'items'),'itemCount',jsonb_array_length(catalogue->'items'),
+  'programVersion',programme->>'version','programApprovalId',programme->>'approvalId','programProposalId',programme->>'proposalId','programSalaryVersion',programme->>'salaryVersion',
+  'originalItemsSha256',public.own_run_hash_v1(original->'salaryItems'),'sourceContractsSha256',public.own_run_hash_v1(contracts),'sourceContracts',contracts);
+ IF proof IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ IF programme->>'version' IS DISTINCT FROM encode(public.digest(jsonb_build_array('own-payroll-program.v1',proof->>'tenantId',proof->>'sourceBindingId',(programme->>'revision')::integer,(programme->>'approvalId')::uuid,programme->'definition')::text,'sha256'),'hex')
+  OR catalogue->>'version' IS DISTINCT FROM encode(public.digest(jsonb_build_array('native-salary-catalog.v1',proof->>'tenantId',proof->>'sourceBindingId',(catalogue->>'revision')::integer,(proof->>'approvalId')::uuid,catalogue->'items')::text,'sha256'),'hex')
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ FOREACH family IN ARRAY ARRAY['optionalScales','conditionalSources'] LOOP
+  other:=payload#>ARRAY['sourceInventory',family];IF other IS NULL THEN CONTINUE;END IF;
+  FOREACH field IN ARRAY ARRAY['tenantId','sourceBindingId','revision','approvalId','proposalId','catalogueVersion','itemsSha256','itemCount'] LOOP
+   IF other->field IS DISTINCT FROM proof->field THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+  END LOOP;
+ END LOOP;
+ RETURN true;
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_frozen_v1(jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_frozen_v1(jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_frozen_v1(jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_run_catalogue_values_input_verify_v1(payload jsonb,input_value jsonb) RETURNS void
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE expected jsonb;wanted jsonb;actual jsonb;values_found jsonb;programme jsonb:=payload#>'{programState,program,definition}';
+BEGIN
+ expected:=public.own_run_catalogue_values_expected_inputs_v1(payload);
+ IF programme->>'catalogueValueResolutionVersion' IS DISTINCT FROM 'own-approved-period-values.v1' OR input_value IS NULL THEN RETURN;END IF;
+ IF input_value->'period' IS DISTINCT FROM payload->'period' OR input_value->'liquidationType' IS DISTINCT FROM payload->'liquidationType'
+  OR jsonb_typeof(input_value->'employees') IS DISTINCT FROM 'array' OR jsonb_array_length(input_value->'employees')<>jsonb_array_length(expected)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(input_value->'employees') item GROUP BY item->>'contractId' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+ FOR wanted IN SELECT item FROM jsonb_array_elements(expected) item LOOP
+  SELECT item INTO actual FROM jsonb_array_elements(input_value->'employees') item WHERE item->>'contractId'=wanted->>'contractId';
+  IF NOT FOUND OR actual-'inputs' IS DISTINCT FROM wanted-'inputs' OR jsonb_typeof(actual->'inputs') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+  SELECT coalesce(jsonb_agg(item ORDER BY item->>'key' COLLATE "C"),'[]') INTO values_found FROM jsonb_array_elements(actual->'inputs') item
+   WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(programme->'bindings') bound WHERE bound->>'sourceKind' IN('parameter','auxiliary_parameter','scale','scale_reference') AND bound->>'agreementCode'=wanted->>'agreementCode' AND bound->>'key'=item->>'key');
+  IF values_found IS DISTINCT FROM wanted->'inputs' THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_INPUT_INVALID';END IF;
+ END LOOP;
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_run_catalogue_values_matches_v1(payload jsonb) RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE proof jsonb:=payload#>'{sourceInventory,catalogueValues}';other jsonb;field text;family text;
+BEGIN
+ IF payload#>>'{programState,program,definition,catalogueValueResolutionVersion}' IS DISTINCT FROM 'own-approved-period-values.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+  RETURN payload#>>'{programState,program,salaryVersion}' IS NOT DISTINCT FROM payload#>>'{programState,salaryCatalog,version}';
+ END IF;
+ IF jsonb_typeof(proof->'tenantId') IS DISTINCT FROM 'string' OR proof->>'tenantId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+  OR jsonb_typeof(proof->'sourceBindingId') IS DISTINCT FROM 'string' OR proof->>'sourceBindingId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ IF proof IS DISTINCT FROM public.own_run_catalogue_values_capture_v1((proof->>'tenantId')::uuid,(proof->>'sourceBindingId')::uuid,payload->'programState') THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ FOREACH family IN ARRAY ARRAY['optionalScales','conditionalSources'] LOOP
+  other:=payload#>ARRAY['sourceInventory',family];IF other IS NULL THEN CONTINUE;END IF;
+  FOREACH field IN ARRAY ARRAY['tenantId','sourceBindingId','revision','approvalId','proposalId','catalogueVersion','itemsSha256','itemCount'] LOOP
+   IF other->field IS DISTINCT FROM proof->field THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+  END LOOP;
+ END LOOP;
+ RETURN true;
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_matches_v1(jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_matches_v1(jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_matches_v1(jsonb) TO neondb_owner;
+CREATE FUNCTION public.own_run_catalogue_values_scope_v1(tenant uuid,binding uuid,payload jsonb) RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE proof jsonb:=payload#>'{sourceInventory,catalogueValues}';
+BEGIN
+ IF payload#>>'{programState,program,definition,catalogueValueResolutionVersion}' IS DISTINCT FROM 'own-approved-period-values.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;RETURN;
+ END IF;
+ IF tenant IS NULL OR binding IS NULL OR proof->>'tenantId' IS DISTINCT FROM tenant::text OR proof->>'sourceBindingId' IS DISTINCT FROM binding::text
+ THEN RAISE EXCEPTION 'OWN_RUN_CATALOGUE_VALUE_CAPTURE_INVALID';END IF;
+ PERFORM public.own_run_catalogue_values_matches_v1(payload);
+END $function$;
+
+ALTER FUNCTION public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb) FROM PUBLIC,cloud_admin,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb) TO neondb_owner;
+CREATE OR REPLACE FUNCTION public.own_run_complete_full_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ PERFORM public.own_run_catalogue_values_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_source_coverage_check_v1(c.payload);
+ PERFORM public.own_run_salary_native_input_verify_v2(c.payload,input_value);
+ -- A small receipt uses the existing authoritative finalizer, retaining its
+ -- exact validation and installed close policy even for a legacy programme.
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192<=4194304 THEN
+  RETURN public.own_run_complete_v1(p,capture,input_value,result_value,algorithm);
+ END IF;
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(c.payload,input_value);PERFORM public.own_run_declared_adjustments_verify_v1(c.payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(c.payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(c.payload,input_value);
+ IF (CASE WHEN c.payload#>>'{programState,program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN input_value->>'salaryConditionsVersion' IS DISTINCT FROM c.payload#>>'{programState,program,definition,salaryConditionsVersion}' ELSE input_value ? 'salaryConditionsVersion' END) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF NOT public.own_program_exact_v1(input_value,ARRAY['version','period','liquidationType','selection','sourceVersions','populationComplete','totalsPrecision','employees','rules']||CASE WHEN c.payload#>>'{programState,program,definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1' THEN ARRAY['familyPayrollFactsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN c.payload#>>'{programState,program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN ARRAY['salaryConditionsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN c.payload#>'{programState,program,definition}' ? 'fixedForcedAmountsVersion' OR c.payload#>'{programState,program,definition}' ? 'fixedForcedAmountsPolicy' THEN ARRAY['fixedForcedAmountsVersion','fixedForcedAmountsPolicy'] ELSE ARRAY[]::text[] END) OR NOT public.own_program_exact_v1(result_value,ARRAY['version','period','liquidationType','selection','sourceVersions','employeeCount','rowCount','rows','employeeTotals','payrollCalculated','payrollPosted','municipalApprovalVerified','paymentExecuted']) OR input_value->>'version' IS DISTINCT FROM (CASE WHEN c.payload#>>'{programState,program,definition,namespaceVersion}'='own-payroll-namespaces.v2' THEN 'own-payroll-input.v2' ELSE 'own-payroll-input.v1' END) OR result_value->>'version' IS DISTINCT FROM (CASE WHEN input_value->>'version'='own-payroll-input.v2' THEN 'own-payroll-result.v2' ELSE 'own-payroll-result.v1' END) OR input_value->>'period' IS DISTINCT FROM c.body->>'period' OR input_value->>'liquidationType' IS DISTINCT FROM c.body->>'liquidationType' OR input_value->'selection' IS DISTINCT FROM c.body->'selection' OR result_value->>'period' IS DISTINCT FROM input_value->>'period' OR result_value->>'liquidationType' IS DISTINCT FROM input_value->>'liquidationType' OR result_value->'selection' IS DISTINCT FROM input_value->'selection' OR result_value->'sourceVersions' IS DISTINCT FROM input_value->'sourceVersions' OR input_value->'populationComplete' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollCalculated' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollPosted' IS DISTINCT FROM 'false'::jsonb OR result_value->'municipalApprovalVerified' IS DISTINCT FROM 'false'::jsonb OR result_value->'paymentExecuted' IS DISTINCT FROM 'false'::jsonb THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>33554432 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF input_value->'rules' IS DISTINCT FROM public.own_participation_rules_v1(c.payload#>'{programState,program,definition}') OR input_value->'totalsPrecision' IS DISTINCT FROM c.payload#>'{programState,program,definition,totalsPrecision}' OR input_value#>>'{sourceVersions,population}' IS DISTINCT FROM c.payload#>>'{population,version}' OR input_value#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',c.payload#>'{programState,program}','salary',c.payload#>'{programState,salaryCatalog}')) OR input_value#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',c.payload->'monthly','fixed',c.payload#>'{fixed,export,data}')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF jsonb_typeof(input_value->'employees') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'rows') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'employeeTotals') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(input_value->'employees') e) IS DISTINCT FROM(SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(c.payload#>'{population,employees}') e) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(input_value->'employees')) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'employeeTotals')) OR result_value->'rowCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'rows')) OR EXISTS(SELECT 1 FROM jsonb_array_elements(result_value->'rows') row_value WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(input_value->'employees') e WHERE e->>'contractId'=row_value->>'contractId')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_complete_official_full_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;official_family jsonb;quantity_family jsonb;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ -- A small receipt uses the existing authoritative finalizer, retaining its
+ -- exact validation and installed close policy even for a legacy programme.
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192<=4194304 THEN
+  RETURN public.own_run_complete_official_v1(p,capture,input_value,result_value,algorithm);
+ END IF;
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>33554432 OR octet_length(input_value::text)>8388608 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF to_regprocedure('public.own_run_official_family_v1()') IS NULL OR to_regprocedure('public.own_run_quantity_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FAMILY_REQUIRED';END IF;
+ official_family:=public.own_run_official_family_v1();quantity_family:=public.own_run_quantity_family_v1();
+ PERFORM public.own_run_official_capture_check_v1(c.payload,c.body,input_value,result_value,official_family,quantity_family);
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_complete_official_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;official_family jsonb;quantity_family jsonb;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>4194304 OR octet_length(input_value::text)>8388608 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF to_regprocedure('public.own_run_official_family_v1()') IS NULL OR to_regprocedure('public.own_run_quantity_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FAMILY_REQUIRED';END IF;
+ official_family:=public.own_run_official_family_v1();quantity_family:=public.own_run_quantity_family_v1();
+ PERFORM public.own_run_official_capture_check_v1(c.payload,c.body,input_value,result_value,official_family,quantity_family);
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_complete_quantity_full_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;official_family jsonb;quantity_family jsonb;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ PERFORM public.own_run_source_coverage_check_v1(c.payload);
+ PERFORM public.own_run_salary_native_input_verify_v2(c.payload,input_value);
+ -- A small receipt uses the existing authoritative finalizer, retaining its
+ -- exact validation and installed close policy even for a legacy programme.
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192<=4194304 THEN
+  RETURN public.own_run_complete_quantity_v1(p,capture,input_value,result_value,algorithm);
+ END IF;
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>33554432 OR octet_length(input_value::text)>8388608 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF to_regprocedure('public.own_run_quantity_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+ quantity_family:=public.own_run_quantity_family_v1();
+ IF public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE OR quantity_family IS DISTINCT FROM c.payload#>'{sourceInventory,quantityPhases,family}' THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+ IF c.payload#>'{programState,program,definition}' ? 'officialTotalsVersion' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FINALIZER_REQUIRED';END IF;
+ PERFORM public.own_run_quantity_check_v1(c.payload,c.body,input_value,result_value);
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(c.payload,input_value);PERFORM public.own_run_declared_adjustments_verify_v1(c.payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(c.payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_complete_quantity_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;official_family jsonb;quantity_family jsonb;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ PERFORM public.own_run_source_coverage_check_v1(c.payload);
+ PERFORM public.own_run_salary_native_input_verify_v2(c.payload,input_value);
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>4194304 OR octet_length(input_value::text)>8388608 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF to_regprocedure('public.own_run_quantity_family_v1()') IS NULL THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+ quantity_family:=public.own_run_quantity_family_v1();
+ IF public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE OR quantity_family IS DISTINCT FROM c.payload#>'{sourceInventory,quantityPhases,family}' THEN RAISE EXCEPTION 'OWN_RUN_QUANTITY_FAMILY_REQUIRED';END IF;
+ IF c.payload#>'{programState,program,definition}' ? 'officialTotalsVersion' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FINALIZER_REQUIRED';END IF;
+ PERFORM public.own_run_quantity_check_v1(c.payload,c.body,input_value,result_value);
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(c.payload,input_value);PERFORM public.own_run_declared_adjustments_verify_v1(c.payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(c.payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_complete_v1(p jsonb, capture uuid, input_value jsonb, result_value jsonb, algorithm text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;c public.own_payroll_run_capture;r public.own_payroll_run_result;ih text;rh text;BEGIN ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ SELECT * INTO c FROM public.own_payroll_run_capture WHERE id=capture;PERFORM public.own_run_owned_v1(ctx,c);
+ IF algorithm IS DISTINCT FROM c.algorithm_sha256 THEN RAISE EXCEPTION 'OWN_RUN_ENGINE_CHANGED';END IF;
+ PERFORM public.own_run_catalogue_values_scope_v1(c.tenant_id,c.source_binding_id,c.payload);
+ PERFORM public.own_run_catalogue_values_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_source_coverage_check_v1(c.payload);
+ PERFORM public.own_run_salary_native_input_verify_v2(c.payload,input_value);
+ PERFORM public.own_run_family_input_verify_v1(c.payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(c.payload,input_value);PERFORM public.own_run_declared_adjustments_verify_v1(c.payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(c.payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(c.payload,input_value);
+ IF (CASE WHEN c.payload#>>'{programState,program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN input_value->>'salaryConditionsVersion' IS DISTINCT FROM c.payload#>>'{programState,program,definition,salaryConditionsVersion}' ELSE input_value ? 'salaryConditionsVersion' END) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF NOT public.own_program_exact_v1(input_value,ARRAY['version','period','liquidationType','selection','sourceVersions','populationComplete','totalsPrecision','employees','rules']||CASE WHEN c.payload#>>'{programState,program,definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1' THEN ARRAY['familyPayrollFactsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN c.payload#>>'{programState,program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2') THEN ARRAY['salaryConditionsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN c.payload#>'{programState,program,definition}' ? 'fixedForcedAmountsVersion' OR c.payload#>'{programState,program,definition}' ? 'fixedForcedAmountsPolicy' THEN ARRAY['fixedForcedAmountsVersion','fixedForcedAmountsPolicy'] ELSE ARRAY[]::text[] END) OR NOT public.own_program_exact_v1(result_value,ARRAY['version','period','liquidationType','selection','sourceVersions','employeeCount','rowCount','rows','employeeTotals','payrollCalculated','payrollPosted','municipalApprovalVerified','paymentExecuted']) OR input_value->>'version' IS DISTINCT FROM (CASE WHEN c.payload#>>'{programState,program,definition,namespaceVersion}'='own-payroll-namespaces.v2' THEN 'own-payroll-input.v2' ELSE 'own-payroll-input.v1' END) OR result_value->>'version' IS DISTINCT FROM (CASE WHEN input_value->>'version'='own-payroll-input.v2' THEN 'own-payroll-result.v2' ELSE 'own-payroll-result.v1' END) OR input_value->>'period' IS DISTINCT FROM c.body->>'period' OR input_value->>'liquidationType' IS DISTINCT FROM c.body->>'liquidationType' OR input_value->'selection' IS DISTINCT FROM c.body->'selection' OR result_value->>'period' IS DISTINCT FROM input_value->>'period' OR result_value->>'liquidationType' IS DISTINCT FROM input_value->>'liquidationType' OR result_value->'selection' IS DISTINCT FROM input_value->'selection' OR result_value->'sourceVersions' IS DISTINCT FROM input_value->'sourceVersions' OR input_value->'populationComplete' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollCalculated' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollPosted' IS DISTINCT FROM 'false'::jsonb OR result_value->'municipalApprovalVerified' IS DISTINCT FROM 'false'::jsonb OR result_value->'paymentExecuted' IS DISTINCT FROM 'false'::jsonb THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF octet_length(input_value::text)+octet_length(result_value::text)+octet_length(c.payload::text)+octet_length(c.body::text)+8192>4194304 THEN RAISE EXCEPTION 'OWN_RUN_LIMIT';END IF;
+ IF input_value->'rules' IS DISTINCT FROM public.own_participation_rules_v1(c.payload#>'{programState,program,definition}') OR input_value->'totalsPrecision' IS DISTINCT FROM c.payload#>'{programState,program,definition,totalsPrecision}' OR input_value#>>'{sourceVersions,population}' IS DISTINCT FROM c.payload#>>'{population,version}' OR input_value#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',c.payload#>'{programState,program}','salary',c.payload#>'{programState,salaryCatalog}')) OR input_value#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',c.payload->'monthly','fixed',c.payload#>'{fixed,export,data}')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF jsonb_typeof(input_value->'employees') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'rows') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'employeeTotals') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(input_value->'employees') e) IS DISTINCT FROM(SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(c.payload#>'{population,employees}') e) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(input_value->'employees')) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'employeeTotals')) OR result_value->'rowCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'rows')) OR EXISTS(SELECT 1 FROM jsonb_array_elements(result_value->'rows') row_value WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(input_value->'employees') e WHERE e->>'contractId'=row_value->>'contractId')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ PERFORM public.own_fixed_forced_capture_v1(c,input_value,result_value);
+  ih:=public.own_run_hash_v1(input_value);rh:=public.own_run_hash_v1(result_value);SELECT * INTO r FROM public.own_payroll_run_result WHERE capture_id=c.id;
+ IF FOUND THEN IF r.input_sha256<>ih OR r.result_sha256<>rh OR r.input<>input_value OR r.result<>result_value THEN RAISE EXCEPTION 'OWN_RUN_RESULT_CONFLICT';END IF;RETURN public.own_run_saved_v1(r);END IF;
+ PERFORM public.own_run_capacity_v1(octet_length(input_value::text)+octet_length(result_value::text));
+ PERFORM public.own_close_guard_v1(ctx,c.body->>'period',c.body->>'liquidationType',ARRAY(SELECT(value->>'contractId')::uuid FROM jsonb_array_elements(input_value->'employees')));
+ INSERT INTO public.own_payroll_run_result(capture_id,algorithm_sha256,input,result,input_sha256,result_sha256) VALUES(c.id,algorithm,input_value,result_value,ih,rh) RETURNING * INTO r;RETURN public.own_run_saved_v1(r);END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_conditional_expected_inputs_v1(payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $conditional_inputs$
+DECLARE programme jsonb:=payload#>'{programState,program,definition}';catalogue jsonb:=payload#>'{programState,salaryCatalog}';
+ proof jsonb:=payload#>'{sourceInventory,conditionalSources}';employees jsonb:=payload#>'{population,employees}';
+ native_value jsonb:=payload->'salaryConditions';time_capture jsonb:=payload->'workingTime';period_value text:=payload->>'period';type_value text:=payload->>'liquidationType';
+ resolved jsonb;rules jsonb;active_bindings jsonb:='[]';binding_record jsonb;binding jsonb;activation_binding jsonb;selector_binding jsonb;matches jsonb;policy jsonb;
+ e jsonb;r jsonb;c jsonb;d jsonb;row_value jsonb;time_value jsonb;native_records jsonb;time_records jsonb:='{}';scales jsonb:='{}';
+ expected jsonb:='[]';inputs jsonb;value_value jsonb;activation_value jsonb;selector_value jsonb;evidence jsonb;status_value text;field text;index_key text;
+ selected boolean;needs_time boolean;previous_id text;
+BEGIN
+ IF programme->>'conditionalSourcesVersion' IS DISTINCT FROM 'own-payroll-conditional-sources.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+  RETURN '[]';
+ END IF;
+ PERFORM public.own_program_conditional_options_v1(programme);
+ IF public.own_program_exact_v1(proof,ARRAY['version','complete','tenantId','sourceBindingId','revision','approvalId','proposalId','catalogueVersion','itemsSha256','itemCount']) IS NOT TRUE
+ OR jsonb_typeof(proof->'tenantId') IS DISTINCT FROM 'string' OR coalesce(proof->>'tenantId','')!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR jsonb_typeof(proof->'sourceBindingId') IS DISTINCT FROM 'string' OR coalesce(proof->>'sourceBindingId','')!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR jsonb_typeof(payload#>'{programState,program,revision}') IS DISTINCT FROM 'number' OR (payload#>>'{programState,program,revision}')::integer<1
+ OR public.own_run_catalogue_values_matches_v1(payload) IS NOT TRUE
+ OR public.own_program_exact_v1(payload->'population',ARRAY['complete','version','employees']) IS NOT TRUE
+ OR payload#>'{population,complete}' IS DISTINCT FROM 'true'::jsonb
+ OR jsonb_typeof(payload#>'{population,version}') IS DISTINCT FROM 'string' OR coalesce(payload#>>'{population,version}','')!~'^[a-f0-9]{64}$'
+ OR jsonb_typeof(employees) IS DISTINCT FROM 'array' OR jsonb_array_length(employees) NOT BETWEEN 1 AND 10000
+ OR period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+ OR type_value IS NULL OR type_value NOT IN('monthly','first_fortnight','sac','vacation','supplementary','final','other')
+ THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+ IF proof IS DISTINCT FROM public.own_run_conditional_catalogue_v1((proof->>'tenantId')::uuid,(proof->>'sourceBindingId')::uuid,catalogue)
+ OR EXISTS(SELECT 1 FROM jsonb_array_elements(employees) x GROUP BY x->>'contractId' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+ FOR e IN SELECT value FROM jsonb_array_elements(employees) LOOP
+  IF public.own_program_exact_v1(e,ARRAY['contractId','employeeNumber','agreementCode','departmentCode','categoryCode','identityToken','origin']) IS NOT TRUE
+  OR e->>'origin' IS DISTINCT FROM 'MUNICONTROL' OR jsonb_typeof(e->'contractId') IS DISTINCT FROM 'string'
+  OR coalesce(e->>'contractId','')!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' OR e->>'contractId'='00000000-0000-0000-0000-000000000000'
+  OR jsonb_typeof(e->'identityToken') IS DISTINCT FROM 'string' OR coalesce(e->>'identityToken','')!~'^[a-f0-9]{64}$'
+  THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+  FOREACH field IN ARRAY ARRAY['agreementCode','departmentCode','categoryCode'] LOOP
+   IF jsonb_typeof(e->field) IS DISTINCT FROM 'string' OR coalesce(e->>field,'')!~'^[0-9]{1,9}$' THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+  END LOOP;
+ END LOOP;
+ -- Reuse the V2 verifier of both immutable source groups and the complete
+ -- population hash. It accepts a nullable selector; it never supplies a fact.
+ PERFORM public.own_run_salary_native_expected_inputs_v2(payload);
+ SELECT jsonb_object_agg(record_row.value->>'contractId',record_row.value) INTO native_records FROM jsonb_array_elements(native_value->'records') record_row(value);
+ needs_time:=EXISTS(SELECT 1 FROM jsonb_array_elements(programme->'bindings') b WHERE b->>'sourceKind'='conditional_working_time_fact');
+ IF needs_time THEN
+  IF public.own_program_exact_v1(time_capture,ARRAY['complete','version','records']) IS NOT TRUE OR time_capture->'complete' IS DISTINCT FROM 'true'::jsonb
+  OR jsonb_typeof(time_capture->'version') IS DISTINCT FROM 'string' OR coalesce(time_capture->>'version','')!~'^[a-f0-9]{64}$'
+  OR jsonb_typeof(time_capture->'records') IS DISTINCT FROM 'array' OR jsonb_array_length(time_capture->'records')<>jsonb_array_length(employees)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(time_capture->'records') x GROUP BY x->>'contractId' HAVING count(*)<>1)
+  THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+  FOR r IN SELECT value FROM jsonb_array_elements(time_capture->'records') LOOP
+   IF public.own_program_exact_v1(r,ARRAY['contractId','identityToken','configuration']) IS NOT TRUE
+   OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(employees) employee_row(value) WHERE employee_row.value->'contractId'=r->'contractId' AND employee_row.value->'identityToken'=r->'identityToken')
+   THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+   c:=r->'configuration';
+   IF public.own_program_exact_v1(c,ARRAY['version','revision','definition','proposalId','approvalId','identityToken']) IS NOT TRUE
+   OR jsonb_typeof(c->'version') IS DISTINCT FROM 'string' OR coalesce(c->>'version','')!~'^[a-f0-9]{64}$'
+   OR jsonb_typeof(c->'revision') IS DISTINCT FROM 'number' OR coalesce(c->>'revision','')!~'^(0|[1-9][0-9]{0,2}|1000)$'
+   THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+   IF c->>'revision'='0' THEN
+    IF c->'definition' IS DISTINCT FROM 'null'::jsonb OR c->'proposalId' IS DISTINCT FROM 'null'::jsonb OR c->'approvalId' IS DISTINCT FROM 'null'::jsonb OR c->'identityToken' IS DISTINCT FROM 'null'::jsonb
+    THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+   ELSE
+    IF c->'identityToken' IS DISTINCT FROM r->'identityToken' THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+    FOREACH field IN ARRAY ARRAY['proposalId','approvalId'] LOOP
+     IF jsonb_typeof(c->field) IS DISTINCT FROM 'string' OR coalesce(c->>field,'')!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' OR c->>field='00000000-0000-0000-0000-000000000000'
+     THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+    END LOOP;
+    PERFORM public.own_working_time_definition_v1(c->'definition',period_value);
+   END IF;
+   time_records:=time_records||jsonb_build_object(r->>'contractId',c);
+  END LOOP;
+  IF time_capture->>'version' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_array('own-contract-working-time.v1',period_value,time_capture->'records')) THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+ END IF;
+ -- Index the complete validated catalogue once, including unrelated active
+ -- scales. An ambiguous catalogue is invalid even when a branch is inactive.
+ FOR row_value IN SELECT value FROM jsonb_array_elements(catalogue->'items') LOOP
+  IF row_value->'active'='true'::jsonb AND row_value->>'kind'='scale' AND row_value->>'validFrom'<=period_value AND coalesce(row_value->>'validUntil','9999-12')>=period_value THEN
+   index_key:=(row_value->>'agreementCode')||':'||(row_value->>'categoryCode')||':'||(row_value->>'code');
+   IF index_key IS NULL OR scales ? index_key THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_CAPTURE_INVALID';END IF;
+   scales:=scales||jsonb_build_object(index_key,row_value);
+  END IF;
+ END LOOP;
+ resolved:=public.own_policy_resolve_candidate_v1(programme->'conditionalSourcePolicies','conditional-source');rules:=public.own_participation_rules_v1(programme);
+ FOR binding IN SELECT b FROM jsonb_array_elements(programme->'bindings') b
+  WHERE b->>'sourceKind' IN('conditional_scale','conditional_working_time_fact')
+   AND EXISTS(SELECT 1 FROM jsonb_array_elements(rules) rule_row(value) WHERE rule_row.value->'agreementCode'=b->'agreementCode' AND public.own_program_quantity_active_v1(rule_row.value,period_value,type_value)
+    AND EXISTS(SELECT 1 FROM jsonb_path_query(rule_row.value->'expression','$.** ? (@.op == "input" || @.op == "match")') n WHERE n->'key'=b->'key'))
+  ORDER BY b->>'agreementCode' COLLATE "C",b->>'key' COLLATE "C"
+ LOOP
+  SELECT coalesce(jsonb_agg(resolved_row.value->'policy'),'[]') INTO matches FROM jsonb_array_elements(resolved) resolved_row(value)
+   WHERE resolved_row.value#>'{policy,agreementCode}'=binding->'agreementCode' AND resolved_row.value#>>'{policy,liquidationType}'=type_value AND resolved_row.value#>'{policy,inputKey}'=binding->'key'
+    AND resolved_row.value->>'validFrom'<=period_value AND coalesce(resolved_row.value->>'validUntil','9999-12')>=period_value;
+  IF jsonb_array_length(matches)<>1 THEN RAISE EXCEPTION 'OWN_PROGRAM_CONDITIONAL_SOURCE_POLICY_REQUIRED';END IF;policy:=matches->0;
+  SELECT b INTO activation_binding FROM jsonb_array_elements(programme->'bindings') b WHERE b->'agreementCode'=policy->'agreementCode' AND b->'key'=policy->'activationInputKey';
+  SELECT b INTO selector_binding FROM jsonb_array_elements(programme->'bindings') b WHERE b->'agreementCode'=policy->'agreementCode' AND b->'key'=policy->'selectorInputKey';
+  active_bindings:=active_bindings||jsonb_build_array(jsonb_build_object('binding',binding,'policy',policy,'policySha256',public.own_run_hash_v1(policy),'activationField',activation_binding->'sourceField','selectorField',selector_binding->'sourceField'));
+ END LOOP;
+ FOR e IN SELECT value FROM jsonb_array_elements(employees) ORDER BY value->>'contractId' COLLATE "C" LOOP
+  inputs:='[]';r:=native_records->(e->>'contractId');
+  FOR binding_record IN SELECT v FROM jsonb_array_elements(active_bindings) v WHERE v#>'{binding,agreementCode}'=e->'agreementCode' LOOP
+   binding:=binding_record->'binding';policy:=binding_record->'policy';
+   IF (r->>'revision')::integer<1 OR r->'definition'='null'::jsonb THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_APPROVAL_REQUIRED';END IF;
+   activation_value:=r->'definition'->(binding_record->>'activationField');selector_value:=r->'definition'->(binding_record->>'selectorField');
+   IF jsonb_typeof(activation_value) IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_ACTIVATION_REQUIRED';END IF;
+   status_value:='activation_false';value_value:='null';row_value:=NULL;time_value:=NULL;
+   IF activation_value='true'::jsonb THEN
+    IF jsonb_typeof(selector_value) IS DISTINCT FROM 'string' OR coalesce(selector_value#>>'{}','')!~'^-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,8})?$' OR (selector_value#>>'{}')~'^-0(\.0+)?$'
+    THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_SELECTOR_REQUIRED';END IF;
+    selected:=CASE policy->>'selectorOperator' WHEN 'eq' THEN (selector_value#>>'{}')::numeric=(policy->>'selectorValue')::numeric ELSE (selector_value#>>'{}')::numeric<>(policy->>'selectorValue')::numeric END;
+    status_value:=CASE WHEN selected THEN 'configured' ELSE 'selector_not_equal' END;
+    IF selected THEN
+     IF binding->>'sourceKind'='conditional_scale' THEN
+      row_value:=scales->((e->>'agreementCode')||':'||(e->>'categoryCode')||':'||(binding->>'sourceCode'));
+      IF row_value IS NULL OR row_value->'value'='null'::jsonb OR row_value->>'unit' IS DISTINCT FROM 'money' THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_VALUE_REQUIRED';END IF;
+      value_value:=to_jsonb((row_value->>'value')::numeric::numeric(30,8)::text);
+     ELSE
+      time_value:=time_records->(e->>'contractId');
+      IF time_value IS NULL OR (time_value->>'revision')::integer<1 OR time_value->'definition'='null'::jsonb OR time_value->'definition'->(binding->>'sourceField')='null'::jsonb
+      THEN RAISE EXCEPTION 'OWN_RUN_CONDITIONAL_SOURCE_VALUE_REQUIRED';END IF;
+      value_value:=to_jsonb((time_value->'definition'->>(binding->>'sourceField'))::numeric::numeric(30,8)::text);
+     END IF;
+    END IF;
+   END IF;
+   evidence:=jsonb_build_object('version','own-payroll-conditional-source-resolution.v1','policyId',policy->'policyId','policySha256',binding_record->'policySha256',
+    'period',period_value,'liquidationType',type_value,'contractId',e->'contractId','identityToken',e->'identityToken','agreementCode',e->'agreementCode','categoryCode',e->'categoryCode',
+    'inputKey',binding->'key','sourceKind',binding->'sourceKind','sourceCode',binding->'sourceCode','sourceField',binding->'sourceField',
+    'catalogueVersion',proof->'catalogueVersion','catalogueApprovalId',proof->'approvalId','itemsSha256',proof->'itemsSha256','itemCount',proof->'itemCount',
+    'nativeVersion',native_value->'version','nativeApprovalId',r->'approvalId','activationValue',activation_value,'selectorValue',selector_value,'status',status_value,
+    'rowKey',CASE WHEN row_value IS NULL THEN NULL ELSE public.native_salary_row_key_v1(row_value) END,
+    'workingTimeVersion',CASE WHEN time_value IS NULL THEN NULL ELSE time_capture->'version' END,'workingTimeApprovalId',time_value->'approvalId','value',value_value);
+   inputs:=inputs||jsonb_build_array(jsonb_build_object('key',binding->'key','unit',binding->'unit','value',value_value,'sourceReference','Fuente condicional:'||status_value||':'||public.own_run_hash_v1(evidence)));
+  END LOOP;
+  expected:=expected||jsonb_build_array(jsonb_build_object('contractId',e->'contractId','employeeNumber',e->'employeeNumber','agreementCode',e->'agreementCode','departmentCode',e->'departmentCode','inputs',inputs));
+ END LOOP;
+ RETURN expected;
+END $conditional_inputs$;
+
+CREATE OR REPLACE FUNCTION public.own_run_monthly_forced_capture_check_candidate_v1(payload jsonb,input_value jsonb,result_value jsonb)
+RETURNS void LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+SET search_path=pg_catalog,public,pg_temp AS $monthly_capture$
+DECLARE programme jsonb:=payload#>'{programState,program,definition}';options jsonb;active_policies jsonb;batch jsonb;row_value jsonb;values_value jsonb;person jsonb;employee jsonb;policy jsonb;amount_input jsonb;presence_input jsonb;presence_binding jsonb;result_row jsonb;observation jsonb;actor jsonb;actors jsonb;rows_hash text;n integer;review_count integer;amount numeric;selected boolean;
+BEGIN
+ IF NOT coalesce(programme ?| ARRAY['monthlyForcedAmountsVersion','monthlyForcedAmountPolicies'],false) THEN RETURN;END IF;
+ options:=public.own_program_monthly_forced_options_candidate_v1(programme);
+ active_policies:=public.own_program_monthly_forced_active_candidate_v2(options,input_value->>'period',input_value->>'liquidationType');
+ IF programme IS DISTINCT FROM public.own_program_definition_composed_v1(programme,payload#>'{programState,salaryCatalog,items}')
+ OR coalesce((payload#>>'{programState,program,revision}')::integer,0)<=0
+ OR public.own_run_catalogue_values_frozen_v1(payload) IS NOT TRUE
+ OR input_value->'period' IS DISTINCT FROM payload->'period' OR input_value->'liquidationType' IS DISTINCT FROM payload->'liquidationType'
+ OR input_value#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',payload#>'{programState,program}','salary',payload#>'{programState,salaryCatalog}'))
+ OR input_value#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',payload->'monthly','fixed',payload#>'{fixed,export,data}'))
+ OR payload#>'{monthly,complete}' IS DISTINCT FROM 'true'::jsonb OR jsonb_typeof(payload#>'{monthly,batches}') IS DISTINCT FROM 'array'
+ OR jsonb_typeof(coalesce(payload#>'{monthly,nativeBatches}','[]'::jsonb)) IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(payload#>'{monthly,batches}') b CROSS JOIN LATERAL jsonb_array_elements(b->'rows') r
+  JOIN LATERAL jsonb_array_elements(payload#>'{population,employees}') e ON e->'contractId'=r->'employmentContractId'
+  JOIN LATERAL jsonb_array_elements(active_policies) policy_value ON policy_value->'agreementCode'=e->'agreementCode' AND policy_value->'liquidationType'=input_value->'liquidationType' AND policy_value->'sourceCode'=r->'conceptSourceId'
+  WHERE r->'forced'='true'::jsonb) THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_NATIVE_BATCH_REQUIRED';END IF;
+ FOR batch IN SELECT value FROM jsonb_array_elements(coalesce(payload#>'{monthly,nativeBatches}','[]'::jsonb)) LOOP
+  IF batch->>'version' IS DISTINCT FROM 'own-payroll-novelty-batch.v1' OR batch->>'status' IS DISTINCT FROM 'approved'
+  OR batch->>'periodMonth' IS DISTINCT FROM (input_value->>'period')||'-01' OR batch->'payrollType' IS DISTINCT FROM input_value->'liquidationType'
+  OR jsonb_typeof(batch->'rows') IS DISTINCT FROM 'array' OR batch->'rowCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(batch->'rows'))
+  OR batch->'grhMutation' IS DISTINCT FROM 'false'::jsonb OR batch->'payrollCalculated' IS DISTINCT FROM 'false'::jsonb OR batch->'payrollPosted' IS DISTINCT FROM 'false'::jsonb
+  THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+  SELECT public.own_run_hash_v1(jsonb_agg(jsonb_build_object('values',r->'values','subject',r->'subject') ORDER BY ordinal)) INTO rows_hash FROM jsonb_array_elements(batch->'rows') WITH ORDINALITY x(r,ordinal);
+  IF batch->>'rowsSha256' IS DISTINCT FROM rows_hash THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+  PERFORM public.own_novelty_rows_v1((SELECT jsonb_agg(r->'values' ORDER BY ordinal) FROM jsonb_array_elements(batch->'rows') WITH ORDINALITY x(r,ordinal)),((input_value->>'period')||'-01')::date);
+  FOR row_value IN SELECT value FROM jsonb_array_elements(batch->'rows') LOOP
+   values_value:=row_value->'values';
+   SELECT count(*),jsonb_agg(e)->0 INTO n,person FROM jsonb_array_elements(payload#>'{population,employees}') e WHERE e->'contractId'=values_value->'contractId';
+   IF n=0 THEN CONTINUE;END IF;
+   IF n<>1 THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   SELECT count(*),jsonb_agg(p)->0 INTO n,policy FROM jsonb_array_elements(active_policies) p WHERE p->'agreementCode'=person->'agreementCode' AND p->'liquidationType'=input_value->'liquidationType' AND p->'sourceCode'=values_value->'conceptSourceId';
+   IF n=0 THEN CONTINUE;END IF;
+   IF n<>1 OR (values_value->'forced'='true'::jsonb AND values_value->'quantityDecimal' IS DISTINCT FROM '"0"'::jsonb) OR jsonb_typeof(values_value->'amountCents') IS DISTINCT FROM 'string' OR coalesce(values_value->>'amountCents','')!~'^-?(0|[1-9][0-9]{0,17})$' OR values_value->>'amountCents'='-0'
+   OR row_value->'identityCurrent' IS DISTINCT FROM 'true'::jsonb OR values_value->'identityToken' IS DISTINCT FROM person->'identityToken' OR values_value->'legajo' IS DISTINCT FROM person->'employeeNumber'
+   OR row_value#>'{subject,contractId}' IS DISTINCT FROM person->'contractId' OR row_value#>'{subject,identityToken}' IS DISTINCT FROM person->'identityToken' OR row_value#>'{subject,legajo}' IS DISTINCT FROM person->'employeeNumber'
+   OR (values_value->'adjustmentMonth' IS DISTINCT FROM 'null'::jsonb AND values_value->>'adjustmentMonth' IS DISTINCT FROM (input_value->>'period')||'-01')
+   THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   IF jsonb_typeof(batch->'approvals') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_REVIEW_REQUIRED';END IF;
+   review_count:=jsonb_array_length(batch->'approvals');
+   -- Current batches need one independent reviewer. Historical forced batches
+   -- retain their two original reviewers; neither approvals nor provenance are rewritten.
+   IF review_count<1 OR review_count>(CASE WHEN EXISTS(SELECT 1 FROM jsonb_array_elements(batch->'rows') r WHERE r#>'{values,forced}'='true'::jsonb) THEN 2 ELSE 1 END)
+    OR batch->'decidedBy' IS DISTINCT FROM (batch->'approvals')->(review_count-1) THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_REVIEW_REQUIRED';END IF;
+   actors:=jsonb_build_array(batch->'preparedBy')||(batch->'approvals');
+   FOR actor IN SELECT value FROM jsonb_array_elements(actors) LOOP
+    IF public.own_program_exact_v1(actor,ARRAY['membershipId','personId']) IS NOT TRUE OR coalesce(actor->>'membershipId','')!~'^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' OR coalesce(actor->>'personId','')!~'^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_REVIEW_REQUIRED';END IF;
+   END LOOP;
+   IF (SELECT count(DISTINCT a->>'membershipId') FROM jsonb_array_elements(actors) a)<>review_count+1 OR (SELECT count(DISTINCT a->>'personId') FROM jsonb_array_elements(actors) a)<>review_count+1 THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_REVIEW_REQUIRED';END IF;
+   SELECT count(*) INTO n FROM (
+    SELECT r->'employmentContractId' contract_id,r->'conceptSourceId' concept FROM jsonb_array_elements(payload#>'{monthly,batches}') b CROSS JOIN LATERAL jsonb_array_elements(b->'rows') r
+    UNION ALL SELECT r#>'{values,contractId}',r#>'{values,conceptSourceId}' FROM jsonb_array_elements(coalesce(payload#>'{monthly,nativeBatches}','[]'::jsonb)) b CROSS JOIN LATERAL jsonb_array_elements(b->'rows') r
+    UNION ALL SELECT r#>'{subject,contractId}',r#>'{values,conceptSourceId}' FROM jsonb_array_elements(payload#>'{fixed,export,data,rows}') r
+   ) sources WHERE sources.contract_id=person->'contractId' AND sources.concept=policy->'sourceCode';
+   IF n<>1 THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_SOURCE_COLLISION';END IF;
+   SELECT count(*),jsonb_agg(e)->0 INTO n,employee FROM jsonb_array_elements(input_value->'employees') e WHERE e->'contractId'=person->'contractId';
+   IF n<>1 OR employee->'agreementCode' IS DISTINCT FROM person->'agreementCode' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   SELECT count(*),jsonb_agg(i)->0 INTO n,amount_input FROM jsonb_array_elements(employee->'inputs') i WHERE i->'key'=policy->'amountInputKey';
+   IF n<>1 OR amount_input->>'unit' IS DISTINCT FROM 'money' OR coalesce(amount_input->>'value','')!~'^-?(0|[1-9][0-9]{0,17})[.][0-9]{8}$' OR amount_input->>'value'='-0.00000000' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   amount:=(values_value->>'amountCents')::numeric;
+   IF (amount_input->>'value')::numeric*100<>amount THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   SELECT count(*),jsonb_agg(i)->0 INTO n,presence_input FROM jsonb_array_elements(employee->'inputs') i WHERE i->'key'=policy->'presenceInputKey';
+   IF n<>1 OR presence_input->>'unit' IS DISTINCT FROM 'coefficient' OR presence_input->>'value' IS DISTINCT FROM '1' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   SELECT b INTO presence_binding FROM jsonb_array_elements(programme->'bindings') b WHERE b->'agreementCode'=policy->'agreementCode' AND b->'key'=policy->'presenceInputKey';
+   observation:=jsonb_build_object('sourceKind','monthly','contractId',person->'contractId','concept',values_value->'conceptSourceId','quantity',values_value->'quantityDecimal','amount',values_value->'amountCents','reference',(batch->>'id')||':'||(values_value->>'rowOrdinal'))||CASE WHEN values_value->'forced'='true'::jsonb THEN jsonb_build_object('forced',true,'forcedTreatment','declared_monthly_amount_passthrough','forcedPolicySha256',public.own_run_hash_v1(jsonb_build_object('version',CASE WHEN policy->>'version'='own-monthly-forced-passthrough.v2' THEN 'own-monthly-forced-passthrough.v2' ELSE 'own-monthly-forced-passthrough.v1' END,'policy',policy))) ELSE '{}'::jsonb END;
+   IF amount_input->>'sourceReference' IS DISTINCT FROM 'Novedades:'||public.own_run_hash_v1(jsonb_build_array(observation))
+   OR presence_input->>'sourceReference' IS DISTINCT FROM 'Presencia mensual:'||public.own_run_hash_v1(jsonb_build_object('complete',true,'period',input_value->'period','liquidationType',input_value->'liquidationType','contractId',person->'contractId','binding',presence_binding,'observations',jsonb_build_array(observation)))
+   THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   selected:=input_value#>>'{selection,kind}'='all' OR input_value#>'{selection,values}' ? (employee->>(CASE input_value#>>'{selection,kind}' WHEN 'contracts' THEN 'contractId' WHEN 'agreements' THEN 'agreementCode' WHEN 'departments' THEN 'departmentCode' END));
+   IF selected THEN
+    SELECT count(*),jsonb_agg(r)->0 INTO n,result_row FROM jsonb_array_elements(result_value->'rows') r WHERE r->'contractId'=person->'contractId' AND r->'conceptCode'=policy->'sourceCode' AND r->>'nature'<>'auxiliary';
+    IF n<>1 OR result_row->>'nature' IS DISTINCT FROM 'deduction' OR coalesce(result_row->>'amount','')!~'^-?(0|[1-9][0-9]{0,17})[.][0-9]{2}$' OR result_row->>'amount'='-0.00' THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+    IF (result_row->>'amount')::numeric*100<>amount THEN RAISE EXCEPTION 'OWN_RUN_MONTHLY_FORCED_CAPTURE_CHANGED';END IF;
+   END IF;
+  END LOOP;
+ END LOOP;
+END $monthly_capture$;
+
+CREATE OR REPLACE FUNCTION public.own_run_official_capture_check_v1(payload jsonb,body jsonb,input_value jsonb,result_value jsonb,official_family jsonb,quantity_family jsonb)
+RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE programme jsonb:=payload#>'{programState,program,definition}';
+ qblock jsonb:=payload#>'{sourceInventory,quantityPhases}';oblock jsonb:=payload#>'{sourceInventory,officialTotals}';
+ official_proof jsonb;expected jsonb;policy jsonb;found_policies jsonb;conditions boolean;
+BEGIN
+ PERFORM public.own_run_catalogue_values_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_capped_verify_v1(payload,input_value,result_value);
+ PERFORM public.own_run_source_coverage_check_v1(payload);
+ PERFORM public.own_run_salary_native_input_verify_v2(payload,input_value);
+ PERFORM public.own_run_monthly_forced_capture_check_candidate_v1(payload,input_value,result_value);
+ PERFORM public.own_run_declared_adjustments_verify_v1(payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(payload,input_value);
+ IF programme ?| ARRAY['rowEmissionVersion','rowEmissionPolicies']
+ OR input_value->>'version'='own-payroll-input.v5' OR result_value->>'version'='own-payroll-result.v5'
+ OR input_value ?| ARRAY['rowEmissionVersion','rowEmissionPolicies']
+ OR result_value ?| ARRAY['rowEmissionVersion','rowEmissionPolicies','receiptRowKeys','receiptRowCount','rowEmissions','emissionDecisionCount']
+ OR (payload->'sourceInventory') ? 'rowEmission' THEN
+  IF coalesce(programme->>'rowEmissionVersion' IN('own-payroll-row-emission.v1','own-payroll-row-emission.v2'),false) IS NOT TRUE
+   OR input_value->>'version' IS DISTINCT FROM 'own-payroll-input.v5'
+   OR result_value->>'version' IS DISTINCT FROM 'own-payroll-result.v5'
+  THEN RAISE EXCEPTION 'OWN_RUN_ROW_EMISSION_VERSION_INVALID';END IF;
+  IF payload#>'{sourceInventory,rowEmission}' IS DISTINCT FROM public.own_run_row_emission_inventory_candidate_v1(payload,official_family)
+  THEN RAISE EXCEPTION 'OWN_RUN_ROW_EMISSION_INVENTORY_CHANGED';END IF;
+  -- Exact R14 verifier: validates the full economic result, tariffs and selector.
+  PERFORM public.own_run_row_emission_capture_check_v1(payload,input_value,result_value);
+  -- Only the already verified extension is removed for the unchanged R13
+  -- contextual checks below. The finalizers keep and hash full V5 objects.
+  input_value:=(input_value-ARRAY['rowEmissionVersion','rowEmissionPolicies'])||'{"version":"own-payroll-input.v4"}'::jsonb;
+  result_value:=(result_value-ARRAY['rowEmissionVersion','rowEmissionPolicies','receiptRowKeys','receiptRowCount','rowEmissions','emissionDecisionCount'])||'{"version":"own-payroll-result.v4"}'::jsonb;
+ END IF;
+ -- Reuse the one closed result verifier. No alternate totals implementation.
+ IF programme ? 'familyTariffsVersion' OR input_value ? 'familyTariffsVersion' OR input_value ? 'familyTariffCapture' OR result_value ? 'familyTariffsVersion' OR result_value ? 'familyTariffDecisions' OR result_value ? 'familyTariffDecisionCount' THEN
+  IF payload#>'{sourceInventory,familyTariffs}' IS DISTINCT FROM public.own_run_family_tariff_native_capture_candidate_v2(payload) THEN RAISE EXCEPTION 'OWN_RUN_FAMILY_TARIFF_INVENTORY_CHANGED';END IF;
+  PERFORM public.own_run_family_tariff_result_verify_candidate_v2(payload,input_value,result_value);
+  -- Remove only the extension already validated in full above before calling
+  -- the unchanged V4 checker. Finalizers retain and hash the complete values.
+  input_value:=input_value-ARRAY['familyTariffsVersion','familyTariffCapture'];
+  result_value:=result_value-ARRAY['familyTariffsVersion','familyTariffDecisionCount','familyTariffDecisions'];
+ END IF;
+ PERFORM public.own_run_family_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_official_result_check_v1(input_value,result_value);
+ conditions:=programme->>'salaryConditionsVersion' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2');
+ IF (CASE WHEN conditions THEN input_value->>'salaryConditionsVersion' IS DISTINCT FROM programme->>'salaryConditionsVersion' ELSE input_value ? 'salaryConditionsVersion' END)
+  OR programme->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+  OR programme->>'quantityPhasesVersion' IS DISTINCT FROM 'own-payroll-quantity-phases.v1'
+  OR coalesce(programme->>'officialTotalsVersion' IN('own-payroll-official-totals.v1','own-payroll-official-totals.v2'),false) IS NOT TRUE
+  OR input_value->'period' IS DISTINCT FROM body->'period' OR input_value->'liquidationType' IS DISTINCT FROM body->'liquidationType' OR input_value->'selection' IS DISTINCT FROM body->'selection'
+ THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_SCOPE_INVALID';END IF;
+ -- R7 V4 does not yet implement fixed forced amounts. Preserve the current
+ -- finalizer's real forced-amount guard as well; do not silently strip flags.
+ IF programme ? 'fixedForcedAmountsVersion' OR programme ? 'fixedForcedAmountsPolicy' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FIXED_FORCED_COMPOSITION_REQUIRED';END IF;
+ IF input_value->'rules' IS DISTINCT FROM public.own_participation_rules_v1(programme)
+  OR input_value->'totalsPrecision' IS DISTINCT FROM programme->'totalsPrecision'
+  OR input_value#>>'{sourceVersions,population}' IS DISTINCT FROM payload#>>'{population,version}'
+  OR input_value#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',payload#>'{programState,program}','salary',payload#>'{programState,salaryCatalog}'))
+  OR input_value#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',payload->'monthly','fixed',payload#>'{fixed,export,data}'))
+ THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_SOURCE_INVALID';END IF;
+ IF jsonb_typeof(payload#>'{population,employees}') IS DISTINCT FROM 'array' OR payload#>'{population,complete}' IS DISTINCT FROM 'true'::jsonb THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_POPULATION_INVALID';END IF;
+ IF (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId' COLLATE "C") FROM jsonb_array_elements(input_value->'employees') e)
+  IS DISTINCT FROM (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId' COLLATE "C") FROM jsonb_array_elements(payload#>'{population,employees}') e)
+  OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(input_value->'employees'))
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(input_value->'employees') e JOIN jsonb_array_elements(payload#>'{population,employees}') c ON c->'contractId'=e->'contractId' WHERE e->'employeeNumber' IS DISTINCT FROM c->'employeeNumber' OR e->'agreementCode' IS DISTINCT FROM c->'agreementCode' OR e->'departmentCode' IS DISTINCT FROM c->'departmentCode')
+ THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_POPULATION_INVALID';END IF;
+ IF public.own_run_official_family_shape_v1(official_family,'own-run-official-totals-family.v1') IS NOT TRUE
+  OR public.own_run_official_family_shape_v1(quantity_family,'own-run-quantity-family.v1') IS NOT TRUE
+  OR official_family IS DISTINCT FROM oblock->'family' OR quantity_family IS DISTINCT FROM qblock->'family'
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(quantity_family->'members') q WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(official_family->'members') o WHERE o=q))
+ THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_FAMILY_REQUIRED';END IF;
+ IF jsonb_typeof(programme->'quantityPhases') IS DISTINCT FROM 'array' OR jsonb_typeof(programme->'officialTotalsPolicies') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_PROGRAMME_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(x ORDER BY public.own_program_quantity_key_v1(x) COLLATE "C"),'[]') INTO expected FROM jsonb_array_elements(public.own_program_quantity_effective_v1(programme)) x;
+ IF input_value->'quantityPhases' IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_PHASES_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('agreementCode',a.code,'employees',a.total,'declared',(SELECT count(*) FROM jsonb_array_elements(programme->'quantityPhases') q WHERE q->>'agreementCode'=a.code),'active',(SELECT coalesce(jsonb_agg(public.own_program_quantity_key_v1(q) ORDER BY public.own_program_quantity_key_v1(q) COLLATE "C"),'[]') FROM jsonb_array_elements(input_value->'quantityPhases') q WHERE q->>'agreementCode'=a.code AND public.own_program_quantity_active_v1(q,input_value->>'period',input_value->>'liquidationType'))) ORDER BY a.code COLLATE "C"),'[]') INTO expected FROM(SELECT e->>'agreementCode' AS code,count(*) AS total FROM jsonb_array_elements(input_value->'employees') e GROUP BY e->>'agreementCode') a;
+ expected:=jsonb_build_object('version','own-run-quantity-capture.v1','quantityPhasesVersion','own-payroll-quantity-phases.v1','period',body->'period','liquidationType',body->'liquidationType','definitionSha256',public.own_run_hash_v1(programme->'quantityPhases'),'family',quantity_family,'agreements',expected);
+ IF qblock IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_QUANTITY_INVENTORY_INVALID';END IF;
+ IF programme->>'officialTotalsVersion'='own-payroll-official-totals.v2' THEN
+  SELECT coalesce(jsonb_agg(p ORDER BY n),'[]') INTO found_policies FROM jsonb_array_elements(public.own_program_official_policies_candidate_v2(programme->'officialTotalsPolicies','own-payroll-official-totals.v2')) WITH ORDINALITY z(p,n) WHERE p->'agreementCode'=input_value#>'{officialTotalsPolicy,agreementCode}' AND p->'liquidationType'=body->'liquidationType';
+  official_proof:=public.own_run_official_policy_capture_candidate_v2(found_policies,body->>'period',body->>'liquidationType',input_value#>>'{officialTotalsPolicy,agreementCode}');
+  IF input_value->'officialTotalsCapture' IS DISTINCT FROM official_proof THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_CHANGED';END IF;
+  found_policies:=public.own_policy_active_candidate_v1(found_policies,'official-totals',body->>'period',body->>'liquidationType',input_value#>>'{officialTotalsPolicy,agreementCode}');
+ ELSE
+  IF input_value ? 'officialTotalsCapture' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_CHANGED';END IF;
+ SELECT coalesce(jsonb_agg(p),'[]') INTO found_policies FROM jsonb_array_elements(programme->'officialTotalsPolicies') p WHERE p->'agreementCode'=input_value#>'{officialTotalsPolicy,agreementCode}' AND p->'period'=body->'period' AND p->'liquidationType'=body->'liquidationType';
+ END IF;
+ IF jsonb_array_length(found_policies)<>1 OR found_policies->0 IS DISTINCT FROM input_value->'officialTotalsPolicy' THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_POLICY_INVALID';END IF;
+ policy:=found_policies->0;
+ SELECT jsonb_object_agg(k,jsonb_array_length(v)) INTO expected FROM jsonb_each(policy->'contributions') c(k,v);
+ expected:=jsonb_build_object('version',CASE WHEN official_proof IS NULL THEN 'own-run-official-totals-capture.v1' ELSE 'own-run-official-totals-capture.v2' END,'officialTotalsVersion',programme->'officialTotalsVersion','period',body->'period','liquidationType',body->'liquidationType','policySha256',public.own_run_hash_v1(policy),'agreementCode',policy->'agreementCode','totalCodes',policy->'totalCodes','contributionCounts',expected,'family',official_family)||CASE WHEN official_proof IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('officialTotalsCapture',official_proof) END;
+ IF oblock IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_OFFICIAL_CAPTURE_TOTALS_INVENTORY_INVALID';END IF;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_optional_scale_expected_inputs_v1(payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE program jsonb:=payload#>'{programState,program,definition}';catalogue jsonb:=payload#>'{programState,salaryCatalog}';
+ proof jsonb:=payload#>'{sourceInventory,optionalScales}';employees jsonb:=payload#>'{population,employees}';
+ period_value text:=payload->>'period';liquidation_type text:=payload->>'liquidationType';
+ active_bindings jsonb;expected jsonb:='[]';inputs jsonb;e jsonb;b jsonb;rows_found jsonb;row_value jsonb;amount_value text;evidence jsonb;
+BEGIN
+ IF program->>'optionalScalesVersion' IS DISTINCT FROM 'own-payroll-optional-scales.v1' THEN
+  IF proof IS NOT NULL THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_CAPTURE_INVALID';END IF;RETURN '[]';
+ END IF;
+ IF program->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2'
+  OR public.own_program_exact_v1(proof,ARRAY['version','complete','tenantId','sourceBindingId','revision','approvalId','proposalId','catalogueVersion','itemsSha256','itemCount']) IS NOT TRUE
+  OR jsonb_typeof(proof->'tenantId') IS DISTINCT FROM 'string' OR proof->>'tenantId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+  OR jsonb_typeof(proof->'sourceBindingId') IS DISTINCT FROM 'string' OR proof->>'sourceBindingId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+  OR jsonb_typeof(payload#>'{programState,program,revision}') IS DISTINCT FROM 'number'
+  OR (payload#>>'{programState,program,revision}')::integer<1
+  OR public.own_run_catalogue_values_matches_v1(payload) IS NOT TRUE
+  OR jsonb_typeof(employees) IS DISTINCT FROM 'array' OR payload#>'{population,complete}' IS DISTINCT FROM 'true'::jsonb
+  OR period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+  OR liquidation_type IS NULL OR liquidation_type NOT IN('monthly','first_fortnight','sac','vacation','supplementary','final','other')
+ THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_CAPTURE_INVALID';END IF;
+ IF proof IS DISTINCT FROM public.own_run_optional_scale_catalogue_v1((proof->>'tenantId')::uuid,(proof->>'sourceBindingId')::uuid,catalogue)
+  OR jsonb_array_length(employees) NOT BETWEEN 1 AND 10000
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(employees) item GROUP BY item->>'contractId' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_CAPTURE_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(bound ORDER BY bound->>'agreementCode' COLLATE "C",bound->>'key' COLLATE "C"),'[]') INTO active_bindings
+ FROM jsonb_array_elements(program->'bindings') bound
+ WHERE bound->>'sourceKind'='optional_scale' AND EXISTS(
+  SELECT 1 FROM jsonb_array_elements(public.own_participation_rules_v1(program)) rule
+  CROSS JOIN LATERAL jsonb_array_elements(public.own_program_node_v2(rule->'expression')->'inputs') node
+  WHERE rule->>'agreementCode'=bound->>'agreementCode' AND rule->>'validFrom'<=period_value
+   AND coalesce(rule->>'validUntil','9999-12')>=period_value AND rule->'liquidationTypes' ? liquidation_type AND node->>'key'=bound->>'key');
+ FOR e IN SELECT item FROM jsonb_array_elements(employees) item ORDER BY item->>'contractId' COLLATE "C" LOOP
+  IF jsonb_typeof(e->'contractId') IS DISTINCT FROM 'string' OR e->>'contractId'!~'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+   OR jsonb_typeof(e->'identityToken') IS DISTINCT FROM 'string' OR e->>'identityToken'!~'^[a-f0-9]{64}$'
+   OR e->>'origin' IS DISTINCT FROM 'MUNICONTROL' OR jsonb_typeof(e->'agreementCode') IS DISTINCT FROM 'string' OR e->>'agreementCode'!~'^[0-9]{1,9}$'
+   OR jsonb_typeof(e->'categoryCode') IS DISTINCT FROM 'string' OR e->>'categoryCode'!~'^[0-9]{1,9}$'
+  THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_INPUT_INVALID';END IF;
+  inputs:='[]';
+  FOR b IN SELECT item FROM jsonb_array_elements(active_bindings) item WHERE item->>'agreementCode'=e->>'agreementCode' ORDER BY item->>'key' COLLATE "C" LOOP
+   IF b->>'unit' IS DISTINCT FROM 'money' OR b->>'combine' IS DISTINCT FROM 'single' OR b->>'onMissing' IS DISTINCT FROM 'zero'
+    OR jsonb_typeof(b->'sourceCode') IS DISTINCT FROM 'string' OR b->>'sourceCode'!~'^[0-9]{1,9}$'
+   THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_INPUT_INVALID';END IF;
+   SELECT coalesce(jsonb_agg(item),'[]') INTO rows_found FROM jsonb_array_elements(catalogue->'items') item
+    WHERE item->>'kind'='scale' AND item->'active'='true'::jsonb AND item->>'agreementCode'=e->>'agreementCode'
+     AND item->>'categoryCode'=e->>'categoryCode' AND item->>'code'=b->>'sourceCode'
+     AND item->>'validFrom'<=period_value AND coalesce(item->>'validUntil','9999-12')>=period_value;
+   IF jsonb_array_length(rows_found)>1 THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_INPUT_INVALID';END IF;
+   row_value:=rows_found->0;
+   IF row_value IS NOT NULL AND(row_value->'value' IS NULL OR row_value->'value'='null'::jsonb OR row_value->>'unit' IS DISTINCT FROM 'money')
+   THEN RAISE EXCEPTION 'OWN_RUN_OPTIONAL_SCALE_INPUT_INVALID';END IF;
+   amount_value:=(CASE WHEN row_value IS NULL THEN 0 ELSE (row_value->>'value')::numeric END)::numeric(30,8)::text;
+   evidence:=jsonb_build_object('version','own-payroll-optional-scale-resolution.v1','catalogueVersion',proof->>'catalogueVersion','approvalId',proof->>'approvalId',
+    'itemsSha256',proof->>'itemsSha256','itemCount',proof->'itemCount','period',period_value,'contractId',e->>'contractId','identityToken',e->>'identityToken',
+    'agreementCode',e->>'agreementCode','categoryCode',e->>'categoryCode','sourceCode',b->>'sourceCode',
+    'status',CASE WHEN row_value IS NULL THEN 'not_configured' ELSE 'configured' END,
+    'rowKey',CASE WHEN row_value IS NULL THEN NULL ELSE public.native_salary_row_key_v1(row_value) END,'value',amount_value);
+   inputs:=inputs||jsonb_build_array(jsonb_build_object('key',b->>'key','unit','money','value',amount_value,'sourceReference','Escala opcional:'||public.own_run_hash_v1(evidence)));
+  END LOOP;
+  expected:=expected||jsonb_build_array(jsonb_build_object('contractId',e->>'contractId','employeeNumber',e->>'employeeNumber','agreementCode',e->>'agreementCode','departmentCode',e->>'departmentCode','inputs',inputs));
+ END LOOP;
+ RETURN expected;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.own_run_quantity_check_v1(payload jsonb,body jsonb,input_value jsonb,result_value jsonb) RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $function$
+DECLARE family_facts boolean:=coalesce(payload#>>'{programState,program,definition,familyPayrollFactsVersion}'='own-contract-family-payroll-facts.v1',false);conditions boolean:=coalesce(payload#>>'{programState,program,definition,salaryConditionsVersion}' IN('own-contract-salary-conditions.v1','own-contract-salary-conditions.v2'),false);block jsonb:=payload#>'{sourceInventory,quantityPhases}';expected jsonb;joined bigint;bad bigint;
+BEGIN
+ PERFORM public.own_run_catalogue_values_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_family_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_optional_scale_input_verify_v1(payload,input_value);
+ PERFORM public.own_run_declared_adjustments_verify_v1(payload,input_value,result_value);
+ PERFORM public.own_run_quantity_only_verify_v1(payload,input_value);PERFORM public.own_run_conditional_input_verify_v1(payload,input_value);
+ -- Monetary contract of own_run_complete_v1 (f303a276…), moved verbatim except the V3 versions and keys.
+ IF (CASE WHEN conditions THEN input_value->>'salaryConditionsVersion' IS DISTINCT FROM payload#>>'{programState,program,definition,salaryConditionsVersion}' ELSE input_value ? 'salaryConditionsVersion' END) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF NOT public.own_program_exact_v1(input_value,ARRAY['version','namespaceVersion','period','liquidationType','selection','sourceVersions','populationComplete','totalsPrecision','employees','rules','quantityPhasesVersion','quantityPhases']||CASE WHEN conditions THEN ARRAY['salaryConditionsVersion'] ELSE ARRAY[]::text[] END||CASE WHEN family_facts THEN ARRAY['familyPayrollFactsVersion'] ELSE ARRAY[]::text[] END) OR NOT public.own_program_exact_v1(result_value,ARRAY['version','period','liquidationType','selection','sourceVersions','employeeCount','rowCount','rows','employeeTotals','payrollCalculated','payrollPosted','municipalApprovalVerified','paymentExecuted','quantityCount','quantities']) OR input_value->>'version' IS DISTINCT FROM 'own-payroll-input.v3' OR input_value->>'namespaceVersion' IS DISTINCT FROM 'own-payroll-namespaces.v2' OR input_value->>'quantityPhasesVersion' IS DISTINCT FROM 'own-payroll-quantity-phases.v1' OR payload#>>'{programState,program,definition,namespaceVersion}' IS DISTINCT FROM 'own-payroll-namespaces.v2' OR payload#>>'{programState,program,definition,quantityPhasesVersion}' IS DISTINCT FROM 'own-payroll-quantity-phases.v1' OR result_value->>'version' IS DISTINCT FROM 'own-payroll-result.v3' OR input_value->>'period' IS DISTINCT FROM body->>'period' OR input_value->>'liquidationType' IS DISTINCT FROM body->>'liquidationType' OR input_value->'selection' IS DISTINCT FROM body->'selection' OR result_value->>'period' IS DISTINCT FROM input_value->>'period' OR result_value->>'liquidationType' IS DISTINCT FROM input_value->>'liquidationType' OR result_value->'selection' IS DISTINCT FROM input_value->'selection' OR result_value->'sourceVersions' IS DISTINCT FROM input_value->'sourceVersions' OR input_value->'populationComplete' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollCalculated' IS DISTINCT FROM 'true'::jsonb OR result_value->'payrollPosted' IS DISTINCT FROM 'false'::jsonb OR result_value->'municipalApprovalVerified' IS DISTINCT FROM 'false'::jsonb OR result_value->'paymentExecuted' IS DISTINCT FROM 'false'::jsonb THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF input_value->'rules' IS DISTINCT FROM public.own_participation_rules_v1(payload#>'{programState,program,definition}') OR input_value->'totalsPrecision' IS DISTINCT FROM payload#>'{programState,program,definition,totalsPrecision}' OR input_value#>>'{sourceVersions,population}' IS DISTINCT FROM payload#>>'{population,version}' OR input_value#>>'{sourceVersions,rules}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('program',payload#>'{programState,program}','salary',payload#>'{programState,salaryCatalog}')) OR input_value#>>'{sourceVersions,novelties}' IS DISTINCT FROM public.own_run_hash_v1(jsonb_build_object('monthly',payload->'monthly','fixed',payload#>'{fixed,export,data}')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF jsonb_typeof(input_value->'employees') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'rows') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'employeeTotals') IS DISTINCT FROM 'array' OR jsonb_typeof(input_value->'quantityPhases') IS DISTINCT FROM 'array' OR jsonb_typeof(result_value->'quantities') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ IF (SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(input_value->'employees') e) IS DISTINCT FROM(SELECT jsonb_agg(e->>'contractId' ORDER BY e->>'contractId') FROM jsonb_array_elements(payload#>'{population,employees}') e) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(input_value->'employees')) OR result_value->'employeeCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'employeeTotals')) OR result_value->'rowCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'rows')) OR EXISTS(SELECT 1 FROM jsonb_array_elements(result_value->'rows') row_value WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(input_value->'employees') e WHERE e->>'contractId'=row_value->>'contractId')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- The R2 JS reader binds totals to selected contracts, not only array length.
+ IF (SELECT coalesce(jsonb_agg(x.value->>'contractId' ORDER BY x.ordinality),'[]') FROM jsonb_array_elements(result_value->'employeeTotals') WITH ORDINALITY x)
+  IS DISTINCT FROM(SELECT coalesce(jsonb_agg(e->>'contractId' ORDER BY e->>'contractId' COLLATE "C"),'[]') FROM jsonb_array_elements(input_value->'employees') e)
+ THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- Frozen capture audit: same scope and the same declared phases the capture hashed.
+ IF NOT public.own_program_exact_v1(block,ARRAY['version','quantityPhasesVersion','period','liquidationType','definitionSha256','family','agreements']) OR block->>'version' IS DISTINCT FROM 'own-run-quantity-capture.v1' OR block->>'quantityPhasesVersion' IS DISTINCT FROM 'own-payroll-quantity-phases.v1' OR block->>'period' IS DISTINCT FROM body->>'period' OR block->>'liquidationType' IS DISTINCT FROM body->>'liquidationType' OR block->>'definitionSha256' IS DISTINCT FROM public.own_run_hash_v1(payload#>'{programState,program,definition,quantityPhases}') OR jsonb_typeof(block->'agreements') IS DISTINCT FROM 'array' OR jsonb_typeof(payload#>'{programState,program,definition,quantityPhases}') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- Persisted phases are exactly the SQL lowering of the captured approved definition, ordered like the JS input.
+ SELECT coalesce(jsonb_agg(x ORDER BY public.own_program_quantity_key_v1(x) COLLATE "C"),'[]') INTO expected FROM jsonb_array_elements(public.own_program_quantity_effective_v1(payload#>'{programState,program,definition}')) x;
+ IF input_value->'quantityPhases' IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- Per agreement: captured population count, declared phases and active keys for this period and type.
+ SELECT coalesce(jsonb_agg(jsonb_build_object('agreementCode',a.code,'employees',a.total,'declared',(SELECT count(*) FROM jsonb_array_elements(payload#>'{programState,program,definition,quantityPhases}') q WHERE q->>'agreementCode'=a.code),'active',(SELECT coalesce(jsonb_agg(public.own_program_quantity_key_v1(q) ORDER BY public.own_program_quantity_key_v1(q) COLLATE "C"),'[]') FROM jsonb_array_elements(input_value->'quantityPhases') q WHERE q->>'agreementCode'=a.code AND public.own_program_quantity_active_v1(q,input_value->>'period',input_value->>'liquidationType'))) ORDER BY a.code COLLATE "C"),'[]') INTO expected FROM(SELECT e->>'agreementCode' AS code,count(*) AS total FROM jsonb_array_elements(input_value->'employees') e GROUP BY e->>'agreementCode') a;
+ IF block->'agreements' IS DISTINCT FROM expected THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- Exactly one row per employee and active phase of its own agreement, ordered by contract and concept.
+ IF result_value->'quantityCount' IS DISTINCT FROM to_jsonb(jsonb_array_length(result_value->'quantities')) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_array(e->>'contractId',q->>'code') ORDER BY e->>'contractId' COLLATE "C",q->>'code' COLLATE "C"),'[]') INTO expected FROM jsonb_array_elements(input_value->'employees') e JOIN jsonb_array_elements(input_value->'quantityPhases') q ON q->>'agreementCode'=e->>'agreementCode' AND public.own_program_quantity_active_v1(q,input_value->>'period',input_value->>'liquidationType');
+ IF expected IS DISTINCT FROM(SELECT coalesce(jsonb_agg(jsonb_build_array(x.value->>'contractId',x.value->>'conceptCode') ORDER BY x.ordinality),'[]') FROM jsonb_array_elements(result_value->'quantities') WITH ORDINALITY x) THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+ -- Each row: employee identity, phase identity/unit/stage/rounding/source/use, static dependencies, canonical rationals and stage arithmetic.
+ SELECT count(*),count(*) FILTER(WHERE public.own_run_quantity_row_v1(qx.row_value,e.employee,p.phase,p.dependencies) IS NOT TRUE) INTO joined,bad
+ FROM jsonb_array_elements(result_value->'quantities') qx(row_value)
+ JOIN jsonb_array_elements(input_value->'employees') e(employee) ON e.employee->>'contractId'=qx.row_value->>'contractId'
+ JOIN(SELECT ph.phase,public.own_run_quantity_dependencies_v1(ph.phase->'expression') AS dependencies FROM jsonb_array_elements(input_value->'quantityPhases') ph(phase) WHERE public.own_program_quantity_active_v1(ph.phase,input_value->>'period',input_value->>'liquidationType')) p ON p.phase->>'agreementCode'=e.employee->>'agreementCode' AND p.phase->>'code'=qx.row_value->>'conceptCode';
+ IF joined IS DISTINCT FROM jsonb_array_length(result_value->'quantities')::bigint OR bad<>0 THEN RAISE EXCEPTION 'OWN_RUN_INPUT_INVALID';END IF;
+END $function$;
+
+DO $post$ BEGIN
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)')) IS DISTINCT FROM '180ebe52d2baf41bceb569799bd87a9b42234522d4abbdda20cf98e3eaef56fb' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.municipal_owner_program_command_core_v1(jsonb,jsonb,uuid,text,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_close_official_capture_check_candidate_v1(jsonb,text,text)')) IS DISTINCT FROM '519ef5fe9f9aad1b75c69568e351eb69eb9f5d62224ef9dbe693a9e6346b011b' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_close_official_capture_check_candidate_v1(jsonb,text,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb)')) IS DISTINCT FROM '1fff70e3b0a4a9fcb17ad6bb10f9ba45e4d43b68c79f148f5d5f8f8265729f16' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_program_catalogue_value_available_v1(jsonb,jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_catalogue_value_contracts_v1(jsonb,jsonb)')) IS DISTINCT FROM '4bc7976a9511c7b9af56fcec869f3f9f5d7751ff5a4cf85a789706552f9bcc9b' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_program_catalogue_value_contracts_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_catalogue_value_rules_v1(jsonb)')) IS DISTINCT FROM 'd3f8e9ffc27a7f26adaf6a2eae2e6d8e7be845a1d42a4cce6673a3d45df33365' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_program_catalogue_value_rules_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_definition_v1(jsonb,jsonb)')) IS DISTINCT FROM '1beef030a8cb15d768d6664e86483b1fe67d697f4dc2cbff9c124f46c70ca26d' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_program_definition_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_program_quantity_definition_v1(jsonb,jsonb)')) IS DISTINCT FROM '9c468455c826194441bfc1323e416f787b62f9d5690c28afe7c6f7877e86677a' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_program_quantity_definition_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_capture_v1(jsonb,jsonb,uuid,text)')) IS DISTINCT FROM '60a62776902b1c5a0f07f03c99daf97e7565e934801e0be9b34400ef93ef3a03' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_capture_v1(jsonb,jsonb,uuid,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb)')) IS DISTINCT FROM '29eb391b1bfe2a9f89e57d3bad68a1f57be0b3bc228912f1861dbdc702021748' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_capture_v1(uuid,uuid,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_expected_inputs_v1(jsonb)')) IS DISTINCT FROM '0dca8d02709dc519a5726a6d9f6c9c585fe79c0575d9d24d48f62a1ab74b686d' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_expected_inputs_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_frozen_v1(jsonb)')) IS DISTINCT FROM 'bd1e200155f23bb6ba1f29dfd88ebc5db3895dcc8781f7a17ff2f2b970a48fc9' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_frozen_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb)')) IS DISTINCT FROM '4e32f2096893b30bbd7efff88583e1fad21d5c50c60ea2bb5684a09a6712ebc3' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_input_verify_v1(jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_matches_v1(jsonb)')) IS DISTINCT FROM '7868365ac7a59d5a99c262fb8ceba6b217c38747ad12f7a3e22f67665e563a09' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_matches_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb)')) IS DISTINCT FROM '0d64f3aa2839624bab5c5402ab288aa0f9515a5e1223d1bd81230447c8ddea46' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_catalogue_values_scope_v1(uuid,uuid,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '6c812def69cd4bff20d00363697b33dff38f997cb91ba664006f8762b2b75d21' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_official_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '6a77a855c6c5ffe2d29c49de07375b18386e8fc2720219cc115821911e8aacfc' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_official_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_official_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM 'eac3e4a1863a7c71b8fb3b2e834f5c238f8798eaf44f2da37977e75d901a4ebb' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_official_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_quantity_full_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '437aa14c7e290e15cb96951a0d6f405271d8c0c8c4c2ed803f01132b21712183' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_quantity_full_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_quantity_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM '17be58429e59e4bc1a9f33ed813bd390e8b8824b05547e947e93c2cabd4d722a' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_quantity_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_complete_v1(jsonb,uuid,jsonb,jsonb,text)')) IS DISTINCT FROM 'b41d920c7c1babe2769e1f9b130fa4fe496182222b6a9919b6f7f1a796c5212b' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_complete_v1(jsonb,uuid,jsonb,jsonb,text)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_conditional_expected_inputs_v1(jsonb)')) IS DISTINCT FROM '83babd9808e31538528a24cd6c656709f625046f49b500222c38e59d2cb93b67' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_conditional_expected_inputs_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_monthly_forced_capture_check_candidate_v1(jsonb,jsonb,jsonb)')) IS DISTINCT FROM '6fe602785285e15b70014f3d4df6a8f71a85b36323f243c9e93d3cc21aead2ef' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_monthly_forced_capture_check_candidate_v1(jsonb,jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_official_capture_check_v1(jsonb,jsonb,jsonb,jsonb,jsonb,jsonb)')) IS DISTINCT FROM 'afb09a048c8474178dd59cb8fe17ffed2382c73f2c5f88d240704e53ed9c935a' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_official_capture_check_v1(jsonb,jsonb,jsonb,jsonb,jsonb,jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_optional_scale_expected_inputs_v1(jsonb)')) IS DISTINCT FROM 'e9c0fe25dea17ead2ab82684aeda8e7ee67d660ca218db963918d815aad0c959' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_optional_scale_expected_inputs_v1(jsonb)';END IF;
+ IF (SELECT encode(public.digest(prosrc,'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.own_run_quantity_check_v1(jsonb,jsonb,jsonb,jsonb)')) IS DISTINCT FROM 'c85e60820d442cca8ae875f01aafc9b321a20dfa59f11a7bbc95df71020bbc13' THEN RAISE EXCEPTION 'C237_POSTIMAGE_CHANGED: public.own_run_quantity_check_v1(jsonb,jsonb,jsonb,jsonb)';END IF;
+END $post$;
+COMMIT;

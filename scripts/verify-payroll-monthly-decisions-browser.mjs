@@ -121,6 +121,7 @@ try{
   await last.locator('[data-monthly-decision-row="60"] dd').filter({hasText:'Última fila sintética'}).waitFor();
   assert.match(await last.innerText(),/Última fila sintética/);assert.equal(await page.evaluate(()=>window.__injected),undefined);
   assert.equal(await page.locator('#monthlyDecisionBatches dd').filter({hasText:'92233720368547758,07'}).count(),13);checks.push('all source fields, native origin, null and zero, exact extreme cents and escaped free text remain readable');
+  /* El concepto de cada fila se lee con su denominación, no sólo con el código. */assert.ok(await page.locator('[data-monthly-decision-row] > summary').filter({hasText:'Concepto 614 · CAJA DE AHORRO Y SEG.-PREST-(410)'}).count()>0);checks.push('decision review reads the concept by name, not by code alone');
   await page.locator('#monthlyDecisionConfirm').focus();await page.keyboard.press('Space');assert.equal(await page.locator('#monthlyDecisionSend').isEnabled(),true);
   await page.keyboard.press('Space');assert.equal(await page.locator('#monthlyDecisionSend').isDisabled(),true);checks.push('keyboard acknowledgement enables only the reviewed decision and can withdraw it');
   for(const width of [390,320]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));

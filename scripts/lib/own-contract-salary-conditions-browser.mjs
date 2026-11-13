@@ -27,7 +27,7 @@ export async function verifySalaryConditionsBrowser({handlers,env,actors,setActo
   });
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));const s=k=>page.locator('[data-conditions-'+k+']'),panel=page.getByRole('region',{name:'Condiciones salariales propias',exact:true});
   const idle=()=>page.waitForFunction(()=>document.querySelector('.own-salary-conditions')?.getAttribute('aria-busy')==='false');
-  const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#condiciones');await page.waitForFunction(()=>document.querySelector('[data-conditions-period]')?.closest('fieldset')?.disabled===false);await idle();};
+  const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#condiciones');await page.locator('[data-salary-conditions-legacy]>summary').click();await page.waitForFunction(()=>document.querySelector('[data-conditions-period]')?.closest('fieldset')?.disabled===false);await idle();};
   const consult=async()=>{await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});};
   const complete=await bootstrap(),count=complete.source.subjects.length;assert.ok(count>855);await fresh();await consult();assert.equal(writes.length,0);
   check((await s('count').innerText()).includes(count+' contratos')&&await s('rows').locator('article').count()===25,'built UI opens the entire actual native-only SQL source while displaying25 editable rows');

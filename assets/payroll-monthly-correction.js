@@ -1,6 +1,9 @@
 import {monthlyDecisionAccess,sameMonthlyDecisionAccess} from './payroll-monthly-decisions-model.js';
 import {monthlyAnnulCanonical} from './payroll-monthly-annul-model.js';
 import {MONTHLY_CORRECTION_FIELDS,monthlyCorrectionPatch,monthlyCorrectionBootstrap,monthlyCorrectionDetail,monthlyCorrectionPlan,monthlyCorrectionVerifiedPlan,monthlyCorrectionReviewPlan,monthlyCorrectionUnchanged,monthlyCorrectionAttempt,monthlyCorrectionReceipt} from './payroll-monthly-correction-model.js';
+import {attachConceptHelp,attachCostCenterHelp,conceptText} from './code-name-help.js';
+import {costCenterText} from './grh-cost-centers.js';
+import {pesosToCents,centsToPesosText} from './money-entry.js';
 const API='/api/internal-payroll-monthly-correction';
 const el=(tag,text,id)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(id)n.id='monthlyCorrection'+id;return n;};
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
@@ -8,9 +11,9 @@ const label=(text,input)=>{const n=el('label',text);n.append(input);return n;};
 const short=id=>id.slice(0,8).toUpperCase()+'…'+id.slice(-6).toUpperCase();
 const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo (SAC)',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra'};
 const states={pending:'Propuesta pendiente',approved:'Corrección aprobada',rejected:'Corrección rechazada'};
-const names={periodMonth:'Período de la novedad',payrollType:'Tipo de liquidación',conceptSourceId:'Código del concepto',costCenterSourceId:'Centro de costo',adjustmentMonth:'Mes de ajuste',quantityDecimal:'Unidades exactas',amountCents:'Importe informado en centavos',movementType:'Movimiento',legalInstrument:'Instrumento legal',observation:'Observación',forced:'Modo forzado'};
+const names={periodMonth:'Período de la novedad',payrollType:'Tipo de liquidación',conceptSourceId:'Concepto',costCenterSourceId:'Centro de costo',adjustmentMonth:'Mes de ajuste',quantityDecimal:'Unidades exactas',amountCents:'Importe en pesos',movementType:'Movimiento',legalInstrument:'Instrumento legal',observation:'Observación',forced:'Modo forzado'};
 const nullable=new Set(['costCenterSourceId','adjustmentMonth','quantityDecimal','amountCents','movementType','legalInstrument','observation']);
-const textValue=(key,value)=>value===null?'No informado':key==='payrollType'?types[value]:key==='forced'?value?'Sí':'No':String(value);
+const textValue=(key,value)=>value===null?'No informado':key==='payrollType'?types[value]:key==='forced'?value?'Sí':'No':key==='conceptSourceId'?conceptText(value):key==='costCenterSourceId'?costCenterText(value):key==='amountCents'?centsToPesosText(value):String(value);
 
 export function mountMonthlyCorrection(host,{request,onLockChange,onChanged,onAccessInvalidated,externalLocked}){
  let access=null,data=null,epoch=0,page=1,plan=null,opened=null,working=false,pending=null,receiptNotice='',needsLoad=false;const selected=new Set(),editors=new Map();
@@ -31,11 +34,11 @@ export function mountMonthlyCorrection(host,{request,onLockChange,onChanged,onAc
   if(key==='payrollType'||key==='forced'){for(const[v,t]of Object.entries(key==='payrollType'?types:{false:'No',true:'Sí'})){const o=el('option',t);o.value=v;value.append(o);}}
   else if(key==='observation'){value.rows=3;value.maxLength=500;}
   else if(['periodMonth','adjustmentMonth'].includes(key))Object.assign(value,{type:'month',min:'2008-01',max:'2099-12'});
-  else {value.type='text';value.maxLength=key==='legalInstrument'?160:key==='movementType'?32:32;if(['conceptSourceId','costCenterSourceId','quantityDecimal','amountCents'].includes(key))value.inputMode=key==='quantityDecimal'?'decimal':'numeric';}
-  const valueField=label('Nuevo valor: '+names[key],value);box.append(label('Corregir '+names[key].toLocaleLowerCase('es-AR'),choose),valueField);let remove=null,removeField=null,help=null;
+  else {value.type='text';value.maxLength=key==='legalInstrument'?160:key==='movementType'?32:32;if(['conceptSourceId','costCenterSourceId','quantityDecimal','amountCents'].includes(key))value.inputMode=['quantityDecimal','amountCents'].includes(key)?'decimal':'numeric';}
+  const valueField=label('Nuevo valor: '+names[key],value);box.append(label('Corregir '+names[key].toLocaleLowerCase('es-AR'),choose),valueField);if(key==='conceptSourceId')attachConceptHelp(value);else if(key==='costCenterSourceId')attachCostCenterHelp(value);let remove=null,removeField=null,help=null;
   if(nullable.has(key)){remove=el('input',undefined,'Remove'+key);remove.type='checkbox';removeField=label('Retirar valor de '+names[key].toLocaleLowerCase('es-AR'),remove);box.append(removeField);}
   if(key==='quantityDecimal')help=el('small','Usá punto decimal, hasta 6 decimales. No se redondea ni se convierten unidades.');
-  if(key==='amountCents')help=el('small','Centavos enteros exactos. No se calcula ni convierte un importe salarial.');
+  if(key==='amountCents')help=el('small','En pesos, con los centavos después de la coma: 1234,50. Se guarda exacto, sin redondear.');
   if(help)box.append(help);editors.set(key,{choose,value,remove,valueField,removeField,help,box});fields.append(box);
  }
  const reason=el('textarea',undefined,'Reason');reason.maxLength=1000;reason.rows=3;const reasonField=label('Motivo de la propuesta o decisión (10 a 1.000 caracteres)',reason);
@@ -54,7 +57,7 @@ export function mountMonthlyCorrection(host,{request,onLockChange,onChanged,onAc
  const say=text=>{if(allowed())note.textContent=text;};
  function invalidate(){plan=null;confirm.checked=false;review.hidden=true;batches.replaceChildren();scope.textContent='';patchNote.textContent='';}
  function resetFields(){for(const{choose,value,remove}of editors.values()){choose.checked=false;if(remove)remove.checked=false;value.value=value.tagName==='SELECT'?value.options[0].value:'';}}
- function patch(){const p={};for(const[key,{choose,value,remove}]of editors){if(!choose.checked)continue;p[key]=remove?.checked?null:['periodMonth','adjustmentMonth'].includes(key)?value.value?value.value+'-01':'':key==='forced'?value.value==='true':value.value;}return monthlyCorrectionPatch(p);}
+ function patch(){const p={};for(const[key,{choose,value,remove}]of editors){if(!choose.checked)continue;p[key]=remove?.checked?null:['periodMonth','adjustmentMonth'].includes(key)?value.value?value.value+'-01':'':key==='forced'?value.value==='true':key==='amountCents'?pesosToCents(value.value)??'':value.value;}return monthlyCorrectionPatch(p);}
  function filtered(){if(!data)return [];const records=mode.value==='candidates'?data.candidates:data.proposals.filter(p=>mode.value==='history'||p.status==='pending'),needle=search.value.trim().toLocaleLowerCase('es-AR');return records.filter(r=>`${r.batchId??r.id} ${r.periodMonth??''} ${types[r.payrollType]??''} ${r.reason??''}`.toLocaleLowerCase('es-AR').includes(needle));}
  function renderList(){list.replaceChildren();if(!allowed()||!data)return;const rows=filtered();page=Math.min(Math.max(1,page),Math.max(1,Math.ceil(rows.length/20)));range.textContent=`Página ${page} de ${Math.max(1,Math.ceil(rows.length/20))} · ${rows.length} resultados completos del filtro`;
   for(const item of rows.slice((page-1)*20,page*20)){const card=el('article');card.className='monthly-correction-card';
@@ -78,7 +81,7 @@ export function mountMonthlyCorrection(host,{request,onLockChange,onChanged,onAc
  async function reload(){if(!allowed()||working||externalLocked())return;const generation=epoch;working=true;invalidate();opened=null;update();onLockChange();try{data=await fresh(pending?.attempt.scopeKey??null,generation);for(const id of selected)if(!data.candidates.some(c=>c.batchId===id))selected.delete(id);say(receiptNotice||'Consulta completa. Elegí los lotes y campos o abrí una propuesta. Consultar no cambia sus valores.');}catch(error){data=null;selected.clear();list.replaceChildren();say(error.message);}finally{working=false;update();onLockChange();}}
  function show(items,p,reviewReason=null){batches.replaceChildren();scope.textContent=`${items.length} lotes completos · ${items.reduce((n,i)=>n+i.batch.rowCount,0)} filas originales. ${reviewReason?'Motivo de la propuesta: '+reviewReason:''}`;patchNote.textContent='Campos elegidos: '+Object.keys(p).map(k=>names[k]+' → '+textValue(k,p[k])).join('; ');
   for(const item of items){const b=item.batch,a=item.after,section=el('details');section.append(el('summary',`Lote ${short(b.id)} · ${b.rowCount} filas · versión ${b.version} · ${b.contractVersion.endsWith('v2')?'Alta propia':'Origen histórico'}`));const meta=el('dl');for(const key of ['periodMonth','payrollType'])meta.append(el('dt',names[key]),el('dd',`Antes: ${textValue(key,b[key])} · Después: ${textValue(key,a[key])}`));section.append(meta);
-   for(const r of b.rows){const after=a.rows[r.rowOrdinal-1],row=el('details');row.dataset.correctionRow=String(r.rowOrdinal);row.append(el('summary',`Fila ${r.rowOrdinal} · Legajo ${r.legajo} · Concepto ${r.conceptSourceId}`));const dl=el('dl');for(const[n,v]of [['Persona',r.subject?.employeeName??'Nombre no informado'],['Vínculo conservado',r.employmentContractId],['Legajo conservado',r.legajo],['Registro propio',r.subject?.registrationId??'No corresponde']])dl.append(el('dt',n),el('dd',v));
+   for(const r of b.rows){const after=a.rows[r.rowOrdinal-1],row=el('details');row.dataset.correctionRow=String(r.rowOrdinal);row.append(el('summary',`Fila ${r.rowOrdinal} · Legajo ${r.legajo} · Concepto ${conceptText(r.conceptSourceId)}`));const dl=el('dl');for(const[n,v]of [['Persona',r.subject?.employeeName??'Nombre no informado'],['Vínculo conservado',r.employmentContractId],['Legajo conservado',r.legajo],['Registro propio',r.subject?.registrationId??'No corresponde']])dl.append(el('dt',n),el('dd',v));
     for(const key of MONTHLY_CORRECTION_FIELDS.filter(k=>!['periodMonth','payrollType'].includes(k))){dl.append(el('dt',names[key]),el('dd',`Antes: ${textValue(key,r[key])} · Después: ${textValue(key,after[key])}`));}
     dl.append(el('dt','Validaciones anteriores'),el('dd',r.issues.length?JSON.stringify(r.issues):'Sin observaciones'),el('dt','Validaciones de la corrección'),el('dd',after.issues.length?JSON.stringify(after.issues):'Sin observaciones'));row.append(dl);section.append(row);
    }batches.append(section);

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {ownProgramBrowserAssets} from '../scripts/lib/own-program-browser-assets.mjs';
+import {ownProgramBrowserAssets,OWN_PROGRAM_BROWSER_MODULE_LIMIT} from '../scripts/lib/own-program-browser-assets.mjs';
 import {verifyOwnAgreementWorkingTime} from '../scripts/verify-own-agreement-working-time.mjs';
 const bytes=s=>Buffer.from(s);
 test('program browser serves the actual model and every transitive local dependency',()=>{
@@ -18,7 +18,16 @@ test('run browser serves the complete real capture and engine graph before parit
  for(const [route,body]of assets)assert.ok(body.equals(fs.readFileSync(new URL('..'+route,import.meta.url))));
  // The split engine is served whole: a module missing from the graph would fail in the browser, not here.
  for(const name of ['own-payroll-expression.js','own-payroll-quantity.js','own-payroll-special-methods.js','own-payroll-family-facts.js','own-payroll-family-tariffs.js'])assert.ok(assets.has('/assets/'+name),name);
- assert.ok(assets.size<48,'the graph stays bounded');
+ assert.ok(assets.size<=OWN_PROGRAM_BROWSER_MODULE_LIMIT,'the graph stays bounded');
+});
+test('the exact module bound is accepted and the next distinct module is rejected',()=>{
+ const chain=count=>name=>{
+  const index=Number(name.slice(1,-3));
+  return bytes(index+1<count?"import './m"+(index+1)+".js';":'');
+ };
+ const atLimit=ownProgramBrowserAssets(chain(OWN_PROGRAM_BROWSER_MODULE_LIMIT),['m0.js']);
+ assert.equal(atLimit.size,OWN_PROGRAM_BROWSER_MODULE_LIMIT);
+ assert.throws(()=>ownProgramBrowserAssets(chain(OWN_PROGRAM_BROWSER_MODULE_LIMIT+1),['m0.js']),/PROGRAM_BROWSER_MODULE_LIMIT/);
 });
 test('a graph that keeps growing is stopped at the bound',()=>{
  assert.throws(()=>ownProgramBrowserAssets(name=>bytes("import './m"+(Number(name.slice(1,-3))+1)+".js';"),['m0.js']),/PROGRAM_BROWSER_MODULE_LIMIT/);

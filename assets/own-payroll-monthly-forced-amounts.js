@@ -1,14 +1,16 @@
-// REVIEW CANDIDATE ONLY. Not enabled by a deployed programme or SQL contract.
 // This accepts a declared monthly amount already used by an unchanged rule.
 // It does not override a computed amount and does not reuse fixed novelties.
 import {salaryExact,salarySerialized,salaryHash} from './native-salary-catalog-model.js';
 import {payrollRequire as require} from './own-payroll-exact.js';
 import {participationRules} from './own-period-participation-program.js';
 import {ownNoveltyBatch} from './own-payroll-novelties-model.js';
+import {requirePolicyScope,requirePolicyDeclaration,resolvePolicySuccession,resolvedPolicyAppliesTo,policyBoundaryMonths} from './own-payroll-policy-validity.js';
 
 export const OWN_MONTHLY_FORCED_AMOUNT_VERSION='own-monthly-forced-passthrough.v1';
+export const OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION='own-monthly-forced-passthrough.v2';
 const fields=['monthlyForcedAmountsVersion','monthlyForcedAmountPolicies'];
 const policyFields=['agreementCode','period','liquidationType','sourceContract','sourceKind','sourceCode','amountInputKey','presenceInputKey','treatment','quantityPolicy','sourceSha256','ruleReference'];
+const temporalFields=['version','policyId','supersedes','validFrom','validUntil',...policyFields.filter(k=>k!=='period')];
 const code=v=>typeof v==='string'&&/^[0-9]{1,9}$/.test(v);
 const key=v=>typeof v==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(v);
 const reference=v=>typeof v==='string'&&v===v.trim()&&v===v.normalize('NFC')&&v.length>=3&&v.length<=180&&!/[<>\u0000-\u001f\u007f]/.test(v);
@@ -18,12 +20,20 @@ const active=(r,p)=>r.agreementCode===p.agreementCode&&r.validFrom<=p.period&&(r
 const hasReference=(node,code)=>node&&typeof node==='object'&&((node.op==='quantity_phase'&&node.code===code)||Object.values(node).some(v=>v&&typeof v==='object'&&hasReference(v,code)));
 const present=p=>fields.some(k=>Object.hasOwn(p??{},k));
 export const monthlyForcedProgramFields=p=>present(p)?[...fields]:[];
+export const monthlyForcedPolicyId=p=>p.version===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION?p.policyId:'legacy:monthly-forced:'+pkey(p);
+export const resolveMonthlyForcedPolicies=policies=>resolvePolicySuccession(policies,{identity:monthlyForcedPolicyId,scope:p=>[p.agreementCode,p.liquidationType,p.sourceCode].join(':')});
+const temporalKey=p=>[p.agreementCode,p.version===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION?p.validFrom+'..'+p.validUntil:p.period,p.liquidationType,p.sourceCode].join(':');
+function policyMatcher(normalized){
+ const policies=normalized.monthlyForcedAmountPolicies??[],entries=normalized.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION?resolveMonthlyForcedPolicies(policies):null;
+ return context=>entries?entries.filter(e=>e.policy.sourceCode===context.sourceCode&&resolvedPolicyAppliesTo(e,context)).map(e=>e.policy):policies.filter(p=>p.agreementCode===context.agreementCode&&p.period===context.period&&p.liquidationType===context.liquidationType&&p.sourceCode===context.sourceCode);
+}
 
 export function monthlyForcedExpectedExpression(policy){
  return {op:'choose',condition:{op:'compare',operator:'eq',left:{op:'input',key:policy.presenceInputKey,unit:'coefficient'},right:{op:'literal',unit:'coefficient',value:'1'}},then:{op:'input',key:policy.amountInputKey,unit:'money'},else:{op:'literal',unit:'money',value:'0'}};
 }
 export function normalizeMonthlyForcedProgram(program){
  if(!present(program))return {};
+ if(program.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION)return normalizeMonthlyForcedProgramV2(program);
  require(program.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_VERSION&&program.namespaceVersion==='own-payroll-namespaces.v2'&&program.noveltyPresenceVersion==='own-payroll-novelty-presence.v1','MONTHLY_FORCED_POLICY_INVALID','El importe mensual forzado requiere su contrato y presencia explícitos.');
  const policies=program.monthlyForcedAmountPolicies;
  require(Array.isArray(policies)&&policies.length>0&&policies.length<=128&&Reflect.ownKeys(policies).length===policies.length+1,'MONTHLY_FORCED_POLICY_INVALID','Revisá el conjunto completo de políticas mensuales.');
@@ -45,27 +55,56 @@ export function normalizeMonthlyForcedProgram(program){
  }).sort((a,b)=>pkey(a)<pkey(b)?-1:pkey(a)>pkey(b)?1:0);
  return {monthlyForcedAmountsVersion:OWN_MONTHLY_FORCED_AMOUNT_VERSION,monthlyForcedAmountPolicies:normalized};
 }
+function normalizeMonthlyForcedProgramV2(program){
+ require(program.namespaceVersion==='own-payroll-namespaces.v2'&&program.noveltyPresenceVersion==='own-payroll-novelty-presence.v1','MONTHLY_FORCED_POLICY_INVALID','El importe mensual requiere presencia y versión explícitas.');
+ const raw=program.monthlyForcedAmountPolicies;
+ require(Array.isArray(raw)&&raw.length>0&&raw.length<=128&&Reflect.ownKeys(raw).length===raw.length+1,'MONTHLY_FORCED_POLICY_INVALID','Conservá todas las políticas y sus antecedentes, sin recortes.');
+ const policies=raw.map(p=>{
+  if(Object.getOwnPropertyDescriptor(p??{},'version')?.value!==OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION)return normalizeMonthlyForcedProgram({...program,monthlyForcedAmountsVersion:OWN_MONTHLY_FORCED_AMOUNT_VERSION,monthlyForcedAmountPolicies:[p]}).monthlyForcedAmountPolicies[0];
+  require(salaryExact(p,temporalFields),'MONTHLY_FORCED_POLICY_INVALID','La política temporal requiere campos explícitos de vigencia y sucesión.');
+  requirePolicyScope(p);requirePolicyDeclaration(p);
+  require(p.liquidationType==='monthly'&&p.sourceContract==='own-payroll-novelty-batch.v1'&&p.sourceKind==='monthly_amount'&&code(p.sourceCode)&&key(p.amountInputKey)&&key(p.presenceInputKey)&&p.amountInputKey!==p.presenceInputKey&&p.treatment==='declared_amount_passthrough'&&p.quantityPolicy==='explicit_zero'&&salaryHash(p.sourceSha256)&&reference(p.ruleReference),'MONTHLY_FORCED_POLICY_INVALID','Conservá canal nativo, importe exacto, presencia y cantidad cero explícita.');
+  return structuredClone(p);
+ }).sort((a,b)=>temporalKey(a)<temporalKey(b)?-1:temporalKey(a)>temporalKey(b)?1:0);
+ const rules=participationRules(program),phases=program.quantityPhases??[];
+ for(const entry of resolveMonthlyForcedPolicies(policies)){
+  const p=entry.policy;if(p.version!==OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION)continue;
+  const related=[...rules,...phases].filter(r=>r.agreementCode===p.agreementCode&&r.liquidationTypes.includes(p.liquidationType));
+  const bindings=program.bindings.filter(b=>b.agreementCode===p.agreementCode&&b.sourceCode===p.sourceCode&&/^(monthly|fixed)_/.test(b.sourceKind));
+  require(bindings.length===2,'MONTHLY_FORCED_SOURCE_COLLISION','El importe y su presencia deben ser las únicas entradas del mismo código.');
+  const amount=bindings.find(b=>b.key===p.amountInputKey),presence=bindings.find(b=>b.key===p.presenceInputKey);
+  require(amount?.sourceKind==='monthly_amount'&&amount.unit==='money'&&amount.combine==='single'&&amount.onMissing==='zero'&&presence?.sourceKind==='monthly_presence'&&presence.unit==='coefficient'&&presence.combine==='any'&&presence.onMissing==='zero','MONTHLY_FORCED_BINDING_REQUIRED','El importe único y su presencia conservan el canal mensual.');
+  for(const period of policyBoundaryMonths(entry,related)){
+   const context={...p,period},targets=rules.filter(r=>active(r,context)&&r.nature!=='auxiliary'&&r.code===p.sourceCode);
+   require(targets.length===1,'MONTHLY_FORCED_RULE_REQUIRED','Cada tramo de vigencia requiere una única regla monetaria, sin huecos.');
+   const target=targets[0];
+   require(target.nature==='deduction'&&target.unit==='money'&&same(target.liquidationTypes,['monthly'])&&target.rounding.precision===2&&same(target.expression,monthlyForcedExpectedExpression(p)),'MONTHLY_FORCED_PASSTHROUGH_REQUIRED','Durante toda la vigencia, la regla debe conservar el importe sin reemplazo ni prorrateo.');
+   require(!related.some(r=>active(r,context)&&hasReference(r.expression,p.sourceCode))&&!phases.some(r=>active(r,context)&&r.code===p.sourceCode),'MONTHLY_FORCED_QUANTITY_POLICY_REQUIRED','La vigencia no permite una fase de cantidad ni su uso implícito.');
+  }
+ }
+ return{monthlyForcedAmountsVersion:OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION,monthlyForcedAmountPolicies:policies};
+}
 export function monthlyForcedProgramHistory(before,after){
  if(!present(before))return;
  const previous=normalizeMonthlyForcedProgram(before),next=normalizeMonthlyForcedProgram(after);
- require(next.monthlyForcedAmountsVersion===previous.monthlyForcedAmountsVersion&&previous.monthlyForcedAmountPolicies.every(old=>next.monthlyForcedAmountPolicies.some(p=>same(old,p))),'PROGRAM_HISTORY_REQUIRED','Conservá las políticas mensuales ya aprobadas y sus referencias originales.');
+ require((next.monthlyForcedAmountsVersion===previous.monthlyForcedAmountsVersion||previous.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_VERSION&&next.monthlyForcedAmountsVersion===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION)&&previous.monthlyForcedAmountPolicies.every(old=>next.monthlyForcedAmountPolicies.some(p=>same(old,p))),'PROGRAM_HISTORY_REQUIRED','Conservá las políticas mensuales ya aprobadas y sus referencias originales.');
 }
 
 // Called only after the existing native-batch validator has checked the whole
 // batch, its independent review (including historical two-review receipts),
 // all identities and the captured hash.
 export function monthlyForcedSourceResolver(program){
- const normalized=normalizeMonthlyForcedProgram(program),policies=normalized.monthlyForcedAmountPolicies??[];
+ const normalized=normalizeMonthlyForcedProgram(program),match=policyMatcher(normalized);
  return ({row,family,agreementCode,period,liquidationType,sourceContract})=>{
   if(row.forced!==true||family!=='monthly')return null;
-  const matching=policies.filter(p=>p.agreementCode===agreementCode&&p.period===period&&p.liquidationType===liquidationType&&p.sourceCode===row.conceptSourceId);
+  const matching=match({agreementCode,period,liquidationType,sourceCode:row.conceptSourceId});
   if(matching.length===0)return null;
   require(matching.length===1,'MONTHLY_FORCED_POLICY_DUPLICATE','La fuente tiene una política ambigua.');
   const policy=matching[0];
   require(sourceContract===policy.sourceContract,'MONTHLY_FORCED_NATIVE_BATCH_REQUIRED','El contrato candidato sólo admite el lote propio con su revisión completa.');
   require(row.quantityDecimal==='0','MONTHLY_FORCED_QUANTITY_REQUIRED','Esta política conserva una cantidad cero explícita; ausente o distinta requiere otra política.');
   require(typeof row.amountCents==='string'&&/^-?(0|[1-9][0-9]{0,17})$/.test(row.amountCents)&&row.amountCents!=='-0','MONTHLY_FORCED_AMOUNT_REQUIRED','El importe debe estar informado en centavos exactos; no se calcula desde la cantidad.');
-  return {version:OWN_MONTHLY_FORCED_AMOUNT_VERSION,policy};
+  return {version:policy.version===OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION?OWN_MONTHLY_FORCED_AMOUNT_V2_VERSION:OWN_MONTHLY_FORCED_AMOUNT_VERSION,policy};
  };
 }
 
@@ -79,12 +118,12 @@ const selected=(input,e)=>input.selection.kind==='all'||input.selection.values.i
 export function monthlyForcedCaptureSourceRecords(payload,input,result){
  const program=payload.programState.program.definition;
  if(!present(program))return [];
- const normalized=normalizeMonthlyForcedProgram(program),resolve=monthlyForcedSourceResolver(program),records=[];
+ const normalized=normalizeMonthlyForcedProgram(program),resolve=monthlyForcedSourceResolver(program),match=policyMatcher(normalized),records=[];
  const population=new Map(payload.population.employees.map(e=>[e.contractId,e])),people=new Map(input.employees.map(e=>[e.contractId,e]));
  const sourceRows=[];
  for(const b of payload.monthly.batches)for(const r of b.rows){
   const person=population.get(r.employmentContractId);
-  if(person&&r.forced===true&&normalized.monthlyForcedAmountPolicies.some(p=>p.agreementCode===person.agreementCode&&p.period===input.period&&p.liquidationType===input.liquidationType&&p.sourceCode===r.conceptSourceId))require(false,'MONTHLY_FORCED_NATIVE_BATCH_REQUIRED','La política no admite una fila forzada del canal anterior.');
+  if(person&&r.forced===true&&match({agreementCode:person.agreementCode,period:input.period,liquidationType:input.liquidationType,sourceCode:r.conceptSourceId}).length)require(false,'MONTHLY_FORCED_NATIVE_BATCH_REQUIRED','La política no admite una fila forzada del canal anterior.');
   sourceRows.push({family:'monthly',contractId:r.employmentContractId,concept:r.conceptSourceId});
  }
  for(const b of payload.monthly.nativeBatches??[])for(const r of b.rows)sourceRows.push({family:'monthly',contractId:r.values.contractId,concept:r.values.conceptSourceId});
@@ -94,7 +133,7 @@ export function monthlyForcedCaptureSourceRecords(payload,input,result){
   require(batch.status==='approved'&&batch.periodMonth===input.period+'-01'&&batch.payrollType===input.liquidationType,'MONTHLY_FORCED_CAPTURE_CHANGED','El lote original debe conservar período, tipo y aprobación.');
   for(const row of batch.rows){
    const r=row.values,person=population.get(r.contractId);if(!person)continue;
-   const matches=normalized.monthlyForcedAmountPolicies.filter(p=>p.agreementCode===person.agreementCode&&p.period===input.period&&p.liquidationType===input.liquidationType&&p.sourceCode===r.conceptSourceId);
+   const matches=match({agreementCode:person.agreementCode,period:input.period,liquidationType:input.liquidationType,sourceCode:r.conceptSourceId});
    if(matches.length===0)continue; // Existing quantity-only treatment stays owned by its original contract.
    const forced=resolve({row:r,family:'monthly',agreementCode:person.agreementCode,period:input.period,liquidationType:input.liquidationType,sourceContract:batch.version}),policy=matches[0],employee=people.get(r.contractId);
    require(typeof r.amountCents==='string'&&/^-?(0|[1-9][0-9]{0,17})$/.test(r.amountCents)&&r.amountCents!=='-0','MONTHLY_FORCED_CAPTURE_CHANGED','La entrada monetaria requiere el importe original informado.');

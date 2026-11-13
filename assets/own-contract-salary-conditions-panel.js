@@ -2,10 +2,18 @@ import {SALARY_CONDITIONS_READ,SALARY_CONDITIONS_MAX_BYTES,salaryConditionsBoots
 import {conditionsDraft,conditionsView,conditionsCsv,conditionsFile,conditionsPreparationFile,conditionsComparison} from './own-contract-salary-conditions-workspace.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 import {previousPeriod,periodName,carryForward,carrySummary,carryAvailable} from './period-carry-forward.js';
+import {mountOwnContractSalaryNative} from './own-contract-salary-conditions-native-panel.js';
 const endpoint='/api/internal-own-contract-salary-conditions',node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const states={pending:'Pendiente de revisión',approved:'Aprobada',rejected:'Rechazada'},capsFor=command=>[...SALARY_CONDITIONS_READ,command==='propose'?'payroll.parameter.prepare':'payroll.parameter.approve'];
 const frozen=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(frozen);Object.freeze(v);}return v;};
 export function mountOwnContractSalaryConditions(container){
+ if(!container||container.dataset.salaryConditionsCombinedMounted)return;container.dataset.salaryConditionsCombinedMounted='true';
+ const current=node('div'),legacy=node('details'),legacyContent=node('div');
+ legacy.className='salary-native-legacy';legacy.dataset.salaryConditionsLegacy='';
+ legacy.append(node('summary','Antigüedad, título e insalubridad: propuestas e historial'),legacyContent);
+ container.append(current,legacy);mountOwnContractSalaryNative(current);mountOwnContractSalaryConditionsLegacy(legacyContent);
+}
+export function mountOwnContractSalaryConditionsLegacy(container){
  if(!container||container.dataset.salaryConditionsMounted)return;container.dataset.salaryConditionsMounted='true';
  if(!document.querySelector('link[data-salary-conditions-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-salary-conditions-panel.css',import.meta.url).href;link.dataset.salaryConditionsStyle='';document.head.append(link);}
  const host=node('section');host.className='own-salary-conditions';host.setAttribute('aria-label','Condiciones salariales propias');
@@ -24,7 +32,8 @@ export function mountOwnContractSalaryConditions(container){
  <div class="conditions-actions"><label class="conditions-check" data-conditions-confirm-row hidden><input type="checkbox" data-conditions-confirm>Revisé el período, el conjunto completo, los valores anteriores y propuestos, las constancias y el fundamento.</label><button type="button" data-conditions-send hidden>Registrar propuesta completa</button><button type="button" data-conditions-recover hidden>Consultar el mismo intento</button><button type="button" data-conditions-retry hidden>Reintentar el mismo envío</button><button type="button" data-conditions-new hidden>Iniciar otra preparación</button></div><p data-conditions-receipt role="status" hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-conditions-'+key+']');
  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,detail=null,prepared=null,attempt=null,receipt=null,notFound=false,page=1,diffPage=1,changes=[],comparisonSubjects=new Map(),openRows=new Set();
- const live=()=>active&&!stopped&&!document.hidden&&host.isConnected,can=required=>live()&&required.every(c=>access?.caps.has(c));
+ const visibilityGate=container.closest('details[data-salary-conditions-legacy]');
+ const live=()=>active&&!stopped&&!document.hidden&&host.isConnected&&(!visibilityGate||visibilityGate.open),can=required=>live()&&required.every(c=>access?.caps.has(c));
  const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
  function controls(){
   $('access').disabled=busy||!live();$('access').hidden=!!access;$('target').disabled=busy||!!attempt||!can(SALARY_CONDITIONS_READ);
@@ -135,6 +144,7 @@ export function mountOwnContractSalaryConditions(container){
  const task=e=>{const next=e.detail?.id==='condiciones';if(active&&!next){active=false;suspend('Se retiró la vista al cambiar de tarea. El intento conserva su contenido original.');}else if(next&&!active){active=true;perform(async valid=>{await session(attempt?capsFor(attempt.body.command):SALARY_CONDITIONS_READ);if(valid())status(attempt?'Hay un envío pendiente. Consultá el mismo intento.':'Acceso verificado. Elegí el período.');});}};
  const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Verificá el acceso para consultar.');else controls();},capabilities=()=>{suspend('Cambió el acceso. Verificá la cuenta antes de consultar.');if(live())perform(async()=>{await session(attempt?capsFor(attempt.body.command):SALARY_CONDITIONS_READ);});};
  document.addEventListener('taskchange',task);document.addEventListener('visibilitychange',visibility);document.addEventListener('municontrol:capabilities-ready',capabilities);
+ visibilityGate?.addEventListener('toggle',()=>{if(!visibilityGate.open)suspend('Se retiró la vista al cerrar esta sección. El intento conserva su contenido original.');else if(live())perform(async valid=>{await session(attempt?capsFor(attempt.body.command):SALARY_CONDITIONS_READ);if(valid())status(attempt?'Hay un envío pendiente. Consultá el mismo intento.':'Acceso verificado. Elegí el período.');});});
  const poll=setInterval(()=>{if(live()&&access&&!busy)perform(async()=>{await session(attempt?capsFor(attempt.body.command):prepared?capsFor(prepared.command):SALARY_CONDITIONS_READ);});},20000);
  window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');attempt=null;clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capabilities);},{once:true});controls();
 }

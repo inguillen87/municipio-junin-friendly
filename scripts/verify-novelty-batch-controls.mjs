@@ -20,7 +20,9 @@ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const expected=new Map(),queue=['novedades-nomina.html'];
 while(queue.length){
  const file=queue.shift();if(expected.has(file))continue;
- assert.ok(expected.size<128,'Unexpected page dependency count');
+ // Tope contra un recorrido desbocado, no un presupuesto: cada archivo del cierre se sigue fijando por su huella.
+ // La página pasó de 126 a 129 módulos al sumar los selectores por nombre; con 128 este control cortaba antes de abrir el navegador.
+ assert.ok(expected.size<192,'Unexpected page dependency count');
  const bytes=fs.readFileSync(path.join(root,file));expected.set(file,hash(bytes));
  const source=bytes.toString('utf8'),refs=[];
  if(file.endsWith('.html'))for(const tag of source.matchAll(/<(?:script|link|img)\b[^>]*>/gi)){

@@ -40,10 +40,10 @@ async function command(key, body) {
 }
 const html = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QA sintético · asignaciones familiares</title>
 <body style="margin:0;font:16px system-ui;background:#f4f7f6"><main style="max-width:1180px;margin:0 auto;padding:16px"><div id="host"></div></main>
-<script type="module">import {mountOwnContractFamilyPayrollFacts} from '/assets/own-contract-family-payroll-facts-panel.js';
+<script type="module">import {mountOwnContractFamilyPayrollFactsV1 as mountOwnContractFamilyPayrollFacts} from '/assets/own-contract-family-payroll-facts-panel.js';
 mountOwnContractFamilyPayrollFacts(document.getElementById('host'));document.dispatchEvent(new CustomEvent('taskchange',{detail:{id:'familia'}}));window.listo=true;</script></body></html>`;
 
-const browser = await chromium.launch({headless: true});
+const browser = await chromium.launch({headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined});
 try {
   const context = await browser.newContext({viewport: {width: 1366, height: 900}, locale: 'es-AR', reducedMotion: 'reduce', serviceWorkers: 'block', acceptDownloads: true});
   await context.route('**/*', async route => {
