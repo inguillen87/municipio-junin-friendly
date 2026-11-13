@@ -25,3 +25,4 @@
 @media(prefers-reduced-motion:reduce){.own-novelties-step-n,.own-novelties-chip{animation:none}}
 .own-novelties-extras{font-size:.86rem;line-height:1.45;color:#3f5b60;min-width:12rem;max-width:26rem;overflow-wrap:anywhere}.own-novelties-extras span{display:block}.own-novelties-extras span+span{margin-top:2px}
 .own-novelties label>small{font-weight:400;color:#3f5b60;line-height:1.4}
+.own-novelties-who b{display:block;font-weight:700}.own-novelties-who span{display:block;font-size:.86rem;color:#3f5b60;max-width:18rem;overflow-wrap:anywhere}.own-novelties-table td small{display:block;margin-top:2px;font-size:.8rem;line-height:1.3;color:#3f5b60;max-width:16rem;overflow-wrap:anywhere}

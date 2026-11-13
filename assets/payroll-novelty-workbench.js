@@ -20,6 +20,7 @@ import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
 import {mountMonthlyCorrection} from './payroll-monthly-correction.js';
 import {mountOwnPayrollNovelties} from './own-payroll-novelties-panel.js';
+import {attachConceptHelp,attachCostCenterHelp} from './code-name-help.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -1422,6 +1423,7 @@ function keepPendingLegacyVisible(event) {
 }
 
 function initialize() {
+  attachConceptHelp(byId('conceptSourceId'));attachCostCenterHelp(byId('costCenterSourceId'));
   txtOptions = mountNoveltyTxtOptions(byId('bulkImportOptions'), ({encodingChanged}) => {
     invalidatePreparedDraft();
     if (encodingChanged) { byId('bulkSource').value='';byId('bulkFile').value='';showMessage('info','Codificación cambiada','Cargá nuevamente el archivo para decodificar sus bytes con la opción elegida.'); }

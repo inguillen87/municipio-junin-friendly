@@ -5,6 +5,7 @@ import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
 import {FIXED_CONCEPT_OPTIONS,FIXED_INSTRUMENT_OPTIONS,fixedConceptCode,fixedConceptGuess,fixedConceptHint,fixedConceptIsOwn,fixedConceptName,fixedConceptOption,fixedDayText} from './payroll-fixed-concepts.js';
+import {costCenterCode,costCenterDatalist,costCenterHint,costCenterText} from './grh-cost-centers.js';
 import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedReviewGroupEligible,fixedReviewGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
@@ -35,7 +36,7 @@ function errorMessage(error){
 function save(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 function facts(value){
   const dl=node('dl',undefined,'fn-facts');
-  const entries=value?[['Concepto',fixedConceptName(value.conceptSourceId)],['Centro de costo',value.costCenterSourceId??'Sin informar'],['Tipo',FIXED_TYPES[value.payrollType]],
+  const entries=value?[['Concepto',fixedConceptName(value.conceptSourceId)],['Centro de costo',costCenterText(value.costCenterSourceId)],['Tipo',FIXED_TYPES[value.payrollType]],
     ['Unidades declaradas',value.quantityDecimal??'Sin informar'],['Importe declarado',fixedMoney(value.amountCents)],['Modo forzado',value.forced?'Sí · '+value.forcedReason:'No'],
     ['Alta',dayLabel(value.validFrom)],['Vencimiento',dayLabel(value.validTo)],['Instrumento',value.legalInstrument]]:[];
   for(const[label,text]of entries){const part=node('div');part.append(node('dt',label),node('dd',text));dl.append(part);}return dl;
@@ -47,7 +48,7 @@ function comparison(row,operation,values){
   const region=node('div',undefined,'fn-change-table');region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','Comparación completa de los diez campos de la novedad fija');
   const table=node('table'),caption=node('caption','Diez campos · última versión aprobada frente a la propuesta');table.append(caption);
   const head=node('thead'),tr=node('tr');for(const title of ['Campo','Última versión aprobada','Propuesta','Cambio']){const th=node('th',title);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
-  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);const shown=value=>field.key==='conceptSourceId'&&/^\d+$/.test(value)?fixedConceptName(value):['validFrom','validTo'].includes(field.key)?fixedDayText(value):value;
+  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);const shown=value=>field.key==='conceptSourceId'&&/^\d+$/.test(value)?fixedConceptName(value):field.key==='costCenterSourceId'&&/^\d+$/.test(value)?costCenterText(value):['validFrom','validTo'].includes(field.key)?fixedDayText(value):value;
     for(const [title,value]of [['Última versión aprobada',shown(field.before)],['Propuesta',shown(field.after)],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
 }
 function reviewSource(row,decision){const source=node('section');source.dataset.fnReviewSource='';source.append(node('p',(row.pending.operation==='annul'?'Anulación propuesta':'Valores propuestos')+' · Revisión '+row.version,'fn-note'),comparison(row,row.pending.operation,row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason),node('p',decision==='reject'?'Rechazar conserva la última versión aprobada y registra el rechazo.':'Aprobar habilita únicamente control y exportación; no calcula haberes.','fn-note'));return source;}
@@ -207,7 +208,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   function makeField(fields,key,label,type='text',max=500){const wrapper=node('label',label),input=node(type==='textarea'?'textarea':'input');if(type!=='textarea')input.type=type;input.dataset.fnField=key;input.name=key;input.autocomplete='off';input.maxLength=max;if(type==='date'){input.min='1900-01-01';input.max='2100-12-31';}wrapper.append(input);fields[key]=input;return wrapper;}
   // El concepto se busca por nombre en una lista; el campo sigue aceptando el número. Lo que se guarda es el código.
   let chooserSeq=0;
-  function conceptChooser(fields){
+  function conceptChooser(fields,{fillUnits=true}={}){
     const input=fields.conceptSourceId,list=node('datalist'),hint=node('small','','fn-hint');list.id='fnConcepts'+(++chooserSeq);hint.dataset.fnConceptHint='';
     for(const option of FIXED_CONCEPT_OPTIONS){const item=node('option');item.value=option.text;item.label=option.detail;list.append(item);}
     input.inputMode='text';input.placeholder='Escribí el nombre: sindicato, seguro, cuota…';input.setAttribute('list',list.id);input.closest('label').append(list,hint);
@@ -217,10 +218,17 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       if(fixedConceptCode(input.value)===null){const guess=fixedConceptGuess(input.value);if(guess)input.value=guess.text;}
       const code=fixedConceptCode(input.value);
       // Un dato fijo de la liquidación propia se informa con una unidad y sin importe: se completa si todavía está vacío.
-      if(code&&fixedConceptIsOwn(code)&&!fields.quantityDecimal.value.trim()&&!fields.amountArs.value.trim())fields.quantityDecimal.value='1';
+      if(fillUnits&&code&&fixedConceptIsOwn(code)&&!fields.quantityDecimal.value.trim()&&!fields.amountArs.value.trim())fields.quantityDecimal.value='1';
       show();
     });
     show();
+  }
+  // El centro de costo también se elige por nombre; se guarda su código.
+  function costCenterChooser(input){
+    const list=costCenterDatalist('fnCostCenters'+(++chooserSeq),document),hint=node('small','','fn-hint');hint.dataset.fnCostHint='';
+    input.inputMode='text';input.maxLength=80;input.placeholder='Nombre o número: servicios públicos, 2…';input.setAttribute('list',list.id);input.closest('label').append(list,hint);
+    const show=()=>{hint.textContent=costCenterHint(input.value);};
+    input.addEventListener('input',show);input.addEventListener('change',()=>{const code=costCenterCode(input.value);if(code)input.value=code;show();});show();
   }
   function instrumentChooser(input){
     const list=node('datalist');list.id='fnInstruments'+(++chooserSeq);for(const text of FIXED_INSTRUMENT_OPTIONS){const item=node('option');item.value=text;list.append(item);}
@@ -248,9 +256,10 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       for(const r of original){const section=node('article',undefined,'fn-card');section.dataset.fnGroupReviewedId=r.id;section.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,mode==='correct'?'set':'annul',mode==='correct'?r.approved.values:null));source.append(section);}
       const correctionFields={},correctionChoices={},patchFields=node('fieldset'),grid=node('div',undefined,'fn-grid');
       if(mode==='correct'){patchFields.append(node('legend','Campos que vas a corregir'));patchFields.append(node('p','Marcá cada campo que cambiará. Los demás conservan el valor de cada novedad. Un campo elegido y vacío retira ese dato cuando es opcional. No se calculan importes ni porcentajes.','fn-note'));
-        for(const [key,title,type,max]of [['conceptSourceId','Código del concepto','text',20],['costCenterSourceId','Centro de costo (opcional)','text',20],['quantityDecimal','Unidades declaradas (opcional)','text',20],['amountArs','Importe en pesos (opcional)','text',20],['legalInstrument','Instrumento que respalda la novedad','text',300],['validFrom','Fecha de alta','date',10],['validTo','Vencimiento (opcional)','date',10],['forced','Modo forzado','checkbox',0],['forcedReason','Fundamento forzado','text',500]]){
+        for(const [key,title,type,max]of [['conceptSourceId','Concepto','text',160],['costCenterSourceId','Centro de costo (opcional)','text',80],['quantityDecimal','Unidades declaradas (opcional)','text',20],['amountArs','Importe en pesos (opcional)','text',20],['legalInstrument','Instrumento que respalda la novedad','text',300],['validFrom','Fecha de alta','date',10],['validTo','Vencimiento (opcional)','date',10],['forced','Modo forzado','checkbox',0],['forcedReason','Fundamento forzado','text',500]]){
           const cell=node('div'),choice=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnGroupChange=key;choice.append(check,node('span','Cambiar '+title.toLowerCase()));cell.append(choice,makeField(correctionFields,key,title,type,max));correctionChoices[key]=check;grid.append(cell);
         }
+        conceptChooser(correctionFields,{fillUnits:false});costCenterChooser(correctionFields.costCenterSourceId);
         const cell=node('div'),choice=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnGroupChange='payrollType';choice.append(check,node('span','Cambiar tipo de liquidación'));const label=node('label','Tipo de liquidación'),type=node('select');type.dataset.fnField='payrollType';type.append(Object.assign(node('option','Elegí un tipo'),{value:''}));for(const [value,title]of Object.entries(FIXED_TYPES))type.append(Object.assign(node('option',title),{value}));label.append(type);cell.append(choice,label);correctionChoices.payrollType=check;correctionFields.payrollType=type;grid.append(cell);patchFields.append(grid);
       }
       const fields=node('fieldset'),label=node('label','Motivo del conjunto'),reason=node('textarea');reason.maxLength=500;reason.dataset.fnGroupReason='';label.append(reason);fields.append(label);
@@ -259,7 +268,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       editor={...box,kind:mode==='correct'?'correctGroup':'annulGroup',correctionFields,correctionChoices,sourceHost:source,groupRows:original,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
       const active=editor;const update=()=>{if(editor!==active||attempt||busy)return;if(mode==='correct'){active.preview=null;reviewed.checked=false;source.replaceChildren(node('p','Volvé a revisar el conjunto completo después de cambiar los campos o el motivo.','fn-note'));active.feedback.textContent='Elegí los campos y presioná Revisar todas las correcciones.';}else{try{active.preview=fixedGroupDraft(active.groupRows,reason.value);active.feedback.textContent=reviewed.checked?'Conjunto revisado. Guardar crea todas las propuestas o ninguna.':'Confirmá la revisión de todo el conjunto antes de guardar.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}}controls();};
       if(mode==='correct'){reviewed.closest('label').querySelector('span').textContent='Revisé todos los valores anteriores y propuestos del conjunto. Cada corrección requerirá una decisión independiente.';
-        for(const [key,check]of Object.entries(correctionChoices)){const input=correctionFields[key];input.dataset.fnGroupValue=key;check.addEventListener('change',update);input.addEventListener('input',update);}preview.addEventListener('click',()=>{if(editor!==active||busy||attempt||active.needsReview||!active.groupRows)return;try{const changes=Object.fromEntries(Object.entries(correctionChoices).filter(([,n])=>n.checked).map(([key])=>[key,correctionFields[key].type==='checkbox'?correctionFields[key].checked:correctionFields[key].value]));active.preview=fixedCorrectionGroupDraft(active.groupRows,changes,reason.value);reviewed.checked=false;source.replaceChildren(node('p',active.preview.items.length+' correcciones. Incluye toda la selección, también fuera de la búsqueda y la página.','fn-note'));active.groupRows.forEach((r,i)=>{const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,'set',active.preview.items[i].values));source.append(card);});active.feedback.textContent='Compará todos los campos y confirmá la revisión antes de proponer el conjunto.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();});}
+        for(const [key,check]of Object.entries(correctionChoices)){const input=correctionFields[key];input.dataset.fnGroupValue=key;check.addEventListener('change',update);input.addEventListener('input',update);}preview.addEventListener('click',()=>{if(editor!==active||busy||attempt||active.needsReview||!active.groupRows)return;try{const changes=Object.fromEntries(Object.entries(correctionChoices).filter(([,n])=>n.checked).map(([key])=>[key,correctionFields[key].type==='checkbox'?correctionFields[key].checked:correctionFields[key].value]));if(Object.hasOwn(changes,'conceptSourceId')){const code=fixedConceptCode(changes.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');changes.conceptSourceId=code;}if(Object.hasOwn(changes,'costCenterSourceId')){const center=costCenterCode(changes.costCenterSourceId);if(center===null)throw Error('Elegí el centro de costo de la lista o escribí su número.');changes.costCenterSourceId=center;}active.preview=fixedCorrectionGroupDraft(active.groupRows,changes,reason.value);reviewed.checked=false;source.replaceChildren(node('p',active.preview.items.length+' correcciones. Incluye toda la selección, también fuera de la búsqueda y la página.','fn-note'));active.groupRows.forEach((r,i)=>{const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,'set',active.preview.items[i].values));source.append(card);});active.feedback.textContent='Compará todos los campos y confirmá la revisión antes de proponer el conjunto.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();});}
       reason.addEventListener('input',update);reviewed.addEventListener('change',mode==='correct'?controls:update);send.addEventListener('click',prepareSend);box.feedback.textContent='Informá el motivo y revisá todo el conjunto. Todavía no se guardó ninguna propuesta.';reason.focus();
     });
   }
@@ -304,8 +313,8 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     if(operationKind==='set'){
       const fieldset=node('fieldset');fieldset.append(node('legend','2 · Qué novedad es y desde cuándo'));const inputs=node('div',undefined,'fn-grid');
       for(const[key,label,max]of [['conceptSourceId','Concepto',160],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
-      fields.costCenterSourceId.inputMode='numeric';for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
-      conceptChooser(fields);instrumentChooser(fields.legalInstrument);
+      for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
+      conceptChooser(fields);costCenterChooser(fields.costCenterSourceId);instrumentChooser(fields.legalInstrument);
       const type=node('label','Tipo de liquidación'),select=node('select');select.dataset.fnField='payrollType';select.append(Object.assign(node('option','Elegí un tipo'),{value:''}));
       for(const[value,label]of Object.entries(FIXED_TYPES))select.append(Object.assign(node('option',label),{value}));if(!row)select.value='monthly';fields.payrollType=select;type.append(select);inputs.append(type);
       inputs.append(makeField(fields,'validFrom','Fecha de alta','date'),makeField(fields,'validTo','Vencimiento (si consta)','date'));
@@ -358,7 +367,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     try{
       if(!active.subject||(active.subject.origin==='MUNICONTROL'?active.fields.legajo.value:active.fields.legajo.value.trim())!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
-      if(active.operation!=='annul'){const code=fixedConceptCode(fields.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');fields.conceptSourceId=code;}
+      if(active.operation!=='annul'){const code=fixedConceptCode(fields.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');fields.conceptSourceId=code;const center=costCenterCode(fields.costCenterSourceId);if(center===null)throw Error('Elegí el centro de costo de la lista o escribí su número.');fields.costCenterSourceId=center;}
       const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields,active.subject);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
       active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
