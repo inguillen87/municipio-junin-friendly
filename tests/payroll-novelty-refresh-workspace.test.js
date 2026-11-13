@@ -88,13 +88,13 @@ test('source wiring preserves existing write locks and recovery remains separate
 // The own work/refresh controller is taken from its actual unchanged module.
 // Only authorized/bootstrap dependencies are synthetic GET spies; the external/busy/live guards are real.
 function ownReadController(external=false){
- const reads=[],messages=[],attempt=sealed().attempt,context={busy:false,external,stopped:false,sequence:0,attempt,receipt:null,controller:null,AbortController,live:()=>true,controls:()=>{},
+ const reads=[],messages=[],attempt=sealed().attempt,invalidated=[],context={busy:false,external,stopped:false,sequence:0,attempt,receipt:null,controller:null,AbortController,live:()=>true,controls:()=>{},entityRoster:['roster'],invalidateEntity:()=>{invalidated.push('read');},
   authorized:async()=>{reads.push('access-GET');},bootstrap:async()=>{reads.push('bootstrap-GET');},status:text=>messages.push(text),withdraw:()=>{throw Error('Unexpected withdrawal');}};
  vm.createContext(context);vm.runInContext([functionSource('work',ownSource),functionSource('refresh',ownSource)].join('\n'),context);
- return{context,reads,messages,attempt};
+ return{context,reads,messages,attempt,invalidated};
 }
 test('real own work and refresh preserve an own pending attempt while consulting two GET dependencies',async()=>{
- const f=ownReadController();await f.context.refresh();assert.deepEqual(f.reads,['access-GET','bootstrap-GET']);assert.equal(f.context.attempt,f.attempt);assert.equal(f.context.busy,false);assert.equal(f.context.external,false);assert.equal(f.context.receipt,null);
+ const f=ownReadController();await f.context.refresh();assert.deepEqual(f.reads,['access-GET','bootstrap-GET']);assert.deepEqual(f.invalidated,['read']);assert.equal(f.context.entityRoster,null);assert.equal(f.context.attempt,f.attempt);assert.equal(f.context.busy,false);assert.equal(f.context.external,false);assert.equal(f.context.receipt,null);
 });
 test('real own external mutual guard blocks refresh and all work; no generic bypass is introduced',async()=>{
  const f=ownReadController(true);await f.context.refresh();let writes=0;await f.context.work(async()=>{writes++;});
