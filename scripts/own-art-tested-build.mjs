@@ -37,6 +37,17 @@ export function assertOwnArtBuildEnvironment(env){
  const forbidden=Object.keys(env).filter(k=>/^NODE_(OPTIONS|PATH|COMPILE_CACHE)$|^PG[A-Z0-9_]*$|DATABASE_URL|^NEON_|^ACTIONS_DATABASE_URL$|^MC_EMAIL_FACTOR_PROVISION_EVENT$|^FRIENDLY_AGGREGATE_(AUGUST|S11)_DIR$/.test(k));
  assert.equal(forbidden.length,0,'ART_BUILD_AMBIENT_DB_OR_PRIVATE_INPUT');
 }
+function readNpmVersion(root){
+ const options={cwd:root,encoding:'utf8',timeout:10000,windowsHide:true,shell:false};
+ if(process.platform==='win32'){
+  const executable=fs.realpathSync(process.execPath);
+  const cli=path.join(path.dirname(executable),'node_modules','npm','bin','npm-cli.js');
+  readStable(cli);
+  return execFileSync(executable,[cli,'--version'],options).trim();
+ }
+ return execFileSync('npm',['--version'],options).trim();
+}
+
 export function ownArtBuildIdentity(root,env=process.env){
  const git=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',timeout:10000,windowsHide:true}).trim();
  const checkoutSha=git(['rev-parse','HEAD']),treeSha=git(['rev-parse','HEAD^{tree}']);
@@ -51,7 +62,7 @@ export function ownArtBuildIdentity(root,env=process.env){
   repository:env.GITHUB_REPOSITORY,runId:env.GITHUB_RUN_ID,runAttempt:env.GITHUB_RUN_ATTEMPT,
   lockSha256:sha(readStable(path.join(root,'package-lock.json'))),packageSha256:sha(readStable(path.join(root,'package.json'))),
   helperSha256:sha(readStable(path.join(root,'scripts/own-art-tested-build.mjs'))),workflowSha256:sha(readStable(path.join(root,'.github/workflows/own-art.yml'))),
-  nodeVersion:process.version,nodeBinarySha256:sha(readStable(process.execPath,{singleLink:false})),npmVersion:execFileSync('npm',['--version'],{cwd:root,encoding:'utf8',timeout:10000,windowsHide:true}).trim(),platform:process.platform,arch:process.arch};
+  nodeVersion:process.version,nodeBinarySha256:sha(readStable(process.execPath,{singleLink:false})),npmVersion:readNpmVersion(root),platform:process.platform,arch:process.arch};
 }
 export function createOwnArtBuildEnvelope({root,envelope,identity}){
  const source=path.join(root,'public');assert.ok(!fs.existsSync(envelope),'ART_BUILD_ENVELOPE_EXISTS');releaseIn(source,identity);
