@@ -328,3 +328,31 @@ test('receipt journey filtered empty selection does not deny existing closed sou
  }return response;};
  await h.act('query','submit');assert.equal(h.q('journeyConsult').textContent,'Sin recibos en esta consulta');assert.match(h.q('journeyNext').textContent,/Revisá el período, los tipos y el alcance/);assert.doesNotMatch(h.q('journeyNext').textContent,/no (?:hay|encontró).*liquidaciones.*cerradas/);assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
 });
+
+
+// The journey explains the same reason rule that ownReceiptCommand applies before any request.
+const REASON_SAMPLES=['Motivo sintético de revisión completa','Motivo sintético\nen dos renglones','Motivo sintético\r\nen dos renglones',' Motivo sintético con espacio inicial','Motivo sintético con espacio final ','Motivo sintético con tab final\t','Motivo con <b>marca</b>','Motivo con a>b','Motivo de revisión descompuesto','Motivo con control \u0007 pegado','Motivo con dirección ‮ invertida','Motivo con aislado ⁦ x','corto','x'.repeat(1000),'x'.repeat(1001),'          motivo          '];
+test('receipt reason problem agrees with ownReceiptCommand for every sample',async()=>{
+ const {receiptCommand}=await import('./fixtures/own-payroll-receipt-synthetic.js'),{ownReceiptReasonProblem}=await import('../assets/own-payroll-receipt-model.js');
+ for(const reason of REASON_SAMPLES){let accepted=true;try{ownReceiptCommand({...receiptCommand(),reason});}catch{accepted=false;}assert.equal(ownReceiptReasonProblem(reason)===null,accepted,JSON.stringify(reason));}
+ assert.match(ownReceiptReasonProblem('Motivo sintético\nen dos renglones'),/solo renglón/);assert.match(ownReceiptReasonProblem('Motivo sintético con espacio final '),/espacios al principio y al final/);
+ assert.match(ownReceiptReasonProblem('Motivo con <b>marca</b>'),/< ni >/);assert.match(ownReceiptReasonProblem('Motivo de revisión descompuesto'),/acentos/);assert.match(ownReceiptReasonProblem('Motivo con dirección ‮ invertida'),/dirección de texto/);
+});
+test('receipt journey never reports a reason as ready when the command would reject it',async t=>{
+ const h=harness(t);await openJourneyBatch(h);const batch=[...h.batches.values()][0];batch.permissions.canApprove=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();
+ for(const [reason,expected] of [['Motivo sintético de revisión\nen dos renglones',/solo renglón/],['Motivo sintético de revisión completa ',/espacios al principio y al final/],['Motivo sintético con <marca>',/< ni >/]]){
+  h.q('reason').value=reason;await h.act('reason','input');h.q('confirm').checked=false;await h.act('confirm','change');
+  assert.match(h.q('journeyNext').textContent,expected);assert.match(h.q('journeyNext').textContent,/Después marcá la casilla/);
+  h.q('confirm').checked=true;await h.act('confirm','change');assert.match(h.q('journeyNext').textContent,expected);assert.doesNotMatch(h.q('journeyNext').textContent,/volverá a comprobar/);assert.equal(h.q('journey').dataset.state,'warning');
+  const before=h.posts().length;await h.act('approve');assert.equal(h.posts().length,before,'nothing is sent');assert.match(h.q('status').textContent,expected,'the status names the same problem');assert.equal(h.q('reason').value,reason,'the typed reason is kept');assert.match(h.q('journeyNext').textContent,expected,'the batch view is kept');
+ }
+ h.q('reason').value='Motivo sintético de revisión completa';await h.act('reason','input');assert.match(h.q('journeyNext').textContent,/volverá a comprobar los permisos/);assert.equal(h.q('journey').dataset.state,'neutral');
+});
+
+test('approve without the review mark keeps the batch and the reason, and sends nothing',async t=>{
+ const h=harness(t);await openJourneyBatch(h);const batch=[...h.batches.values()][0];batch.permissions.canApprove=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();
+ const reason='Motivo sintético de revisión completa';h.q('reason').value=reason;await h.act('reason','input');h.q('confirm').checked=false;await h.act('confirm','change');
+ const before=h.posts().length;await h.act('approve');
+ assert.equal(h.posts().length,before);assert.equal(h.q('status').textContent,'Confirmá la revisión del conjunto completo.');assert.equal(h.q('reason').value,reason);assert.equal(h.q('result').hidden,false,'the batch stays on screen');
+ h.q('confirm').checked=true;await h.act('confirm','change');await h.act('approve');assert.equal(h.posts().length,before+1,'after fixing it, one approval is sent');
+});
