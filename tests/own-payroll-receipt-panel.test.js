@@ -28,11 +28,21 @@ class Element{
  set value(value){const s=String(value);this._value=this.tagName==='select'&&!this.children.some(o=>o.value===s)?'':s;}
  focus(){}
  set innerHTML(html){this.replaceChildren();const stack=[this];for(const token of html.match(/<[^>]*>|[^<]+/g)??[]){if(token.startsWith('</')){stack.pop();continue;}if(token.startsWith('<')){const m=token.match(/^<([a-z][\w-]*)\b([^>]*)>/i);if(!m)continue;const element=new Element(m[1]);for(const a of m[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g))element.setAttribute(a[1],a[2]??'');if(element.tagName==='input')element.type=element.getAttribute('type');if(element.tagName==='option')element._value=element.getAttribute('value')??'';stack.at(-1).append(element);if(!['input','link','br','hr','meta'].includes(element.tagName)&&!token.endsWith('/>'))stack.push(element);}else{const text=new Element('#text');text._text=token;stack.at(-1).append(text);}}}
- querySelector(selector){const attr=selector.match(/^(?:([\w-]+))?\[([\w-]+)(?:="([^"]*)")?\]$/),match=n=>attr?(!attr[1]||n.tagName===attr[1])&&Object.hasOwn(n.attributes,attr[2].toLowerCase())&&(attr[3]===undefined||n.attributes[attr[2].toLowerCase()]===attr[3]):n.tagName===selector;const walk=n=>{for(const child of n.children){if(match(child))return child;const nested=walk(child);if(nested)return nested;}return null;};return walk(this);}
+ querySelectorAll(selector){const attr=selector.match(/^(?:([\w-]+))?\[([\w-]+)(?:="([^"]*)")?\]$/),match=n=>{if(!attr)return n.tagName===selector;const name=attr[2].toLowerCase(),key=name.startsWith('data-')?name.slice(5).replace(/-([a-z])/g,(_all,letter)=>letter.toUpperCase()):null,value=key&&Object.hasOwn(n.dataset,key)?String(n.dataset[key]):n.getAttribute(name);return(!attr[1]||n.tagName===attr[1])&&value!==null&&(attr[3]===undefined||value===attr[3]);};const matches=[],walk=n=>{for(const child of n.children){if(match(child))matches.push(child);walk(child);}};walk(this);return matches;}
+ querySelector(selector){return this.querySelectorAll(selector)[0]??null;}
  addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(fn);}
  removeEventListener(type,fn){this.listeners.set(type,(this.listeners.get(type)??[]).filter(f=>f!==fn));}
  async emit(type){for(let n=this;n;n=n.parentElement)if(n.disabled)return;await Promise.all((this.listeners.get(type)??[]).map(fn=>fn({target:this,preventDefault(){}})));}
 }
+test('receipt DOM fixture selects scoped dataset descendants in document order with a static result',()=>{
+ const host=new Element(),list=new Element(),nested=new Element(),first=new Element('button'),second=new Element('button'),attributeRow=new Element('button'),outside=new Element('button');
+ list.dataset.receiptOpen='root-is-not-a-descendant';first.dataset.receiptOpen='first';second.dataset.receiptOpen='';attributeRow.setAttribute('data-receipt-open','attribute');outside.dataset.receiptOpen='outside';
+ host.append(list,outside);list.append(first,nested);nested.append(second,attributeRow);
+ const snapshot=list.querySelectorAll('[data-receipt-open]');assert.deepEqual(snapshot,[first,second,attributeRow]);assert.equal(list.querySelector('[data-receipt-open]'),first);
+ assert.deepEqual(list.querySelectorAll('button[data-receipt-open="first"]'),[first]);assert.deepEqual(list.querySelectorAll('[data-receipt-open=""]'),[second]);assert.deepEqual(list.querySelectorAll('[data-receipt-open="outside"]'),[]);
+ const later=new Element('button');later.dataset.receiptOpen='later';list.append(later);assert.deepEqual(snapshot,[first,second,attributeRow]);assert.deepEqual(list.querySelectorAll('[data-receipt-open]'),[first,second,attributeRow,later]);
+ list.replaceChildren();assert.deepEqual(list.querySelectorAll('[data-receipt-open]'),[]);assert.equal(list.querySelector('[data-receipt-open]'),null);assert.equal(outside.parentElement,host);
+});
 const events=()=>{const listeners=new Map();return{addEventListener:(type,fn)=>{if(!listeners.has(type))listeners.set(type,[]);listeners.get(type).push(fn);},removeEventListener:(type,fn)=>listeners.set(type,(listeners.get(type)??[]).filter(f=>f!==fn)),dispatch:(type,detail)=>{for(const fn of listeners.get(type)??[])fn({detail});}};};
 const capabilities=[...new Set([...OWN_RECEIPT_PREPARE,...OWN_RECEIPT_APPROVE])];
 
