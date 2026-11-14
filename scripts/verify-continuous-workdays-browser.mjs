@@ -12,8 +12,33 @@ const out=path.resolve('verification/continuous-workdays');fs.mkdirSync(out,{rec
 const origin='https://municontrol.test';
 const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5l8AAAAASUVORK5CYII=','base64');
 const checks=[],errors=[],requests=[],downloads=[];
-let browser,mode='ok',cut=WORKDAY_CUT,nominal=true,unplaced=false,externalBlocked=0,releaseDelayed,enteredDelay;
+let browser,page,failureCaptureTask,failureCloseTask,mode='ok',cut=WORKDAY_CUT,nominal=true,unplaced=false,externalBlocked=0,releaseDelayed,enteredDelay;
 const workRequests=()=>requests.filter(r=>r.resource==='clock-workdays-v2');
+async function captureContinuousWorkdayFailure(page,error,out,checks,errors,browser) {
+ const capture={version:'continuous-workdays-failure-evidence.v1',syntheticApi:true,pagePresent:Boolean(page),geometryAvailable:false,screenshotAvailable:false,captureFailures:[],nodeVersion:process.version,browserVersion:null};
+ try { capture.browserVersion=browser?.version()??null; } catch { capture.captureFailures.push('browser-version-unavailable'); }
+ try { fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({checks,errors,message:error.message},null,2)); } catch { capture.captureFailures.push('failure-json-unavailable'); }
+ if(page) {
+  try {
+   const geometry=await page.evaluate(()=>{
+    const rect=element=>{if(!element)return null;const r=element.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,right:r.right,bottom:r.bottom,left:r.left};};
+    const describe=element=>element?{tag:element.tagName,id:element.id||null,classes:typeof element.className==='string'?element.className:null}:null;
+    const style=element=>{if(!element)return null;const s=getComputedStyle(element);return {position:s.position,zIndex:s.zIndex,display:s.display,visibility:s.visibility,pointerEvents:s.pointerEvents,transform:s.transform,overflowX:s.overflowX,overflowY:s.overflowY,scrollBehavior:s.scrollBehavior,scrollMarginTop:s.scrollMarginTop,animationName:s.animationName,animationDuration:s.animationDuration,transitionDuration:s.transitionDuration};};
+    const target=[...document.querySelectorAll('#wdRows button')].find(button=>button.textContent.trim()==='Ver jornada')??null;
+    const point=(x,y)=>{if(x<0||y<0||x>=innerWidth||y>=innerHeight)return {x,y,insideViewport:false,top:null,stack:[]};const element=document.elementFromPoint(x,y);return {x,y,insideViewport:true,top:describe(element),targetContainsTop:Boolean(target&&(element===target||target.contains(element))),topIsHeader:Boolean(element?.closest('.topbar')),topIsDock:Boolean(element?.closest('.mc-quickdock')),stack:document.elementsFromPoint(x,y).slice(0,6).map(describe)};};
+    const r=target?.getBoundingClientRect(),clipped=r?{left:Math.max(0,r.left),right:Math.min(innerWidth,r.right),top:Math.max(0,r.top),bottom:Math.min(innerHeight,r.bottom)}:null;
+    const header=document.querySelector('.topbar'),dock=document.querySelector('.mc-quickdock:not([hidden])'),ancestors=[];
+    for(let element=target?.parentElement;element&&ancestors.length<8;element=element.parentElement)ancestors.push({element:describe(element),rect:rect(element),style:style(element),scrollTop:element.scrollTop,scrollLeft:element.scrollLeft,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight,scrollWidth:element.scrollWidth,clientWidth:element.clientWidth});
+    return {version:'continuous-workdays-post-failure-geometry.v1',capturedAfterFailure:true,selector:'#wdRows button with exact text Ver jornada',currentMatchingTargetOnly:true,viewport:{width:innerWidth,height:innerHeight,visualOffsetTop:visualViewport?.offsetTop??0,visualHeight:visualViewport?.height??innerHeight},scrollX,scrollY,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,htmlScrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,bodyClasses:document.body.className,target:{element:describe(target),rect:rect(target),style:style(target),disabled:target?.disabled??null,expanded:target?.getAttribute('aria-expanded')??null,controls:target?.getAttribute('aria-controls')??null},header:{element:describe(header),rect:rect(header),style:style(header),sessionStrongRect:rect(header?.querySelector('.session strong'))},dock:{element:describe(dock),rect:rect(dock),style:style(dock),tucked:dock?.dataset.tucked??null},rawCenter:r?point(r.left+r.width/2,r.top+r.height/2):null,clippedCenter:clipped&&clipped.right>clipped.left&&clipped.bottom>clipped.top?point((clipped.left+clipped.right)/2,(clipped.top+clipped.bottom)/2):null,ancestors,activeAnimations:document.getAnimations().filter(animation=>animation.playState==='running').slice(0,20).map(animation=>({name:animation.animationName??null,state:animation.playState,currentTime:typeof animation.currentTime==='number'?animation.currentTime:null,target:describe(animation.effect?.target)}))};
+   });
+   fs.writeFileSync(path.join(out,'failure-geometry.json'),JSON.stringify(geometry,null,2)+'\n');capture.geometryAvailable=true;
+  } catch { capture.captureFailures.push('geometry-unavailable'); }
+  try { await page.screenshot({path:path.join(out,'failure-viewport.png'),fullPage:false});capture.screenshotAvailable=true; }
+  catch { capture.captureFailures.push('screenshot-unavailable'); }
+ }
+ try { fs.writeFileSync(path.join(out,'failure-capture.json'),JSON.stringify(capture,null,2)+'\n'); } catch {}
+}
+
 try {
  browser=await chromium.launch({headless:true,...(process.env.WORKDAY_BROWSER_CHANNEL?{channel:process.env.WORKDAY_BROWSER_CHANNEL}:{})});
  const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',acceptDownloads:true,serviceWorkers:'block'});
@@ -53,7 +78,7 @@ try {
    return route.fulfill({status:200,json:data});
   } catch(error){errors.push('Synthetic fixture: '+error.message);return route.fulfill({status:500,json:{ok:false,code:'SYNTHETIC_FIXTURE_FAILURE'}})}
  });
- const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));page.on('download',download=>downloads.push(download));
+ page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));page.on('download',download=>downloads.push(download));
  page.setDefaultTimeout(12000);
  const value=id=>page.locator('#wd'+id);
  async function ready(total=107){await page.waitForFunction(n=>document.getElementById('wdPage')?.textContent.includes(n+' personas/días') && document.getElementById('clockWorkdays')?.getAttribute('aria-busy')==='false',total)}
@@ -160,5 +185,14 @@ try {
   municipalSessionTested:false,backendWrites:false,externalRequestsBlocked:externalBlocked,browser:browser.version()};
  fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(report,null,2)+'\n');
  fs.rmSync(path.join(out,'failure.json'),{force:true});console.log(JSON.stringify(report,null,2));
-} catch(error){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({checks,errors,message:error.message},null,2));throw error}
-finally{if(browser)await browser.close()}
+} catch(error){
+ try{
+  failureCaptureTask=captureContinuousWorkdayFailure(page,error,out,checks,errors,browser).catch(()=>{});
+  if(page){
+   failureCloseTask=page.waitForEvent('close').catch(()=>{});
+   await Promise.race([failureCaptureTask,failureCloseTask]);
+  }else await failureCaptureTask;
+ }catch{}
+ throw error;
+}
+finally{if(browser)await browser.close();try{await Promise.allSettled([failureCaptureTask,failureCloseTask].filter(Boolean))}catch{}}

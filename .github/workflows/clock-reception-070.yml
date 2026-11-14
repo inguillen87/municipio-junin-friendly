@@ -155,6 +155,7 @@ jobs:
           path: |
             verification/clock-fleet/
             verification/clock-map/
+            verification/continuous-workdays/**
           retention-days: 5
   publication:
     if: github.ref == 'refs/heads/master'
