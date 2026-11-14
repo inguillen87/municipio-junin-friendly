@@ -150,7 +150,7 @@ try {
  const blocked=value('Rows').locator('tr').filter({hasText:'Agente de prueba 108'}).first();assert.match(await blocked.innerText(),/No reconstruido/);
  checks.push('unplaceable source records are visible and do not produce hours for the affected device');
 
- await filter('all','',108);await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;right:12px;bottom:10px;z-index:9999;color:white;background:#123649;padding:8px;font:11px sans-serif}'});
+ await filter('all','',108);await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;right:12px;bottom:10px;z-index:9999;pointer-events:none;color:white;background:#123649;padding:8px;font:11px sans-serif}'});
  async function frame(selector,filename){
   await page.evaluate(target=>{const item=document.querySelector(target),bar=document.querySelector('.topbar');
    window.scrollBy({top:item.getBoundingClientRect().top-((bar?.getBoundingClientRect().height||0)+80),behavior:'instant'});
