@@ -8,7 +8,7 @@ import {collectConfigured,MAX_BYTES} from '../pm10/reader/lector-fichadas.mjs';
 import {fault,safeCode,readCredential} from '../pm10/config.mjs';
 import {CaptureStore,acquireLock,atomicJson,safeDirectory} from '../pm10/store.mjs';
 import {ensureCapture} from '../pm10/service.mjs';
-import {beforeClockSession,nextCaptureFailure} from './capture-policy.mjs';
+import {nextCaptureFailure,unattendedRetryAllowed} from './capture-policy.mjs';
 import {captureRecoveryReadiness,readCaptureRecoveryReview,requestCaptureRecovery,acquireCaptureRecoveryOwner,beginCaptureRecovery,finishCaptureRecovery} from './capture-recovery.mjs';
 import {readMunicipalRoute,requireMunicipalPrefix,MUNICIPAL_PREFIX,ROUTE_ERRORS} from '../pm10/route-guard.mjs';
 const ID=/^[a-z][a-z0-9-]{1,63}$/,SERIAL=/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -59,9 +59,12 @@ export async function captureClock(fleet,c,{collect=collectConfigured,credential
   const network=await route({target:c.host});if(network?.localLookup!==true)throw fault('ROUTE_OUTPUT_INVALID');
   key=await credential(c.credentialFile);
   const result=await collect({approved:true,host:c.host,port:c.port,serial:c.serial},{commKey:key,approved:true,signal,totalMs:900000});
-  preconnect=beforeClockSession(result);
+  const waits=unattendedRetryAllowed(state,result,c);
   await atomicJson(path.join(root,'attempt-report.json'),result.report);
-  const report=ensureCapture(result,c.serial),saved=await store.save(result.raw,{capturedAt:report.finishedAt??now().toISOString(),deviceTimeLocal:report.metadata.deviceTimeBefore});
+  // Waiting without spending the budget is tied to the transport failure whose report was just saved. A local error
+  // before or after that point (a write that fails, a full disk) is never excused by the reader's silence.
+  let report;try{report=ensureCapture(result,c.serial);}catch(e){preconnect=waits&&safeCode(e)===result?.report?.error?.code;throw e;}
+  const saved=await store.save(result.raw,{capturedAt:report.finishedAt??now().toISOString(),deviceTimeLocal:report.metadata.deviceTimeBefore});
   state={...state,...store.summary(),status:'captured_locally',failureCount:0,connectionFailureCount:0,blocked:false,lastError:null,lastCaptureAt:report.finishedAt??now().toISOString(),snapshotRecordCount:saved.snapshotRecordCount,newUniqueRecordsLastCycle:saved.newUniqueRecords,lastCaptureSha256:saved.snapshotSha256,nextPollAt:new Date(now().getTime()+c.pollSeconds*1000).toISOString()};
   recoverySucceeded=true;
  }catch(e){

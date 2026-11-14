@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import vm from 'node:vm';
 import {RELEASE_VERSION} from '../assets/release-status-model.js';
 import {CI_BUILD_PROFILE,CI_BUILD_WORKFLOWS,ciBuildWorkflow,assertCiBuildEnvironment,ciBuildIdentity,createCiBuildEnvelope,verifyCiBuildEnvelope} from '../scripts/lib/ci-tested-build.mjs';
 
@@ -109,7 +110,7 @@ test('real checkout identity pins the selected workflow, helper and clean source
  const git=(...args)=>execFileSync('git',['-c','core.hooksPath='+path.join(root,'no-hooks'),'-c','commit.gpgsign=false','-c','user.name=Synthetic QA','-c','user.email=synthetic@example.invalid',...args],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
  git('init','--quiet');git('add','.');git('commit','--quiet','-m','Synthetic isolated fixture');
  const env={GITHUB_SHA:git('rev-parse','HEAD'),GITHUB_REPOSITORY:'inguillen87/municipio-junin-friendly',GITHUB_EVENT_NAME:'pull_request',ART_PR_HEAD_SHA:'c'.repeat(40),GITHUB_RUN_ID:'101',GITHUB_RUN_ATTEMPT:'1',GITHUB_REF:'refs/pull/1/merge'};
- const got=ciBuildIdentity(root,profile,env);assert.equal(got.consumerWorkflow,ciBuildWorkflow(profile));assert.equal(got.profileHelperSha256,sha(files['scripts/lib/ci-tested-build.mjs']));assert.equal(got.consumerWorkflowSha256,sha(files[ciBuildWorkflow(profile)]));assert.equal(got.checkoutSha,env.GITHUB_SHA);
+ const got=ciBuildIdentity(root,profile,env);assert.match(got.npmVersion,/^\d+\.\d+\.\d+(?:[-+].+)?$/);assert.equal(got.platform,process.platform);assert.equal(got.consumerWorkflow,ciBuildWorkflow(profile));assert.equal(got.profileHelperSha256,sha(files['scripts/lib/ci-tested-build.mjs']));assert.equal(got.consumerWorkflowSha256,sha(files[ciBuildWorkflow(profile)]));assert.equal(got.checkoutSha,env.GITHUB_SHA);
  assert.throws(()=>ciBuildIdentity(root,profile,{...env,GITHUB_SHA:'e'.repeat(40)}),/ART_BUILD_CHECKOUT_SHA/);
  fs.appendFileSync(path.join(root,ciBuildWorkflow(profile)),'# changed\n');assert.throws(()=>ciBuildIdentity(root,profile,env),/ART_BUILD_TRACKED_SOURCE_CHANGED/);
 });
@@ -141,4 +142,57 @@ for(const [label,from,to,error]of [
  assert.notEqual(altered.verify,jobs.verify);assert.equal(altered.tested_build,jobs.tested_build);
  assertJobInstallBoundary(altered.tested_build,profile,'tested_build');
  assert.throws(()=>assertJobInstallBoundary(altered.verify,profile,'verify'),new RegExp(error+':verify'));
+});
+
+function npmProbeForTest({platform='win32',executable='C:\\Pinned Node & Tools\\node.exe',readError,execError,realpathError}={}){
+ const source=fs.readFileSync(new URL('../scripts/own-art-tested-build.mjs',import.meta.url),'utf8');
+ const start=source.indexOf('function readNpmVersion(root)'),end=source.indexOf('\nexport function ownArtBuildIdentity',start);
+ assert.ok(start>0&&end>start,'ACTUAL_NPM_PROBE_SOURCE_REQUIRED');
+ const body=source.slice(start,end).trim(),calls=[];
+ const context={path:platform==='win32'?path.win32:path.posix,process:{platform,execPath:executable},
+  fs:{realpathSync(file){calls.push({kind:'realpath',file});if(realpathError)throw realpathError;return executable;}},
+  readStable(file){calls.push({kind:'read',file});if(readError)throw readError;return Buffer.from('synthetic npm entry');},
+  execFileSync(command,args,options){calls.push({kind:'execute',command,args:Array.from(args),options:{...options}});if(execError)throw execError;return '11.19.0\n';}};
+ const probe=new vm.Script('('+body+')',{filename:'actual-own-art-npm-probe.vm'}).runInNewContext(context,{timeout:1000,contextCodeGeneration:{strings:false,wasm:false}});
+ return {probe,calls};
+}
+
+test('Windows npm version uses the current Node and its stable bundled JS entry with fixed argv and no shell',()=>{
+ const executable='C:\\Pinned Node & Tools\\node.exe',root='D:\\Synthetic source & fixture',f=npmProbeForTest({executable});
+ assert.equal(f.probe(root),'11.19.0');
+ const cli='C:\\Pinned Node & Tools\\node_modules\\npm\\bin\\npm-cli.js';
+ assert.deepEqual(f.calls.map(c=>c.kind),['realpath','read','execute']);
+ assert.equal(f.calls[0].file,executable);assert.equal(f.calls[1].file,cli);
+ assert.deepEqual(f.calls[2],{kind:'execute',command:executable,args:[cli,'--version'],options:{cwd:root,encoding:'utf8',timeout:10000,windowsHide:true,shell:false}});
+ assert.equal(f.calls.some(c=>c.command==='npm'||c.command==='npm.cmd'||c.command==='cmd.exe'),false);
+});
+
+test('non-Windows npm version preserves the existing bare npm command and never reads a Windows CLI',()=>{
+ const f=npmProbeForTest({platform:'linux',executable:'/pinned node/bin/node'});
+ assert.equal(f.probe('/synthetic source'),'11.19.0');
+ assert.deepEqual(f.calls,[{kind:'execute',command:'npm',args:['--version'],options:{cwd:'/synthetic source',encoding:'utf8',timeout:10000,windowsHide:true,shell:false}}]);
+});
+
+test('missing Windows bundled npm CLI fails with its original error before any process or fallback',()=>{
+ const error=Object.assign(new Error('Synthetic missing npm CLI'),{code:'ENOENT'}),f=npmProbeForTest({readError:error});
+ assert.throws(()=>f.probe('D:\\synthetic'),e=>e===error);
+ assert.deepEqual(f.calls.map(c=>c.kind),['realpath','read']);
+});
+
+test('failed Windows npm CLI execution preserves the exact child error and never invents a version',()=>{
+ const error=Object.assign(new Error('Synthetic npm version failure'),{code:'EFAIL',status:37}),f=npmProbeForTest({execError:error});
+ assert.throws(()=>f.probe('D:\\synthetic'),e=>e===error);
+ assert.equal(f.calls.filter(c=>c.kind==='execute').length,1);
+});
+
+test('invalid current Node path fails before CLI read or any alternate executable',()=>{
+ const error=Object.assign(new Error('Synthetic missing Node'),{code:'ENOENT'}),f=npmProbeForTest({realpathError:error});
+ assert.throws(()=>f.probe('D:\\synthetic'),e=>e===error);
+ assert.deepEqual(f.calls.map(c=>c.kind),['realpath']);
+});
+
+test('non-Windows missing npm preserves its original subprocess error without fallback',()=>{
+ const error=Object.assign(new Error('Synthetic missing npm'),{code:'ENOENT'}),f=npmProbeForTest({platform:'linux',execError:error});
+ assert.throws(()=>f.probe('/synthetic'),e=>e===error);
+ assert.equal(f.calls.length,1);assert.equal(f.calls[0].command,'npm');
 });
