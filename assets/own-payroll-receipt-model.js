@@ -15,6 +15,18 @@ export const OWN_RECEIPT_MAX_CONCEPTS=250000;
 export const OWN_RECEIPT_MAX_BYTES=32*1024*1024;
 const need=(value,message)=>{if(!value)throw Error(message);};
 const text=(value,min,max)=>typeof value==='string'&&value===value.trim()&&value===value.normalize('NFC')&&value.length>=min&&value.length<=max&&!/[<>\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(value);
+// Same rule ownReceiptCommand applies to `reason` (text(value,10,1000)), explained before sending. null = accepted.
+export function ownReceiptReasonProblem(value){
+ if(text(value,10,1000))return null;
+ if(typeof value!=='string')return 'Completá un motivo de al menos 10 caracteres.';
+ if(/[\r\n]/.test(value))return 'El motivo va en un solo renglón: quitá los saltos de línea.';
+ if(value!==value.trim())return 'Quitá los espacios al principio y al final del motivo.';
+ if(value.length<10)return 'Completá un motivo de al menos 10 caracteres.';
+ if(value.length>1000)return 'El motivo admite hasta 1000 caracteres.';
+ if(/[<>]/.test(value))return 'El motivo no admite los signos < ni >.';
+ if(value!==value.normalize('NFC'))return 'Escribí el motivo de nuevo: tiene acentos en una forma que el sistema no acepta.';
+ return 'El motivo tiene caracteres de control o de dirección de texto: escribilo de nuevo sin pegarlo.';
+}
 const code=value=>typeof value==='string'&&/^\d{1,9}$/.test(value);
 export function ownReceiptContracts(value){
  need(Array.isArray(value)&&value.length<=200&&Object.keys(value).length===value.length&&value.every(salaryUuid)&&new Set(value).size===value.length,'Elegí hasta 200 contratos distintos de la previa completa; no se recorta la selección.');
