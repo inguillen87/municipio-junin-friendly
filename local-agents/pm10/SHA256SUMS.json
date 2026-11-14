@@ -32,7 +32,7 @@
   "tests/fixture.mjs": "e3ec35f3ff4bd22c189379cd9a9acff1f871e870452db6b6ba649b50d34f81a7",
   "tests/fixtures/lock-before-generation.txt": "58a1c956c4da8964a0b2947c25bf741a3e5763c543f986f850c6adaf8bd71e26",
   "tests/fleet-capture-manual-recovery.test.mjs": "7c2f6c36b179e99c38386e8811d2a7e2aa3a87023e4eb6612dac2b2fff75108f",
-  "tests/fleet-capture-recovery.test.mjs": "3203954f14427b38d140f2355161e18a2ebb11c307d953910a0b65a477912b8e",
+  "tests/fleet-capture-recovery.test.mjs": "5e7a5d78c9b3726413ca3a34eea2f5ece962b649165209a33c064fcf105a7aee",
   "tests/fleet-control.test.mjs": "7b898f050213e8e34f205d952de68d2f1c93775977ebe501a059c4f4a10059bf",
   "tests/fleet-delivery.test.mjs": "72680152a01997380d697d84e756085faa0bd7966cc51594cdd2a4044120fb9d",
   "tests/fleet-gateway.test.mjs": "5b9606fd15e931c7ad7aa3e9190d22cb21a8ef0cb6ce49288752108d5a3c107e",

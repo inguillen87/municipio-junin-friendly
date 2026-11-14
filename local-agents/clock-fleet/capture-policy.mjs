@@ -10,6 +10,38 @@ export function beforeClockSession(result){
   &&r.error?.phase==='TCP_CONNECT'&&r.diagnostics?.lastPhase==='TCP_CONNECT'
   &&CONNECT_ERRORS.has(r.error?.code);
 }
+// TCP opened but the reader never answered the first unauthenticated exchange (the class already reviewed for manual
+// recovery as preauth-connect-timeout.v1). No credential left this host, so the attempt is not ambiguous. The report must
+// be the one of this very clock: the same serial the manual recovery class demands.
+export function beforeAuthentication(result,clock){
+ const r=result?.report;
+ return typeof clock?.serial==='string'&&clock.serial.length>0
+  &&r?.schemaVersion==='municontrol.attendance-download-pilot.v4.1'&&r.expectedSerial===clock.serial
+  &&r.status==='CONNECTION_OR_AUTH_FAILED'&&r.tcpConnected===true
+  &&r.authenticationAccepted===false&&r.credentialAttempts===0&&r.attendanceTransferComplete===false
+  &&r.error?.code==='RESPONSE_TIMEOUT'&&r.error?.phase==='CONNECT'&&r.diagnostics?.lastPhase==='CONNECT'
+  &&Array.isArray(r.exchanges)&&r.exchanges.length===1&&r.exchanges[0]?.code===1000
+  &&r.configurationChanged===false&&r.attendanceDeleted===false&&r.biometricTemplatesRead===false&&r.userDirectoryRead===false;
+}
+// Coherent evidence, in the status bound to this identity, that the reader already delivered a complete verified capture:
+// when it finished, the hash of that snapshot and how many records it held. A complete capture that was empty or repeated
+// earlier records is still a capture. Nothing here expires with time.
+const INSTANT=/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
+const count=value=>Number.isSafeInteger(value)&&value>=0;
+export function verifiedPriorCapture(state,clock){
+ return state?.schema==='clock-fleet-status.v1'&&typeof clock?.clockId==='string'&&state.clockId===clock.clockId
+  &&typeof clock.serial==='string'&&clock.serial.length>0&&state.serial===clock.serial
+  &&typeof state.lastCaptureAt==='string'&&INSTANT.test(state.lastCaptureAt)&&Number.isFinite(Date.parse(state.lastCaptureAt))
+  &&new Date(state.lastCaptureAt.slice(0,10)+'T00:00:00Z').toISOString().slice(0,10)===state.lastCaptureAt.slice(0,10)
+  &&typeof state.lastCaptureSha256==='string'&&/^[a-f0-9]{64}$/.test(state.lastCaptureSha256)
+  &&count(state.snapshotRecordCount)&&count(state.newUniqueRecordsLastCycle)&&state.newUniqueRecordsLastCycle<=state.snapshotRecordCount
+  &&count(state.uniqueLocalRecords)&&state.uniqueLocalRecords>=state.newUniqueRecordsLastCycle;
+}
+// A reader with that evidence keeps being polled through the pre-authentication class: it waits like an unreachable
+// reader instead of spending the six-failure budget. Stored blocks are never cleared here.
+export function unattendedRetryAllowed(state,result,clock){
+ return beforeClockSession(result)||(state?.blocked!==true&&verifiedPriorCapture(state,clock)&&beforeAuthentication(result,clock));
+}
 export function nextCaptureFailure(state,{code,network,cancelled,preconnect,transient,pollSeconds,now,storageWait=false}){
  if(storageWait===true&&code==='DISK_SPACE_LOW'&&!cancelled&&!state.blocked){
   return {failureCount:state.failureCount,connectionFailureCount:state.connectionFailureCount??0,blocked:false,status:'storage_wait',lastError:code,
