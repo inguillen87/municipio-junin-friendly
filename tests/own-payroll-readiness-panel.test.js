@@ -44,9 +44,9 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
  const state={annul:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
- let clock=0,timerId=0;const deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
- const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
- Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:()=>1,clearInterval(){}});
+ let clock=0,timerId=0;const intervals=new Map(),deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
+ const logoutButton=new Element('button'),document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:id=>id==='logoutButton'?logoutButton:null};
+ Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:(fn,ms)=>{const id=++timerId;intervals.set(id,{fn,ms});return id;},clearInterval:id=>intervals.delete(id)});
  globalThis.fetch=async(url,options={})=>{
   const method=options.method??'GET',request={url,method,body:options.body??null,key:options.headers?.['Idempotency-Key']??null};requests.push(request);
   if(state.readStepMs?.length){advance(state.readStepMs.shift());if(options.signal?.aborted)throw new DOMException('Synthetic single HTTP deadline','AbortError');}
@@ -63,7 +63,12 @@ function harness(t){
   else if(url.startsWith('/api/internal-data?resource=employees')){assert.ok(state.lookup,'Explicit synthetic directory fixture');payload=state.lookup;}
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
-  return new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json'}});
+  const response=new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json'}});
+  // Deliberately return a response formed BEFORE the hold, even if its signal is later aborted.
+  // This tests stale-result guards rather than relying on a cooperative fetch mock.
+  const held=state.responseHold;
+  if(held?.url===url&&held.remaining>0){held.remaining--;held.payloadSnapshot=structuredClone(payload);held.signal=options.signal;held.entered=true;await held.wait;}
+  return response;
  };
  const mounted=mountOwnPayrollRun(host),q=key=>{const value=host.querySelector('[data-own-'+key+']');assert.ok(value,'Actual panel control '+key);return value;};
  const idle=async()=>{const deadline=performance.now()+5000;while(host.getAttribute('aria-busy')!=='false'){if(performance.now()>=deadline)assert.fail('Panel did not settle within 5s; status: '+q('status').textContent+'; preparation: '+q('readiness-title').textContent);await delay(5);}};
@@ -71,7 +76,7 @@ function harness(t){
  const prepare=async()=>{q('period').value='2026-10';q('date').value='2026-10-31';q('type').value='monthly';q('kind').value='all';await q('kind').emit('change');q('confirm').checked=true;await q('confirm').emit('change');};
  const submit=async()=>{await q('form').emit('submit');await idle();};
  t.after(()=>{winEvents.dispatch('pagehide');for(const [key,descriptor]of before)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];});
- return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document,now:()=>clock};
+ return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,windowEvent:winEvents.dispatch,logout:()=>logoutButton.emit('click'),document,now:()=>clock,advance,poll:()=>{const ticks=[...intervals.values()].filter(t=>t.ms===60000);assert.equal(ticks.length,2,'Actual calculation and unopened position-client intervals');return Promise.all(ticks.map(t=>t.fn()));},pendingTimers:()=>deadlines.size,intervalCount:()=>intervals.size};
 }
 
 function assertActionHelp(h,pattern,{href=null}={}){
@@ -262,4 +267,92 @@ for(const failure of['onUse','selectionIssue'])test('legacy '+failure+'retiene s
  h.state.lookup={ok:true,version:'employee-picker.v1',data:[employee],pagination:{page:1,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-10-01',sourceCutoffTo:'2026-10-01'}};
  const picker=createEmployeePicker({instanceId:'legacyQaPicker',canUse:()=>true,selectionIssue:()=>issue?'Revisión legacy sintética requerida':null});picker.open({onUse:()=>{throw Object.assign(Error('Aplicación legacy sintética fallida'),{name:'AbortError'});}});const d=h.document.body.querySelectorAll('dialog').at(-1);d.querySelector('#legacyQaPickerSearch').value='1339';await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);const row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');const results=d.querySelector('[data-picker-results]').children[0],chips=d.querySelector('[data-picker-chips]').children[0];issue=failure==='selectionIssue';await d.querySelector('[data-picker-apply]').emit('click');
  assert.equal(d.open,true);assert.equal(d.querySelector('[data-picker-results]').children[0],results);assert.equal(d.querySelector('[data-picker-chips]').children[0],chips);assert.match(d.querySelector('[data-picker-count]').textContent,/1 legajo seleccionado/);assert.equal(d.querySelector('[data-picker-apply]').disabled,false);assert.match(d.querySelector('[data-picker-state]').textContent,failure==='onUse'?/Aplicación legacy sintética fallida/:/Revisión legacy sintética requerida/);assert.equal(h.requests.some(r=>r.method==='POST'),false);picker.close();
+});
+
+// Focused poll/picker regression. Original fixtures, DOM, parser and panel modules above are retained.
+const POLL_ROSTER_URL='/api/internal-data?resource=nativeroster&schema=2&search=&status=all&jurisdiction=&organization=&sector=&agreement=';
+const ownedDeferred=()=>{let release;const wait=new Promise(resolve=>{release=resolve;});return{wait,release};};
+async function waitUntil(predicate){for(let i=0;i<200&&!predicate();i++)await settle();assert.ok(predicate(),'Controlled synthetic HTTP reached its hold');}
+function holdOneAuth(h){const gate=ownedDeferred(),held={url:'/api/internal-auth',remaining:1,entered:false,wait:gate.wait,release:gate.release};h.state.responseHold=held;return held;}
+async function selectedPicker(h){const d=await searchOwnPicker(h,'5001'),row=d.querySelector('[data-picker-results] input');assert.ok(row,'Actual complete roster row');row.checked=true;await row.emit('change');return d;}
+const noPollPost=h=>assert.equal(h.requests.some(r=>r.method==='POST'),false,'Session polling never starts a business command');
+
+test('poll60000 same identity during pending roster keeps exact picker row and Buscar usable',async t=>{
+ const h=harness(t);await h.start();const gate=ownedDeferred();h.state.hold={url:POLL_ROSTER_URL,wait:gate.wait};
+ h.q('kind').value='contracts';await h.q('kind').emit('change');await h.q('picker').emit('click');const d=h.document.body.querySelector('dialog');d.querySelector('#ownRunPickerSearch').value='5001';
+ const before=h.requests.length;await d.querySelector('[data-picker-form]').emit('submit');await waitUntil(()=>h.requests.slice(before).some(r=>r.url===POLL_ROSTER_URL));
+ const held=holdOneAuth(h),pollStart=h.requests.length,poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);
+  assert.equal(h.requests.slice(pollStart).filter(r=>r.url==='/api/internal-auth').length,1,'Unopened position client emits no auth; the held request belongs to Calcular');
+  assert.equal(held.payloadSnapshot.user.id,h.state.sessionId,'Preformed auth snapshot belongs to the active calculation account');
+  assert.deepEqual(held.payloadSnapshot.access.tenantCapabilities,h.state.caps,'Preformed same-account auth retains the original fixture capabilities');
+  h.state.hold=null;gate.release();await settleOwnPicker(d);
+  assert.equal(d.open,true);const rows=d.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1,'Same-identity poll must not invalidate the pending roster');
+  assert.equal(rows[0].value,h.state.roster.rows[0].contractId,'Original canonical contract identity');
+  assert.equal(d.querySelector('[data-picker-form] button').disabled,false);assert.equal(h.q('fields').disabled,false);
+  rows[0].checked=true;await rows[0].emit('change');assert.equal(d.querySelector('[data-picker-apply]').disabled,false);noPollPost(h);
+ }finally{h.state.hold=null;gate.release();held.release();await poll;await h.idle();await settle();}
+ noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+for(const[label,change]of[
+ ['401',s=>s.authFailure=401],['403',s=>s.authFailure=403],['different-account',s=>s.sessionId=uid(31)],
+ ['same-key-nominal-revoked',s=>s.caps=s.caps.filter(c=>c!=='payroll.novelty.nominal.read')],
+ ['same-key-prepare-revoked',s=>s.caps=s.caps.filter(c=>c!=='payroll.calculation.prepare')]
+])test('poll60000 '+label+' withdraws the old picker without a command',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h);change(h.state);await h.poll();await h.idle();await settle();
+ assert.equal(d.open,false);assert.equal(d.querySelector('[data-picker-results]').children.length,0);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('chips').children.length,0);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('captured old auth cannot restore prepare revoked by a capability event or the next passive poll',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);assert.ok(held.payloadSnapshot.access.tenantCapabilities.includes('payroll.calculation.prepare'),'Old grant captured before the hold');
+  h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});
+  assert.equal(d.open,false);assert.equal(h.q('fields').disabled,true);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.q('fields').disabled,true);await h.poll();await h.idle();assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('captured old auth cannot overwrite a newer operation with fewer capabilities',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);assert.ok(held.payloadSnapshot.access.tenantCapabilities.includes('payroll.calculation.prepare'));
+  h.state.caps=h.state.caps.filter(c=>c!=='payroll.calculation.prepare');await h.refresh();await h.idle();
+  assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+for(const mode of['hidden','taskchange','pagehide','logout'])test('captured old auth after '+mode+' never restores a nominal view',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);
+  if(mode==='hidden'){h.document.hidden=true;h.event('visibilitychange');}
+  else if(mode==='taskchange')h.event('taskchange',{id:'decisiones'});
+  else if(mode==='pagehide')h.windowEvent('pagehide');
+  else await h.logout();
+  assert.equal(d.open,false);assert.equal(d.querySelector('[data-picker-results]').children.length,0);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(d.open,false);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);noPollPost(h);assert.equal(h.pendingTimers(),0);
+ if(mode==='pagehide')assert.equal(h.intervalCount(),0);
+});
+
+test('the owned auth deadline remains45000 and cancellation permits the next interval without a command',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);h.advance(44999);assert.equal(held.signal.aborted,false);h.advance(1);assert.equal(held.signal.aborted,true,'Unchanged45000ms budget');
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.pendingTimers(),0);assert.equal(d.open,true);assert.equal(h.q('fields').disabled,false);
+ await h.poll();await h.idle();await settle();assert.equal(d.open,true);assert.equal(h.q('fields').disabled,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('the interval starts no auth when the panel is busy and owns no duplicate overlapping poll',async t=>{
+ const h=harness(t);await h.start();let held=holdOneAuth(h),work=h.refresh();
+ try{await waitUntil(()=>held.entered);const before=h.requests.length;await h.poll();assert.equal(h.requests.length,before,'Original !busy entry guard');}
+ finally{held.release();await work;await h.idle();await settle();}
+ held=holdOneAuth(h);const poll=h.poll();
+ try{await waitUntil(()=>held.entered);const before=h.requests.length;await h.poll();assert.equal(h.requests.length,before,'One owned session poll');}
+ finally{held.release();await poll;await h.idle();await settle();}
+ noPollPost(h);assert.equal(h.pendingTimers(),0);
 });
