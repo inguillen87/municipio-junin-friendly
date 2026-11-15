@@ -1,5 +1,6 @@
-// Pure source derivation. No connection, SQL execution, install, ACL change or
-// attester rewrite. Received originals are inputs and remain byte-for-byte intact.
+// Pure source derivation. No connection, SQL execution, installation or attester
+// rewrite. Only the two new validators declare owner-only access in the emitted
+// source; original definitions/ACLs remain immutable inputs.
 import {createHash} from 'node:crypto';
 
 const digest=text=>createHash('sha256').update(text,'utf8').digest('hex');
@@ -90,9 +91,15 @@ export function buildEmploymentPrintCandidate({captureSource,printFactsSource,he
   familyCapacity[family]={originalMembers:prior.length,newHelpers:2,attesterMembers:1,proposedTotal:after,unchangedLimit:64,attestationClosed:false};
  }
  need(Object.keys(familyCapacity).length===2,'Both original families are required.');
+ const newValidatorAccess=functions.filter(fn=>fn.kind==='new').map(fn=>({
+  signature:fn.signature,owner:'neondb_owner',expectedAcl:'{neondb_owner=X/neondb_owner}',
+  revokeFrom:['PUBLIC','municontrol_actions_runtime_app'],
+  statements:[`ALTER FUNCTION ${fn.signature} OWNER TO neondb_owner;`,
+   `REVOKE ALL ON FUNCTION ${fn.signature} FROM PUBLIC,municontrol_actions_runtime_app;`],
+ }));
  const sql="-- PURE DERIVED SOURCE. NOT AN INSTALLER. ATTESTATION/METADATA REVIEW REQUIRED.\nBEGIN;\nDO $source_only$ BEGIN RAISE EXCEPTION 'OWN_EMPLOYMENT_PRINT_SOURCE_REQUIRES_REVIEWED_COMPOSITION';END $source_only$;\n\n"
-  +functions.map(fn=>fn.sql).join('\n\n')+'\n\nROLLBACK;\n';
+  +functions.map(fn=>fn.sql).join('\n\n')+'\n\n'+newValidatorAccess.flatMap(value=>value.statements).join('\n')+'\n\nROLLBACK;\n';
  need(!/own_employment_print_capture_candidate_v1\(|own_receipt_print_facts_job_title_candidate_v1\(/.test(sql),'A temporary helper leaked into the two-helper proposal.');
  return {version:'own-employment-print-source-proposal.v1',installable:false,connects:false,executesSql:false,
-  requiresReviewedAttestation:true,originals:EMPLOYMENT_PRINT_ORIGINALS,familyCapacity,functions,sql};
+  requiresReviewedAttestation:true,originals:EMPLOYMENT_PRINT_ORIGINALS,familyCapacity,newValidatorAccess,functions,sql};
 }

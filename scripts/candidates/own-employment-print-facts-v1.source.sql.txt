@@ -40,7 +40,7 @@ END $proof$;
 CREATE FUNCTION public.own_employment_print_component_candidate_v1(component jsonb,classifications jsonb,employees jsonb,period_value text)
 RETURNS void LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $component$
 DECLARE classification jsonb;row_value jsonb;employee jsonb;proof jsonb;n integer;title_value text;
- title_units integer;title_forbidden boolean;title_edge_space boolean;BEGIN
+ title_points integer;title_units integer;title_forbidden boolean;title_edge_space boolean;BEGIN
  IF public.own_program_exact_v1(component,ARRAY['version','period','complete','total','classificationsSha256','rows']) IS NOT TRUE
   OR component->>'version' IS DISTINCT FROM 'own-employment-print-capture.v1' OR component->>'period' IS DISTINCT FROM period_value
   OR period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
@@ -69,21 +69,23 @@ DECLARE classification jsonb;row_value jsonb;employee jsonb;proof jsonb;n intege
    OR row_value->'basis' IS DISTINCT FROM classification->'basis' OR row_value->>'classificationRowSha256' IS DISTINCT FROM public.own_run_hash_v1(classification)
   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
   IF row_value->'jobTitle' IS DISTINCT FROM 'null'::jsonb THEN
-   IF jsonb_typeof(row_value->'jobTitle') IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   IF jsonb_typeof(row_value->'jobTitle') IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID';END IF;
    title_value:=row_value->>'jobTitle';
+   title_points:=char_length(title_value);
+   IF title_points NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID';END IF;
    -- Exact JS contract, independent of locale-sensitive regex classes and the
    -- original receipt helper's ordinary-space btrim. Nothing is normalized.
    -- PostgreSQL UTF8 text/jsonb already rejects NUL and unpaired surrogates.
    SELECT coalesce(sum(CASE WHEN cp>65535 THEN 2 ELSE 1 END),0),
     coalesce(bool_or(cp BETWEEN 0 AND 31 OR cp BETWEEN 127 AND 159 OR cp IN(60,62)
       OR cp BETWEEN 8234 AND 8238 OR cp BETWEEN 8294 AND 8297),false),
-    coalesce(bool_or((ordinal_value=1 OR ordinal_value=char_length(title_value)) AND
+    coalesce(bool_or((ordinal_value=1 OR ordinal_value=title_points) AND
       (cp IN(9,10,11,12,13,32,160,5760,8232,8233,8239,8287,12288,65279) OR cp BETWEEN 8192 AND 8202)),false)
     INTO title_units,title_forbidden,title_edge_space
-    FROM(SELECT i AS ordinal_value,ascii(substr(title_value,i,1)) AS cp FROM generate_series(1,char_length(title_value)) i) characters;
+    FROM(SELECT i AS ordinal_value,ascii(substr(title_value,i,1)) AS cp FROM generate_series(1,title_points) i) characters;
    IF title_units NOT BETWEEN 1 AND 120 OR title_forbidden OR title_edge_space
     OR normalize(title_value,NFC) IS DISTINCT FROM title_value
-   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID';END IF;
   END IF;
   proof:=row_value->'provenance';
   IF row_value->>'basis'='current_own_registration' THEN

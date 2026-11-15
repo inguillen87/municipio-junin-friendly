@@ -1,6 +1,6 @@
 # Cargo conservado en futuras capturas: candidato de fuente
 
-Estado: lector, validadores y derivador puro de fuente implementados. La propuesta emitida incorpora dos validadores nuevos y deriva dos funciones existentes de originales exactos. **No es un instalador ni un cambio operativo; el SQL no fue ejecutado.** Base de programación: `ca0d04b786fe983ad73cc6ae8ec716af42829df2`.
+Estado: lector, validadores, preflight de filas suministradas y derivador puro de fuente implementados. La propuesta emitida incorpora dos validadores nuevos y deriva dos funciones existentes de originales exactos. **No es un instalador ni un cambio operativo; el SQL no fue ejecutado.** Base inicial de programación: `ca0d04b786fe983ad73cc6ae8ec716af42829df2`; ajuste de compatibilidad y ACL sobre PR291.
 
 ## Problema y fuente recibida
 
@@ -42,7 +42,7 @@ Para `current_own_registration`, el candidato de captura vuelve a exigir el resu
 
 La procedencia contiene `kind:current_own_contract_at_capture`, el campo exacto `source_payload.employment.cargoName`, `sourceVersion` y la procedencia completa del registro devuelta por `own_period_classification_source_v1`. Esta última conserva registro y request hash; si fue adopción, también propuesta, decisión, sello y paquete final. No se guarda una copia de la ficha completa ni se usa un nombre de estructura como cargo.
 
-El cargo nuevo debe ser texto NFC sin controles, marcado ni espacios exteriores, de hasta 120 unidades UTF-16, o `null`. No se recorta ni se normaliza al leer. El SQL candidato enumera puntos de código para reproducir el contrato JS, sin depender de clases POSIX sensibles al locale. El helper original `own_receipt_text_v1` queda intacto: su `btrim` sólo elimina espacio ordinario y no basta para esta validación nueva.
+El cargo nuevo debe ser texto NFC sin controles, marcado ni espacios exteriores, de hasta 120 unidades UTF-16, o `null`. No se recorta ni se normaliza al leer. El SQL candidato exige primero `char_length(title_value)` entre 1 y 120; sólo después enumera esos puntos de código para comprobar el límite UTF-16 y el resto del contrato JS, sin depender de clases POSIX sensibles al locale. Un cargo incompatible produce `OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID`, sin incluir su texto en el error. El helper original `own_receipt_text_v1` queda intacto: su `btrim` sólo elimina espacio ordinario y no basta para esta validación nueva.
 
 ### Matriz Unicode: JS comprobado, PostgreSQL pendiente
 
@@ -58,6 +58,26 @@ La matriz ejecutable está en `tests/fixtures/own-employment-print-unicode-synth
 | En cualquiera de los extremos: U+0009–000D, U+0020, U+00A0, U+1680, U+2000–200A, U+2028, U+2029, U+202F, U+205F, U+3000 o U+FEFF | Rechazado, igual que `value !== value.trim()` en JS. |
 | NBSP, FEFF y otros espacios Unicode NFC en el interior, sin controles prohibidos | Admitido: el contrato no los elimina ni los interpreta. U+2000 y U+2001 se rechazan incluso dentro del texto porque NFC los reemplazaría por U+2002 y U+2003. |
 | U+180E y U+200B en los extremos | Admitido: no pertenecen al conjunto ECMAScript de `trim`; no se generaliza a «todos los invisibles». |
+
+### Compatibilidad pendiente de los escritores y preflight acotado
+
+**Los escritores actuales siguen sin alinearse con el contrato de impresión.** No se modifican aquí. El alta SQL de `095-native-employee-jurisdiction.sql` usa `btrim`, longitud de caracteres y una clase POSIX de controles; no exige NFC ni el mismo límite UTF-16. La rectificación SQL de `104-native-employment-changes.sql` sí normaliza a NFC, pero conserva `btrim` y el límite por caracteres. Los modelos JS tampoco son uniformes: `employeeDraft` normaliza y recorta; `changeValues` cuenta puntos de código y permite controles bidi que la impresión rechaza. Por tanto, no se puede afirmar compatibilidad global a partir de la validación del alta o la rectificación.
+
+Las pruebas puras ejecutan `changeValues` real y muestran que conserva un cargo con control bidi y otro de 61 caracteres suplementarios, ambos rechazados por impresión. NBSP/FEFF exteriores y texto NFD se incluyen como fixtures de bytes suministrados que deben rechazarse; estas pruebas no ejecutan ni simulan PostgreSQL. El preflight tampoco normaliza esos valores ni los reemplaza silenciosamente por `null`.
+
+`preflightOwnEmploymentPrintTitles`, en `lib/own-employment-print-preflight.js`, recibe únicamente un arreglo denso de hasta 10.000 filas con esta forma cerrada:
+
+```text
+{ contractId: <UUID>, registrationId: <UUID>, jobTitle: <texto exacto o null> }
+```
+
+El llamador suministra las filas. La función no lee archivos, SQL ni fichas municipales, no resuelve identidad o autoridad y no consulta población. Reutiliza `ownEmploymentJobTitleReasons`, el mismo validador textual del lector. El informe contiene sólo el ordinal y los UUID de las filas rechazadas, el código de error y causas fijas legibles: tipo inválido, texto vacío, longitud UTF-16, Unicode inválido, espacios exteriores, NFC, controles, bidi o marcado. No contiene el cargo original, fragmentos, una versión normalizada ni su huella.
+
+Todos los informes declaran `scope:'supplied_rows_only'`, `populationCoverageVerified:false` e `installationReady:false`, incluso si no se suministraron filas o todas fueron compatibles. `checkedRows` y `compatibleRows` cuentan únicamente lo recibido; identidades repetidas permanecen como filas separadas, sin afirmar que representen una población única. Una forma de entrada inválida impide emitir un informe parcial.
+
+`compatibleRows` significa **compatibilidad textual con el contrato de captura**. No garantiza representación en el PDF: símbolos como `→` son válidos en este contrato, pero no se pueden codificar con WinAnsi. La codificación PDF es un control distinto; este preflight no consulta fuentes tipográficas, no prueba generación de PDF ni restringe el texto a ese juego de caracteres.
+
+**El control operativo de población completa y compatibilidad queda para Codex**, con las fuentes y autorizaciones correspondientes. Un informe sin rechazos sobre una muestra no reemplaza ese control ni habilita instalación. Resolver la desalineación de los escritores y cualquier dato preexistente requiere una decisión explícita; este ajuste no modifica datos, permisos de escritura ni política de negocio.
 
 ### Encuadre retroactivo aprobado
 
@@ -104,20 +124,22 @@ node scripts/build-own-employment-print-candidate.mjs
 
 Ese programa sólo lee y escribe los archivos de fuente indicados. No se conecta, no ejecuta SQL ni genera atestadores. Ambas fuentes SQL contienen `BEGIN`, una excepción incondicional de documento fuente y `ROLLBACK`: la transacción queda abortada al intentar ejecutarlas. No son instaladores.
 
+La fuente **derivada** declara el propietario `neondb_owner` y `REVOKE ALL ... FROM PUBLIC,municontrol_actions_runtime_app` exclusivamente para los dos validadores nuevos. No emite `GRANT`, ni `OWNER`/`REVOKE` sobre captura, productor u otro original. Las cuatro sentencias están dentro de la misma barrera de fuente. El manifest enumera las firmas, sentencias y ACL esperada `{neondb_owner=X/neondb_owner}`; esto especifica el objetivo, sin afirmar que se haya aplicado o verificado una ACL instalada.
+
 | Familia | Miembros originales del literal | Atestador agregado por provider | Validadores nuevos propuestos | Total propuesto | Límite original |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | quantity | 29 | 1 | 2 | 32 | 64 |
 | official | 61 | 1 | 2 | 64 | 64 |
 
-Esta aritmética resuelve la cabida numérica para la propuesta de dos validadores. El manifest deja `attestationClosed:false`: no acredita todavía metadata, ACL, providers, aprobación ni cierre transitivo. No se excluye un miembro existente ni se eleva el límite.
+Esta aritmética resuelve la cabida numérica para la propuesta de dos validadores. El manifest deja `attestationClosed:false`: las ACL nuevas están declaradas, pero no se acredita metadata instalada, ACL efectiva, providers, aprobación ni cierre transitivo. No se excluye un miembro existente ni se eleva el límite.
 
 ## Dependencias que impiden declarar cerrado el SQL
 
-1. **Atestadores y familias.** El original 61 fija el prosrc y metadatos de captura, resolver, fuente de clasificación, productor V6 y demás dependencias. `own_run_release_attest_c1_v1(text)` compara esa colección exacta; sus providers fijan a su vez el prosrc `e4cde8662c396377307675e03f6c62e64336a4fa991d04f5f0eaae144cf65c27` del attester. Derivar captura y productor exige una composición revisada de esa cadena. El constructor no cambia en esta propuesta. El derivador no genera ni modifica atestadores, providers, ACL o guardas; actualizar sólo un hash o permitir deriva no resuelve la dependencia.
+1. **Atestadores y familias.** El original 61 fija el prosrc y metadatos de captura, resolver, fuente de clasificación, productor V6 y demás dependencias. `own_run_release_attest_c1_v1(text)` compara esa colección exacta; sus providers fijan a su vez el prosrc `e4cde8662c396377307675e03f6c62e64336a4fa991d04f5f0eaae144cf65c27` del attester. Derivar captura y productor exige una composición revisada de esa cadena. El constructor no cambia en esta propuesta. El derivador no genera ni modifica atestadores, providers, ACL de originales o guardas; sólo declara las ACL de los dos validadores nuevos. Actualizar sólo un hash o permitir deriva no resuelve la dependencia.
 2. **Cierre dentro de la capacidad.** La propuesta de dos validadores cabe numéricamente en 32/64 miembros, pero aún debe verificarse el cierre exacto de funciones y metadata. Si esa revisión exigiese otro miembro nuevo de official, la propuesta requeriría rediseño; no se puede omitir la dependencia ni aumentar el límite para hacerla pasar.
 3. **Tarifas familiares: originales recibidos.** Claude entregó las cuatro definiciones originales en el [comentario 6901930877 de PR270](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6901930877). Se conservaron sin editar y sus huellas coinciden con los pins del original 61. Ya no falta el cuerpo nativo `3293635e…`. La revisión estática comprobó que estos cuatro cuerpos no leen directamente `sourceInventory` ni el hash del payload completo; el productor de hechos familiares reconstruye su versión con una lista cerrada de fuentes y período/registros. Añadir el componente hermano no cambia directamente esas derivaciones. Falta comprobar la cadena transitiva de atestaciones y la composición SQL; esto no demuestra invariancia de todos los hashes oficiales.
-4. **Huellas frente a importes.** El payload de una captura nueva y la evidencia de impresión cambian por definición. Las pruebas puras demuestran igualdad del input/result económico en la fixture probada. La revisión de los cuatro originales y de los consumidores JS no encontró un acceso directo al componente nuevo desde los materiales económicos ni un cambio automático de `inputSha256` por reatestación. No se promete invariancia global de `inputSha256` o `resultSha256`: el cuerpo transitivo exacto de `public.own_run_family_input_verify_v1(jsonb,jsonb)` no está entre las fuentes recibidas y la cadena de composición no está cerrada. El atestador de original61 exige prosrc SHA-256 `611e54c2c5611530e8868a62e2acb6da0fb587fca9b60961baa0b91b242e43d8`, argumentos `payload jsonb, input_value jsonb`, retorno `void`, PL/pgSQL `IMMUTABLE SECURITY DEFINER`. Las capturas y recibos anteriores sí deben conservar todos sus bytes y hashes.
-5. **Validación SQL pendiente.** No se ejecutó PostgreSQL, instalación, CI ni operación municipal. Sintaxis, tipos, locks, grants del candidato compuesto, recuperación y límites deben comprobarse por Claude en un laboratorio sintético nuevo con los originales exactos.
+4. **Huellas frente a importes.** El payload de una captura nueva y la evidencia de impresión cambian por definición. Las pruebas puras demuestran igualdad del input/result económico en la fixture probada. La revisión de los cuatro originales y de los consumidores JS no encontró un acceso directo al componente nuevo desde los materiales económicos ni un cambio automático de `inputSha256` por reatestación. El cuerpo transitivo exacto de `public.own_run_family_input_verify_v1(jsonb,jsonb)` **ya fue recuperado**, en el [comentario 6902318214 de PR270](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6902318214): su prosrc SHA-256 `611e54c2c5611530e8868a62e2acb6da0fb587fca9b60961baa0b91b242e43d8` coincide con original61. Comprueba las entradas familiares contra `own_run_family_expected_inputs_v1`; no lee directamente el componente nuevo. Esa falta documental queda cerrada. No se promete invariancia global de `inputSha256` o `resultSha256` porque la composición y su atestación aún no están cerradas. Las capturas y recibos anteriores sí deben conservar todos sus bytes y hashes.
+5. **Validación SQL y compatibilidad pendientes.** No se ejecutó PostgreSQL, instalación, CI ni operación municipal. Sintaxis, tipos, locks, propietario/ACL efectivos del candidato compuesto, recuperación, límites y la matriz Unicode deben comprobarse en el laboratorio sintético autorizado. El preflight sólo informa sobre filas suministradas; no cierra la compatibilidad de los escritores ni el control operativo de la población completa reservado a Codex.
 
 | Definición familiar recibida | SHA-256 del prosrc original |
 | --- | --- |
@@ -125,17 +147,28 @@ Esta aritmética resuelve la cabida numérica para la propuesta de dos validador
 | `own_program_family_tariff_options_candidate_v2` | `2fb116b906af493958cd24e2e08643d74539a8bb74f0ff77c91922f8af388213` |
 | `own_run_family_tariff_capture_candidate_v2` | `69f5f9d6387752d3d81f72e76cafa6557c9d42a2a3f3d772d283af8c7b6d0d94` |
 | `own_run_family_expected_inputs_v1` | `67777cb9e158ee5734fd8078fdaa6fa36a1de4200cb0edd89e08938754ba5abd` |
+| `own_run_family_input_verify_v1` | `611e54c2c5611530e8868a62e2acb6da0fb587fca9b60961baa0b91b242e43d8` |
 
 ## Pruebas puras disponibles
 
 `tests/own-payroll-employment-print-facts.test.js` cubre población mixta completa, cargo/null/retroactivo, enlaces por contrato/registro/token/procedencia, hashes conjuntos y por fila, ausencia histórica, corrupción de la última fila, texto exacto, adopción y su sello, separación cargo/estructura, la matriz Unicode y conservación económica de la fixture. También verifica la barrera de la fuente de referencia y la ausencia de lectura de empleo actual en su proyección.
 
-`tests/own-employment-print-candidate.test.js` comprueba las fuentes exactas, rechazo de deriva del header o cuerpo, separación de los dos pins originales de captura, dos altas y dos definiciones derivadas, posición del bloque, conservación del replay y controles originales, proyección sólo congelada y correspondencia exacta del archivo emitido y su manifest. Son pruebas de transformación de texto y contratos JS; no acreditan comportamiento PostgreSQL.
+`tests/own-employment-print-candidate.test.js` comprueba las fuentes exactas, rechazo de deriva del header o cuerpo, separación de los dos pins originales de captura, dos altas y dos definiciones derivadas, posición del bloque, conservación del replay y controles originales, proyección sólo congelada y correspondencia exacta del archivo emitido y su manifest. También comprueba la cota anterior al recorrido Unicode, el error específico y las únicas cuatro sentencias `OWNER`/`REVOKE`, sin `GRANT`. Son pruebas de transformación de texto y contratos JS; no acreditan comportamiento PostgreSQL.
+
+`tests/own-employment-print-preflight.test.js` cubre compatibilidad del validador compartido con la matriz Unicode, filas suministradas vacías/repetidas, causas legibles sin texto privado, ausencia de mutación o normalización, rechazo de entradas mal formadas y casos incompatibles admitidos por `changeValues` actual. Sólo usa fixtures sintéticos.
 
 Se ejecutan directamente con `node --test`; no se usa el script amplio de build/test ni un ejecutor de migraciones.
 
-La integración sobre PR289 `49369b8435872bdda4ed6524c841fb345badb9b7` aprobó **118/118 pruebas focales**, cero fallos y cero omitidas: las dos suites nuevas más clasificación de período, print facts V6 y corridas existentes.
+Antes de este ajuste, la integración sobre PR289 `49369b8435872bdda4ed6524c841fb345badb9b7` aprobó **118/118 pruebas focales**, cero fallos y cero omitidas: las dos suites iniciales más clasificación de período, print facts V6 y corridas existentes. El comando focal del ajuste incluye además el preflight:
 
 ```text
-node --test tests/own-employment-print-candidate.test.js tests/own-payroll-employment-print-facts.test.js tests/own-payroll-period-classification.test.js tests/own-payroll-receipt-print-facts.test.js tests/own-payroll-run.test.js
+node --test tests/own-employment-print-candidate.test.js tests/own-employment-print-preflight.test.js tests/own-payroll-employment-print-facts.test.js
+```
+
+Resultado del ajuste: **62/62 PASS**, cero fallos y cero omitidas (18 del derivador, 10 del preflight y 34 del lector). `git diff --check` también terminó sin errores. La revisión estática independiente confirmó que sólo cambian el guard/error de título y las declaraciones de acceso de los dos validadores en la fuente derivada; los hashes de captura/productor derivados y los originales permanecen iguales.
+
+La verificación integrada posterior aprobó **130/130**, cero fallos y cero omitidas, agregando las regresiones de clasificación, impresión V6 y corridas:
+
+```text
+node --test tests/own-employment-print-candidate.test.js tests/own-employment-print-preflight.test.js tests/own-payroll-employment-print-facts.test.js tests/own-payroll-period-classification.test.js tests/own-payroll-receipt-print-facts.test.js tests/own-payroll-run.test.js
 ```

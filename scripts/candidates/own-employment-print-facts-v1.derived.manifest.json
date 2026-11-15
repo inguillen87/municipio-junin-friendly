@@ -31,6 +31,34 @@
       "attestationClosed": false
     }
   },
+  "newValidatorAccess": [
+    {
+      "signature": "public.own_employment_print_provenance_candidate_v1(jsonb,jsonb)",
+      "owner": "neondb_owner",
+      "expectedAcl": "{neondb_owner=X/neondb_owner}",
+      "revokeFrom": [
+        "PUBLIC",
+        "municontrol_actions_runtime_app"
+      ],
+      "statements": [
+        "ALTER FUNCTION public.own_employment_print_provenance_candidate_v1(jsonb,jsonb) OWNER TO neondb_owner;",
+        "REVOKE ALL ON FUNCTION public.own_employment_print_provenance_candidate_v1(jsonb,jsonb) FROM PUBLIC,municontrol_actions_runtime_app;"
+      ]
+    },
+    {
+      "signature": "public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text)",
+      "owner": "neondb_owner",
+      "expectedAcl": "{neondb_owner=X/neondb_owner}",
+      "revokeFrom": [
+        "PUBLIC",
+        "municontrol_actions_runtime_app"
+      ],
+      "statements": [
+        "ALTER FUNCTION public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text) OWNER TO neondb_owner;",
+        "REVOKE ALL ON FUNCTION public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text) FROM PUBLIC,municontrol_actions_runtime_app;"
+      ]
+    }
+  ],
   "inputs": {
     "captureSource": {
       "path": "scripts/migrations/237-own-approved-period-values.sql",
@@ -42,7 +70,7 @@
     },
     "helperSource": {
       "path": "scripts/candidates/own-employment-print-facts-v1.source.sql.txt",
-      "sha256": "7d252daa68141e2b05ab2a5aa03facc2ecc67a63510aa81f9102e41c37ee2afb"
+      "sha256": "8c0892697ab3e2a271e861e740eaec114eda1484235a408e0541a42a813de8a9"
     },
     "familyMembersSource": {
       "path": "scripts/candidates/originals/receipt-v6-family-members.json",
@@ -61,8 +89,8 @@
       "kind": "new",
       "signature": "public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text)",
       "name": "own_employment_print_component_candidate_v1",
-      "bodySha256": "2ec9a39d4b28d8939b637e159d6e658a317d9bad01921f94de122bb29d3f1ee0",
-      "definitionSha256": "840e464bfa549935804694d7789e21bf85fa24aeff6ed0a9b12f186cb0eb6890"
+      "bodySha256": "9f01481f315955e145c6660893e99cd7df81af2ee1866ec7c640ad602588998d",
+      "definitionSha256": "959c40d0eef71778e360b2d2128bef00875d05fff4ee36198bedf1f32a470691"
     },
     {
       "kind": "derived_original",
@@ -85,7 +113,7 @@
   ],
   "output": {
     "path": "scripts/candidates/own-employment-print-facts-v1.derived.sql.txt",
-    "bytes": 63996,
-    "sha256": "e9fe43a10ac777ae0ede572bec6294dda5a449af1b819a392d75204f0d29747e"
+    "bytes": 64652,
+    "sha256": "40c68a875426c380aab1fd2019ccb54b461de8a7956230e57b96662d477db50a"
   }
 }

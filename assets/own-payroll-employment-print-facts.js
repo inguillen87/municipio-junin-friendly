@@ -9,6 +9,7 @@ import {ownReceiptPrintFacts} from './own-payroll-receipt-print-facts.js';
 export const OWN_EMPLOYMENT_PRINT_CAPTURE_VERSION='own-employment-print-capture.v1';
 export const OWN_EMPLOYMENT_PRINT_EVIDENCE_VERSION='own-employment-print-evidence.v1';
 export const OWN_EMPLOYMENT_JOB_TITLE_SOURCE='source_payload.employment.cargoName';
+export const OWN_EMPLOYMENT_JOB_TITLE_ERROR='OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID';
 const need=(condition,message)=>{if(!condition)throw Error(message);};
 const same=(a,b)=>salarySerialized(a)===salarySerialized(b);
 // The canonical salary serialization preserves the bytes of historical
@@ -16,8 +17,24 @@ const same=(a,b)=>salarySerialized(a)===salarySerialized(b);
 const hash=value=>policySha256(value,{preserveLegacyUnicode:true});
 const dense=value=>Array.isArray(value)&&Reflect.ownKeys(value).length===value.length+1
  &&Array.from({length:value.length},(_,i)=>Object.getOwnPropertyDescriptor(value,String(i))).every(d=>d&&Object.hasOwn(d,'value')&&d.enumerable);
-const title=value=>value===null||typeof value==='string'&&value.length>=1&&value.length<=120
- &&value===value.trim()&&value===value.normalize('NFC')&&!/[<>\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(value);
+// The reader and supplied-row preflight share this exact text contract. Reasons
+// are fixed codes: neither the value nor a normalized substitute is returned.
+export function ownEmploymentJobTitleReasons(value){
+ if(value===null)return [];
+ if(typeof value!=='string')return ['invalid_type'];
+ if(value.length===0)return ['empty'];
+ if(value.length>120)return ['utf16_length'];
+ const reasons=[];
+ // PostgreSQL UTF8/jsonb cannot hold lone surrogates; the original reader also
+ // rejected them through its canonical payload hash. Reject them here as well.
+ if([...value].some(character=>{const cp=character.codePointAt(0);return cp>=0xd800&&cp<=0xdfff;}))reasons.push('invalid_unicode');
+ if(value!==value.trim())reasons.push('exterior_whitespace');
+ if(value!==value.normalize('NFC'))reasons.push('non_nfc');
+ if(/[\u0000-\u001f\u007f-\u009f]/.test(value))reasons.push('control_characters');
+ if(/[\u202a-\u202e\u2066-\u2069]/.test(value))reasons.push('bidirectional_controls');
+ if(/[<>]/.test(value))reasons.push('markup_characters');
+ return reasons;
+}
 
 export function ownRunEmploymentPrintFacts(capture){
  const inventory=capture?.payload?.sourceInventory;
@@ -33,8 +50,11 @@ export function ownRunEmploymentPrintFacts(capture){
  for(const row of value.rows){
   need(salaryExact(row,['contractId','registrationId','identityToken','classificationRowSha256','basis','jobTitle','provenance'])
    &&salaryUuid(row.contractId)&&salaryUuid(row.registrationId)&&salaryHash(row.identityToken)&&salaryHash(row.classificationRowSha256)
-   &&!ids.has(row.contractId)&&!registrations.has(row.registrationId)&&title(row.jobTitle),
+   &&!ids.has(row.contractId)&&!registrations.has(row.registrationId),
   'Una fila de cargo no conserva su identidad, registro y texto originales.');
+  const titleReasons=ownEmploymentJobTitleReasons(row.jobTitle);
+  if(titleReasons.length)throw Object.assign(new Error('El cargo no cumple el contrato de impresión; requiere revisión de sus datos de origen.'),
+   {code:OWN_EMPLOYMENT_JOB_TITLE_ERROR,reasons:titleReasons});
   const classification=classified.get(row.contractId);
   need(classification&&row.registrationId===classification.registrationId&&row.identityToken===classification.identityToken
    &&row.basis===classification.basis&&row.classificationRowSha256===hash(classification),

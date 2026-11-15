@@ -1,5 +1,5 @@
 // Derive reviewable source files only. This program has no SQL client, network
-// connection, shell invocation, installation or metadata/ACL modification.
+// connection, shell invocation, installation or applied metadata/ACL change.
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {buildEmploymentPrintCandidate} from './lib/own-employment-print-candidate.mjs';

@@ -1,5 +1,5 @@
 // These tests derive text from pinned original sources. They do not parse or
-// execute PostgreSQL, synthesize an attester, install functions or change ACLs.
+// execute PostgreSQL, synthesize an attester, install functions or apply ACLs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -24,8 +24,38 @@ test('the pure proposal derives two original bodies and only two new helpers wit
  assert.notEqual(EMPLOYMENT_PRINT_ORIGINALS.captureFamilyMember,EMPLOYMENT_PRINT_ORIGINALS.captureBody);
  assert.doesNotMatch(proposal.sql,/own_employment_print_capture_candidate_v1\(|own_receipt_print_facts_job_title_candidate_v1\(/);
  assert.match(proposal.sql,/^--[^\n]+\nBEGIN;\nDO \$source_only\$ BEGIN RAISE EXCEPTION/);assert.match(proposal.sql,/ROLLBACK;\s*$/);
- assert.doesNotMatch(proposal.sql,/\b(?:GRANT|REVOKE)\b|CREATE OR REPLACE FUNCTION public\.own_run_(?:release_attest_c1|quantity_family|official_family)_v1/);
+ assert.doesNotMatch(proposal.sql,/\bGRANT\b|CREATE OR REPLACE FUNCTION public\.own_run_(?:release_attest_c1|quantity_family|official_family)_v1/);
  for(const fn of proposal.functions){assert.equal(fn.bodySha256,hash(fn.body));assert.equal(fn.definitionSha256,hash(fn.sql));}
+});
+
+test('only the two new validators declare the original owner-only convention inside the source barrier',()=>{
+ const proposal=buildEmploymentPrintCandidate(sources());
+ const signatures=['public.own_employment_print_provenance_candidate_v1(jsonb,jsonb)',
+  'public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text)'];
+ const expected=signatures.map(signature=>({signature,owner:'neondb_owner',expectedAcl:'{neondb_owner=X/neondb_owner}',
+  revokeFrom:['PUBLIC','municontrol_actions_runtime_app'],statements:[
+   `ALTER FUNCTION ${signature} OWNER TO neondb_owner;`,
+   `REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC,municontrol_actions_runtime_app;`]}));
+ assert.deepEqual(proposal.newValidatorAccess,expected);
+ assert.deepEqual(proposal.sql.split('\n').filter(line=>/^(?:ALTER FUNCTION|REVOKE|GRANT)\b/.test(line)),expected.flatMap(item=>item.statements));
+ for(const statement of expected.flatMap(item=>item.statements)){
+  assert.ok(proposal.sql.indexOf(statement)>proposal.sql.indexOf("RAISE EXCEPTION 'OWN_EMPLOYMENT_PRINT_SOURCE_REQUIRES_REVIEWED_COMPOSITION'"));
+  assert.ok(proposal.sql.indexOf(statement)<proposal.sql.lastIndexOf('ROLLBACK;'));
+ }
+ assert.doesNotMatch(proposal.sql,/\bGRANT\b/);
+});
+
+test('the title validator bounds Unicode traversal first and uses a dedicated non-nominal error',()=>{
+ const proposal=buildEmploymentPrintCandidate(sources());
+ const body=proposal.functions.find(fn=>fn.name==='own_employment_print_component_candidate_v1').body;
+ const guard="IF title_points NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID';END IF;";
+ assert.ok(body.indexOf('title_points:=char_length(title_value);')<body.indexOf(guard));
+ assert.ok(body.indexOf(guard)>=0&&body.indexOf(guard)<body.indexOf('generate_series(1,title_points)'));
+ const titleBlock=body.slice(body.indexOf("IF row_value->'jobTitle' IS DISTINCT FROM 'null'::jsonb THEN"),body.indexOf("proof:=row_value->'provenance'"));
+ assert.equal((titleBlock.match(/RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_TITLE_INVALID'/g)||[]).length,3);
+ assert.doesNotMatch(titleBlock,/RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID'|RAISE EXCEPTION[^;]*%/);
+ assert.match(titleBlock,/title_units NOT BETWEEN 1 AND 120 OR title_forbidden OR title_edge_space/);
+ assert.match(titleBlock,/normalize\(title_value,NFC\) IS DISTINCT FROM title_value/);
 });
 
 test('new capture evidence is inserted after classification and before derived family inventory, with original replay and authority retained',()=>{
@@ -60,6 +90,7 @@ test('the checked-in source and manifest are the exact pure derivation for revie
  assert.equal(sql,proposal.sql);assert.equal(manifest.output.sha256,hash(sql));assert.equal(manifest.output.bytes,Buffer.byteLength(sql));
  assert.equal(manifest.installable,false);assert.equal(manifest.executesSql,false);assert.equal(manifest.requiresReviewedAttestation,true);
  assert.deepEqual(manifest.originals,proposal.originals);assert.deepEqual(manifest.familyCapacity,proposal.familyCapacity);
+ assert.deepEqual(manifest.newValidatorAccess,proposal.newValidatorAccess);
  assert.deepEqual(manifest.functions,proposal.functions.map(({body,sql,...metadata})=>metadata));
  for(const [name,text]of Object.entries(input))assert.equal(manifest.inputs[name].sha256,hash(text));
 });
