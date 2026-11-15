@@ -88,12 +88,17 @@ export function ownReceiptCommand(value){
  need(salaryUuid(value.batchId)&&salaryHash(value.batchSha256)&&value.params===null&&value.reviewConfirmed===true,'Elegí la emisión completa y confirmá su revisión.');
  return {...value};
 }
+// What a prepare body takes from a preview, copied and frozen at the moment the preview was verified. The returned preview
+// stays an ordinary, mutable object for the panel; changing it afterwards cannot change this record, which is the only
+// authority the body is built from. A preview without a record is validated in full, exactly as before.
+const prepareSeeds=new WeakMap();
+const prepareSeed=preview=>freeze({scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params:structuredClone(preview.snapshot.params),version:preview.snapshot.version,snapshotSha256:preview.snapshotSha256});
 // The body that prepares the copy of a verified preview. A v6 preview travels with its own hash; any earlier version
 // keeps the eight keys, because sending the ninth for them is rejected.
 export function ownReceiptPrepareBody(preview,reason){
- ownReceiptPreview(preview);
- const body={command:'prepare',scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params:preview.snapshot.params,batchId:null,batchSha256:null,reason,reviewConfirmed:false};
- return preview.snapshot.version===OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION?{...body,previewSha256:preview.snapshotSha256}:body;
+ const seed=prepareSeeds.get(preview)??prepareSeed(ownReceiptPreview(preview));
+ const body={command:'prepare',scopeVersion:seed.scopeVersion,sourceVersion:seed.sourceVersion,params:structuredClone(seed.params),batchId:null,batchSha256:null,reason,reviewConfirmed:false};
+ return seed.version===OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION?{...body,previewSha256:seed.snapshotSha256}:body;
 }
 
 export function ownReceiptRecord(record){
@@ -152,7 +157,7 @@ export async function ownReceiptVerifyHash(value,expected){
  need(salaryHash(expected),'No se verificó la huella de emisión.');const actual=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(byte=>byte.toString(16).padStart(2,'0')).join('');need(actual===expected,'Cambió el contenido conservado de la emisión.');// A v6 copy carries the same official economic evidence as v4/v5 and is verified the same way before it is shown.
  if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5',OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION].includes(value?.version))await verifiedOwnOfficialReceiptEvidence(value);return value;
 }
-export async function verifiedOwnReceiptPreview(value){value=structuredClone(value);ownReceiptPreview(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);return value;}
+export async function verifiedOwnReceiptPreview(value){value=structuredClone(value);ownReceiptPreview(value);const seed=prepareSeed(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);prepareSeeds.set(value,seed);return value;}
 export function ownReceiptBatch(value){
  need(salaryExact(value,['version','id','preparedAt','preparedBy','snapshot','snapshotSha256','state','sourceCurrent','review','permissions'])&&value.version==='own-receipt-batch.v1'&&salaryUuid(value.id)&&at(value.preparedAt)&&text(value.preparedBy,1,160)&&salaryHash(value.snapshotSha256)&&['prepared','approved','withdrawn'].includes(value.state)&&typeof value.sourceCurrent==='boolean'&&salaryExact(value.permissions,['canApprove','canWithdraw','canDownload'])&&Object.values(value.permissions).every(v=>typeof v==='boolean'),'No se verificó la emisión conservada.');ownReceiptSnapshot(value.snapshot);
  if(value.state==='prepared')need(value.review===null,'La preparación no tiene una aprobación implícita.');

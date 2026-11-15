@@ -1,7 +1,7 @@
 name: Complete approved program code coverage
 on:
   pull_request:
-    paths: ['assets/own-program-coverage*.js', 'assets/own-payroll-program-panel.*', 'assets/own-payroll-program-model.js', 'assets/own-payroll-run-workspace-model.js', 'assets/native-salary-catalog-model.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'tests/own-program-coverage.test.js', 'tests/fixtures/own-payroll-program-synthetic.js', 'scripts/verify-own-payroll-program-guidance-ui.mjs', 'scripts/build-friendly.mjs', '.github/workflows/own-program-coverage.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'assets/own-program-coverage*.js', 'assets/own-payroll-program-panel.*', 'assets/own-payroll-program-model.js', 'assets/own-payroll-run-workspace-model.js', 'assets/native-salary-catalog-model.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'tests/own-program-coverage.test.js', 'tests/fixtures/own-payroll-program-synthetic.js', 'scripts/verify-own-payroll-program-guidance-ui.mjs', 'scripts/build-friendly.mjs', '.github/workflows/own-program-coverage.yml']
   push:
     branches: ['master']
     paths: ['assets/own-program-coverage*.js', 'assets/own-payroll-program-panel.*', 'assets/own-payroll-program-model.js', 'assets/own-payroll-run-workspace-model.js', 'assets/native-salary-catalog-model.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'tests/own-program-coverage.test.js', 'tests/fixtures/own-payroll-program-synthetic.js', 'scripts/verify-own-payroll-program-guidance-ui.mjs', 'scripts/build-friendly.mjs', '.github/workflows/own-program-coverage.yml']

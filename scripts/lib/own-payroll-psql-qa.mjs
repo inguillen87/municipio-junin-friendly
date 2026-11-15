@@ -2,6 +2,8 @@
 // explicit COMMIT. No database URL, shared package, shell or municipal endpoint.
 import { execFile } from 'node:child_process';
 import assert from 'node:assert/strict';
+import {realpathSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import { qaLiteral } from './own-payroll-durable-qa.mjs';
 // Send the SQL as UTF-8 bytes, never via Windows argv/code-page conversion.
 function execute(executable,args,sql,environment) {
@@ -13,8 +15,39 @@ function execute(executable,args,sql,environment) {
     child.stdin.end(sql,'utf8');
   });
 }
-export function createOwnPayrollPsqlQa({ executable, port, major, schema, pins, environment }) {
-  assert.ok([17, 18].includes(major) && port === 55400 + major);
+// An explicit synthetic GitHub reports service mapping is a QA configuration
+// boundary, not authentication or proof that a database belongs to this job.
+// The injected context is for pure policy tests; the SQL constructor below
+// supplies only its actual environment and uses the real platform/workspace.
+export function ownPayrollQaPort({major, port, ciServicePort},
+  {platform = process.platform, env = process.env,
+    root = fileURLToPath(new URL('../../', import.meta.url)), realpath = realpathSync} = {}) {
+  assert.ok([17,18].includes(major), 'QA_MAJOR_UNSUPPORTED');
+  if(ciServicePort === undefined) {
+    assert.equal(env.MUNICONTROL_OWN_REPORTS_CI_SERVICE_PORT, undefined, 'QA_CI_SERVICE_PORT_OPT_IN_REQUIRED');
+    assert.equal(port, 55400 + major, 'QA_FIXED_LOCAL_PORT_REQUIRED');
+    return port;
+  }
+  assert.ok(typeof ciServicePort === 'string' && /^[1-9][0-9]{3,4}$/.test(ciServicePort), 'QA_CI_SERVICE_PORT_INVALID');
+  const selected = Number(ciServicePort);
+  assert.ok(Number.isSafeInteger(port) && port === selected && selected >= 1024 && selected <= 65535, 'QA_CI_SERVICE_PORT_INVALID');
+  assert.ok(platform === 'linux' && env.CI === 'true' && env.GITHUB_ACTIONS === 'true'
+    && env.GITHUB_REPOSITORY === 'inguillen87/municipio-junin-friendly' && env.GITHUB_JOB === 'reports'
+    && /^[1-9][0-9]*$/.test(env.GITHUB_RUN_ID ?? '') && /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ''), 'QA_CI_SERVICE_CONTEXT_REQUIRED');
+  assert.equal(env.MUNICONTROL_OWN_REPORTS_CI_SERVICE_PORT, ciServicePort, 'QA_CI_SERVICE_PORT_CHANGED');
+  assert.ok(typeof env.GITHUB_WORKSPACE === 'string' && env.GITHUB_WORKSPACE.length > 0, 'QA_CI_SERVICE_WORKSPACE_REQUIRED');
+  assert.equal(realpath(root), realpath(env.GITHUB_WORKSPACE), 'QA_CI_SERVICE_WORKSPACE_CHANGED');
+  // Reject ambient libpq routing/options. This opt-in accepts only the already
+  // declared public synthetic reports password and the fixed UTF8 encoding.
+  for(const key of Object.keys(env)) if(/^PG/i.test(key))
+    assert.ok(key === 'PGPASSWORD' || key === 'PGCLIENTENCODING', 'QA_CI_AMBIENT_PG_SETTING_REJECTED');
+  assert.equal(env.PGPASSWORD, 'own-reports-synthetic-qa', 'QA_CI_SYNTHETIC_PASSWORD_REQUIRED');
+  assert.ok(env.PGCLIENTENCODING === undefined || env.PGCLIENTENCODING === 'UTF8', 'QA_CI_CLIENT_ENCODING_CHANGED');
+  return port;
+}
+
+export function createOwnPayrollPsqlQa({ executable, port, major, schema, pins, environment, ciServicePort }) {
+  ownPayrollQaPort({major, port, ciServicePort}, {env: environment ?? process.env});
   assert.match(schema, /^mc_qa_fixed_092_[a-f0-9]{32}$/);
   assert.ok(pins.includes("current_database()<>'own_payroll_run_qa'") && pins.includes("current_setting('neon.project_id',true)"));
   const args = ['-X', '-q', '-t', '-A', '-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'own_payroll_run_qa', '-v', 'ON_ERROR_STOP=1'];

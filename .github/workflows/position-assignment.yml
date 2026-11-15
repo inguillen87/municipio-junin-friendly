@@ -4,7 +4,7 @@ on:
     branches: ['master', 'codex/own-position-assignment-20261006']
     paths: ['assets/position-*', 'assets/own-payroll-run-panel.js', 'internal-dashboard.html', 'api/internal-position-assignment.js', 'lib/internal-position-assignment.js', 'scripts/migrations/128-*', 'scripts/*position-assignment*.mjs', 'scripts/lib/position-assignment*.mjs', 'tests/position-assignment*.test.js', 'tests/fixtures/position-assignment-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-assignment.yml']
   pull_request:
-    paths: ['assets/position-*', 'assets/own-payroll-run-panel.js', 'internal-dashboard.html', 'api/internal-position-assignment.js', 'lib/internal-position-assignment.js', 'scripts/migrations/128-*', 'scripts/*position-assignment*.mjs', 'scripts/lib/position-assignment*.mjs', 'tests/position-assignment*.test.js', 'tests/fixtures/position-assignment-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-assignment.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'assets/position-*', 'assets/own-payroll-run-panel.js', 'internal-dashboard.html', 'api/internal-position-assignment.js', 'lib/internal-position-assignment.js', 'scripts/migrations/128-*', 'scripts/*position-assignment*.mjs', 'scripts/lib/position-assignment*.mjs', 'tests/position-assignment*.test.js', 'tests/fixtures/position-assignment-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-assignment.yml']
 permissions:
   contents: read
 jobs:
