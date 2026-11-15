@@ -1,0 +1,47 @@
+DO $patch$
+DECLARE signature text; expected text; old_body text; new_body text; definition text; p pg_proc; after_patch pg_proc; expected_config text[];
+BEGIN
+ FOR signature,expected,old_body,new_body IN SELECT * FROM(VALUES
+ ('public.tenant_action_apply_provisioning_command_v2(text,uuid,integer,text,uuid,text,uuid,text,integer,jsonb)','68155ba9a85d703efa9290888bfa8183047cc1f920127f3a0fea7c0d5435ff70',
+ $old$    IF NOT FOUND THEN RAISE EXCEPTION 'TENANT_ACTION_EMPLOYMENT_INVALID' USING ERRCODE = 'P0001'; END IF;$old$,
+ $new$    IF NOT FOUND AND EXISTS(SELECT 1 FROM public.employment_contract ec WHERE ec.id=contract_id_value AND ec.source_system='MUNICONTROL') THEN
+      PERFORM public.native_account_contract_v1(membership.tenant_id,binding.id,contract_id_value,true);
+      SELECT * INTO contract FROM public.employment_contract ec WHERE ec.id=contract_id_value AND ec.tenant_id=membership.tenant_id AND ec.source_system='MUNICONTROL' FOR SHARE;
+    END IF;
+    IF NOT FOUND THEN RAISE EXCEPTION 'TENANT_ACTION_EMPLOYMENT_INVALID' USING ERRCODE = 'P0001'; END IF;$new$),
+ ('public.tenant_action_lookup_employment_v2(text,uuid,integer,text,uuid,text,integer)','66e987599d74f6fc70249d323eb5f6a2fc971c6f66caa1cb7a54319c1ce26031',
+ $old$  RETURN jsonb_build_object(
+    'tenantId', membership.tenant_id, 'membershipId', membership.id,
+    'candidates', candidates, 'ephemeral', true, 'limit', p_limit
+  );$old$,
+ $new$  SELECT coalesce(jsonb_agg(item ORDER BY item->>'displayName',item->>'legajo',item->>'employmentContractId'),'[]') INTO candidates FROM(
+    SELECT item FROM(
+      SELECT value||jsonb_build_object('origin','GRH') AS item FROM jsonb_array_elements(candidates)
+      UNION ALL
+      SELECT jsonb_build_object('employmentContractId',ec.id,'sourceBindingId',binding.id,'legajo',ec.legacy_legajo,'displayName',coalesce(nullif(i.full_name,''),'Nombre no informado'),'organizationUnitSourceId',ec.organization_unit_source_id,'organizationLabel',coalesce(ec.source_payload#>>'{employment,organizationName}',ec.organization_unit_source_id,'Organizacion no informada'),'sectorSourceId',ec.sector_source_id,'sectorLabel',coalesce(ec.source_payload#>>'{employment,sectorName}',ec.sector_source_id,'Sector no informado'),'origin','MUNICONTROL')
+      FROM public.employment_contract ec
+      JOIN public.person_identity i ON i.id=ec.person_id
+      JOIN public.native_employee_registration r ON r.contract_id=ec.id AND r.person_id=ec.person_id AND r.tenant_id=ec.tenant_id AND r.source_binding_id=binding.id
+      WHERE ec.source_system='MUNICONTROL' AND ec.source_batch_id IS NULL AND ec.tenant_id=membership.tenant_id AND ec.status='active' AND ec.legacy_company_id=binding.source_company_id
+       AND (ec.legacy_legajo ILIKE '%'||escaped_query||'%' ESCAPE '\' OR i.full_name ILIKE '%'||escaped_query||'%' ESCAPE '\' OR coalesce(ec.source_payload#>>'{employment,sectorName}',ec.sector_source_id,'') ILIKE '%'||escaped_query||'%' ESCAPE '\')
+    ) matches ORDER BY item->>'displayName',item->>'legajo',item->>'employmentContractId' LIMIT p_limit
+  ) bounded;
+  PERFORM public.native_account_contract_v1(membership.tenant_id,binding.id,(value->>'employmentContractId')::uuid,false) FROM jsonb_array_elements(candidates) WHERE value->>'origin'='MUNICONTROL';
+  RETURN jsonb_build_object(
+    'tenantId', membership.tenant_id, 'membershipId', membership.id,
+    'candidates', candidates, 'ephemeral', true, 'limit', p_limit
+  );$new$)
+ ) patches(sig,sha,old_value,new_value) LOOP
+  SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure(signature);
+  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)','public.native_leave_command_v1(jsonb,jsonb,uuid)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
+  IF p.oid IS NULL OR p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prokind<>'f'
+   OR p.proconfig IS DISTINCT FROM expected_config OR p.provolatile IS DISTINCT FROM (CASE WHEN signature='public.native_leave_authorized_v1(jsonb,uuid,text,text,text)' THEN 's' ELSE 'v' END)::"char" OR p.proparallel<>'u' OR p.proleakproof OR p.proretset
+   OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
+   OR encode(public.digest(replace(p.prosrc,E'\r\n',E'\n'),'sha256'),'hex')<>expected THEN RAISE EXCEPTION 'NATIVE_SELF_PREREQUISITE_DRIFT' USING DETAIL=signature; END IF;
+  definition:=replace(pg_get_functiondef(p.oid),E'\r\n',E'\n');
+  IF (length(definition)-length(replace(definition,old_body,'')))/length(old_body)<>1 THEN RAISE EXCEPTION 'NATIVE_SELF_PATCH_DRIFT' USING DETAIL=signature; END IF;
+  EXECUTE replace(definition,old_body,new_body);
+  SELECT * INTO after_patch FROM pg_proc WHERE oid=p.oid;
+  IF to_jsonb(after_patch)-'prosrc' IS DISTINCT FROM to_jsonb(p)-'prosrc' OR replace(after_patch.prosrc,E'\r\n',E'\n') IS DISTINCT FROM replace(replace(p.prosrc,E'\r\n',E'\n'),old_body,new_body) THEN RAISE EXCEPTION 'NATIVE_SELF_SECURITY_DRIFT'; END IF;
+ END LOOP;
+END $patch$;

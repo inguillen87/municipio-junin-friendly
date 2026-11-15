@@ -1,0 +1,15 @@
+8f722e6c25b9912c5d9b11e59a65f249bc973d854fdfab92c05f6de96022b62b  ./LEEME.md
+8b7da1274cec28482d4ecac65e38fddf451bfead79d27c1a8579d5fa1a4da51a  ./estado/PDF_READONLY_REVIEW.json
+994cfe2784c70391791fb7c38a9461817aa765706fbd853bfb2aac8b87d0c714  ./estado/R351_ESTADO_CODEX.json
+a1d82909521e48f0a5ac2f2b2511808564a3438f20db6925e534327a290e015d  ./estado/ROOT_TWO_MAJOR_CONCLUSIONS.json
+5191a751a50c01976c19f435244d80683580041456ef85b01ac96e1c84f9e644  ./v6-productor/59-v6-original-predependencies.sql.txt
+fbdfa69c916c8c9078f7c19e559a72a9f44d9d9159d51a30a29167c94e5843bb  ./v6-productor/61-install-v6-original.sql.txt
+a98436696c7453b9d2ea37f11c940f80bde1fcefef632fb032204b31bddecf66  ./v6-productor/PURE_OUTPUT_MANIFEST.json
+8a0c7b4969993f89a6df2c45a0edeef8f13fdc0c352769427d8ff1f2e59c3920  ./v6-productor/SOURCE_PROVENANCE.json
+f7f8d1ff7d95a16e2006637887b5cbe5f03412ed91320a68994d0e1b297736b4  ./vinculo-nativo/README_CODEX.md
+a83fd609c400f8b7ba2cfbbcd606a0d3af6d266ce18632bab24370df2136a100  ./vinculo-nativo/finite-patches/099-curated16-original.sql.txt
+27885237f0f82891e854c065878f2eac1c36f075b45a67a3d746cf9108b1a8b8  ./vinculo-nativo/finite-patches/113-header.sql.fragment.txt
+d9366745bbd0d6729bd8577678e8d56470c051fa89cbb70ce431bf0f2d2d3c25  ./vinculo-nativo/finite-patches/113-lookup-entry.sql.fragment.txt
+d19790c865bd6ae8dd22262a5f88a15dfbca95c29197510466f0bcdc04a7f2a4  ./vinculo-nativo/finite-patches/113-provisioning-entry.sql.fragment.txt
+f49ad56e46aaabb54bb166125ea3622086c1e5a88488b52803cbeb51eae712b0  ./vinculo-nativo/finite-patches/113-tail.sql.fragment.txt
+e55060b930f49f57d7d67927eb982eb4de05e2311968934e9c957856a429f4c0  ./vinculo-nativo/finite-patches/113-two-facades-original-selection.sql.txt

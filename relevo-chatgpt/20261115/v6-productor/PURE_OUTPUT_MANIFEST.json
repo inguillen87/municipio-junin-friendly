@@ -1,0 +1,115 @@
+{
+  "version": "receipt-v6-pure-bootstrap-output-manifest.v1",
+  "files": [
+    {
+      "path": "BOOTSTRAP_PLAN.draft.json",
+      "bytes": 8360,
+      "sha256": "904e3e2463baa9224aba45f2757fc8e6d0e36ea9035db7eaf4d7d472f79faa78"
+    },
+    {
+      "path": "GENERATION_RECEIPT.json",
+      "bytes": 845,
+      "sha256": "d4263fe2ce768e6e59debbc57b7cc54105c83bf69bfee9425168d434d3efc5d3"
+    },
+    {
+      "path": "SOURCE_PROVENANCE.json",
+      "bytes": 37838,
+      "sha256": "8a0c7b4969993f89a6df2c45a0edeef8f13fdc0c352769427d8ff1f2e59c3920"
+    },
+    {
+      "path": "stages/00-schema-original.sql",
+      "bytes": 1581834,
+      "sha256": "40b244267844b5f31532bff9584b0855588eb4dbd39bc87a99c1cff837d0f9cf"
+    },
+    {
+      "path": "stages/10-accounting147-original.sql",
+      "bytes": 29929,
+      "sha256": "7ad5a7e143a2e03437b5e3077581c32220a730bc3f72f2a6711fb2bc70ab2360"
+    },
+    {
+      "path": "stages/11-bank149-original.sql",
+      "bytes": 24585,
+      "sha256": "73b48664acb16f2a5435dcfa03d28d4db6e37906ff2c81493ee0848e3433aa41"
+    },
+    {
+      "path": "stages/12-captured-read-metadata.sql",
+      "bytes": 61235,
+      "sha256": "3a8aa428b782b64146779593bbe38fa635529c9f328bfea54c2049c4ceb65b3c"
+    },
+    {
+      "path": "stages/13-original-canonical-helpers.sql",
+      "bytes": 61071,
+      "sha256": "719a54069e2f263f424972841c3f3f50ba8300bd861903e3b7365671f4a6b00b"
+    },
+    {
+      "path": "stages/20-motor-a9a5-original.sql",
+      "bytes": 1289199,
+      "sha256": "a9a5d7f1477f3afadea8d6b6d7084c38d7e8f353e07141b2ec43526b107784e2"
+    },
+    {
+      "path": "stages/21-motor-original-postflight.sql",
+      "bytes": 259130,
+      "sha256": "0ed22d7118470a58a4a9661e08f222f3aea09c0f17accaebc450a2f42371be93"
+    },
+    {
+      "path": "stages/30-restore-post-a7-code-snapshot.sql",
+      "bytes": 1187732,
+      "sha256": "e527119c8c0a260d67a63cdcfb7256e90768bf6622495470a540e67e6299b634"
+    },
+    {
+      "path": "stages/40-legacy-binding-table-source.sql",
+      "bytes": 1303,
+      "sha256": "3aa57f38c07240d027e07947e48e19280400956f030b5a9ba7361a92da287dda"
+    },
+    {
+      "path": "stages/41-area-scope-table-source.sql",
+      "bytes": 2648,
+      "sha256": "5822ebc18b70315acded75efbdd9039db97e7c2da81e5137cbdcf0c75b3ede92"
+    },
+    {
+      "path": "stages/42-iam238-original-preimage.sql",
+      "bytes": 3054,
+      "sha256": "afeee162fd46a7aefaa3d72e84cf91f9590b708cff830abbd5b59af8827c6937"
+    },
+    {
+      "path": "stages/50-preflight62-original.sql",
+      "bytes": 285391,
+      "sha256": "9dbf9adebf339da34fe4514f6644eff29edf7fad61545b9c792bfa3128e734dd"
+    },
+    {
+      "path": "stages/51-install62-original.sql",
+      "bytes": 1687215,
+      "sha256": "62bcb845b858c156e604b7082df8084ceac39172b724de2b40894246b4695503"
+    },
+    {
+      "path": "stages/52-postflight62-original.sql",
+      "bytes": 337888,
+      "sha256": "b9e5509067aa1c07aed48825b04563060a20254884df8674d74ccf112790f1cc"
+    },
+    {
+      "path": "stages/59-v6-original-predependencies.sql",
+      "bytes": 9051,
+      "sha256": "5191a751a50c01976c19f435244d80683580041456ef85b01ac96e1c84f9e644"
+    },
+    {
+      "path": "stages/60-preflight-v6-original.sql",
+      "bytes": 351099,
+      "sha256": "af80ffdf97447caa698801d219f3c7978027ecf6f38b74b7ebc7403673ff2478"
+    },
+    {
+      "path": "stages/61-install-v6-original.sql",
+      "bytes": 1211096,
+      "sha256": "fbdfa69c916c8c9078f7c19e559a72a9f44d9d9159d51a30a29167c94e5843bb"
+    },
+    {
+      "path": "stages/62-postflight-v6-original.sql",
+      "bytes": 352629,
+      "sha256": "df53c774ed7608fa707504d0a90b50ebb9ac4b7d765911db6edb7212e6b8ec4e"
+    }
+  ],
+  "sourceReviewed": false,
+  "sqlExecuted": false,
+  "builderManifestSha256": "e884532d3daa2a3e8550d6cb3cce832458d97ce71b913fcae16ee4078d74028c",
+  "sourceLockSha256": "3111ae5a1cadbcb69005e4bcb5331fe12b13e51bac79cd10fdc2d9d96ffd624c",
+  "executionHold": "R5 source successor and updated V6R3/fixtureR3 require Root/peer review before any Runtime or SQL admission."
+}

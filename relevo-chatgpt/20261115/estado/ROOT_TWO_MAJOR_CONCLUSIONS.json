@@ -1,0 +1,102 @@
+{
+  "version": "native-link-full6-browser-two-major-root-conclusions.v1",
+  "status": "PASS_NATIVE_LINK_AND_FULL6_BROWSER_PG17_PG18",
+  "atUtc": "2026-11-15T19:36:42.726794+00:00",
+  "source": {
+    "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/SOURCE.json",
+    "bytes": 981099,
+    "sha256": "a49210cf1f2c7b25b8d420383356d5bf2cb50bc2849611519a39abf1d21fc6a2"
+  },
+  "majors": [
+    {
+      "major": 17,
+      "receipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/RECEIPT.json",
+        "bytes": 373467,
+        "sha256": "da6db58ecff243466a1b2082ed7a438e9be4a2a2e3a554c47514e720b3320687"
+      },
+      "httpReceipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/HTTP_NATIVE_REGRESSIONS.json",
+        "bytes": 3500,
+        "sha256": "fcf02b7063a0a5091005efb35cb57e0f9f1e33ca78e07ed4b154f21ec731ccdc"
+      },
+      "nativeCasesReceipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/NATIVE_REGRESSIONS.json",
+        "bytes": 46627,
+        "sha256": "b92fdcfa8c106a90b9556d3c9da0bdb35f33434b5336bf35bcce29fddee51dd3"
+      },
+      "atomicPostflight": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/ATOMIC_POSTFLIGHT.json",
+        "bytes": 1288,
+        "sha256": "5f1928fac2a9f694a435df6d861fc6a7e7221ba53bef2cb73082ef598675ad19"
+      },
+      "nativeCases": 4,
+      "checksPerOriginalCase": 38,
+      "httpChecks": 13,
+      "artifactCount": 10,
+      "browserSteps": 17,
+      "nativeLinkWithoutDirectCSeed": true,
+      "nativeOneEventVersion1to2Replay": true,
+      "fullPayrollBrowserLifecycleSelfAndReports": true,
+      "manualExactScopeRecapture": true,
+      "contextualRelayProved": false,
+      "commandsClosedExit0": 301,
+      "allOwnedResourcesClosed": true,
+      "productionConnections": 0,
+      "realMfaTested": false,
+      "NoeliaReady": false
+    },
+    {
+      "major": 18,
+      "receipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg18/RECEIPT.json",
+        "bytes": 373467,
+        "sha256": "349c5ba0f5e712756ef37be7520d24e1af36d036331e61310ebbb43af3e8b8d5"
+      },
+      "httpReceipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg18/HTTP_NATIVE_REGRESSIONS.json",
+        "bytes": 3500,
+        "sha256": "038e1265f39e414ca7609ad55aea1bef2e5b7d0eca0a80366b20bff0961dda57"
+      },
+      "nativeCasesReceipt": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg18/NATIVE_REGRESSIONS.json",
+        "bytes": 46627,
+        "sha256": "93d0c601304541c511105a20dab2e5402ddafe255f50b1b383c0cb94e0ce6338"
+      },
+      "atomicPostflight": {
+        "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg18/ATOMIC_POSTFLIGHT.json",
+        "bytes": 1288,
+        "sha256": "613c5ad317358817a09f3938602c2cc19faf851ef72e5d3fa251aaaaa47a4f6f"
+      },
+      "nativeCases": 4,
+      "checksPerOriginalCase": 38,
+      "httpChecks": 13,
+      "artifactCount": 10,
+      "browserSteps": 17,
+      "nativeLinkWithoutDirectCSeed": true,
+      "nativeOneEventVersion1to2Replay": true,
+      "fullPayrollBrowserLifecycleSelfAndReports": true,
+      "manualExactScopeRecapture": true,
+      "contextualRelayProved": false,
+      "commandsClosedExit0": 301,
+      "allOwnedResourcesClosed": true,
+      "productionConnections": 0,
+      "realMfaTested": false,
+      "NoeliaReady": false
+    }
+  ],
+  "sameSourceBothMajors": true,
+  "worktreeStatusBytes": 2996,
+  "worktreeStatusSha256": "f4cbc1dee2eba9704e89638ec63fcd87e3f9d2b21fd8bac709881160858843bc",
+  "public62Unchanged": true,
+  "generalGoal": "ACTIVE_INCOMPLETE",
+  "NoeliaReady": false,
+  "published": false,
+  "limits": [
+    "No producer SQL/new runtime binding installed in production.",
+    "Normal personal login/MFA/municipal acceptance not established by declared synthetic owner fixture.",
+    "Manual recapture verified; contextual relay unproved.",
+    "PDF download verified by browser; separate PDF semantic/layout inspection is independent.",
+    "TXT/native novelties/C4C6 and remaining inventory stay open."
+  ]
+}

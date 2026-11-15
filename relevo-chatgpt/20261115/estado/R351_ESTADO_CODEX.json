@@ -1,0 +1,101 @@
+{
+  "version": "goal-current-execution.v1",
+  "checkpoint": "R351_BOTH_NATIVE_FULL6_PASS_CLOSED_PRODUCTION_BINDING_NEXT",
+  "atUtc": "2026-11-15T19:52:11.054269+00:00",
+  "owner": "Root",
+  "previous": {
+    "path": ".handoff/GOAL_CURRENT_EXECUTION_20261115_NATIVE_LINK_FULL6_PG17_PASS_PG18_RUNNING_R350.json",
+    "bytes": 4986,
+    "sha256": "df38119efbd6fa540812de7c4354c55fe02eeb75af872f02b6b54a559fb388c1"
+  },
+  "generalGoal": "ACTIVE_INCOMPLETE",
+  "NoeliaReady": false,
+  "turnClassification": "PROGRESS_REAL_NATIVE_HTTP_LINK_AND_FULL6_BROWSER_PG17_PG18_PASS",
+  "currentExecution": {
+    "status": "ALL_NATIVE_LAB_EXECUTIONS_TERMINAL_PASS_CLOSED",
+    "liveSessions": [],
+    "closedSessions": [
+      76216,
+      65644
+    ],
+    "instruction": "Do not poll or reopen these sessions/profiles. No automatic retries. Source and actual receipts are immutable."
+  },
+  "twoMajorConclusions": {
+    "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/ROOT_TWO_MAJOR_CONCLUSIONS.json",
+    "bytes": 4315,
+    "sha256": "a1d82909521e48f0a5ac2f2b2511808564a3438f20db6925e534327a290e015d"
+  },
+  "source": {
+    "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/SOURCE.json",
+    "bytes": 981099,
+    "sha256": "a49210cf1f2c7b25b8d420383356d5bf2cb50bc2849611519a39abf1d21fc6a2"
+  },
+  "majorReceipts": [
+    {
+      "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/RECEIPT.json",
+      "bytes": 373467,
+      "sha256": "da6db58ecff243466a1b2082ed7a438e9be4a2a2e3a554c47514e720b3320687"
+    },
+    {
+      "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg18/RECEIPT.json",
+      "bytes": 373467,
+      "sha256": "349c5ba0f5e712756ef37be7520d24e1af36d036331e61310ebbb43af3e8b8d5"
+    }
+  ],
+  "boundedFacts": {
+    "nativeUnlinkedHireToOwnerLookupLinkReplay": true,
+    "linkEventExactlyOneVersion1to2": true,
+    "directCLinkSeed": false,
+    "originalOwnerSessionIssuerAndNormalManagedCookieSynthetic": true,
+    "full6BrowserSteps": 17,
+    "manualExactScopeRecapture": true,
+    "contextualRelayProved": false,
+    "commandsClosedExit0Each": 301,
+    "ownedResourcesClosed": true,
+    "productionConnections": 0,
+    "realMfaTested": false
+  },
+  "pdfReadOnlyReview": {
+    "path": ".handoff/native-account-employment-link-pdf-inspection-20261115-r1/READONLY_REVIEW.json",
+    "bytes": 3533,
+    "sha256": "8b7da1274cec28482d4ecac65e38fddf451bfead79d27c1a8579d5fa1a4da51a"
+  },
+  "productFindings": [
+    {
+      "gap": "Declared native jobTitle is stored in employment source_payload but omitted in salary capture and V6 printFacts remains NULL.",
+      "eligibleCorrection": "Preserve declared cargo in captured frame/provenance/hash, never fill historical receipts from current employee or equate cargo with position structure."
+    },
+    {
+      "gap": "V6 footer wording can imply human identity verification although it checks municipal registration and capture linkage.",
+      "eligibleCorrection": "Use precise registration/capture wording in V6, preserving legacy parity; published frozen renderer differs from old worktree file."
+    }
+  ],
+  "publication": {
+    "readerPr": 286,
+    "readerCommit": "32583440f0bb5dac2f44fa6fdcddccc02c96a6ea",
+    "readerDeployment": "dpl_ALSQzqU7atpWb9MXb9dwHaxGLZbh",
+    "officialDomain": "https://municontrol.com",
+    "normalEdgeChromeRecibosAccessPreviouslyClosed": true,
+    "producerSqlInstalledProduction": false,
+    "runtimeBindingR4Published": false,
+    "neonSdkProductionTargetBindingProved": false,
+    "instruction": "No repeated login/Vercel/CI/deploy checks for closed PR286. Read destination contract and current metadata only to prepare next concrete reviewed increment. Presence in Git and local adapter do not prove production install/binding."
+  },
+  "publicWorktree": {
+    "head": "70722f3d73dcfff031b6af43dceb9ef9218456fb",
+    "branch": "codex/noelia-sprint04-cajas-diagnostico-20261102",
+    "dirtyPaths": 62,
+    "sourceEditsThisIncrement": 0,
+    "preserveExistingChanges": true
+  },
+  "remainingInventory": [
+    "Native novelty whole-batch prepare/submit/independent review/capture HTTP+UI closure",
+    "Whole TXT known formats/destinations/complete preview/idempotent whole save",
+    "C4/C6 original source definitions/bindings/approval and actual formula semantics",
+    "Contextual annul/recalculate relay; current manual recapture is bounded proof only",
+    "Cargo historical capture and precise V6 footer",
+    "All remaining Noelia/Hugo/Marcelo inventory including clocks, budgets and signature boundaries"
+  ],
+  "limits": "All prior HOLD115/HOLD218/original grouped ACL/Root28/installer26/body-transport restrictions remain. Do not execute or reconstruct held/unvalidated executors. No municipal production operations, payment, signature, credentials, codes, cookie extraction, impersonation or Noelia messages. Keep old paused automations and standing Noelia alert unchanged. General goal active incomplete.",
+  "next": "Root reads private destination and normal SQL delivery contract; source peers inspect offline PG18 and destination restrictions. Coordinate code-only new progress with Claude in PR270 without duplicate CI/runtime. Prepare exact candidate against actual published base preserving dirty62."
+}

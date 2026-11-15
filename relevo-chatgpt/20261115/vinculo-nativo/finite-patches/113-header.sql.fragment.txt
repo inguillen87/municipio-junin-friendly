@@ -1,0 +1,4 @@
+DO $patch$
+DECLARE signature text; expected text; old_body text; new_body text; definition text; p pg_proc; after_patch pg_proc; expected_config text[];
+BEGIN
+ FOR signature,expected,old_body,new_body IN SELECT * FROM(VALUES

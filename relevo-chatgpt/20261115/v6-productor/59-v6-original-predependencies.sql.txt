@@ -1,0 +1,51 @@
+\set ON_ERROR_STOP on
+-- New synthetic code snapshot source group: original-v6-independent-predependencies
+BEGIN;
+SET LOCAL search_path=pg_catalog,public,pg_temp;
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='120s';
+DO $new_receipt_predependencies$ DECLARE name_value text;BEGIN
+ FOREACH name_value IN ARRAY ARRAY['own_receipt_batch_value_v1','own_receipt_command_v1','own_receipt_event_v1'] LOOP
+ IF EXISTS(SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=name_value) THEN RAISE EXCEPTION 'V6_RECEIPT_PREDEPENDENCY_ALREADY_PRESENT: %',name_value;END IF;
+ END LOOP;END $new_receipt_predependencies$;
+CREATE FUNCTION public.own_receipt_batch_value_v1(ctx jsonb,e public.own_payroll_receipt_event) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE r public.own_payroll_receipt_event;state_value text:='prepared';current_value boolean;independent boolean;BEGIN
+ IF e.id IS NULL OR e.command<>'prepare' OR e.snapshot_sha256<>public.own_run_hash_v1(e.snapshot) THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ SELECT * INTO r FROM public.own_payroll_receipt_event WHERE tenant_id=e.tenant_id AND source_binding_id=e.source_binding_id AND batch_id=e.id AND command<>'prepare' ORDER BY CASE command WHEN 'withdraw' THEN 0 ELSE 1 END LIMIT 1;
+ IF r.id IS NOT NULL THEN state_value:=CASE r.command WHEN 'approve' THEN 'approved' ELSE 'withdrawn' END;END IF;
+ current_value:=e.snapshot->>'sourceVersion'=public.own_receipt_source_version_v1(ctx,e.snapshot->'params');independent:=e.actor_membership_id IS DISTINCT FROM(ctx->>'membershipId')::uuid AND e.actor_person_id IS DISTINCT FROM(ctx->>'actorPersonId')::uuid AND e.actor_email IS DISTINCT FROM ctx->>'actorEmail';
+ RETURN jsonb_build_object('version','own-receipt-batch.v1','id',e.id,'preparedAt',e.recorded_at,'preparedBy',e.actor_label,'snapshot',e.snapshot,'snapshotSha256',e.snapshot_sha256,'state',state_value,'sourceCurrent',current_value,'review',CASE WHEN r.id IS NULL THEN NULL ELSE jsonb_build_object('id',r.id,'decision',state_value,'at',r.recorded_at,'by',r.actor_label,'reason',r.body->>'reason') END,'permissions',jsonb_build_object('canApprove',state_value='prepared' AND current_value AND independent AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve'),'canWithdraw',state_value<>'withdrawn' AND public.action_center_context_has_capability(ctx,'payroll.receipt.approve'),'canDownload',state_value<>'withdrawn' AND current_value));
+END $$;
+ALTER FUNCTION public.own_receipt_batch_value_v1(jsonb,own_payroll_receipt_event) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_receipt_batch_value_v1(jsonb,own_payroll_receipt_event) FROM PUBLIC,municontrol_actions_runtime_app;
+CREATE FUNCTION public.own_receipt_command_v1(p jsonb,body jsonb,key uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+DECLARE ctx jsonb;e public.own_payroll_receipt_event;prepared public.own_payroll_receipt_event;s jsonb;view_value jsonb;id_value uuid:=gen_random_uuid();batch_value uuid;hash_value text;fingerprint text;val text;BEGIN
+ IF NOT public.own_program_exact_v1(body,ARRAY['command','scopeVersion','sourceVersion','params','batchId','batchSha256','reason','reviewConfirmed']) OR jsonb_typeof(body->'command') IS DISTINCT FROM 'string' OR body->>'command' NOT IN('prepare','approve','withdraw') OR NOT public.own_receipt_text_v1(body->'reason',10,1000) OR octet_length(body::text)>16384 OR key IS NULL OR key::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' THEN RAISE EXCEPTION 'OWN_RECEIPT_INPUT_INVALID';END IF;
+ FOREACH val IN ARRAY ARRAY['scopeVersion','sourceVersion'] LOOP IF jsonb_typeof(body->val) IS DISTINCT FROM 'string' OR body->>val!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RECEIPT_INPUT_INVALID';END IF;END LOOP;
+ ctx:=public.own_receipt_context_v1(p,body->>'command');PERFORM public.own_run_lock_v1(ctx);fingerprint:=public.own_run_hash_v1(body);
+ SELECT * INTO e FROM public.own_payroll_receipt_event WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid AND actor_membership_id=(ctx->>'membershipId')::uuid AND request_key=key;
+ IF FOUND THEN IF e.actor_person_id IS DISTINCT FROM(ctx->>'actorPersonId')::uuid OR e.actor_email IS DISTINCT FROM ctx->>'actorEmail' THEN RAISE EXCEPTION 'OWN_RECEIPT_FORBIDDEN';END IF;IF e.body<>body OR e.body_sha256<>fingerprint THEN RAISE EXCEPTION 'OWN_RECEIPT_IDEMPOTENCY_REUSE';END IF;RETURN public.own_receipt_event_v1(e,true);END IF;
+ IF body->>'scopeVersion'<>public.native_salary_scope_v1(ctx) THEN RAISE EXCEPTION 'OWN_RECEIPT_STATE_CHANGED';END IF;
+ IF body->>'command'='prepare' THEN
+  IF body->'reviewConfirmed' IS DISTINCT FROM 'false'::jsonb OR body->'batchId' IS DISTINCT FROM 'null'::jsonb OR body->'batchSha256' IS DISTINCT FROM 'null'::jsonb THEN RAISE EXCEPTION 'OWN_RECEIPT_INPUT_INVALID';END IF;
+  s:=public.own_receipt_snapshot_v1(ctx,body->'params');IF s->>'sourceVersion'<>body->>'sourceVersion' THEN RAISE EXCEPTION 'OWN_RECEIPT_STATE_CHANGED';END IF;IF(s->>'recordCount')::integer=0 THEN RAISE EXCEPTION 'OWN_RECEIPT_EMPTY';END IF;batch_value:=id_value;hash_value:=public.own_run_hash_v1(s);
+  IF EXISTS(SELECT 1 FROM public.own_payroll_receipt_event old WHERE old.tenant_id=(ctx->>'tenantId')::uuid AND old.source_binding_id=(ctx->>'sourceBindingId')::uuid AND old.command='prepare' AND old.snapshot_sha256=hash_value AND NOT EXISTS(SELECT 1 FROM public.own_payroll_receipt_event r WHERE r.batch_id=old.id AND r.command='withdraw')) THEN RAISE EXCEPTION 'OWN_RECEIPT_DUPLICATE';END IF;
+ ELSE
+  IF body->'reviewConfirmed' IS DISTINCT FROM 'true'::jsonb OR body->'params' IS DISTINCT FROM 'null'::jsonb OR jsonb_typeof(body->'batchId') IS DISTINCT FROM 'string' OR body->>'batchId'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' OR jsonb_typeof(body->'batchSha256') IS DISTINCT FROM 'string' OR body->>'batchSha256'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RECEIPT_INPUT_INVALID';END IF;
+  batch_value:=(body->>'batchId')::uuid;SELECT * INTO prepared FROM public.own_payroll_receipt_event WHERE id=batch_value AND tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid AND command='prepare';IF NOT FOUND THEN RAISE EXCEPTION 'OWN_RECEIPT_NOT_FOUND';END IF;
+  view_value:=public.own_receipt_batch_value_v1(ctx,prepared);hash_value:=prepared.snapshot_sha256;
+  IF hash_value<>body->>'batchSha256' OR prepared.snapshot->>'sourceVersion'<>body->>'sourceVersion' THEN RAISE EXCEPTION 'OWN_RECEIPT_STATE_CHANGED';END IF;
+  IF NOT(view_value#>>ARRAY['permissions',CASE WHEN body->>'command'='approve' THEN 'canApprove' ELSE 'canWithdraw' END])::boolean THEN RAISE EXCEPTION 'OWN_RECEIPT_DECISION_INVALID';END IF;
+ END IF;
+ IF NOT pg_try_advisory_xact_lock(hashtextextended('own-receipt:capacity:v1',0)) THEN RAISE EXCEPTION 'OWN_RECEIPT_BUSY';END IF;
+ IF(SELECT count(*) FROM public.own_payroll_receipt_event WHERE tenant_id=(ctx->>'tenantId')::uuid AND source_binding_id=(ctx->>'sourceBindingId')::uuid)>=3000 OR(SELECT coalesce(sum(coalesce(octet_length(le.snapshot::text),0)+octet_length(le.body::text)),0) FROM public.own_payroll_receipt_event le)+coalesce(octet_length(s::text),0)+octet_length(body::text)>268435456 THEN RAISE EXCEPTION 'OWN_RECEIPT_LIMIT';END IF;
+ INSERT INTO public.own_payroll_receipt_event(id,tenant_id,source_binding_id,batch_id,command,actor_membership_id,actor_person_id,actor_email,actor_label,actor_session_id,actor_session_version,release_sha,request_key,body,body_sha256,snapshot,snapshot_sha256) VALUES(id_value,(ctx->>'tenantId')::uuid,(ctx->>'sourceBindingId')::uuid,batch_value,body->>'command',(ctx->>'membershipId')::uuid,(ctx->>'actorPersonId')::uuid,ctx->>'actorEmail',coalesce(nullif(ctx->>'actorLabel',''),'Autoridad municipal'),(p->>'actorSessionId')::uuid,(p->>'actorSessionVersion')::integer,p->>'releaseSha',key,body,fingerprint,s,hash_value) RETURNING * INTO e;RETURN public.own_receipt_event_v1(e);
+END $$;
+ALTER FUNCTION public.own_receipt_command_v1(jsonb,jsonb,uuid) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_receipt_command_v1(jsonb,jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.own_receipt_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;
+CREATE FUNCTION public.own_receipt_event_v1(e public.own_payroll_receipt_event,replay boolean DEFAULT false) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT jsonb_build_object('version','own-receipt-event.v1','id',e.id,'key',e.request_key,'body',e.body,'bodySha256',e.body_sha256,'batchId',e.batch_id,'recordedAt',e.recorded_at,'replayed',replay) $$;
+ALTER FUNCTION public.own_receipt_event_v1(own_payroll_receipt_event,boolean) OWNER TO neondb_owner;
+REVOKE ALL ON FUNCTION public.own_receipt_event_v1(own_payroll_receipt_event,boolean) FROM PUBLIC,municontrol_actions_runtime_app;
+COMMIT;

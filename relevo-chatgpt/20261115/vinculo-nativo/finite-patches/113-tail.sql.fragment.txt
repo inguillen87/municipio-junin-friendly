@@ -1,0 +1,14 @@
+ ) patches(sig,sha,old_value,new_value) LOOP
+  SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure(signature);
+  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)','public.native_leave_command_v1(jsonb,jsonb,uuid)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
+  IF p.oid IS NULL OR p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prokind<>'f'
+   OR p.proconfig IS DISTINCT FROM expected_config OR p.provolatile IS DISTINCT FROM (CASE WHEN signature='public.native_leave_authorized_v1(jsonb,uuid,text,text,text)' THEN 's' ELSE 'v' END)::"char" OR p.proparallel<>'u' OR p.proleakproof OR p.proretset
+   OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
+   OR encode(public.digest(replace(p.prosrc,E'\r\n',E'\n'),'sha256'),'hex')<>expected THEN RAISE EXCEPTION 'NATIVE_SELF_PREREQUISITE_DRIFT' USING DETAIL=signature; END IF;
+  definition:=replace(pg_get_functiondef(p.oid),E'\r\n',E'\n');
+  IF (length(definition)-length(replace(definition,old_body,'')))/length(old_body)<>1 THEN RAISE EXCEPTION 'NATIVE_SELF_PATCH_DRIFT' USING DETAIL=signature; END IF;
+  EXECUTE replace(definition,old_body,new_body);
+  SELECT * INTO after_patch FROM pg_proc WHERE oid=p.oid;
+  IF to_jsonb(after_patch)-'prosrc' IS DISTINCT FROM to_jsonb(p)-'prosrc' OR replace(after_patch.prosrc,E'\r\n',E'\n') IS DISTINCT FROM replace(replace(p.prosrc,E'\r\n',E'\n'),old_body,new_body) THEN RAISE EXCEPTION 'NATIVE_SELF_SECURITY_DRIFT'; END IF;
+ END LOOP;
+END $patch$;

@@ -1,0 +1,83 @@
+{
+  "version": "native-link-pdf-bounded-readonly-inspection.v1",
+  "status": "BOUNDED_CONTENT_AND_EIGHT_PAGE_VISUAL_REVIEW_WITH_SOURCE_GAPS",
+  "sourcePDFs": [
+    {
+      "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/browser-flow-r1/C-own-receipt.pdf",
+      "bytes": 9169,
+      "sha256": "0e527c1c8b02b8d2e0d9d5f89f13a68946371a18a94d5676d051f6b6cc735f61"
+    },
+    {
+      "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/browser-flow-r1/B-full6-approved-receipts.pdf",
+      "bytes": 52677,
+      "sha256": "0097c8210a7f7fd0442144dcfc44f4a2a60190e3cd536e056593dbd8e105dd3e"
+    },
+    {
+      "path": ".handoff/native-account-employment-link-http-functional-lab-20261115-r1/pg17/browser-flow-r1/M8-whole-payroll.pdf",
+      "bytes": 10576,
+      "sha256": "e85d6c239579beea3dd50f40bd7de877424e62e0cd57dc971c8a63022256d768"
+    }
+  ],
+  "browserEvidenceSha256": "23370f35f482dc9d9eb8e94ef57d4babc35c7a581f37a33d95ae7230720cd593",
+  "posthireTargetSha256": "ef37a651ca30eeb70250407eb68b3e09a5c0fa5c6d19d781fdd75acad1fed08e",
+  "recordsChecked": [
+    {
+      "employeeNumber": "9001",
+      "liquidationVersion": 1,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    },
+    {
+      "employeeNumber": "9002",
+      "liquidationVersion": 1,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    },
+    {
+      "employeeNumber": "9004",
+      "liquidationVersion": 1,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    },
+    {
+      "employeeNumber": "9005",
+      "liquidationVersion": 1,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    },
+    {
+      "employeeNumber": "9006",
+      "liquidationVersion": 1,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    },
+    {
+      "employeeNumber": "9007",
+      "liquidationVersion": 2,
+      "sixTotalsPresent": true,
+      "identityAndLegendPresent": true
+    }
+  ],
+  "ownPdfEqualsSameNativeCInBatch": true,
+  "nativeCVersion2OtherFiveVersion1": true,
+  "wholeReportRowsSixTotalsMatchSnapshot": true,
+  "allEightPagesRenderedAndVisuallyInspected": true,
+  "visualFindings": "Readable fonts/alignment/tables/amount columns/footer; no clipped or overlapping content or visible missing-glyph squares on these eight pages. One concept in fixture explains whitespace.",
+  "rendererWarnings": "Bundled Poppler emitted missing optional display-font warnings, exited0; all pages legible. No fonts installed or PDFs changed.",
+  "sourceGaps": [
+    "Declared native cargo is saved in employee source but not captured in salary employment frame; V6producer currently emits NULL jobTitle/structure. Future fix must preserve captured declaredCargo with hash/provenance; do not infer structure or fill historical receipts from current employee.",
+    "Identity verified wording refers to record/capture linkage, not independent human verification; precise native copy needed."
+  ],
+  "notCovered": [
+    "Dense/multipage employee receipts",
+    "900employees",
+    "Every report/period",
+    "Complex nonzero/null quantities and rounding beyond the retained native regressions",
+    "Municipal acceptance/realMFA/payment/signature"
+  ],
+  "priorInspectionHarnessFailure": "Expected observed.hire.created key did not exist; corrected to authoritative POSTHIRE_CHECKPOINT.target. No PDF/code/SQL changed.",
+  "PDFsEdited": 0,
+  "SQL": 0,
+  "NoeliaReady": false,
+  "generalGoal": "ACTIVE_INCOMPLETE"
+}

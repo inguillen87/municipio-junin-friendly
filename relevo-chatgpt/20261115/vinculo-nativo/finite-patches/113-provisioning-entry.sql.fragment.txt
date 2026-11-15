@@ -1,0 +1,7 @@
+ ('public.tenant_action_apply_provisioning_command_v2(text,uuid,integer,text,uuid,text,uuid,text,integer,jsonb)','68155ba9a85d703efa9290888bfa8183047cc1f920127f3a0fea7c0d5435ff70',
+ $old$    IF NOT FOUND THEN RAISE EXCEPTION 'TENANT_ACTION_EMPLOYMENT_INVALID' USING ERRCODE = 'P0001'; END IF;$old$,
+ $new$    IF NOT FOUND AND EXISTS(SELECT 1 FROM public.employment_contract ec WHERE ec.id=contract_id_value AND ec.source_system='MUNICONTROL') THEN
+      PERFORM public.native_account_contract_v1(membership.tenant_id,binding.id,contract_id_value,true);
+      SELECT * INTO contract FROM public.employment_contract ec WHERE ec.id=contract_id_value AND ec.tenant_id=membership.tenant_id AND ec.source_system='MUNICONTROL' FOR SHARE;
+    END IF;
+    IF NOT FOUND THEN RAISE EXCEPTION 'TENANT_ACTION_EMPLOYMENT_INVALID' USING ERRCODE = 'P0001'; END IF;$new$),

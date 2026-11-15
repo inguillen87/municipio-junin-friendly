@@ -1,0 +1,20 @@
+DO $curated_16$
+DECLARE signature regprocedure := 'public.tenant_action_lookup_employment_v2(text,uuid,integer,text,uuid,text,integer)'::regprocedure;
+ current_body text; definition text; changes jsonb; change jsonb; current_hash text;
+BEGIN
+ SELECT replace(prosrc,E'\r\n',E'\n') INTO STRICT current_body FROM pg_proc
+ WHERE oid=signature AND prosecdef IS TRUE
+  AND proconfig=ARRAY['search_path=public, pg_temp'];
+ current_hash:=encode(public.digest(current_body,'sha256'),'hex');
+ IF current_hash='66e987599d74f6fc70249d323eb5f6a2fc971c6f66caa1cb7a54319c1ce26031' THEN RETURN; END IF;
+ IF current_hash<>'20b3c3cef2833d2a09d2d9095f5fcca34f57267e73fc9c22f0fa5b6a2c384daf' THEN RAISE EXCEPTION 'GRH_CURATED_CONSUMER_DRIFT: %',signature; END IF;
+ definition:=replace(pg_get_functiondef(signature),E'\r\n',E'\n');
+ changes:=$changes$[["JOIN grh_employees ","JOIN public.grh_source_employees_v1 "]]$changes$::jsonb;
+ FOR change IN SELECT value FROM jsonb_array_elements(changes) LOOP
+  IF position(change->>0 IN definition)=0 THEN RAISE EXCEPTION 'GRH_CURATED_CONSUMER_ANCHOR: %',signature; END IF;
+  definition:=replace(definition,change->>0,change->>1);
+ END LOOP;
+ EXECUTE definition;
+ IF (SELECT encode(public.digest(replace(prosrc,E'\r\n',E'\n'),'sha256'),'hex') FROM pg_proc WHERE oid=signature)<>'66e987599d74f6fc70249d323eb5f6a2fc971c6f66caa1cb7a54319c1ce26031'
+ THEN RAISE EXCEPTION 'GRH_CURATED_CONSUMER_PATCH_FAILED: %',signature; END IF;
+END $curated_16$;

@@ -1,0 +1,22 @@
+ ('public.tenant_action_lookup_employment_v2(text,uuid,integer,text,uuid,text,integer)','66e987599d74f6fc70249d323eb5f6a2fc971c6f66caa1cb7a54319c1ce26031',
+ $old$  RETURN jsonb_build_object(
+    'tenantId', membership.tenant_id, 'membershipId', membership.id,
+    'candidates', candidates, 'ephemeral', true, 'limit', p_limit
+  );$old$,
+ $new$  SELECT coalesce(jsonb_agg(item ORDER BY item->>'displayName',item->>'legajo',item->>'employmentContractId'),'[]') INTO candidates FROM(
+    SELECT item FROM(
+      SELECT value||jsonb_build_object('origin','GRH') AS item FROM jsonb_array_elements(candidates)
+      UNION ALL
+      SELECT jsonb_build_object('employmentContractId',ec.id,'sourceBindingId',binding.id,'legajo',ec.legacy_legajo,'displayName',coalesce(nullif(i.full_name,''),'Nombre no informado'),'organizationUnitSourceId',ec.organization_unit_source_id,'organizationLabel',coalesce(ec.source_payload#>>'{employment,organizationName}',ec.organization_unit_source_id,'Organizacion no informada'),'sectorSourceId',ec.sector_source_id,'sectorLabel',coalesce(ec.source_payload#>>'{employment,sectorName}',ec.sector_source_id,'Sector no informado'),'origin','MUNICONTROL')
+      FROM public.employment_contract ec
+      JOIN public.person_identity i ON i.id=ec.person_id
+      JOIN public.native_employee_registration r ON r.contract_id=ec.id AND r.person_id=ec.person_id AND r.tenant_id=ec.tenant_id AND r.source_binding_id=binding.id
+      WHERE ec.source_system='MUNICONTROL' AND ec.source_batch_id IS NULL AND ec.tenant_id=membership.tenant_id AND ec.status='active' AND ec.legacy_company_id=binding.source_company_id
+       AND (ec.legacy_legajo ILIKE '%'||escaped_query||'%' ESCAPE '\' OR i.full_name ILIKE '%'||escaped_query||'%' ESCAPE '\' OR coalesce(ec.source_payload#>>'{employment,sectorName}',ec.sector_source_id,'') ILIKE '%'||escaped_query||'%' ESCAPE '\')
+    ) matches ORDER BY item->>'displayName',item->>'legajo',item->>'employmentContractId' LIMIT p_limit
+  ) bounded;
+  PERFORM public.native_account_contract_v1(membership.tenant_id,binding.id,(value->>'employmentContractId')::uuid,false) FROM jsonb_array_elements(candidates) WHERE value->>'origin'='MUNICONTROL';
+  RETURN jsonb_build_object(
+    'tenantId', membership.tenant_id, 'membershipId', membership.id,
+    'candidates', candidates, 'ephemeral', true, 'limit', p_limit
+  );$new$)
