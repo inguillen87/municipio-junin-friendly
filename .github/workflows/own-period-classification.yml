@@ -2,6 +2,9 @@ name: Own period classification
 on:
   pull_request:
     paths:
+      - 'assets/own-payroll-receipt-model.js'
+      - 'assets/own-payroll-pdf-kit.js'
+      - 'assets/own-payroll-receipt-pdf.js'
       - 'api/internal-own-period-classification.js'
       - 'lib/internal-own-period-classification.js'
       - 'assets/own-period-classification*'

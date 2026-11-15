@@ -5,7 +5,7 @@ import {ownQaLockQuery,verifiedOwnQaLocks} from './qa-lock-observation.mjs';
 
 export const QA_RUN_CAPTURE_QUERY='SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result';
 const transportFile='scripts/lib/own-payroll-psql-qa.mjs';
-const transportSha256='0e2ffc0cc8932548fd18975575709b2e9517dbecedd61a1a8f1ce26768bad037';
+const transportSha256='bb8992cced0475aedae552e672ed0506d9e28b94bfde04565b0fd6c667c8a1ea';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const observedRelations=['person_identity','employment_contract','native_employee_registration'];
 const captureRelations=[...observedRelations,'native_employment_change_review','native_employment_lifecycle_review',
