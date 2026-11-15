@@ -13,6 +13,7 @@ import {catalog as classification} from './fixtures/native-employee-synthetic.js
 import {capture} from './fixtures/own-payroll-run-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {annulDetail,annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
+import {ownRecaptureContext,ownRecaptureEvents} from '../assets/own-payroll-recapture-model.js';
 
 class Element{
  constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;this.dataset=new Proxy({}, {set:(target,key,value)=>{target[key]=String(value);this.attributes['data-'+String(key).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});}
@@ -43,7 +44,7 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
- const state={annul:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
+ const state={annul:null,liquidation:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
  let clock=0,timerId=0;const intervals=new Map(),deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
  const logoutButton=new Element('button'),document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:id=>id==='logoutButton'?logoutButton:null};
  Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:(fn,ms)=>{const id=++timerId;intervals.set(id,{fn,ms});return id;},clearInterval:id=>intervals.delete(id)});
@@ -60,6 +61,7 @@ function harness(t){
   else if(url==='/api/internal-own-payroll-program?resource=bootstrap')payload={ok:true,data:state.program};
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=attempt')){assert.ok(state.annul);payload={ok:true,data:state.annul.receipt};}
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=detail')){assert.ok(state.annul);payload={ok:true,data:state.annul.detail};}
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')){assert.ok(state.liquidation);payload={ok:true,data:state.liquidation};}
   else if(url.startsWith('/api/internal-data?resource=employees')){assert.ok(state.lookup,'Explicit synthetic directory fixture');payload=state.lookup;}
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
@@ -231,6 +233,47 @@ test('contexto externo espera reglas y, tras aceptación real, reemplaza el borr
  await h.start();await h.prepare();h.q('period').value='2026-11';h.q('date').value='2026-11-30';const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:'2026-10-31',key:r.key,accessKey}),true);await h.refresh();assert.equal(h.q('period').value,'2026-11');assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,0);
  h.state.program=bootstrap({program:approved()});await h.refresh();assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,2);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
  await h.refresh();assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(req=>req.method==='POST').length,0);
+});
+
+function recordedRecapture(h){
+ const before=annulDetail(6),receipt=annulReceipt(before),detail=afterAnnul(before,receipt).runs[0];h.state.liquidation=detail;h.state.roster=ownRoster(6);
+ for(const [index,row]of h.state.roster.rows.entries()){row.contractId=detail.capture.saved.input.employees[index].contractId;row.legajo=detail.capture.saved.input.employees[index].employeeNumber;}
+ return ownRecaptureContext({kind:'annulled-event',source:ownRecaptureEvents(detail)[0].source});
+}
+
+test('recaptura contextual abre el alcance del evento ajeno con la cuenta receptora y no calcula hasta otra confirmación explícita',async t=>{
+ const h=harness(t),context=recordedRecapture(h);assert.equal(h.state.caps.includes('payroll.calculation.approve'),false);
+ assert.equal(h.queuePreparation(context),true);await h.start();
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');
+ assert.equal(h.q('recapture').hidden,false);assert.match(h.q('recapture-summary').textContent,/2026-10.*Mensual.*3 legajos/);assert.ok(h.q('recapture-summary').textContent.includes(context.source.eventId));
+ for(const field of ['period','type','date','kind','picker'])assert.equal(h.q(field).disabled,true,field+' conserva el alcance');
+ assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.some(request=>request.method==='POST'),false);
+ assert.ok(h.requests.some(request=>request.url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')));
+ assert.equal(h.requests.some(request=>request.url.includes('resource=attempt')||request.url.includes('internal-own-payroll-annulment')),false,'no consulta intentos privados del actor que anuló');
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);await h.submit();
+ const posts=h.requests.filter(request=>request.method==='POST');assert.equal(posts.length,1);const body=JSON.parse(posts[0].body).payload;
+ assert.deepEqual(body.selection,{kind:'contracts',values:h.state.liquidation.employees.filter(employee=>employee.state==='annulled').map(employee=>employee.contractId).sort()});
+ assert.equal(body.period,'2026-10');assert.equal(body.liquidationType,'monthly');assert.equal(body.liquidationDate,'2026-10-31');assert.equal(Object.hasOwn(body,'source'),false,'conserva el contrato SQL existente');
+});
+
+test('estado cambiado después de recuperar el evento bloquea el POST completo y retira la confirmación',async t=>{
+ const h=harness(t),context=recordedRecapture(h);h.queuePreparation(context);await h.start();
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');h.state.liquidation.employees.find(employee=>employee.state==='annulled').blockedBy=uid(999);
+ await h.submit();assert.equal(h.requests.some(request=>request.method==='POST'),false);assert.equal(h.q('confirm').checked,false);assert.match(h.q('status').textContent,/alcance parcial/);
+});
+
+test('contexto de recaptura adulterado o receptor sin preparar no habilita una consulta nominal ni un cálculo',async t=>{
+ const h=harness(t),context=recordedRecapture(h);
+ assert.equal(h.queuePreparation({...context,accessKey:'authority-from-another-actor'}),false);assert.equal(h.queuePreparation({...context,source:{...context.source,employeeNumber:'synthetic'}}),false);
+ h.state.caps=h.state.caps.filter(cap=>cap!=='payroll.calculation.prepare');assert.equal(h.queuePreparation(context),true);await h.start();
+ assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.some(request=>request.url.includes('resource=detail')||request.method==='POST'),false);
+});
+
+test('la referencia se conserva al ocultar para la misma cuenta y se retira sólo con una decisión explícita de otro alcance',async t=>{
+ const h=harness(t),context=recordedRecapture(h);h.queuePreparation(context);await h.start();
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('chips').children.length,0);
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();assert.equal(h.q('recapture').hidden,false);assert.ok(h.q('recapture-summary').textContent.includes(context.source.eventId));assert.equal(h.q('confirm').checked,false);
+ await h.q('recapture-clear').emit('click');assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('period').disabled,false);assert.equal(h.q('kind').disabled,false);assert.equal(h.q('picker').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.some(request=>request.method==='POST'),false);
 });
 
 async function searchOwnPicker(h,term){
