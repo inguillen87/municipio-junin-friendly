@@ -5,6 +5,7 @@ import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-m
 import {ownOfficialEconomicEvidence,verifiedOwnOfficialEconomicSource} from './own-payroll-official-snapshot-model.js';
 import {OWN_PAYROLL_NAMESPACE_VERSION} from './own-payroll-engine.js';
 import {OWN_PAYROLL_ROW_EMISSION_V2_VERSION} from './own-payroll-row-emission.js';
+import {ownReceiptPrintFacts} from './own-payroll-receipt-print-facts.js';
 
 const need=(condition,message)=>{if(!condition)throw Error(message);};
 const same=(left,right)=>salarySerialized(left)===salarySerialized(right);
@@ -13,9 +14,11 @@ const evidenceKeys=['inputVersion','resultVersion','inputSha256','resultSha256',
 const rowKey=row=>(row.nature==='auxiliary'?'auxiliary:':'concept:')+(row.conceptCode??row.code);
 
 export const hasOwnOfficialReceipt=record=>['own-payroll-input.v4','own-payroll-input.v5'].includes(record?.inputVersion);
+// Receipt v6 adds frozen print facts to an official record. They are optional here; the snapshot decides whether its version admits them.
+export const hasOwnReceiptPrintFacts=record=>record!==null&&typeof record==='object'&&Object.hasOwn(record,'printFacts');
 
 export function ownOfficialReceiptRecord(record,validateLegacyRecord){
- need(hasOwnOfficialReceipt(record)&&salaryExact(record,[...baseKeys,...evidenceKeys,...cappedResultFields(record)])&&record.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION,'No se verificó la versión explícita ni la evidencia económica del recibo.');
+ need(hasOwnOfficialReceipt(record)&&salaryExact(record,[...baseKeys,...evidenceKeys,...cappedResultFields(record),...(hasOwnReceiptPrintFacts(record)?['printFacts']:[])])&&record.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION,'No se verificó la versión explícita ni la evidencia económica del recibo.');
  need(record.resultVersion===record.inputVersion.replace('input','result')&&[record.inputSha256,record.resultSha256,record.payloadSha256].every(salaryHash),'No se verificaron las huellas originales del cálculo del recibo.');
  need(Array.isArray(record.economicConcepts)&&Array.isArray(record.economicRows)&&record.economicConceptCount===record.economicConcepts.length&&record.economicRows.length===record.economicConceptCount&&record.economicConceptCount<=250000,'Faltan renglones económicos de la copia conservada.');
  // Reuse the historical identity, label, decimal and line-total checks on a
@@ -39,6 +42,8 @@ export function ownOfficialReceiptRecord(record,validateLegacyRecord){
  const omissions=record.rowEmissions.filter(decision=>decision.decision==='omit').map(decision=>({decision,calculatedRow:rows.get('concept:'+decision.conceptCode),quantity:quantities.get(decision.conceptCode)??(temporal?null:undefined),labeledConcept:labels.get('concept:'+decision.conceptCode)}));
  need(Array.isArray(record.omissionAudit)&&Number.isSafeInteger(record.omittedRowCount)&&record.omittedRowCount>=0&&record.omittedRowCount===omissions.length&&same(record.omissionAudit,omissions),'Se alteró la auditoría de renglones omitidos de la impresión.');
  need(record.economicConceptCount===record.concepts.length+record.omittedRowCount+record.economicRows.filter(row=>row.nature==='auxiliary').length,'La impresión o su auditoría perdieron un renglón económico.');
+ // Print facts are checked last, against a record whose amounts, selector and quantities are already verified.
+ if(hasOwnReceiptPrintFacts(record))ownReceiptPrintFacts(record);
  return record;
 }
 

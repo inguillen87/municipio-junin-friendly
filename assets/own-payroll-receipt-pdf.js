@@ -1,7 +1,8 @@
 import {encodePayrollPages} from './payroll-detail-export.js';
 import {ownReceiptBatch,ownReceiptSelf,ownReceiptSnapshot,ownReceiptType,verifiedOwnReceiptSelf,verifiedOwnReceiptSnapshot,ownReceiptVerifyHash} from './own-payroll-receipt-model.js';
 import {OWN_RUN_NATURES,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
-import {OWN_PDF_INK as INK,OWN_PDF_MUTED as MUTED,OWN_PDF_STRONG as STRONG,OWN_PDF_TINT as TINT,ownPdfDateText,ownPdfDocument,ownPdfPeriodText,ownPdfTaxIdText,ownPdfText} from './own-payroll-pdf-kit.js';
+import {OWN_PDF_INK as INK,OWN_PDF_MUTED as MUTED,OWN_PDF_STRONG as STRONG,OWN_PDF_TINT as TINT,OWN_PDF_QUANTITY_GAP,ownPdfDateText,ownPdfDocument,ownPdfPeriodText,ownPdfTaxIdText,ownPdfText} from './own-payroll-pdf-kit.js';
+import {OWN_RECEIPT_DECLARED_ACCOUNT_LABEL,ownReceiptDeclaredAccountText,ownReceiptPrintedQuantities} from './own-payroll-receipt-print-facts.js';
 const UNSUPPORTED='El PDF no admite un carácter de la identidad o etiqueta original. No se reemplazó ni omitió el recibo.';
 // Width in points of a text as the receipt draws it; a character the PDF cannot draw is rejected, never replaced.
 export const ownReceiptTextWidth=ownPdfText(UNSUPPORTED).width;
@@ -13,6 +14,8 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
  const L=38,R=557,W=R-L,MID=(L+R)/2,EDGES=[L,MID,R],HALF=MID-L;
  for(const concept of record.concepts)if(!Object.hasOwn(OWN_RUN_NATURES,concept.nature))throw Error('El recibo contiene un concepto de una naturaleza desconocida. No se omitió.');
  const type=ownReceiptType(source.type),money=value=>formatOwnRunDecimal(value),totals=record.totals,net=money(totals.net);
+ // Receipt v6: frozen print facts. `printed` is null for every earlier version, whose pages stay exactly as they were.
+ const facts=record.printFacts??null,printed=ownReceiptPrintedQuantities(record),ABSENT='Sin dato conservado';
  let continued=false;
  const doc=ownPdfDocument({unsupported:UNSUPPORTED,header(doc){
   // Employer on the left, kind of document on the right.
@@ -31,6 +34,14 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
    names.forEach((part,i)=>doc.put(L,doc.y-i*15,part,12,true));doc.right(R,doc.y,number,doc.shrink(number,150,11,true),true);
    doc.y-=(names.length-1)*15+17;
    doc.cells([['CUIL',ownPdfTaxIdText(record.cuil)],['DNI',String(record.dni)],['Convenio',String(record.agreementCode)],['Repartición',String(record.departmentCode)],['Versión de la liquidación',String(record.liquidationVersion)]],L,W);
+   if(facts){
+    // Employment facts as frozen with this liquidation. A fact that was not conserved is said so; it is never completed from today's file.
+    const c=facts.classification,category=[c.categoryCode,c.categoryLabel].filter(Boolean).join(' · ')||ABSENT;
+    doc.y-=13;
+    const wide=[['Categoría',category],['Cargo',c.jobTitle??ABSENT],['Estructura',c.positionStructure??ABSENT]].map(([label,value])=>[label,doc.fit(value,W-70-8,8.5)]);
+    doc.put(L,doc.y,'Ingreso',7,false,MUTED);doc.put(L+70,doc.y,facts.employmentStartDate?ownPdfDateText(facts.employmentStartDate):ABSENT,8.5);
+    for(const [label,parts]of wide){doc.y-=11;doc.put(L,doc.y,label,7,false,MUTED);parts.forEach((part,i)=>doc.put(L+70,doc.y-i*10.5,part,8.5));doc.y-=(parts.length-1)*10.5;}
+   }
    doc.y-=9;
   }else{
    doc.y-=15;const names=doc.fit(record.name,W-190,10,true),number='Legajo '+record.employeeNumber+' · continuación';
@@ -39,11 +50,11 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
   }
   continued=true;
  }});
- const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>doc.entry(concept,HALF,options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
+ const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>doc.entry(concept,HALF,printed?{...options,quantity:printed.get(concept.code)??''}:options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
  const mainHead=()=>{
   doc.box(L,doc.y-16,W,16,{fill:TINT,stroke:null});doc.line(L,doc.y,R,doc.y,STRONG,0.8);
   doc.put(L+6,doc.y-11.5,'HABERES',8.5,true);doc.put(MID+6,doc.y-11.5,'DESCUENTOS',8.5,true);doc.y-=16;
-  for(const [x0,x1]of [[L,MID],[MID,R]]){doc.put(x0+6,doc.y-9.5,'Cód.',7,false,MUTED);doc.put(x0+38,doc.y-9.5,'Concepto',7,false,MUTED);doc.right(x1-6,doc.y-9.5,'Importe ($)',7,false,MUTED);}
+  for(const [x0,x1]of [[L,MID],[MID,R]]){doc.put(x0+6,doc.y-9.5,'Cód.',7,false,MUTED);doc.put(x0+38,doc.y-9.5,'Concepto',7,false,MUTED);if(printed)doc.right(x1-6-62-OWN_PDF_QUANTITY_GAP,doc.y-9.5,'Cant.',7,false,MUTED);doc.right(x1-6,doc.y-9.5,'Importe ($)',7,false,MUTED);}
   doc.y-=13;doc.line(L,doc.y,R,doc.y);doc.y-=3;
  };
  const infoHead=()=>{
@@ -69,6 +80,7 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
  // State and origin of the document, kept together so a page never starts with a stray line.
  const notes=[
   ...(record.totalReconciliation?[[`Neto de renglones: ${money(record.lineTotals.net)} · Conciliación: ${money(record.totalReconciliation.netDifferenceFromLines)} · Neto oficial: ${net}`,false,MUTED],['La conciliación conserva la diferencia del cierre; no agrega un haber ni un descuento.',false,MUTED]]:[]),
+  ...(facts?.paymentDestination?[[`${OWN_RECEIPT_DECLARED_ACCOUNT_LABEL}: ${ownReceiptDeclaredAccountText(facts.paymentDestination)} · vigente al ${ownPdfDateText(facts.paymentDestination.referenceDate)}`,false,INK],['Cuenta declarada en una revisión aprobada, con vigencia informada para esa fecha; no acredita que el depósito se haya hecho.',false,MUTED]]:[]),
   ['La fecha declarada no acredita pago. Firma digital pendiente.',false,MUTED],
   [state==='approved'?'Disponibilidad revisada por otra persona.':'Preparación para revisión; aún no disponible para el agente.',true,INK],
   ...(params.legend?[[params.legend,false,MUTED]]:[]),
@@ -90,7 +102,7 @@ export async function createOwnReceiptPdf(value,{signal,preview=false,self=false
  const pages=[];let records,params,sources,state,batchId;
  if(self){await verifiedOwnReceiptSelf(value);const item=value.items[index];if(!item)throw Error('Elegí un recibo propio vigente.');records=[item.record];params=item.params;sources=[item.source];state='approved';batchId=item.batchId;}
  else if(preview){await verifiedOwnReceiptSnapshot(value);records=value.records;params=value.params;sources=value.sources;state='prepared';}
- else{ownReceiptBatch(value);if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value.snapshot.version))await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);if(!value.permissions.canDownload)throw Error('La emisión no admite una descarga vigente.');records=value.snapshot.records;params=value.snapshot.params;sources=value.snapshot.sources;state=value.state;batchId=value.id;}
+ else{ownReceiptBatch(value);if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5','own-receipt-snapshot.v6'].includes(value.snapshot.version))await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);if(!value.permissions.canDownload)throw Error('La emisión no admite una descarga vigente.');records=value.snapshot.records;params=value.snapshot.params;sources=value.snapshot.sources;state=value.state;batchId=value.id;}
  if(!records.length)throw Error('No hay recibos en este alcance; no se inventó una liquidación en cero.');
  for(const [i,record]of records.entries()){signal?.throwIfAborted();pages.push(...ownReceiptPages(record,params,sources.find(s=>s.id===record.sourceGroupId),{state,batchId}));if(pages.length>8000)throw Error('El conjunto supera la capacidad de PDF. No se exportó una parte.');if(i%10===0)await new Promise(resolve=>setTimeout(resolve,0));}
  signal?.throwIfAborted();const bytes=encodePayrollPages(pages);await new Promise(resolve=>setTimeout(resolve,0));if(signal?.aborted){bytes.fill(0);signal.throwIfAborted();}return {bytes,recordCount:records.length,pageCount:pages.length};

@@ -11,6 +11,8 @@ const WIDTHS=[
 ].map(table=>table.match(/../g).map(pair=>parseInt(pair,36)||556));
 export const OWN_PDF_INK='0.07 0.20 0.25',OWN_PDF_MUTED='0.33 0.42 0.47',OWN_PDF_LINE='0.80 0.85 0.86',OWN_PDF_STRONG='0.55 0.62 0.65',OWN_PDF_TINT='0.94 0.97 0.97';
 const UNIT_LABELS={hours:'horas',minutes:'minutos',days:'días',percent:'%',units:'unidades',coefficient:'coeficiente',years:'años',months:'meses'};
+// Width of the optional quantity column of a concept row and its distance to the value, in points.
+export const OWN_PDF_QUANTITY_COLUMN=46,OWN_PDF_QUANTITY_GAP=5;
 export const ownPdfUnitText=unit=>unit==='money'?'':(UNIT_LABELS[unit]??unit);
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 // Presentation only: the same period, date and CUIT/CUIL, written the way a pay slip shows them. Anything unexpected is printed as received.
@@ -60,10 +62,17 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
   cells(items,x,w,{bold=false,size=9}={}){const each=w/items.length;items.forEach(([label,value],i)=>{const at=x+i*each;doc.put(at,doc.y,label,7,false,OWN_PDF_MUTED);doc.put(at,doc.y-size-2.5,value,shrink(value,each-8,size,bold),bold);});doc.y-=size+2.5;},
   // One concept as a row of a column `columnWidth` wide: code, label wrapped to the real width, value on the right edge.
   // Money goes without sign under a column that already says it is money; elsewhere `withSign` writes it.
-  entry(concept,columnWidth,{size=8.5,withSign=false,lead=2.5,pad=2.5,labelX=38,reserve=62}={}){
+  // `quantity` (a text, possibly empty) opens a quantity column between the label and the value; `null` draws the row as before.
+  entry(concept,columnWidth,{size=8.5,withSign=false,lead=2.5,pad=2.5,labelX=38,reserve=62,quantity=null}={}){
    const inner=columnWidth-labelX-6,unit=ownPdfUnitText(concept.unit),value=formatOwnRunDecimal(concept.amount,withSign&&concept.unit==='money')+(unit?' '+unit:'');
-   const valueSize=shrink(value,inner-66,size,true),label=fit(concept.label,Math.min(inner-reserve-6,inner-width(value,valueSize,true)-6),size);
-   return {code:concept.code,label,size,lead,labelX,value,valueSize,height:label.length*(size+lead)+pad};
+   if(quantity===null){
+    const valueSize=shrink(value,inner-66,size,true),label=fit(concept.label,Math.min(inner-reserve-6,inner-width(value,valueSize,true)-6),size);
+    return {code:concept.code,label,size,lead,labelX,value,valueSize,height:label.length*(size+lead)+pad};
+   }
+   const column=OWN_PDF_QUANTITY_COLUMN,valueSize=shrink(value,inner-66-column,size,true),taken=Math.max(reserve,width(value,valueSize,true))+OWN_PDF_QUANTITY_GAP;
+   const label=fit(concept.label,inner-taken-column-6,size),quantitySize=shrink(quantity,column-4,size-1);
+   if(width(quantity,quantitySize)>column-4)throw Error('Una cantidad no entra en su columna. No se recortó ni se omitió.');
+   return {code:concept.code,label,size,lead,labelX,value,valueSize,quantity,quantitySize,quantityRight:6+taken,height:label.length*(size+lead)+pad};
   },
   // Two columns between edges [x0, xm, x1] that advance together page by page. A heading never stays alone at the foot of a
   // page, and a row that cannot fit even on a fresh page stops the document instead of being cut. `head()` draws the heading
@@ -77,6 +86,7 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
     const base=from-item.size-0.5;
     doc.put(a+6,base,item.code,shrink(item.code,item.labelX-8,item.size,true),true);
     item.label.forEach((part,i)=>doc.put(a+item.labelX,base-i*(item.size+item.lead),part,item.size));
+    if(item.quantity)doc.right(b-item.quantityRight,base,item.quantity,item.quantitySize);
     doc.right(b-6,base,item.value,item.valueSize,true);
    };
    let li=0,ri=0;
