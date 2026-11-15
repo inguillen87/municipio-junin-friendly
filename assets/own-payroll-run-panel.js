@@ -241,6 +241,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   const preparationDraft=()=>Object.freeze({accessKey:access.key,period:$('period').value,date:$('date').value,type:$('type').value,kind:$('kind').value,codes:Object.freeze([...$('codes').selectedOptions].map(option=>option.value)),contracts:Object.freeze(chosen.map(item=>item.contractId))});
   function suspend(message,{preservePreparation=false}={}){
+    stopSessionPoll();
     if(!preservePreparation)suspendedPreparation=null;
     else if(!attempt&&access&&hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL))suspendedPreparation=preparationDraft();
     queuedPreparation=null;
@@ -261,6 +262,41 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(!read.ok||read.payload?.ok!==true){const error=Error(errors[read.payload?.code]??(read.status===401?'La sesión venció. Volvé a ingresar.':read.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la operación. Consultá el mismo intento antes de continuar.'));error.status=read.status;error.code=read.payload?.code;throw error;}
     return read.payload;
   }
+  // Session revalidation owns its request; a same-session poll never invalidates an in-flight picker.
+  let sessionPollVersion=0,sessionPollController=null;
+  function stopSessionPoll(){sessionPollVersion++;sessionPollController?.abort();sessionPollController=null;}
+  async function pollSession(){
+    if(!live()||busy||!access||sessionPollController)return;
+    const version=seq,key=access.key,required=current||attempt?OWN_RUN_NOMINAL:OWN_RUN_READ;
+    const pollVersion=++sessionPollVersion,ownController=new AbortController();sessionPollController=ownController;
+    const currentPoll=()=>pollVersion===sessionPollVersion&&sessionPollController===ownController&&version===seq&&live()&&!busy&&access?.key===key;
+    const timeout=setTimeout(()=>ownController.abort(),45000);
+    try{
+      const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:ownController.signal});
+      const payload=await readOwnPayrollResponse(response,{maxBytes:OWN_RUN_MAX_RESPONSE,signal:ownController.signal});
+      if(!currentPoll()||ownController.signal.aborted)return;
+      if(!response.ok||payload?.ok!==true)throw Object.assign(Error(response.status===401?'La sesión venció. Volvé a ingresar.':response.status===403?'Tu cuenta no permite esta operación.':'No se confirmó la consulta de acceso.'),{status:response.status});
+      const next=ownRunWorkspaceAccess(payload);
+      if(!currentPoll())return;
+      if(next.key!==key||!hasOwnRunAccess(next.caps,required)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(next.caps,OWN_RUN_NOMINAL))throw Object.assign(Error('Cambió la sesión o el permiso para esta consulta. Verificá el acceso antes de continuar.'),{status:403});
+      // Passive polling can withdraw capabilities; only an explicit fresh operation can acquire more.
+      const retained=new Set([...access.caps].filter(cap=>next.caps.has(cap)));
+      if(retained.size!==access.caps.size){
+        access.caps=retained;queuedPreparation=null;
+        if(!canPrepare())picker.close();
+        $('confirm').checked=false;controls();
+      }
+    }catch(error){
+      if(!currentPoll())return;
+      if([401,403].includes(error.status)){
+        suspend('Se retiraron los datos por un cambio de sesión o permisos. Verificá el acceso antes de continuar.');
+        $('login').hidden=error.status!==401;
+      }else status(error.name==='AbortError'?'La consulta de acceso se interrumpió. La próxima operación volverá a verificar la sesión.':error.message,'warning');
+    }finally{
+      clearTimeout(timeout);
+      if(sessionPollController===ownController)sessionPollController=null;
+    }
+  }
   async function session(required){
     const version=seq,payload=await request('/api/internal-auth'),next=ownRunWorkspaceAccess(payload);
     if(version!==seq||!live())throw Object.assign(Error('La consulta de acceso quedó desactualizada.'),{name:'AbortError'});
@@ -271,7 +307,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   }
   async function perform(work){
     if(!live()||busy)return;
-    const version=++seq;busy=true;const operationController=new AbortController();controller=operationController;controls();
+    stopSessionPoll();const version=++seq;busy=true;const operationController=new AbortController();controller=operationController;controls();
     const timeout=setTimeout(()=>operationController.abort(),45000);
     try{await work(()=>version===seq&&live());}
     catch(error){if(version===seq&&live()){
@@ -552,13 +588,13 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
   $('confirm').addEventListener('change',controls);$('search').addEventListener('input',()=>{page=1;renderRows();});$('prev').addEventListener('click',()=>{page--;renderRows();});$('next').addEventListener('click',()=>{page++;renderRows();});
   const task=event=>{active=event.detail?.id==='calculo';if(active)refresh();else suspend('Se retiraron los datos al cambiar de tarea. Abrí Calcular para verificar el acceso otra vez.');};
   const visibility=()=>{if(document.hidden)suspend('Se retiraron los datos al ocultar la página. Al volver se verificará el acceso antes de continuar.',{preservePreparation:true});else{if(!stopped&&host.isConnected&&typeof host.closest==='function'&&!host.closest('[hidden]'))active=true;if(live())refresh({metadataOnly:true});else controls();}};
-  const capability=event=>{const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
+  const capability=event=>{stopSessionPoll();const caps=ownRunEventCapabilities(event.detail?.tenantCapabilities);if(!access)return;
     if(!hasOwnRunAccess(caps,OWN_RUN_READ)||hasOwnRunAccess(access.caps,OWN_RUN_NOMINAL)&&!hasOwnRunAccess(caps,OWN_RUN_NOMINAL))suspend('Se retiraron los datos por un cambio de permisos. Actualizá el acceso antes de continuar.');
     else{queuedPreparation=null;access.caps=new Set([...access.caps].filter(c=>caps.has(c)));if(!canPrepare())picker.close();$('confirm').checked=false;controls();}
   };
   document.addEventListener('taskchange',task);document.addEventListener('visibilitychange',visibility);document.addEventListener('municontrol:capabilities-ready',capability);
   document.getElementById('logoutButton')?.addEventListener('click',()=>suspend('Sesión cerrada. Se retiraron los datos.'));
-  const poll=setInterval(()=>{if(live()&&!busy&&access)perform(async valid=>{await session(current||attempt?OWN_RUN_NOMINAL:OWN_RUN_READ);if(valid())controls();});},60000);
+  const poll=setInterval(()=>{if(live()&&!busy&&access)return pollSession();},60000);
   window.addEventListener('pagehide',()=>{stopped=true;active=false;suspend('Página cerrada.');clearInterval(poll);document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('municontrol:capabilities-ready',capability);},{once:true});
   controls();return {refresh,queuePreparation(context){if(busy||attempt&&attempt.key!==knownSavedKey||!(context?.kind==='consolidated'?(context.liquidationDate===null||ownRunDate(context.liquidationDate)):salaryUuid(context?.runId))||!salaryUuid(context?.key)||typeof context?.accessKey!=='string'||!context.accessKey)return false;queuedPreparation=Object.freeze({...context});return true;}};
 }
