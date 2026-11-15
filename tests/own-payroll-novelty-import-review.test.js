@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {ownNoveltyImportPage,ownNoveltyImportResolution,OWN_NOVELTY_IMPORT_PAGE_SIZE} from '../assets/own-payroll-novelty-import-review.js';
 import {OWN_NOVELTY_MAX_ROWS,ownNoveltyCommand} from '../assets/own-payroll-novelties-model.js';
-import {readEntityTxt,resolveEntityRows,lowestLegajoChoices,entityFormat,entityFormatsForLength} from '../assets/grh-entity-formats.js';
+import {readEntityTxt,readPastedSheet,resolveEntityRows,lowestLegajoChoices,entityFormat,entityFormatsForLength} from '../assets/grh-entity-formats.js';
 
 test('every row through 10,000 remains reachable in source order, including row 201 and the last row',()=>{
  const rows=Object.freeze(Array.from({length:OWN_NOVELTY_MAX_ROWS},(_,i)=>Object.freeze({key:String(20000001+i),sourceLines:Object.freeze([i+1])}))),seen=[];
@@ -34,14 +34,15 @@ test('filtering matches identity, source line, name, concept and candidate witho
  assert.throws(()=>ownNoveltyImportPage(Array(10001).fill(rows[0])),/página/);
 });
 
-test('only the complete resolution can be added; an unresolved off-page row still blocks the whole file',()=>{
+test('a pending off-page contract choice blocks all eligible rows; reported missing contracts remain excluded',()=>{
  const rows=Array.from({length:201},(_,i)=>({key:String(i+1)})),read={rows};
  assert.equal(ownNoveltyImportResolution(read,{resolved:rows,missing:[],ambiguous:[]}).ready,true);
- for(const kind of ['missing','ambiguous']){
-  const linked={resolved:rows.slice(0,200),missing:[],ambiguous:[]};linked[kind]=rows.slice(200);
-  assert.equal(ownNoveltyImportPage(linked.resolved).rows.length,50);
-  assert.equal(ownNoveltyImportResolution(read,linked).ready,false);
- }
+ const linked={resolved:rows.slice(0,200),missing:[],ambiguous:rows.slice(200)};
+ assert.equal(ownNoveltyImportPage(linked.resolved).rows.length,50);
+ assert.equal(ownNoveltyImportResolution(read,linked).ready,false);
+ assert.deepEqual(ownNoveltyImportResolution(read,{resolved:rows.slice(0,200),missing:rows.slice(200),ambiguous:[]}),{total:201,resolved:200,missing:1,ambiguous:0,ready:true});
+ assert.equal(ownNoveltyImportResolution(read,{resolved:rows.slice(0,199),missing:[rows[199]],ambiguous:[rows[200]]}).ready,false);
+ assert.equal(ownNoveltyImportResolution(read,{resolved:[],missing:rows,ambiguous:[]}).ready,false);
  assert.equal(ownNoveltyImportResolution({rows:[]},{resolved:[],missing:[],ambiguous:[]}).ready,false);
  assert.throws(()=>ownNoveltyImportResolution(read,{resolved:rows.slice(0,200),missing:[],ambiguous:[]}),/todas las filas/);
  assert.throws(()=>ownNoveltyImportResolution(read,{resolved:rows,missing:[],ambiguous:[rows[0]]}),/todas las filas/);
@@ -122,7 +123,7 @@ test('the real preview exposes row 201 and preserves its choice across pages and
  assert.deepEqual(f.calls,['invalidate-entity','invalidate','render']);assert.equal(f.messages.length,1);assert.match(f.messages[0],/Se agregaron 201 filas/);
 });
 
-test('all missing rows remain searchable and reachable, including row 201, without enabling a partial batch',async()=>{
+test('all missing rows remain searchable and reachable, including row 201, without enabling an empty addition',async()=>{
  const f=await setup(syntheticFile(201,{missing:true}));
  for(let i=0;i<4;i++)f.fire('next','missing');
  assert.match(f.find('review','missing').textContent,/DNI 20000201.*renglón 201/);assert.match(f.find('page','missing').textContent,/página 5 de 5/);
@@ -130,6 +131,30 @@ test('all missing rows remain searchable and reachable, including row 201, witho
  f.search('missing','no existe');assert.match(f.find('page','missing').textContent,/0–0 de 0.*página 1 de 1/);
  assert.equal(f.find('add').disabled,true);f.fire('add');assert.equal(f.context.rows.length,0);assert.deepEqual(f.calls,[]);
  f.search('missing','');assert.match(f.find('page','missing').textContent,/1–50 de 201/);
+});
+
+test('a mixed TXT excludes a missing active contract and adds every resolved row only after all contract choices',async()=>{
+ const data=syntheticFile(3);data.roster=data.roster.filter(row=>row.dni!=='20000003');
+ const f=await setup(data);
+ assert.equal(f.find('add').disabled,true);
+ assert.match(f.out.textContent,/1 fila sin legajo activo se informa y no se agrega/);
+ assert.match(f.find('review','missing').textContent,/DNI 20000003/);
+ f.fire('add');assert.equal(f.context.rows.length,0);
+ f.fire('lowest');assert.equal(f.find('add').disabled,false);
+ f.fire('add');assert.deepEqual(Array.from(f.context.rows,row=>row.contractId),[contract(2),contract(4)]);
+ assert.match(f.out.textContent,/Lectura agregada al lote: 2 filas\. 1 fila sin legajo activo quedó excluida\./);
+ assert.ok(f.context.rows.every(row=>row.amountCents==='10000'&&row.conceptSourceId==='638'));
+});
+
+test('a pasted sheet reports an unknown registration and adds both known registrations',async()=>{
+ const data=syntheticFile(2);
+ data.read=readPastedSheet('Legajo\tImporte\n2\t100,00\n4\t250,00\n999\t40,00',{identityColumn:0,identity:'legajo',amountColumn:1});
+ const f=await setup(data);
+ assert.equal(f.find('add').disabled,false);
+ assert.match(f.find('review','missing').textContent,/legajo 999/);
+ assert.match(f.out.textContent,/1 fila sin legajo activo se informa y no se agrega/);
+ f.fire('add');assert.deepEqual(Array.from(f.context.rows,row=>[row.legajo,row.amountCents]),[['2','10000'],['4','25000']]);
+ assert.match(f.out.textContent,/1 fila sin legajo activo quedó excluida/);
 });
 
 test('an invalidated import cannot change choices or add its former complete resolution',async()=>{

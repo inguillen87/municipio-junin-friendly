@@ -16,5 +16,6 @@ export function ownNoveltyImportResolution(read,linked){
  const groups=[linked?.resolved,linked?.missing,linked?.ambiguous];
  if(!Array.isArray(read?.rows)||read.rows.length>OWN_NOVELTY_MAX_ROWS||groups.some(rows=>!Array.isArray(rows))||groups.reduce((n,rows)=>n+rows.length,0)!==read.rows.length)throw Error('La revisión no conserva todas las filas del archivo. Volvé a leerlo.');
  const missing=linked.missing.length,ambiguous=linked.ambiguous.length;
- return {total:read.rows.length,resolved:linked.resolved.length,missing,ambiguous,ready:read.rows.length>0&&missing===0&&ambiguous===0};
+ // Rows without an active contract are reported and excluded. A pending choice among active contracts must be resolved across the complete file.
+ return {total:read.rows.length,resolved:linked.resolved.length,missing,ambiguous,ready:read.rows.length>0&&linked.resolved.length>0&&ambiguous===0};
 }
