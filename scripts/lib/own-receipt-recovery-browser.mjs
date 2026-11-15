@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import {OWN_RECEIPT_SYNTHETIC_RUNTIME_EVIDENCE} from './own-receipt-synthetic-runtime-qa.mjs';
 import {launchOwnSyntheticBrowser} from './own-synthetic-browser.mjs';
 import {ownReceiptParams} from '../../assets/own-payroll-receipt-model.js';
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
@@ -99,7 +100,7 @@ export async function verifyOwnReceiptRecoveryBrowser({handler,env,actor,setActo
   assert.ok((await p('state').innerText()).includes('pendiente de revisión'));assert.ok(await p('approve').isDisabled());assert.ok(next.response.ok);assert.equal(next.response.data.body.command,'prepare');
   const after=await preserved();assert.deepEqual({...after,receipts:before.receipts},before);assert.deepEqual(errors,[]);assert.deepEqual(routeFailures,[]);
   check(true,'only a later explicit preparation obtains a new key and saves one pending receipt event; source, identities, captures, results and close remain unchanged');
-  const proof={ok:true,browser:browserName,actualHandler:true,actualSql:true,syntheticAuth:true,syntheticIssuer:true,syntheticOnly:true,firstCommandSourceHashAltered:true,realDeterministicRejection:original.response.code,realAttemptNotFound:true,readOnlyCorrection:true,exactDraftPreserved:true,exactRecordsPreserved:true,nativeFieldsetLockVerified:true,effectiveControlLocksVerified:[...receiptRecoveryControls],explicitCorrectionUnlockVerified:true,newExplicitPreparation:true,commandPosts:commands.length,receiptEventsAdded:1,recordCount:expectedRecords.length,productiveBusinessWrites:0,errors};
+  const proof={receiptRuntimeIdentity:OWN_RECEIPT_SYNTHETIC_RUNTIME_EVIDENCE,ok:true,browser:browserName,actualHandler:true,actualSql:true,syntheticAuth:true,syntheticIssuer:true,syntheticOnly:true,firstCommandSourceHashAltered:true,realDeterministicRejection:original.response.code,realAttemptNotFound:true,readOnlyCorrection:true,exactDraftPreserved:true,exactRecordsPreserved:true,nativeFieldsetLockVerified:true,effectiveControlLocksVerified:[...receiptRecoveryControls],explicitCorrectionUnlockVerified:true,newExplicitPreparation:true,commandPosts:commands.length,receiptEventsAdded:1,recordCount:expectedRecords.length,productiveBusinessWrites:0,errors};
   fs.writeFileSync(path.join(output,'receipt-recovery-browser-proof.json'),JSON.stringify(proof,null,2)+'\n');return proof;
  }catch(error){if(page&&!page.isClosed())await page.screenshot({path:path.join(output,'receipt-recovery-browser-failure.png'),fullPage:true});throw error;}
  finally{setActor(actor);if(originalOrigin===undefined)delete env.INTERNAL_APP_ORIGIN;else env.INTERNAL_APP_ORIGIN=originalOrigin;await browser.close();}
