@@ -86,7 +86,9 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
   ['La fecha declarada no acredita pago. Firma digital pendiente.',false,MUTED],
   [state==='approved'?'Disponibilidad revisada por otra persona.':'Preparación para revisión; aún no disponible para el agente.',true,INK],
   ...(params.legend?[[params.legend,false,MUTED]]:[]),
-  ['Origen: identidad del registro municipal verificado; conceptos del catálogo conservado en el cálculo.',false,MUTED],
+  [facts
+   ? 'Origen: legajo, convenio y repartición cotejados entre el registro municipal y la captura del cálculo; no acredita la identidad de la persona. Conceptos del catálogo conservado en el cálculo.'
+   : 'Origen: identidad del registro municipal verificado; conceptos del catálogo conservado en el cálculo.',false,MUTED],
   [`Emisión: ${batchId} · Grupo cerrado: ${source.id}`,false,MUTED],
   ['Huella del cierre: '+source.snapshotSha256,false,MUTED],
   ['No acredita firma digital, imputación ni ejecución de pago.',false,MUTED],
