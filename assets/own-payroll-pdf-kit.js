@@ -13,6 +13,8 @@ export const OWN_PDF_INK='0.07 0.20 0.25',OWN_PDF_MUTED='0.33 0.42 0.47',OWN_PDF
 const UNIT_LABELS={hours:'horas',minutes:'minutos',days:'días',percent:'%',units:'unidades',coefficient:'coeficiente',years:'años',months:'meses'};
 // Width of the optional quantity column of a concept row and its distance to the value, in points.
 export const OWN_PDF_QUANTITY_COLUMN=46,OWN_PDF_QUANTITY_GAP=5;
+// Narrowest label a widened quantity column may leave, in points.
+export const OWN_PDF_QUANTITY_MIN_LABEL=60;
 export const ownPdfUnitText=unit=>unit==='money'?'':(UNIT_LABELS[unit]??unit);
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 // Presentation only: the same period, date and CUIT/CUIL, written the way a pay slip shows them. Anything unexpected is printed as received.
@@ -69,9 +71,13 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
     const valueSize=shrink(value,inner-66,size,true),label=fit(concept.label,Math.min(inner-reserve-6,inner-width(value,valueSize,true)-6),size);
     return {code:concept.code,label,size,lead,labelX,value,valueSize,height:label.length*(size+lead)+pad};
    }
-   const column=OWN_PDF_QUANTITY_COLUMN,valueSize=shrink(value,inner-66-column,size,true),taken=Math.max(reserve,width(value,valueSize,true))+OWN_PDF_QUANTITY_GAP;
-   const label=fit(concept.label,inner-taken-column-6,size),quantitySize=shrink(quantity,column-4,size-1);
-   if(width(quantity,quantitySize)>column-4)throw Error('Una cantidad no entra en su columna. No se recortó ni se omitió.');
+   // A quantity that does not fit the standard column even at 6 pt widens it towards the label, which wraps; only when
+   // the label would keep less than OWN_PDF_QUANTITY_MIN_LABEL does the row stop the document, naming its concept.
+   let column=OWN_PDF_QUANTITY_COLUMN,quantitySize=shrink(quantity,column-4,size-1);
+   if(width(quantity,quantitySize)>column-4)column=Math.ceil(width(quantity,quantitySize))+4;
+   const valueSize=shrink(value,inner-66-column,size,true),taken=Math.max(reserve,width(value,valueSize,true))+OWN_PDF_QUANTITY_GAP;
+   if(column>OWN_PDF_QUANTITY_COLUMN&&inner-taken-column-6<OWN_PDF_QUANTITY_MIN_LABEL)throw Object.assign(Error('La cantidad del concepto '+concept.code+' no entra en su columna. No se recortó ni se omitió.'),{code:'OWN_PDF_QUANTITY_OVERFLOW'});
+   const label=fit(concept.label,inner-taken-column-6,size);
    return {code:concept.code,label,size,lead,labelX,value,valueSize,quantity,quantitySize,quantityRight:6+taken,height:label.length*(size+lead)+pad};
   },
   // Two columns between edges [x0, xm, x1] that advance together page by page. A heading never stays alone at the foot of a

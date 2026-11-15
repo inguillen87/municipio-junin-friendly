@@ -4,7 +4,7 @@ on:
     branches: ['master', 'codex/annual-position-budget-20261006']
     paths: ['assets/annual-position-budget*', 'estructura.html', 'api/internal-annual-position-budget.js', 'lib/internal-annual-position-budget.js', 'scripts/migrations/127-*', 'scripts/*annual-position-budget*.mjs', 'scripts/lib/annual-position-budget*.mjs', 'tests/annual-position-budget*.test.js', 'tests/fixtures/annual-position-budget-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/annual-position-budget.yml']
   pull_request:
-    paths: ['assets/annual-position-budget*', 'estructura.html', 'api/internal-annual-position-budget.js', 'lib/internal-annual-position-budget.js', 'scripts/migrations/127-*', 'scripts/*annual-position-budget*.mjs', 'scripts/lib/annual-position-budget*.mjs', 'tests/annual-position-budget*.test.js', 'tests/fixtures/annual-position-budget-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/annual-position-budget.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'assets/annual-position-budget*', 'estructura.html', 'api/internal-annual-position-budget.js', 'lib/internal-annual-position-budget.js', 'scripts/migrations/127-*', 'scripts/*annual-position-budget*.mjs', 'scripts/lib/annual-position-budget*.mjs', 'tests/annual-position-budget*.test.js', 'tests/fixtures/annual-position-budget-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/annual-position-budget.yml']
 permissions:
   contents: read
 jobs:
