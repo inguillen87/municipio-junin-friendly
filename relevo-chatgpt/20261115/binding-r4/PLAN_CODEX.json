@@ -1,0 +1,42 @@
+{
+  "version": "receipt-binding-native-metadata-r2-source-plan.v1",
+  "status": "SOURCE_ONLY_NOT_ADMITTED",
+  "parent": {
+    "path": ".handoff/receipt-runtime-binding-native-metadata-source-20261115-r1/MANIFEST.json",
+    "bytes": 58395,
+    "sha256": "abd2975d5a92a7cb86befe1ea88e898381c9b8afdad71d9ecc21f5770dbaa33f"
+  },
+  "priorHold": {
+    "path": ".handoff/receipt-runtime-binding-native-metadata-execution-20261115-r1/pg17/RECEIPT.json",
+    "bytes": 5278,
+    "sha256": "a65cb1bc6327a4b2ca1b7c800ace049f39ab17c9c6404f2d6b0dee59c94f83aa"
+  },
+  "priorClosedStop": {
+    "path": ".handoff/receipt-runtime-binding-native-metadata-pg17-stop-only-execution-20261115-r1/RECEIPT.json",
+    "bytes": 12886,
+    "sha256": "a2a93dd50998cf22038aca3d9861a2b324af99093550588ffab067eaa7e156c9"
+  },
+  "cause": "R1pg_ctl ownhelper was closed but PIPEstdout/stderr drain waited on inherited postmaster descriptors; cleanup then accessed binding fields not created before successful start. HOLDa65 and separate stopa2a remain immutable; no metadata cases were proved by either.",
+  "source": ".handoff/receipt-runtime-binding-native-metadata-source-20261115-r2",
+  "output": ".handoff/receipt-runtime-binding-native-metadata-execution-20261115-r2",
+  "admission": ".handoff/receipt-runtime-binding-native-metadata-root-admission-20261115-r2",
+  "delta": [
+    "stdout/stderr are exclusive xb files directly supplied to Popen. Wait on ownhelper handle; pg_ctl has DEVNULLstdin and no PIPEoutput. SQLstdin-only communicate retains UTF8 transport without stdout/stderr readers. Timeout kills/waits only the created helper and preserves original exception plus secondary evidence.",
+    "Persist initial nullable binding fields, actual systemID in immutable prestart marker and an exclusive startintent before start. First binding can occur in normalfence or cleanup, requiring matching nonce/controller/data/major/port, PIDfile, pinnedexe/exact-D/-h/-p, creationwindow and fresh pg_controldata systemID.",
+    "After binding every later fence rejects PID/creation/command drift. Cleanup uses fresh OS/PIDfile/control only before pg_ctl stop; afterstop requires absentPIDfile/no process/same systemID/shutdown state. No foreign kill or oldprofile fallback.",
+    "Original16protocol PASS is carried by actual54e421receipt,16unchangedcorefunction slices and9unchangedfiles. Only8new protocols exercise fileEOF/timeout/exclusivity and initial/drifting ownership. No previous16 rerun."
+  ],
+  "unchanged": "SameM0-M5, originalSELECT/localScope/roleDDL,84PGbinaryDLLsharepins,Node3331,SDK3readboundary,original123module/package closure, fixed55417/18 loopback/own_payroll_run_qa/postgres,17closedPASS before18.",
+  "startupUncertainty": "If no safe complete ownedtuple can be established, HOLD/no stop/no foreign kill and require read-only reconciliation. A stoppedcluster alone never counts as M0-M5PASS. Unknown nestedNodechild closure remains conservativeHOLD.",
+  "protocolScope": "New8 use the real new helper with unittest Popen seam and actual ownedtemporary logfiles, plus pure synthetic ownership tuples. They do not create childprocesses,PG,SQL orCIM and do not independently prove Windows inheritance; actual new native start remains a separate Root admission.",
+  "retainedProtocolTests": 16,
+  "newProtocolTestsProposed": 8,
+  "newSyntaxUnitsProposed": 3,
+  "actualNewProtocolReceipt": null,
+  "actualNewPG17": null,
+  "actualNewPG18": null,
+  "NoOldProfileReopen": true,
+  "current32CandidateTouched": false,
+  "sourceAuthorNodePythonASTSQLPGCIMGitCIBrowserProvider": 0,
+  "NoeliaReady": false
+}

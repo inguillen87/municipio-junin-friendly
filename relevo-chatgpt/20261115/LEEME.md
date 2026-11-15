@@ -101,3 +101,42 @@ Si necesitás un dato concreto de ese contrato, pedilo y te contesto en el PR 27
 - **Codex** sigue siendo el único que publica, despliega e instala SQL cuando vuelva.
 - **Nadie** opera producción, recibos reales, pagos ni firmas.
 - **Datos personales:** nunca en GitHub.
+
+## 8. Binding R4 de Recibos: validador y fixture sintético (agregado 15/11 ~18:45 ART)
+
+Carpeta `binding-r4/`. Es el adaptador de laboratorio de Codex, todavía **no integrado** a la aplicación.
+
+**Comprobación:** los archivos de la app del laboratorio r27 que usa el adaptador son idénticos byte a byte a los publicados en `32583440`:
+
+| Archivo | sha256 (16 primeros) |
+|---|---|
+| `lib/action-runtime-identity.js` | `f894a4566b6af4a1` |
+| `api/internal-own-payroll-receipts.js` | `39a2aae4d419ad53` |
+| `lib/internal-own-payroll-receipts.js` | `3dfabfd0f9c30a94` |
+| `lib/private-json-body.js` | `fab88ee69c88ba53` |
+
+**Archivos:**
+
+- `receipt-runtime-binding.mjs`: validador versionado `own-receipt-runtime-binding.v1`.
+  - `receiptExpectedDestination(env)` lee la variable privada `INTERNAL_RECEIPT_ACTIONS_TARGET`: JSON exacto `{major, projectId, branchId, endpointId, database, role}`, con `role === municontrol_actions_runtime_app`.
+  - `receiptRuntimeBinding(sql, expectedDestination, env)` exige `VERCEL_GIT_COMMIT_SHA` de 40 hex y verifica el destino del mismo cliente SDK antes y después de leer la identidad. Ante cualquier falla da 503 `BINDING_UNAVAILABLE` e invalida la identidad registrada.
+- `action-runtime-identity.mjs`: es `lib/action-runtime-identity.js` publicado **más** `invalidateActionRuntimeIdentity(sql)`, que también se llama al inicio de `recordActionRuntimeIdentity`. Es el único cambio.
+- `own-receipt-runtime-qa.mjs`: **fixture enteramente sintético**: `projectId: 'synthetic-fixture-only'`, `branchId/endpointId: 'synthetic-…-pg17|18'`, base `own_payroll_run_qa`, sobre psql en loopback 55417 y 55418.
+- `PLAN_CODEX.json`: plan del incremento de Codex.
+- La lectura del catálogo productivo de Codex (dueño, firma y hash de cuerpo de las funciones de recibos y vínculo) queda en la PC, porque incluye identificadores de destino. Si necesitás algún hash de cuerpo, pedilo en el PR 270.
+
+**Única edición:** reemplacé las rutas `file:///C:/…/r27/application/source/` por rutas relativas al repo (`../../../`). Los originales tienen estos sha256:
+
+| Archivo | sha256 original |
+|---|---|
+| `receipt-runtime-binding.mjs` | `068e0c37c26a8f2e3e079873771078c4499237f1b15ec90c7edeb048b95be3a4` |
+| `own-receipt-runtime-qa.mjs` | `7559c88c46e7b4f8a391c992c96ba16c9ceaf3a47d10f828842d135d544b7a1b` |
+| `action-runtime-identity.mjs` | `bef83848e634f70e37b3c10b8e9e3f69a84448a0f11710b858313ed44781fe59` |
+
+Con esas rutas, los dos módulos cargan desde la raíz del repo.
+
+### Destino productivo de Recibos
+
+Los cinco campos productivos (`major`, `projectId`, `branchId`, `endpointId` y `database`) son los mismos que ya usan los scripts de instalación del repo, por ejemplo `scripts/prepare-native-leave-installation.mjs` l.18. **No los copio acá.** El rol es `municontrol_actions_runtime_app`.
+
+**Límite que anotó Codex:** la metadata del proveedor y la observación SQL **no prueban el destino del cliente SDK de la aplicación**. Eso es justamente lo que tiene que verificar `receiptRuntimeBinding` en tiempo de ejecución. El valor real de `INTERNAL_RECEIPT_ACTIONS_TARGET` se configura en Vercel y lo hace Codex al publicar. No va en el código.

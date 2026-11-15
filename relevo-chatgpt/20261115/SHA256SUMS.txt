@@ -1,4 +1,8 @@
-8f722e6c25b9912c5d9b11e59a65f249bc973d854fdfab92c05f6de96022b62b  ./LEEME.md
+bb4e7308c03bb9c409121ded8259357ca6819373fd783a922eca8dcbed9ded41  ./LEEME.md
+dc4d76379f230354f5457f9b755e51d9ec9a2b12b64ace01295b6e7ea4c0be1b  ./binding-r4/PLAN_CODEX.json
+bef83848e634f70e37b3c10b8e9e3f69a84448a0f11710b858313ed44781fe59  ./binding-r4/action-runtime-identity.mjs
+f0eab2f61d4e1f1ae45f3bca155a53fc5b979159cb2e4d3e58056f9d47581d26  ./binding-r4/own-receipt-runtime-qa.mjs
+8414cc33521b2c275f615b35d979630325a0a5d80fcf03ec256f022b774771c9  ./binding-r4/receipt-runtime-binding.mjs
 8b7da1274cec28482d4ecac65e38fddf451bfead79d27c1a8579d5fa1a4da51a  ./estado/PDF_READONLY_REVIEW.json
 994cfe2784c70391791fb7c38a9461817aa765706fbd853bfb2aac8b87d0c714  ./estado/R351_ESTADO_CODEX.json
 a1d82909521e48f0a5ac2f2b2511808564a3438f20db6925e534327a290e015d  ./estado/ROOT_TWO_MAJOR_CONCLUSIONS.json
