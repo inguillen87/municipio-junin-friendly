@@ -1,0 +1,167 @@
+-- PROSPECTIVE SOURCE ONLY. NOT AN INSTALLER. NOT COMPOSED OR SQL-TESTED.
+-- No original function, pin, attester, ACL or historical row is replaced here.
+-- The unconditional transaction barrier prevents this document being installed.
+-- Reviewed composition must incorporate these new bodies, their exact metadata,
+-- the capture/receipt call sites and the complete attestation dependency graph.
+BEGIN;
+DO $source_only$ BEGIN
+ RAISE EXCEPTION 'OWN_EMPLOYMENT_PRINT_SOURCE_REQUIRES_REVIEWED_COMPOSITION';
+END $source_only$;
+
+-- Frozen registration provenance, with the same closed fields admitted by
+-- periodClassificationProvenance. This is not an authority/eligibility reader.
+CREATE FUNCTION public.own_employment_print_provenance_candidate_v1(proof jsonb,registration_value jsonb)
+RETURNS void LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $proof$
+DECLARE final_value jsonb;field text;BEGIN
+ IF proof->>'kind'='native_registration' THEN
+  IF public.own_program_exact_v1(proof,ARRAY['kind','registrationId','requestSha256']) IS NOT TRUE THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ ELSIF proof->>'kind'='employment_adoption_final' THEN
+  IF public.own_program_exact_v1(proof,ARRAY['kind','registrationId','requestSha256','adoptionProposalId','adoptionReviewId','sealSha256','finalRevision']) IS NOT TRUE THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  FOREACH field IN ARRAY ARRAY['adoptionProposalId','adoptionReviewId'] LOOP
+   IF jsonb_typeof(proof->field) IS DISTINCT FROM 'string' OR proof->>field!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' OR proof->>field='00000000-0000-0000-0000-000000000000' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  END LOOP;
+  IF jsonb_typeof(proof->'sealSha256') IS DISTINCT FROM 'string' OR proof->>'sealSha256'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  final_value:=proof->'finalRevision';
+  IF public.own_program_exact_v1(final_value,ARRAY['revisionId','packageSha256','sourceSha256','cutoff','coreManifestSha256','curatedManifestSha256','factsSha256']) IS NOT TRUE
+   OR jsonb_typeof(final_value->'revisionId') IS DISTINCT FROM 'string' OR final_value->>'revisionId'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+   OR final_value->>'revisionId'='00000000-0000-0000-0000-000000000000' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  FOREACH field IN ARRAY ARRAY['packageSha256','sourceSha256','coreManifestSha256','curatedManifestSha256','factsSha256'] LOOP
+   IF jsonb_typeof(final_value->field) IS DISTINCT FROM 'string' OR final_value->>field!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  END LOOP;
+  IF jsonb_typeof(final_value->'cutoff') IS DISTINCT FROM 'string' OR final_value->>'cutoff'!~'^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+   OR left(final_value->>'cutoff',4)='0000' OR NOT pg_input_is_valid(left(final_value->>'cutoff',10),'date')
+   OR to_char(left(final_value->>'cutoff',10)::date,'YYYY-MM-DD')<>left(final_value->>'cutoff',10) THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ ELSE RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ IF proof->'registrationId' IS DISTINCT FROM registration_value OR jsonb_typeof(proof->'registrationId') IS DISTINCT FROM 'string'
+  OR proof->>'registrationId'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' OR proof->>'registrationId'='00000000-0000-0000-0000-000000000000'
+  OR jsonb_typeof(proof->'requestSha256') IS DISTINCT FROM 'string' OR proof->>'requestSha256'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+END $proof$;
+
+CREATE FUNCTION public.own_employment_print_component_candidate_v1(component jsonb,classifications jsonb,employees jsonb,period_value text)
+RETURNS void LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $component$
+DECLARE classification jsonb;row_value jsonb;employee jsonb;proof jsonb;n integer;title_value text;
+ title_units integer;title_forbidden boolean;title_edge_space boolean;BEGIN
+ IF public.own_program_exact_v1(component,ARRAY['version','period','complete','total','classificationsSha256','rows']) IS NOT TRUE
+  OR component->>'version' IS DISTINCT FROM 'own-employment-print-capture.v1' OR component->>'period' IS DISTINCT FROM period_value
+  OR period_value IS NULL OR period_value!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+  OR component->'complete' IS DISTINCT FROM 'true'::jsonb OR jsonb_typeof(component->'rows') IS DISTINCT FROM 'array'
+  OR public.own_program_exact_v1(classifications,ARRAY['version','complete','total','rows']) IS NOT TRUE
+  OR classifications->>'version' IS DISTINCT FROM 'own-period-classification-capture.v1' OR classifications->'complete' IS DISTINCT FROM 'true'::jsonb
+  OR jsonb_typeof(classifications->'rows') IS DISTINCT FROM 'array' OR jsonb_typeof(employees) IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ IF jsonb_array_length(employees)>10000 OR component->'total' IS DISTINCT FROM to_jsonb(jsonb_array_length(employees))
+  OR classifications->'total' IS DISTINCT FROM component->'total' OR jsonb_array_length(component->'rows')<>jsonb_array_length(employees)
+  OR jsonb_array_length(classifications->'rows')<>jsonb_array_length(employees)
+  OR component->>'classificationsSha256' IS DISTINCT FROM public.own_run_hash_v1(classifications)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(component->'rows') r GROUP BY r->>'contractId' HAVING count(*)<>1)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(component->'rows') r GROUP BY r->>'registrationId' HAVING count(*)<>1)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(classifications->'rows') r GROUP BY r->>'contractId' HAVING count(*)<>1)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(classifications->'rows') r GROUP BY r->>'registrationId' HAVING count(*)<>1)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(employees) e GROUP BY e->>'contractId' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ FOR classification IN SELECT value FROM jsonb_array_elements(classifications->'rows') LOOP
+  SELECT count(*),jsonb_agg(e)->0 INTO n,employee FROM jsonb_array_elements(employees) e WHERE e->'contractId'=classification->'contractId';
+  IF n<>1 THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  PERFORM public.own_period_classification_capture_row_v1(classification,employee,period_value);
+  SELECT count(*),jsonb_agg(r)->0 INTO n,row_value FROM jsonb_array_elements(component->'rows') r WHERE r->'contractId'=classification->'contractId';
+  IF n<>1 OR public.own_program_exact_v1(row_value,ARRAY['contractId','registrationId','identityToken','classificationRowSha256','basis','jobTitle','provenance']) IS NOT TRUE
+   OR row_value->'registrationId' IS DISTINCT FROM classification->'registrationId' OR row_value->'identityToken' IS DISTINCT FROM classification->'identityToken'
+   OR row_value->'basis' IS DISTINCT FROM classification->'basis' OR row_value->>'classificationRowSha256' IS DISTINCT FROM public.own_run_hash_v1(classification)
+  THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  IF row_value->'jobTitle' IS DISTINCT FROM 'null'::jsonb THEN
+   IF jsonb_typeof(row_value->'jobTitle') IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   title_value:=row_value->>'jobTitle';
+   -- Exact JS contract, independent of locale-sensitive regex classes and the
+   -- original receipt helper's ordinary-space btrim. Nothing is normalized.
+   -- PostgreSQL UTF8 text/jsonb already rejects NUL and unpaired surrogates.
+   SELECT coalesce(sum(CASE WHEN cp>65535 THEN 2 ELSE 1 END),0),
+    coalesce(bool_or(cp BETWEEN 0 AND 31 OR cp BETWEEN 127 AND 159 OR cp IN(60,62)
+      OR cp BETWEEN 8234 AND 8238 OR cp BETWEEN 8294 AND 8297),false),
+    coalesce(bool_or((ordinal_value=1 OR ordinal_value=char_length(title_value)) AND
+      (cp IN(9,10,11,12,13,32,160,5760,8232,8233,8239,8287,12288,65279) OR cp BETWEEN 8192 AND 8202)),false)
+    INTO title_units,title_forbidden,title_edge_space
+    FROM(SELECT i AS ordinal_value,ascii(substr(title_value,i,1)) AS cp FROM generate_series(1,char_length(title_value)) i) characters;
+   IF title_units NOT BETWEEN 1 AND 120 OR title_forbidden OR title_edge_space
+    OR normalize(title_value,NFC) IS DISTINCT FROM title_value
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  END IF;
+  proof:=row_value->'provenance';
+  IF row_value->>'basis'='current_own_registration' THEN
+   IF public.own_program_exact_v1(proof,ARRAY['kind','sourceField','sourceVersion','registration']) IS NOT TRUE
+    OR proof->>'kind' IS DISTINCT FROM 'current_own_contract_at_capture' OR proof->>'sourceField' IS DISTINCT FROM 'source_payload.employment.cargoName'
+    OR jsonb_typeof(proof->'sourceVersion') IS DISTINCT FROM 'string' OR proof->>'sourceVersion'!~'^[a-f0-9]{64}$'
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   PERFORM public.own_employment_print_provenance_candidate_v1(proof->'registration',row_value->'registrationId');
+  ELSIF row_value->>'basis'='approved_own_period_classification' THEN
+   IF row_value->'jobTitle' IS DISTINCT FROM 'null'::jsonb OR proof IS DISTINCT FROM classification->'provenance'
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  ELSE RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ END LOOP;
+END $component$;
+
+-- Capture-time reader only. It repeats the authenticated context, scope and
+-- identity checks under the same SHARE locks as the original capture. Nothing
+-- in the receipt-time wrapper below calls this function or current employment.
+CREATE FUNCTION public.own_employment_print_capture_candidate_v1(p jsonb,period_value text,classifications jsonb,employees jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $capture$
+DECLARE ctx jsonb;classification jsonb;resolved jsonb;employee jsonb;subject jsonb;source_value jsonb;row_value jsonb;
+ contract_value public.employment_contract;registration public.native_employee_registration;rows_value jsonb:='[]';component jsonb;n integer;BEGIN
+ ctx:=public.own_run_context_v1(p,true,true);PERFORM public.own_run_lock_v1(ctx);
+ LOCK TABLE public.person_identity,public.employment_contract,public.native_employee_registration,public.native_employment_change_review,
+  public.native_employment_lifecycle_review,public.own_period_classification_event,public.employment_adoption_application,
+  public.employment_adoption_decision,public.employment_adoption_proposal,public.employment_adoption_seal IN SHARE MODE NOWAIT;
+ IF jsonb_typeof(classifications->'rows') IS DISTINCT FROM 'array' OR jsonb_typeof(employees) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+ FOR classification IN SELECT value FROM jsonb_array_elements(classifications->'rows') LOOP
+  SELECT count(*),jsonb_agg(e)->0 INTO n,employee FROM jsonb_array_elements(employees) e WHERE e->'contractId'=classification->'contractId';
+  IF n<>1 THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  PERFORM public.own_period_classification_capture_row_v1(classification,employee,period_value);
+  resolved:=public.own_period_classification_resolve_v1(ctx,(classification->>'contractId')::uuid,period_value);
+  IF resolved IS DISTINCT FROM classification-'identityToken' THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  subject:=public.payroll_fixed_registry_subject_v2(ctx,(classification->>'contractId')::uuid,true)->'subject';
+  IF subject->>'origin' IS DISTINCT FROM 'MUNICONTROL' OR subject->'contractId' IS DISTINCT FROM classification->'contractId'
+   OR subject->'identityToken' IS DISTINCT FROM classification->'identityToken' OR subject->'legajo' IS DISTINCT FROM employee->'employeeNumber'
+  THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+  row_value:=jsonb_build_object('contractId',classification->'contractId','registrationId',classification->'registrationId',
+   'identityToken',classification->'identityToken','classificationRowSha256',public.own_run_hash_v1(classification),'basis',classification->'basis','jobTitle',NULL,'provenance',classification->'provenance');
+  IF classification->>'basis'='current_own_registration' THEN
+   SELECT * INTO contract_value FROM public.employment_contract WHERE id=(classification->>'contractId')::uuid AND tenant_id=(ctx->>'tenantId')::uuid
+    AND source_system='MUNICONTROL' AND source_batch_id IS NULL AND legacy_company_id=(ctx->>'sourceCompanyId')::bigint;
+   SELECT * INTO registration FROM public.native_employee_registration WHERE id=(classification->>'registrationId')::uuid
+    AND contract_id=contract_value.id AND person_id=contract_value.person_id AND tenant_id=contract_value.tenant_id AND source_binding_id=(ctx->>'sourceBindingId')::uuid;
+   IF contract_value.id IS NULL OR registration.id IS NULL OR contract_value.source_payload#>>'{native,registrationId}' IS DISTINCT FROM registration.id::text
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   source_value:=public.own_period_classification_source_v1(ctx,contract_value.id,period_value);
+   IF source_value#>'{subject,registrationId}' IS DISTINCT FROM classification->'registrationId'
+    OR source_value#>'{subject,contractId}' IS DISTINCT FROM classification->'contractId'
+    OR source_value#>'{provenance,requestSha256}' IS DISTINCT FROM to_jsonb(registration.request_sha256)
+   THEN RAISE EXCEPTION 'OWN_RUN_EMPLOYMENT_PRINT_INVALID';END IF;
+   row_value:=row_value||jsonb_build_object('jobTitle',coalesce(contract_value.source_payload#>'{employment,cargoName}','null'::jsonb),
+    'provenance',jsonb_build_object('kind','current_own_contract_at_capture','sourceField','source_payload.employment.cargoName',
+     'sourceVersion',source_value->'version','registration',source_value->'provenance'));
+  END IF;
+  rows_value:=rows_value||jsonb_build_array(row_value);
+ END LOOP;
+ component:=jsonb_build_object('version','own-employment-print-capture.v1','period',period_value,'complete',true,
+  'total',jsonb_array_length(rows_value),'classificationsSha256',public.own_run_hash_v1(classifications),'rows',rows_value);
+ PERFORM public.own_employment_print_component_candidate_v1(component,classifications,employees,period_value);
+ PERFORM public.own_salary_conditions_session_live_v1(p);
+ RETURN component;
+END $capture$;
+
+-- The original received v6 producer remains the authority for the record,
+-- monetary sources, units, dates and bank facts. Absent new evidence, its exact
+-- original result is returned. No original prosrc is replaced by this wrapper.
+CREATE FUNCTION public.own_receipt_print_facts_job_title_candidate_v1(record_value jsonb,capture jsonb,bank_fact jsonb,frozen_at text)
+RETURNS jsonb LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $print$
+DECLARE original jsonb;component jsonb;classifications jsonb;row_value jsonb;evidence_hash text;BEGIN
+ original:=public.own_receipt_print_facts_v6_candidate_v1(record_value,capture,bank_fact,frozen_at);
+ IF NOT coalesce(capture#>'{payload,sourceInventory}' ? 'employmentPrintFacts',false) THEN RETURN original;END IF;
+ component:=capture#>'{payload,sourceInventory,employmentPrintFacts}';classifications:=capture#>'{payload,sourceInventory,periodClassifications}';
+ PERFORM public.own_employment_print_component_candidate_v1(component,classifications,capture#>'{payload,population,employees}',capture#>>'{payload,period}');
+ SELECT r INTO row_value FROM jsonb_array_elements(component->'rows') r WHERE r->'contractId'=record_value->'contractId';
+ IF row_value IS NULL OR row_value->'registrationId' IS DISTINCT FROM record_value->'registrationId' THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ evidence_hash:=public.own_run_hash_v1(jsonb_build_object('version','own-employment-print-evidence.v1','periodClassifications',classifications,'employmentPrintFacts',component));
+ RETURN jsonb_set(jsonb_set(original,'{classification,jobTitle}',row_value->'jobTitle'),'{sources,employmentEvidenceSha256}',to_jsonb(evidence_hash));
+END $print$;
+
+ROLLBACK;

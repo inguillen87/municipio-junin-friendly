@@ -85,6 +85,7 @@ const shellFiles = [
   'assets/own-period-classification-panel.js',
   'assets/own-period-classification-panel.css',
   'assets/own-payroll-period-classification.js',
+  'assets/own-payroll-employment-print-facts.js',
   'assets/employment-adoption-contract.js',
   'assets/employment-adoption-original-facts.js',
   'assets/employment-adoption-operational-cohort.js',

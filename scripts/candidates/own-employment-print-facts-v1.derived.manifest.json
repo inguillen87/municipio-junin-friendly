@@ -1,0 +1,91 @@
+{
+  "version": "own-employment-print-source-proposal.v1",
+  "installable": false,
+  "connects": false,
+  "executesSql": false,
+  "requiresReviewedAttestation": true,
+  "originals": {
+    "captureBody": "60a62776902b1c5a0f07f03c99daf97e7565e934801e0be9b34400ef93ef3a03",
+    "captureDefinition": "006a0083d3a6e6a51cebb9810810316244fb84251ec6fff703666a200c616df3",
+    "captureFamilyMember": "81e9be18db115cd6d9421118bde5b6f007a95923262e166624bc53b58892feef",
+    "printFactsBody": "e0f475cdd2b451f1a89380f13b74e74fb7b2135cea911f61b1e459cd10e2bfe0",
+    "printFactsDefinitionFile": "5a7a469c983d31caf7ed9b644ee6cf72f64d3051ce9e3356705d2d711625e1f6",
+    "familyMembersFile": "fdb2ed8c470c3cfd08ad9792a51d319683c970b9a01b99bfcff53257e4e4ac7f",
+    "sourceInstaller": "fbdfa69c916c8c9078f7c19e559a72a9f44d9d9159d51a30a29167c94e5843bb"
+  },
+  "familyCapacity": {
+    "quantity": {
+      "originalMembers": 29,
+      "newHelpers": 2,
+      "attesterMembers": 1,
+      "proposedTotal": 32,
+      "unchangedLimit": 64,
+      "attestationClosed": false
+    },
+    "official": {
+      "originalMembers": 61,
+      "newHelpers": 2,
+      "attesterMembers": 1,
+      "proposedTotal": 64,
+      "unchangedLimit": 64,
+      "attestationClosed": false
+    }
+  },
+  "inputs": {
+    "captureSource": {
+      "path": "scripts/migrations/237-own-approved-period-values.sql",
+      "sha256": "666ed42786b34ae078a3b22fc2071fe8ae45d55b16bb10dc9bac10b4b401d80d"
+    },
+    "printFactsSource": {
+      "path": "scripts/candidates/originals/own-receipt-print-facts-v6.sql.txt",
+      "sha256": "5a7a469c983d31caf7ed9b644ee6cf72f64d3051ce9e3356705d2d711625e1f6"
+    },
+    "helperSource": {
+      "path": "scripts/candidates/own-employment-print-facts-v1.source.sql.txt",
+      "sha256": "7d252daa68141e2b05ab2a5aa03facc2ecc67a63510aa81f9102e41c37ee2afb"
+    },
+    "familyMembersSource": {
+      "path": "scripts/candidates/originals/receipt-v6-family-members.json",
+      "sha256": "fdb2ed8c470c3cfd08ad9792a51d319683c970b9a01b99bfcff53257e4e4ac7f"
+    }
+  },
+  "functions": [
+    {
+      "kind": "new",
+      "signature": "public.own_employment_print_provenance_candidate_v1(jsonb,jsonb)",
+      "name": "own_employment_print_provenance_candidate_v1",
+      "bodySha256": "53dd46bdbb1643d4b2da9181b7f1fc3137c71162ccb07117ba4352275aa35ea4",
+      "definitionSha256": "8bed0bd25a29d69541cc467ad7ec009d4e56a7844263067f020d34034bbf0548"
+    },
+    {
+      "kind": "new",
+      "signature": "public.own_employment_print_component_candidate_v1(jsonb,jsonb,jsonb,text)",
+      "name": "own_employment_print_component_candidate_v1",
+      "bodySha256": "2ec9a39d4b28d8939b637e159d6e658a317d9bad01921f94de122bb29d3f1ee0",
+      "definitionSha256": "840e464bfa549935804694d7789e21bf85fa24aeff6ed0a9b12f186cb0eb6890"
+    },
+    {
+      "kind": "derived_original",
+      "signature": "public.own_run_capture_v1(jsonb,jsonb,uuid,text)",
+      "name": "own_run_capture_v1",
+      "beforeBodySha256": "60a62776902b1c5a0f07f03c99daf97e7565e934801e0be9b34400ef93ef3a03",
+      "beforeDefinitionSha256": "006a0083d3a6e6a51cebb9810810316244fb84251ec6fff703666a200c616df3",
+      "bodySha256": "aa2e382ed0c1f6229e179fd5146aaeb78afbdc3968c93b63493f4f28d4dbbec8",
+      "definitionSha256": "5cb353476eb987f3f7ef3d7c95dcdc74f9e8ac40d5018818196a063a5608b537"
+    },
+    {
+      "kind": "derived_original",
+      "signature": "public.own_receipt_print_facts_v6_candidate_v1(jsonb,jsonb,jsonb,text)",
+      "name": "own_receipt_print_facts_v6_candidate_v1",
+      "beforeBodySha256": "e0f475cdd2b451f1a89380f13b74e74fb7b2135cea911f61b1e459cd10e2bfe0",
+      "beforeDefinitionSha256": "2b8b26b88ad716e2200d0cd715f0f3c90d496f8108e361b18af9ff6b67d4dfb7",
+      "bodySha256": "35442009a29df4a69d41e84ece04f996b8ba1989f69c726b031901043cbc1d86",
+      "definitionSha256": "a8e4a7842bbd025f86c6af69e0e8a9459b36b83aca89840897f134c4d73049e1"
+    }
+  ],
+  "output": {
+    "path": "scripts/candidates/own-employment-print-facts-v1.derived.sql.txt",
+    "bytes": 63996,
+    "sha256": "e9fe43a10ac777ae0ede572bec6294dda5a449af1b819a392d75204f0d29747e"
+  }
+}
