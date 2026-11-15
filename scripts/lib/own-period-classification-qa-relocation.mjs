@@ -16,7 +16,7 @@ const files=Object.freeze({
  'scripts/verify-own-salary-seniority.mjs':'5d0dd47d5f0a5365938c412f63ac0853bb3caf5335edbf4812d76a88aabeef34',
  'scripts/verify-own-period-participation.mjs':'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877',
  'scripts/lib/qa-lock-observation.mjs':'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9',
- 'scripts/lib/qa-run-capture-lock.mjs':'dc7f78cde977895d7ea6215d1ba7ca97ad7c862789db4a3ef88e1d57ff301107',
+ 'scripts/lib/qa-run-capture-lock.mjs':'80369adf746d65426040db4016ee72bf7c49e0ecbb5fe0986458590d5a4f88d6',
  'scripts/migrations/138-adopted-fixed-novelties.sql':'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469',
 });
 const hash=s=>createHash('sha256').update(s).digest('hex'),lf=s=>s.replace(/\r\n?/g,'\n');

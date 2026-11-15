@@ -50,7 +50,9 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
   }
   continued=true;
  }});
- const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>doc.entry(concept,HALF,printed?{...options,quantity:printed.get(concept.code)??''}:options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
+ // A row that cannot be drawn names the receipt it belongs to, so the operator can find it; nothing is cut or skipped.
+ const entry=(concept,options)=>{try{return doc.entry(concept,HALF,options);}catch(error){if(error?.code==='OWN_PDF_QUANTITY_OVERFLOW')throw Object.assign(Error('Legajo '+record.employeeNumber+': '+error.message),{code:error.code});throw error;}};
+ const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>entry(concept,printed?{...options,quantity:printed.get(concept.code)??''}:options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
  const mainHead=()=>{
   doc.box(L,doc.y-16,W,16,{fill:TINT,stroke:null});doc.line(L,doc.y,R,doc.y,STRONG,0.8);
   doc.put(L+6,doc.y-11.5,'HABERES',8.5,true);doc.put(MID+6,doc.y-11.5,'DESCUENTOS',8.5,true);doc.y-=16;

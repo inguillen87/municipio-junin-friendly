@@ -108,7 +108,7 @@ test('the reviewed capture-lock source epoch preserves the original business fix
  assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'9634e7ff3136be4bf131abadbbe3758489c5c74368629ddedc5bba64ce530cec');
  assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-lock-observation.mjs'],'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9');
- assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-run-capture-lock.mjs'],'dc7f78cde977895d7ea6215d1ba7ca97ad7c862789db4a3ef88e1d57ff301107');
+ assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-run-capture-lock.mjs'],'80369adf746d65426040db4016ee72bf7c49e0ecbb5fe0986458590d5a4f88d6');
  assert.deepEqual(artifact.sourceHashes,batch.sourceHashes);
  assert.equal(artifact.productionCompatible,false);assert.equal(artifact.normal165Installed,false);assert.equal(artifact.finalSourceFixture,false);
 });
