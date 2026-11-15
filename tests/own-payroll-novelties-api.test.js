@@ -14,6 +14,11 @@ test('review-only permission cannot prepare a batch even though it may read a de
 test('foreign origin, unsigned actor and legacy access never connect',async()=>{const foreign=post();foreign.headers.origin='https://other.example';for(const [req,overrides,status]of [[foreign,{},403],[post(),{sessionFor:()=>({...session,version:0})},401],[get(),{requireAccess:async()=>({mode:'legacy',principal})},403]]){const a=setup(overrides),r=response();await a.handler(req,r);assert.equal(r.statusCode,status);assert.equal(a.stats.connects,0);}});
 test('duplicate JSON/query keys, external identity, excessive count and missing values fail without SQL',async()=>{const duplicate=post();duplicate.body=duplicate.body.replace('"command":"prepare"','"command":"prepare","command":"prepare"');const missing=prepare();missing.rows[1].amountCents=null;const tooMany=prepare(10001);for(const req of [duplicate,post(missing),post(tooMany),get({resource:'bootstrap',tenantId:uid(88)}),{...get(),url:'/api/internal-own-payroll-novelties?resource=bootstrap&resource=bootstrap'}]){const a=setup(),r=response();await a.handler(req,r);assert.ok([400,413,422].includes(r.statusCode),JSON.stringify(r.value));assert.equal(a.stats.connects,0);}});
 test('corrupted row hash is not exposed as a verified approval',async()=>{const a=setup({getSql:async()=>({query:async()=>[{result:batch(2,{rowsSha256:'a'.repeat(64)})}]})}),r=response();await a.handler(get({resource:'detail',id:uid(20000)}),r);assert.equal(r.statusCode,503);assert.equal(r.value.data,undefined);});
+test('a complete valid response for another batch is not exposed as the requested detail',async()=>{
+ const other=batch(759,{id:uid(25000)}),a=setup({getSql:async()=>({query:async()=>[{result:other}]})}),r=response();
+ await a.handler(get({resource:'detail',id:uid(20000)}),r);
+ assert.equal(r.statusCode,503);assert.equal(r.value.code,'OWN_NOVELTY_CONTRACT_INVALID');assert.equal(r.value.data,undefined);
+});
 test('API returns a complete forced one-review approval or explicit confirmation without requiring a second reviewer',async()=>{
  for(const revision of [3,4]){
   const snapshot=batch(1,{revision});snapshot.rows[0].values.forced=true;snapshot.rows[0].values.observation='Synthetic independent review';

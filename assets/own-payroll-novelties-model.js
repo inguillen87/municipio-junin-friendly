@@ -54,12 +54,41 @@ export function ownNoveltyBootstrap(v){
  const ids=new Set();for(const s of v.subjects){assertNativeMonthlySubject(s);need(!ids.has(s.contractId),'CONTRACT_INVALID');ids.add(s.contractId);}
  const batches=new Set();for(const b of v.batches){need(salaryExact(b,['id','revision','status','periodMonth','payrollType','rowCount','preparedBy'])&&salaryUuid(b.id)&&!batches.has(b.id)&&Number.isInteger(b.revision)&&b.revision>0&&['draft','submitted','approved','rejected','cancelled'].includes(b.status)&&month(b.periodMonth)&&OWN_NOVELTY_TYPES.includes(b.payrollType)&&Number.isInteger(b.rowCount)&&b.rowCount>0&&b.rowCount<=10000&&salaryExact(b.preparedBy,['membershipId','personId'])&&Object.values(b.preparedBy).every(salaryUuid),'CONTRACT_INVALID');batches.add(b.id);}return v;
 }
+export function ownNoveltyDetail(batch,batchId){
+ ownNoveltyBatch(batch);
+ need(salaryUuid(batchId)&&batch.id===batchId,'CONTRACT_INVALID','La respuesta no corresponde al lote completo solicitado.');
+ return batch;
+}
+// Keep the reviewed source with the original retry. It is local evidence only;
+// the HTTP command and its idempotency hash remain unchanged.
+export function ownNoveltyWriteAttempt({key,body,accessKey},reviewedBatch=null){
+ need(salaryKey(key)&&typeof accessKey==='string'&&accessKey.length>0);
+ const attempt={key,body:ownNoveltyCommand(structuredClone(body)),accessKey};
+ if(attempt.body.command!=='prepare'){
+  ownNoveltyDetail(reviewedBatch,attempt.body.batchId);
+  need(reviewedBatch.revision===attempt.body.expectedRevision,'VERSION_CHANGED','Cambió el lote revisado. Volvé a consultar antes de decidir.');
+  attempt.reviewedBatch=structuredClone(reviewedBatch);
+ }
+ return freeze(attempt);
+}
+// Decisions change state, revision and reviewers. Current identity flags are
+// refreshed by reads, while replay receipts preserve the original event flags.
+// None of those may replace the complete ordered values and subject evidence.
+const reviewedContent=batch=>({version:batch.version,id:batch.id,periodMonth:batch.periodMonth,payrollType:batch.payrollType,
+ rows:batch.rows.map(({values,subject})=>({values,subject})),rowCount:batch.rowCount,rowsSha256:batch.rowsSha256,preparedBy:batch.preparedBy});
 export function ownNoveltyReceipt(v,attempt=null){
  need(salaryExact(v,['version','requestKey','requestSha256','body','snapshot','replayed'])&&v.version==='own-payroll-novelty-receipt.v1'&&salaryKey(v.requestKey)&&salaryHash(v.requestSha256)&&typeof v.replayed==='boolean','CONTRACT_INVALID');
  ownNoveltyCommand(v.body);ownNoveltyBatch(v.snapshot);
  need(attempt===null||v.requestKey===attempt.key&&salarySerialized(v.body)===salarySerialized(attempt.body),'CONTRACT_INVALID');
  const statuses={prepare:'draft',submit:'submitted',approve:'approved',reject:'rejected',cancel:'cancelled'};
- need((v.snapshot.status===statuses[v.body.command]||v.body.command==='approve'&&v.snapshot.status==='submitted'&&v.snapshot.approvals.length===1&&v.snapshot.rows.some(r=>r.values.forced))&&(v.body.command==='prepare'?v.snapshot.periodMonth===v.body.periodMonth&&v.snapshot.payrollType===v.body.payrollType&&salarySerialized(v.snapshot.rows.map(r=>r.values))===salarySerialized(v.body.rows):v.snapshot.id===v.body.batchId&&v.snapshot.revision===v.body.expectedRevision+1),'CONTRACT_INVALID');return v;
+ need((v.snapshot.status===statuses[v.body.command]||v.body.command==='approve'&&v.snapshot.status==='submitted'&&v.snapshot.approvals.length===1&&v.snapshot.rows.some(r=>r.values.forced))&&(v.body.command==='prepare'?v.snapshot.periodMonth===v.body.periodMonth&&v.snapshot.payrollType===v.body.payrollType&&salarySerialized(v.snapshot.rows.map(r=>r.values))===salarySerialized(v.body.rows):v.snapshot.id===v.body.batchId&&v.snapshot.revision===v.body.expectedRevision+1),'CONTRACT_INVALID');
+ if(attempt&&Object.hasOwn(attempt,'reviewedBatch')){
+  need(v.body.command!=='prepare','CONTRACT_INVALID');
+  const reviewed=ownNoveltyDetail(attempt.reviewedBatch,v.body.batchId);
+  need(reviewed.revision===v.body.expectedRevision&&salarySerialized(reviewedContent(reviewed))===salarySerialized(reviewedContent(v.snapshot)),
+   'CONTRACT_INVALID','El comprobante no conserva el lote completo que revisaste. Recuperá el mismo intento.');
+ }
+ return v;
 }
 export function prepareOwnNoveltyReview(boot,body){
  ownNoveltyBootstrap(boot);const normalized=ownNoveltyCommand(body),subjects=new Map(boot.subjects.map(s=>[s.contractId,s]));
