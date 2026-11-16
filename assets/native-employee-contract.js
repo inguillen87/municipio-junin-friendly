@@ -1,4 +1,5 @@
 // Shared input rules only. No stored identities, credentials or example employees.
+import { employmentJobTitleInput } from './employment-job-title-contract.js';
 export const LEGACY_EMPLOYEE_FIELDS = Object.freeze(['legajo','fullName','dni','cuil','birthDate','sexCode','startDate','agreementCode','categoryCode','organizationId','sectorCode','jobTitle','legalReference']);
 export const EMPLOYEE_FIELDS = Object.freeze([...LEGACY_EMPLOYEE_FIELDS,'jurisdictionCode']);
 export const EMPLOYEE_JURISDICTION_CODES = Object.freeze(['42','55']);
@@ -33,7 +34,9 @@ export function employeeDraft(input, today = new Date().toISOString().slice(0,10
   if (!isoDay(draft.startDate) || draft.startDate < draft.birthDate) throw new EmployeeInputError('Revisá la fecha de ingreso.','startDate');
   if (!['','F','M','X'].includes(draft.sexCode)) throw new EmployeeInputError('Elegí una opción válida.','sexCode');
   for (const key of ['agreementCode','categoryCode','organizationId','sectorCode']) if (!/^\d{1,9}$/.test(draft[key])) throw new EmployeeInputError('Seleccioná una opción del catálogo.',key);
-  if (draft.jobTitle.length > 120) throw new EmployeeInputError('El cargo admite hasta 120 caracteres.','jobTitle');
+  // Same contract the payroll capture and the receipt apply later: a title accepted here never stops a liquidation.
+  const jobTitle = employmentJobTitleInput(draft.jobTitle);
+  if (jobTitle.message) throw new EmployeeInputError(jobTitle.message,'jobTitle');
   if (draft.legalReference.length < 3 || draft.legalReference.length > 180) throw new EmployeeInputError('Identificá la resolución, disposición o documento de alta.','legalReference');
   return Object.freeze(draft);
 }

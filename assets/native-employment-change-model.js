@@ -1,4 +1,5 @@
 import {catalogItems, catalogUuid, catalogAttemptKey} from './native-employment-catalog-model.js';
+import {employmentJobTitleInput} from './employment-job-title-contract.js';
 
 export const CHANGE_VERSION = 'native-employment-change.v1';
 export {catalogUuid as changeUuid, catalogAttemptKey as changeAttemptKey};
@@ -28,8 +29,12 @@ export function changeValues(value) {
 export function changeProposalInput(value) {
   if (!exact(value, ['contractId', 'identityToken', 'scopeVersion', 'baseVersion', 'catalogVersion', 'values', 'legalReference', 'reason'])
     || !catalogUuid(value.contractId) || ![value.identityToken, value.scopeVersion, value.baseVersion, value.catalogVersion].every(hash)) fail('Volvé a consultar el legajo y sus opciones antes de preparar la rectificación.');
+  // Reading a stored title stays tolerant (changeValues) so a legacy title can still be opened and corrected; a title
+  // proposed here must meet the contract that the payroll capture and the receipt apply later.
+  const values = changeValues(value.values), jobTitle = employmentJobTitleInput(values.jobTitle);
+  if (jobTitle.message) fail(jobTitle.message);
   return {contractId: value.contractId.toLowerCase(), identityToken: value.identityToken, scopeVersion: value.scopeVersion,
-    baseVersion: value.baseVersion, catalogVersion: value.catalogVersion, values: changeValues(value.values),
+    baseVersion: value.baseVersion, catalogVersion: value.catalogVersion, values,
     legalReference: text(value.legalReference, 3, 180, 'la resolución o documento'), reason: text(value.reason, 10, 1000, 'el motivo')};
 }
 export function changeReviewInput(value) {
