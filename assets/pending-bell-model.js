@@ -48,6 +48,7 @@ function circuitItem(c) {
 // «Visto» son los identificadores de eventos realmente mostrados, no la hora en que abrió la lista.
 // Una fuente que falla o no cumple su forma no aporta cero: se cuenta como sin respuesta.
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const dailyHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.exec(value)?.[0] === value;
 // Texto del botón para quien no ve el número: con avisos agrupados dice primero cuántos avisos son y después el detalle.
 export function bellLabel(waiting, notices, news, daily = 0) {
   const count = notices + news; if (!count) return 'Sin pendientes';
@@ -65,18 +66,38 @@ export function bellState(sources, seenKeys = [], circuitReads = [], dailySource
   for (const source of sources) { const items = sourceItems(source); if (!items) { failed.push(source.title); continue; } covered.push(source.title); toReview.push(...items.toReview); decided.push(...items.decided); }
   // Independent observations never become proposals or decisions. An invalid
   // projection or contradictory duplicate is unavailable, not a zero count.
-  const dailyByKey = new Map(), dailyConflicts = new Set(); let dailyFailed = false;
+  const dailyByKey = new Map(), dailyConflicts = new Set(), failedDailyScopes = new Set(); let dailyFailed = false;
   for (const source of dailySources) {
     try {
       const item = attendanceDailyNotice(source), prior = dailyByKey.get(item.key);
-      if (prior && JSON.stringify(prior) !== JSON.stringify(item)) { dailyConflicts.add(item.key); dailyFailed = true; }
+      if (prior && JSON.stringify(prior) !== JSON.stringify(item)) {
+        dailyConflicts.add(item.key); failedDailyScopes.add(prior.scopeKey); failedDailyScopes.add(item.scopeKey); dailyFailed = true;
+      }
       else if (!prior) dailyByKey.set(item.key, item);
     } catch {
       dailyFailed = true;
-      if (typeof source?.key === 'string' && /^[a-f0-9]{64}$/.test(source.key)) dailyConflicts.add('attendance-daily:' + source.key);
+      if (dailyHash(source?.key)) dailyConflicts.add('attendance-daily:' + source.key);
+      if (dailyHash(source?.scopeKey)) failedDailyScopes.add(source.scopeKey);
     }
   }
-  const daily = [...dailyByKey.values()].filter(item => !dailyConflicts.has(item.key)).sort((a, b) => b.day.localeCompare(a.day) || a.key.localeCompare(b.key));
+  const dailyByScope = new Map();
+  for (const item of dailyByKey.values()) {
+    if (dailyConflicts.has(item.key)) failedDailyScopes.add(item.scopeKey);
+    if (!dailyByScope.has(item.scopeKey)) dailyByScope.set(item.scopeKey, new Map());
+    const days = dailyByScope.get(item.scopeKey), prior = days.get(item.day);
+    // There is no ordered revision in this projection. A second cut for the
+    // same day invalidates the entire scope, including any older fallback.
+    if (prior && prior.key !== item.key) { failedDailyScopes.add(item.scopeKey); dailyFailed = true; }
+    else days.set(item.day, item);
+  }
+  const daily = [];
+  for (const [scopeKey, days] of dailyByScope) {
+    if (failedDailyScopes.has(scopeKey)) continue;
+    const sorted = [...days.values()].sort((a, b) => b.day.localeCompare(a.day));
+    const selected = sorted.find(item => item.dayClosed) ?? sorted.find(item => item.status === 'blocked');
+    if (selected) daily.push(selected);
+  }
+  daily.sort((a, b) => b.day.localeCompare(a.day) || a.scopeKey.localeCompare(b.scopeKey));
   if (daily.length) covered.push('Asistencia diaria');
   if (dailyFailed) failed.push('Asistencia diaria');
   toReview.sort((a, b) => Date.parse(a.when) - Date.parse(b.when)); decided.sort((a, b) => Date.parse(b.when) - Date.parse(a.when));

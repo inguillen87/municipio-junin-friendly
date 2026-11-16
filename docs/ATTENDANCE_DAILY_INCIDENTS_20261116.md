@@ -4,7 +4,7 @@ Estado: **código candidato y fixtures sintéticos; sin lector operativo, SQL ej
 
 ## Resultado de esta unidad
 
-`evaluateAttendanceDailyIncidents(input)` reúne una fuente completa de jornadas v3, población explícita, asignaciones y dependencias del catálogo116, cobertura y justificaciones. Produce un resumen versionado de un área, un punto y un día civil. `projectAttendanceDailyNoticeSource(result)` elimina las filas y todas las identidades antes de la presentación.
+`evaluateAttendanceDailyIncidents(input)` reúne una fuente completa de jornadas v3, población explícita, asignaciones y dependencias del catálogo116, cobertura y justificaciones. Produce `attendance-daily-incidents.v2`, de un área, un punto y un día civil. `projectAttendanceDailyNoticeSource(result)` elimina las filas y todas las identidades antes de la presentación. La entrada compuesta sigue en v1; la versión2 de salida y aviso incorpora las precisiones de uso de Claude, sin cambiar permisos ni la regla de cálculo aprobable.
 
 La campana admite ahora una tercera clase opcional: **Asistencia diaria**. Muestra conteos observados, bloqueos y valores **A confirmar**, con enlace a `/relojes`. Una observación de asistencia no suma propuestas pendientes de aprobación ni decisiones sobre trámites. No se añadió ningún lector a `PENDING_BELL_READERS`, endpoint, consulta, permiso o envío programado.
 
@@ -57,13 +57,13 @@ La primera regla de observación propuesta es limitada: un solo intervalo `work`
 
 El cero del fixture es una declaración **sintética**, no un valor por defecto ni una aprobación para Hugo. La falta de cualquiera de estos parámetros, su forma incorrecta o una versión desconocida bloquea. No se infiere horario desde medianas, jornadas mensuales, horas diarias, convenio o historial de fichadas.
 
-La tolerancia procede exclusivamente del turno aprobado. `lateSeconds` expresa segundos posteriores al comienzo más esa tolerancia. No redondea ni convierte tiempo a unidades de descuento. Varias entradas ordinarias, pausas observadas o declaradas, guardias y turnos partidos se bloquean en esta versión. La incidencia nocturna existente de v3 también requiere revisión: no se homologa por coincidir con una asignación.
+La tolerancia procede exclusivamente del turno aprobado. Se conservan por separado `rawLateSeconds` (atraso bruto contra el horario), `entryToleranceSeconds`, `tardinessThresholdExceeded` y `lateSeconds` (exceso por encima de la tolerancia, con el significado original). Con12 minutos de atraso y10 de tolerancia se devuelven720 segundos brutos y120 de exceso. **`payrollTardinessSeconds:null`** mantiene pendiente la decisión P2 sobre qué magnitud usar para liquidar. No se redondea ni convierte tiempo a unidades de descuento. Varias entradas ordinarias, pausas observadas o declaradas, guardias y turnos partidos se bloquean en esta versión. La incidencia nocturna existente de v3 también requiere revisión: no se homologa por coincidir con una asignación.
 
 Varios flujos o dispositivos de un contrato no se fusionan. Se conservan las observaciones por dispositivo; los segundos agregados del contrato quedan `null` para evitar sumar dos veces el mismo tiempo.
 
 ## Significado de los resultados
 
-- **Marcaciones faltantes** es una observación técnica de un turno esperado sin eventos y con el corte/cobertura exigidos. No significa inasistencia injustificada. Una licencia aprobada puede coexistir con esa observación y se conserva aparte como `approved_covering_shift`.
+- **Marcaciones faltantes** (`missingMarks`) conserva el total técnico de turnos esperados sin eventos y con el corte/cobertura exigidos. No significa inasistencia injustificada. Se divide en `justifiedMissingMarks`, con justificación aprobada que cubre el turno completo, y `missingMarksToReview`, las restantes observaciones por revisar. Una licencia aprobada completa queda fuera del conteo principal «Sin marcas para revisar». Una justificación parcial no se extiende al turno completo; una pendiente bloquea la comparación.
 - **Llegadas tardías observadas** usa exclusivamente el horario y la tolerancia declarados. Si hay tardanza, `TARDINESS_CONVERSION_UNCONFIRMED` mantiene pendiente su eventual traducción al parte.
 - **Tiempo extra observado** procede de intervalos declarados por las marcas. `EXTRA_CONVERSION_UNCONFIRMED` impide tratarlo como44,95, tiempo pagable o importe.
 - `absence101Days`, `quantity107`, `payableSeconds` y `amountArs` permanecen siempre `null`. La regla mensual107 de PR294 es otra unidad; no se alimenta con un solo día ni con ausencia inferida de marcas.
@@ -73,21 +73,25 @@ Los datos agregados de GRH comunicados en [6902753988](https://github.com/inguil
 
 ## Adaptador de campana
 
-`attendanceDailyNotice(source)` valida `attendance-daily-notice-source.v1`. Sólo permite ocho conteos, fecha, clave opaca, estado, motivos fijos y las tres banderas conservadoras. La UI muestra desconocidos como **A confirmar** y explicita **Observación técnica sin aprobación salarial**.
+`attendanceDailyNotice(source)` valida `attendance-daily-notice-source.v2`; v1 se rechaza explícitamente. Permite diez conteos, fecha, claves opacas de corte/ámbito, `dayClosed`, estado, motivos fijos y las tres banderas conservadoras. La UI muestra desconocidos como **A confirmar** y explicita **Observación técnica sin aprobación salarial**. Los dos conteos nuevos deben sumar `missingMarks` cuando los tres son conocidos.
 
-`bellState(sources, seenKeys, circuitReads, dailySources)` acepta el nuevo cuarto argumento opcional. `mountPendingBell` admite `dailySources` en la respuesta del lector existente, sin agregar consultas. Avisos idénticos con una misma clave se cuentan una vez; la misma clave con datos contradictorios queda en `failed`. Los avisos diarios no se guardan como decisiones vistas.
+El estado de cálculo sigue siendo `blocked` si faltan las conversiones. Si sus únicos códigos son `TARDINESS_CONVERSION_UNCONFIRMED` y/o `EXTRA_CONVERSION_UNCONFIRMED`, la presentación deriva `observationStatus:'observed'` y muestra **Observado · conversión para liquidación: A confirmar**. No habilita ninguna operación ni altera los bloqueos del núcleo. Con otros motivos muestra **Requiere revisión**.
 
-La clave vincula el corte completo. El productor futuro debe entregar sólo el corte vigente por día/ámbito autorizado, sin acumular versiones viejas en el array. La minimización no sustituye la autorización del destinatario: no se reconoce a Hugo por su nombre ni se le conceden capacidades globales.
+`bellState(sources, seenKeys, circuitReads, dailySources)` acepta el nuevo cuarto argumento opcional. `mountPendingBell` admite `dailySources` en la respuesta del lector existente, sin agregar consultas. Avisos idénticos con una misma clave se cuentan una vez; la misma clave con datos contradictorios queda en `failed`. Se conserva sólo el último día cerrado **por ámbito**; si no hay ninguno cerrado, se muestra el último bloqueo. Dos cortes distintos del mismo día/ámbito dejan ese ámbito en `failed`, sin elegir arbitrariamente ni sustituirlo por un día viejo. Los avisos diarios no se guardan como decisiones vistas.
+
+La clave de corte vincula el input completo; `scopeKey` vincula tenant/binding/área/punto/zona sin incorporar el día. `dayClosed` exige población y catálogo completos y cierre conocido para todas las filas; sin un perfil para determinar la demora no se inventa cierre0. El productor futuro debe entregar sólo el corte vigente por día/ámbito autorizado. La tarjeta se reduce a una línea principal de llegadas tarde, sin marcas para revisar y contratos con extra; añade justificaciones aprobadas y bloqueos cuando corresponda, con enlace al detalle. La minimización no sustituye la autorización del destinatario: no se reconoce a Hugo por su nombre ni se le conceden capacidades globales.
 
 ## Verificación
 
-Fixtures construidos desde cero, sin identificadores ni documentos municipales. El evaluador tiene20 pruebas: cobertura incompleta/vacía, dispositivos esperados, cut/hash, scope/identidad, parámetros ausentes, microsegundos SQL, fechas imposibles, doble flujo, ausencia de marcas, pausas, justificaciones y proyección mínima.
+Fixtures construidos desde cero, sin identificadores ni documentos municipales. El evaluador tiene22 pruebas: cobertura incompleta/vacía, dispositivos esperados, cut/hash, scope/identidad, parámetros ausentes, microsegundos SQL, fechas imposibles, doble flujo, ausencia de marcas, pausas, justificaciones, atraso bruto/umbral, cierre diario y proyección mínima.
 
 ```sh
 node --test tests/attendance-daily-incidents.test.js tests/attendance-daily-notice.test.js tests/pending-bell.test.js tests/pending-bell-mount.test.js tests/build-published-imports.test.js tests/continuous-workdays-v3-identity.test.js tests/continuous-workdays-v3-api.test.js
 ```
 
-Resultado integrado: **87/87**, cero fallos y cero omitidas; `git diff --check` limpio. No se instaló `playwright`, ejecutó un navegador ni compiló PostgreSQL. La presentación se verificó con DOM sintético; la revisión visual en sandbox queda a cargo de Claude.
+Primera entrega `86f515e1`: **87/87**, cero fallos y cero omitidas. Claude reprodujo87/87 y montó el panel en Chromium sin errores de consola. Su [revisión6924180860](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6924180860) motivó la versión2: presentación de conversiones, separación de licencias, atraso bruto y tarjeta compacta por último día cerrado. No se atribuye al nuevo head la prueba visual del anterior.
+
+Ajuste v2: **94/94** con el mismo comando integrado, cero fallos y cero omitidas; `git diff --check` limpio. Incluye los conteos separados, las magnitudes distintas de tardanza, las condiciones de cierre, selección por ámbito/día y conflictos de cortes. La presentación v2 tiene prueba de DOM sintético; queda enviada a Claude para repetir su revisión visual del head exacto. No se ejecutó SQL.
 
 La revisión independiente detectó y cerró tres defectos antes de la entrega: cobertura vacía sin dispositivos esperados, rechazo de timestamps SQL con fracciones y pausas observadas que pasaban como jornadas cerradas. También se cerraron los conteos vacuos y la exigencia del vínculo antes de declarar un contrato esperado.
 

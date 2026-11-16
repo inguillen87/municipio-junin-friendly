@@ -12,7 +12,9 @@ test('approved explicit schedule and complete supplied cut yield observed counts
   const source = freeze(dailyFixture()), result = evaluate(source);
   assert.equal(result.status, 'observed');
   assert.deepEqual(result.counts, {population:1, observedContracts:1, expectedContracts:1, lateArrivals:0,
-    missingMarks:0, incompleteWorkdays:0, extraTimeObservedContracts:0, blockedContracts:0});
+    missingMarks:0, missingMarksToReview:0, justifiedMissingMarks:0,
+    incompleteWorkdays:0, extraTimeObservedContracts:0, blockedContracts:0});
+  assert.equal(result.version, 'attendance-daily-incidents.v2'); assert.equal(result.dayClosed, true);
   assert.equal(result.rows[0].observedOrdinarySeconds, 21600);
   assert.equal(result.rows[0].contractId, V3_CONTRACT);
   assert.equal(result.rows[0].quantity107, null);
@@ -99,9 +101,37 @@ test('lateness uses only the explicit approved tolerance and never converts to 1
   source.workdays.events[0].localTimestamp = V3_DAY+' 07:08:00';
   source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 300;
   const result = run(source); assert.equal(result.rows[0].lateSeconds, 180); assert.equal(result.counts.lateArrivals, 1);
+  assert.equal(result.rows[0].rawLateSeconds, 480); assert.equal(result.rows[0].entryToleranceSeconds, 300);
+  assert.equal(result.rows[0].tardinessThresholdExceeded, true); assert.equal(result.rows[0].payrollTardinessSeconds, null);
   has(result, 'TARDINESS_CONVERSION_UNCONFIRMED'); assert.equal(result.rows[0].absence101Days, null); assert.equal(result.rows[0].quantity107, null);
   source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 480;
-  assert.equal(run(source).rows[0].lateSeconds, 0);
+  const atThreshold = run(source);
+  assert.equal(atThreshold.rows[0].lateSeconds, 0); assert.equal(atThreshold.rows[0].rawLateSeconds, 480);
+  assert.equal(atThreshold.rows[0].tardinessThresholdExceeded, false); assert.equal(atThreshold.rows[0].payrollTardinessSeconds, null);
+});
+
+test('raw lateness and threshold excess are distinct observations while payroll magnitude stays undecided', () => {
+  const source = dailyFixture();
+  source.workdays.events[0].occurredAt = V3_DAY+'T07:12:00-03:00';
+  source.workdays.events[0].localTimestamp = V3_DAY+' 07:12:00';
+  source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 600;
+  const result = run(source), row = result.rows[0];
+  assert.equal(row.rawLateSeconds, 720); assert.equal(row.entryToleranceSeconds, 600);
+  assert.equal(row.lateSeconds, 120); assert.equal(row.tardinessThresholdExceeded, true);
+  assert.equal(row.payrollTardinessSeconds, null); assert.equal(result.status, 'blocked');
+  assert.equal(result.dayClosed, true); has(result, 'TARDINESS_CONVERSION_UNCONFIRMED');
+  const notice = projectAttendanceDailyNoticeSource(result);
+  assert.equal(notice.version, 'attendance-daily-notice-source.v2'); assert.equal(notice.status, 'blocked');
+});
+
+test('closed-day projection needs complete population, a valid binding and an approved closing profile', () => {
+  for (const mutate of [s => { s.population.complete = false; }, s => { s.catalog.complete = false; },
+    s => { s.population.members[0].identityBinding = null; },
+    s => { s.catalog.assignments[0].assignment.ruleProfile.status = 'draft'; s.catalog.assignments[0].assignment.ruleProfile.reasonCode = 'catalog_onboarding'; },
+    s => { s.catalog.assignments[0].assignment.shift.configuration.intervals.push({day:6,sequence:2,kind:'work',start:'15:00:00',end:'17:00:00',crossesMidnight:false}); }]) {
+    const source = dailyFixture(); mutate(source); const result = run(source);
+    assert.equal(result.dayClosed, false); assert.equal(result.status, 'blocked');
+  }
 });
 
 test('extra intervals stay observed; no inference of 44/95 from the aggregate GRH history', () => {
@@ -191,6 +221,8 @@ test('an empty population cannot mask an unknown global cut with vacuous zero co
   source.coverage.contractIds = []; source.coverage.status = 'a_confirmar'; source.coverage.evidence = null;
   const result = run(source); assert.equal(result.counts.population, 0); assert.equal(result.counts.missingMarks, null);
   assert.equal(result.counts.expectedContracts, null); assert.equal(result.counts.lateArrivals, null);
+  source.coverage.status = 'confirmed'; source.coverage.evidence = evidence(7);
+  const emptyClosed = run(source); assert.equal(emptyClosed.dayClosed, false); has(emptyClosed, 'DAY_NOT_CLOSED');
 });
 
 test('justifications are independently required; approved leave does not silently become an unjustified 101 day', () => {
@@ -201,15 +233,19 @@ test('justifications are independently required; approved leave does not silentl
     fromAt:V3_DAY+'T07:00:00-03:00', throughAt:V3_DAY+'T13:00:00-03:00', evidence:evidence(302)}];
   const approved = run(source); assert.equal(approved.rows[0].justificationStatus, 'approved_covering_shift');
   assert.equal(approved.rows[0].missingMarks, true); assert.equal(approved.rows[0].absence101Days, null);
+  assert.equal(approved.counts.missingMarks, 1); assert.equal(approved.counts.justifiedMissingMarks, 1);
+  assert.equal(approved.counts.missingMarksToReview, 0);
+  source.justifications.entries[0].status = 'rejected';
+  const rejected = run(source); assert.equal(rejected.counts.missingMarksToReview, 1); assert.equal(rejected.counts.justifiedMissingMarks, 0);
   source.justifications.entries[0].status = 'pending'; has(run(source), 'JUSTIFICATIONS_UNCONFIRMED');
 });
 
 test('notice projection carries only fixed aggregate fields and changes key with the supplied cut', () => {
   const source = dailyFixture(), result = run(source), notice = projectAttendanceDailyNoticeSource(result);
-  assert.deepEqual(Object.keys(notice).sort(), ['version','key','day','status','counts','blockerCodes','coverageCertified','approvalStatus','payrollEligible'].sort());
+  assert.deepEqual(Object.keys(notice).sort(), ['version','key','scopeKey','dayClosed','day','status','counts','blockerCodes','coverageCertified','approvalStatus','payrollEligible'].sort());
   const text = JSON.stringify(notice);
   for (const value of [V3_CONTRACT, '9001', 'Agente sintético', source.scope.tenantId, source.workdays.events[0].eventRef]) assert.ok(!text.includes(value));
   source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 60;
-  assert.notEqual(run(source).key, result.key);
+  const next = run(source); assert.notEqual(next.key, result.key); assert.equal(next.scopeKey, result.scopeKey);
   assert.equal(attendanceDailyDigest({b:2,a:1}), attendanceDailyDigest({a:1,b:2}));
 });

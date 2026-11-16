@@ -1,6 +1,7 @@
 // Pure presentation of an already scoped, minimized daily observation. This
 // contract does not authenticate a recipient or certify the underlying sources.
-export const ATTENDANCE_DAILY_NOTICE_SOURCE_VERSION = 'attendance-daily-notice-source.v1';
+export const ATTENDANCE_DAILY_NOTICE_SOURCE_VERSION = 'attendance-daily-notice-source.v2';
+export const ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES = Object.freeze(['TARDINESS_CONVERSION_UNCONFIRMED', 'EXTRA_CONVERSION_UNCONFIRMED']);
 export const ATTENDANCE_DAILY_BLOCKER_CODES = Object.freeze([
   'SOURCE_NOMINAL_REQUIRED', 'JOINT_CUT_UNCONFIRMED', 'POPULATION_INCOMPLETE',
   'DAY_NOT_CLOSED', 'COVERAGE_UNCONFIRMED', 'CATALOG_UNAPPROVED',
@@ -39,12 +40,14 @@ export const ATTENDANCE_DAILY_COUNT_LABELS = Object.freeze({
   expectedContracts: 'Contratos esperados',
   lateArrivals: 'Llegadas tardías observadas',
   missingMarks: 'Marcaciones faltantes',
+  missingMarksToReview: 'Sin marcas para revisar',
+  justifiedMissingMarks: 'Con justificación aprobada',
   incompleteWorkdays: 'Jornadas incompletas',
   extraTimeObservedContracts: 'Contratos con tiempo extra observado',
   blockedContracts: 'Contratos bloqueados',
 });
-const fields = ['version', 'key', 'day', 'status', 'counts', 'blockerCodes', 'coverageCertified', 'approvalStatus', 'payrollEligible'];
-const nullableCounts = new Set(['population', 'expectedContracts', 'lateArrivals', 'missingMarks']);
+const fields = ['version', 'key', 'scopeKey', 'day', 'dayClosed', 'status', 'counts', 'blockerCodes', 'coverageCertified', 'approvalStatus', 'payrollEligible'];
+const nullableCounts = new Set(['population', 'expectedContracts', 'lateArrivals', 'missingMarks', 'missingMarksToReview', 'justifiedMissingMarks']);
 const matches = (pattern, value) => typeof value === 'string' && pattern.exec(value)?.[0] === value;
 const exact = (v, keys) => v !== null && typeof v === 'object' && !Array.isArray(v)
   && Reflect.ownKeys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
@@ -54,8 +57,8 @@ const fail = () => { throw new TypeError('ATTENDANCE_DAILY_NOTICE_INVALID'); };
 
 export function attendanceDailyNotice(source) {
   if (!exact(source, fields) || source.version !== ATTENDANCE_DAILY_NOTICE_SOURCE_VERSION
-    || !matches(/^[a-f0-9]{64}$/, source.key)
-    || !day(source.day) || !['blocked', 'observed'].includes(source.status)
+    || !matches(/^[a-f0-9]{64}$/, source.key) || !matches(/^[a-f0-9]{64}$/, source.scopeKey)
+    || !day(source.day) || typeof source.dayClosed !== 'boolean' || !['blocked', 'observed'].includes(source.status)
     || source.coverageCertified !== false || source.approvalStatus !== 'not_approved' || source.payrollEligible !== false
     || !exact(source.counts, Object.keys(ATTENDANCE_DAILY_COUNT_LABELS))
     || !Object.keys(ATTENDANCE_DAILY_COUNT_LABELS).every(k => nullableCounts.has(k) && source.counts[k] === null || Number.isSafeInteger(source.counts[k]) && source.counts[k] >= 0 && !Object.is(source.counts[k], -0))
@@ -64,16 +67,22 @@ export function attendanceDailyNotice(source) {
     || new Set(source.blockerCodes).size !== source.blockerCodes.length
     || !Array.from(source.blockerCodes).every(c => ATTENDANCE_DAILY_BLOCKER_CODES.includes(c))) fail();
   const c = source.counts;
+  if (source.dayClosed && source.blockerCodes.includes('DAY_NOT_CLOSED')) fail();
   if (source.status === 'observed'
-    ? source.blockerCodes.length !== 0 || [...nullableCounts].some(k => c[k] === null) || c.blockedContracts !== 0
+    ? !source.dayClosed || source.blockerCodes.length !== 0 || [...nullableCounts].some(k => c[k] === null) || c.blockedContracts !== 0
     : source.blockerCodes.length === 0) fail();
   if (c.population !== null && (c.observedContracts > c.population || c.blockedContracts > c.population || c.expectedContracts !== null && c.expectedContracts > c.population)
     || c.extraTimeObservedContracts > c.observedContracts
     || c.lateArrivals !== null && (c.lateArrivals > c.observedContracts || c.expectedContracts !== null && c.lateArrivals > c.expectedContracts)
-    || c.missingMarks !== null && c.expectedContracts !== null && c.missingMarks > c.expectedContracts) fail();
+    || c.missingMarks !== null && c.expectedContracts !== null && c.missingMarks > c.expectedContracts
+    || c.missingMarks !== null && (c.missingMarksToReview !== null && c.missingMarksToReview > c.missingMarks || c.justifiedMissingMarks !== null && c.justifiedMissingMarks > c.missingMarks)
+    || [c.missingMarks, c.missingMarksToReview, c.justifiedMissingMarks].every(v => v !== null) && c.missingMarksToReview + c.justifiedMissingMarks !== c.missingMarks) fail();
+  const observationStatus = source.blockerCodes.every(code => ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES.includes(code)) ? 'observed' : 'review_required';
+  if (observationStatus === 'observed' && (!source.dayClosed || [...nullableCounts].some(k => c[k] === null))) fail();
   return {
     key: 'attendance-daily:' + source.key, kind: 'attendance_daily', title: 'Asistencia diaria', href: '/relojes',
-    day: source.day, status: source.status,
+    scopeKey: source.scopeKey, day: source.day, dayClosed: source.dayClosed, status: source.status, observationStatus,
+    conversionPending: source.blockerCodes.some(code => ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES.includes(code)),
     counts: Object.fromEntries(Object.keys(ATTENDANCE_DAILY_COUNT_LABELS).map(k => [k, source.counts[k]])),
     blockerCodes: ATTENDANCE_DAILY_BLOCKER_CODES.filter(c => source.blockerCodes.includes(c)),
     coverageCertified: false, approvalStatus: 'not_approved', payrollEligible: false,

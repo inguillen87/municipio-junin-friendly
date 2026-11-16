@@ -1,7 +1,7 @@
 // Campanita de pendientes (pantalla). Recibe quién lee y cómo se consulta; no conoce ninguna API municipal.
 // La monta pending-bell-mount.js, que es quien conoce las consultas livianas del servidor.
 import {bellState, bellSeen, rememberedKeys, ago, periodText} from './pending-bell-model.js';
-import {ATTENDANCE_DAILY_BLOCKER_LABELS, ATTENDANCE_DAILY_COUNT_LABELS, attendanceDailyCountText} from './attendance-daily-notice.js';
+import {ATTENDANCE_DAILY_BLOCKER_LABELS, ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES, attendanceDailyCountText} from './attendance-daily-notice.js';
 
 const node = (tag, text, className) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e; };
 const BELL = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 3a6 6 0 0 0-6 6v3.2c0 .9-.3 1.7-.9 2.4L4 16v1h16v-1l-1.1-1.4a3.8 3.8 0 0 1-.9-2.4V9a6 6 0 0 0-6-6Zm-2.2 16a2.3 2.3 0 0 0 4.4 0Z" fill="currentColor"/></svg>';
@@ -35,10 +35,22 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
   };
   const dailyObservation = value => {
     const li = node('li', undefined, 'mc-bell-item is-daily'), link = node('a', 'Ver jornadas', 'mc-bell-go'); link.href = value.href;
-    li.append(node('strong', value.day.split('-').reverse().join('/') + ' · ' + (value.status === 'blocked' ? 'Bloqueado' : 'Observado')),
-      node('span', 'Observación técnica sin aprobación salarial. Cobertura: A confirmar.', 'mc-bell-why'));
-    for (const [key, label] of Object.entries(ATTENDANCE_DAILY_COUNT_LABELS)) li.append(node('span', label + ': ' + attendanceDailyCountText(value.counts[key]), 'mc-bell-who'));
-    for (const code of value.blockerCodes) li.append(node('span', ATTENDANCE_DAILY_BLOCKER_LABELS[code], 'mc-bell-why'));
+    const observed = value.observationStatus === 'observed', c = value.counts;
+    const status = observed ? 'Observado' + (value.conversionPending ? ' · conversión para liquidación: A confirmar' : '') : 'Requiere revisión';
+    const metric = (count, label, single = label) => count === null ? label.charAt(0).toUpperCase() + label.slice(1) + ': A confirmar' : attendanceDailyCountText(count) + ' ' + (count === 1 ? single : label);
+    li.append(node('strong', value.day.split('-').reverse().join('/') + ' · ' + status),
+      node('span', [metric(c.lateArrivals, 'llegadas tarde', 'llegada tarde'), metric(c.missingMarksToReview, 'sin marcas para revisar'), metric(c.extraTimeObservedContracts, 'con extra')].join(' · '), 'mc-bell-who'));
+    if (c.justifiedMissingMarks > 0) li.append(node('span', 'Con justificación aprobada: ' + c.justifiedMissingMarks, 'mc-bell-who'));
+    if (!observed && value.conversionPending) li.append(node('span', 'Conversión para liquidación: A confirmar.', 'mc-bell-why'));
+    const blockers = value.blockerCodes.filter(code => !ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES.includes(code));
+    if (blockers.length <= 2) {
+      if (blockers.length) li.append(node('span', blockers.map(code => ATTENDANCE_DAILY_BLOCKER_LABELS[code]).join(' '), 'mc-bell-why'));
+    } else {
+      const details = node('details'); details.append(node('summary', blockers.length + ' puntos por revisar'));
+      for (const code of blockers) details.append(node('p', ATTENDANCE_DAILY_BLOCKER_LABELS[code]));
+      li.append(details);
+    }
+    li.append(node('span', 'Observación técnica sin aprobación salarial.', 'mc-bell-why'));
     li.append(link); return li;
   };
   function render() {
