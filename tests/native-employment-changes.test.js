@@ -34,7 +34,10 @@ for(const [label,mutate] of [
 ]) test('input rejects '+label,()=>{const p=proposalInput();mutate(p);assert.throws(()=>changeProposalInput(p));});
 test('empty cargo and Unicode character limits are consistent with SQL',()=>{
  assert.equal(changeValues({...values(),jobTitle:''}).jobTitle,'');
- const p=proposalInput();p.reason='😀'.repeat(1000);p.values.jobTitle='😀'.repeat(120);changeProposalInput(p);p.values.jobTitle+='😀';assert.throws(()=>changeProposalInput(p));
+ // The reason keeps the SQL code-point limit. A proposed cargo meets the payroll print contract, 120 UTF-16 units, which is
+ // stricter than SQL; a stored legacy cargo is still read (changeValues) so it can be corrected.
+ const p=proposalInput();p.reason='😀'.repeat(1000);p.values.jobTitle='😀'.repeat(60);changeProposalInput(p);p.values.jobTitle+='😀';assert.throws(()=>changeProposalInput(p));
+ p.values.jobTitle='😀'.repeat(120);assert.throws(()=>changeProposalInput(p));assert.equal(changeValues(p.values).jobTitle,'😀'.repeat(120));
 });
 test('review cannot carry replacement values or an arbitrary decision',()=>{
  assert.equal(changeReviewInput(reviewInput()).decision,'approve');

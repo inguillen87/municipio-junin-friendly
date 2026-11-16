@@ -21,6 +21,7 @@ import {ownPayrollFamilyFacts} from './own-payroll-family-facts.js';
 import {ownPayrollConditions} from './own-payroll-conditions.js';
 import {ownRunDate} from './own-payroll-run-date.js';
 import {ownProgramPeriodContext,periodContextCapture} from './own-payroll-period-context.js';
+import {ownRunEmploymentPrintFacts} from './own-payroll-employment-print-facts.js';
 export const OWN_RUN_VERSION = 'own-payroll-run.v1';
 export const OWN_RUN_DATED_VERSION = 'own-payroll-run.v2';
 export const OWN_RUN_COMMAND_VERSION = 'own-payroll-run-command.v2';
@@ -63,6 +64,7 @@ export function ownRunCapture(v, attempt = null) {
   if(v.saved===null)verifyConditionalSourceCapture(v.payload);else verifyConditionalSourceInputs(v.payload,v.saved.input);
   verifyQuantityOnlyInput(v.payload);
   verifyCappedSource(v.payload);
+  ownRunEmploymentPrintFacts(v);
   if (attempt) require(v.key === attempt.key && salarySerialized(v.body) === salarySerialized(attempt.body), 'RUN_CONTRACT_INVALID', 'La captura cambió el cuerpo o la clave originales.');
   if (v.saved !== null) {ownRunSaved(v.saved, v.id, v.algorithmSha256);verifyDeclaredAdjustmentInput(v.payload,v.saved.input,v.saved.result);verifyQuantityOnlyInput(v.payload,v.saved.input);}
   return v;
