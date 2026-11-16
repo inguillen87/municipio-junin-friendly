@@ -1,6 +1,7 @@
 // Campanita de pendientes (pantalla). Recibe quién lee y cómo se consulta; no conoce ninguna API municipal.
 // La monta pending-bell-mount.js, que es quien conoce las consultas livianas del servidor.
 import {bellState, bellSeen, rememberedKeys, ago, periodText} from './pending-bell-model.js';
+import {ATTENDANCE_DAILY_BLOCKER_LABELS, ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES, attendanceDailyCountText} from './attendance-daily-notice.js';
 
 const node = (tag, text, className) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e; };
 const BELL = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 3a6 6 0 0 0-6 6v3.2c0 .9-.3 1.7-.9 2.4L4 16v1h16v-1l-1.1-1.4a3.8 3.8 0 0 1-.9-2.4V9a6 6 0 0 0-6-6Zm-2.2 16a2.3 2.3 0 0 0 4.4 0Z" fill="currentColor"/></svg>';
@@ -32,15 +33,36 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
       : (c.mine === 1 ? '1 pendiente. Al abrirlo se ve si lo decidís vos.' : c.mine + ' pendientes. Al abrirlos se ve cuáles decidís vos.'), 'mc-bell-who'), link);
     return li;
   };
+  const dailyObservation = value => {
+    const li = node('li', undefined, 'mc-bell-item is-daily'), link = node('a', 'Ver jornadas', 'mc-bell-go'); link.href = value.href;
+    const observed = value.observationStatus === 'observed', c = value.counts;
+    const status = observed ? 'Observado' + (value.conversionPending ? ' · conversión para liquidación: A confirmar' : '') : 'Requiere revisión';
+    const metric = (count, label, single = label) => count === null ? label.charAt(0).toUpperCase() + label.slice(1) + ': A confirmar' : attendanceDailyCountText(count) + ' ' + (count === 1 ? single : label);
+    li.append(node('strong', value.day.split('-').reverse().join('/') + ' · ' + status),
+      node('span', [metric(c.lateArrivals, 'llegadas tarde', 'llegada tarde'), metric(c.missingMarksToReview, 'sin marcas para revisar'), metric(c.extraTimeObservedContracts, 'con extra')].join(' · '), 'mc-bell-who'));
+    if (c.justifiedMissingMarks > 0) li.append(node('span', 'Con justificación aprobada: ' + c.justifiedMissingMarks, 'mc-bell-who'));
+    if (!observed && value.conversionPending) li.append(node('span', 'Conversión para liquidación: A confirmar.', 'mc-bell-why'));
+    const blockers = value.blockerCodes.filter(code => !ATTENDANCE_DAILY_CONVERSION_BLOCKER_CODES.includes(code));
+    if (blockers.length <= 2) {
+      if (blockers.length) li.append(node('span', blockers.map(code => ATTENDANCE_DAILY_BLOCKER_LABELS[code]).join(' '), 'mc-bell-why'));
+    } else {
+      const details = node('details'); details.append(node('summary', blockers.length + ' puntos por revisar'));
+      for (const code of blockers) details.append(node('p', ATTENDANCE_DAILY_BLOCKER_LABELS[code]));
+      li.append(details);
+    }
+    li.append(node('span', 'Observación técnica sin aprobación salarial.', 'mc-bell-why'));
+    li.append(link); return li;
+  };
   function render() {
     panel.replaceChildren(node('h2', 'Tus pendientes'));
     if (failed && !state) { panel.append(node('p', 'No se pudo consultar. Se vuelve a intentar solo en un minuto.', 'mc-bell-empty')); return; }
     if (!state) { panel.append(node('p', 'Consultando…', 'mc-bell-empty')); return; }
     // Sin ninguna lectura no se puede decir «no hay nada»: se dice que no se pudo consultar.
-    if (!state.toReview.length && !state.decided.length && !state.circuits.length) panel.append(node('p', !state.covered.length ? 'No se pudo consultar ningún circuito. Se vuelve a intentar solo en un minuto.'
+    if (!state.toReview.length && !state.decided.length && !state.circuits.length && !state.daily.length) panel.append(node('p', !state.covered.length ? 'No se pudo consultar ningún circuito. Se vuelve a intentar solo en un minuto.'
       : state.failed.length ? 'No hay nada esperándote en los circuitos que respondieron.' : 'No hay nada esperándote. Cuando alguien necesite tu aprobación, aparece acá.', 'mc-bell-empty'));
     if (state.toReview.length || state.circuits.length) { const list = node('ul'); for (const c of state.circuits) list.append(circuit(c)); for (const r of state.toReview) list.append(item(r, 'review')); panel.append(node('h3', 'Esperan tu decisión'), list); }
     if (state.decided.length) { const list = node('ul'); for (const r of state.decided) list.append(item(r, 'decided')); panel.append(node('h3', 'Lo que decidieron sobre lo tuyo'), list); }
+    if (state.daily.length) { const list = node('ul'); for (const value of state.daily) list.append(dailyObservation(value)); panel.append(node('h3', 'Asistencia diaria'), list); }
     if (state.elsewhere) panel.append(node('p', state.elsewhere === 1 ? 'Hay 1 pendiente más que decide otra persona.' : 'Hay ' + state.elsewhere + ' pendientes más que deciden otras personas.', 'mc-bell-empty'));
     // Un circuito sin lectura no es un circuito sin pendientes: se nombra.
     if (state.failed.length && state.covered.length) panel.append(node('p', (state.failed.length > 3 ? 'Sin respuesta de ' + state.failed.length + ' circuitos' : 'Sin respuesta de: ' + state.failed.join(', ')) + '. No se cuentan como cero.', 'mc-bell-empty'));
@@ -51,13 +73,13 @@ export function mountPendingBell({host, read, accountKey, everyMs = 60000, now =
     const text = state ? state.label : failed ? 'Pendientes: no se pudo consultar' : 'Pendientes: consultando';
     badge.hidden = !state?.badge; badge.textContent = state?.badge ?? ''; button.setAttribute('aria-label', state ? 'Pendientes: ' + text : text); button.classList.toggle('has-pending', !!state?.count);
     // El número cuenta avisos; el anuncio para lectores de pantalla se dispara también cuando un aviso que ya estaba suma propuestas.
-    if (state && state.total !== announced) { if (announced >= 0 && state.total > announced) live.textContent = 'Nuevo pendiente: ' + text + '.'; announced = state.total; }
+    if (state && state.total !== announced) { if (announced >= 0 && state.total > announced) live.textContent = 'Nuevo aviso: ' + text + '.'; announced = state.total; }
     if (!panel.hidden) render();
   }
   async function load() {
     if (loading || document.hidden) return; loading = true;
-    // La lectura puede traer sólo las consultas livianas (una lista) o también los circuitos de la bandeja.
-    try { const r = await read(); state = Array.isArray(r) ? bellState(r, seen()) : bellState(r.sources, seen(), r.circuits); failed = false; loadedAt = now(); } catch { failed = true; }
+    // El lector opcional aporta observaciones ya minimizadas; aquí no se inicia otro circuito.
+    try { const r = await read(); state = Array.isArray(r) ? bellState(r, seen()) : bellState(r.sources, seen(), r.circuits, r.dailySources); failed = false; loadedAt = now(); } catch { failed = true; }
     finally { loading = false; paint(); }
   }
   function close(focus = false) { if (panel.hidden) return; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (focus) button.focus(); }

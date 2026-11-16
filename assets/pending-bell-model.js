@@ -2,6 +2,7 @@
 // Cada circuito entrega su propia lectura liviana de pendientes, ya validada por su modelo (la primera es
 // «own-contract-salary-conditions.pending.v1», de Root). Esta pieza sólo las junta: no conoce fundamentos, cuerpos
 // ni padrones, y la cobertura es parcial hasta que cada circuito tenga su lectura.
+import {attendanceDailyNotice} from './attendance-daily-notice.js';
 const text = (v, max) => typeof v === 'string' && v.length > 0 && v.length <= max;
 const instant = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const period = v => typeof v === 'string' && /^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(v);
@@ -47,29 +48,66 @@ function circuitItem(c) {
 // «Visto» son los identificadores de eventos realmente mostrados, no la hora en que abrió la lista.
 // Una fuente que falla o no cumple su forma no aporta cero: se cuenta como sin respuesta.
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const dailyHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.exec(value)?.[0] === value;
 // Texto del botón para quien no ve el número: con avisos agrupados dice primero cuántos avisos son y después el detalle.
-export function bellLabel(waiting, notices, news) {
+export function bellLabel(waiting, notices, news, daily = 0) {
   const count = notices + news; if (!count) return 'Sin pendientes';
-  const detail = (waiting ? plural(waiting, 'pendiente te espera', 'pendientes te esperan') : '') + (waiting && news ? ' y ' : '') + (news ? plural(news, 'novedad de lo tuyo', 'novedades de lo tuyo') : '');
-  return notices === waiting ? detail : plural(count, 'aviso', 'avisos') + ' · ' + detail;
+  const detail = [waiting ? plural(waiting, 'pendiente te espera', 'pendientes te esperan') : '', news ? plural(news, 'novedad de lo tuyo', 'novedades de lo tuyo') : '', daily ? plural(daily, 'aviso de asistencia', 'avisos de asistencia') : ''].filter(Boolean).join(' y ');
+  return notices === waiting + daily ? detail : plural(count, 'aviso', 'avisos') + ' · ' + detail;
 }
 export const bellBadge = count => count > 99 ? '99+' : count ? String(count) : '';
-export function bellState(sources, seenKeys = [], circuitReads = []) {
-  if (!Array.isArray(sources) || !Array.isArray(seenKeys) || !Array.isArray(circuitReads)) throw new TypeError('PENDING_BELL_INVALID');
+export function bellState(sources, seenKeys = [], circuitReads = [], dailySources = []) {
+  if (!Array.isArray(sources) || !Array.isArray(seenKeys) || !Array.isArray(circuitReads) || !Array.isArray(dailySources)) throw new TypeError('PENDING_BELL_INVALID');
   const seen = new Set(seenKeys.filter(k => typeof k === 'string')), toReview = [], decided = [], failed = [], covered = [], circuits = [];
   if (new Set(sources.map(s => s?.key)).size !== sources.length) throw new TypeError('PENDING_BELL_SOURCE_INVALID');
   if (new Set(circuitReads.map(c => c?.key)).size !== circuitReads.length) throw new TypeError('PENDING_BELL_CIRCUIT_INVALID');
   let elsewhere = 0;
   for (const read of circuitReads) { const c = circuitItem(read); if (!c) { failed.push(read.title); continue; } covered.push(c.title); elsewhere += c.others; if (c.mine > 0) circuits.push(c); }
   for (const source of sources) { const items = sourceItems(source); if (!items) { failed.push(source.title); continue; } covered.push(source.title); toReview.push(...items.toReview); decided.push(...items.decided); }
+  // Independent observations never become proposals or decisions. An invalid
+  // projection or contradictory duplicate is unavailable, not a zero count.
+  const dailyByKey = new Map(), dailyConflicts = new Set(), failedDailyScopes = new Set(); let dailyFailed = false;
+  for (const source of dailySources) {
+    try {
+      const item = attendanceDailyNotice(source), prior = dailyByKey.get(item.key);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(item)) {
+        dailyConflicts.add(item.key); failedDailyScopes.add(prior.scopeKey); failedDailyScopes.add(item.scopeKey); dailyFailed = true;
+      }
+      else if (!prior) dailyByKey.set(item.key, item);
+    } catch {
+      dailyFailed = true;
+      if (dailyHash(source?.key)) dailyConflicts.add('attendance-daily:' + source.key);
+      if (dailyHash(source?.scopeKey)) failedDailyScopes.add(source.scopeKey);
+    }
+  }
+  const dailyByScope = new Map();
+  for (const item of dailyByKey.values()) {
+    if (dailyConflicts.has(item.key)) failedDailyScopes.add(item.scopeKey);
+    if (!dailyByScope.has(item.scopeKey)) dailyByScope.set(item.scopeKey, new Map());
+    const days = dailyByScope.get(item.scopeKey), prior = days.get(item.day);
+    // There is no ordered revision in this projection. A second cut for the
+    // same day invalidates the entire scope, including any older fallback.
+    if (prior && prior.key !== item.key) { failedDailyScopes.add(item.scopeKey); dailyFailed = true; }
+    else days.set(item.day, item);
+  }
+  const daily = [];
+  for (const [scopeKey, days] of dailyByScope) {
+    if (failedDailyScopes.has(scopeKey)) continue;
+    const sorted = [...days.values()].sort((a, b) => b.day.localeCompare(a.day));
+    const selected = sorted.find(item => item.dayClosed) ?? sorted.find(item => item.status === 'blocked');
+    if (selected) daily.push(selected);
+  }
+  daily.sort((a, b) => b.day.localeCompare(a.day) || a.scopeKey.localeCompare(b.scopeKey));
+  if (daily.length) covered.push('Asistencia diaria');
+  if (dailyFailed) failed.push('Asistencia diaria');
   toReview.sort((a, b) => Date.parse(a.when) - Date.parse(b.when)); decided.sort((a, b) => Date.parse(b.when) - Date.parse(a.when));
   for (const r of decided) r.fresh = !seen.has(r.key);
   // waiting: cuántas propuestas esperan su decisión (se dice en el texto). notices: en cuántos avisos llegan (se cuenta en el número).
-  const waiting = toReview.length + circuits.reduce((n, c) => n + c.mine, 0), notices = toReview.length + circuits.length, news = decided.filter(r => r.fresh).length, count = notices + news;
-  return {toReview, decided, circuits, elsewhere, waiting, notices, news, count, total: waiting + news, badge: bellBadge(count), label: bellLabel(waiting, notices, news), covered, failed, complete: failed.length === 0,
+  const waiting = toReview.length + circuits.reduce((n, c) => n + c.mine, 0), notices = toReview.length + circuits.length + daily.length, news = decided.filter(r => r.fresh).length, count = notices + news;
+  return {toReview, decided, circuits, daily, elsewhere, waiting, notices, news, count, total: waiting + news + daily.length, badge: bellBadge(count), label: bellLabel(waiting, notices, news, daily.length), covered, failed, complete: failed.length === 0,
     shownKeys: decided.map(r => r.key)};
 }
 // Al abrir la lista, las decisiones mostradas dejan de contar; los avisos que esperan una decisión siguen hasta que se decida.
-export const bellSeen = state => ({...state, news: 0, count: state.notices, total: state.waiting, badge: bellBadge(state.notices), label: bellLabel(state.waiting, state.notices, 0)});
+export const bellSeen = state => ({...state, news: 0, count: state.notices, total: state.waiting + (state.daily?.length ?? 0), badge: bellBadge(state.notices), label: bellLabel(state.waiting, state.notices, 0, state.daily?.length ?? 0)});
 // Lo que se guarda como visto: sólo claves de decisiones que siguen existiendo, para que no crezca sin límite.
 export const rememberedKeys = (state, previous = []) => [...new Set([...previous.filter(k => state.shownKeys.includes(k)), ...state.shownKeys])].slice(0, 2000);

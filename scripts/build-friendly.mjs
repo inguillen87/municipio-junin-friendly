@@ -71,6 +71,7 @@ const shellFiles = [
   'assets/own-contract-salary-conditions-panel.js',
   'assets/own-contract-salary-conditions-pending.js',
   'assets/pending-bell-model.js',
+  'assets/attendance-daily-notice.js',
   'assets/pending-bell.js',
   'assets/pending-bell.css',
   'assets/pending-bell-mount.js',
