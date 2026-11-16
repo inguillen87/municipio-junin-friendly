@@ -23,6 +23,7 @@
     'fuentes-tiempo.html': { any: ['time.source.read', 'time.catalog.read'] },
     'catalogo-tiempo.html': { all: ['time.catalog.read'] },
     'relojes-marcaciones.html': { any: ['attendance.read'] },
+    'asistencia-dispositivos.html': { all: ['attendance.area.read'] },
     'estructura.html': { any: ['workforce.structure.read'] },
     'integracion-datos.html': { any: ['lineage.read'] },
     'nomina-control.html': { any: ['payroll.read'] },

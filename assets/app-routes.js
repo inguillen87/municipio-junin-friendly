@@ -11,6 +11,7 @@
     ['juridica-registro.html', '/juridica', ['/normativa', '/registro-normativo']],
     ['centro-acciones.html', '/acciones', ['/centro-acciones']],
     ['relojes-marcaciones.html', '/relojes', ['/relojes-marcaciones']],
+    ['asistencia-dispositivos.html', '/asistencia-dispositivos', []],
     ['fuentes-tiempo.html', '/tiempo', ['/fuentes-tiempo']],
     ['homologacion-desarrollo.html', '/homologacion', ['/homologacion-desarrollo']],
     ['administracion-plataforma.html', '/administracion', ['/administracion-plataforma', '/admin']],
