@@ -1,0 +1,44 @@
+{
+  "version": "attendance-area-workdays-source-manifest.v1",
+  "baseCommit": "ad0d80d989b736dee52a0102ef3200b8905b65b2",
+  "original": {
+    "path": "scripts/candidates/attendance-clock-workday-source-v3.sql.txt",
+    "sha256": "b8245352b46ac7338244508b5efe5f8e10d4ea24f77565d8d61172b8dad5a383"
+  },
+  "candidate": {
+    "path": "scripts/candidates/attendance-area-workdays-v1.source.sql.txt",
+    "sha256": "c9fefca528f0f572ef86d076b5f8e1bded6b2c0995e79a7dd0f14d521c216d41"
+  },
+  "derivedBy": "scripts/lib/attendance-area-workdays-candidate.mjs",
+  "publicSignature": "public.attendance_area_workdays_read_v1(jsonb,jsonb)",
+  "requiredPrivateStableHelpers": [
+    "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
+    "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+    "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)"
+  ],
+  "authority": "public.attendance_area_context_v1(jsonb,text)",
+  "expectedDeviceKey": {
+    "inventory": "public.attendance_device.id",
+    "namespace": "clock-device-v2",
+    "expression": "encode(digest('clock-device-v2:'||p_tenant||':'||device_id,'sha256'),'hex')",
+    "inferenceFromMarks": false
+  },
+  "retainedInvariants": [
+    "receipt_manifest_bytes",
+    "batch_ordinals",
+    "historical_transport_completeness",
+    "confirmed_record_projection",
+    "exact_device_raw_hash_deduplication",
+    "source_conflict_detection",
+    "identity_map_temporal_binding",
+    "identity_map_overlap_denial",
+    "clock_v3_event_payload",
+    "declared_intervals_v2"
+  ],
+  "publicCounts": "authorized_subset_only",
+  "snapshot": "single_statement_with_private_stable_helpers",
+  "runtimeSqlExecuted": false,
+  "installed": false,
+  "coverageCertified": false,
+  "NoeliaReady": false
+}

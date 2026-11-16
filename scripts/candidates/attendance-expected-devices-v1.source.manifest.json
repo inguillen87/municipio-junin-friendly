@@ -1,0 +1,502 @@
+{
+  "version": "attendance-expected-devices-source.v1",
+  "sourceFile": "scripts/candidates/attendance-expected-devices-v1.source.sql.txt",
+  "sourceSha256": "1295451be04317d807ba8bb7711b0d292677d859458217b682eb8ef021b208b6",
+  "baseCommit": "ad0d80d989b736dee52a0102ef3200b8905b65b2",
+  "installable": false,
+  "installed": false,
+  "sqlExecuted": false,
+  "sqlEngineValidated": false,
+  "noeliaReady": false,
+  "payrollPosted": false,
+  "coverageCertified": false,
+  "prerequisiteSources": [
+    "scripts/candidates/attendance-area-authority-v1.source.sql.txt",
+    "scripts/candidates/attendance-area-history-v1.source.sql.txt",
+    "scripts/migrations/022-attendance-device-gateway.sql",
+    "scripts/migrations/116-native-time-catalog.sql"
+  ],
+  "externalFunctions": [
+    "public.attendance_area_context_v1(jsonb,text)",
+    "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
+    "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+    "public.time_catalog_native_actor_v2(uuid,uuid,uuid)"
+  ],
+  "newTables": [
+    "public.attendance_expected_device_proposal",
+    "public.attendance_expected_device_review",
+    "public.attendance_expected_device_retirement",
+    "public.attendance_expected_device_attempt"
+  ],
+  "functions": [
+    {
+      "name": "attendance_expected_devices_immutable_v1",
+      "signature": "public.attendance_expected_devices_immutable_v1()",
+      "parameters": [],
+      "returns": "trigger",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "c9e64e7f84e88e2c7de36d0f2bafe3d3e06ee58a7e28e9a335aa8edda2f939e0",
+      "declarationSha256": "b8419924d41a9f802880b74dcaa9bfd1c0aa877b258d39adddfd5007d95c2594",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_hash_v1",
+      "signature": "public.attendance_expected_devices_hash_v1(jsonb)",
+      "parameters": [
+        {
+          "name": "v",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "text",
+      "language": "sql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "29a8769479a439211e3af3a9255b55143480a16dba82a269241004e6daa9174f",
+      "declarationSha256": "a47c8c507b86a92f76f089728a3d31ce913ee40eef7802d7a1a5a570823b0b5b",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_exact_v1",
+      "signature": "public.attendance_expected_devices_exact_v1(jsonb,text[])",
+      "parameters": [
+        {
+          "name": "v",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "keys",
+          "type": "text[]",
+          "default": null
+        }
+      ],
+      "returns": "boolean",
+      "language": "sql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "fd314c4d71df0cc360775179c3caebcca889fb23b5724f3b37f486462d46c678",
+      "declarationSha256": "cc5d6deae3e695e172420f9bcd54096a5424effa63885ef1b09c08782f049ccc",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_date_v1",
+      "signature": "public.attendance_expected_devices_date_v1(jsonb)",
+      "parameters": [
+        {
+          "name": "v",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "date",
+      "language": "plpgsql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "datestyle='ISO,YMD'"
+      ],
+      "prosrcSha256": "3c3a219ef9121764bcf038ce3ad294b2363b150aa9cb5aa2875743d8f9cf30fd",
+      "declarationSha256": "243d9020eec7e8b46ee0c28810433d1ff1a52262d57c19e89929caaf45ffbff7",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_area_v1",
+      "signature": "public.attendance_expected_devices_area_v1(jsonb)",
+      "parameters": [
+        {
+          "name": "v",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "a7e8c3fe88ba934afac2e25b835b9faaefeca493718b09067b209017cc7eb266",
+      "declarationSha256": "fe7a57eb8fb8b51806d02442e0d0f6af356d4e5c9c261030e593c47d7934af3c",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_scope_matches_v1",
+      "signature": "public.attendance_expected_devices_scope_matches_v1(jsonb,jsonb)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "area",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "boolean",
+      "language": "sql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "52b559ade14f9a378873d27eb6dc47a880df23a4e43408b6407165b8d7f5e5a1",
+      "declarationSha256": "5f8d298d80fd8b26ae6b4d1033669ca6f293a9270060ea0236d93d4d665286ab",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_base_v1",
+      "signature": "public.attendance_expected_devices_base_v1(jsonb,jsonb)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "p",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "sql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "fdad107b799985ab09bc68b9dfb969918c024fb6f6567130d80ef8c205cb0174",
+      "declarationSha256": "a4bc7d795621a2e92279531b05f711256d47bdafbcd5d8010e5de3cac4d877c5",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_catalog_v1",
+      "signature": "public.attendance_expected_devices_catalog_v1(jsonb,boolean)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "hold_lock",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "47142ab9f9e9a53c2b0494561439bb95690a5a0b4f75f7074b6efec56615070b",
+      "declarationSha256": "e81c07e1a88baf93dbf130a0346c6019966dd6ec24cb87b29bdf8217aaa54691",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_subject_v1",
+      "signature": "public.attendance_expected_devices_subject_v1(jsonb,uuid,jsonb,date,date)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "target",
+          "type": "uuid",
+          "default": null
+        },
+        {
+          "name": "area",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "first_date",
+          "type": "date",
+          "default": null
+        },
+        {
+          "name": "last_date",
+          "type": "date",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "f518429884cb4d8fa49c84c81f2990434aa6da6742c6c098b3ba067fd94aebd9",
+      "declarationSha256": "496b12a665968146e97bd311d1d1ee55970f2232e00bc4343b10ee4624754210",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_area_population_v1",
+      "signature": "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "area",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "first_date",
+          "type": "date",
+          "default": null
+        },
+        {
+          "name": "last_date",
+          "type": "date",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "b9e85f6eb45c0990998f85bfb42a5b7db398b98ed6c28d9272b764411ac20501",
+      "declarationSha256": "0739e78bc67b88d86b24ddddfc42431235f53a05c39f880ee237e919d0d89820",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_proposal_hash_v1",
+      "signature": "public.attendance_expected_devices_proposal_hash_v1(public.attendance_expected_device_proposal)",
+      "parameters": [
+        {
+          "name": "q",
+          "type": "public.attendance_expected_device_proposal",
+          "default": null
+        }
+      ],
+      "returns": "text",
+      "language": "sql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "ce26baaa4dbe76dd1e96bea2ac901642aa90760399e6d03054a8429c77dbf4eb",
+      "declarationSha256": "9487deec4373cb014b5fecb90132e400cf83892eda85b1f6b0a5d944f6aee61a",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_record_v1",
+      "signature": "public.attendance_expected_devices_record_v1(jsonb,jsonb,public.attendance_expected_device_proposal)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "review_ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "q",
+          "type": "public.attendance_expected_device_proposal",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "39d7e2111e2edfe8cb92d42484e0ca33d8c01aa93a4f305be09eb43eae20234e",
+      "declarationSha256": "9b0b6a91b9e97c56b27d5bafa7b2e92869be3a2eeb9b7454fcf38fbd50223daa",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_replay_v1",
+      "signature": "public.attendance_expected_devices_replay_v1(jsonb,jsonb,uuid,text)",
+      "parameters": [
+        {
+          "name": "p",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "read_ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "k",
+          "type": "uuid",
+          "default": null
+        },
+        {
+          "name": "fp",
+          "type": "text",
+          "default": "NULL"
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "59706a6ccdfbbc8c3b8682cf8acf628f261ad83fef79c361d2e35df16fee6055",
+      "declarationSha256": "9c4c020fe5c548147a38c52162849731c21f4c7a9b99ac37e1c1f1aa3a3b278c",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_expected_devices_read_v1",
+      "signature": "public.attendance_expected_devices_read_v1(jsonb,jsonb)",
+      "parameters": [
+        {
+          "name": "p",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "q",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "e3c5d24aa2ada5f38558de21c26c33b780aea71df1bc979e4891d6eada1b8739",
+      "declarationSha256": "ad58014fbcb59456d12b419de6b5b07365c78a713e0d516ada1e253f28871eb5",
+      "candidateRuntimeFacade": true
+    },
+    {
+      "name": "attendance_expected_devices_command_v1",
+      "signature": "public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)",
+      "parameters": [
+        {
+          "name": "p",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "b",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "k",
+          "type": "uuid",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "f9cb444ca71f9261ede479932691ae89418643824a293d7b2f4e54f5d4b04b6b",
+      "declarationSha256": "a62aca057ef4158e5435fbcd52793592d88461b9d8a888e489a55a6b34712503",
+      "candidateRuntimeFacade": true
+    },
+    {
+      "name": "attendance_expected_devices_effective_v1",
+      "signature": "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)",
+      "parameters": [
+        {
+          "name": "ctx",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "target",
+          "type": "uuid",
+          "default": null
+        },
+        {
+          "name": "on_date",
+          "type": "date",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "STABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp",
+        "timezone='UTC'"
+      ],
+      "prosrcSha256": "f36da308715831f3bd29f938bca04eba03c8a0d5ed159bafb9f13e1eb3d7df79",
+      "declarationSha256": "2658499306f41d4c35e1ead57c2d5b1cf1201c3a6398038f3448a5649f902237",
+      "candidateRuntimeFacade": false
+    }
+  ],
+  "technicalLimits": {
+    "queryBytes": 8192,
+    "commandBytes": 32768,
+    "selectedDevices": 100,
+    "deviceCatalogue": 1000,
+    "populationCandidates": 2000,
+    "rangeDayDifference": 366,
+    "pageSize": 100
+  },
+  "semantics": {
+    "areaNullSector": "exact, never a wildcard",
+    "devices": "explicit, nonempty exhaustive declaration for one contract, not inferred from observations",
+    "makerChecker": "different actor person and membership",
+    "retire": "independent reviewer, explicit effectiveFrom, append-only; earlier dates retained",
+    "unknownPopulation": "known scoped members retained; complete=false blocks whole-area conclusions",
+    "scopeVersion": "fresh session, identity, binding, capabilities, all area grants and authorized catalogue labels",
+    "recovery": "same actor, membership, binding, session, scope and exact JSON body; stored immutable result",
+    "deviceNamespace": "attendance_device.id from inventory022; no inferred clock-store key",
+    "coverage": "a declaration never certifies transfer, marks, workday coverage, absence or payroll"
+  },
+  "compositionRequired": [
+    "review and pin exact prerequisite schemas, trigger metadata, ACLs and complete dependency closure",
+    "validate SQL and race behavior in the independently authorized isolated laboratory",
+    "remove source-only barrier only inside an explicitly reviewed composed installer",
+    "grant only the two facade signatures after release attestation; helpers and tables remain private",
+    "provision explicit area scopes and capabilities through the authorized installation lane"
+  ]
+}

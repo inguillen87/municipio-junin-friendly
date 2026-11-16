@@ -91,6 +91,12 @@
     },
     "api/internal-own-collective-dispatch.js": {
       "maxDuration": 60
+    },
+    "api/internal-attendance-expected-devices.js": {
+      "maxDuration": 20
+    },
+    "api/internal-attendance-area.js": {
+      "maxDuration": 20
     }
   },
   "rewrites": [
@@ -503,6 +509,10 @@
       "destination": "/relojes-marcaciones.html"
     },
     {
+      "source": "/asistencia-dispositivos",
+      "destination": "/asistencia-dispositivos.html"
+    },
+    {
       "source": "/tiempo",
       "destination": "/fuentes-tiempo.html"
     },
@@ -826,6 +836,24 @@
     },
     {
       "source": "/relojes-marcaciones.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/asistencia-dispositivos",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/asistencia-dispositivos.html",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1455,6 +1483,11 @@
     {
       "source": "/relojes-marcaciones.html",
       "destination": "/relojes",
+      "permanent": false
+    },
+    {
+      "source": "/asistencia-dispositivos.html",
+      "destination": "/asistencia-dispositivos",
       "permanent": false
     },
     {
