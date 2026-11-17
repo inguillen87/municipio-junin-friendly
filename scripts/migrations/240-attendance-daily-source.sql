@@ -3,6 +3,7 @@
 DO $prerequisite$
 BEGIN
   IF to_regprocedure('public.attendance_area_workdays_read_v1(jsonb,jsonb)') IS NULL
+    OR to_regprocedure('public.time_catalog_assert_actor_authority_v1(jsonb,text)') IS NULL
     OR to_regprocedure('public.time_catalog_assignment_view_v2(jsonb,uuid)') IS NULL
     OR to_regprocedure('public.time_catalog_entry_snapshot_v1(uuid,uuid)') IS NULL
     OR to_regclass('public.time_catalog_entry') IS NULL
@@ -25,6 +26,7 @@ AS $$
 DECLARE
   area_value jsonb;
   catalog_context jsonb;
+  binding_context jsonb;
   catalog_value jsonb;
 BEGIN
   -- The existing area function authenticates the live session and returns
@@ -40,9 +42,18 @@ BEGIN
   -- The native catalog assignment facade is intentionally not executable by
   -- the runtime role. This SECURITY DEFINER wrapper calls it only after the
   -- contract IDs have been restricted to the area population above.
-  catalog_context:=p_context||jsonb_build_object(
-    'certifiedBindingId',area_value->'principal'->>'sourceBindingId',
-    'assignmentReadAllowed',true
+  SELECT jsonb_build_object('sourceCompanyId',binding.source_company_id,'sourceDatabase',binding.source_database)
+    INTO binding_context
+  FROM public.platform_tenant_source_binding binding
+  WHERE binding.id=(area_value->'principal'->>'sourceBindingId')::uuid
+    AND binding.tenant_id=(area_value->'principal'->>'tenantId')::uuid
+    AND binding.source_system='GRH' AND binding.verified IS TRUE
+  FOR SHARE;
+  IF binding_context IS NULL THEN RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_BINDING_INVALID'; END IF;
+  catalog_context:=public.time_catalog_assert_actor_authority_v1(
+    p_context||binding_context||jsonb_build_object(
+      'certifiedBindingId',area_value->'principal'->>'sourceBindingId'
+    ),'time.catalog.read'
   );
 
   WITH scoped_contracts AS MATERIALIZED (
