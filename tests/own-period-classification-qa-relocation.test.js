@@ -105,7 +105,10 @@ test('the QA predecessor refuses altered138, altered strict body, public grants 
 test('the reviewed capture-lock source epoch preserves the original business fixture and live source hashes',()=>{
  assert.equal(artifact.fixtureChain,'legacy-native-payroll-without-final-source.v1');
  assert.equal(Object.keys(artifact.fixtureSourceHashes).length,8);
- assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'9634e7ff3136be4bf131abadbbe3758489c5c74368629ddedc5bba64ce530cec');
+ // Epoch renewed for PR289 (49369b84): the receipt handler of this QA now runs through the synthetic
+ // receipt runtime binding. The salary-namespace business checks themselves are unchanged
+ // (previous epoch 9634e7ff3136be4bf131abadbbe3758489c5c74368629ddedc5bba64ce530cec).
+ assert.equal(artifact.fixtureSourceHashes['scripts/verify-salary-auxiliary-namespace.mjs'],'bb056fd72d8f3c7d9534a3d61788409ab653621bf4197d00df37183f67fec4a5');
  assert.equal(artifact.fixtureSourceHashes['scripts/verify-own-period-participation.mjs'],'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-lock-observation.mjs'],'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9');
  assert.equal(artifact.fixtureSourceHashes['scripts/lib/qa-run-capture-lock.mjs'],'80369adf746d65426040db4016ee72bf7c49e0ecbb5fe0986458590d5a4f88d6');
