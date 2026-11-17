@@ -79,6 +79,7 @@ BEGIN
       COALESCE((SELECT jsonb_agg(jsonb_build_object('record',record,'assignment',assignment)
         ORDER BY id) FROM assignment_views WHERE assignment IS NOT NULL),'[]'::jsonb)
     ) AS data
+    FROM catalog_context
   )
   SELECT jsonb_build_object('area',area_source.data,'catalog',catalog.data)
     INTO result_value
