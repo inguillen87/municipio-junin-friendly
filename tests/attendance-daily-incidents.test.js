@@ -1,7 +1,9 @@
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest} from '../lib/attendance-daily-incidents.js';
+import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest, validateAttendanceDailySource} from '../lib/attendance-daily-incidents.js';
 import {dailyFixture, rebindDaily, id, evidence, V3_DAY, V3_CONTRACT} from './fixtures/attendance-daily-incidents-synthetic.js';
+import {ATTENDANCE_DAILY_SOURCE_SQL} from '../lib/internal-attendance-daily-source.js';
 import {v3Events, hash, V3_OTHER_CONTRACT} from './fixtures/continuous-workdays-v3-api-synthetic.js';
 const invalid = e => e.code === 'ATTENDANCE_DAILY_SOURCE_INVALID' && e.message === 'ATTENDANCE_DAILY_SOURCE_INVALID';
 const has = (result, code) => assert.ok(result.blockerCodes.includes(code), code);
@@ -248,4 +250,27 @@ test('notice projection carries only fixed aggregate fields and changes key with
   source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 60;
   const next = run(source); assert.notEqual(next.key, result.key); assert.equal(next.scopeKey, result.scopeKey);
   assert.equal(attendanceDailyDigest({b:2,a:1}), attendanceDailyDigest({a:1,b:2}));
+});
+
+
+test('the exported source validator returns the same exact input and rejects altered component hashes', () => {
+  const source = dailyFixture();
+  assert.equal(validateAttendanceDailySource(source), source);
+  const invalidSource = dailyFixture();
+  invalidSource.cut.componentSha256.catalog = 'f'.repeat(64);
+  assert.throws(() => validateAttendanceDailySource(invalidSource), invalid);
+});
+
+
+test('T4 producer calls one SQL function and its migration scopes approved assignments before projection', () => {
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /attendance_daily_source_read_v1/);
+  const migration = readFileSync(new URL('../scripts/migrations/240-attendance-daily-source.sql', import.meta.url), 'utf8');
+  assert.match(migration, /public\.attendance_area_workdays_read_v1\(p_context,p_query\)/);
+  assert.match(migration, /scoped_contracts AS MATERIALIZED/);
+  assert.match(migration, /spec\.employment_contract_id=contract\.contract_id::uuid/);
+  assert.match(migration, /entry\.status='approved'/);
+  assert.match(migration, /entry\.effective_from<=\(p_query->>'day'\)::date/);
+  assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_context\.data,entry\.id\)/);
+  assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
 });
