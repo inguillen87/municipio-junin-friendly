@@ -67,7 +67,7 @@ BEGIN
     SELECT entry.id,entry.employment_contract_id,
       public.time_catalog_entry_snapshot_v1(entry.id,entry.tenant_id) AS record,
       public.time_catalog_assignment_view_v2(
-        catalog_context.data||jsonb_build_object('assignmentReadAllowed',true),entry.id
+        catalog_context.data,entry.id
       ) AS assignment
     FROM assignment_entries entry CROSS JOIN catalog_context
   ), catalog AS MATERIALIZED (
