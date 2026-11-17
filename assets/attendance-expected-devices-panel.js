@@ -29,6 +29,11 @@ const principalKey = principal => JSON.stringify([
   principal.sessionId, principal.sessionVersion, principal.sourceBindingId, principal.scopeVersion,
 ]);
 const areaFromScope = scope => ({ organizationUnitSourceId: scope.organizationUnitSourceId, sectorSourceId: scope.sectorSourceId });
+// Presentation only: API values stay ISO. A civil date reads dd/mm/aaaa; an instant reads in the municipality's zone.
+export const aedDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.slice(8, 10) + '/' + value.slice(5, 7) + '/' + value.slice(0, 4) : value;
+const INSTANT = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Mendoza', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export const aedInstant = value => { const ms = typeof value === 'string' ? Date.parse(value) : NaN; return Number.isFinite(ms) ? INSTANT.format(new Date(ms)).replace(',', '') + ' h' : value; };
+export const aedCount = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
 function errorText(error, pending) {
   if (error?.code === 'ATTENDANCE_EXPECTED_DEVICES_ACCESS_CHANGED') return 'Cambió la cuenta, la sesión o el alcance. Volvé a verificar el acceso; un envío pendiente conserva su identidad original.';
@@ -240,14 +245,14 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
     const dl = node(doc, 'dl', undefined, 'aed-facts');
     for (const [label, value] of [
       ['Contrato', record.contractLabel], ['Repartición y sector', record.areaLabel],
-      ['Vigencia desde', record.validFrom], ['Vigencia hasta', record.validUntil ?? 'Sin fecha final declarada'],
+      ['Vigencia desde', aedDay(record.validFrom)], ['Vigencia hasta', record.validUntil ? aedDay(record.validUntil) : 'Sin fecha final declarada'],
       ['Estado', STATES[record.status] ?? record.status], ['Revisión', record.version],
     ]) if (value !== undefined) dl.append(node(doc, 'dt', label), node(doc, 'dd', String(value)));
     parent.append(dl);
     const devices = node(doc, 'ul', undefined, 'aed-list');
     for (const device of record.devices) devices.append(node(doc, 'li', device.label + ' · ' + device.siteLabel));
     parent.append(node(doc, 'h4', 'Dispositivos declarados'), devices);
-    if (record.retiredEffectiveFrom) parent.append(node(doc, 'p', 'Retirada desde ' + record.retiredEffectiveFrom + ', inclusive.'));
+    if (record.retiredEffectiveFrom) parent.append(node(doc, 'p', 'Retirada desde ' + aedDay(record.retiredEffectiveFrom) + ', inclusive.'));
   }
   function showList() {
     $('records').replaceChildren();
@@ -263,7 +268,7 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
       card.append(open); $('records').append(card);
     }
     $('page').textContent = listing.total === 0 ? '0 declaraciones registradas.'
-      : 'Mostrando ' + (listing.offset + 1) + ' a ' + (listing.offset + records.length) + ' de ' + listing.total + ' declaraciones.';
+      : 'Mostrando ' + (listing.offset + 1) + ' a ' + (listing.offset + records.length) + ' de ' + aedCount(listing.total, 'declaración', 'declaraciones') + '.';
     controls();
   }
   async function readList(offset, valid) {
@@ -323,7 +328,7 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
         label.append(input, node(doc, 'span', device.label + ' · ' + device.siteLabel)); $('devices').append(label);
       }
       $('choices-content').hidden = false;
-      $('source').textContent = choices.contracts.length + ' contratos autorizados y ' + choices.devices.length + ' dispositivos disponibles para ' + area.label + ', del ' + query.validFrom + ' al ' + query.validUntil + '.';
+      $('source').textContent = aedCount(choices.contracts.length, 'contrato autorizado', 'contratos autorizados') + ' y ' + aedCount(choices.devices.length, 'dispositivo disponible', 'dispositivos disponibles') + ' para ' + area.label + ', del ' + aedDay(query.validFrom) + ' al ' + aedDay(query.validUntil) + '.';
       if (!choices.complete) {
         const partial = 'La población del área está incompleta. Sólo se muestran contratos con pertenencia verificada; esto no habilita cálculo de ausencias.';
         $('source').textContent += ' ' + partial;
@@ -335,7 +340,7 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
     prepared = freeze(structuredClone(command));
     $('comparison-facts').replaceChildren(); facts($('comparison-facts'), record);
     $('comparison-facts').append(node(doc, 'p', 'Fundamento: ' + command.reason));
-    if (command.command === 'retire') $('comparison-facts').append(node(doc, 'p', 'Retirar desde ' + command.payload.effectiveFrom + ', inclusive.'));
+    if (command.command === 'retire') $('comparison-facts').append(node(doc, 'p', 'Retirar desde ' + aedDay(command.payload.effectiveFrom) + ', inclusive.'));
     $('comparison-action').textContent = command.command === 'propose'
       ? 'Se registrará una propuesta pendiente de revisión por otra persona.'
       : 'Se registrará la decisión sobre esta revisión exacta. Se conservará el historial.';
@@ -370,7 +375,7 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
     for (const event of detail.history) {
       const item = node(doc, 'li');
       item.append(node(doc, 'strong', ACTIONS[event.command] ?? event.command));
-      item.append(node(doc, 'p', 'Revisión ' + event.resultingVersion + ' · ' + event.occurredAt));
+      item.append(node(doc, 'p', 'Revisión ' + event.resultingVersion + ' · ' + aedInstant(event.occurredAt)));
       item.append(node(doc, 'p', expectedDevicesReasonOptions(event.command).find(reason => reason.value === event.reasonCode).label));
       $('history').append(item);
     }

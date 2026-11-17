@@ -1,0 +1,80 @@
+# Propuestas T4 pendientes de decisión — borrador 17/11/2026
+
+Estado: **sólo diseño**. No es migración, no crea tablas, no concede capacidades y no debe instalarse sin decisión explícita de Marcelo y revisión/instalación de Codex.
+
+## C. Fuente explícita de cobertura por contrato, dispositivo e intervalo
+
+### Objetivo
+
+Conservar evidencia declarativa de qué dispositivos deben cubrir qué contratos, en qué sede y durante qué intervalo. Esta declaración no prueba por sí sola que el dispositivo haya transmitido; el productor T4 debe contrastarla con capturas/recibos íntegros del mismo corte.
+
+### Modelo propuesto
+
+Entidad lógica inmutable attendance_coverage_declaration:
+
+- id, tenant_id, source_binding_id, site_id.
+- contract_id, device_id.
+- valid_from, valid_until (intervalo civil inclusivo, zona horaria heredada de la sede).
+- status: pending, approved, rejected, retired.
+- revision, supersedes_id, payload_sha256.
+- Proponente: actor_membership_id, actor_person_id, actor_session_id, actor_session_version, recorded_at.
+- Revisor: mismos campos de identidad/sesión y decided_at; nunca puede coincidir con el proponente.
+- reason_code cerrado; no incluir notas libres ni datos de empleados.
+
+Una propuesta agrupa un conjunto completo de filas bajo proposal_id y un hash canónico. Las decisiones son eventos append-only. Una aprobación cubre exactamente el payload revisado; cualquier modificación requiere nueva propuesta y segunda aprobación.
+
+### Reglas de integridad
+
+1. Contrato y dispositivo pertenecen al mismo tenant y sede; contrato pertenece al área durante todo el intervalo según historia acreditada.
+2. No se permite solapamiento aprobado para el mismo contrato/dispositivo cuando genere ambigüedad; los reemplazos requieren retiro efectivo explícito y nueva revisión.
+3. El proponente no puede aprobar ni retirar su propia declaración.
+4. La aprobación vuelve a validar identidad nativa, permisos, scope, sesión, versión, historial contractual, inventario del dispositivo y conflictos temporales bajo bloqueo transaccional.
+5. La declaración aprobada no equivale a recepción completa: coverage.status sólo puede ser confirmed si la evidencia del gateway demuestra todos los dispositivos y contratos esperados en el intervalo y en el mismo sourceRevision.
+6. Sin evidencia de recepción, el resultado permanece A confirmar; no se generan ausencias, descuentos, notificaciones ni cantidades 101/107.
+
+### Capacidades sugeridas (nombres tentativos)
+
+- attendance.coverage.propose
+- attendance.coverage.approve
+- attendance.coverage.read
+
+Cada capacidad requiere scope explícito por área y sede. El permiso de lectura no permite proponer ni decidir. No se hereda de attendance.area.read.
+
+### Preguntas para decisión
+
+- ¿La cobertura se declara por contrato+dispositivo o por grupo de contratos/dispositivos con filas expandidas e inmutables?
+- ¿El intervalo se administra por día o por fechas efectivas inclusivas?
+- ¿Quiénes serán los dos perfiles municipales habilitados para proponer y aprobar?
+
+## D. Lectura acotada del estado de justificaciones por área
+
+### Objetivo
+
+Permitir que T4 y la campanita conozcan sólo el estado agregado de justificaciones de un área/día, sin revelar motivos, notas, adjuntos, nombres, legajos ni identidad del solicitante.
+
+### Condición de autoridad
+
+La lectura debe pasar por native_leave_authorized_v1 y conservar sus comprobaciones de sesión, binding, tenant, identidad nativa, capacidad y alcance. attendance.area.read por sí sola no autoriza leer licencias. No se debe consultar native_leave_event directamente desde el runtime ni crear una ruta alternativa que evite el helper.
+
+### Proyección mínima propuesta
+
+Por área+día+corte:
+- status: confirmed, a_confirmar o blocked.
+- counts: approved, pending, rejected, unavailable (enteros no negativos; unavailable cuando no se puede demostrar el total).
+- sourceRevision, generatedAt, componentSha256.
+- blockerCodes: códigos cerrados, sin texto libre.
+- coverageComplete: booleano.
+
+No devolver contractId, personId, registrationId, reason, payload, evidence, actor, owner, notes, attachments ni identificadores de evento.
+
+### Propuesta de capacidad
+
+attendance.area.justifications.status.read, con scope exacto de área y sólo para la proyección agregada. La función invoca internamente native_leave_authorized_v1 para cada lectura y falla cerrada si la autoridad no se confirma. No concede permisos de lectura de detalle ni de gestión de licencias.
+
+### No incluido
+
+No se propone capacidad de aprobar, rechazar, consultar fundamentos, abrir adjuntos ni cambiar estados. El detalle sigue en el circuito nativo de licencias y sus permisos propios.
+
+## Decisión y despliegue
+
+C y D son propuestas para revisión municipal. No están aprobadas, no crean autoridad y no forman parte de una instalación. Codex debe revisar dependencias, seguridad, SQL y grants después de la decisión explícita de Marcelo.

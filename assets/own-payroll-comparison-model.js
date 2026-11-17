@@ -9,6 +9,12 @@ const need=(v,message)=>{if(!v)throw Error(message);};
 const precision=v=>v.split('.')[1]?.length??0;
 const difference=(a,b)=>quantize(exactSubtract(decimal(b),decimal(a)),{precision:Math.max(precision(a),precision(b)),mode:'exact'}).amount;
 const order=(a,b)=>a<b?-1:a>b?1:0;
+const comparisonTotalLabels = new Set(['Bruto','Retenciones','Neto calculado','Aportes patronales']);
+export function ownComparisonCentRounding(label, delta) {
+ if (!comparisonTotalLabels.has(label) || typeof delta !== 'string') return false;
+ const value = decimal(delta), numerator = value.n < 0n ? -value.n : value.n, cents = numerator * 100n;
+ return cents > 0n && cents <= 5n * value.d && cents % value.d === 0n;
+}
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const sourceProof=c=>[c.id,c.key,c.bodySha256,c.algorithmSha256,c.payloadSha256,c.createdAt,c.saved.inputSha256,c.saved.resultSha256,c.saved.recordedAt];
 const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(!ownHistoricalNamespaced(input)||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));

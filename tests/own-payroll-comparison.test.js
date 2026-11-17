@@ -28,3 +28,20 @@ test('un cambio de decisiones administrativas invalida la prueba de exportación
 test('PDF impide alterar un carácter que su fuente no puede representar',()=>{const {base,target}=comparisonSources(1);for(const c of [base,target]){c.saved.input.employees[0].employeeNumber='A/🙂';for(const r of c.saved.result.rows)r.employeeNumber='A/🙂';}const d=ownComparisonDocument(ownComparison(base,target));assert.ok(reportCsv(d).includes('A/🙂'));assert.throws(()=>reportPdf(d),/carácter/);});
 test('capacidad global y vistas inválidas se rechazan sin mostrar una parte',()=>{const {base,target}=comparisonSources(1),m=ownComparison(base,target);for(const values of [{view:'legacy'},{change:'none'},{page:0},{search:'x'.repeat(101)},{pageSize:101}])assert.throws(()=>ownComparisonView(m,values));const d=ownComparisonDocument(m);d.rows=Array.from({length:250001},()=>d.rows[0]);assert.throws(()=>reportCsv(d));});
 test('ambas pantallas mantienen la comparación de respaldos y priorizan corridas propias',()=>{for(const file of ['assets/payroll-navigation.js','assets/report-centre.js']){const s=fs.readFileSync(file,'utf8');assert.match(s,/mountOwnPayrollComparison/);assert.match(s,/mountPayrollComparison/);assert.match(s,/Comparar liquidaciones incorporadas desde respaldos/);}const ui=fs.readFileSync('assets/own-payroll-comparison-panel.js','utf8');assert.ok(!ui.includes("method:'POST'"));assert.ok(!/localStorage|sessionStorage/.test(ui));});
+
+test('a 3-cent difference between own-run gross totals remains a real variation', () => {
+  const {base, target} = comparisonSources(1);
+  base.saved.result.employeeTotals[0].gross = '100.00';
+  target.saved.result.employeeTotals[0].gross = '100.03';
+  const row = ownComparison(base, target).totals.find(x => x.label === 'Bruto');
+  assert.equal(row.delta, '0.03');
+  assert.equal(row.changed, true);
+  assert.equal(row.status, 'Con variación');
+  assert.equal(row.roundingDifference, undefined);
+});
+test('the GRH cent-rounding helper remains exported for the future GRH comparator only', async () => {
+  const {ownComparisonCentRounding} = await import('../assets/own-payroll-comparison-model.js');
+  assert.equal(typeof ownComparisonCentRounding, 'function');
+  assert.equal(ownComparisonCentRounding('Retenciones', '0.03'), true);
+  assert.equal(ownComparisonCentRounding('Retenciones', '0.06'), false);
+});
