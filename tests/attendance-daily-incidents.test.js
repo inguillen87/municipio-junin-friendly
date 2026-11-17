@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest, validateAttendanceDailySource} from '../lib/attendance-daily-incidents.js';
 import {dailyFixture, rebindDaily, id, evidence, V3_DAY, V3_CONTRACT} from './fixtures/attendance-daily-incidents-synthetic.js';
+import {ATTENDANCE_DAILY_SOURCE_SQL} from '../lib/internal-attendance-daily-source.js';
 import {v3Events, hash, V3_OTHER_CONTRACT} from './fixtures/continuous-workdays-v3-api-synthetic.js';
 const invalid = e => e.code === 'ATTENDANCE_DAILY_SOURCE_INVALID' && e.message === 'ATTENDANCE_DAILY_SOURCE_INVALID';
 const has = (result, code) => assert.ok(result.blockerCodes.includes(code), code);
@@ -257,4 +258,16 @@ test('the exported source validator returns the same exact input and rejects alt
   const invalidSource = dailyFixture();
   invalidSource.cut.componentSha256.catalog = 'f'.repeat(64);
   assert.throws(() => validateAttendanceDailySource(invalidSource), invalid);
+});
+
+
+test('T4 SQL scopes approved assignments to the area contracts before projecting catalog entries', () => {
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /WITH area_source AS MATERIALIZED/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /scoped_contracts AS MATERIALIZED/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /spec\.employment_contract_id=contract\.contract_id::uuid/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /entry\.status='approved'/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /entry\.effective_from<=\(\$2->>'day'\)::date/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /time_catalog_assignment_view_v2/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /time_catalog_entry_snapshot_v1/);
+  assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /FROM area_source CROSS JOIN catalog/);
 });
