@@ -1,4 +1,9 @@
--- T4 A · compose area workdays/population and approved assignments in one MVCC statement.
+-- T4 A · compose area workdays/population and approved assignments in one SQL statement.
+-- One statement is NOT one MVCC snapshot here: attendance_area_workdays_read_v1 and
+-- time_catalog_assignment_view_v2 are plpgsql VOLATILE, and under READ COMMITTED every query inside
+-- them takes a fresh snapshot. A confirmed joint cut requires calling this function inside
+-- BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; until then the producer declares consistency
+-- 'unconfirmed' and the evaluator blocks with JOINT_CUT_UNCONFIRMED.
 -- Additive preparation only. Codex owns installation; this file grants no new catalog authority.
 DO $prerequisite$
 BEGIN
@@ -26,8 +31,8 @@ AS $$
 DECLARE
   result_value jsonb;
 BEGIN
-  -- Every read, authority check and projection is inside this one SQL statement.
-  -- MATERIALIZED CTEs share the caller statement's MVCC snapshot.
+  -- Every read, authority check and projection is inside this one SQL statement. The CTEs' own
+  -- reads share its snapshot; reads inside the VOLATILE functions do not (see header).
   WITH area_source AS MATERIALIZED (
     SELECT public.attendance_area_workdays_read_v1(p_context,p_query) AS data
   ), binding AS MATERIALIZED (

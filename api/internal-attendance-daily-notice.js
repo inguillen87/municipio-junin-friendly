@@ -9,10 +9,13 @@ import {schoolCertificateHttp} from './internal-family-certificates.js';
 import {EXPECTED_DEVICES_READ} from '../assets/attendance-expected-devices-model.js';
 import {attendanceDailyNoticeFail, attendanceDailyNoticeRead, attendanceDailyNoticeSafeError} from '../lib/internal-attendance-daily-notice.js';
 import {produceAttendanceDailySource} from '../lib/internal-attendance-daily-source.js';
+import {listAttendanceDailyScopes} from '../lib/internal-attendance-daily-scopes.js';
 export const config = {api: {bodyParser: false}};
-// T4 · A producer (PR300). The scope list (areas × sites the account may read) is still pending on
-// the A side; until it exists the reading answers "not ready" and opens no connection.
-export const ATTENDANCE_DAILY_NOTICE_DEFAULT_DEPS = Object.freeze({producer: produceAttendanceDailySource, scopes: null});
+// T4 · A producer (PR300, migration 240) and the scope list (migration 241). Both SQL functions are
+// installed by Codex. The reading stays "not ready" — no connection, no notice, no failure in the
+// bell — until the deployment sets ATTENDANCE_DAILY_NOTICE_ENABLED=true after that installation.
+export const ATTENDANCE_DAILY_NOTICE_DEFAULT_DEPS = Object.freeze({producer: produceAttendanceDailySource, scopes: listAttendanceDailyScopes});
+export const attendanceDailyNoticeEnabled = env => env?.ATTENDANCE_DAILY_NOTICE_ENABLED === 'true';
 
 export function attendanceDailyNoticeHttpQuery(req) {
   if (req.url && Buffer.byteLength(req.url, 'utf8') > 1024) attendanceDailyNoticeFail('QUERY_INVALID', 400, 'La consulta no es válida.');
@@ -39,9 +42,11 @@ export function createAttendanceDailyNoticeHandler(deps = {}) {
       if (!access) return;
       if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, [EXPECTED_DEVICES_READ]))
         attendanceDailyNoticeFail('FORBIDDEN', 403, 'Tu cuenta necesita lectura explícita de asistencia por área.');
-      const session = sessionFor(access, env), ready = typeof producer === 'function' && typeof scopes === 'function';
+      const session = sessionFor(access, env), enabled = attendanceDailyNoticeEnabled(env);
+      const ready = enabled && typeof producer === 'function' && typeof scopes === 'function';
       const sql = ready ? await getSql(env) : null;
-      const data = await attendanceDailyNoticeRead({sql, principal: access.principal, session, now: now(), producer, scopes, ...(dayCount === undefined ? {} : {dayCount})});
+      const data = await attendanceDailyNoticeRead({sql, principal: access.principal, session, now: now(),
+        producer: ready ? producer : null, scopes: ready ? scopes : null, ...(dayCount === undefined ? {} : {dayCount})});
       return res.status(200).json({ok: true, data});
     } catch (e) {
       const safe = attendanceDailyNoticeSafeError(e);

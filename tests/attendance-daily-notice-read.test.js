@@ -69,7 +69,13 @@ test('a scope with any failed day is dropped entirely, and the bell names the fa
 test('scopes are exact, unique and bounded; more than the limit is refused, never cut', async () => {
   assert.throws(() => attendanceDailyNoticeScopes([scope, structuredClone(scope)]), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID');
   assert.throws(() => attendanceDailyNoticeScopes([{...scope, extra: 1}]), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID');
-  assert.throws(() => attendanceDailyNoticeScopes([{...scope, site: 'Sede Con Espacios'}]), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID');
+  assert.throws(() => attendanceDailyNoticeScopes([{...scope, site: 'x'.repeat(97)}]), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID');
+  assert.throws(() => attendanceDailyNoticeScopes([{...scope, site: 7}]), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID');
+  // A real site key the daily cut cannot carry is unsupported: counted, never silently dropped.
+  assert.deepEqual(attendanceDailyNoticeScopes([{...scope, site: 'sede.con.punto'}, structuredClone(scope)]), {scopes: [structuredClone(scope)], unsupported: 1});
+  const partial = await read({scopes: async () => [{...structuredClone(scope), site: 'sede.con.punto'}, structuredClone(scope)]});
+  assert.equal(partial.scopeCount, 2); assert.equal(partial.failedScopes, 1); assert.equal(partial.notices.length, 1);
+  assert.ok(bellState([], [], [], pendingBellDailySources(partial)).failed.includes('Asistencia diaria'));
   const many = Array.from({length: ATTENDANCE_DAILY_NOTICE_MAX_SCOPES + 1}, (_, i) => ({area: {organizationUnitSourceId: String(100 + i), sectorSourceId: null}, site: 'qa-site'}));
   await assert.rejects(read({scopes: async () => many}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_LIMIT' && e.status === 413);
   await assert.rejects(read({scopes: async () => { throw new Error('boom'); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID' && e.status === 503);
@@ -85,7 +91,7 @@ const response = () => ({headers: {}, setHeader(k, v) { this.headers[k] = v; }, 
 const request = (url = '/api/internal-attendance-daily-notice?resource=notices', method = 'GET') => ({method, url, query: Object.fromEntries(new URL(url, 'http://x.invalid').searchParams), headers: {}});
 function handler(options = {}) {
   const stats = {connections: 0};
-  const h = createAttendanceDailyNoticeHandler({env: {}, now: () => NOW, sessionFor: () => session, dayCount: 1,
+  const h = createAttendanceDailyNoticeHandler({env: options.env ?? (options.ready ? {ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'} : {}), now: () => NOW, sessionFor: () => session, dayCount: 1,
     requireAccess: async (_req, res, gates) => { stats.gates = gates; if (options.denied) { res.status(options.denied).json({ok: false}); return null; } return {mode: 'managed', principal}; },
     getSql: async () => { stats.connections++; return sql; }, ...(options.ready ? {producer, scopes} : {})});
   return {h, stats};
@@ -159,4 +165,50 @@ test('the endpoint is registered with a bounded duration and the bell mounts it 
   assert.ok(mount.includes("capability: 'attendance.area.read'") && mount.includes('{daily}'));
   const lib = fs.readFileSync('lib/internal-attendance-daily-notice.js', 'utf8');
   assert.ok(!/sql\.query|FROM |native_leave|time_source/.test(lib), 'the reader never reads tables itself');
+});
+
+test('the scope list comes from one SQL function, bound to this tenant and membership, with the window the reader asks for', async () => {
+  const {listAttendanceDailyScopes, ATTENDANCE_DAILY_SCOPES_SQL} = await import('../lib/internal-attendance-daily-scopes.js');
+  const area = await import('./fixtures/attendance-area-synthetic.js');
+  const answer = (over = {}) => ({version: 'attendance-daily-scopes.v1', tenantId: area.principal.tenant.id, membershipId: area.principal.tenant.membershipId,
+    scopes: [{area: structuredClone(area.area), site: 'qa-site'}], ...over});
+  const calls = [];
+  const fake = body => ({async query(text, values) { calls.push({text, values}); return [{result: JSON.stringify(body)}]; }});
+  const scopes = await listAttendanceDailyScopes(fake(answer()), area.principal, area.session, {firstDay: '2026-11-13', lastDay: '2026-11-14'});
+  assert.deepEqual(scopes, [{area: area.area, site: 'qa-site'}]);
+  assert.equal(calls[0].text, ATTENDANCE_DAILY_SCOPES_SQL);
+  assert.deepEqual(Object.keys(JSON.parse(calls[0].values[0])).sort(), ['actorEmail', 'actorSessionId', 'actorSessionVersion', 'membershipId', 'releaseSha', 'tenantId']);
+  assert.deepEqual(JSON.parse(calls[0].values[1]), {firstDay: '2026-11-13', lastDay: '2026-11-14'});
+  for (const bad of [answer({tenantId: '77777777-7777-4777-8777-777777777777'}), answer({membershipId: '77777777-7777-4777-8777-777777777777'}), answer({version: 'v0'}), answer({extra: 1})])
+    await assert.rejects(listAttendanceDailyScopes(fake(bad), area.principal, area.session, {firstDay: '2026-11-13', lastDay: '2026-11-14'}), e => e.code === 'ATTENDANCE_DAILY_SCOPES_UNAVAILABLE');
+  await assert.rejects(listAttendanceDailyScopes(fake(answer()), area.principal, area.session, {firstDay: '2026-11-14', lastDay: '2026-11-13'}), e => e.code === 'ATTENDANCE_DAILY_SCOPES_UNAVAILABLE');
+});
+
+test('production wiring uses migrations 240 and 241 only after ATTENDANCE_DAILY_NOTICE_ENABLED=true', async () => {
+  const area = await import('./fixtures/attendance-area-synthetic.js');
+  const texts = [];
+  const sqlAll = {async query(text) { texts.push(text); throw new Error('function does not exist'); }};
+  for (const [env, expectReady] of [[{}, false], [{ATTENDANCE_DAILY_NOTICE_ENABLED: '1'}, false], [{ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'}, true]]) {
+    let connections = 0;
+    const h = createAttendanceDailyNoticeHandler({env, now: () => NOW, sessionFor: () => area.session,
+      requireAccess: async () => ({mode: 'managed', principal: area.principal}), getSql: async () => { connections++; return sqlAll; }});
+    const res = response(); await h(request(), res);
+    if (expectReady) { assert.equal(res.statusCode, 503); assert.equal(res.payload.code, 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID'); assert.equal(connections, 1);
+      assert.match(texts.at(-1), /attendance_daily_scopes_read_v1/); }
+    else { assert.equal(res.statusCode, 200); assert.equal(res.payload.data.ready, false); assert.equal(connections, 0); }
+  }
+});
+
+test('migration 241 rechecks area authority in SQL and returns only area ids and site keys', () => {
+  const sql = fs.readFileSync('scripts/migrations/241-attendance-daily-scopes.sql', 'utf8');
+  assert.match(sql, /RAISE EXCEPTION 'ATTENDANCE_DAILY_SCOPES_PREREQUISITE'/);
+  assert.match(sql, /RAISE EXCEPTION 'ATTENDANCE_DAILY_SCOPES_ALREADY_INSTALLED'/);
+  assert.match(sql, /LANGUAGE plpgsql VOLATILE SECURITY DEFINER\s+SET search_path=pg_catalog,public,pg_temp/);
+  assert.match(sql, /public\.attendance_area_context_v1\(p_context,'attendance\.area\.read'\)/);
+  assert.match(sql, /decision\.decision='approve'/); assert.match(sql, /retired\.id IS NULL OR retired\.effective_from>first_day/);
+  assert.match(sql, /prop\.sector_source_id IS NOT DISTINCT FROM scope\.sector/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) FROM PUBLIC;/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) TO municontrol_actions_runtime_app;/);
+  const projected = sql.slice(sql.indexOf("'scopes',COALESCE"), sql.indexOf('INTO result_value'));
+  for (const leak of ['contract', 'label', 'person', 'device_ids', 'serial', 'network']) assert.ok(!projected.includes(leak), leak);
 });

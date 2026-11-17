@@ -270,7 +270,7 @@ test('T4 producer calls one SQL function and its migration scopes approved assig
   assert.match(migration, /spec\.employment_contract_id=contract\.contract_id::uuid/);
   assert.match(migration, /entry\.status='approved'/);
   assert.match(migration, /entry\.effective_from<=\(p_query->>'day'\)::date/);
-  assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_context\.data,entry\.id\)/);
+  assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_context\.data,entry\.id\s*\)/);
   assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
 });
