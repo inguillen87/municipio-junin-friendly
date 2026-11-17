@@ -1,5 +1,7 @@
 // Conceptos de liquidación de Junín (maestro GRH «concepto» + asignaciones «codliq» de los 10 convenios liquidables,
 // respaldo 28/10/2026). Sólo código, descripción, clase y si se carga por novedad; sin personas ni importes.
+// 260 se agregó desde el respaldo 09/11/2026: GRH lo liquida en la especial V de noviembre (automático, no sujeto a
+// seguridad social y sí a OSEP). Su descripción cambió de «…2023» a «…2026»; no se carga por novedad.
 // «uses» = renglones en las liquidaciones mensuales ago–oct 2026 (sólo para ordenar sugerencias). Es una ayuda de carga:
 // el servidor sigue validando cada código; un código fuera de esta lista no se bloquea.
 const RAW = [
@@ -113,6 +115,7 @@ const RAW = [
 [232, "SUBROGANCIA RETRO", "haber", 1, 0],
 [240, "DEV.POR DEC.561/2019", "no_remunerativo", 1, 0],
 [250, "BONO EXTRAORDINARIO", "no_remunerativo", 0, 0],
+[260, "PREM. DIA MUNIC.2026", "no_remunerativo", 0, 0],
 [270, "ITEM AULA RETRO (70)", "haber", 1, 0],
 [275, "ADELANTO DE SUELDO", "no_remunerativo", 1, 0],
 [280, "FERIADO 20 DIC", "no_remunerativo", 1, 0],
