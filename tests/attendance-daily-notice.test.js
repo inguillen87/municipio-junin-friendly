@@ -249,11 +249,13 @@ test('optional daily UI renders blocked observations and unknowns without approv
   assert.ok(contents(host).includes('No se pudo consultar ningún circuito.')); assert.ok(!contents(host).includes('SECRET_SYNTHETIC'));
 });
 
-test('daily asset is published while readers and endpoints remain unchanged', () => {
+test('daily asset is published and the bell reaches it only through the authenticated T4 reader', () => {
   const build = fs.readFileSync('scripts/build-friendly.mjs', 'utf8');
   assert.equal(build.split("'assets/attendance-daily-notice.js'").length - 1, 1);
   const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8');
-  assert.ok(!mount.includes('attendance-daily')); assert.ok(!mount.includes('dailySources'));
+  // T4 · B: one read-only endpoint, gated by attendance.area.read; the mount never imports the daily asset itself.
+  assert.equal(mount.split("'/api/internal-attendance-daily-notice?resource=notices'").length - 1, 1);
+  assert.ok(!mount.includes("from './attendance-daily-notice.js'"));
   const dailyCode = fs.readFileSync('assets/attendance-daily-notice.js', 'utf8');
   assert.ok(!/fetch\(|\/api\/|localStorage|sessionStorage/.test(dailyCode));
 });

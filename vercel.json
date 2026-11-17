@@ -97,6 +97,9 @@
     },
     "api/internal-attendance-area.js": {
       "maxDuration": 20
+    },
+    "api/internal-attendance-daily-notice.js": {
+      "maxDuration": 20
     }
   },
   "rewrites": [

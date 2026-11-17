@@ -55,11 +55,11 @@ test('the remembered-items key identifies account, municipality and role without
 
 test('the mount module is the only place that knows a query, and it knows no reasons or people', () => {
  const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8');
- assert.deepEqual([...mount.matchAll(/'(\/api\/[^']+)'/g)].map(m => m[1]).sort(), ['/api/internal-auth', '/api/internal-own-contract-salary-conditions?resource=pending'], 'las demás consultas son las de la bandeja, no una lista propia');
+ assert.deepEqual([...mount.matchAll(/'(\/api\/[^']+)'/g)].map(m => m[1]).sort(), ['/api/internal-attendance-daily-notice?resource=notices', '/api/internal-auth', '/api/internal-own-contract-salary-conditions?resource=pending'], 'las demás consultas son las de la bandeja, no una lista propia');
  assert.ok(mount.includes("import {visibleApprovalSources, lastClosedMonth} from './approvals-inbox-model.js';"));
  assert.ok(!/reason|employeeName|innerHTML|localStorage|sessionStorage/.test(mount) && !/legajos? *[:=(]|\.legajo/.test(mount));
  assert.ok(!/method:\s*'POST'|operation:'command'/.test(mount), 'sólo lee');
- assert.ok(mount.includes("doc.querySelector('.topbar .top-actions, .topbar .topbar-actions')") && mount.includes("if (readers.length === 0 && sources.length === 0) return null;"));
+ assert.ok(mount.includes("doc.querySelector('.topbar .top-actions, .topbar .topbar-actions')") && mount.includes("if (readers.length === 0 && sources.length === 0 && !daily) return null;"));
  assert.ok(mount.includes("inboxHref: sources.length ? '/nomina#resumen' : ''"), 'el enlace a la bandeja completa sólo aparece si la cuenta ve algún circuito');
 });
 

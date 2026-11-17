@@ -45,17 +45,42 @@ export async function pendingBellCircuits(getJson, sources, period = lastClosedM
   await Promise.all([worker(), worker()]); return out;
 }
 
+// Asistencia diaria (T4): sólo cuentas con lectura de asistencia por área. El servidor arma el corte por área y sede de los
+// días civiles cerrados y devuelve únicamente conteos, estado y bloqueos; nunca nombres, legajos ni motivos.
+export const PENDING_BELL_DAILY = Object.freeze({capability: 'attendance.area.read', url: '/api/internal-attendance-daily-notice?resource=notices', everyMs: 300000});
+const DAILY_READ_FIELDS = ['version', 'ready', 'days', 'scopeCount', 'notices', 'failedScopes'];
+const dailyCount = v => Number.isSafeInteger(v) && v >= 0;
+
+/** Convierte la lectura del servidor en fuentes para la campanita. Mientras el productor no esté instalado no hay avisos
+ *  ni falla. Un área que no respondió, o una lectura que no cumple el contrato, se informa como «sin respuesta» (null),
+ *  nunca como cero. Cada aviso lo valida después attendanceDailyNotice dentro de bellState. */
+export function pendingBellDailySources(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length !== DAILY_READ_FIELDS.length
+    || !DAILY_READ_FIELDS.every(k => Object.hasOwn(data, k)) || data.version !== 'attendance-daily-notice-read.v1'
+    || typeof data.ready !== 'boolean' || !Array.isArray(data.days) || !Array.isArray(data.notices)
+    || !dailyCount(data.scopeCount) || !dailyCount(data.failedScopes) || data.failedScopes > data.scopeCount) return [null];
+  if (!data.ready) return data.notices.length || data.scopeCount || data.failedScopes ? [null] : [];
+  return data.failedScopes ? [...data.notices, null] : [...data.notices];
+}
+
 /** Lectura completa de la campanita. Las consultas livianas van siempre; los circuitos de la bandeja son lecturas grandes
- *  y se repiten como mucho cada tres minutos, o enseguida cuando una pantalla avisa que registró algo. */
-export function pendingBellReading(getJson, readers, sources, {now = () => Date.now(), everyMs = 180000} = {}) {
-  let circuits = null, readAt = 0, running = null;
+ *  y se repiten como mucho cada tres minutos, o enseguida cuando una pantalla avisa que registró algo. La asistencia diaria
+ *  se relee como mucho cada cinco minutos. */
+export function pendingBellReading(getJson, readers, sources, {now = () => Date.now(), everyMs = 180000, daily = false} = {}) {
+  let circuits = null, readAt = 0, running = null, dailySources = null, dailyAt = 0, dailyRunning = null;
   const refresh = () => running ??= pendingBellCircuits(getJson, sources).then(value => { circuits = value; readAt = now(); }).finally(() => { running = null; });
+  const refreshDaily = () => dailyRunning ??= patientRead(() => getJson(PENDING_BELL_DAILY.url))
+    .then(body => body?.ok === true ? pendingBellDailySources(body.data) : [null], () => [null])
+    .then(value => { dailySources = value; dailyAt = now(); }).finally(() => { dailyRunning = null; });
   return {
-    invalidate() { readAt = 0; },
+    invalidate() { readAt = 0; dailyAt = 0; },
     async read() {
       const light = pendingBellSources(getJson, readers);
-      if (sources.length && (circuits === null || now() - readAt >= everyMs)) await refresh();
-      return {sources: await light, circuits: circuits ?? []};
+      const pending = [];
+      if (sources.length && (circuits === null || now() - readAt >= everyMs)) pending.push(refresh());
+      if (daily && (dailySources === null || now() - dailyAt >= PENDING_BELL_DAILY.everyMs)) pending.push(refreshDaily());
+      await Promise.all(pending);
+      return {sources: await light, circuits: circuits ?? [], dailySources: daily ? dailySources ?? [null] : []};
     },
   };
 }
@@ -78,10 +103,17 @@ export async function startPendingBell(doc = document, read = getJson) {
   const actions = doc.querySelector('.topbar .top-actions, .topbar .topbar-actions');
   if (!actions || actions.querySelector('[data-pending-bell-host]')) return null;
   let access; try { access = ownRunWorkspaceAccess(await read('/api/internal-auth')); } catch { return null; }
-  const readers = pendingBellReadersFor(access.caps), sources = visibleApprovalSources(access.caps);
-  if (readers.length === 0 && sources.length === 0) return null;
+  const readers = pendingBellReadersFor(access.caps), sources = visibleApprovalSources(access.caps), daily = access.caps.has(PENDING_BELL_DAILY.capability);
+  if (readers.length === 0 && sources.length === 0 && !daily) return null;
+  const reading = pendingBellReading(read, readers, sources, {daily});
+  // Una cuenta que sólo lee asistencia por área ve la campanita recién cuando la lectura diaria está instalada y responde;
+  // antes no hay nada que avisarle y una campanita vacía diría que ningún circuito respondió.
+  if (readers.length === 0 && sources.length === 0) {
+    const first = await reading.read().catch(() => null);
+    if (!first || first.dailySources.length === 0 || first.dailySources.every(s => s === null)) return null;
+  }
+  if (actions.querySelector('[data-pending-bell-host]')) return null;
   const host = doc.createElement('div'); host.dataset.pendingBellHost = ''; actions.prepend(host);
-  const reading = pendingBellReading(read, readers, sources);
   // Va antes que el aviso que escucha la campanita: cuando una pantalla registra algo, los circuitos se leen de nuevo.
   doc.addEventListener('mc:pending-refresh', () => reading.invalidate());
   return mountPendingBell({host, accountKey: await pendingBellAccountKey(access.key), read: reading.read, inboxHref: sources.length ? '/nomina#resumen' : ''});
