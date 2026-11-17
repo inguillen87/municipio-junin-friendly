@@ -29,17 +29,17 @@ test('PDF impide alterar un carácter que su fuente no puede representar',()=>{c
 test('capacidad global y vistas inválidas se rechazan sin mostrar una parte',()=>{const {base,target}=comparisonSources(1),m=ownComparison(base,target);for(const values of [{view:'legacy'},{change:'none'},{page:0},{search:'x'.repeat(101)},{pageSize:101}])assert.throws(()=>ownComparisonView(m,values));const d=ownComparisonDocument(m);d.rows=Array.from({length:250001},()=>d.rows[0]);assert.throws(()=>reportCsv(d));});
 test('ambas pantallas mantienen la comparación de respaldos y priorizan corridas propias',()=>{for(const file of ['assets/payroll-navigation.js','assets/report-centre.js']){const s=fs.readFileSync(file,'utf8');assert.match(s,/mountOwnPayrollComparison/);assert.match(s,/mountPayrollComparison/);assert.match(s,/Comparar liquidaciones incorporadas desde respaldos/);}const ui=fs.readFileSync('assets/own-payroll-comparison-panel.js','utf8');assert.ok(!ui.includes("method:'POST'"));assert.ok(!/localStorage|sessionStorage/.test(ui));});
 
-test('own-run comparisons never label 1–5 cent differences as GRH rounding', () => {
+test('a 3-cent difference between own-run gross totals remains a real variation', () => {
   const {base, target} = comparisonSources(1);
-  const result = ownComparison(base, target);
-  for (const row of result.rows) {
-    if (row.changed && ['Bruto', 'Retenciones', 'Neto calculado', 'Aportes patronales'].includes(row.label)) {
-      assert.equal(row.roundingDifference, undefined);
-      assert.equal(row.status, 'Con variación');
-    }
-  }
+  base.saved.result.employeeTotals[0].gross = '100.00';
+  target.saved.result.employeeTotals[0].gross = '100.03';
+  const row = ownComparison(base, target).totals.find(x => x.label === 'Bruto');
+  assert.equal(row.delta, '0.03');
+  assert.equal(row.changed, true);
+  assert.equal(row.status, 'Con variación');
+  assert.equal(row.roundingDifference, undefined);
 });
-test('the GRH rounding helper remains exported for the future GRH comparator', async () => {
+test('the GRH cent-rounding helper remains exported for the future GRH comparator only', async () => {
   const {ownComparisonCentRounding} = await import('../assets/own-payroll-comparison-model.js');
   assert.equal(typeof ownComparisonCentRounding, 'function');
   assert.equal(ownComparisonCentRounding('Retenciones', '0.03'), true);
