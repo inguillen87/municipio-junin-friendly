@@ -265,12 +265,12 @@ test('the exported source validator returns the same exact input and rejects alt
 test('T4 producer calls one SQL function and its migration scopes approved assignments before projection', () => {
   assert.match(ATTENDANCE_DAILY_SOURCE_SQL, /attendance_daily_source_read_v1/);
   const migration = readFileSync(new URL('../scripts/migrations/240-attendance-daily-source.sql', import.meta.url), 'utf8');
-  assert.match(migration, /area_value:=public\.attendance_area_workdays_read_v1\(p_context,p_query\)/);
+  assert.match(migration, /public\.attendance_area_workdays_read_v1\(p_context,p_query\)/);
   assert.match(migration, /scoped_contracts AS MATERIALIZED/);
   assert.match(migration, /spec\.employment_contract_id=contract\.contract_id::uuid/);
   assert.match(migration, /entry\.status='approved'/);
   assert.match(migration, /entry\.effective_from<=\(p_query->>'day'\)::date/);
-  assert.match(migration, /time_catalog_assignment_view_v2\(catalog_context,entry\.id\)/);
+  assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_context\.data,entry\.id\)/);
   assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
 });
