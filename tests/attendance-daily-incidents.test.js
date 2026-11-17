@@ -3,7 +3,8 @@ import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest, validateAttendanceDailySource} from '../lib/attendance-daily-incidents.js';
 import {dailyFixture, rebindDaily, id, evidence, V3_DAY, V3_CONTRACT} from './fixtures/attendance-daily-incidents-synthetic.js';
-import {ATTENDANCE_DAILY_SOURCE_SQL} from '../lib/internal-attendance-daily-source.js';
+import {ATTENDANCE_DAILY_SOURCE_SQL, produceAttendanceDailySource} from '../lib/internal-attendance-daily-source.js';
+import {areaSource, areaQuery, principal, session} from './fixtures/attendance-area-synthetic.js';
 import {v3Events, hash, V3_OTHER_CONTRACT} from './fixtures/continuous-workdays-v3-api-synthetic.js';
 const invalid = e => e.code === 'ATTENDANCE_DAILY_SOURCE_INVALID' && e.message === 'ATTENDANCE_DAILY_SOURCE_INVALID';
 const has = (result, code) => assert.ok(result.blockerCodes.includes(code), code);
@@ -273,4 +274,53 @@ test('T4 producer calls one SQL function and its migration scopes approved assig
   assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_context\.data,entry\.id\s*\)/);
   assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
+});
+
+
+test('T4 producer requires Neon transaction() and requests one RepeatableRead READ ONLY transaction', async () => {
+  let queryCalls = 0, transactionCalls = 0, transactionOptions;
+  const source = areaSource();
+  const sql = {
+    query(text, params) {
+      queryCalls++;
+      assert.equal(text, ATTENDANCE_DAILY_SOURCE_SQL);
+      assert.equal(params.length, 2);
+      return {kind:'neon-query', text, params};
+    },
+    async transaction(queries, options) {
+      transactionCalls++;
+      transactionOptions = options;
+      assert.equal(queries.length, 1);
+      assert.equal(queries[0].kind, 'neon-query');
+      return [[{result:JSON.stringify({area:source, catalog:{complete:false, assignments:[]}})}]];
+    },
+  };
+  const result = await produceAttendanceDailySource(sql, principal, session, areaQuery());
+  assert.equal(queryCalls, 1);
+  assert.equal(transactionCalls, 1);
+  assert.deepEqual(transactionOptions, {isolationLevel:'RepeatableRead', readOnly:true});
+  assert.equal(result.cut.consistency, 'single_snapshot');
+  assert.deepEqual(result.cut.evidence, {
+    id:source.sourceCut.id,
+    sha256:attendanceDailyDigest({
+      version:'attendance-daily-repeatable-read.v1',
+      isolationLevel:'RepeatableRead',
+      readOnly:true,
+      sourceCut:source.sourceCut,
+      catalog:{complete:false, assignments:[]},
+    }),
+  });
+  const evaluated = evaluate(result);
+  assert.notEqual(evaluated.blockerCodes.includes('JOINT_CUT_UNCONFIRMED'), true);
+  assert.equal(evaluated.status, 'blocked');
+});
+
+test('T4 producer rejects query-only SQL clients instead of silently falling back to READ COMMITTED', async () => {
+  let queryCalls = 0;
+  const sql = {query:async () => {queryCalls++; return [];}};
+  await assert.rejects(
+    produceAttendanceDailySource(sql, principal, session, areaQuery()),
+    error => error?.code === 'ATTENDANCE_DAILY_SOURCE_UNAVAILABLE',
+  );
+  assert.equal(queryCalls, 0);
 });
