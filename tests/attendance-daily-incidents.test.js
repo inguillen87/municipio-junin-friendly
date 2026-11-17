@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest} from '../lib/attendance-daily-incidents.js';
+import {evaluateAttendanceDailyIncidents as evaluate, projectAttendanceDailyNoticeSource, attendanceDailyDigest, validateAttendanceDailySource} from '../lib/attendance-daily-incidents.js';
 import {dailyFixture, rebindDaily, id, evidence, V3_DAY, V3_CONTRACT} from './fixtures/attendance-daily-incidents-synthetic.js';
 import {v3Events, hash, V3_OTHER_CONTRACT} from './fixtures/continuous-workdays-v3-api-synthetic.js';
 const invalid = e => e.code === 'ATTENDANCE_DAILY_SOURCE_INVALID' && e.message === 'ATTENDANCE_DAILY_SOURCE_INVALID';
@@ -248,4 +248,13 @@ test('notice projection carries only fixed aggregate fields and changes key with
   source.catalog.assignments[0].assignment.shift.configuration.entryToleranceSeconds = 60;
   const next = run(source); assert.notEqual(next.key, result.key); assert.equal(next.scopeKey, result.scopeKey);
   assert.equal(attendanceDailyDigest({b:2,a:1}), attendanceDailyDigest({a:1,b:2}));
+});
+
+
+test('the exported source validator returns the same exact input and rejects altered component hashes', () => {
+  const source = dailyFixture();
+  assert.equal(validateAttendanceDailySource(source), source);
+  const invalidSource = dailyFixture();
+  invalidSource.cut.componentSha256.catalog = 'f'.repeat(64);
+  assert.throws(() => validateAttendanceDailySource(invalidSource), invalid);
 });
