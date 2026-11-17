@@ -29,12 +29,19 @@ test('PDF impide alterar un carácter que su fuente no puede representar',()=>{c
 test('capacidad global y vistas inválidas se rechazan sin mostrar una parte',()=>{const {base,target}=comparisonSources(1),m=ownComparison(base,target);for(const values of [{view:'legacy'},{change:'none'},{page:0},{search:'x'.repeat(101)},{pageSize:101}])assert.throws(()=>ownComparisonView(m,values));const d=ownComparisonDocument(m);d.rows=Array.from({length:250001},()=>d.rows[0]);assert.throws(()=>reportCsv(d));});
 test('ambas pantallas mantienen la comparación de respaldos y priorizan corridas propias',()=>{for(const file of ['assets/payroll-navigation.js','assets/report-centre.js']){const s=fs.readFileSync(file,'utf8');assert.match(s,/mountOwnPayrollComparison/);assert.match(s,/mountPayrollComparison/);assert.match(s,/Comparar liquidaciones incorporadas desde respaldos/);}const ui=fs.readFileSync('assets/own-payroll-comparison-panel.js','utf8');assert.ok(!ui.includes("method:'POST'"));assert.ok(!/localStorage|sessionStorage/.test(ui));});
 
-test('GRH cent rounding is labeled only for exact 1–5 cent differences in totals and deductions', async () => {
-  const {ownComparisonCentRounding} = await import('../assets/own-payroll-comparison-model.js');
-  for (const label of ['Bruto', 'Retenciones', 'Neto calculado', 'Aportes patronales']) {
-    for (const delta of ['0.01', '0.02', '0.03', '0.04', '0.05', '-0.01', '-0.05']) assert.equal(ownComparisonCentRounding(label, delta), true, label + ' ' + delta);
-    for (const delta of ['0.00', '0.06', '-0.06', '0.001', '0.0501']) assert.equal(ownComparisonCentRounding(label, delta), false, label + ' ' + delta);
+test('own-run comparisons never label 1–5 cent differences as GRH rounding', () => {
+  const {base, target} = comparisonSources(1);
+  const result = ownComparison(base, target);
+  for (const row of result.rows) {
+    if (row.changed && ['Bruto', 'Retenciones', 'Neto calculado', 'Aportes patronales'].includes(row.label)) {
+      assert.equal(row.roundingDifference, undefined);
+      assert.equal(row.status, 'Con variación');
+    }
   }
-  for (const label of ['120', '144', '993']) assert.equal(ownComparisonCentRounding(label, '0.03'), false, label);
-  assert.equal(ownComparisonCentRounding('Retenciones', null), false);
+});
+test('the GRH rounding helper remains exported for the future GRH comparator', async () => {
+  const {ownComparisonCentRounding} = await import('../assets/own-payroll-comparison-model.js');
+  assert.equal(typeof ownComparisonCentRounding, 'function');
+  assert.equal(ownComparisonCentRounding('Retenciones', '0.03'), true);
+  assert.equal(ownComparisonCentRounding('Retenciones', '0.06'), false);
 });

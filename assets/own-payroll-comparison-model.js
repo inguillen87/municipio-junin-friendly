@@ -30,8 +30,7 @@ function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAft
  if(ruleBefore&&ruleAfter&&salarySerialized(ruleBefore)!==salarySerialized(ruleAfter))reasons.push('Cambió la regla o su respaldo');
  const delta=compatible?difference(before.amount,after.amount):null;
  const changed=!compatible||decimal(before.amount).n*decimal(after.amount).d!==decimal(after.amount).n*decimal(before.amount).d;
- const roundingDifference = reasons.length === 0 && changed && ownComparisonCentRounding(label, delta);
- return {baseNumber:basePerson?.employeeNumber??null,targetNumber:targetPerson?.employeeNumber??null,label,before:before??null,after:after??null,delta,changed,roundingDifference,review:reasons.length>0,reasons,status:reasons.length?reasons.join(' · '):roundingDifference?'Diferencia de redondeo (hasta 5 centavos)':changed?'Con variación':'Sin variación',ruleBefore,ruleAfter};
+ return {baseNumber:basePerson?.employeeNumber??null,targetNumber:targetPerson?.employeeNumber??null,label,before:before??null,after:after??null,delta,changed,review:reasons.length>0,reasons,status:reasons.length?reasons.join(' · '):changed?'Con variación':'Sin variación',ruleBefore,ruleAfter};
 }
 
 // A contract UUID, never a converted employee number, joins the two immutable
