@@ -143,7 +143,8 @@ test('the T4 · A producer feeds the bell end to end; its partial cut is shown a
   const {produceAttendanceDailySource} = await import('../lib/internal-attendance-daily-source.js');
   const area = await import('./fixtures/attendance-area-synthetic.js');
   const calls = [];
-  const areaSql = {async query(text, values) { calls.push({text, q: JSON.parse(values[1])}); return [{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}})}]; }};
+  const areaSql = {async query(text, values) { calls.push({text, q: JSON.parse(values[1])}); return [{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []},
+    transaction: {isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'}})}]; }};
   // 2026-11-15 03:30 UTC: yesterday in Mendoza is the synthetic area day.
   const data = await attendanceDailyNoticeRead({sql: areaSql, principal: area.principal, session: area.session, now: NOW, dayCount: 1,
     producer: produceAttendanceDailySource, scopes: async () => [{area: structuredClone(area.area), site: 'qa-site'}]});
@@ -211,4 +212,46 @@ test('migration 241 rechecks area authority in SQL and returns only area ids and
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) TO municontrol_actions_runtime_app;/);
   const projected = sql.slice(sql.indexOf("'scopes',COALESCE"), sql.indexOf('INTO result_value'));
   for (const leak of ['contract', 'label', 'person', 'device_ids', 'serial', 'network']) assert.ok(!projected.includes(leak), leak);
+});
+
+test('the producer runs in REPEATABLE READ READ ONLY when the client can, and trusts only the isolation the database reports', async () => {
+  const {produceAttendanceDailySource, ATTENDANCE_DAILY_SOURCE_TRANSACTION} = await import('../lib/internal-attendance-daily-source.js');
+  const {evaluateAttendanceDailyIncidents} = await import('../lib/attendance-daily-incidents.js');
+  const area = await import('./fixtures/attendance-area-synthetic.js');
+  const body = transaction => JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, transaction});
+  const neonLike = (reported, seen) => ({
+    async query() { throw new Error('a transaction-capable client must not use a bare query'); },
+    async transaction(build, options) {
+      seen.options = options;
+      const queued = build({query: (text, params) => ({text, params})});
+      seen.queued = queued;
+      return [[{result: body(reported)}]];
+    },
+  });
+  const seen = {};
+  const isolated = await produceAttendanceDailySource(neonLike({isolation: 'repeatable read', readOnly: 'on', snapshot: '730:731:730'}, seen), area.principal, area.session, area.areaQuery());
+  assert.deepEqual(seen.options, {isolationLevel: 'RepeatableRead', readOnly: true}); assert.deepEqual(ATTENDANCE_DAILY_SOURCE_TRANSACTION, seen.options);
+  assert.equal(seen.queued.length, 1); assert.match(seen.queued[0].text, /attendance_daily_source_read_v1/);
+  assert.equal(isolated.cut.consistency, 'single_snapshot'); assert.equal(isolated.cut.evidence.id, isolated.cut.id); assert.match(isolated.cut.evidence.sha256, /^[a-f0-9]{64}$/);
+  assert.ok(!evaluateAttendanceDailyIncidents(isolated).blockerCodes.includes('JOINT_CUT_UNCONFIRMED'));
+  // Evidence is bound to the reported snapshot: another snapshot gives other evidence.
+  const other = await produceAttendanceDailySource(neonLike({isolation: 'repeatable read', readOnly: 'on', snapshot: '730:732:'}, {}), area.principal, area.session, area.areaQuery());
+  assert.notEqual(other.cut.evidence.sha256, isolated.cut.evidence.sha256);
+  // A database that ignored the requested isolation, or a writable transaction, is never a joint cut.
+  for (const reported of [{isolation: 'read committed', readOnly: 'on', snapshot: '730:730:'}, {isolation: 'repeatable read', readOnly: 'off', snapshot: '730:730:'}]) {
+    const cut = await produceAttendanceDailySource(neonLike(reported, {}), area.principal, area.session, area.areaQuery());
+    assert.equal(cut.cut.consistency, 'unconfirmed'); assert.equal(cut.cut.evidence, null);
+    assert.ok(evaluateAttendanceDailyIncidents(cut).blockerCodes.includes('JOINT_CUT_UNCONFIRMED'));
+  }
+  // A client without transactions keeps the plain call and stays unconfirmed.
+  const plain = {async query() { return [{result: body({isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'})}]; }};
+  assert.equal((await produceAttendanceDailySource(plain, area.principal, area.session, area.areaQuery())).cut.consistency, 'unconfirmed');
+  // The report itself must be exact.
+  for (const bad of [undefined, {isolation: 'repeatable read', readOnly: 'on'}, {isolation: 'snapshot', readOnly: 'on', snapshot: '1:1:'}, {isolation: 'repeatable read', readOnly: 'on', snapshot: 'x'}]) {
+    const sql = {async query() { return [{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, ...(bad ? {transaction: bad} : {})})}]; }};
+    await assert.rejects(produceAttendanceDailySource(sql, area.principal, area.session, area.areaQuery()), e => e.code === 'ATTENDANCE_DAILY_SOURCE_UNAVAILABLE', JSON.stringify(bad));
+  }
+  const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
+  assert.match(sqlText, /'isolation',current_setting\('transaction_isolation'\)/); assert.match(sqlText, /'readOnly',current_setting\('transaction_read_only'\)/);
+  assert.match(sqlText, /'snapshot',pg_current_snapshot\(\)::text/);
 });

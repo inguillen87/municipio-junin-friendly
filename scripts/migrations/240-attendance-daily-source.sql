@@ -86,7 +86,13 @@ BEGIN
     ) AS data
     FROM catalog_context
   )
-  SELECT jsonb_build_object('area',area_source.data,'catalog',catalog.data)
+  -- The caller cannot vouch for its own isolation: the database reports it. Only a REPEATABLE READ
+  -- READ ONLY transaction lets the producer declare one joint snapshot.
+  SELECT jsonb_build_object('area',area_source.data,'catalog',catalog.data,
+    'transaction',jsonb_build_object(
+      'isolation',current_setting('transaction_isolation'),
+      'readOnly',current_setting('transaction_read_only'),
+      'snapshot',pg_current_snapshot()::text))
     INTO result_value
   FROM area_source CROSS JOIN catalog;
 
