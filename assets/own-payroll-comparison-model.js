@@ -9,6 +9,12 @@ const need=(v,message)=>{if(!v)throw Error(message);};
 const precision=v=>v.split('.')[1]?.length??0;
 const difference=(a,b)=>quantize(exactSubtract(decimal(b),decimal(a)),{precision:Math.max(precision(a),precision(b)),mode:'exact'}).amount;
 const order=(a,b)=>a<b?-1:a>b?1:0;
+const comparisonTotalLabels = new Set(['Bruto','Retenciones','Neto calculado','Aportes patronales']);
+export function ownComparisonCentRounding(label, delta) {
+ if (!comparisonTotalLabels.has(label) || typeof delta !== 'string') return false;
+ const value = decimal(delta), numerator = value.n < 0n ? -value.n : value.n, cents = numerator * 100n;
+ return cents > 0n && cents <= 5n * value.d && cents % value.d === 0n;
+}
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const sourceProof=c=>[c.id,c.key,c.bodySha256,c.algorithmSha256,c.payloadSha256,c.createdAt,c.saved.inputSha256,c.saved.resultSha256,c.saved.recordedAt];
 const ruleFor=(input,row)=>input.rules.find(r=>r.code===row.conceptCode&&(!ownHistoricalNamespaced(input)||(r.nature==='auxiliary')===(row.nature==='auxiliary'))&&r.agreementCode===row.agreementCode&&r.validFrom<=input.period&&(r.validUntil===null||r.validUntil>=input.period)&&r.liquidationTypes.includes(input.liquidationType));
@@ -24,7 +30,8 @@ function pair(before,after,basePerson,targetPerson,label,ruleBefore=null,ruleAft
  if(ruleBefore&&ruleAfter&&salarySerialized(ruleBefore)!==salarySerialized(ruleAfter))reasons.push('Cambió la regla o su respaldo');
  const delta=compatible?difference(before.amount,after.amount):null;
  const changed=!compatible||decimal(before.amount).n*decimal(after.amount).d!==decimal(after.amount).n*decimal(before.amount).d;
- return {baseNumber:basePerson?.employeeNumber??null,targetNumber:targetPerson?.employeeNumber??null,label,before:before??null,after:after??null,delta,changed,review:reasons.length>0,reasons,status:reasons.length?reasons.join(' · '):changed?'Con variación':'Sin variación',ruleBefore,ruleAfter};
+ const roundingDifference = reasons.length === 0 && changed && ownComparisonCentRounding(label, delta);
+ return {baseNumber:basePerson?.employeeNumber??null,targetNumber:targetPerson?.employeeNumber??null,label,before:before??null,after:after??null,delta,changed,roundingDifference,review:reasons.length>0,reasons,status:reasons.length?reasons.join(' · '):roundingDifference?'Diferencia de redondeo (hasta 5 centavos)':changed?'Con variación':'Sin variación',ruleBefore,ruleAfter};
 }
 
 // A contract UUID, never a converted employee number, joins the two immutable
