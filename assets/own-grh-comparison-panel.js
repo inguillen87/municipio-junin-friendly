@@ -235,8 +235,11 @@ export function mountOwnGrhComparisonPanel(host){
  // Un cambio de capacidades invalida lo que falte para la vista actual y, además, cualquier consulta en curso si retira el
  // permiso de revisión que la cuenta tenía: esa consulta pudo leer una corrida que lo exige y una autenticación vieja no
  // puede habilitar su resultado (Codex local, 18/11).
+ // Una lista de capacidades malformada (no arreglo, valores no texto) cuenta como «sin permisos»: retira lo que haya
+ // y nunca lanza dentro del manejador del evento (el verificador de planillas envía [], null, {bad:true} y 'bad').
+ const capabilityList=detail=>new Set(Array.isArray(detail?.tenantCapabilities)?detail.tenantCapabilities.filter(c=>typeof c==='string'):[]);
  const capabilities=event=>{
-  const next=new Set(event.detail?.tenantCapabilities??[]);
+  const next=capabilityList(event.detail);
   if(access&&!hasOwnRunAccess(next,required(reviewRequired)))return suspend('Cambió el acceso: consultá nuevamente.');
   if(busy&&access&&hasOwnRunAccess(access.caps,OWN_LIQ_REVIEW)&&!hasOwnRunAccess(next,OWN_LIQ_REVIEW))suspend('Cambió el permiso de revisión durante la consulta: consultá nuevamente.');
  };

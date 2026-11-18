@@ -172,3 +172,39 @@ test('Codex (local): retirar la revisión mientras la autenticación final está
  assert.equal(panel.hasComparison,false,'una respuesta vieja no habilita el resultado nominal');
  assert.match($('state').textContent,/revisión/);
 });
+
+test('CI planillas (b7f15579): capacidades malformadas no lanzan en el manejador y, con una comparación abierta, la retiran',async t=>{
+ const {detail}=await import('./fixtures/own-payroll-liquidation-synthetic.js');
+ const {OWN_RUN_NOMINAL}=await import('../assets/own-payroll-run-workspace-model.js');
+ const {OWN_LIQ_REVIEW}=await import('../assets/own-payroll-liquidation-model.js');
+ const originals=['document','window','setInterval','clearInterval','fetch'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]);
+ t.after(()=>{for(const [k,v]of originals)if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k];});
+ const body=new Element(),head=new Element(),docListeners=new Map(),hex=c=>c.repeat(64),uid=n=>'10000000-0000-4000-8000-'+String(n).padStart(12,'0');
+ globalThis.document={hidden:false,head,querySelectorAll:()=>[],createElement:tag=>new Element(tag),addEventListener:(k,fn)=>docListeners.set(k,fn),removeEventListener(){},getElementById:()=>null};
+ globalThis.window={addEventListener(){},removeEventListener(){}};globalThis.setInterval=()=>1;globalThis.clearInterval=()=>{};
+ const capabilities=()=>docListeners.get('municontrol:capabilities-ready');
+ mountOwnGrhComparisonPanel(body);
+ // Sin consulta abierta: ningún valor malformado lanza.
+ for(const values of [[],null,{bad:true},'bad',[1,{}]])assert.doesNotThrow(()=>capabilities()({detail:{tenantCapabilities:values}}),JSON.stringify(values));
+ assert.doesNotThrow(()=>capabilities()({}));
+ // Con una comparación abierta, un valor malformado cuenta como «sin permisos» y la retira.
+ const d=detail(2),group={remuneration:'993',non_remuneration:'994',deduction:'996',employer_contribution:'990'},concepts={},people=new Map(d.capture.saved.input.employees.map(e=>[e.contractId,e]));
+ const statements=d.capture.saved.result.employeeTotals.map((tot,i)=>{const lines=d.capture.saved.result.rows.filter(r=>r.contractId===tot.contractId&&r.nature!=='auxiliary').map(r=>[r.conceptCode,r.amount,null]);
+  for(const r of d.capture.saved.result.rows.filter(r=>r.contractId===tot.contractId&&r.nature!=='auxiliary'))concepts[r.conceptCode]={description:null,totalGroup:group[r.nature],unit:null};
+  for(const [code,amount]of [['990',tot.employer_contribution],['993',tot.remuneration],['994',tot.non_remuneration],['995','0.00'],['996',tot.deduction],['999',tot.net]]){lines.push([code,amount,null]);concepts[code]={description:null,totalGroup:null,unit:null};}
+  return {legajo:people.get(tot.contractId).employeeNumber,statementId:uid(100+i),statementHash:hex(String(i+1)),lines};});
+ const grh={version:'grh-statement-lines-compact.v1',official:false,datasetId:uid(4),period:d.capture.saved.input.period,payrollType:'M',closureStatus:'closed',sourceHash:hex('e'),complete:true,concepts,statements};
+ const boot={version:'own-liquidation-bootstrap.v1',scopeVersion:d.scopeVersion,complete:true,runs:[{id:d.id,period:d.capture.body.period,liquidationType:d.capture.body.liquidationType,createdAt:'2026-11-01T10:00:00Z',employeeCount:d.capture.saved.result.employeeCount,resultSha256:d.capture.saved.resultSha256,canConsult:true}]};
+ const catalog={version:'payroll-source-report.v1',official:false,mode:'catalog',total:1,truncated:false,items:[{datasetId:uid(4),date:'2026-10-31',type:'M',statementCount:2,lineCount:10,closureStatus:'closed',payloadHash:hex('d'),sourceLabel:'Respaldo sintético'}]};
+ const caps=[...new Set(['actions.read','payroll.read','workforce.employee.read',...OWN_RUN_NOMINAL,...OWN_LIQ_REVIEW])];
+ const auth={ok:true,authenticated:true,sessionVersion:2,expiresAt:new Date(Date.now()+3600000).toISOString(),user:{id:'qa-user',email:'qa@example.invalid'},access:{context:'tenant',tenant:{id:uid(1),roleKey:'qa'},tenantCapabilities:caps}};
+ const json=v=>new Response(JSON.stringify(v),{status:200,headers:{'content-type':'application/json'}});
+ globalThis.fetch=async url=>url==='/api/internal-auth'?json(auth):url.includes('resource=bootstrap')?json({ok:true,data:boot}):url.includes('resource=detail')?json({ok:true,data:d})
+  :url.includes('resource=payrollsourcereport')?json({ok:true,data:catalog}):url.includes('resource=owngrhstatementlines')?json({ok:true,data:grh}):assert.fail('unexpected '+url);
+ const body2=new Element();docListeners.clear();const panel=mountOwnGrhComparisonPanel(body2),$=k=>body2.controls.get(k);
+ const settle=async()=>{for(let i=0;i<400&&body2.getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,5));};
+ await $('catalog').listeners.get('click')[0]();$('own').value=d.id;$('own').listeners.get('change')[0]();$('grh').value=uid(4);$('form').listeners.get('submit')[0]({preventDefault(){}});await settle();
+ assert.equal(panel.hasComparison,true,$('state').textContent);
+ assert.doesNotThrow(()=>capabilities()({detail:{tenantCapabilities:{bad:true}}}));
+ assert.equal(panel.hasComparison,false,'una lista malformada retira la comparación');
+});
