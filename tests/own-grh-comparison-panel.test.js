@@ -46,6 +46,7 @@ test('ambos centros integran la pantalla sin reemplazar las dos comparaciones an
  }
  const source=fs.readFileSync('assets/own-grh-comparison-panel.js','utf8');
  assert.match(source,/resource=owngrhstatementlines&datasetId=/);
+ assert.match(source,/grhStatementLinesExpand\(await request\(grhEndpoint\+'\?resource=owngrhstatementlines/,'la forma compacta de la 242 se expande y valida antes de comparar');
  assert.match(source,/resource=payrollsourcereport/);
  assert.match(source,/OWN_GRH_JOIN/);assert.match(source,/verifiedHistoricalCapture/);
  assert.match(source,/reportCsv\(doc\).*reportXlsx\(doc\).*reportPdf\(doc\)/s);
