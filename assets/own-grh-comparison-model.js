@@ -219,9 +219,9 @@ export function ownGrhComparisonDocument(model,view='concepts'){
   columns:[
    {label:'Legajo',type:'text',width:17},
    {label:view==='concepts'?'Concepto':'Total',type:'text',width:26},
-   {label:'MuniControl',type:'text',width:22,pdfExact:true},
-   {label:'GRH',type:'text',width:22,pdfExact:true},
-   {label:'Diferencia (MuniControl menos GRH)',type:'text',width:29,pdfExact:true},
+   {label:'MuniControl',type:'text',width:22,pdfExact:true,align:'right'},
+   {label:'GRH',type:'text',width:22,pdfExact:true,align:'right'},
+   {label:'Diferencia (MuniControl menos GRH)',type:'text',width:29,pdfExact:true,align:'right'},
    {label:'Estado',type:'text',width:49},
   ],
   rows:rows.map(r=>[r.legajo,view==='concepts'?r.code:r.label,

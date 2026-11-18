@@ -88,6 +88,9 @@ function lines(s,max){const out=[];let current='';for(const word0 of String(s).s
 // Widths in 1/1000 em for the embedded standard WinAnsi Type1 fonts.
 // Keep existing line breaks; only split a line further when its actual glyph width exceeds the cell.
 const REPORT_PDF_FONT_WIDTHS=[[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500],[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556]];
+// Ancho de una línea con las métricas de la fuente del PDF. Sólo lo usan las columnas que piden align:'right'.
+function pdfLineWidth(line,size,bold=false){const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];return [...String(line)].reduce((n,character)=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return n+PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return n+(metrics[code-32]??metrics[63-32]);},0)*size/1000;}
+const pdfCellX=(column,x,cellWidth,line,size,bold)=>column.align==='right'?x+cellWidth-6-pdfLineWidth(line,size,bold):x+6;
 function fitPdfCellLines(parts,width,size,bold=false){
  const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0],limit=width*1000/size;
  const advance=character=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return metrics[code-32]??metrics[63-32];};
@@ -168,7 +171,7 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
   y+=10;
   for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
   const headings=d.columns.map((c,i)=>reportPdfHeading(c.label,widths[i]-12)),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(h=>h.parts.length*10+14)):32;
-  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(x+6,y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
+  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
  if(d.payrollStatement)pages.push(statementCoverPage(d));head();
  d.rows.forEach((r,index)=>{
@@ -184,7 +187,7 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
    const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*12+14;
    if(index%2===0)rect(left,y,width,fragmentHeight,'0.94 0.97 0.97');
    let x=left;
-   parts.forEach((p,i)=>{p.slice(offset,offset+count).forEach((l,j)=>text(x+6,y+15+j*12,l,8.5,i>0&&d.columns[i].type!=='text'));x+=widths[i];});
+   parts.forEach((p,i)=>{const bold=i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+15+j*12,l,8.5,bold));x+=widths[i];});
    y+=fragmentHeight;pageHasData=true;offset+=count;
    if(offset<lineCount)head();
   }
