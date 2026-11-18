@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS own_grh_statement_lines_read_event (
  source_binding_id uuid NOT NULL, actor_membership_id uuid NOT NULL,
  actor_session_id uuid NOT NULL REFERENCES tenant_identity_session(id),
  dataset_id uuid REFERENCES payroll_detail_dataset(id),
- outcome text NOT NULL CHECK(outcome IN ('success','not_found','too_large','incomplete')),
+ outcome text NOT NULL CHECK(outcome IN ('success','not_found','too_large','incomplete','incompatible')),
  result_count integer NOT NULL CHECK(result_count BETWEEN 0 AND 2000), occurred_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(tenant_id,source_binding_id) REFERENCES platform_tenant_source_binding(tenant_id,id),
  FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES tenant_membership(id,tenant_id)
@@ -65,6 +65,19 @@ BEGIN
   INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
   VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'incomplete',0);
   RETURN jsonb_build_object('version','grh-statement-lines-compact.v1','found',true,'official',false,'incomplete',true,'datasetId',ds.id);
+ END IF;
+ -- Lo que el comparador no puede unir sin ambigüedad se rechaza acá, para que la auditoría no cuente como entrega una
+ -- respuesta que la fachada rechazaría: código con ceros iniciales (0993 y 993 serían el mismo), o descripción, unidad o
+ -- acumulador del catálogo fuera del formato del contrato.
+ IF EXISTS(SELECT 1 FROM payroll_detail_statement s CROSS JOIN LATERAL jsonb_array_elements(s.lines) ln
+   WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant AND (
+     ln->>'code' IS NULL OR ln->>'code' !~ '^(0|[1-9][0-9]{0,5})$'
+     OR length(ds.concept_catalog->(ln->>'code')->>'description')>240 OR ds.concept_catalog->(ln->>'code')->>'description' ~ '[[:cntrl:]]'
+     OR length(ds.concept_catalog->(ln->>'code')->>'unit')>80 OR ds.concept_catalog->(ln->>'code')->>'unit' ~ '[[:cntrl:]]'
+     OR ds.concept_catalog->(ln->>'code')->>'totalGroup' !~ '^[0-9]{1,6}$')) THEN
+  INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
+  VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'incompatible',0);
+  RETURN jsonb_build_object('version','grh-statement-lines-compact.v1','found',true,'official',false,'incompatible',true,'datasetId',ds.id);
  END IF;
  -- Forma de transporte compacta (grh-statement-lines-compact.v1): el catálogo de los conceptos usados va una
  -- sola vez y cada renglón es [código, importe, cantidad]. La forma expandida superaba el límite de respuesta.
