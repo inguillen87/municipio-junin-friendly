@@ -206,7 +206,7 @@ test('migration 241 rechecks area authority in SQL and returns only area ids and
   assert.match(sql, /RAISE EXCEPTION 'ATTENDANCE_DAILY_SCOPES_ALREADY_INSTALLED'/);
   assert.match(sql, /LANGUAGE plpgsql VOLATILE SECURITY DEFINER\s+SET search_path=pg_catalog,public,pg_temp/);
   assert.match(sql, /public\.attendance_area_context_v1\(p_context,'attendance\.area\.read'\)/);
-  assert.match(sql, /decision\.decision='approve'/); assert.match(sql, /retired\.id IS NULL OR retired\.effective_from>first_day/);
+  assert.match(sql, /decision\.decision='approve'/); assert.match(sql, /retired\.id IS NULL OR retired\.effective_from>GREATEST\(first_day,prop\.valid_from\)/);
   assert.match(sql, /prop\.sector_source_id IS NOT DISTINCT FROM scope\.sector/);
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) FROM PUBLIC;/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) TO municontrol_actions_runtime_app;/);
@@ -254,4 +254,21 @@ test('the producer runs in REPEATABLE READ READ ONLY when the client can, and tr
   const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
   assert.match(sqlText, /'isolation',current_setting\('transaction_isolation'\)/); assert.match(sqlText, /'readOnly',current_setting\('transaction_read_only'\)/);
   assert.match(sqlText, /'snapshot',pg_current_snapshot\(\)::text/);
+});
+
+test('an account that only reads attendance retries the bell on its own after an empty or failed first reading', async () => {
+  const {startPendingBell} = await import('../assets/pending-bell-mount.js');
+  const auth = {ok: true, authenticated: true, sessionVersion: 2, expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: ['attendance.area.read']}};
+  let prepended = 0;
+  const actions = {querySelector: () => null, prepend: () => { prepended++; }};
+  const doc = {querySelector: selector => selector.includes('top-actions') ? actions : null, createElement: () => ({dataset: {}}), addEventListener() {}};
+  for (const daily of [{ok: true, data: {version: 'attendance-daily-notice-read.v1', ready: false, days: ['2026-11-14', '2026-11-13'], scopeCount: 0, notices: [], failedScopes: 0}},
+    null]) {
+    const scheduled = [];
+    const read = async url => { if (url === '/api/internal-auth') return auth; if (url === PENDING_BELL_DAILY.url) { if (!daily) throw new Error('PENDING_READ_FAILED'); return daily; } throw new Error('unexpected ' + url); };
+    const result = await startPendingBell(doc, read, {retry: (fn, ms) => scheduled.push({fn, ms})});
+    assert.equal(result, null); assert.equal(prepended, 0, 'no empty bell is mounted');
+    assert.equal(scheduled.length, 1); assert.equal(scheduled[0].ms, PENDING_BELL_DAILY.everyMs);
+  }
 });

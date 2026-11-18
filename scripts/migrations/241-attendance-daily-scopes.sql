@@ -63,8 +63,10 @@ BEGIN
     CROSS JOIN LATERAL unnest(prop.device_ids) AS declared_device(id)
     JOIN public.attendance_device device ON device.id=declared_device.id AND device.tenant_id=prop.tenant_id
     JOIN public.attendance_marking_site site ON site.id=device.site_id AND site.tenant_id=prop.tenant_id
-    -- Active on at least one day of the window: a retirement takes effect on effective_from.
-    WHERE retired.id IS NULL OR retired.effective_from>first_day
+    -- Active on at least one day of the window: a retirement takes effect on effective_from, so the
+    -- first day both valid and inside the window must come before it. A declaration retired on or
+    -- before its own first valid day of the window was never active there.
+    WHERE retired.id IS NULL OR retired.effective_from>GREATEST(first_day,prop.valid_from)
   )
   SELECT jsonb_build_object(
     'version','attendance-daily-scopes.v1',
