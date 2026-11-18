@@ -1,0 +1,202 @@
+{
+  "version": "municontrol-install-composition-derived.v1",
+  "name": "employment-job-title-writers",
+  "installable": false,
+  "dryRun": true,
+  "committed": false,
+  "requiresCodexReviewedCommit": true,
+  "source": {
+    "path": "scripts/candidates/employment-job-title-writers-v1.source.sql.txt",
+    "bytes": 24726,
+    "sha256": "6c7857f8ce2b992b8094b9cf25174ce29ef2e8a116c4b04887b9ca2f3bdbbf4d"
+  },
+  "sourceManifest": {
+    "path": "scripts/candidates/employment-job-title-writers-v1.source.manifest.json",
+    "sha256": "98d2c27f9016541611b3a99e925928fbe0588b34a864639635592d38dd97d82e"
+  },
+  "attestation": {
+    "path": "scripts/candidates/install-composition-attestation-v1.json",
+    "sha256": "f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695",
+    "complete": false
+  },
+  "removed": {
+    "barrierSha256": "70b281594bccf4244d4f2c51e16255f448b024a187aae9093ed48333f58ccd2c",
+    "rollbackSha256": "3c41bb5fdf19c0e14c34a58b7dd7ee6c6a1ee9fb70b77b5ce0fe2788a689c8a8"
+  },
+  "preserved": {
+    "prefixSha256": "8bf16abb814c32399a8ef8afd7be27e5fde4e30adc9786563cd649f557b96584",
+    "bodySha256": "246e796425ef29525ccbcada15db3ff88ed908ed2e134651a52e0558eb96a495",
+    "originalStatementsBytePreserved": true
+  },
+  "preimages": {
+    "functions": [
+      {
+        "signature": "public.native_employee_create_v1(jsonb,jsonb,text,uuid)",
+        "prosrcSha256": "6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6",
+        "kind": "redefined",
+        "function": "native_employee_create_v1",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": "public.native_employment_change_propose_v1(jsonb,jsonb,uuid)",
+        "prosrcSha256": "9af561b138bcad9a511ced80d8b2dfc24ab0df59a6fa8db9419ecbcd433c5b9e",
+        "kind": "redefined",
+        "function": "native_employment_change_propose_v1",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": "public.native_employment_change_review_v1(jsonb,jsonb,uuid)",
+        "prosrcSha256": "d0acb96d0e19dfc67f2cd7e6ce8d494bc73b1b273c1101d34e9df11a4fc61d44",
+        "kind": "redefined",
+        "function": "native_employment_change_review_v1",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "digest",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "grh_curated_source_read_lock_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_catalog_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_catalog_lock_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_after_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_can_review_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_capacity_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_context_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_display_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_lock_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_replay_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_scope_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_state_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_subject_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_values_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_change_version_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employment_void_state_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      }
+    ],
+    "triggers": [],
+    "newFunctions": []
+  },
+  "output": {
+    "path": "scripts/candidates/employment-job-title-writers-v1.derived.sql.txt",
+    "bytes": 30600,
+    "sha256": "1b56eecb7182809676e5a9a209d836dce663f0fc09e46a7f934071e9f566c69c"
+  }
+}

@@ -1,0 +1,706 @@
+-- DERIVED REVIEW ARTIFACT attendance-expected-devices. Never install a source-only file.
+-- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
+-- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
+-- SOURCE CANDIDATE ONLY. NOT AN INSTALLER. No SQL has been executed.
+-- Codex must compose this with attendance-area-authority-v1 and
+-- attendance-area-history-v1, pin every dependency and verify it in isolation.
+-- This source creates no scopes, role grants, accounts, devices or declarations.
+-- Never infer an exhaustive device roster from observations or identity maps.
+BEGIN;
+-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/trigger-enable state.
+-- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
+DO $composition_preimage$
+DECLARE p jsonb; actual record; t record;
+BEGIN
+ IF FALSE IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
+ IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
+ FOR p IN SELECT value FROM jsonb_array_elements('[{"signature":"public.attendance_area_context_v1(jsonb,text)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_context_v1","owner":null,"acl":null},{"signature":"public.attendance_area_assert_scope_v1(jsonb,jsonb)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_assert_scope_v1","owner":null,"acl":null},{"signature":"public.attendance_area_history_v1(jsonb,uuid,date,date)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_history_v1","owner":null,"acl":null},{"signature":"public.time_catalog_native_actor_v2(uuid,uuid,uuid)","prosrcSha256":null,"kind":"dependency","function":"time_catalog_native_actor_v2","owner":null,"acl":null}]'::jsonb) LOOP
+  IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
+    OR p->>'signature' IS NULL
+    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
+  SELECT x.oid,encode(sha256(convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
+    pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text
+    INTO actual FROM pg_proc x WHERE x.oid=to_regprocedure(p->>'signature');
+  IF NOT FOUND OR actual.body_hash IS DISTINCT FROM p->>'prosrcSha256'
+    OR actual.owner_name IS DISTINCT FROM p->>'owner' OR actual.acl_text IS DISTINCT FROM p->>'acl'
+    THEN RAISE EXCEPTION 'COMPOSITION_FUNCTION_PREIMAGE_CHANGED: %',p->>'signature'; END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM jsonb_array_elements('[]'::jsonb) LOOP
+  IF p->>'enabled' IS NULL THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_NOT_ATTESTED: %',p->>'name';END IF;
+  SELECT x.tgenabled::text AS enabled, x.tgtype::integer AS trigger_type,x.tgfoid AS function_oid,
+   x.tgqual AS condition_value,x.tgnargs AS argument_count INTO t
+   FROM pg_trigger x WHERE x.tgrelid=to_regclass(p->>'relation') AND x.tgname=p->>'name';
+  IF NOT FOUND OR t.enabled IS DISTINCT FROM p->>'enabled' OR t.trigger_type IS DISTINCT FROM (p->>'type')::integer
+    OR t.function_oid IS DISTINCT FROM to_regprocedure(p->>'function') OR t.condition_value IS NOT NULL OR t.argument_count<>0
+    THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_CHANGED: %',p->>'name';END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM jsonb_array_elements('[{"name":"attendance_expected_devices_immutable_v1","signature":"public.attendance_expected_devices_immutable_v1()","redefined":false},{"name":"attendance_expected_devices_hash_v1","signature":"public.attendance_expected_devices_hash_v1(jsonb)","redefined":false},{"name":"attendance_expected_devices_exact_v1","signature":"public.attendance_expected_devices_exact_v1(jsonb,text[])","redefined":false},{"name":"attendance_expected_devices_date_v1","signature":"public.attendance_expected_devices_date_v1(jsonb)","redefined":false},{"name":"attendance_expected_devices_area_v1","signature":"public.attendance_expected_devices_area_v1(jsonb)","redefined":false},{"name":"attendance_expected_devices_scope_matches_v1","signature":"public.attendance_expected_devices_scope_matches_v1(jsonb,jsonb)","redefined":false},{"name":"attendance_expected_devices_base_v1","signature":"public.attendance_expected_devices_base_v1(jsonb,jsonb)","redefined":false},{"name":"attendance_expected_devices_catalog_v1","signature":"public.attendance_expected_devices_catalog_v1(jsonb,boolean)","redefined":false},{"name":"attendance_expected_devices_subject_v1","signature":"public.attendance_expected_devices_subject_v1(jsonb,uuid,jsonb,date,date)","redefined":false},{"name":"attendance_area_population_v1","signature":"public.attendance_area_population_v1(jsonb,jsonb,date,date)","redefined":false},{"name":"attendance_expected_devices_proposal_hash_v1","signature":"public.attendance_expected_devices_proposal_hash_v1(public.attendance_expected_device_proposal)","redefined":false},{"name":"attendance_expected_devices_record_v1","signature":"public.attendance_expected_devices_record_v1(jsonb,jsonb,public.attendance_expected_device_proposal)","redefined":false},{"name":"attendance_expected_devices_replay_v1","signature":"public.attendance_expected_devices_replay_v1(jsonb,jsonb,uuid,text)","redefined":false},{"name":"attendance_expected_devices_read_v1","signature":"public.attendance_expected_devices_read_v1(jsonb,jsonb)","redefined":false},{"name":"attendance_expected_devices_command_v1","signature":"public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)","redefined":false},{"name":"attendance_expected_devices_effective_v1","signature":"public.attendance_expected_devices_effective_v1(jsonb,uuid,date)","redefined":false}]'::jsonb) LOOP
+  IF EXISTS (SELECT 1 FROM pg_proc x JOIN pg_namespace n ON n.oid=x.pronamespace
+    WHERE n.nspname='public' AND x.proname=p->>'name')
+    THEN RAISE EXCEPTION 'COMPOSITION_NEW_FUNCTION_COLLISION: %',p->>'name';END IF;
+ END LOOP;
+END $composition_preimage$;
+-- Attestation input SHA-256: f779ae436351375b937c74de116bc48a09de21a77e5966c8792c5c30a6b7b5d6. Missing owner/ACL/trigger-enable pins fail closed.
+
+-- A declaration is immutable. A separate decision and (optionally) an explicit
+-- dated retirement are append-only events. Nothing rewrites its original range.
+CREATE TABLE public.attendance_expected_device_proposal (
+ id uuid PRIMARY KEY,
+ tenant_id uuid NOT NULL REFERENCES public.platform_tenant(id),
+ source_binding_id uuid NOT NULL,
+ company_id bigint NOT NULL,
+ contract_id uuid NOT NULL REFERENCES public.employment_contract(id),
+ organization_unit_source_id text NOT NULL CHECK(length(organization_unit_source_id) BETWEEN 1 AND 128),
+ sector_source_id text CHECK(sector_source_id IS NULL OR length(sector_source_id) BETWEEN 1 AND 128),
+ area_label text NOT NULL CHECK(length(area_label) BETWEEN 1 AND 500),
+ contract_label text NOT NULL CHECK(length(contract_label) BETWEEN 1 AND 500),
+ valid_from date NOT NULL,
+ valid_until date NOT NULL CHECK(valid_until>=valid_from AND valid_until-valid_from<=366),
+ device_ids uuid[] NOT NULL CHECK(cardinality(device_ids) BETWEEN 1 AND 100),
+ device_snapshot jsonb NOT NULL CHECK(jsonb_typeof(device_snapshot)='array'),
+ complete boolean NOT NULL CHECK(complete IS TRUE),
+ subject_version text NOT NULL CHECK(subject_version~'^[a-f0-9]{64}$'),
+ history_snapshot jsonb NOT NULL CHECK(history_snapshot->>'status'='resolved'),
+ device_catalog_version text NOT NULL CHECK(device_catalog_version~'^[a-f0-9]{64}$'),
+ proposal_sha256 text NOT NULL CHECK(proposal_sha256~'^[a-f0-9]{64}$'),
+ reason_code text NOT NULL CHECK(reason_code IN('initial_declaration','replacement')),
+ reason_sha256 text NOT NULL CHECK(reason_sha256~'^[a-f0-9]{64}$'),
+ actor_membership_id uuid NOT NULL,
+ actor_person_id uuid NOT NULL REFERENCES public.person_identity(id),
+ actor_session_id uuid NOT NULL,
+ actor_session_version integer NOT NULL CHECK(actor_session_version>0),
+ release_sha text NOT NULL CHECK(release_sha~'^[a-f0-9]{40}$'),
+ created_at timestamptz NOT NULL,
+ UNIQUE(tenant_id,source_binding_id,id),
+ FOREIGN KEY(source_binding_id,tenant_id) REFERENCES public.platform_tenant_source_binding(id,tenant_id),
+ FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES public.tenant_membership(id,tenant_id)
+);
+
+CREATE TABLE public.attendance_expected_device_review (
+ id uuid PRIMARY KEY,
+ tenant_id uuid NOT NULL,
+ source_binding_id uuid NOT NULL,
+ proposal_id uuid NOT NULL UNIQUE,
+ decision text NOT NULL CHECK(decision IN('approve','reject')),
+ reason_code text NOT NULL,
+ reason_sha256 text NOT NULL CHECK(reason_sha256~'^[a-f0-9]{64}$'),
+ proposal_sha256 text NOT NULL CHECK(proposal_sha256~'^[a-f0-9]{64}$'),
+ actor_membership_id uuid NOT NULL,
+ actor_person_id uuid NOT NULL REFERENCES public.person_identity(id),
+ actor_session_id uuid NOT NULL,
+ actor_session_version integer NOT NULL CHECK(actor_session_version>0),
+ release_sha text NOT NULL CHECK(release_sha~'^[a-f0-9]{40}$'),
+ decided_at timestamptz NOT NULL,
+ CHECK((decision='approve' AND reason_code='declaration_verified') OR
+       (decision='reject' AND reason_code IN('insufficient_evidence','wrong_devices','wrong_scope'))),
+ UNIQUE(tenant_id,source_binding_id,proposal_id,id),
+ FOREIGN KEY(tenant_id,source_binding_id,proposal_id)
+  REFERENCES public.attendance_expected_device_proposal(tenant_id,source_binding_id,id),
+ FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES public.tenant_membership(id,tenant_id)
+);
+
+CREATE TABLE public.attendance_expected_device_retirement (
+ id uuid PRIMARY KEY,
+ tenant_id uuid NOT NULL,
+ source_binding_id uuid NOT NULL,
+ proposal_id uuid NOT NULL UNIQUE,
+ approval_id uuid NOT NULL,
+ effective_from date NOT NULL,
+ reason_code text NOT NULL CHECK(reason_code='declaration_retired'),
+ reason_sha256 text NOT NULL CHECK(reason_sha256~'^[a-f0-9]{64}$'),
+ actor_membership_id uuid NOT NULL,
+ actor_person_id uuid NOT NULL REFERENCES public.person_identity(id),
+ actor_session_id uuid NOT NULL,
+ actor_session_version integer NOT NULL CHECK(actor_session_version>0),
+ release_sha text NOT NULL CHECK(release_sha~'^[a-f0-9]{40}$'),
+ retired_at timestamptz NOT NULL,
+ FOREIGN KEY(tenant_id,source_binding_id,proposal_id,approval_id)
+  REFERENCES public.attendance_expected_device_review(tenant_id,source_binding_id,proposal_id,id),
+ FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES public.tenant_membership(id,tenant_id)
+);
+
+-- The exact request and its immutable result are available only to that same
+-- actor/session after fresh capability and area authorization. Never reuse a key
+-- for a new body, actor identity, binding or session.
+CREATE TABLE public.attendance_expected_device_attempt (
+ tenant_id uuid NOT NULL,
+ source_binding_id uuid NOT NULL,
+ actor_membership_id uuid NOT NULL,
+ attempt_key uuid NOT NULL,
+ actor_person_id uuid NOT NULL REFERENCES public.person_identity(id),
+ actor_session_id uuid NOT NULL,
+ actor_session_version integer NOT NULL CHECK(actor_session_version>0),
+ request_sha256 text NOT NULL CHECK(request_sha256~'^[a-f0-9]{64}$'),
+ operation text NOT NULL CHECK(operation IN('propose','approve','reject','retire')),
+ proposal_id uuid NOT NULL,
+ scope_version text NOT NULL CHECK(scope_version~'^[a-f0-9]{64}$'),
+ receipt jsonb NOT NULL CHECK(jsonb_typeof(receipt)='object'),
+ result_record jsonb NOT NULL CHECK(jsonb_typeof(result_record)='object'),
+ recorded_at timestamptz NOT NULL,
+ PRIMARY KEY(tenant_id,source_binding_id,actor_membership_id,attempt_key),
+ FOREIGN KEY(tenant_id,source_binding_id,proposal_id)
+  REFERENCES public.attendance_expected_device_proposal(tenant_id,source_binding_id,id),
+ FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES public.tenant_membership(id,tenant_id)
+);
+
+CREATE INDEX attendance_expected_device_area_idx ON public.attendance_expected_device_proposal
+ (tenant_id,source_binding_id,organization_unit_source_id,sector_source_id,created_at,id);
+CREATE INDEX attendance_expected_device_contract_idx ON public.attendance_expected_device_proposal
+ (tenant_id,source_binding_id,contract_id,valid_from,valid_until);
+
+CREATE FUNCTION public.attendance_expected_devices_immutable_v1() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $immutable$
+BEGIN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_IMMUTABLE'; END $immutable$;
+CREATE TRIGGER attendance_expected_device_proposal_immutable BEFORE UPDATE OR DELETE OR TRUNCATE
+ ON public.attendance_expected_device_proposal FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_expected_devices_immutable_v1();
+CREATE TRIGGER attendance_expected_device_review_immutable BEFORE UPDATE OR DELETE OR TRUNCATE
+ ON public.attendance_expected_device_review FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_expected_devices_immutable_v1();
+CREATE TRIGGER attendance_expected_device_retirement_immutable BEFORE UPDATE OR DELETE OR TRUNCATE
+ ON public.attendance_expected_device_retirement FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_expected_devices_immutable_v1();
+CREATE TRIGGER attendance_expected_device_attempt_immutable BEFORE UPDATE OR DELETE OR TRUNCATE
+ ON public.attendance_expected_device_attempt FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_expected_devices_immutable_v1();
+
+CREATE FUNCTION public.attendance_expected_devices_hash_v1(v jsonb) RETURNS text
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $hash$
+ SELECT encode(sha256(convert_to(v::text,'UTF8')),'hex')
+$hash$;
+
+CREATE FUNCTION public.attendance_expected_devices_exact_v1(v jsonb,keys text[]) RETURNS boolean
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $exact$
+ SELECT CASE WHEN jsonb_typeof(v)='object' THEN
+  coalesce((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(v) k),'{}'::text[])=
+  coalesce((SELECT array_agg(k ORDER BY k) FROM unnest(keys) k),'{}'::text[])
+ ELSE false END
+$exact$;
+
+CREATE FUNCTION public.attendance_expected_devices_date_v1(v jsonb) RETURNS date
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET datestyle='ISO,YMD' AS $date$
+DECLARE d date;t text; BEGIN
+ IF jsonb_typeof(v) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ t:=v#>>'{}';
+ IF t!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ BEGIN d:=t::date;EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END;
+ IF to_char(d,'YYYY-MM-DD')<>t THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ RETURN d;
+END $date$;
+
+CREATE FUNCTION public.attendance_expected_devices_area_v1(v jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $area$
+BEGIN
+ IF public.attendance_expected_devices_exact_v1(v,ARRAY['organizationUnitSourceId','sectorSourceId']) IS NOT TRUE
+ OR jsonb_typeof(v->'organizationUnitSourceId') IS DISTINCT FROM 'string'
+ OR v->>'organizationUnitSourceId'!~'^(0|[1-9][0-9]{0,18})$'
+ OR (v->'sectorSourceId'<>'null'::jsonb AND (jsonb_typeof(v->'sectorSourceId')<>'string'
+  OR v->>'sectorSourceId'!~'^(0|[1-9][0-9]{0,18})$'))
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ RETURN v;
+END $area$;
+
+CREATE FUNCTION public.attendance_expected_devices_scope_matches_v1(ctx jsonb,area jsonb) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $matches$
+ SELECT coalesce(EXISTS(SELECT 1 FROM jsonb_array_elements(ctx->'areaScopes') s
+  WHERE s->>'organizationUnitSourceId'=area->>'organizationUnitSourceId'
+    AND s->>'sectorSourceId' IS NOT DISTINCT FROM area->>'sectorSourceId'),false)
+$matches$;
+
+CREATE FUNCTION public.attendance_expected_devices_base_v1(ctx jsonb,p jsonb) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $base$
+ SELECT jsonb_build_object('version','attendance-expected-devices.v1',
+  'principal',jsonb_build_object('tenantId',ctx->'tenantId','sourceBindingId',ctx->'sourceBindingId',
+   'membershipId',ctx->'membershipId','actorPersonId',ctx->'actorPersonId',
+   'sessionId',p->'actorSessionId','sessionVersion',p->'actorSessionVersion',
+   'scopeVersion',ctx->'scopeVersion','capabilities',ctx->'capabilities','areaScopes',ctx->'areaScopes'),
+  'payrollPosted',false,'coverageCertified',false,'installationReady',false)
+$base$;
+
+-- Inventory is only a choice catalogue, never an assertion of expected devices.
+-- This narrow catalogue returns public technical labels, no network/identity data.
+-- The version covers all selectable device/site states. A command holds SHARE
+-- locks so a concurrent inventory change cannot invalidate its approval checks.
+CREATE FUNCTION public.attendance_expected_devices_catalog_v1(ctx jsonb,hold_lock boolean DEFAULT false) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $catalog$
+DECLARE rows_value jsonb;version_value text; BEGIN
+ IF hold_lock THEN LOCK TABLE public.attendance_device,public.attendance_marking_site IN SHARE MODE NOWAIT;END IF;
+ IF (SELECT count(*) FROM public.attendance_device d JOIN public.attendance_marking_site s ON s.id=d.site_id AND s.tenant_id=d.tenant_id
+  WHERE d.tenant_id=(ctx->>'tenantId')::uuid AND d.status='active' AND s.status='active')>1000
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_CATALOG_LIMIT';END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('id',d.id,'label',d.external_key||' · '||d.model,
+  'siteLabel',s.label,'deviceVersion',d.version,'siteId',s.id,'siteVersion',s.version) ORDER BY d.id),'[]'::jsonb)
+ INTO rows_value FROM public.attendance_device d JOIN public.attendance_marking_site s ON s.id=d.site_id AND s.tenant_id=d.tenant_id
+ WHERE d.tenant_id=(ctx->>'tenantId')::uuid AND d.status='active' AND s.status='active';
+ version_value:=public.attendance_expected_devices_hash_v1(jsonb_build_object('version','attendance-expected-device-catalog.v1',
+  'tenantId',ctx->'tenantId','sourceBindingId',ctx->'sourceBindingId','devices',rows_value));
+ RETURN jsonb_build_object('version',version_value,'devices',coalesce((SELECT jsonb_agg(x-ARRAY['deviceVersion','siteId','siteVersion'] ORDER BY x->>'id')
+  FROM jsonb_array_elements(rows_value) x),'[]'::jsonb),'complete',true);
+END $catalog$;
+
+-- No identity is projected until both the historical proof and exact area scope
+-- have been checked. A current-area match is never a substitute for that proof.
+CREATE FUNCTION public.attendance_expected_devices_subject_v1(ctx jsonb,target uuid,area jsonb,first_date date,last_date date)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $subject$
+DECLARE h jsonb;label_value text;authorized_area jsonb; BEGIN
+ authorized_area:=public.attendance_area_assert_scope_v1(ctx,area);
+ h:=public.attendance_area_history_v1(ctx,target,first_date,last_date);
+ IF h->>'status' IS DISTINCT FROM 'resolved' OR h#>>'{area,organizationUnitSourceId}' IS DISTINCT FROM area->>'organizationUnitSourceId'
+ OR h#>>'{area,sectorSourceId}' IS DISTINCT FROM area->>'sectorSourceId'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_HISTORY_UNRESOLVED';END IF;
+ SELECT 'Legajo '||c.legacy_legajo||' · '||pi.full_name INTO label_value
+ FROM public.employment_contract c JOIN public.person_identity pi ON pi.id=c.person_id
+ WHERE c.id=target AND c.tenant_id=(ctx->>'tenantId')::uuid AND c.legacy_company_id=(ctx->>'sourceCompanyId')::bigint;
+ IF label_value IS NULL OR length(label_value) NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_HISTORY_UNRESOLVED';END IF;
+ RETURN jsonb_build_object('id',target,'label',label_value,'areaLabel',authorized_area->'areaLabel',
+  'subjectVersion',public.attendance_expected_devices_hash_v1(h),'history',h);
+END $subject$;
+
+-- Shared private population for choices and the attendance facade. STABLE keeps
+-- its scan, historical chains and label projections in one statement snapshot.
+-- Authority/source locks are acquired by attendance_area_context_v1 in caller.
+-- Proven members remain selectable when another candidate cannot be placed;
+-- complete=false is mandatory for every consumer assessing a whole area.
+-- Population means eligible for the ENTIRE requested interval. Consumers of
+-- daily attendance must call with first_date=last_date, not count this as every
+-- contract active at any moment within a multi-day period.
+CREATE FUNCTION public.attendance_area_population_v1(ctx jsonb,area jsonb,first_date date,last_date date) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $population$
+DECLARE authorized_area jsonb;contracts jsonb:='[]'::jsonb;blockers jsonb:='[]'::jsonb;candidate record;h jsonb;s jsonb;
+BEGIN
+ PERFORM public.attendance_expected_devices_area_v1(area);
+ authorized_area:=public.attendance_area_assert_scope_v1(ctx,area);
+ IF first_date IS NULL OR last_date IS NULL OR first_date NOT BETWEEN DATE '1900-01-01' AND DATE '2099-12-31'
+ OR last_date NOT BETWEEN first_date AND DATE '2099-12-31' OR last_date-first_date>366
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+ -- Imported GRH contracts deliberately have tenant_id NULL (schema067).
+ -- Their absence from the native candidate scan must not certify completeness.
+ -- The private existence check uses the exact certified database/company and
+ -- published provenance; it exposes neither a contract identifier nor a count.
+ IF EXISTS(SELECT 1 FROM public.employment_contract imported
+  JOIN public.source_import_batch batch ON batch.id=imported.source_batch_id AND batch.source_system='GRH'
+   AND batch.source_database=ctx->>'sourceDatabase' AND batch.validation_state='published' AND batch.legacy_import_run_id IS NOT NULL
+  WHERE imported.source_system='GRH' AND imported.tenant_id IS NULL
+   AND imported.legacy_company_id=(ctx->>'sourceCompanyId')::bigint)
+ THEN blockers:=jsonb_build_array('AREA_HISTORY_UNRESOLVED');END IF;
+ -- Bounded candidates are private. No current-area predicate is substituted
+ -- for a historical proof; unresolved candidates never disclose an identity.
+ IF (SELECT count(*) FROM public.employment_contract ec WHERE ec.tenant_id=(ctx->>'tenantId')::uuid
+  AND ec.legacy_company_id=(ctx->>'sourceCompanyId')::bigint)>2000 THEN
+  blockers:=blockers||jsonb_build_array('AREA_POPULATION_TECHNICAL_LIMIT');
+ ELSE
+  FOR candidate IN SELECT ec.id FROM public.employment_contract ec WHERE ec.tenant_id=(ctx->>'tenantId')::uuid
+   AND ec.legacy_company_id=(ctx->>'sourceCompanyId')::bigint ORDER BY ec.id LOOP
+   h:=public.attendance_area_history_v1(ctx,candidate.id,first_date,last_date);
+   IF h->>'status'='blocked' AND h->'reasons'=jsonb_build_array('AREA_HISTORY_RANGE_NOT_ACTIVE') THEN
+    -- Fully proven history, but no continuous employment covering this whole
+    -- request. A one-day call establishes non-eligibility on exactly that day.
+    CONTINUE;
+   ELSIF h->>'status' IS DISTINCT FROM 'resolved' THEN
+    blockers:=jsonb_build_array('AREA_HISTORY_UNRESOLVED');
+   ELSIF h#>>'{area,organizationUnitSourceId}'=area->>'organizationUnitSourceId'
+    AND h#>>'{area,sectorSourceId}' IS NOT DISTINCT FROM area->>'sectorSourceId' THEN
+    s:=public.attendance_expected_devices_subject_v1(ctx,candidate.id,area,first_date,last_date);
+    contracts:=contracts||jsonb_build_array(s-'history');
+   END IF;
+  END LOOP;
+ END IF;
+ RETURN jsonb_build_object('version','attendance-area-population.v1','area',area,'areaLabel',authorized_area->'areaLabel',
+  'validFrom',first_date,'validUntil',last_date,'contracts',contracts,'complete',blockers='[]'::jsonb,'blockerCodes',blockers);
+END $population$;
+
+CREATE FUNCTION public.attendance_expected_devices_proposal_hash_v1(q public.attendance_expected_device_proposal) RETURNS text
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $proposal_hash$
+ SELECT public.attendance_expected_devices_hash_v1(jsonb_build_object('version','attendance-expected-device-proposal.v1',
+  'proposal',to_jsonb(q)-'proposal_sha256'))
+$proposal_hash$;
+
+CREATE FUNCTION public.attendance_expected_devices_record_v1(ctx jsonb,review_ctx jsonb,q public.attendance_expected_device_proposal)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $record$
+DECLARE r public.attendance_expected_device_review;t public.attendance_expected_device_retirement;a jsonb;allowed boolean; BEGIN
+ a:=jsonb_build_object('organizationUnitSourceId',q.organization_unit_source_id,'sectorSourceId',q.sector_source_id);
+ IF q.tenant_id IS DISTINCT FROM (ctx->>'tenantId')::uuid OR q.source_binding_id IS DISTINCT FROM (ctx->>'sourceBindingId')::uuid
+ OR q.company_id IS DISTINCT FROM (ctx->>'sourceCompanyId')::bigint
+ OR public.attendance_expected_devices_scope_matches_v1(ctx,a) IS NOT TRUE THEN RAISE EXCEPTION 'ATTENDANCE_AREA_DENIED';END IF;
+ IF q.proposal_sha256<>public.attendance_expected_devices_proposal_hash_v1(q) THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_PROPOSAL_CHANGED';END IF;
+ SELECT * INTO r FROM public.attendance_expected_device_review WHERE proposal_id=q.id;
+ SELECT * INTO t FROM public.attendance_expected_device_retirement WHERE proposal_id=q.id;
+ allowed:=coalesce(review_ctx->'capabilities'?'attendance.area.devices.approve'
+  AND public.attendance_expected_devices_scope_matches_v1(review_ctx,a)
+  AND q.actor_membership_id<>(review_ctx->>'membershipId')::uuid
+  AND q.actor_person_id<>(review_ctx->>'actorPersonId')::uuid,false);
+ RETURN jsonb_build_object('id',q.id,'version',CASE WHEN t.id IS NOT NULL THEN 3 WHEN r.id IS NOT NULL THEN 2 ELSE 1 END,
+  'status',CASE WHEN t.id IS NOT NULL THEN 'retired' WHEN r.decision='approve' THEN 'approved' WHEN r.decision='reject' THEN 'rejected' ELSE 'proposed' END,
+  'contractId',q.contract_id,'contractLabel',q.contract_label,'area',a,
+  'areaLabel',(SELECT s->'areaLabel' FROM jsonb_array_elements(ctx->'areaScopes') s
+    WHERE s->>'organizationUnitSourceId'=q.organization_unit_source_id AND s->>'sectorSourceId' IS NOT DISTINCT FROM q.sector_source_id),
+  'validFrom',q.valid_from,'validUntil',q.valid_until,'devices',q.device_snapshot,'complete',true,
+  'subjectVersion',q.subject_version,'deviceCatalogVersion',q.device_catalog_version,'proposalSha256',q.proposal_sha256,
+  'proposedAt',q.created_at,'decidedAt',r.decided_at,'retiredAt',t.retired_at,'retiredEffectiveFrom',t.effective_from,
+  'canReview',allowed AND r.id IS NULL,'canRetire',allowed AND coalesce(r.decision='approve',false) AND t.id IS NULL);
+END $record$;
+
+CREATE FUNCTION public.attendance_expected_devices_replay_v1(p jsonb,read_ctx jsonb,k uuid,fp text DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $replay$
+DECLARE a public.attendance_expected_device_attempt;c jsonb;area_value jsonb; BEGIN
+ SELECT * INTO a FROM public.attendance_expected_device_attempt
+ WHERE tenant_id=(read_ctx->>'tenantId')::uuid AND source_binding_id=(read_ctx->>'sourceBindingId')::uuid
+ AND actor_membership_id=(read_ctx->>'membershipId')::uuid AND attempt_key=k;
+ IF NOT FOUND THEN RETURN NULL;END IF;
+ c:=public.attendance_area_context_v1(p,CASE WHEN a.operation='propose' THEN 'attendance.area.devices.propose' ELSE 'attendance.area.devices.approve' END);
+ area_value:=a.result_record->'area';
+ PERFORM public.attendance_area_assert_scope_v1(read_ctx,area_value);
+ PERFORM public.attendance_area_assert_scope_v1(c,area_value);
+ IF a.actor_person_id IS DISTINCT FROM (c->>'actorPersonId')::uuid
+ OR a.actor_session_id IS DISTINCT FROM (p->>'actorSessionId')::uuid
+ OR a.actor_session_version IS DISTINCT FROM (p->>'actorSessionVersion')::integer
+ OR a.scope_version IS DISTINCT FROM c->>'scopeVersion'
+ OR a.scope_version IS DISTINCT FROM read_ctx->>'scopeVersion'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_SCOPE_CHANGED';END IF;
+ IF fp IS NOT NULL AND fp IS DISTINCT FROM a.request_sha256
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_IDEMPOTENCY_REUSE';END IF;
+ RETURN public.attendance_expected_devices_base_v1(read_ctx,p)||jsonb_build_object(
+  'receipt',a.receipt,'record',a.result_record,'replayed',true,'attemptKey',k,'requestSha256',a.request_sha256);
+END $replay$;
+
+CREATE FUNCTION public.attendance_expected_devices_read_v1(p jsonb,q jsonb) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $read$
+DECLARE c jsonb;review_ctx jsonb;audit_ctx jsonb;area_value jsonb;authorized_area jsonb;first_date date;last_date date;
+ catalog jsonb;population jsonb;
+ proposal public.attendance_expected_device_proposal;review public.attendance_expected_device_review;retirement public.attendance_expected_device_retirement;
+ answer jsonb;record_value jsonb;history_value jsonb;records_value jsonb;total_value integer;limit_value integer;offset_value integer;
+ audit_allowed boolean:=false;
+BEGIN
+ c:=public.attendance_area_context_v1(p,'attendance.area.read');
+ IF jsonb_typeof(q) IS DISTINCT FROM 'object' OR octet_length(q::text)>8192 OR jsonb_typeof(q->'resource') IS DISTINCT FROM 'string'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+ IF q->>'resource'='bootstrap' THEN
+  IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource']) IS NOT TRUE THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+  RETURN public.attendance_expected_devices_base_v1(c,p);
+ ELSIF q->>'resource'='attempt' THEN
+  IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource','key']) IS NOT TRUE
+  OR jsonb_typeof(q->'key') IS DISTINCT FROM 'string' OR q->>'key'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+  answer:=public.attendance_expected_devices_replay_v1(p,c,(q->>'key')::uuid);
+  IF answer IS NULL THEN RETURN public.attendance_expected_devices_base_v1(c,p)||jsonb_build_object(
+   'found',false,'receipt',NULL,'record',NULL,'replayed',false,'attemptKey',q->'key','requestSha256',NULL);END IF;
+  RETURN answer||jsonb_build_object('found',true);
+ ELSIF q->>'resource'='choices' THEN
+  IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource','area','validFrom','validUntil']) IS NOT TRUE
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+  area_value:=public.attendance_expected_devices_area_v1(q->'area');
+  authorized_area:=public.attendance_area_assert_scope_v1(c,area_value);
+  first_date:=public.attendance_expected_devices_date_v1(q->'validFrom');last_date:=public.attendance_expected_devices_date_v1(q->'validUntil');
+  IF last_date<first_date OR last_date-first_date>366 THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+  catalog:=public.attendance_expected_devices_catalog_v1(c);
+  population:=public.attendance_area_population_v1(c,area_value,first_date,last_date);
+  RETURN public.attendance_expected_devices_base_v1(c,p)||(population-'version')||jsonb_build_object(
+   'devices',catalog->'devices','deviceCatalogVersion',catalog->'version');
+ ELSIF q->>'resource' NOT IN('list','detail') THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+
+ IF c->>'actorPersonId' IS NOT NULL AND c->'capabilities'?'attendance.area.devices.approve'
+ THEN review_ctx:=public.attendance_area_context_v1(p,'attendance.area.devices.approve');END IF;
+ IF q->>'resource'='detail' THEN
+  IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource','id']) IS NOT TRUE
+  OR jsonb_typeof(q->'id') IS DISTINCT FROM 'string' OR q->>'id'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+  SELECT * INTO proposal FROM public.attendance_expected_device_proposal
+   WHERE id=(q->>'id')::uuid AND tenant_id=(c->>'tenantId')::uuid AND source_binding_id=(c->>'sourceBindingId')::uuid
+    AND company_id=(c->>'sourceCompanyId')::bigint;
+  IF NOT FOUND THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_NOT_FOUND';END IF;
+  area_value:=jsonb_build_object('organizationUnitSourceId',proposal.organization_unit_source_id,'sectorSourceId',proposal.sector_source_id);
+  PERFORM public.attendance_area_assert_scope_v1(c,area_value);
+  record_value:=public.attendance_expected_devices_record_v1(c,review_ctx,proposal);
+  IF c->'capabilities'?'attendance.area.devices.audit.read' THEN
+   audit_ctx:=public.attendance_area_context_v1(p,'attendance.area.devices.audit.read');
+   audit_allowed:=public.attendance_expected_devices_scope_matches_v1(audit_ctx,area_value);
+  END IF;
+  history_value:='[]'::jsonb;
+  IF audit_allowed THEN
+   history_value:=jsonb_build_array(jsonb_build_object('command','propose','expectedVersion',0,'resultingVersion',1,
+    'reasonCode',proposal.reason_code,'occurredAt',proposal.created_at));
+   SELECT * INTO review FROM public.attendance_expected_device_review WHERE proposal_id=proposal.id;
+   IF FOUND THEN history_value:=history_value||jsonb_build_array(jsonb_build_object('command',review.decision,
+    'expectedVersion',1,'resultingVersion',2,'reasonCode',review.reason_code,'occurredAt',review.decided_at));END IF;
+   SELECT * INTO retirement FROM public.attendance_expected_device_retirement WHERE proposal_id=proposal.id;
+   IF FOUND THEN history_value:=history_value||jsonb_build_array(jsonb_build_object('command','retire',
+    'expectedVersion',2,'resultingVersion',3,'reasonCode',retirement.reason_code,'occurredAt',retirement.retired_at));END IF;
+  END IF;
+  RETURN public.attendance_expected_devices_base_v1(c,p)||jsonb_build_object('record',record_value,'history',history_value,
+   'auditAvailable',audit_allowed,'historyComplete',audit_allowed);
+ END IF;
+
+ IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource','area','status','limit','offset']) IS NOT TRUE
+ OR jsonb_typeof(q->'status') IS DISTINCT FROM 'string' OR q->>'status' NOT IN('all','proposed','approved','rejected','retired')
+ OR jsonb_typeof(q->'limit') IS DISTINCT FROM 'number' OR q->>'limit'!~'^[0-9]{1,3}$'
+ OR jsonb_typeof(q->'offset') IS DISTINCT FROM 'number' OR q->>'offset'!~'^[0-9]{1,6}$'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+ limit_value:=(q->>'limit')::integer;offset_value:=(q->>'offset')::integer;
+ IF limit_value NOT BETWEEN 1 AND 100 OR offset_value NOT BETWEEN 0 AND 100000 THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+ area_value:=public.attendance_expected_devices_area_v1(q->'area');authorized_area:=public.attendance_area_assert_scope_v1(c,area_value);
+ -- The authority predicate executes on the server before a record projection.
+ WITH scoped AS MATERIALIZED (
+  SELECT pr.*,
+   CASE WHEN rt.id IS NOT NULL THEN 'retired' WHEN rv.decision='approve' THEN 'approved'
+    WHEN rv.decision='reject' THEN 'rejected' ELSE 'proposed' END current_status
+  FROM public.attendance_expected_device_proposal pr
+  LEFT JOIN public.attendance_expected_device_review rv ON rv.proposal_id=pr.id
+  LEFT JOIN public.attendance_expected_device_retirement rt ON rt.proposal_id=pr.id
+  WHERE pr.tenant_id=(c->>'tenantId')::uuid AND pr.source_binding_id=(c->>'sourceBindingId')::uuid
+   AND pr.company_id=(c->>'sourceCompanyId')::bigint
+   AND pr.organization_unit_source_id=area_value->>'organizationUnitSourceId'
+   AND pr.sector_source_id IS NOT DISTINCT FROM area_value->>'sectorSourceId'
+ ), selected AS MATERIALIZED (SELECT id FROM scoped WHERE q->>'status'='all' OR current_status=q->>'status'
+   ORDER BY created_at DESC,id LIMIT limit_value OFFSET offset_value)
+ SELECT (SELECT count(*)::integer FROM scoped WHERE q->>'status'='all' OR current_status=q->>'status'),
+  coalesce((SELECT jsonb_agg(public.attendance_expected_devices_record_v1(c,review_ctx,pr) ORDER BY pr.created_at DESC,pr.id)
+   FROM selected se JOIN public.attendance_expected_device_proposal pr ON pr.id=se.id),'[]'::jsonb)
+ INTO total_value,records_value;
+ RETURN public.attendance_expected_devices_base_v1(c,p)||jsonb_build_object('area',area_value,'areaLabel',authorized_area->'areaLabel',
+  'status',q->'status','limit',limit_value,'offset',offset_value,'total',total_value,'records',records_value,'complete',true);
+EXCEPTION WHEN lock_not_available OR deadlock_detected THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_BUSY';
+END $read$;
+
+CREATE FUNCTION public.attendance_expected_devices_command_v1(p jsonb,b jsonb,k uuid) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $command$
+DECLARE c jsonb;read_ctx jsonb;review_ctx jsonb;payload_value jsonb;area_value jsonb;authorized_area jsonb;
+ target uuid;first_date date;last_date date;retire_date date;selected_ids uuid[];catalog jsonb;subject_value jsonb;
+ fp text;answer jsonb;record_value jsonb;receipt_value jsonb;recorded_at_value timestamptz;reason_hash text;current_version integer;
+ pr public.attendance_expected_device_proposal;rv public.attendance_expected_device_review;rt public.attendance_expected_device_retirement;
+BEGIN
+ read_ctx:=public.attendance_area_context_v1(p,'attendance.area.read');
+ IF k IS NULL OR public.attendance_expected_devices_exact_v1(b,ARRAY['version','command','scopeVersion','proposalId','expectedVersion','payload','reasonCode','reason']) IS NOT TRUE
+ OR octet_length(b::text)>32768 OR b->>'version' IS DISTINCT FROM 'attendance-expected-devices-command.v1'
+ OR jsonb_typeof(b->'command') IS DISTINCT FROM 'string' OR b->>'command' NOT IN('propose','approve','reject','retire')
+ OR jsonb_typeof(b->'scopeVersion') IS DISTINCT FROM 'string' OR b->>'scopeVersion'!~'^[a-f0-9]{64}$'
+ OR jsonb_typeof(b->'expectedVersion') IS DISTINCT FROM 'number' OR b->>'expectedVersion'!~'^[012]$'
+ OR jsonb_typeof(b->'reason') IS DISTINCT FROM 'string' OR length(b->>'reason') NOT BETWEEN 10 AND 500
+ OR b->>'reason'<>btrim(b->>'reason') OR b->>'reason'<>normalize(b->>'reason',NFC)
+ OR b->>'reason'~'[<>[:cntrl:]]'
+ OR b->>'reason'~U&'[\00AD\0600-\0605\061C\06DD\070F\0890-\0891\08E2\180E\200B-\200F\202A-\202E\2060-\2064\2066-\206F\FEFF\FFF9-\FFFB\+0110BD\+0110CD\+013430-\+01343F\+01BCA0-\+01BCA3\+01D173-\+01D17A\+0E0001\+0E0020-\+0E007F]'
+ OR jsonb_typeof(b->'reasonCode') IS DISTINCT FROM 'string'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ IF (b->>'command'='propose' AND b->>'reasonCode' NOT IN('initial_declaration','replacement'))
+ OR (b->>'command'='approve' AND b->>'reasonCode'<>'declaration_verified')
+ OR (b->>'command'='reject' AND b->>'reasonCode' NOT IN('insufficient_evidence','wrong_devices','wrong_scope'))
+ OR (b->>'command'='retire' AND b->>'reasonCode'<>'declaration_retired')
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ c:=public.attendance_area_context_v1(p,CASE WHEN b->>'command'='propose' THEN 'attendance.area.devices.propose' ELSE 'attendance.area.devices.approve' END);
+ IF c->>'actorPersonId' IS NULL THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_ACTOR_REQUIRED';END IF;
+ -- The context resolves the live actor. Verify that its native link has not
+ -- changed between the independent capability and read-context evaluations.
+ IF public.time_catalog_native_actor_v2((c->>'tenantId')::uuid,(c->>'sourceBindingId')::uuid,(c->>'membershipId')::uuid)
+  IS DISTINCT FROM (c->>'actorPersonId')::uuid THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_SCOPE_CHANGED';END IF;
+ IF b->>'scopeVersion' IS DISTINCT FROM c->>'scopeVersion' OR b->>'scopeVersion' IS DISTINCT FROM read_ctx->>'scopeVersion'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_SCOPE_CHANGED';END IF;
+ payload_value:=b->'payload';
+ IF b->>'command'='propose' THEN
+  IF b->'proposalId' IS DISTINCT FROM 'null'::jsonb OR b->>'expectedVersion'<>'0'
+  OR public.attendance_expected_devices_exact_v1(payload_value,ARRAY['contractId','area','validFrom','validUntil','deviceIds','subjectVersion','deviceCatalogVersion','complete']) IS NOT TRUE
+  OR jsonb_typeof(payload_value->'contractId') IS DISTINCT FROM 'string'
+  OR payload_value->>'contractId'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+  OR payload_value->'complete' IS DISTINCT FROM 'true'::jsonb
+  OR jsonb_typeof(payload_value->'subjectVersion') IS DISTINCT FROM 'string' OR payload_value->>'subjectVersion'!~'^[a-f0-9]{64}$'
+  OR jsonb_typeof(payload_value->'deviceCatalogVersion') IS DISTINCT FROM 'string' OR payload_value->>'deviceCatalogVersion'!~'^[a-f0-9]{64}$'
+  OR jsonb_typeof(payload_value->'deviceIds') IS DISTINCT FROM 'array'
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+  IF jsonb_array_length(payload_value->'deviceIds') NOT BETWEEN 1 AND 100
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(payload_value->'deviceIds') d WHERE jsonb_typeof(d)<>'string' OR d#>>'{}'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+  OR (SELECT count(DISTINCT d) FROM jsonb_array_elements(payload_value->'deviceIds') d)<>jsonb_array_length(payload_value->'deviceIds')
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+  SELECT array_agg((d#>>'{}')::uuid ORDER BY (d#>>'{}')::uuid) INTO selected_ids FROM jsonb_array_elements(payload_value->'deviceIds') d;
+  target:=(payload_value->>'contractId')::uuid;area_value:=public.attendance_expected_devices_area_v1(payload_value->'area');
+  first_date:=public.attendance_expected_devices_date_v1(payload_value->'validFrom');last_date:=public.attendance_expected_devices_date_v1(payload_value->'validUntil');
+  IF last_date<first_date OR last_date-first_date>366 THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ ELSE
+  IF jsonb_typeof(b->'proposalId') IS DISTINCT FROM 'string' OR b->>'proposalId'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+  OR b->>'expectedVersion'='0' THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+  IF b->>'command'='retire' THEN
+   IF public.attendance_expected_devices_exact_v1(payload_value,ARRAY['effectiveFrom']) IS NOT TRUE THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+   retire_date:=public.attendance_expected_devices_date_v1(payload_value->'effectiveFrom');
+  ELSIF payload_value IS DISTINCT FROM 'null'::jsonb THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+ END IF;
+
+ -- Request fingerprint binds the exact JSON value; neither ordering of arrays
+ -- nor text is rewritten. JSON object-key order is intentionally insignificant.
+ fp:=public.attendance_expected_devices_hash_v1(jsonb_build_object('version','attendance-expected-devices-request.v1','body',b,
+  'tenantId',c->'tenantId','sourceBindingId',c->'sourceBindingId','membershipId',c->'membershipId',
+  'actorPersonId',c->'actorPersonId','sessionId',p->'actorSessionId','sessionVersion',p->'actorSessionVersion'));
+ IF NOT pg_try_advisory_xact_lock(hashtextextended('attendance-expected-device-attempt:v1:'||(c->>'tenantId')||':'||(c->>'sourceBindingId')||':'||(c->>'membershipId')||':'||k::text,0))
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_BUSY';END IF;
+ answer:=public.attendance_expected_devices_replay_v1(p,read_ctx,k,fp);IF answer IS NOT NULL THEN RETURN answer;END IF;
+
+ IF b->>'command'<>'propose' THEN
+  SELECT * INTO pr FROM public.attendance_expected_device_proposal WHERE id=(b->>'proposalId')::uuid
+   AND tenant_id=(c->>'tenantId')::uuid AND source_binding_id=(c->>'sourceBindingId')::uuid AND company_id=(c->>'sourceCompanyId')::bigint;
+  IF NOT FOUND THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_NOT_FOUND';END IF;
+  target:=pr.contract_id;area_value:=jsonb_build_object('organizationUnitSourceId',pr.organization_unit_source_id,'sectorSourceId',pr.sector_source_id);
+ END IF;
+ authorized_area:=public.attendance_area_assert_scope_v1(c,area_value);
+ PERFORM public.attendance_area_assert_scope_v1(read_ctx,area_value);
+ -- Shared with the native employment lifecycle: changes to this contract and
+ -- concurrent decisions on its roster cannot pass stale guards in parallel.
+ IF NOT pg_try_advisory_xact_lock(hashtextextended('native-employment-lifecycle:v1:'||(c->>'tenantId')||':'||(c->>'sourceBindingId')||':'||target::text,0))
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_BUSY';END IF;
+ PERFORM 1 FROM public.employment_contract WHERE id=target AND tenant_id=(c->>'tenantId')::uuid FOR UPDATE NOWAIT;
+ IF NOT FOUND THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_NOT_FOUND';END IF;
+ recorded_at_value:=clock_timestamp();reason_hash:=public.attendance_expected_devices_hash_v1(b->'reason');
+
+ IF b->>'command'='propose' THEN
+  subject_value:=public.attendance_expected_devices_subject_v1(c,target,area_value,first_date,last_date);
+  IF payload_value->>'subjectVersion' IS DISTINCT FROM subject_value->>'subjectVersion'
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_SUBJECT_CHANGED';END IF;
+  catalog:=public.attendance_expected_devices_catalog_v1(c,true);
+  IF payload_value->>'deviceCatalogVersion' IS DISTINCT FROM catalog->>'version'
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_CATALOG_CHANGED';END IF;
+  IF EXISTS(SELECT 1 FROM unnest(selected_ids) d WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(catalog->'devices') x WHERE (x->>'id')::uuid=d))
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_DEVICE_INVALID';END IF;
+  pr.id:=gen_random_uuid();pr.tenant_id:=(c->>'tenantId')::uuid;pr.source_binding_id:=(c->>'sourceBindingId')::uuid;pr.company_id:=(c->>'sourceCompanyId')::bigint;
+  pr.contract_id:=target;pr.organization_unit_source_id:=area_value->>'organizationUnitSourceId';pr.sector_source_id:=area_value->>'sectorSourceId';
+  pr.area_label:=authorized_area->>'areaLabel';pr.contract_label:=subject_value->>'label';pr.valid_from:=first_date;pr.valid_until:=last_date;
+  pr.device_ids:=selected_ids;pr.device_snapshot:=(SELECT jsonb_agg(x ORDER BY x->>'id') FROM jsonb_array_elements(catalog->'devices') x WHERE (x->>'id')::uuid=ANY(selected_ids));
+  pr.complete:=true;pr.subject_version:=subject_value->>'subjectVersion';pr.history_snapshot:=subject_value->'history';pr.device_catalog_version:=catalog->>'version';
+  pr.reason_code:=b->>'reasonCode';pr.reason_sha256:=reason_hash;pr.actor_membership_id:=(c->>'membershipId')::uuid;pr.actor_person_id:=(c->>'actorPersonId')::uuid;
+  pr.actor_session_id:=(p->>'actorSessionId')::uuid;pr.actor_session_version:=(p->>'actorSessionVersion')::integer;pr.release_sha:=p->>'releaseSha';pr.created_at:=recorded_at_value;
+  pr.proposal_sha256:=public.attendance_expected_devices_proposal_hash_v1(pr);
+  INSERT INTO public.attendance_expected_device_proposal SELECT (pr).*;
+ ELSE
+  SELECT * INTO pr FROM public.attendance_expected_device_proposal WHERE id=pr.id FOR UPDATE NOWAIT;
+  SELECT * INTO rv FROM public.attendance_expected_device_review WHERE proposal_id=pr.id;
+  SELECT * INTO rt FROM public.attendance_expected_device_retirement WHERE proposal_id=pr.id;
+  current_version:=CASE WHEN rt.id IS NOT NULL THEN 3 WHEN rv.id IS NOT NULL THEN 2 ELSE 1 END;
+  IF (b->>'expectedVersion')::integer<>current_version THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_VERSION_CHANGED';END IF;
+  IF pr.actor_membership_id=(c->>'membershipId')::uuid OR pr.actor_person_id=(c->>'actorPersonId')::uuid
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_MAKER_CHECKER_REQUIRED';END IF;
+  IF pr.proposal_sha256<>public.attendance_expected_devices_proposal_hash_v1(pr)
+  THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_PROPOSAL_CHANGED';END IF;
+  IF b->>'command'='retire' THEN
+   IF rv.decision IS DISTINCT FROM 'approve' OR rt.id IS NOT NULL THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_STATE_INVALID';END IF;
+   IF retire_date<pr.valid_from OR retire_date>pr.valid_until+1 THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_INPUT_INVALID';END IF;
+   rt.id:=gen_random_uuid();rt.tenant_id:=pr.tenant_id;rt.source_binding_id:=pr.source_binding_id;rt.proposal_id:=pr.id;rt.approval_id:=rv.id;
+   rt.effective_from:=retire_date;rt.reason_code:=b->>'reasonCode';rt.reason_sha256:=reason_hash;rt.actor_membership_id:=(c->>'membershipId')::uuid;
+   rt.actor_person_id:=(c->>'actorPersonId')::uuid;rt.actor_session_id:=(p->>'actorSessionId')::uuid;rt.actor_session_version:=(p->>'actorSessionVersion')::integer;
+   rt.release_sha:=p->>'releaseSha';rt.retired_at:=recorded_at_value;
+   INSERT INTO public.attendance_expected_device_retirement SELECT (rt).*;
+  ELSE
+   IF rv.id IS NOT NULL THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_STATE_INVALID';END IF;
+   IF b->>'command'='approve' THEN
+    subject_value:=public.attendance_expected_devices_subject_v1(c,target,area_value,pr.valid_from,pr.valid_until);
+    IF pr.subject_version IS DISTINCT FROM subject_value->>'subjectVersion' OR pr.history_snapshot IS DISTINCT FROM subject_value->'history'
+    OR pr.contract_label IS DISTINCT FROM subject_value->>'label' THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_SUBJECT_CHANGED';END IF;
+    catalog:=public.attendance_expected_devices_catalog_v1(c,true);
+    IF pr.device_catalog_version IS DISTINCT FROM catalog->>'version' OR pr.device_snapshot IS DISTINCT FROM
+     (SELECT jsonb_agg(x ORDER BY x->>'id') FROM jsonb_array_elements(catalog->'devices') x WHERE (x->>'id')::uuid=ANY(pr.device_ids))
+    THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_CATALOG_CHANGED';END IF;
+    IF EXISTS(SELECT 1 FROM public.attendance_expected_device_proposal other
+     JOIN public.attendance_expected_device_review decision ON decision.proposal_id=other.id AND decision.decision='approve'
+     LEFT JOIN public.attendance_expected_device_retirement retired ON retired.proposal_id=other.id
+     WHERE other.tenant_id=pr.tenant_id AND other.source_binding_id=pr.source_binding_id AND other.contract_id=pr.contract_id AND other.id<>pr.id
+      AND other.valid_from<=pr.valid_until AND pr.valid_from<=other.valid_until
+      AND (retired.id IS NULL OR (other.valid_from<retired.effective_from AND pr.valid_from<retired.effective_from)))
+    THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_OVERLAP';END IF;
+   END IF;
+   rv.id:=gen_random_uuid();rv.tenant_id:=pr.tenant_id;rv.source_binding_id:=pr.source_binding_id;rv.proposal_id:=pr.id;
+   rv.decision:=b->>'command';rv.reason_code:=b->>'reasonCode';rv.reason_sha256:=reason_hash;rv.proposal_sha256:=pr.proposal_sha256;
+   rv.actor_membership_id:=(c->>'membershipId')::uuid;rv.actor_person_id:=(c->>'actorPersonId')::uuid;
+   rv.actor_session_id:=(p->>'actorSessionId')::uuid;rv.actor_session_version:=(p->>'actorSessionVersion')::integer;
+   rv.release_sha:=p->>'releaseSha';rv.decided_at:=recorded_at_value;
+   INSERT INTO public.attendance_expected_device_review SELECT (rv).*;
+  END IF;
+ END IF;
+ IF read_ctx->'capabilities'?'attendance.area.devices.approve' AND read_ctx->>'actorPersonId' IS NOT NULL
+ THEN review_ctx:=public.attendance_area_context_v1(p,'attendance.area.devices.approve');END IF;
+ record_value:=public.attendance_expected_devices_record_v1(read_ctx,review_ctx,pr);
+ receipt_value:=jsonb_build_object('attemptKey',k,'requestSha256',fp,'body',b,'recordId',pr.id,'recordVersion',record_value->'version',
+  'status',record_value->'status','scopeVersion',b->'scopeVersion','recordedAt',recorded_at_value);
+ INSERT INTO public.attendance_expected_device_attempt(tenant_id,source_binding_id,actor_membership_id,attempt_key,actor_person_id,
+  actor_session_id,actor_session_version,request_sha256,operation,proposal_id,scope_version,receipt,result_record,recorded_at)
+ VALUES(pr.tenant_id,pr.source_binding_id,(c->>'membershipId')::uuid,k,(c->>'actorPersonId')::uuid,
+  (p->>'actorSessionId')::uuid,(p->>'actorSessionVersion')::integer,fp,b->>'command',pr.id,b->>'scopeVersion',receipt_value,record_value,recorded_at_value);
+ RETURN public.attendance_expected_devices_base_v1(read_ctx,p)||jsonb_build_object('receipt',receipt_value,'record',record_value,
+  'replayed',false,'attemptKey',k,'requestSha256',fp);
+EXCEPTION WHEN lock_not_available OR deadlock_detected THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_BUSY';
+ WHEN unique_violation THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_CONFLICT';
+END $command$;
+
+-- Internal producer dependency. This establishes declared expectation only;
+-- UUIDs refer to inventory022 and are not invented clock-store device keys.
+-- A retirement takes effect on its explicitly approved date and does not erase
+-- earlier dates. A failed proof never becomes a complete empty-device roster.
+CREATE FUNCTION public.attendance_expected_devices_effective_v1(ctx jsonb,target uuid,on_date date) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $effective$
+DECLARE answer jsonb;h jsonb;area_value jsonb;subject_value jsonb;matches integer;source_version text;
+ pr public.attendance_expected_device_proposal;rv public.attendance_expected_device_review;rt public.attendance_expected_device_retirement;
+BEGIN
+ IF target IS NULL OR on_date IS NULL OR on_date NOT BETWEEN DATE '1900-01-01' AND DATE '2099-12-31'
+ THEN RAISE EXCEPTION 'ATTENDANCE_EXPECTED_DEVICES_QUERY_INVALID';END IF;
+ answer:=jsonb_build_object('version','attendance-expected-devices-effective.v1','contractId',target,'date',on_date,
+  'status','blocked','complete',false,'expectedDeviceIds','[]'::jsonb,'proposalId',NULL,'proposalSha256',NULL,'approvalId',NULL,
+  'validFrom',NULL,'validUntil',NULL,'retiredEffectiveFrom',NULL,'sourceVersion',NULL,'blockerCodes','[]'::jsonb,'coverageCertified',false);
+ h:=public.attendance_area_history_v1(ctx,target,on_date,on_date);
+ IF h->>'status' IS DISTINCT FROM 'resolved'
+ THEN RETURN answer||jsonb_build_object('blockerCodes',jsonb_build_array('AREA_HISTORY_UNRESOLVED'));END IF;
+ area_value:=jsonb_build_object('organizationUnitSourceId',h#>>'{area,organizationUnitSourceId}','sectorSourceId',h#>>'{area,sectorSourceId}');
+ PERFORM public.attendance_area_assert_scope_v1(ctx,area_value);
+ SELECT count(*) INTO matches FROM public.attendance_expected_device_proposal prop
+ JOIN public.attendance_expected_device_review decision ON decision.proposal_id=prop.id AND decision.decision='approve'
+ LEFT JOIN public.attendance_expected_device_retirement retired ON retired.proposal_id=prop.id
+ WHERE prop.tenant_id=(ctx->>'tenantId')::uuid AND prop.source_binding_id=(ctx->>'sourceBindingId')::uuid
+  AND prop.company_id=(ctx->>'sourceCompanyId')::bigint
+  AND prop.contract_id=target AND on_date BETWEEN prop.valid_from AND prop.valid_until
+  AND (retired.id IS NULL OR on_date<retired.effective_from);
+ IF matches<>1 THEN RETURN answer||jsonb_build_object('blockerCodes',jsonb_build_array(
+  CASE WHEN matches=0 THEN 'EXPECTED_DEVICES_DECLARATION_REQUIRED' ELSE 'EXPECTED_DEVICES_DECLARATION_CONFLICT' END));END IF;
+ SELECT proposal.* INTO pr FROM public.attendance_expected_device_proposal proposal
+ JOIN public.attendance_expected_device_review decision ON decision.proposal_id=proposal.id AND decision.decision='approve'
+ LEFT JOIN public.attendance_expected_device_retirement retired ON retired.proposal_id=proposal.id
+ WHERE proposal.tenant_id=(ctx->>'tenantId')::uuid AND proposal.source_binding_id=(ctx->>'sourceBindingId')::uuid
+  AND proposal.company_id=(ctx->>'sourceCompanyId')::bigint
+  AND proposal.contract_id=target AND on_date BETWEEN proposal.valid_from AND proposal.valid_until
+  AND (retired.id IS NULL OR on_date<retired.effective_from);
+ SELECT * INTO rv FROM public.attendance_expected_device_review WHERE proposal_id=pr.id;
+ SELECT * INTO rt FROM public.attendance_expected_device_retirement WHERE proposal_id=pr.id;
+ IF pr.organization_unit_source_id IS DISTINCT FROM area_value->>'organizationUnitSourceId'
+ OR pr.sector_source_id IS DISTINCT FROM area_value->>'sectorSourceId'
+ OR pr.proposal_sha256<>public.attendance_expected_devices_proposal_hash_v1(pr)
+ OR rv.proposal_sha256<>pr.proposal_sha256 OR rv.actor_person_id=pr.actor_person_id OR rv.actor_membership_id=pr.actor_membership_id
+ OR (rt.id IS NOT NULL AND (rt.actor_person_id=pr.actor_person_id OR rt.actor_membership_id=pr.actor_membership_id))
+ THEN RETURN answer||jsonb_build_object('blockerCodes',jsonb_build_array('EXPECTED_DEVICES_DECLARATION_INVALID'));END IF;
+ h:=public.attendance_area_history_v1(ctx,target,pr.valid_from,pr.valid_until);
+ IF h->>'status' IS DISTINCT FROM 'resolved' OR public.attendance_expected_devices_hash_v1(h) IS DISTINCT FROM pr.subject_version
+ OR h IS DISTINCT FROM pr.history_snapshot
+ THEN RETURN answer||jsonb_build_object('blockerCodes',jsonb_build_array('EXPECTED_DEVICES_HISTORY_CHANGED'));END IF;
+ source_version:=public.attendance_expected_devices_hash_v1(jsonb_build_object('version','attendance-expected-devices-effective-source.v1',
+  'tenantId',ctx->'tenantId','sourceBindingId',ctx->'sourceBindingId','contractId',target,'date',on_date,
+  'proposalSha256',pr.proposal_sha256,'approvalId',rv.id,'retirementId',rt.id,'retiredEffectiveFrom',rt.effective_from,'history',pr.subject_version));
+ RETURN answer||jsonb_build_object('status','resolved','complete',true,'expectedDeviceIds',to_jsonb(pr.device_ids),
+  'proposalId',pr.id,'proposalSha256',pr.proposal_sha256,'approvalId',rv.id,'validFrom',pr.valid_from,'validUntil',pr.valid_until,
+  'retiredEffectiveFrom',rt.effective_from,'sourceVersion',source_version);
+END $effective$;
+
+ALTER TABLE public.attendance_expected_device_proposal ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_expected_device_review ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_expected_device_retirement ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_expected_device_attempt ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.attendance_expected_device_proposal,public.attendance_expected_device_review,
+ public.attendance_expected_device_retirement,public.attendance_expected_device_attempt FROM PUBLIC,municontrol_actions_runtime_app;
+-- No GRANT here. The reviewed compositor must attest the new tables, triggers,
+-- dependencies and function bodies before granting only the two facade calls.
+REVOKE ALL ON FUNCTION
+ public.attendance_expected_devices_immutable_v1(),
+ public.attendance_expected_devices_hash_v1(jsonb),
+ public.attendance_expected_devices_exact_v1(jsonb,text[]),
+ public.attendance_expected_devices_date_v1(jsonb),
+ public.attendance_expected_devices_area_v1(jsonb),
+ public.attendance_expected_devices_scope_matches_v1(jsonb,jsonb),
+ public.attendance_expected_devices_base_v1(jsonb,jsonb),
+ public.attendance_expected_devices_catalog_v1(jsonb,boolean),
+ public.attendance_expected_devices_subject_v1(jsonb,uuid,jsonb,date,date),
+ public.attendance_area_population_v1(jsonb,jsonb,date,date),
+ public.attendance_expected_devices_proposal_hash_v1(public.attendance_expected_device_proposal),
+ public.attendance_expected_devices_record_v1(jsonb,jsonb,public.attendance_expected_device_proposal),
+ public.attendance_expected_devices_replay_v1(jsonb,jsonb,uuid,text),
+ public.attendance_expected_devices_read_v1(jsonb,jsonb),
+ public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid),
+ public.attendance_expected_devices_effective_v1(jsonb,uuid,date)
+ FROM PUBLIC,municontrol_actions_runtime_app;
+-- CODEX INSTALLATION RULE: replace the final ROLLBACK only after adding an explicit
+-- CODEX_REVIEWED_COMMIT marker bound to the reviewed derived SQL SHA-256 and recorded preimages.
+ROLLBACK;
