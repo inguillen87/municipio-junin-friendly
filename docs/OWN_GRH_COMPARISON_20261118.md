@@ -39,7 +39,11 @@ no recalcula fórmulas, no redondea, no confirma ni paga nada.
 - **Descripción y unidad GRH** son informativas: pueden llegar vacías (la unidad, hasta 80 caracteres).
 - **Tamaño**: la 242 envía el catálogo de conceptos una sola vez y cada renglón como `[código, importe, cantidad]`;
   con el máximo de la 048 (30.000 renglones) queda muy por debajo del límite de respuesta. Si aun así una respuesta
-  supera 4 MB, la fachada responde 413 y no entrega una parte.
+  supera 4 MB, la fachada responde 413 y no entrega una parte. La 242 lo detecta antes (texto jsonb mayor a 3.800.000
+  bytes) y lo audita como `too_large`; `success` sólo se registra cuando la respuesta se entrega entera.
+- **Fuentes de la 048 no canónicas**: la 048 admite importes con ceros iniciales (`0001.23`) y `-0.00`; la 242 los
+  entrega en forma canónica sin cambiar el valor (`1.23`, `0.00`). Un **código** con ceros iniciales (`0993`) no se
+  normaliza, porque `0993` y `993` serían ambiguos: la fachada responde **422** con el motivo y sin datos.
 
 ## Instalación (Codex)
 

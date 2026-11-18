@@ -149,8 +149,16 @@ test('la fachada lee con la sesión autenticada, exige ambas capacidades y devue
  assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},principal,null)).status,401);
  assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},{...principal,tenant:{...principal.tenant,effectiveCapabilities:['payroll.read']}},session)).status,403);
  assert.equal((await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines-compact.v1',found:false,official:false}}]},{query:{datasetId:uid}},principal,session)).status,404);
- for(const bad of [a=>{a.complete=false;},a=>{a.datasetId=id(2);},a=>{a.version='otra';},a=>{a.statements[0].lines[0][1]='1,00';},a=>{a.statements[0].lines[0][0]='4242';},a=>{a.concepts['4242']={description:null,totalGroup:null,unit:null};}])
+ // Contrato roto o contexto ajeno: falla. Fuente que no se puede comparar sin ambigüedad: 422 con su motivo, sin datos.
+ for(const bad of [a=>{a.datasetId=id(2);},a=>{a.version='otra';}])
   await assert.rejects(internalOwnGrhStatementLines({query:async()=>{const a=answer();bad(a);return [{result:a}];}},{query:{datasetId:uid}},principal,session));
+ for(const bad of [a=>{a.complete=false;},a=>{a.statements[0].lines[0][1]='1,00';},a=>{a.statements[0].lines[0][0]='4242';},a=>{a.concepts['4242']={description:null,totalGroup:null,unit:null};},
+   a=>{const l=a.statements[0].lines.find(l=>l[0]==='993');l[0]='0993';a.concepts['0993']=a.concepts['993'];if(!a.statements.some(s=>s.lines.some(l=>l[0]==='993')))delete a.concepts['993'];}]){
+  const r=await internalOwnGrhStatementLines({query:async()=>{const a=answer();bad(a);return [{result:a}];}},{query:{datasetId:uid}},principal,session);
+  assert.equal(r.status,422);assert.equal(r.payload.code,'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPATIBLE');assert.equal(r.payload.data,undefined);assert.match(r.payload.error,/^La liquidación GRH incorporada no se puede comparar: /);
+ }
+ const sqlBig=await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines-compact.v1',found:true,official:false,tooLarge:true,datasetId:uid}}]},{query:{datasetId:uid}},principal,session);
+ assert.equal(sqlBig.status,413);assert.equal(sqlBig.payload.code,'OWN_GRH_STATEMENT_LINES_TOO_LARGE');
 });
 
 test('la 242 es aditiva, acotada al origen de la sesión, audita y no expone identidad',()=>{
@@ -205,4 +213,12 @@ test('revisión de Codex: unidad o descripción vacías del catálogo GRH se ace
  huge.statements=Array.from({length:20},(_,i)=>({legajo:String(10+i),statementId:'70000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(80000+i),lines:Array.from({length:1000},(_,j)=>[String(1000+i*1000+j),'1.00',null])}));
  const tooBig=await internalOwnGrhStatementLines({query:async()=>[{result:huge}]},{query:{datasetId:uid}},principal,session);
  assert.equal(tooBig.status,413);assert.equal(tooBig.payload.code,'OWN_GRH_STATEMENT_LINES_TOO_LARGE');assert.equal(tooBig.payload.data,undefined);
+});
+
+test('revisión de ChatGPT: la 242 canoniza importes sin cambiar su valor, no normaliza códigos y audita too_large',()=>{
+ const s=fs.readFileSync('scripts/migrations/242-own-grh-statement-lines.sql','utf8');
+ assert.match(s,/jsonb_build_array\(ln->>'code',\(ln->>'amount'\)::numeric::text,\(ln->>'quantity'\)::numeric::text\)/);
+ assert.match(s,/CHECK\(outcome IN \('success','not_found','too_large'\)\)/);
+ assert.match(s,/octet_length\(answer::text\)>3800000[\s\S]{0,400}'too_large'[\s\S]{0,300}'tooLarge',true/);
+ assert.ok(s.indexOf("'too_large'")<s.lastIndexOf("'success'"),'el éxito se audita sólo si la respuesta entra');
 });

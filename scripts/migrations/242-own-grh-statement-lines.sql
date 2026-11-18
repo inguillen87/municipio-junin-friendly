@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS own_grh_statement_lines_read_event (
  source_binding_id uuid NOT NULL, actor_membership_id uuid NOT NULL,
  actor_session_id uuid NOT NULL REFERENCES tenant_identity_session(id),
  dataset_id uuid REFERENCES payroll_detail_dataset(id),
- outcome text NOT NULL CHECK(outcome IN ('success','not_found')),
+ outcome text NOT NULL CHECK(outcome IN ('success','not_found','too_large')),
  result_count integer NOT NULL CHECK(result_count BETWEEN 0 AND 2000), occurred_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(tenant_id,source_binding_id) REFERENCES platform_tenant_source_binding(tenant_id,id),
  FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES tenant_membership(id,tenant_id)
@@ -63,7 +63,9 @@ BEGIN
   WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant) q;
  SELECT coalesce(jsonb_agg(jsonb_build_object(
    'legajo',s.source_legajo,'statementId',s.id,'statementHash',s.statement_sha256,
-   'lines',(SELECT coalesce(jsonb_agg(jsonb_build_array(ln->>'code',ln->>'amount',ln->>'quantity')
+   -- Importe y cantidad en forma canónica sin cambiar su valor: la 048 admite ceros iniciales (0001.23) y -0.00;
+   -- el texto numérico conserva sus dos decimales. El código NO se normaliza: 0993 y 993 serían ambiguos.
+   'lines',(SELECT coalesce(jsonb_agg(jsonb_build_array(ln->>'code',(ln->>'amount')::numeric::text,(ln->>'quantity')::numeric::text)
      ORDER BY (ln->>'code')::integer),'[]'::jsonb) FROM jsonb_array_elements(s.lines) ln))
   ORDER BY length(s.source_legajo),s.source_legajo),'[]'::jsonb) INTO statements_json
  FROM payroll_detail_statement s WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant;
@@ -71,6 +73,13 @@ BEGIN
   'period',ds.source_period::text||'-'||lpad(ds.source_month::text,2,'0'),'payrollType',ds.payroll_type,
   'closureStatus',CASE ds.source_closed_flag WHEN 1 THEN 'closed' WHEN 0 THEN 'open' ELSE 'unknown' END,
   'sourceHash',ds.source_sha256,'complete',true,'concepts',concepts_json,'statements',statements_json);
+ -- El texto jsonb es más largo que el JSON que envía la fachada; con 3.800.000 bytes la respuesta HTTP queda
+ -- por debajo de su tope de 4 MB. Si no entra, se audita 'too_large' y no se entrega ninguna parte.
+ IF octet_length(answer::text)>3800000 THEN
+  INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
+  VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'too_large',0);
+  RETURN jsonb_build_object('version','grh-statement-lines-compact.v1','found',true,'official',false,'tooLarge',true,'datasetId',ds.id);
+ END IF;
  INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
  VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'success',actual_n);
  RETURN answer;
