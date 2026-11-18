@@ -1,0 +1,76 @@
+{
+  "version": "municontrol-install-composition-derived.v1",
+  "name": "attendance-area-workdays",
+  "installable": false,
+  "dryRun": true,
+  "committed": false,
+  "requiresCodexReviewedCommit": true,
+  "source": {
+    "path": "scripts/candidates/attendance-area-workdays-v1.source.sql.txt",
+    "bytes": 19876,
+    "sha256": "c9fefca528f0f572ef86d076b5f8e1bded6b2c0995e79a7dd0f14d521c216d41"
+  },
+  "sourceManifest": {
+    "path": "scripts/candidates/attendance-area-workdays-v1.source.manifest.json",
+    "sha256": "ecdb0c9fa3410d25c95c43810e24a1861fc16102e5552c441be5f47e26542ab9"
+  },
+  "attestation": {
+    "path": "scripts/candidates/install-composition-attestation-v1.json",
+    "sha256": "f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695",
+    "complete": false
+  },
+  "removed": {
+    "barrierSha256": "2d2da2fe12a36922a6ff1a48823c8dc96aa1dedb21475dfbf6d98908cb7324bc",
+    "rollbackSha256": "3c41bb5fdf19c0e14c34a58b7dd7ee6c6a1ee9fb70b77b5ce0fe2788a689c8a8"
+  },
+  "preserved": {
+    "prefixSha256": "81aacd5bb374b7728ab4bf6f08a176a332e18e05a53fc7cf34f8d310e84d58a8",
+    "bodySha256": "a6231b29d731060ed818b4d000c98ae553f697a98a50a10644d03af2733be83f",
+    "originalStatementsBytePreserved": true
+  },
+  "preimages": {
+    "functions": [
+      {
+        "signature": "public.attendance_area_context_v1(jsonb,text)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      }
+    ],
+    "triggers": [],
+    "newFunctions": [
+      {
+        "name": "attendance_area_workdays_read_v1",
+        "signature": "public.attendance_area_workdays_read_v1(jsonb,jsonb)",
+        "redefined": false
+      }
+    ]
+  },
+  "output": {
+    "path": "scripts/candidates/attendance-area-workdays-v1.derived.sql.txt",
+    "bytes": 23434,
+    "sha256": "c8b774f4a561ee1925b86cbd2a3e443f9af25caafa91a3242e258b2f5d41bc52"
+  }
+}

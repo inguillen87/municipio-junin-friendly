@@ -1,0 +1,303 @@
+-- DERIVED REVIEW ARTIFACT attendance-area-workdays. Never install a source-only file.
+-- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
+-- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
+-- SOURCE CANDIDATE ONLY. NOT INSTALLED. NOT AN INSTALLER.
+-- Derived from exact clock-workday-source.v3 bytes, pinned in the manifest.
+-- Preserves receipt completeness, exact-byte deduplication and source conflict
+-- checks. Adds a SERVER-SCOPED producer; never calls the global reader.
+-- Context, area history and device declarations must be composed together.
+BEGIN;
+-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/trigger-enable state.
+-- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
+DO $composition_preimage$
+DECLARE p jsonb; actual record; t record;
+BEGIN
+ IF FALSE IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
+ IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
+ FOR p IN SELECT value FROM jsonb_array_elements('[{"signature":"public.attendance_area_context_v1(jsonb,text)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.attendance_area_population_v1(jsonb,jsonb,date,date)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.attendance_area_history_v1(jsonb,uuid,date,date)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.attendance_expected_devices_effective_v1(jsonb,uuid,date)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null}]'::jsonb) LOOP
+  IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
+    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',p->>'signature'; END IF;
+  SELECT x.oid,encode(sha256(convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
+    pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text
+    INTO actual FROM pg_proc x WHERE x.oid=to_regprocedure(p->>'signature');
+  IF NOT FOUND OR actual.body_hash IS DISTINCT FROM p->>'prosrcSha256'
+    OR actual.owner_name IS DISTINCT FROM p->>'owner' OR actual.acl_text IS DISTINCT FROM p->>'acl'
+    THEN RAISE EXCEPTION 'COMPOSITION_FUNCTION_PREIMAGE_CHANGED: %',p->>'signature'; END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM jsonb_array_elements('[]'::jsonb) LOOP
+  IF p->>'enabled' IS NULL THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_NOT_ATTESTED: %',p->>'name';END IF;
+  SELECT x.tgenabled::text AS enabled, x.tgtype::integer AS trigger_type,x.tgfoid AS function_oid,
+   x.tgqual AS condition_value,x.tgnargs AS argument_count INTO t
+   FROM pg_trigger x WHERE x.tgrelid=to_regclass(p->>'relation') AND x.tgname=p->>'name';
+  IF NOT FOUND OR t.enabled IS DISTINCT FROM p->>'enabled' OR t.trigger_type IS DISTINCT FROM (p->>'type')::integer
+    OR t.function_oid IS DISTINCT FROM to_regprocedure(p->>'function') OR t.condition_value IS NOT NULL OR t.argument_count<>0
+    THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_CHANGED: %',p->>'name';END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM jsonb_array_elements('[{"name":"attendance_area_workdays_read_v1","signature":"public.attendance_area_workdays_read_v1(jsonb,jsonb)","redefined":false}]'::jsonb) LOOP
+  IF EXISTS (SELECT 1 FROM pg_proc x JOIN pg_namespace n ON n.oid=x.pronamespace
+    WHERE n.nspname='public' AND x.proname=p->>'name')
+    THEN RAISE EXCEPTION 'COMPOSITION_NEW_FUNCTION_COLLISION: %',p->>'name';END IF;
+ END LOOP;
+END $composition_preimage$;
+-- Attestation input SHA-256: f779ae436351375b937c74de116bc48a09de21a77e5966c8792c5c30a6b7b5d6. Missing owner/ACL/trigger-enable pins fail closed.
+
+CREATE FUNCTION public.attendance_area_workdays_read_v1(p jsonb,q jsonb) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+DECLARE ctx jsonb;authorized_area jsonb;area_value jsonb;answer jsonb;
+ p_tenant uuid;p_site text;p_day date;p_snapshot uuid;p_release text;
+ binding_ok boolean;site_ok boolean;complete_ok boolean;device_ok boolean;conflict_found boolean;window_count bigint;unplaceable_found boolean;
+BEGIN
+ ctx:=public.attendance_area_context_v1(p,'attendance.area.read');
+ IF public.attendance_expected_devices_exact_v1(q,ARRAY['resource','area','day','site','snapshot']) IS NOT TRUE
+ OR octet_length(q::text)>8192 OR q->>'resource' IS DISTINCT FROM 'day'
+ OR jsonb_typeof(q->'day') IS DISTINCT FROM 'string' OR q->>'day'!~'^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+ OR NOT pg_input_is_valid(q->>'day','date')
+ OR jsonb_typeof(q->'site') IS DISTINCT FROM 'string' OR q->>'site'!~'^[a-z0-9][a-z0-9._-]{1,95}$'
+ OR(q->'snapshot'<>'null'::jsonb AND(jsonb_typeof(q->'snapshot')<>'string'
+  OR q->>'snapshot'!~'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'))
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_QUERY_INVALID';END IF;
+ p_tenant:=(ctx->>'tenantId')::uuid;p_release:=p->>'releaseSha';p_site:=q->>'site';
+ p_day:=public.attendance_expected_devices_date_v1(q->'day');p_snapshot:=(q->>'snapshot')::uuid;
+ area_value:=public.attendance_expected_devices_area_v1(q->'area');
+ authorized_area:=public.attendance_area_assert_scope_v1(ctx,area_value);
+
+ -- The one data statement below owns the snapshot for population, immutable
+ -- history, expected devices, identity maps, raw integrity and projections.
+ -- Every nested history/population/effective helper is STABLE and private.
+ WITH access AS MATERIALIZED (
+  -- attendance.area.read authorizes nominal identities only inside this scope.
+  SELECT true nominal
+ ), population AS MATERIALIZED (
+  SELECT public.attendance_area_population_v1(ctx,area_value,p_day,p_day) payload
+ ), members AS MATERIALIZED (
+  SELECT (item->>'id')::uuid contract_id,item->>'subjectVersion' subject_version
+  FROM population pop CROSS JOIN LATERAL jsonb_array_elements(pop.payload->'contracts') item
+ ), expected_rows AS MATERIALIZED (
+  SELECT m.contract_id,public.attendance_expected_devices_effective_v1(ctx,m.contract_id,p_day) payload FROM members m
+ ), expected_payloads AS MATERIALIZED (
+  SELECT e.contract_id,e.payload||jsonb_build_object('deviceKeyNamespace','clock-device-v2','expectedDeviceKeys',
+   coalesce((SELECT jsonb_agg(encode(digest('clock-device-v2:'||p_tenant||':'||device_id::uuid,'sha256'),'hex') ORDER BY device_id::uuid)
+    FROM jsonb_array_elements_text(e.payload->'expectedDeviceIds') device_id),'[]'::jsonb)) payload
+  FROM expected_rows e
+ ), expected AS MATERIALIZED (
+  SELECT jsonb_build_object('version','attendance-area-expected-devices.v1',
+   'complete',pop.payload->'complete'='true'::jsonb AND NOT EXISTS(SELECT 1 FROM expected_rows e
+    WHERE e.payload->>'status' IS DISTINCT FROM 'resolved' OR e.payload->'complete' IS DISTINCT FROM 'true'::jsonb),
+   'records',coalesce((SELECT jsonb_agg(e.payload ORDER BY e.contract_id) FROM expected_payloads e),'[]'::jsonb)) payload
+  FROM population pop
+ ), binding AS MATERIALIZED (
+  SELECT sb.* FROM tenant_identity_policy policy
+  JOIN platform_tenant_source_binding sb ON sb.id=policy.certified_source_binding_id AND sb.tenant_id=policy.tenant_id
+  JOIN platform_tenant tenant ON tenant.id=policy.tenant_id AND tenant.status='active'
+  WHERE policy.tenant_id=p_tenant AND policy.tenant_data_plane_ready AND sb.verified
+   AND policy.certified_release_sha=p_release AND sb.id=(ctx->>'sourceBindingId')::uuid
+   AND sb.source_company_id=(ctx->>'sourceCompanyId')::bigint AND sb.source_database=ctx->>'sourceDatabase'
+ ), site AS MATERIALIZED (
+  SELECT * FROM attendance_marking_site WHERE tenant_id=p_tenant AND external_key=p_site
+ ), devices AS MATERIALIZED (
+  SELECT d.* FROM attendance_device d JOIN site s ON s.id=d.site_id WHERE d.tenant_id=p_tenant
+ ), captures AS MATERIALIZED (
+  SELECT c.* FROM attendance_clock_snapshot c JOIN devices d ON d.id=c.device_id WHERE c.tenant_id=p_tenant
+ ), receipts AS MATERIALIZED (
+  SELECT q.* FROM attendance_pm10_receipt q JOIN devices d ON d.id=q.device_id WHERE q.tenant_id=p_tenant
+ ), batch_ordinals AS MATERIALIZED (
+  SELECT connector_id,batch_key,ordinal,
+   lag(ordinal) OVER(PARTITION BY connector_id,batch_key ORDER BY part_start,position) previous_ordinal
+  FROM receipts CROSS JOIN LATERAL unnest(source_ordinals) WITH ORDINALITY AS u(ordinal,position)
+ ), batches AS MATERIALIZED (
+  SELECT connector_id,batch_key,
+   count(DISTINCT device_id)=1 AND count(DISTINCT manifest_sha256)=1
+   AND count(DISTINCT snapshot_sha256)=1 AND count(DISTINCT captured_at)=1
+   AND count(DISTINCT total_records)=1 AND count(DISTINCT records_sha256)=1
+   AND sum(record_count)=min(total_records)
+   AND min(part_start)=0 AND count(*)=(min(total_records)+499)/500
+   AND max(part_start)=((min(total_records)-1)/500)*500
+   AND bool_and(record_count=least(500,total_records-part_start)
+    AND cardinality(source_ordinals)=record_count AND octet_length(records_payload)=record_count*40)
+   AND encode(digest(string_agg(records_payload,decode('','hex') ORDER BY part_start),'sha256'),'hex')=min(records_sha256)::text
+   AND encode(digest(min(snapshot_sha256)::text||':'||min(records_sha256)::text,'sha256'),'hex')=batch_key::text
+   AND NOT EXISTS(SELECT 1 FROM batch_ordinals o WHERE o.connector_id=q.connector_id AND o.batch_key=q.batch_key
+    AND (o.ordinal<=0 OR o.ordinal<=o.previous_ordinal)) complete
+  FROM receipts q GROUP BY connector_id,batch_key
+ ), integrity AS MATERIALIZED (
+  SELECT NOT EXISTS(SELECT 1 FROM captures c WHERE NOT c.transport_complete OR c.record_count<>(
+   SELECT count(*) FROM attendance_clock_snapshot_row r WHERE r.tenant_id=p_tenant AND r.snapshot_id=c.id))
+   AND NOT EXISTS(SELECT 1 FROM batches WHERE complete IS DISTINCT FROM true) complete,
+   NOT EXISTS(SELECT 1 FROM devices d CROSS JOIN site s WHERE d.timezone IS DISTINCT FROM s.timezone) device_context
+ ), source_rows AS MATERIALIZED (
+  SELECT c.device_id,c.id source_id,'historical'::text source_kind,0 priority,r.ordinal,
+   r.raw_record_sha256::text raw_hash,r.occurred_at,r.local_timestamp,r.identity_hmac::text identity_hmac,
+   r.punch_code,r.issue_codes,r.raw_event_id
+  FROM attendance_clock_snapshot_row r JOIN captures c ON c.id=r.snapshot_id AND c.tenant_id=r.tenant_id
+  WHERE r.tenant_id=p_tenant
+  UNION ALL
+  SELECT r.device_id,q.id,'receipt',1,r.source_ordinal,r.raw_sha256::text,r.occurred_at,r.local_timestamp,
+   r.identity_hmac::text,r.punch_code,r.issue_codes,r.raw_event_id
+  FROM attendance_pm10_record r JOIN receipts q ON q.id=r.receipt_id AND q.tenant_id=r.tenant_id AND q.device_id=r.device_id
+  WHERE r.tenant_id=p_tenant
+ ), confirmed_records AS MATERIALIZED (
+  -- A complete receipt manifest also needs every confirmed 40-byte record in
+  -- the projection. Previously known bytes may exist only in historical rows.
+  SELECT q.device_id,encode(digest(substring(q.records_payload FROM 1+position*40 FOR 40),'sha256'),'hex') raw_hash
+  FROM receipts q CROSS JOIN LATERAL generate_series(0,q.record_count-1) AS record(position)
+ ), projection_missing AS MATERIALIZED (
+  SELECT c.device_id,c.raw_hash FROM confirmed_records c
+  WHERE NOT EXISTS(SELECT 1 FROM source_rows r WHERE r.device_id=c.device_id AND r.raw_hash=c.raw_hash)
+ ), source_conflicts AS MATERIALIZED (
+  SELECT device_id,raw_hash FROM source_rows GROUP BY device_id,raw_hash
+  HAVING count(DISTINCT jsonb_build_array(occurred_at,local_timestamp,identity_hmac,punch_code))>1
+ ), unique_rows AS MATERIALIZED (
+  -- Exact bytes per device, never document/time proximity. The event reference
+  -- stays the same if another capture or receipt repeats the source ordinal.
+  SELECT DISTINCT ON(device_id,raw_hash) * FROM source_rows
+  ORDER BY device_id,raw_hash,priority,source_id,ordinal
+ ), bounds AS MATERIALIZED (
+  SELECT p_day from_day,p_day to_day
+ ), context_rows AS MATERIALIZED (
+  SELECT r.* FROM unique_rows r CROSS JOIN bounds b CROSS JOIN site s
+  WHERE r.local_timestamp IS NULL OR r.occurred_at IS NULL
+   OR (r.local_timestamp>=(b.from_day-1)::timestamp AND r.local_timestamp<(b.to_day+2)::timestamp)
+   OR ((r.occurred_at AT TIME ZONE s.timezone)>=(b.from_day-1)::timestamp
+    AND (r.occurred_at AT TIME ZONE s.timezone)<(b.to_day+2)::timestamp)
+ ), private_context_count AS MATERIALIZED (
+  SELECT count(*) records FROM context_rows
+ ), ready AS MATERIALIZED (
+  SELECT i.complete AND i.device_context AND c.records<=25000
+   AND EXISTS(SELECT 1 FROM binding) AND NOT EXISTS(SELECT 1 FROM source_conflicts)
+   AND NOT EXISTS(SELECT 1 FROM projection_missing) ok
+  FROM integrity i CROSS JOIN private_context_count c
+ ), mapped_candidates AS MATERIALIZED (
+  SELECT r.*,d.model,d.timezone,s.timezone site_timezone,cp.review_state,
+   'mapped'::text identity_state,ec.id contract_id,ec.legacy_legajo,ec.person_id
+  FROM context_rows r JOIN devices d ON d.id=r.device_id CROSS JOIN site s CROSS JOIN binding b CROSS JOIN ready
+  JOIN attendance_canonical_punch cp ON cp.raw_event_id=r.raw_event_id AND cp.tenant_id=p_tenant
+   AND cp.device_id=r.device_id AND cp.site_id=s.id AND cp.occurred_at=r.occurred_at
+   AND cp.reconciliation_state='mapped'
+  -- Population is already proven by exact contract UUID + historical area.
+  JOIN members member ON member.contract_id=cp.employment_contract_id
+  JOIN attendance_identity_map im ON im.id=cp.identity_map_id AND im.tenant_id=p_tenant
+   AND im.device_id=r.device_id AND im.identity_hmac_sha256=r.identity_hmac
+   AND im.employment_contract_id=member.contract_id AND im.status='active'
+   AND im.valid_from<=r.local_timestamp::date AND(im.valid_to IS NULL OR im.valid_to>=r.local_timestamp::date)
+  LEFT JOIN LATERAL (
+   SELECT EXISTS(SELECT 1 FROM attendance_identity_map other
+    WHERE other.tenant_id=p_tenant AND other.device_id=r.device_id AND other.identity_hmac_sha256=r.identity_hmac
+     AND other.status='active' AND other.id IS DISTINCT FROM im.id
+     AND other.valid_from<=r.local_timestamp::date AND(other.valid_to IS NULL OR other.valid_to>=r.local_timestamp::date)) present
+  ) overlap ON true
+  JOIN employment_contract ec ON ec.id=member.contract_id AND ec.id=im.employment_contract_id AND NOT overlap.present
+   AND ec.tenant_id=p_tenant AND ec.legacy_company_id=b.source_company_id AND ec.source_system='MUNICONTROL'
+  WHERE ready.ok
+ ), event_days AS MATERIALIZED (
+  -- Unusable dates remain in mapped_candidates for the private blocking flag;
+  -- only consistent in-window dates may reach the historical area resolver.
+  SELECT DISTINCT contract_id,local_timestamp::date event_day FROM mapped_candidates
+  WHERE local_timestamp IS NOT NULL AND occurred_at IS NOT NULL
+   AND local_timestamp=(occurred_at AT TIME ZONE site_timezone)
+   AND local_timestamp>=(p_day-1)::timestamp AND local_timestamp<(p_day+2)::timestamp
+ ), event_membership AS MATERIALIZED (
+  SELECT d.contract_id,d.event_day,public.attendance_area_history_v1(ctx,d.contract_id,d.event_day,d.event_day) proof FROM event_days d
+ ), scoped_links AS MATERIALIZED (
+  SELECT r.* FROM mapped_candidates r JOIN event_membership h ON h.contract_id=r.contract_id AND h.event_day=r.local_timestamp::date
+  WHERE h.proof->>'status'='resolved' AND h.proof#>>'{area,organizationUnitSourceId}'=area_value->>'organizationUnitSourceId'
+   AND h.proof#>>'{area,sectorSourceId}' IS NOT DISTINCT FROM area_value->>'sectorSourceId'
+ ), linked AS MATERIALIZED (
+  -- Names become available only AFTER both requested-day population and the
+  -- event's own civil-date membership have passed inside the same statement.
+  SELECT r.*,pi.full_name FROM scoped_links r JOIN person_identity pi ON pi.id=r.person_id
+ ), projected AS MATERIALIZED (
+  SELECT r.*,
+   encode(digest('clock-event-v2:'||p_tenant||':'||device_id||':'||raw_hash,'sha256'),'hex') event_ref,
+   encode(digest('clock-device-v2:'||p_tenant||':'||device_id,'sha256'),'hex') device_key,
+   encode(digest('clock-person-v1:'||p_tenant||':'||identity_hmac,'sha256'),'hex') person_key,
+   encode(digest('clock-stream-v2:'||p_tenant||':'||device_id||':'||identity_hmac||':'||
+    coalesce(contract_id::text,'unmapped')||':'||identity_state,'sha256'),'hex') stream_key,
+   full_name person_label,legacy_legajo legajo,r.contract_id visible_contract_id,
+   identity_hmac IS NOT NULL AND occurred_at IS NOT NULL AND local_timestamp IS NOT NULL
+    AND local_timestamp=(occurred_at AT TIME ZONE site_timezone) placeable,
+   ARRAY(SELECT DISTINCT issue FROM (
+    SELECT unnest(sr.issue_codes) issue FROM source_rows sr WHERE sr.device_id=r.device_id AND sr.raw_hash=r.raw_hash
+    UNION ALL SELECT 'canonical_review_rejected' WHERE r.review_state='rejected'
+    UNION ALL SELECT 'identity_unusable' WHERE r.identity_hmac IS NULL
+    UNION ALL SELECT 'timestamp_unusable' WHERE r.occurred_at IS NULL OR r.local_timestamp IS NULL
+     OR r.local_timestamp IS DISTINCT FROM (r.occurred_at AT TIME ZONE r.site_timezone)
+   ) issues ORDER BY issue) all_issues
+  FROM linked r CROSS JOIN access a
+ ), payloads AS MATERIALIZED (
+  SELECT event_ref,placeable,jsonb_build_object('eventRef',event_ref,'deviceKey',device_key,
+   'source',jsonb_build_object('kind',source_kind,'id',source_id,'ordinal',ordinal),
+   'occurredAt',occurred_at,'localTimestamp',to_char(local_timestamp,'YYYY-MM-DD HH24:MI:SS'),
+   'issues',all_issues)||CASE WHEN placeable THEN jsonb_build_object(
+    'model',model,'personKey',person_key,'streamKey',stream_key,'personLabel',person_label,
+    'legajo',legajo,'identityState',identity_state,'contractId',visible_contract_id,'code',punch_code) ELSE '{}'::jsonb END payload
+  FROM projected
+ ), scoped_collection AS MATERIALIZED (
+  SELECT jsonb_build_object('status',CASE WHEN NOT EXISTS(SELECT 1 FROM payloads) THEN 'no_data' ELSE 'continuous_receipts' END,
+   'sourceComplete',i.complete,
+   'captureCount',(SELECT count(DISTINCT source_id) FROM linked WHERE source_kind='historical'),
+   'receiptCount',(SELECT count(DISTINCT source_id) FROM linked WHERE source_kind='receipt'),
+   'batchCount',(SELECT count(DISTINCT(q.connector_id,q.batch_key)) FROM receipts q
+    WHERE EXISTS(SELECT 1 FROM linked l WHERE l.source_kind='receipt' AND l.source_id=q.id)),
+   'lastReceiptAt',(SELECT max(q.received_at) FROM receipts q
+    WHERE EXISTS(SELECT 1 FROM linked l WHERE l.source_kind='receipt' AND l.source_id=q.id)),
+   'periodCoverageCertified',false,'automaticCollectorVerified',false) payload FROM integrity i
+ ), fingerprint AS (
+  -- No global record/capture counts, receipts or unscoped source hashes enter
+  -- this revision. It describes only the authorized subset and its declarations.
+  SELECT encode(digest(concat_ws('|','attendance-area-workdays.v1','clock-workday-source.v3','declared-intervals.v2',
+   p_tenant,p_site,ctx->>'sourceBindingId',ctx->>'scopeVersion',area_value::text,p_day,
+   (SELECT timezone FROM site),(SELECT payload::text FROM population),(SELECT payload::text FROM expected),
+   (SELECT payload::text FROM scoped_collection),(SELECT string_agg(payload::text,',' ORDER BY event_ref) FROM payloads)), 'sha256'),'hex') hash
+ ), revision AS (
+  SELECT (substr(hash,1,8)||'-'||substr(hash,9,4)||'-5'||substr(hash,14,3)||'-8'||substr(hash,18,3)||'-'||substr(hash,21,12))::uuid id FROM fingerprint
+ )
+ SELECT jsonb_build_object('version','attendance-area-workdays.v1',
+  'principal',public.attendance_expected_devices_base_v1(ctx,p)->'principal','area',area_value,'areaLabel',authorized_area->'areaLabel',
+  'day',to_char(p_day,'YYYY-MM-DD'),'site',p_site,'population',(SELECT payload FROM population),'expectedDevices',(SELECT payload FROM expected),
+  'workdays',jsonb_build_object('version','clock-workday-source.v3','generatedAt',statement_timestamp(),
+   'sourceMode','continuous','revision',rev.id,'rulesVersion','declared-intervals.v2',
+   'site',(SELECT jsonb_build_object('key',external_key,'label',label) FROM site),
+   'timezone',(SELECT timezone FROM site),'nominalReadAllowed',a.nominal,
+   'filters',jsonb_build_object('from',b.from_day,'to',b.to_day,'anchoredToLatest',false),
+   'context',jsonb_build_object('from',b.from_day-1,'to',b.to_day+1,'recordCount',(SELECT count(*) FROM payloads),
+    'eventCount',(SELECT count(*) FROM payloads WHERE placeable),'observationCount',(SELECT count(*) FROM payloads WHERE NOT placeable)),
+   'collection',(SELECT payload FROM scoped_collection),
+   'events',(SELECT coalesce(jsonb_agg(payload ORDER BY event_ref),'[]'::jsonb) FROM payloads WHERE placeable),
+   'observations',(SELECT coalesce(jsonb_agg(payload ORDER BY event_ref),'[]'::jsonb) FROM payloads WHERE NOT placeable)),
+  'sourceCut',jsonb_build_object('id',rev.id,'consistency','single_snapshot','generatedAt',statement_timestamp()),
+  'blockerCodes',(SELECT coalesce(jsonb_agg(code ORDER BY code),'[]'::jsonb) FROM(
+   SELECT jsonb_array_elements_text(payload->'blockerCodes') code FROM population
+   UNION SELECT 'PERIOD_COVERAGE_UNCONFIRMED'
+   UNION SELECT 'EXPECTED_DEVICES_UNRESOLVED' WHERE(SELECT payload->'complete' FROM expected) IS DISTINCT FROM 'true'::jsonb
+  ) blockers),
+  'coverageCertified',false,'installationReady',false,'payrollPosted',false,'NoeliaReady',false),
+  EXISTS(SELECT 1 FROM binding),EXISTS(SELECT 1 FROM site),i.complete,i.device_context,
+  EXISTS(SELECT 1 FROM source_conflicts) OR EXISTS(SELECT 1 FROM projection_missing),cc.records,
+  EXISTS(SELECT 1 FROM projected WHERE placeable IS DISTINCT FROM true)
+   OR EXISTS(SELECT 1 FROM mapped_candidates WHERE local_timestamp IS NULL OR occurred_at IS NULL
+    OR local_timestamp IS DISTINCT FROM(occurred_at AT TIME ZONE site_timezone)
+    OR local_timestamp<(p_day-1)::timestamp OR local_timestamp>=(p_day+2)::timestamp)
+ INTO answer,binding_ok,site_ok,complete_ok,device_ok,conflict_found,window_count,unplaceable_found
+ FROM bounds b CROSS JOIN access a CROSS JOIN integrity i CROSS JOIN private_context_count cc CROSS JOIN revision rev;
+
+ IF NOT binding_ok THEN RAISE EXCEPTION 'ATTENDANCE_BINDING_REQUIRED';END IF;
+ IF NOT site_ok THEN RAISE EXCEPTION 'ATTENDANCE_WORKDAY_SITE_NOT_FOUND';END IF;
+ IF NOT complete_ok THEN RAISE EXCEPTION 'ATTENDANCE_WORKDAY_SOURCE_INCOMPLETE';END IF;
+ IF NOT device_ok THEN RAISE EXCEPTION 'ATTENDANCE_WORKDAY_DEVICE_CONTEXT_INVALID';END IF;
+ IF conflict_found THEN RAISE EXCEPTION 'ATTENDANCE_WORKDAY_SOURCE_CONFLICT';END IF;
+ IF window_count>25000 THEN RAISE EXCEPTION 'ATTENDANCE_WORKDAY_WINDOW_TOO_LARGE';END IF;
+ -- A scoped identity is insufficient when the local timestamp does not prove
+ -- the event's civil date. Do not export an observation without contract/date,
+ -- or silently discard it and suggest a complete empty day.
+ IF unplaceable_found THEN RAISE EXCEPTION 'ATTENDANCE_AREA_EVENT_DATE_UNPROVEN';END IF;
+ IF p_snapshot IS NOT NULL AND p_snapshot::text IS DISTINCT FROM answer#>>'{workdays,revision}'
+ THEN RAISE EXCEPTION 'ATTENDANCE_CAPTURE_CHANGED';END IF;
+ RETURN answer;
+END $$;
+
+-- Reviewed composition must decide the facade's runtime grant. The source
+-- itself remains owner-only and preserves all helper revocations.
+REVOKE ALL ON FUNCTION public.attendance_area_workdays_read_v1(jsonb,jsonb) FROM PUBLIC,municontrol_actions_runtime_app;
+-- CODEX INSTALLATION RULE: replace the final ROLLBACK only after adding an explicit
+-- CODEX_REVIEWED_COMMIT marker bound to the reviewed derived SQL SHA-256 and recorded preimages.
+ROLLBACK;
