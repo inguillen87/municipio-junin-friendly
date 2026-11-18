@@ -14,9 +14,10 @@ DECLARE p jsonb; actual record; t record;
 BEGIN
  IF FALSE IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
  IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
- FOR p IN SELECT value FROM jsonb_array_elements('[{"signature":"public.attendance_area_context_v1(jsonb,text)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.attendance_area_assert_scope_v1(jsonb,jsonb)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.attendance_area_history_v1(jsonb,uuid,date,date)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null},{"signature":"public.time_catalog_native_actor_v2(uuid,uuid,uuid)","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null}]'::jsonb) LOOP
+ FOR p IN SELECT value FROM jsonb_array_elements('[{"signature":"public.attendance_area_context_v1(jsonb,text)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_context_v1","owner":null,"acl":null},{"signature":"public.attendance_area_assert_scope_v1(jsonb,jsonb)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_assert_scope_v1","owner":null,"acl":null},{"signature":"public.attendance_area_history_v1(jsonb,uuid,date,date)","prosrcSha256":null,"kind":"dependency","function":"attendance_area_history_v1","owner":null,"acl":null},{"signature":"public.time_catalog_native_actor_v2(uuid,uuid,uuid)","prosrcSha256":null,"kind":"dependency","function":"time_catalog_native_actor_v2","owner":null,"acl":null}]'::jsonb) LOOP
   IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
-    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',p->>'signature'; END IF;
+    OR p->>'signature' IS NULL
+    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
   SELECT x.oid,encode(sha256(convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
     pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text
     INTO actual FROM pg_proc x WHERE x.oid=to_regprocedure(p->>'signature');

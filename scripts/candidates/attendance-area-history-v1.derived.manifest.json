@@ -34,6 +34,7 @@
         "signature": "public.reject_immutable_source_change()",
         "prosrcSha256": "b5babe1755a00845bf4512f6379dc558d556e7ea7be5a1f6bfc932d3582a640d",
         "kind": "guard",
+        "function": "reject_immutable_source_change",
         "owner": null,
         "acl": null
       },
@@ -41,6 +42,7 @@
         "signature": "public.native_employee_contract_guard_v1()",
         "prosrcSha256": "2abc356ccae217ac382ff9e5b82512777e36688a2ec2db3f7d430f71a9ba2dc3",
         "kind": "guard",
+        "function": "native_employee_contract_guard_v1",
         "owner": null,
         "acl": null
       },
@@ -48,6 +50,7 @@
         "signature": "public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract)",
         "prosrcSha256": "f0a939bb82a21f66b08be3568436fbc8bb51821ceacb924596ec198d17bab824",
         "kind": "guard",
+        "function": "native_employment_change_update_allowed_v1",
         "owner": null,
         "acl": null
       },
@@ -55,6 +58,7 @@
         "signature": "public.native_employment_void_update_allowed_v1(public.employment_contract,public.employment_contract)",
         "prosrcSha256": "e630190aabe7fb1d0a4f6f620c106cebbd854e1a469252eabc26de630cde6853",
         "kind": "guard",
+        "function": "native_employment_void_update_allowed_v1",
         "owner": null,
         "acl": null
       },
@@ -62,6 +66,7 @@
         "signature": "public.native_employment_change_immutable_v1()",
         "prosrcSha256": "7dcef4d8cf16a0047f31ebc8ffcaee74f33cff88f6f8af9aaee64cbd6e7c5611",
         "kind": "guard",
+        "function": "native_employment_change_immutable_v1",
         "owner": null,
         "acl": null
       },
@@ -69,6 +74,7 @@
         "signature": "public.native_employment_lifecycle_immutable_v1()",
         "prosrcSha256": "8e018efbdce29c342aa94757880a4e911a8f41567386c7827eb77f46b25837d5",
         "kind": "guard",
+        "function": "native_employment_lifecycle_immutable_v1",
         "owner": null,
         "acl": null
       }
@@ -144,7 +150,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
-    "bytes": 26412,
-    "sha256": "8784c8ad552ae65f5c29bfe4255bb8b7a69701894b09b8a8add7c4ea79a69995"
+    "bytes": 26774,
+    "sha256": "9eb5fddca399a3816e05859eab8fb4b50f6551d5749ef90c8f8ad09ef997a06b"
   }
 }

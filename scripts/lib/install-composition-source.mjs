@@ -30,6 +30,21 @@ function functionsIn(source){
   return {name:m[2].split('.')[1],signature,redefined:Boolean(m[1])};
  });
 }
+// Funciones existentes que la fuente invoca y no crea. El manifiesto de origen no siempre las enumera
+// (attendance-area-authority llama a ocho y no declara ninguna): sin esto la composición no las verificaría.
+// Se excluyen relaciones (REFERENCES, INSERT INTO, TABLE, UPDATE) y lo que la propia fuente crea.
+const RELATION_CONTEXT=/\b(?:REFERENCES|INTO|TABLE|UPDATE|ONLY)\s*$/i;
+const fnName=signature=>signature.split('(')[0].split('.').pop();
+const pinName=p=>p.function??fnName(p.signature);
+export function calledFunctions(source){
+ const created=new Set([...source.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|TABLE(?:\s+IF\s+NOT\s+EXISTS)?|VIEW|SEQUENCE|TYPE)\s+public\.([a-z_][a-z0-9_]*)/gi)].map(m=>m[1]));
+ const names=new Set();
+ for(const m of source.matchAll(/\bpublic\.([a-z_][a-z0-9_]*)\s*\(/g)){
+  if(RELATION_CONTEXT.test(source.slice(Math.max(0,m.index-40),m.index))||created.has(m[1]))continue;
+  names.add(m[1]);
+ }
+ return [...names].sort();
+}
 function bodyPins(manifest,source){
  const pins=[];
  for(const f of manifest.functions??[])if(f.beforeBodySha256) pins.push({signature:f.signature,prosrcSha256:f.beforeBodySha256,kind:'redefined'});
@@ -45,11 +60,14 @@ function bodyPins(manifest,source){
   pins.push({signature:manifest.authority,prosrcSha256:null,kind:'dependency'});
  for(const signature of manifest.requiredPrivateStableHelpers??[])if(!pins.some(x=>x.signature===signature))
   pins.push({signature,prosrcSha256:null,kind:'dependency'});
- return pins;
+ // Dependencias sin firma declarada: firma, cuerpo, dueño y ACL los aporta la atestación de Codex.
+ for(const name of calledFunctions(source))if(!pins.some(x=>pinName(x)===name))
+  pins.push({signature:null,function:name,prosrcSha256:null,kind:'dependency'});
+ return pins.map(p=>({...p,function:pinName(p)}));
 }
 function triggerPins(source){
  // Literal trigger preimages in the original history guard, not observations of the live DB.
- return [...source.matchAll(/\('((?:public\.)[a-z0-9_]+)',\s*'([a-z0-9_]+)',\s*'(public\.[a-z0-9_]+\([^']*\))',\s*(\d+)\)/g)]
+ return [...source.matchAll(/\('(public\.[a-z_][a-z0-9_]*)',\s*'([a-z_][a-z0-9_]*)',\s*'(public\.[a-z_][a-z0-9_]*\([^']*\))',\s*(\d+)\)/g)]
   .map(m=>({relation:m[1],name:m[2],function:m[3],type:Number(m[4])}));
 }
 function preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed}){
@@ -63,7 +81,8 @@ BEGIN
  IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
  FOR p IN SELECT value FROM jsonb_array_elements(${pins}::jsonb) LOOP
   IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
-    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',p->>'signature'; END IF;
+    OR p->>'signature' IS NULL
+    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
   SELECT x.oid,encode(sha256(convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
     pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text
     INTO actual FROM pg_proc x WHERE x.oid=to_regprocedure(p->>'signature');
@@ -108,9 +127,23 @@ export function deriveSource({name,source,manifest,manifestText,attestation={}})
  assert.deepEqual(redefined.map(f=>f.signature).sort(),manifestExisting.filter(f=>f.kind==='redefined').map(f=>f.signature).sort(),'COMPOSITION_REDEFINITION_NOT_PINNED');
  const newFunctions=declarations.filter(f=>!f.redefined);
  const observed=attestation.functions??{},observedTriggers=attestation.triggers??{};
- const existing=manifestExisting.map(p=>({...p,owner:observed[p.signature]?.owner??null,acl:observed[p.signature]?.acl??null}));
+ const existing=manifestExisting.map(p=>{
+  let signature=p.signature;
+  if(signature===null){
+   const candidates=Object.keys(observed).filter(k=>fnName(k)===p.function);
+   assert.ok(candidates.length<=1,'COMPOSITION_ATTESTATION_AMBIGUOUS: '+p.function);
+   signature=candidates[0]??null;
+  }
+  const seen=signature===null?undefined:observed[signature];
+  // Un cuerpo fijado por el manifiesto (reemplazo o guarda) no se puede cambiar por atestación.
+  if(p.kind!=='dependency'&&seen?.prosrcSha256!==undefined)
+   assert.equal(seen.prosrcSha256,p.prosrcSha256,'COMPOSITION_ATTESTATION_BODY_MISMATCH: '+signature);
+  return {...p,signature,prosrcSha256:p.prosrcSha256??seen?.prosrcSha256??null,owner:seen?.owner??null,acl:seen?.acl??null};
+ });
  const triggers=triggerPins(source).map(t=>({...t,enabled:observedTriggers[t.relation+':'+t.name]?.enabled??null}));
- assert.deepEqual(Object.keys(observed).sort(),existing.map(p=>p.signature).filter(k=>Object.hasOwn(observed,k)).sort(),'COMPOSITION_UNKNOWN_ATTESTATION');
+ assert.deepEqual(Object.keys(observed).sort(),existing.map(p=>p.signature).filter(k=>k!==null&&Object.hasOwn(observed,k)).sort(),'COMPOSITION_UNKNOWN_ATTESTATION');
+ const triggerKeys=new Set(triggers.map(t=>t.relation+':'+t.name));
+ assert.ok(Object.keys(observedTriggers).every(k=>triggerKeys.has(k)),'COMPOSITION_UNKNOWN_TRIGGER_ATTESTATION');
  const metadataSha=sha(JSON.stringify(attestation));
  const preimage=preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed:attestation.reviewed===true});
  const header=`-- DERIVED REVIEW ARTIFACT ${name}. Never install a source-only file.
@@ -124,7 +157,7 @@ ROLLBACK;
  const sql=header+prefix+preimage+body+ending;
  assert.ok(!sql.includes('$source_only$')&&!sql.includes('$not_an_installer$'),'COMPOSITION_BARRIER_REMAINED');
  assert.ok(sql.endsWith('ROLLBACK;\n')&&!/^COMMIT;$/m.test(sql),'COMPOSITION_UNSAFE_TERMINATOR');
- const attested=attestation.reviewed===true&&existing.every(p=>hex.test(p.prosrcSha256??'')&&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string')
+ const attested=attestation.reviewed===true&&existing.every(p=>typeof p.signature==='string'&&hex.test(p.prosrcSha256??'')&&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string')
   &&triggers.every(p=>['O','A'].includes(p.enabled));
  return {sql,manifest:{
    version:'municontrol-install-composition-derived.v1',name,installable:attested,
