@@ -68,10 +68,11 @@ export function pendingBellDailySources(data) {
  *  y se repiten como mucho cada tres minutos, o enseguida cuando una pantalla avisa que registró algo. La asistencia diaria
  *  se relee como mucho cada cinco minutos. */
 export function pendingBellReading(getJson, readers, sources, {now = () => Date.now(), everyMs = 180000, daily = false} = {}) {
-  let circuits = null, readAt = 0, running = null, dailySources = null, dailyAt = 0, dailyRunning = null;
+  let circuits = null, readAt = 0, running = null, dailySources = null, dailyAt = 0, dailyRunning = null, dailyRefused = false;
   const refresh = () => running ??= pendingBellCircuits(getJson, sources).then(value => { circuits = value; readAt = now(); }).finally(() => { running = null; });
+  // Un 403 es definitivo para esta cuenta (sin capacidad, sin vínculo laboral o sin autoridad): no es «sin respuesta» y no se reintenta.
   const refreshDaily = () => dailyRunning ??= patientRead(() => getJson(PENDING_BELL_DAILY.url))
-    .then(body => body?.ok === true ? pendingBellDailySources(body.data) : [null], () => [null])
+    .then(body => body?.ok === true ? pendingBellDailySources(body.data) : [null], e => e?.status === 403 ? (dailyRefused = true, []) : [null])
     .then(value => { dailySources = value; dailyAt = now(); }).finally(() => { dailyRunning = null; });
   return {
     invalidate() { readAt = 0; dailyAt = 0; },
@@ -79,9 +80,9 @@ export function pendingBellReading(getJson, readers, sources, {now = () => Date.
       const light = pendingBellSources(getJson, readers);
       const pending = [];
       if (sources.length && (circuits === null || now() - readAt >= everyMs)) pending.push(refresh());
-      if (daily && (dailySources === null || now() - dailyAt >= PENDING_BELL_DAILY.everyMs)) pending.push(refreshDaily());
+      if (daily && !dailyRefused && (dailySources === null || now() - dailyAt >= PENDING_BELL_DAILY.everyMs)) pending.push(refreshDaily());
       await Promise.all(pending);
-      return {sources: await light, circuits: circuits ?? [], dailySources: daily ? dailySources ?? [null] : []};
+      return {sources: await light, circuits: circuits ?? [], dailySources: daily && !dailyRefused ? dailySources ?? [null] : [], dailyRefused};
     },
   };
 }
@@ -111,6 +112,7 @@ export async function startPendingBell(doc = document, read = getJson, {retry = 
   // antes no hay nada que avisarle y una campanita vacía diría que ningún circuito respondió.
   if (readers.length === 0 && sources.length === 0) {
     const first = await reading.read().catch(() => null);
+    if (first?.dailyRefused) return null;
     if (!first || first.dailySources.length === 0 || first.dailySources.every(s => s === null)) {
       // Sin avisos todavía o la lectura falló: se vuelve a intentar sola cada cinco minutos, sin recargar la página.
       retry(() => startPendingBell(doc, read, {retry}), PENDING_BELL_DAILY.everyMs);

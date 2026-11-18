@@ -303,3 +303,26 @@ test('the bell and the endpoint need every capability the producer needs: area r
   }
   assert.ok(Object.isFrozen(PENDING_BELL_DAILY.capabilities));
 });
+
+test('revisión de Codex: una cuenta sin vínculo laboral o autoridad del catálogo recibe un 403 claro y la campanita deja de reintentar', async () => {
+  for (const refusal of ['TIME_CATALOG_EMPLOYMENT_REQUIRED', 'TIME_CATALOG_AUTHORITY_REQUIRED', 'TIME_CATALOG_CAPABILITY_REQUIRED', 'ACTION_TENANT_AUTHORITY_REQUIRED']) {
+    const refused = async () => { throw new Error(refusal); };
+    await assert.rejects(read({producer: refused}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403 && !/TIME_CATALOG|ACTION_/.test(e.message));
+  }
+  // Una falla común de un área sigue contándose como «sin respuesta» sin tirar la lectura.
+  const data = await read({producer: async () => { throw new Error('ATTENDANCE_DAILY_SOURCE_UNAVAILABLE'); }});
+  assert.equal(data.ready, true); assert.equal(data.notices.length, 0); assert.ok(data.failedScopes >= 1);
+
+  const {startPendingBell, pendingBellReading} = await import('../assets/pending-bell-mount.js');
+  let calls = 0;
+  const getJson = async url => { if (url === PENDING_BELL_DAILY.url) { calls++; throw Object.assign(new Error('PENDING_READ_FAILED'), {status: 403, code: 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE'}); } throw new Error('unexpected ' + url); };
+  let clock = 0; const reading = pendingBellReading(getJson, [], [], {daily: true, now: () => clock});
+  const first = await reading.read(); assert.deepEqual(first.dailySources, [], 'un 403 no es «sin respuesta»'); assert.equal(first.dailyRefused, true);
+  clock += PENDING_BELL_DAILY.everyMs * 3; await reading.read(); assert.equal(calls, 1, 'no vuelve a pedir la lectura diaria');
+  const auth = {ok: true, authenticated: true, sessionVersion: 2, expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: [...PENDING_BELL_DAILY.capabilities]}};
+  const scheduled = [];
+  const doc = {querySelector: s => s.includes('top-actions') ? {querySelector: () => null, prepend: () => assert.fail('mounted')} : null, createElement: () => ({dataset: {}}), addEventListener() {}};
+  const result = await startPendingBell(doc, async url => url === '/api/internal-auth' ? auth : getJson(url), {retry: (fn, ms) => scheduled.push(ms)});
+  assert.equal(result, null); assert.deepEqual(scheduled, [], 'una cuenta rechazada no reintenta cada cinco minutos');
+});
