@@ -427,3 +427,26 @@ local-agents/
 
 # Exact source-only prepared-catalogue function required by build verification.
 !tests/fixtures/employment-adoption-prepared-sources.sql.txt
+
+# Candidato 2 (18/11): archivos que leen las pruebas de la compilación (npm test) y que el filtro excluía; sin ellos
+# la vista previa fallaba con ENOENT desde 49369b84. La página de dispositivos esperados ya tiene ruta y puerta de
+# capacidades publicadas (app-routes, internal-capability-gate). Los .sql/.txt son fuentes revisables, sin datos.
+!asistencia-dispositivos.html
+!scripts/migrations/237-own-approved-period-values.sql
+!scripts/migrations/240-attendance-daily-source.sql
+!scripts/migrations/241-attendance-daily-scopes.sql
+!scripts/migrations/242-own-grh-statement-lines.sql
+!scripts/candidates/attendance-area-authority-v1.source.sql.txt
+!scripts/candidates/attendance-area-authority-v1.derived.sql.txt
+!scripts/candidates/attendance-area-history-v1.source.sql.txt
+!scripts/candidates/attendance-area-history-v1.derived.sql.txt
+!scripts/candidates/attendance-expected-devices-v1.source.sql.txt
+!scripts/candidates/attendance-expected-devices-v1.derived.sql.txt
+!scripts/candidates/attendance-area-workdays-v1.source.sql.txt
+!scripts/candidates/attendance-area-workdays-v1.derived.sql.txt
+!scripts/candidates/employment-job-title-writers-v1.source.sql.txt
+!scripts/candidates/employment-job-title-writers-v1.derived.sql.txt
+!scripts/candidates/attendance-clock-workday-source-v3.sql.txt
+!scripts/candidates/own-employment-print-facts-v1.source.sql.txt
+!scripts/candidates/own-employment-print-facts-v1.derived.sql.txt
+!scripts/candidates/originals/own-receipt-print-facts-v6.sql.txt
