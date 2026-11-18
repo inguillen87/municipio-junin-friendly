@@ -43,7 +43,10 @@ no recalcula fórmulas, no redondea, no confirma ni paga nada.
   bytes) y lo audita como `too_large`; `success` sólo se registra cuando la respuesta se entrega entera.
 - **Fuentes de la 048 no canónicas**: la 048 admite importes con ceros iniciales (`0001.23`) y `-0.00`; la 242 los
   entrega en forma canónica sin cambiar el valor (`1.23`, `0.00`). Un **código** con ceros iniciales (`0993`) no se
-  normaliza, porque `0993` y `993` serían ambiguos: la fachada responde **422** con el motivo y sin datos.
+  normaliza, porque `0993` y `993` serían ambiguos: la 242 lo detecta (también descripciones, unidades o acumuladores
+  fuera de formato), audita `incompatible` y la fachada responde **422** con el motivo y sin datos.
+- **Errores de configuración** (release o vínculo de origen sin certificar, rol de base) responden 503 con el mismo
+  mapeo que el resto de las lecturas de nómina; no se presentan como un problema de sesión ni de permisos de la persona.
 
 ## Instalación (Codex)
 

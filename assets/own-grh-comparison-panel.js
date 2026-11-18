@@ -43,7 +43,9 @@ export function mountOwnGrhComparisonPanel(host){
  <nav class="own-comparison-actions" aria-label="Páginas de la comparación"><button class="button" data-ogc-prev type="button">Anterior</button><span data-ogc-page></span><button class="button" data-ogc-next type="button">Siguiente</button></nav>
  <details><summary>Huellas y fuentes originales</summary><dl data-ogc-trace></dl></details></section>`;
  const $=key=>host.querySelector('[data-ogc-'+key+']');
- let stopped=false,busy=false,sequence=0,operation=null,access=null,ownCatalog=null,grhCatalog=null,model=null,selection=null,page=1;
+ // reviewRequired: la corrida mostrada exige permiso de revisión; se vuelve a exigir en cada verificación de sesión, sondeo,
+ // cambio de capacidades y exportación, no sólo al leer el detalle (revisión de Codex).
+ let stopped=false,busy=false,sequence=0,operation=null,access=null,ownCatalog=null,grhCatalog=null,model=null,selection=null,page=1,reviewRequired=false;
  const available=()=>!stopped&&host.isConnected&&!document.hidden&&!host.closest('[hidden]');
  const status=message=>{$('state').textContent=message;};
  const selected=()=>({ownId:$('own').value,grhId:$('grh').value});
@@ -57,7 +59,7 @@ export function mountOwnGrhComparisonPanel(host){
  }
  function cancel(){sequence++;operation?.abort();operation=null;busy=false;}
  function clear(){
-  model=null;selection=null;page=1;$('result').hidden=true;$('rows').replaceChildren();$('trace').replaceChildren();
+  model=null;selection=null;reviewRequired=false;page=1;$('result').hidden=true;$('rows').replaceChildren();$('trace').replaceChildren();
   for(const k of ['sources','warnings','summary','caption','page'])$(k).textContent='';
   $('search').value='';$('filter').value='all';$('view').value='concepts';controls();
  }
@@ -76,9 +78,11 @@ export function mountOwnGrhComparisonPanel(host){
   if(!response.ok||payload?.ok!==true)throw Error(payload?.error??'La consulta completa no está disponible. No se aceptan resultados parciales.');
   return payload.data;
  }
- async function session(signal){
+ const required=review=>[...OWN_RUN_NOMINAL,...grhCapabilities,...(review?OWN_LIQ_REVIEW:[])];
+ async function session(signal,{review=reviewRequired}={}){
   const current=ownRunWorkspaceAccess(await requestAuth(signal));
-  if(!hasOwnRunAccess(current.caps,[...OWN_RUN_NOMINAL,...grhCapabilities]))throw Object.assign(Error('Faltan permisos nominales propios o lectura de nómina GRH por legajo.'),{status:403});
+  if(!hasOwnRunAccess(current.caps,required(false)))throw Object.assign(Error('Faltan permisos nominales propios o lectura de nómina GRH por legajo.'),{status:403});
+  if(review&&!hasOwnRunAccess(current.caps,OWN_LIQ_REVIEW))throw Object.assign(Error('Este cálculo necesita permiso de revisión.'),{status:403});
   if(access&&access.key!==current.key)throw Object.assign(Error('Cambió la sesión municipal: hay que consultar nuevamente.'),{status:403});
   access=current;$('login').hidden=true;
  }
@@ -138,8 +142,8 @@ export function mountOwnGrhComparisonPanel(host){
   const again=await bootstrap(signal);valid();const still=again.runs.find(r=>r.id===item.id);
   if(again.scopeVersion!==boot.scopeVersion||!still||!still.canConsult||still.resultSha256!==item.resultSha256)
    throw Error('El catálogo propio cambió durante la consulta.');
-  await session(signal);valid();
-  return result;
+  await session(signal,{review:detail.reviewAccessRequired});valid();
+  return {result,review:detail.reviewAccessRequired};
  }
  function render(){
   if(!model)return;
@@ -176,7 +180,7 @@ export function mountOwnGrhComparisonPanel(host){
   clear();status('Validando la corrida propia, la fuente GRH y la unión por legajo…');
   const fresh=await readPair(pair,signal,valid);valid();
   if(pair.ownId!==$('own').value||pair.grhId!==$('grh').value)throw Error('Cambió la selección.');
-  model=fresh;selection=pair;page=1;$('result').hidden=false;
+  model=fresh.result;reviewRequired=fresh.review;selection=pair;page=1;$('result').hidden=false;
   $('sources').textContent='MuniControl: '+ownLabel(ownCatalog.runs.find(r=>r.id===pair.ownId))+' · GRH: '+grhLabel(grhCatalog.items.find(r=>r.datasetId===pair.grhId));
   $('warnings').textContent=model.warnings.join(' ');
   const traceDocument=ownGrhComparisonDocument(model,'concepts');
@@ -189,8 +193,8 @@ export function mountOwnGrhComparisonPanel(host){
   const old=model,pair={...selection},view=$('view').value;
   status('Revalidando las dos fuentes y permisos antes de exportar…');
   const fresh=await readPair(pair,signal,valid);valid();
-  if(model!==old||old.proof!==fresh.proof||view!==$('view').value)throw Error('Cambió la fuente o la vista. Volvé a comparar.');
-  const doc=ownGrhComparisonDocument(fresh,view);
+  if(model!==old||old.proof!==fresh.result.proof||view!==$('view').value)throw Error('Cambió la fuente o la vista. Volvé a comparar.');
+  const doc=ownGrhComparisonDocument(fresh.result,view);
   const bytes=format==='csv'?reportCsv(doc):format==='xlsx'?reportXlsx(doc):reportPdf(doc);
   const filename=saveReportBytes(doc,format,bytes);
   status('Archivo completo verificado: '+filename+'. Ningún filtro ni página recortó registros.');
@@ -201,16 +205,21 @@ export function mountOwnGrhComparisonPanel(host){
  $('next').addEventListener('click',()=>{page++;render();});
  const task=event=>{if(event.detail?.id!=='comparar')suspend('La comparación se retiró al cambiar de tarea.');else controls();};
  const visibility=()=>{if(document.hidden)suspend('La página se ocultó: se retiraron las fuentes nominales.');else controls();};
- const capabilities=event=>{if(access&&!hasOwnRunAccess(new Set(event.detail?.tenantCapabilities??[]),[...OWN_RUN_NOMINAL,...grhCapabilities]))suspend('Cambió el acceso: consultá nuevamente.');};
+ const capabilities=event=>{if(access&&!hasOwnRunAccess(new Set(event.detail?.tenantCapabilities??[]),required(reviewRequired)))suspend('Cambió el acceso: consultá nuevamente.');};
  document.addEventListener('taskchange',task);
  document.addEventListener('visibilitychange',visibility);
  document.addEventListener('municontrol:capabilities-ready',capabilities);
  document.getElementById('logoutButton')?.addEventListener('click',()=>suspend('Sesión cerrada.'));
  const poll=setInterval(()=>{if(available()&&!busy&&access)perform(async signal=>{await session(signal);});},60000);
- window.addEventListener('pagehide',()=>{stopped=true;suspend('Página cerrada.');clearInterval(poll);
+ // Al salir se retiran los datos nominales. Si el navegador guarda la página para «Atrás» (persisted), el panel queda
+ // vivo y al volver se puede consultar de nuevo; si la página se descarta, se detiene del todo.
+ const restore=event=>{if(event.persisted&&!stopped){status('Página restaurada: consultá nuevamente las fuentes.');controls();}};
+ const unload=event=>{suspend('Página cerrada.');if(event.persisted)return;stopped=true;clearInterval(poll);
   document.removeEventListener('taskchange',task);document.removeEventListener('visibilitychange',visibility);
   document.removeEventListener('municontrol:capabilities-ready',capabilities);
- },{once:true});
+  window.removeEventListener?.('pagehide',unload);window.removeEventListener?.('pageshow',restore);
+ };
+ window.addEventListener('pagehide',unload);window.addEventListener('pageshow',restore);
  controls();
  return {clear:()=>suspend('Comparación retirada.'),get hasComparison(){return Boolean(model);}};
 }
