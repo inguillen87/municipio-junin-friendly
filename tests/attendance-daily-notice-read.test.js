@@ -206,7 +206,7 @@ test('migration 241 rechecks area authority in SQL and returns only area ids and
   assert.match(sql, /RAISE EXCEPTION 'ATTENDANCE_DAILY_SCOPES_ALREADY_INSTALLED'/);
   assert.match(sql, /LANGUAGE plpgsql VOLATILE SECURITY DEFINER\s+SET search_path=pg_catalog,public,pg_temp/);
   assert.match(sql, /public\.attendance_area_context_v1\(p_context,'attendance\.area\.read'\)/);
-  assert.match(sql, /decision\.decision='approve'/); assert.match(sql, /retired\.id IS NULL OR retired\.effective_from>first_day/);
+  assert.match(sql, /decision\.decision='approve'/); assert.match(sql, /retired\.id IS NULL OR retired\.effective_from>GREATEST\(first_day,prop\.valid_from\)/);
   assert.match(sql, /prop\.sector_source_id IS NOT DISTINCT FROM scope\.sector/);
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) FROM PUBLIC;/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_scopes_read_v1\(jsonb,jsonb\) TO municontrol_actions_runtime_app;/);
@@ -214,7 +214,7 @@ test('migration 241 rechecks area authority in SQL and returns only area ids and
   for (const leak of ['contract', 'label', 'person', 'device_ids', 'serial', 'network']) assert.ok(!projected.includes(leak), leak);
 });
 
-test('the producer runs in REPEATABLE READ READ ONLY when the client can, and trusts only the isolation the database reports', async () => {
+test('the producer runs in REPEATABLE READ when the client can, and trusts only the isolation the database reports', async () => {
   const {produceAttendanceDailySource, ATTENDANCE_DAILY_SOURCE_TRANSACTION} = await import('../lib/internal-attendance-daily-source.js');
   const {evaluateAttendanceDailyIncidents} = await import('../lib/attendance-daily-incidents.js');
   const area = await import('./fixtures/attendance-area-synthetic.js');
@@ -230,15 +230,15 @@ test('the producer runs in REPEATABLE READ READ ONLY when the client can, and tr
   });
   const seen = {};
   const isolated = await produceAttendanceDailySource(neonLike({isolation: 'repeatable read', readOnly: 'on', snapshot: '730:731:730'}, seen), area.principal, area.session, area.areaQuery());
-  assert.deepEqual(seen.options, {isolationLevel: 'RepeatableRead', readOnly: true}); assert.deepEqual(ATTENDANCE_DAILY_SOURCE_TRANSACTION, seen.options);
+  assert.deepEqual(seen.options, {isolationLevel: 'RepeatableRead'}, 'not READ ONLY: the session checks take FOR SHARE row locks'); assert.deepEqual(ATTENDANCE_DAILY_SOURCE_TRANSACTION, seen.options);
   assert.equal(seen.queued.length, 1); assert.match(seen.queued[0].text, /attendance_daily_source_read_v1/);
   assert.equal(isolated.cut.consistency, 'single_snapshot'); assert.equal(isolated.cut.evidence.id, isolated.cut.id); assert.match(isolated.cut.evidence.sha256, /^[a-f0-9]{64}$/);
   assert.ok(!evaluateAttendanceDailyIncidents(isolated).blockerCodes.includes('JOINT_CUT_UNCONFIRMED'));
   // Evidence is bound to the reported snapshot: another snapshot gives other evidence.
   const other = await produceAttendanceDailySource(neonLike({isolation: 'repeatable read', readOnly: 'on', snapshot: '730:732:'}, {}), area.principal, area.session, area.areaQuery());
   assert.notEqual(other.cut.evidence.sha256, isolated.cut.evidence.sha256);
-  // A database that ignored the requested isolation, or a writable transaction, is never a joint cut.
-  for (const reported of [{isolation: 'read committed', readOnly: 'on', snapshot: '730:730:'}, {isolation: 'repeatable read', readOnly: 'off', snapshot: '730:730:'}]) {
+  // A database that ignored the requested isolation is never a joint cut.
+  for (const reported of [{isolation: 'read committed', readOnly: 'on', snapshot: '730:730:'}, {isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'}]) {
     const cut = await produceAttendanceDailySource(neonLike(reported, {}), area.principal, area.session, area.areaQuery());
     assert.equal(cut.cut.consistency, 'unconfirmed'); assert.equal(cut.cut.evidence, null);
     assert.ok(evaluateAttendanceDailyIncidents(cut).blockerCodes.includes('JOINT_CUT_UNCONFIRMED'));
@@ -254,4 +254,30 @@ test('the producer runs in REPEATABLE READ READ ONLY when the client can, and tr
   const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
   assert.match(sqlText, /'isolation',current_setting\('transaction_isolation'\)/); assert.match(sqlText, /'readOnly',current_setting\('transaction_read_only'\)/);
   assert.match(sqlText, /'snapshot',pg_current_snapshot\(\)::text/);
+});
+
+test('an account that only reads attendance retries the bell on its own after an empty or failed first reading', async () => {
+  const {startPendingBell} = await import('../assets/pending-bell-mount.js');
+  const auth = {ok: true, authenticated: true, sessionVersion: 2, expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: ['attendance.area.read']}};
+  let prepended = 0;
+  const actions = {querySelector: () => null, prepend: () => { prepended++; }};
+  const doc = {querySelector: selector => selector.includes('top-actions') ? actions : null, createElement: () => ({dataset: {}}), addEventListener() {}};
+  for (const daily of [{ok: true, data: {version: 'attendance-daily-notice-read.v1', ready: false, days: ['2026-11-14', '2026-11-13'], scopeCount: 0, notices: [], failedScopes: 0}},
+    null]) {
+    const scheduled = [];
+    const read = async url => { if (url === '/api/internal-auth') return auth; if (url === PENDING_BELL_DAILY.url) { if (!daily) throw new Error('PENDING_READ_FAILED'); return daily; } throw new Error('unexpected ' + url); };
+    const result = await startPendingBell(doc, read, {retry: (fn, ms) => scheduled.push({fn, ms})});
+    assert.equal(result, null); assert.equal(prepended, 0, 'no empty bell is mounted');
+    assert.equal(scheduled.length, 1); assert.equal(scheduled[0].ms, PENDING_BELL_DAILY.everyMs);
+  }
+});
+
+test('a writable REPEATABLE READ transaction is still one snapshot: FOR SHARE checks need it writable', async () => {
+  const {produceAttendanceDailySource} = await import('../lib/internal-attendance-daily-source.js');
+  const area = await import('./fixtures/attendance-area-synthetic.js');
+  const sql = {async query() { throw new Error('unused'); }, async transaction(build) { build({query: () => ({})});
+    return [[{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, transaction: {isolation: 'repeatable read', readOnly: 'off', snapshot: '731:731:'}})}]]; }};
+  const cut = await produceAttendanceDailySource(sql, area.principal, area.session, area.areaQuery());
+  assert.equal(cut.cut.consistency, 'single_snapshot'); assert.match(cut.cut.evidence.sha256, /^[a-f0-9]{64}$/);
 });

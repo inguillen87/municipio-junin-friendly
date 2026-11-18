@@ -2,7 +2,8 @@
 -- One statement is NOT one MVCC snapshot here: attendance_area_workdays_read_v1 and
 -- time_catalog_assignment_view_v2 are plpgsql VOLATILE, and under READ COMMITTED every query inside
 -- them takes a fresh snapshot. A confirmed joint cut requires calling this function inside
--- BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; until then the producer declares consistency
+-- BEGIN ISOLATION LEVEL REPEATABLE READ (not READ ONLY: the session checks take FOR SHARE row
+-- locks, refused in read-only transactions); until then the producer declares consistency
 -- 'unconfirmed' and the evaluator blocks with JOINT_CUT_UNCONFIRMED.
 -- Additive preparation only. Codex owns installation; this file grants no new catalog authority.
 DO $prerequisite$
@@ -87,7 +88,7 @@ BEGIN
     FROM catalog_context
   )
   -- The caller cannot vouch for its own isolation: the database reports it. Only a REPEATABLE READ
-  -- READ ONLY transaction lets the producer declare one joint snapshot.
+  -- transaction lets the producer declare one joint snapshot.
   SELECT jsonb_build_object('area',area_source.data,'catalog',catalog.data,
     'transaction',jsonb_build_object(
       'isolation',current_setting('transaction_isolation'),

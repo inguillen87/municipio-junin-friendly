@@ -99,7 +99,7 @@ async function getJson(url) {
 }
 
 /** Monta la campanita en la barra superior si hay sesión y al menos un circuito que la cuenta pueda consultar. Si no, no muestra nada. */
-export async function startPendingBell(doc = document, read = getJson) {
+export async function startPendingBell(doc = document, read = getJson, {retry = (fn, ms) => setTimeout(fn, ms)} = {}) {
   const actions = doc.querySelector('.topbar .top-actions, .topbar .topbar-actions');
   if (!actions || actions.querySelector('[data-pending-bell-host]')) return null;
   let access; try { access = ownRunWorkspaceAccess(await read('/api/internal-auth')); } catch { return null; }
@@ -110,7 +110,11 @@ export async function startPendingBell(doc = document, read = getJson) {
   // antes no hay nada que avisarle y una campanita vacía diría que ningún circuito respondió.
   if (readers.length === 0 && sources.length === 0) {
     const first = await reading.read().catch(() => null);
-    if (!first || first.dailySources.length === 0 || first.dailySources.every(s => s === null)) return null;
+    if (!first || first.dailySources.length === 0 || first.dailySources.every(s => s === null)) {
+      // Sin avisos todavía o la lectura falló: se vuelve a intentar sola cada cinco minutos, sin recargar la página.
+      retry(() => startPendingBell(doc, read, {retry}), PENDING_BELL_DAILY.everyMs);
+      return null;
+    }
   }
   if (actions.querySelector('[data-pending-bell-host]')) return null;
   const host = doc.createElement('div'); host.dataset.pendingBellHost = ''; actions.prepend(host);
