@@ -23,15 +23,15 @@
 .mc-approval-items a.what{color:#0f5f58;font-weight:650;text-decoration:none}.mc-approval-items a.what::after{content:' →';opacity:.55;transition:opacity .15s,margin .15s}
 .mc-approval-items a.what:hover,.mc-approval-items a.what:focus-visible{text-decoration:underline}.mc-approval-items a.what:hover::after{opacity:1;margin-left:2px}
 .mc-approval-foot{margin:0;color:#4d6370;font-size:.82rem;line-height:1.4}
-.mc-approval-link{align-self:flex-start;margin-top:auto;padding:7px 14px;border-radius:9px;background:#0f766e;color:#fff;font-weight:700;font-size:.88rem;text-decoration:none}
+.mc-approval-link{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;min-height:44px;margin-top:auto;padding:8px 14px;border-radius:9px;background:#0f766e;color:#fff;font-weight:700;font-size:.88rem;text-decoration:none;box-sizing:border-box}
 .mc-approval-card:not(.is-waiting) .mc-approval-link{background:#fff;color:#0f5f58;border:1px solid #b9d8d2}
 .mc-approval-link:hover,.mc-approval-link:focus-visible{filter:brightness(1.06);outline:2px solid #0f766e;outline-offset:2px}
 .mc-approvals-empty,.mc-approvals-elsewhere,.mc-approvals-others{margin-top:12px}
-.mc-approvals-empty>summary,.mc-approvals-elsewhere>summary,.mc-approvals-others>summary{cursor:pointer;color:#0f5f58;font-weight:650;font-size:.9rem}
+.mc-approvals-empty>summary,.mc-approvals-elsewhere>summary,.mc-approvals-others>summary{cursor:pointer;display:inline-flex;align-items:center;min-height:44px;color:#0f5f58;font-weight:650;font-size:.9rem}
 .mc-approvals-empty ul,.mc-approvals-elsewhere ul{margin:8px 0 0;padding-left:18px;color:#5f7480;font-size:.88rem;display:grid;gap:4px}
 @keyframes mc-ap-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes mc-ap-shimmer{to{background-position:-200% 0}}
 @media(max-width:640px){.mc-approvals{padding:16px}.mc-approvals-grid{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){.mc-approval-card,.mc-approval-card.is-loading .mc-approval-count{animation:none}}
+@media(prefers-reduced-motion:reduce){.mc-approval-card,.mc-approval-card.is-loading .mc-approval-count{animation:none!important;animation-delay:0ms!important}}
 @media print{.mc-approvals{display:none}}
 .mc-approvals-others>.mc-approvals-grid{margin-top:10px}

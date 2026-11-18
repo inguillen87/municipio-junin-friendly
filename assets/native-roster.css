@@ -14,12 +14,12 @@
 .native-roster .nr-filters .nr-actions{grid-column:1/-1;order:4;margin:4px 0 0;justify-content:flex-end}
 .native-roster .nr-filters small{font-weight:400;color:#5d7780}
 .native-roster label{font-size:12px;letter-spacing:.01em;color:#35545d}
-.native-roster input,.native-roster select{min-height:42px;border-color:#c9dadc;transition:border-color .15s,box-shadow .15s}
+.native-roster input,.native-roster select{min-height:44px;border-color:#c9dadc;transition:border-color .15s,box-shadow .15s}
 .native-roster input:focus,.native-roster select:focus{border-color:#0f5a66;box-shadow:0 0 0 3px rgba(15,90,102,.15);outline:none}
 .native-roster input[type=search]{font-size:15px;padding-left:14px}
 .native-roster [data-nr-status]{border-left-width:3px;border-radius:0 8px 8px 0;font-size:14px;margin:12px 0}
 .native-roster [data-nr-result]{animation:nr-in .25s ease-out}
-.native-roster .nr-counts{display:flex;flex-wrap:wrap;gap:8px;font-weight:600}
+.native-roster .nr-counts{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border:1px solid #d5e7e4;border-top:3px solid #087e74;border-radius:10px;background:#f3faf8;font-weight:700;font-variant-numeric:tabular-nums}
 .native-roster .nr-table-wrap{border:1px solid #e1ecea;border-radius:12px;max-height:62vh}
 .native-roster table{border-collapse:separate;border-spacing:0}
 .native-roster thead th{position:sticky;top:0;z-index:1;background:#eef5f4;color:#173d4c;font-size:12px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:10px 12px;border-bottom:1px solid #d6e4e2}
@@ -40,6 +40,6 @@
 .native-roster .nr-filters:has([data-nr-search-mode] option[value=legajo]:checked) small{display:block}
 /* 06/11: «Abrir ficha» never wraps letter by letter; the action column keeps its width. */
 .native-roster tbody td:last-child{width:1%;white-space:nowrap;text-align:right}
-.native-roster tbody td:last-child .button{white-space:nowrap;min-height:36px;padding:8px 14px;border-radius:8px}
+.native-roster tbody td:last-child .button{white-space:nowrap;min-height:44px;padding:8px 14px;border-radius:8px}
 @media(max-width:650px){.native-roster tbody td:last-child{width:auto;text-align:left}}
 .native-roster tr.nr-row{cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease}.native-roster tr.nr-row:hover{background:#f1f8f6;box-shadow:inset 3px 0 0 #0f766e}.native-roster tr.nr-row.is-opening{animation:nr-open .6s ease-out}@keyframes nr-open{from{background:#d9f0ea}to{background:transparent}}@media (prefers-reduced-motion:reduce){.native-roster tr.nr-row{transition:none}.native-roster tr.nr-row.is-opening{animation:none}}
