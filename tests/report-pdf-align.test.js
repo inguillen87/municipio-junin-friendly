@@ -6,6 +6,7 @@ import {reportCsv,reportXlsx} from '../assets/report-document.js';
 import {ownReportBundle,ownReportDocument} from '../assets/own-payroll-report-model.js';
 import {reportFixture} from './fixtures/own-payroll-report-synthetic.js';
 import {analysisModel,analysisDocument} from '../assets/report-analysis.js';
+import {sourceReportDocument} from '../assets/payroll-source-report-model.js';
 
 
 // Posición x de cada texto dibujado: «1 0 0 1 x y Tm <hex> Tj».
@@ -83,4 +84,31 @@ test('RRHH: altas y bajas quedan a la derecha pero el año permanece a la izquie
   assert.equal(position(left, '9'), position(left, '12.345'));
   assert.ok(position(right, '9') > position(right, '12.345'));
   assert.ok(position(right, '12.345') > position(left, '12.345'));
+});
+
+test('conceptos de fuente: el PDF compacto respeta las columnas numéricas sin cambiar CSV ni XLSX', () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  const raw = {
+    version: 'payroll-source-report.v1', mode: 'report', found: true, official: false,
+    datasetId: id, payloadHash: 'a'.repeat(64), reportHash: 'b'.repeat(64),
+    date: '2026-08-31', type: 'M', statementCount: 2, lineCount: 6,
+    sourceLabel: 'Fuente sintética', closureStatus: 'unknown',
+    rows: [
+      {code: '601', description: 'Obra social', totalGroup: '996', unit: null, sourceRows: 2, missingAmounts: 0, amount: '100.00'},
+      {code: '701', description: 'Aporte patronal', totalGroup: '990', unit: null, sourceRows: 2, missingAmounts: 0, amount: '150.00'},
+      {code: '996', description: 'Total retenciones', totalGroup: '0', unit: null, sourceRows: 2, missingAmounts: 0, amount: '100.00'},
+    ],
+  };
+  const document = sourceReportDocument(raw);
+  assert.ok(document.salaryCost, 'se usa el renderizador compacto');
+  assert.equal(document.columns.find(c => c.label === 'Código')?.align, undefined);
+  assert.equal(document.columns.find(c => c.label === 'Legajos con concepto')?.align, 'right');
+  assert.equal(document.columns.find(c => c.label === 'Importe informado')?.align, 'right');
+  const rows = document.rows.map(row => [...row]);
+  rows[0][4] = '-150.00';
+  rows[1][4] = '1234567.89';
+  const {right, left} = assertOnlyPdfPositionChanges({...document, rows});
+  assert.equal(position(left, '$ -150,00'), position(left, '$ 1.234.567,89'));
+  assert.ok(position(right, '$ -150,00') > position(right, '$ 1.234.567,89'));
+  assert.ok(position(right, '$ 1.234.567,89') > position(left, '$ 1.234.567,89'));
 });
