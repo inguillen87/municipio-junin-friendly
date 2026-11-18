@@ -1,0 +1,253 @@
+{
+  "version": "employment-job-title-writers-source-proposal.v1",
+  "sourceBase": "c9f3396940e44b7e96f81ad1b4624c65de34336a",
+  "installable": false,
+  "connects": false,
+  "executesSql": false,
+  "postgresExecuted": false,
+  "noeliaReady": false,
+  "newFunctions": 0,
+  "requiresReviewedComposition": true,
+  "requiresMetadataPreservingComposition": true,
+  "installedStateObserved": false,
+  "originals": {
+    "registration067Body": "43c323e6e5e4b7495cf2178a0bb8ae82c0db54ea348efa69124b6ebb0d80cea1",
+    "registration095Body": "3ac060547845052e8466262025400bebd7267f680c41c962627dc45d384f4632",
+    "registration095Definition": "f45660c7408c698d426b8609b280f8295680a2d4988d5a28d6710ae406f7248c",
+    "registration095Header": "19c8f7a90f2e58111cfd49e0dc632ec7f368f708c2402cd59d3ade8027d170f8",
+    "registration099Body": "d9605cd9a60364798856e78a91be946f441232244c073bf19d1bacbbc8444744",
+    "registration103Body": "8fac07fa37367cd2c4a2aa25dccb7b145fc4eafe934c6cd86e12f5081dec7261",
+    "registration167Body": "6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6",
+    "proposal104Body": "e9713e6bbbef41b51c59441a0e114eeb8b0b520a5a6cc3b9701f34c8ba08a8f4",
+    "review104Body": "3dfb86e3eedd801acb02588d7c6b7c3f9eb39211cafe26fe585a549df1784c64",
+    "values104Body": "705c367398b8d9a8ccb4be797226c739c8c713932349f43f6470a81305d83b57",
+    "display104Body": "cf9cb09aad9abe31261c07589b27e6f148c53cdb86d190f53283c82f990143af",
+    "after104Body": "5294a12071cd8d16ad9ff623be787ef510719b6dfb44c047e0ee0d59f43228ea",
+    "proposal224Body": "9af561b138bcad9a511ced80d8b2dfc24ab0df59a6fa8db9419ecbcd433c5b9e",
+    "proposal224Definition": "ecf89ebd8a7659c5a7241cd8a73bc00f1da425154ee5158b83ef9502715e58b3",
+    "review224Body": "d0acb96d0e19dfc67f2cd7e6ce8d494bc73b1b273c1101d34e9df11a4fc61d44",
+    "review224Definition": "fb1a6bc71193e9aca06b7fe7192e4b736115366725aed9270632566bebaa17f7"
+  },
+  "inputs": {
+    "contract": {
+      "path": "assets/employment-job-title-contract.js",
+      "sha256": "d44e3297d85b9a921830fdbf80cd93a90c0df8a2e9c99f17aa8dd725f5568eec"
+    },
+    "registration067": {
+      "path": "scripts/migrations/067-native-employee-registration.sql",
+      "sha256": "aa33538cea459a275de8056b8316f3eb4465ebb88ad1de54578bb24380c4d749"
+    },
+    "registration095": {
+      "path": "scripts/migrations/095-native-employee-jurisdiction.sql",
+      "sha256": "48aecdd294bf11ec7f2a956b30eb455f2acc5be7d8825669249fed8ada7d90b5"
+    },
+    "consumers099": {
+      "path": "scripts/migrations/099-grh-curated-consumers.sql",
+      "sha256": "208ae997983d506d2761c6db6eaf272f367dec1483a9b4cd4d2140d972d1a95d"
+    },
+    "catalog103": {
+      "path": "scripts/migrations/103-native-employment-catalog.sql",
+      "sha256": "759bde35236dc0add938e55664f0addb3c301f79e4ecfdf0771300dbd9795cd6"
+    },
+    "changes104": {
+      "path": "scripts/migrations/104-native-employment-changes.sql",
+      "sha256": "0f3e408bb12ef64c0d197826ce4331b263987c6d7f36719e528648f4b750de4a"
+    },
+    "lifecycle110": {
+      "path": "scripts/migrations/110-native-employment-lifecycle.sql",
+      "sha256": "e31ee11235b8ac2579e2d0d4c863627a146d062e883faef48420e4d39fb66219"
+    },
+    "adoption133": {
+      "path": "scripts/migrations/133-employment-adoption-application.sql",
+      "sha256": "36230ca788dc8afc3312c9bbb25ecf45029bf84a1a2373669a48245cca798ea9"
+    },
+    "classification167": {
+      "path": "scripts/migrations/167-classification-registration-use.sql",
+      "sha256": "8eef9142231b660bdac357312cc1c9ee29ab79a65e04422c5bd5bfab77189c38"
+    },
+    "void224": {
+      "path": "scripts/migrations/224-native-employment-void.sql",
+      "sha256": "ad708d03348188a09d26ebb22980133e6be96cc5ef9cc3e156f90601362ce384"
+    }
+  },
+  "lineage": {
+    "registration": [
+      {
+        "source": "scripts/migrations/067-native-employee-registration.sql",
+        "kind": "original_definition",
+        "bodySha256": "43c323e6e5e4b7495cf2178a0bb8ae82c0db54ea348efa69124b6ebb0d80cea1",
+        "definitionSha256": "e6552da4a5130e04e59f3a384b5c2d294f4cc37531eba14d9741d536b9c2b648",
+        "currentInRepository": false
+      },
+      {
+        "source": "scripts/migrations/095-native-employee-jurisdiction.sql",
+        "kind": "replacement_definition",
+        "bodySha256": "3ac060547845052e8466262025400bebd7267f680c41c962627dc45d384f4632",
+        "definitionSha256": "f45660c7408c698d426b8609b280f8295680a2d4988d5a28d6710ae406f7248c",
+        "currentInRepository": false
+      },
+      {
+        "source": "scripts/migrations/099-grh-curated-consumers.sql",
+        "kind": "declared_exact_body_patch",
+        "bodySha256": "d9605cd9a60364798856e78a91be946f441232244c073bf19d1bacbbc8444744",
+        "currentInRepository": false
+      },
+      {
+        "source": "scripts/migrations/103-native-employment-catalog.sql",
+        "kind": "declared_exact_body_patch",
+        "bodySha256": "8fac07fa37367cd2c4a2aa25dccb7b145fc4eafe934c6cd86e12f5081dec7261",
+        "currentInRepository": false
+      },
+      {
+        "source": "scripts/migrations/167-classification-registration-use.sql",
+        "kind": "exact_after_body_literal",
+        "bodySha256": "6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6",
+        "definitionSha256": null,
+        "currentInRepository": true
+      }
+    ],
+    "registrationGuardOnlySources": [
+      "scripts/migrations/104-native-employment-changes.sql",
+      "scripts/migrations/110-native-employment-lifecycle.sql"
+    ],
+    "rectification": [
+      {
+        "source": "scripts/migrations/104-native-employment-changes.sql",
+        "proposalBodySha256": "e9713e6bbbef41b51c59441a0e114eeb8b0b520a5a6cc3b9701f34c8ba08a8f4",
+        "reviewBodySha256": "3dfb86e3eedd801acb02588d7c6b7c3f9eb39211cafe26fe585a549df1784c64",
+        "currentInRepository": false
+      },
+      {
+        "source": "scripts/migrations/224-native-employment-void.sql",
+        "proposalBodySha256": "9af561b138bcad9a511ced80d8b2dfc24ab0df59a6fa8db9419ecbcd433c5b9e",
+        "reviewBodySha256": "d0acb96d0e19dfc67f2cd7e6ce8d494bc73b1b273c1101d34e9df11a4fc61d44",
+        "currentInRepository": true
+      }
+    ]
+  },
+  "registrationMetadataLiteral": {
+    "name": "native_employee_create_v1",
+    "signature": "public.native_employee_create_v1(jsonb,jsonb,text,uuid)",
+    "sha256": "8fac07fa37367cd2c4a2aa25dccb7b145fc4eafe934c6cd86e12f5081dec7261",
+    "argNames": [
+      "p",
+      "d",
+      "catalog_version",
+      "k"
+    ],
+    "defaults": "",
+    "resultType": "jsonb",
+    "language": "plpgsql",
+    "returnsSet": false,
+    "strict": false,
+    "definer": true,
+    "volatility": "v",
+    "config": [
+      "search_path=public, pg_temp"
+    ],
+    "runtime": true,
+    "after": "6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6"
+  },
+  "untouchedHelpers": [
+    {
+      "name": "native_employment_change_values_v1",
+      "source": "scripts/migrations/104-native-employment-changes.sql",
+      "bodySha256": "705c367398b8d9a8ccb4be797226c739c8c713932349f43f6470a81305d83b57",
+      "definitionSha256": "6d7833780bc7c9647df8f0f8666a0399bcbbcebdfe7de95dd886fca832d22978"
+    },
+    {
+      "name": "native_employment_change_display_v1",
+      "source": "scripts/migrations/104-native-employment-changes.sql",
+      "bodySha256": "cf9cb09aad9abe31261c07589b27e6f148c53cdb86d190f53283c82f990143af",
+      "definitionSha256": "7c7237e6b15c1bb7bf9083f4ce609c60d8326529e1880c2adc830ffac392cc5b"
+    },
+    {
+      "name": "native_employment_change_after_v1",
+      "source": "scripts/migrations/104-native-employment-changes.sql",
+      "bodySha256": "5294a12071cd8d16ad9ff623be787ef510719b6dfb44c047e0ee0d59f43228ea",
+      "definitionSha256": "02937d9ce6a481558ed49a7b58c68c2cf69dfe9e0769ea4b0745830e1f123b09"
+    }
+  ],
+  "preserved": {
+    "authorization": true,
+    "identity": true,
+    "replay": true,
+    "rejection": true,
+    "withdrawnGuard": true,
+    "inputNormalization": true,
+    "originalValidationOrder": true,
+    "legacyReaders": true,
+    "historicalTitles": true,
+    "originalPins": true,
+    "providers": true,
+    "guards": true,
+    "acl": true
+  },
+  "pendingStoredDocument": {
+    "approvalRechecksFinalCargoName": true,
+    "priorSuccessfulReplayRevalidated": false,
+    "legacyAdoption": {
+      "source": "scripts/migrations/133-employment-adoption-application.sql",
+      "modified": false,
+      "reason": "Adoption preserves source_payload exactly except native provenance; it does not accept a new jobTitle."
+    }
+  },
+  "unresolvedGates": [
+    "Codex must identify the exact target/source candidate and attest its installed bodies and all metadata. Repository-current is not proof of installed state.",
+    "No installer, preimage gate, family/provider pin or original guard is rewritten here. Composition and attestation must be separately reviewed.",
+    "The 167 source has an exact body and metadata literal, not a historical full CREATE definition; preserve the observed metadata during composition.",
+    "Only pure derivation/logic tests are supplied. PostgreSQL parsing, UTF8/normalization parity, locks, replay, triggers and rollback still need the separately authorized sandbox."
+  ],
+  "functions": [
+    {
+      "name": "native_employee_create_v1",
+      "signature": "public.native_employee_create_v1(jsonb,jsonb,text,uuid)",
+      "kind": "derived_existing_body",
+      "source": "scripts/migrations/167-classification-registration-use.sql",
+      "beforeBodySha256": "6cf784e1b026c158548692c84c000592919a26f6aa42109807c0687f943158d6",
+      "beforeDefinitionSha256": null,
+      "headerSource": "scripts/migrations/095-native-employee-jurisdiction.sql",
+      "headerSha256": "19c8f7a90f2e58111cfd49e0dc632ec7f368f708c2402cd59d3ade8027d170f8",
+      "historicalCompleteDefinitionAvailable": false,
+      "bodySha256": "34a362257a839c95639b03c8b61c0e5c613c59606d564671373956ad388ddb0b",
+      "definitionSha256": "18c7e3956830acdd255a4a75633de02336611c1dddf9939066277367f9d86268",
+      "insertedBlockSha256": "7f1ac8cc7001703bdb630951618d8d628689356d3cc7f3c076e365199231b52c",
+      "insertionPoint": "After authority, input, replay, catalog, identity and number checks; before the first INSERT."
+    },
+    {
+      "name": "native_employment_change_propose_v1",
+      "signature": "public.native_employment_change_propose_v1(jsonb,jsonb,uuid)",
+      "kind": "derived_existing_body",
+      "source": "scripts/migrations/224-native-employment-void.sql",
+      "beforeBodySha256": "9af561b138bcad9a511ced80d8b2dfc24ab0df59a6fa8db9419ecbcd433c5b9e",
+      "beforeDefinitionSha256": "ecf89ebd8a7659c5a7241cd8a73bc00f1da425154ee5158b83ef9502715e58b3",
+      "headerSource": "scripts/migrations/224-native-employment-void.sql",
+      "headerSha256": "b551874f25af9203e72c5fa1afae146537c3b9fcdd65a5fc7e95b10726ca196d",
+      "historicalCompleteDefinitionAvailable": true,
+      "bodySha256": "0e1b416ce0f2726d28f35537d100d4827b1fee09202d9814f178f855d6db7131",
+      "definitionSha256": "9d79afc0c350dd1b0dbdaf642c34eca1cad0d1b740a4f1509a6a5309d24fd007",
+      "insertedBlockSha256": "7eb6baf9dcfd2415962674941a988bc26e85142153868a5fb362adc33ab29c6d",
+      "insertionPoint": "After existing normalization, replay, withdrawn/identity/scope/base/catalog/after/no-change/capacity checks; before receipt and INSERT."
+    },
+    {
+      "name": "native_employment_change_review_v1",
+      "signature": "public.native_employment_change_review_v1(jsonb,jsonb,uuid)",
+      "kind": "derived_existing_body",
+      "source": "scripts/migrations/224-native-employment-void.sql",
+      "beforeBodySha256": "d0acb96d0e19dfc67f2cd7e6ce8d494bc73b1b273c1101d34e9df11a4fc61d44",
+      "beforeDefinitionSha256": "fb1a6bc71193e9aca06b7fe7192e4b736115366725aed9270632566bebaa17f7",
+      "headerSource": "scripts/migrations/224-native-employment-void.sql",
+      "headerSha256": "f996c91e547f09d07dad383da0c390c9f9240451fc5addd73b174f4709778cde",
+      "historicalCompleteDefinitionAvailable": true,
+      "bodySha256": "4ac8c1d21ceea9ef2254b3da3326a3263bff52cc0508ed81a4faf0a15933cd4d",
+      "definitionSha256": "9af96a97e71934533d6c5e6e0de931e1e0c0b18a0d41c182cfafb9b5617bcabb",
+      "insertedBlockSha256": "21d52b332689120ed9b8f11bcb2411edb4d355fc60559d86184c70aeb5a7c1dd",
+      "insertionPoint": "Inside approve only, after replay, withdrawn, authority/maker-checker, base/catalog/after consistency and revision checks; before review INSERT or contract UPDATE."
+    }
+  ],
+  "output": {
+    "path": "scripts/candidates/employment-job-title-writers-v1.source.sql.txt",
+    "bytes": 24726,
+    "sha256": "6c7857f8ce2b992b8094b9cf25174ce29ef2e8a116c4b04887b9ca2f3bdbbf4d"
+  }
+}
