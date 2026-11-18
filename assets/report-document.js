@@ -271,7 +271,7 @@ function compactConceptPdf(d) {
       text(left,y,'El costo no cambia con el filtro. Los controles no ajustan la fuente.',8);y+=15;
     } else {text(left,y,`${meta('Filas del filtro')} conceptos en el detalle · continuación de la misma fuente`,8);y+=16;}
     rect(left,y,width,27,'0.09 0.24 0.30');let x=left;
-    d.columns.forEach((c,i)=>{wrap(c.label,widths[i]-10,7.7).forEach((line,j)=>text(x+5,y+10+j*9,line,7.7,true,'1 1 1'));x+=widths[i];});y+=27;
+    d.columns.forEach((c,i)=>{wrap(c.label,widths[i]-10,7.7).forEach((line,j)=>text(c.align==='right'?pdfCellX(c,x,widths[i],line,7.7,true):x+5,y+10+j*9,line,7.7,true,'1 1 1'));x+=widths[i];});y+=27;
   }
   head(true);
   d.rows.forEach((r,index)=>{
@@ -279,7 +279,7 @@ function compactConceptPdf(d) {
     const height=Math.max(...parts.map(p=>p.length))*10.5+7;
     if(y+height>H-49)head(false);
     if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;
-    parts.forEach((p,i)=>{p.forEach((line,j)=>text(x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;
+    parts.forEach((p,i)=>{p.forEach((line,j)=>text(d.columns[i].align==='right'?pdfCellX(d.columns[i],x,widths[i],line,8.3,d.columns[i].type==='money'):x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;
   });
   if(!d.rows.length)text(left,y+20,'Sin conceptos en el filtro. El costo conserva el alcance de la corrida.',9);
   const saved=ops;

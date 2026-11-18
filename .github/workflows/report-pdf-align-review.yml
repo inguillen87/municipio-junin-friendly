@@ -2,6 +2,7 @@ name: PDF report numeric alignment — focused tests
 on:
   pull_request:
     paths:
+      - 'assets/report-document.js'
       - 'assets/report-analysis.js'
       - 'assets/own-payroll-report-model.js'
       - 'assets/own-payroll-comparison-model.js'
