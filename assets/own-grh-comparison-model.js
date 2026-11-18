@@ -157,3 +157,61 @@ export function ownGrhComparison(capture,grhRaw,join){
    equal:count('equal'),rounding:count('rounding'),difference:count('difference'),onlyOwn:count('only_own'),onlyGrh:count('only_grh'),notComparable:count('not_comparable'),missing:count('missing'),review:all.filter(r=>r.review).length},
   warnings,proof:salarySerialized([capture.id,capture.payloadSha256,capture.saved.inputSha256,capture.saved.resultSha256,grh.datasetId,grh.sourceHash,grh.statements.map(s=>s.statementHash)])});
 }
+
+/**
+ * Vista paginada, sólo para presentación. Nunca modifica ni reduce el modelo completo;
+ * 'rounding' es una categoría independiente de 'equal'.
+ */
+export function ownGrhComparisonView(model,{view='concepts',status='all',search='',page=1,pageSize=25}={}){
+ need(model?.version===OWN_GRH_COMPARISON_VERSION&&Array.isArray(model.rows)&&Array.isArray(model.totals),'Consultá una comparación MuniControl contra GRH válida.');
+ need(['concepts','totals'].includes(view)&&['all','review','rounding','equal'].includes(status)&&
+   typeof search==='string'&&search.length<=100&&Number.isSafeInteger(page)&&page>0&&
+   Number.isSafeInteger(pageSize)&&pageSize>0&&pageSize<=100,'Elegí una vista y filtros válidos.');
+ const all=view==='concepts'?model.rows:model.totals;
+ const term=search.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const searchable=r=>[r.legajo,r.code,r.label,r.grh?.description,r.state].filter(v=>typeof v==='string').join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const filtered=all.filter(r=>(status==='all'||status==='review'&&r.review||status===r.status)&&(!term||searchable(r).includes(term)));
+ const pages=Math.max(1,Math.ceil(filtered.length/pageSize)),current=Math.min(page,pages);
+ return {rows:filtered.slice((current-1)*pageSize,current*pageSize),filtered:filtered.length,total:all.length,
+  page:current,pages,review:all.filter(r=>r.review).length,rounding:all.filter(r=>r.status==='rounding').length,
+  equal:all.filter(r=>r.status==='equal').length,difference:all.filter(r=>r.status==='difference').length};
+}
+const displayAmount=(part)=>part===null?'No figura':part.amount===null?'No informado':part.amount;
+
+/** Documento completo de una vista; búsqueda, estado y página de pantalla nunca afectan las descargas. */
+export function ownGrhComparisonDocument(model,view='concepts'){
+ need(['concepts','totals'].includes(view),'Elegí conceptos o totales por legajo.');
+ ownGrhComparisonView(model,{view}); // validación de formato del modelo
+ const rows=view==='concepts'?model.rows:model.totals;
+ return {
+  layout:'own-grh-comparison.v1',
+  title:view==='concepts'?'MuniControl contra GRH · conceptos por legajo':'MuniControl contra GRH · totales por legajo',
+  columns:[
+   {label:'Legajo',type:'text',width:17},
+   {label:view==='concepts'?'Concepto':'Total',type:'text',width:26},
+   {label:'MuniControl',type:'text',width:22,pdfExact:true},
+   {label:'GRH',type:'text',width:22,pdfExact:true},
+   {label:'Diferencia (MuniControl menos GRH)',type:'text',width:29,pdfExact:true},
+   {label:'Estado',type:'text',width:49},
+  ],
+  rows:rows.map(r=>[r.legajo,view==='concepts'?r.code:r.label,
+   displayAmount(r.own),displayAmount(r.grh),r.delta??'No evaluable',r.state]),
+  totals:[],
+  metadata:[
+   ['Período',model.own.period],['Tipo propio',model.own.liquidationType],['Tipo GRH',model.grh.payrollType],
+   ['Unión','employeeNumber = legajo (texto exacto)'],
+   ['Diferencia','MuniControl menos GRH'],
+   ['Cálculo propio',model.own.id],['Clave de cálculo propio',model.own.key],
+   ['Captura propia SHA-256',model.own.payloadSha256],
+   ['Entrada propia SHA-256',model.own.inputSha256],['Resultado propio SHA-256',model.own.resultSha256],
+   ['Algoritmo propio SHA-256',model.own.algorithmSha256],
+   ['Liquidación GRH',model.grh.datasetId],['Fuente GRH SHA-256',model.grh.sourceHash],
+   ['Cierre GRH',model.grh.closureStatus],['Legajos en unión',model.summary.legajos],
+   ['Filas completas',rows.length],['Redondeos (vista completa)',rows.filter(r=>r.status==='rounding').length],
+   ['Sin diferencia (vista completa)',rows.filter(r=>r.status==='equal').length],
+   ['Para revisar (vista completa)',rows.filter(r=>r.review).length],
+  ],
+  notes:[...model.warnings,'La descarga contiene todas las filas de la vista elegida, con independencia del filtro, búsqueda o página de pantalla.'],
+  filename:'municontrol_comparacion_grh_'+view+'_'+model.own.period+'_'+model.grh.payrollType.toLowerCase(),
+ };
+}
