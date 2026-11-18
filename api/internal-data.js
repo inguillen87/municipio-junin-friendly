@@ -21,6 +21,7 @@ import { internalPayrollDocumentBatch } from '../lib/internal-payroll-document-b
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollEntityExport } from '../lib/internal-payroll-entity-export.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
+import { internalOwnGrhStatementLines } from '../lib/internal-own-grh-statement-lines.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
 import { employeePayrollDetail } from '../lib/internal-payroll-detail.js';
 import { DEFAULT_WORKFORCE_STATUS, WORKFORCE_STATUSES, directorySourceBinding, operationalDirectorySql, operationalScopeSelectSql, operationalScopeFromRow, effectiveSourceSnapshot, assertEffectiveSourceSnapshot } from '../lib/workforce-operational-scope.js';
@@ -4222,6 +4223,10 @@ export function createInternalDataHandler(dependencies = {}) {
       if (resource === 'payrollsourcereport') {
         const result = await internalPayrollSourceReport(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
         return send(res,result.status,result.payload);
+      }
+      if (resource === 'owngrhstatementlines') {
+        const result = await internalOwnGrhStatementLines(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
+        return send(res, result.status, result.payload);
       }
       if (resource === 'employeepayrolldocuments') {
         const result = await employeePayrollDocuments(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));

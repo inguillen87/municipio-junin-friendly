@@ -124,3 +124,36 @@ test('el límite es de la comparación completa: si no entra entera, no se compa
  assert.throws(()=>ownGrhComparison(own,grh,join),/supera 250\.000 filas\. No se omitieron ni dividieron registros/);
  grh.statements.length=1+62000;const m=ownGrhComparison(own,grh,join);assert.equal(m.summary.legajos,62001);assert.equal(m.totals.length,62001*4);
 });
+
+// Lectura por legajo de la liquidación GRH (migración 242) y su fachada.
+import {internalOwnGrhStatementLines,OWN_GRH_STATEMENT_LINES_SQL} from '../lib/internal-own-grh-statement-lines.js';
+import {capabilitiesForInternalDataResource} from '../lib/internal-resource-access.js';
+const uid=id(1),principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid,membershipId:uid,effectiveCapabilities:['payroll.read','workforce.employee.read']}};
+const session={email:'qa@example.invalid',id:uid,version:1,releaseSha:'c'.repeat(40)};
+const answer=()=>{const {grh}=setup(2);return {...grh,found:true,datasetId:uid};};
+
+test('la fachada lee con la sesión autenticada, exige ambas capacidades y devuelve sólo el contrato',async()=>{
+ assert.deepEqual(capabilitiesForInternalDataResource('owngrhstatementlines'),['workforce.employee.read','payroll.read']);
+ let seen;const sql={query:async(text,args)=>{seen={text,args};const a=answer();a.secret='no';a.statements[0].name='Persona';a.statements[0].lines[0].internal='no';return [{result:a}];}};
+ const r=await internalOwnGrhStatementLines(sql,{query:{resource:'owngrhstatementlines',datasetId:uid}},principal,session);
+ assert.equal(r.status,200);assert.equal(seen.text,OWN_GRH_STATEMENT_LINES_SQL);assert.deepEqual(seen.args,['qa@example.invalid',uid,1,'c'.repeat(40),uid,uid,uid]);
+ assert.equal(r.payload.data.secret,undefined);assert.equal(r.payload.data.found,undefined);assert.equal(r.payload.data.statements[0].name,undefined);assert.equal(r.payload.data.statements[0].lines[0].internal,undefined);
+ const {own}=setup(2),m=ownGrhComparison(own,r.payload.data,join);assert.equal(m.summary.legajos,2);
+ const never={query:()=>assert.fail('no debe leer')};
+ for(const q of [{},{datasetId:'x'},{datasetId:uid,tenantId:uid},{datasetId:[uid]}])assert.equal((await internalOwnGrhStatementLines(never,{query:q},principal,session)).status,400);
+ assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},principal,null)).status,401);
+ assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},{...principal,tenant:{...principal.tenant,effectiveCapabilities:['payroll.read']}},session)).status,403);
+ assert.equal((await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines.v1',found:false,official:false}}]},{query:{datasetId:uid}},principal,session)).status,404);
+ for(const bad of [a=>{a.complete=false;},a=>{a.datasetId=id(2);},a=>{a.version='otra';},a=>{a.statements[0].lines[0].amount='1,00';}])
+  await assert.rejects(internalOwnGrhStatementLines({query:async()=>{const a=answer();bad(a);return [{result:a}];}},{query:{datasetId:uid}},principal,session));
+});
+
+test('la 242 es aditiva, acotada al origen de la sesión, audita y no expone identidad',()=>{
+ const s=fs.readFileSync('scripts/migrations/242-own-grh-statement-lines.sql','utf8');
+ assert.match(s,/action_center_assert_tenant_read_session_v2/);assert.match(s,/'payroll\.read'/);assert.match(s,/'workforce\.employee\.read'/);
+ assert.match(s,/d\.tenant_id=p_tenant AND d\.source_binding_id=\(ctx->>'sourceBindingId'\)::uuid/);assert.match(s,/d\.company_id=\(ctx->>'sourceCompanyId'\)::bigint AND d\.source_database=ctx->>'sourceDatabase'/);
+ assert.match(s,/actual_n<>ds\.statement_count OR actual_lines<>ds\.line_count/);assert.match(s,/INSERT INTO own_grh_statement_lines_read_event/);
+ const body=s.slice(s.indexOf('CREATE FUNCTION'));assert.doesNotMatch(body,/person_identity|full_name|\bdni\b|\bcuil\b|employment_contract|UPDATE |DELETE /i,'la función no lee identidad ni modifica nada');
+ assert.match(s,/REVOKE ALL ON FUNCTION public\.own_grh_statement_lines_v1/);assert.match(s,/GRANT EXECUTE ON FUNCTION public\.own_grh_statement_lines_v1\(text,uuid,integer,text,uuid,uuid,uuid\) TO municontrol_actions_runtime_app/);
+ const api=fs.readFileSync('api/internal-data.js','utf8');assert.match(api,/resource === 'owngrhstatementlines'[\s\S]{0,200}internalOwnGrhStatementLines\(await getPayrollSql\(env\)/);
+});
