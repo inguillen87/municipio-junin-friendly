@@ -47,8 +47,9 @@ export async function pendingBellCircuits(getJson, sources, period = lastClosedM
 
 // Asistencia diaria (T4): sólo cuentas con lectura de asistencia por área. El servidor arma el corte por área y sede de los
 // días civiles cerrados y devuelve únicamente conteos, estado y bloqueos; nunca nombres, legajos ni motivos.
-// Las mismas tres capacidades que exige el servidor: sin catálogo de horarios ni lectura de personal no se puede armar el corte.
-export const PENDING_BELL_DAILY = Object.freeze({capabilities: Object.freeze(['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']), url: '/api/internal-attendance-daily-notice?resource=notices', everyMs: 300000});
+// Las mismas capacidades que exige el servidor. Desde la decisión de Marcelo del 18/11 (opción B) el corte lee los horarios
+// sólo de los contratos del área autorizada: alcanza con la lectura de asistencia por área.
+export const PENDING_BELL_DAILY = Object.freeze({capabilities: Object.freeze(['attendance.area.read']), url: '/api/internal-attendance-daily-notice?resource=notices', everyMs: 300000});
 const DAILY_READ_FIELDS = ['version', 'ready', 'days', 'scopeCount', 'notices', 'failedScopes'];
 const dailyCount = v => Number.isSafeInteger(v) && v >= 0;
 

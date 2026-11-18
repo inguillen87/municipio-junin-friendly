@@ -95,9 +95,21 @@ algo de la cuenta, la lectura responde 403 con el motivo y la campanita no reint
 - Contra: es autoridad nueva sobre el catálogo; requiere diseño, SQL, revisión de Codex e instalación. Unos días.
 - Hasta tenerla, la campanita diaria la ven sólo las cuentas que ya cumplen A (por ejemplo, Recursos Humanos).
 
-### Pregunta para decisión
-¿A (rápido, permisos amplios) o B (acotado, más trabajo)? En ambos casos el jefe necesita vínculo laboral activo.
+### Decisión de Marcelo (18/11/2026): B
+Elegida «B: solo su área». Implementada en la rama `claude/t4-campanita-b-20261117`:
+- La 240 toma su autoridad **sólo** de `attendance_area_workdays_read_v1` (scope de área de `attendance.area.read`).
+  Ya no llama a `time_catalog_assert_actor_authority_v1` ni a la vista de asignaciones v2, así que no exige
+  `time.catalog.read`, `workforce.employee.read` ni vínculo laboral propio.
+- Lee asignaciones aprobadas y vigentes del día **sólo** para los contratos de la población del área
+  (`time_assignment_spec.employment_contract_id` unido a `population.contracts`), del vínculo GRH certificado.
+- Proyección mínima del destino: `{contractId, legajo, name: null}`; el legajo sale de
+  `employment_contract.legacy_legajo` y si no es un legajo válido el catálogo queda `complete:false` (la campanita
+  muestra «a confirmar», nunca un cero). Turno, calendario y perfil de reglas van como snapshot del catálogo.
+- La API y la campanita piden sólo `attendance.area.read`.
+- Probado en PostgreSQL 16 con stubs: contratos fuera del área, entradas propuestas y vencidas quedan afuera; un
+  legajo inválido deja `complete:false`.
+- Pendiente: revisión de Codex de este cambio de autoridad e instalación junto con la composición de la 240.
 
 ## Decisión y despliegue
 
-C, D y E son propuestas para revisión municipal. No están aprobadas, no crean autoridad y no forman parte de una instalación. Codex debe revisar dependencias, seguridad, SQL y grants después de la decisión explícita de Marcelo.
+C y D son propuestas para revisión municipal. No están aprobadas, no crean autoridad y no forman parte de una instalación. E quedó decidida (B, arriba) y espera revisión de Codex antes de instalarse. Codex debe revisar dependencias, seguridad, SQL y grants después de la decisión explícita de Marcelo.
