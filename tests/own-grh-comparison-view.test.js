@@ -42,7 +42,7 @@ test('documento completo ignora filtros y página; montos, huellas y legajos son
  assert.equal(d.metadata.find(([k])=>k==='Resultado propio SHA-256')[1],m.own.resultSha256);
  assert.equal(d.metadata.find(([k])=>k==='Fuente GRH SHA-256')[1],m.grh.sourceHash);
  assert.equal(ownGrhComparisonDocument(m,'totals').rows.length,m.totals.length);
- assert.throws(()=>ownGrhComparisonDocument(m,'all'),/vista/);
+ assert.throws(()=>ownGrhComparisonDocument(m,'all'),/conceptos o totales/);
 });
 test('CSV, Excel y PDF respetan el documento de GRH y la trazabilidad',()=>{
  const d=ownGrhComparisonDocument(sample(1)),csv=reportCsv(d),xlsx=reportXlsx(d),pdf=reportPdf(d);

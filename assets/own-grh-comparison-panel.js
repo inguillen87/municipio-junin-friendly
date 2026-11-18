@@ -6,6 +6,7 @@ import {payrollSourceReport,sourceReportCatalog,sourceReportTypeLabel} from './p
 import {ownGrhComparison,grhStatementLines,ownGrhComparisonView,ownGrhComparisonDocument,OWN_GRH_JOIN,OWN_GRH_TYPES} from './own-grh-comparison-model.js';
 import {reportCsv,reportXlsx,reportPdf,saveReportBytes,reportExactShown} from './report-document.js';
 const node=(tag,value)=>{const element=document.createElement(tag);if(value!==undefined)element.textContent=value;return element;};
+const option=(label,value)=>{const element=node('option',label);element.value=value;return element;};
 const ownEndpoint='/api/internal-own-payroll-liquidation',grhEndpoint='/api/internal-data';
 const grhCapabilities=['payroll.read','workforce.employee.read'];
 
@@ -61,8 +62,8 @@ export function mountOwnGrhComparisonPanel(host){
  }
  function resetCatalogs(){
   ownCatalog=grhCatalog=null;$('form').hidden=true;
-  $('own').replaceChildren(new Option('Elegí un cálculo propio',''));
-  $('grh').replaceChildren(new Option('Elegí una liquidación GRH',''));
+  $('own').replaceChildren(option('Elegí un cálculo propio',''));
+  $('grh').replaceChildren(option('Elegí una liquidación GRH',''));
   $('catalog-note').textContent='';
  }
  function suspend(message){cancel();access=null;resetCatalogs();clear();status(message);}
@@ -92,10 +93,10 @@ export function mountOwnGrhComparisonPanel(host){
  function grhOptions(){
   const own=ownCatalog?.runs.find(r=>r.id===$('own').value),type=OWN_GRH_TYPES[own?.liquidationType];
   const previous=$('grh').value;
-  const options=[new Option('Elegí una liquidación GRH','')];
+  const options=[option('Elegí una liquidación GRH','')];
   // La fecha del catálogo GRH es fecha de liquidación, no necesariamente su período salarial:
   // sólo filtramos el tipo; el cotejo real de período se hace con la respuesta de la 242.
-  for(const item of grhCatalog?.items??[])if(item.type===type)options.push(new Option(grhLabel(item),item.datasetId));
+  for(const item of grhCatalog?.items??[])if(item.type===type)options.push(option(grhLabel(item),item.datasetId));
   $('grh').replaceChildren(...options);
   if(options.some(o=>o.value===previous))$('grh').value=previous;
   $('catalog-note').textContent=own?'Se muestran fuentes GRH del mismo tipo. La fecha del catálogo no define el período: se verifica al consultar el detalle completo.':'Elegí primero una corrida propia.';
@@ -160,9 +161,9 @@ export function mountOwnGrhComparisonPanel(host){
  }
  $('catalog').addEventListener('click',()=>perform(async(signal,valid)=>{
   clear();resetCatalogs();status('Consultando ambos catálogos y permisos…');await session(signal);valid();
-  const own=await bootstrap(signal);valid(),grh=await listGrh(signal);valid();
+  const own=await bootstrap(signal);valid();const grh=await listGrh(signal);valid();
   ownCatalog=own;grhCatalog=grh;
-  for(const item of own.runs)if(item.canConsult&&OWN_GRH_TYPES[item.liquidationType])$('own').append(new Option(ownLabel(item),item.id));
+  for(const item of own.runs)if(item.canConsult&&OWN_GRH_TYPES[item.liquidationType])$('own').append(option(ownLabel(item),item.id));
   $('form').hidden=false;
   status('Elegí un cálculo y una fuente GRH del mismo tipo. '+(grh.truncated?'El catálogo GRH sólo contiene los más recientes; no representa todos los históricos.':'No se construye ninguna liquidación.'));
   controls();
@@ -176,8 +177,8 @@ export function mountOwnGrhComparisonPanel(host){
   model=fresh;selection=pair;page=1;$('result').hidden=false;
   $('sources').textContent='MuniControl: '+ownLabel(ownCatalog.runs.find(r=>r.id===pair.ownId))+' · GRH: '+grhLabel(grhCatalog.items.find(r=>r.datasetId===pair.grhId));
   $('warnings').textContent=model.warnings.join(' ');
-  const document=ownGrhComparisonDocument(model,'concepts');
-  $('trace').replaceChildren(...document.metadata.flatMap(([k,v])=>[node('dt',k),node('dd',String(v))]));
+  const traceDocument=ownGrhComparisonDocument(model,'concepts');
+  $('trace').replaceChildren(...traceDocument.metadata.flatMap(([k,v])=>[node('dt',k),node('dd',String(v))]));
   render();$('result').querySelector('h3')?.focus();
   status('Comparación completa validada: los redondeos permanecen visibles y separados de las coincidencias.');
  });});
