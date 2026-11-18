@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,copyFileSync,mkdirSync,mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,dirname} from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {execFileSync} from 'node:child_process';
 import {COMPOSITION_ORDER,compositionPaths,deriveSource} from '../scripts/lib/install-composition-source.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
@@ -59,4 +62,25 @@ test('--check rejects changed bytes and generation itself has no SQL, network or
  assert.match(source,/assert\.equal\(raw\(paths\.outputManifest\),generatedManifest/);
  assert.throws(()=>deriveSource({...exampleInputs('attendance-area-history'),source:'tampered'}),/SOURCE_SHA_CHANGED/);
  function exampleInputs(name){const paths=compositionPaths(name),manifestText=read(paths.manifest);return{name,source:read(paths.source),manifest:JSON.parse(manifestText),manifestText,attestation:evidence.sources[name]};}
+});
+
+test('CLI --check passes unchanged sources and rejects byte edits to generated SQL and its manifest',()=>{
+ const root=mkdtempSync(join(tmpdir(),'municontrol-composition-test-'));
+ const files=[
+  'scripts/build-install-composition.mjs','scripts/lib/install-composition-source.mjs',
+  'scripts/candidates/install-composition-attestation-v1.json',
+  ...COMPOSITION_ORDER.flatMap(n=>Object.values(compositionPaths(n)))
+ ];
+ try{
+  for(const file of files){const dest=join(root,file);mkdirSync(dirname(dest),{recursive:true});writeFileSync(dest,read(file),'utf8');}
+  const run=()=>spawnSync(process.execPath,[join(root,'scripts/build-install-composition.mjs'),'--check'],{cwd:root,encoding:'utf8',timeout:10000});
+  const first=run();assert.equal(first.status,0,first.stderr);
+  const target=join(root,compositionPaths(COMPOSITION_ORDER[0]).output);
+  writeFileSync(target,readFileSync(target,'utf8')+'-- tamper\n','utf8');
+  const bad=run();assert.notEqual(bad.status,0);assert.match(bad.stderr,/COMPOSITION_DERIVED_SQL_CHANGED/);
+  writeFileSync(target,read(compositionPaths(COMPOSITION_ORDER[0]).output),'utf8');
+  const manifest=join(root,compositionPaths(COMPOSITION_ORDER[1]).outputManifest);
+  writeFileSync(manifest,readFileSync(manifest,'utf8')+' ','utf8');
+  const wrong=run();assert.notEqual(wrong.status,0);assert.match(wrong.stderr,/COMPOSITION_DERIVED_MANIFEST_CHANGED/);
+ }finally{rmSync(root,{recursive:true,force:true});}
 });
