@@ -77,7 +77,7 @@ No se propone capacidad de aprobar, rechazar, consultar fundamentos, abrir adjun
 
 ## E. Quién ve la campanita diaria de asistencia (jefes de área)
 
-### Qué exige hoy
+### Qué exigía antes de la decisión (hasta `f6c2c354`)
 La lectura diaria (`/api/internal-attendance-daily-notice`) arma el corte con la 240, que lee el catálogo horario. Por eso
 una cuenta necesita, todas juntas: `attendance.area.read` (con sus áreas), `time.catalog.read`, `workforce.employee.read`,
 autoridad operativa y **un vínculo laboral activo** propio (lo exige `time_catalog_assert_actor_authority_v1`). Si falta
