@@ -397,6 +397,7 @@ const shellFiles = [
   'assets/workforce-operations.js',
   'assets/workforce-operations.css',
   'assets/native-employee-contract.js',
+  'assets/employment-job-title-contract.js',
   'assets/native-employee-confirmation-model.js',
   'assets/native-roster-model.js',
   'assets/native-roster-export.js',

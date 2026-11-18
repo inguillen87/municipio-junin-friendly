@@ -5,6 +5,7 @@ import {policySha256} from './own-payroll-policy-validity.js';
 import {ownRunPeriodClassifications} from './own-payroll-period-classification.js';
 import {periodClassificationProvenance} from './own-period-classification-model.js';
 import {ownReceiptPrintFacts} from './own-payroll-receipt-print-facts.js';
+import {employmentJobTitleReasons} from './employment-job-title-contract.js';
 
 export const OWN_EMPLOYMENT_PRINT_CAPTURE_VERSION='own-employment-print-capture.v1';
 export const OWN_EMPLOYMENT_PRINT_EVIDENCE_VERSION='own-employment-print-evidence.v1';
@@ -17,24 +18,9 @@ const same=(a,b)=>salarySerialized(a)===salarySerialized(b);
 const hash=value=>policySha256(value,{preserveLegacyUnicode:true});
 const dense=value=>Array.isArray(value)&&Reflect.ownKeys(value).length===value.length+1
  &&Array.from({length:value.length},(_,i)=>Object.getOwnPropertyDescriptor(value,String(i))).every(d=>d&&Object.hasOwn(d,'value')&&d.enumerable);
-// The reader and supplied-row preflight share this exact text contract. Reasons
-// are fixed codes: neither the value nor a normalized substitute is returned.
-export function ownEmploymentJobTitleReasons(value){
- if(value===null)return [];
- if(typeof value!=='string')return ['invalid_type'];
- if(value.length===0)return ['empty'];
- if(value.length>120)return ['utf16_length'];
- const reasons=[];
- // PostgreSQL UTF8/jsonb cannot hold lone surrogates; the original reader also
- // rejected them through its canonical payload hash. Reject them here as well.
- if([...value].some(character=>{const cp=character.codePointAt(0);return cp>=0xd800&&cp<=0xdfff;}))reasons.push('invalid_unicode');
- if(value!==value.trim())reasons.push('exterior_whitespace');
- if(value!==value.normalize('NFC'))reasons.push('non_nfc');
- if(/[\u0000-\u001f\u007f-\u009f]/.test(value))reasons.push('control_characters');
- if(/[\u202a-\u202e\u2066-\u2069]/.test(value))reasons.push('bidirectional_controls');
- if(/[<>]/.test(value))reasons.push('markup_characters');
- return reasons;
-}
+// The reader, the supplied-row preflight and every writer of the title share one text contract
+// (employment-job-title-contract.js). Reasons are fixed codes: neither the value nor a substitute is returned.
+export const ownEmploymentJobTitleReasons=employmentJobTitleReasons;
 
 export function ownRunEmploymentPrintFacts(capture){
  const inventory=capture?.payload?.sourceInventory;
