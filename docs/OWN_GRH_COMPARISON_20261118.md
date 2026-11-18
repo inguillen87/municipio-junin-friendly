@@ -10,7 +10,7 @@ no recalcula fórmulas, no redondea, no confirma ni paga nada.
 | --- | --- | --- |
 | Modelo | `assets/own-grh-comparison-model.js` | `ownGrhComparison(captura, grh, unión)` y `grhStatementLines(grh)` |
 | Lectura GRH | `scripts/migrations/242-own-grh-statement-lines.sql` | `own_grh_statement_lines_v1`: legajo de origen y renglones GRH de un conjunto incorporado |
-| Fachada | `lib/internal-own-grh-statement-lines.js` | `/api/internal-data?resource=owngrhstatementlines&datasetId=…` |
+| Fachada | `lib/internal-own-grh-statement-lines.js` | `/api/internal-data?resource=owngrhstatementlines&datasetId=…`, forma compacta `grh-statement-lines-compact.v1` que `grhStatementLinesExpand` lleva a `grh-statement-lines.v1` |
 | Pruebas | `tests/own-grh-comparison.test.js` | sintéticas, sin personas reales |
 
 ## Reglas
@@ -34,6 +34,12 @@ no recalcula fórmulas, no redondea, no confirma ni paga nada.
 - **Sin recorte**: si la comparación completa (filas reales después de unir) supera 250.000 filas, no se
   compara. Un recibo GRH tiene a lo sumo 1.000 renglones, el CHECK de la 048.
 - **Códigos GRH canónicos**: sin ceros iniciales; `0993` se rechaza por ser un alias ambiguo.
+- **Totales sin datos en ningún lado**: un legajo sólo en GRH cuyo recibo no trae los totalizadores de un total no
+  genera esa fila (no hay nada que mostrar); no se cuenta como «Sólo en MuniControl».
+- **Descripción y unidad GRH** son informativas: pueden llegar vacías (la unidad, hasta 80 caracteres).
+- **Tamaño**: la 242 envía el catálogo de conceptos una sola vez y cada renglón como `[código, importe, cantidad]`;
+  con el máximo de la 048 (30.000 renglones) queda muy por debajo del límite de respuesta. Si aun así una respuesta
+  supera 4 MB, la fachada responde 413 y no entrega una parte.
 
 ## Instalación (Codex)
 

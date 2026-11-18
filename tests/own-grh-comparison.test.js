@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {ownGrhComparison,grhStatementLines,OWN_GRH_JOIN,OWN_GRH_STATUS,OWN_GRH_GROUP_NATURES,OWN_GRH_TYPES} from '../assets/own-grh-comparison-model.js';
+import {ownGrhComparison,grhStatementLines,grhStatementLinesExpand,OWN_GRH_JOIN,OWN_GRH_STATUS,OWN_GRH_GROUP_NATURES,OWN_GRH_TYPES} from '../assets/own-grh-comparison-model.js';
 import {comparisonSources} from './fixtures/own-payroll-comparison-synthetic.js';
 
 // Datos sintéticos: legajos y conceptos del fixture propio, sin personas reales.
@@ -19,6 +19,8 @@ const setup=(n=2)=>{const {base}=comparisonSources(n);return {own:base,grh:grhFr
 const join={...OWN_GRH_JOIN};
 const line=(grh,legajo,code)=>grh.statements.find(s=>s.legajo===legajo).lines.find(l=>l.code===code);
 const plus=(v,c)=>{const n=BigInt(v.replace('.',''))+BigInt(c),a=n<0n?-n:n;return (n<0n?'-':'')+(a/100n)+'.'+String(a%100n).padStart(2,'0');};
+// Los seis totalizadores GRH: cada legajo con ellos genera sus cuatro totales.
+const techLines=()=>['990','993','994','995','996','999'].map(code=>({code,description:null,amount:'1.00',quantity:null,totalGroup:null,unit:null}));
 const find=(m,legajo,label,kind='concept')=>(kind==='concept'?m.rows:m.totals).filter(r=>r.legajo===legajo&&r.label===label);
 
 test('igualdad: todo lo que GRH informa coincide y los auxiliares propios quedan a la vista como sólo en MuniControl',()=>{
@@ -104,7 +106,7 @@ test('mismo período y tipo, fuente GRH completa y bien formada',()=>{
  assert.throws(()=>ownGrhComparison(own,{...grh,payrollType:'S'},join),/mismo tipo/);
  assert.throws(()=>ownGrhComparison(own,{...grh,complete:false},join),/completa/);
  assert.throws(()=>ownGrhComparison(own,{...grh,official:true},join),/formato/);
- for(const change of [s=>{s.lines[0].amount='1.5';},s=>{s.lines.push({...s.lines[0]});},s=>{s.legajo='A1';},s=>{s.lines[0].extra=1;},s=>{s.lines=[];},s=>{s.lines[0].unit='x'.repeat(13);}]){
+ for(const change of [s=>{s.lines[0].amount='1.5';},s=>{s.lines.push({...s.lines[0]});},s=>{s.legajo='A1';},s=>{s.lines[0].extra=1;},s=>{s.lines=[];},s=>{s.lines[0].unit='x'.repeat(81);}]){
   const copy=structuredClone(grh);change(copy.statements[0]);assert.throws(()=>grhStatementLines(copy));
  }
  assert.equal(OWN_GRH_TYPES.supplementary,undefined,'suplementaria no tiene letra GRH declarada');
@@ -119,7 +121,7 @@ test('la correspondencia acumulador → naturaleza es la del motor oficial y los
 
 test('el límite es de la comparación completa: si no entra entera, no se compara ni se recorta',()=>{
  const {own,grh}=setup(1),extra=Array.from({length:62500},(_,i)=>({legajo:String(100000+i),statementId:'30000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(5000+i),
-  lines:[{code:'999',description:null,amount:'1.00',quantity:null,totalGroup:null,unit:null}]}));
+  lines:techLines()}));
  grh.statements.push(...extra);
  assert.throws(()=>ownGrhComparison(own,grh,join),/supera 250\.000 filas\. No se omitieron ni dividieron registros/);
  grh.statements.length=1+62000;const m=ownGrhComparison(own,grh,join);assert.equal(m.summary.legajos,62001);assert.equal(m.totals.length,62001*4);
@@ -130,21 +132,24 @@ import {internalOwnGrhStatementLines,OWN_GRH_STATEMENT_LINES_SQL} from '../lib/i
 import {capabilitiesForInternalDataResource} from '../lib/internal-resource-access.js';
 const uid=id(1),principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid,membershipId:uid,effectiveCapabilities:['payroll.read','workforce.employee.read']}};
 const session={email:'qa@example.invalid',id:uid,version:1,releaseSha:'c'.repeat(40)};
-const answer=()=>{const {grh}=setup(2);return {...grh,found:true,datasetId:uid};};
+// Forma de transporte de la 242: catálogo de conceptos una vez y renglones [código, importe, cantidad].
+const compact=grh=>{const concepts={};for(const s of grh.statements)for(const l of s.lines)concepts[l.code]={description:l.description,totalGroup:l.totalGroup,unit:l.unit};
+ return {...grh,version:'grh-statement-lines-compact.v1',concepts,statements:grh.statements.map(s=>({...s,lines:s.lines.map(l=>[l.code,l.amount,l.quantity])}))};};
+const answer=()=>{const {grh}=setup(2);return {...compact(grh),found:true,datasetId:uid};};
 
 test('la fachada lee con la sesión autenticada, exige ambas capacidades y devuelve sólo el contrato',async()=>{
  assert.deepEqual(capabilitiesForInternalDataResource('owngrhstatementlines'),['workforce.employee.read','payroll.read']);
- let seen;const sql={query:async(text,args)=>{seen={text,args};const a=answer();a.secret='no';a.statements[0].name='Persona';a.statements[0].lines[0].internal='no';return [{result:a}];}};
+ let seen;const sql={query:async(text,args)=>{seen={text,args};const a=answer();a.secret='no';a.statements[0].name='Persona';a.statements[0].lines[0].push('extra');Object.values(a.concepts)[0].internal='no';return [{result:a}];}};
  const r=await internalOwnGrhStatementLines(sql,{query:{resource:'owngrhstatementlines',datasetId:uid}},principal,session);
  assert.equal(r.status,200);assert.equal(seen.text,OWN_GRH_STATEMENT_LINES_SQL);assert.deepEqual(seen.args,['qa@example.invalid',uid,1,'c'.repeat(40),uid,uid,uid]);
- assert.equal(r.payload.data.secret,undefined);assert.equal(r.payload.data.found,undefined);assert.equal(r.payload.data.statements[0].name,undefined);assert.equal(r.payload.data.statements[0].lines[0].internal,undefined);
- const {own}=setup(2),m=ownGrhComparison(own,r.payload.data,join);assert.equal(m.summary.legajos,2);
+ assert.equal(r.payload.data.secret,undefined);assert.equal(r.payload.data.found,undefined);assert.equal(r.payload.data.statements[0].name,undefined);assert.equal(r.payload.data.statements[0].lines[0].length,3);assert.equal(Object.values(r.payload.data.concepts)[0].internal,undefined);
+ assert.equal(r.payload.data.version,'grh-statement-lines-compact.v1');const {own}=setup(2),m=ownGrhComparison(own,grhStatementLinesExpand(r.payload.data),join);assert.equal(m.summary.legajos,2);
  const never={query:()=>assert.fail('no debe leer')};
  for(const q of [{},{datasetId:'x'},{datasetId:uid,tenantId:uid},{datasetId:[uid]}])assert.equal((await internalOwnGrhStatementLines(never,{query:q},principal,session)).status,400);
  assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},principal,null)).status,401);
  assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},{...principal,tenant:{...principal.tenant,effectiveCapabilities:['payroll.read']}},session)).status,403);
- assert.equal((await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines.v1',found:false,official:false}}]},{query:{datasetId:uid}},principal,session)).status,404);
- for(const bad of [a=>{a.complete=false;},a=>{a.datasetId=id(2);},a=>{a.version='otra';},a=>{a.statements[0].lines[0].amount='1,00';}])
+ assert.equal((await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines-compact.v1',found:false,official:false}}]},{query:{datasetId:uid}},principal,session)).status,404);
+ for(const bad of [a=>{a.complete=false;},a=>{a.datasetId=id(2);},a=>{a.version='otra';},a=>{a.statements[0].lines[0][1]='1,00';},a=>{a.statements[0].lines[0][0]='4242';},a=>{a.concepts['4242']={description:null,totalGroup:null,unit:null};}])
   await assert.rejects(internalOwnGrhStatementLines({query:async()=>{const a=answer();bad(a);return [{result:a}];}},{query:{datasetId:uid}},principal,session));
 });
 
@@ -171,8 +176,33 @@ test('revisión de ChatGPT: códigos con ceros iniciales, totalizadores simples 
 
 test('el límite cuenta las filas reales después de unir: 250.000 exactas entran, una más no',()=>{
  const {own,grh}=setup(1),extra=n=>Array.from({length:n},(_,i)=>({legajo:String(200000+i),statementId:'40000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(90000+i),
-  lines:[{code:'100',description:null,amount:'1.00',quantity:null,totalGroup:'993',unit:null}]}));
+  lines:[{code:'100',description:null,amount:'1.00',quantity:null,totalGroup:'993',unit:null},...techLines()]}));
  // Legajo 1001: 6 conceptos unidos + 4 totales = 10. Cada legajo sólo GRH: 1 concepto + 4 totales = 5.
  grh.statements.push(...extra(49998));const m=ownGrhComparison(own,grh,join);assert.equal(m.rows.length+m.totals.length,250000);
  grh.statements.push(...extra(49999).slice(49998));assert.throws(()=>ownGrhComparison(own,grh,join),/supera 250\.000 filas/);
+});
+
+test('revisión de Codex: un legajo sólo en GRH sin totalizadores no genera totales vacíos ni cuenta como sólo en MuniControl',()=>{
+ const {own,grh}=setup(1);
+ grh.statements.push({legajo:'5555',statementId:id(55),statementHash:hex(55),lines:[{code:'100',description:null,amount:'1.00',quantity:null,totalGroup:'993',unit:null}]});
+ const m=ownGrhComparison(own,grh,join);
+ assert.equal(m.totals.filter(r=>r.legajo==='5555').length,0);assert.ok(m.totals.every(r=>r.own!==null||r.grh!==null));
+ assert.deepEqual(m.rows.filter(r=>r.legajo==='5555').map(r=>r.status),['only_grh']);
+ assert.equal(m.summary.onlyOwn,m.rows.concat(m.totals).filter(r=>r.status==='only_own').length);
+ assert.ok([...m.rows,...m.totals].filter(r=>r.status==='only_own').every(r=>r.own!==null));
+});
+
+test('revisión de Codex: unidad o descripción vacías del catálogo GRH se aceptan y una respuesta demasiado grande se rechaza entera',async()=>{
+ const {own,grh}=setup(1);for(const l of grh.statements[0].lines){l.unit='';l.description='';}
+ const m=ownGrhComparison(own,grhStatementLinesExpand(compact(grh)),join);assert.equal(m.summary.difference,0);
+ const big=answer();
+ big.statements=Array.from({length:2000},(_,i)=>({legajo:String(10000+i),statementId:'50000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(70000+i),
+  lines:Array.from({length:15},(_,j)=>[String(100+j),'1234567890.12','1234567890.12'])}));
+ big.concepts=Object.fromEntries(Array.from({length:15},(_,j)=>[String(100+j),{description:'x'.repeat(240),totalGroup:'993',unit:null}]));
+ const ok=await internalOwnGrhStatementLines({query:async()=>[{result:big}]},{query:{datasetId:uid}},principal,session);
+ assert.equal(ok.status,200,'30.000 renglones en forma compacta entran');assert.ok(Buffer.byteLength(JSON.stringify(ok.payload))<4000000);
+ const huge=answer();huge.concepts=Object.fromEntries(Array.from({length:20000},(_,j)=>[String(1000+j),{description:'x'.repeat(240),totalGroup:'993',unit:null}]));
+ huge.statements=Array.from({length:20},(_,i)=>({legajo:String(10+i),statementId:'70000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(80000+i),lines:Array.from({length:1000},(_,j)=>[String(1000+i*1000+j),'1.00',null])}));
+ const tooBig=await internalOwnGrhStatementLines({query:async()=>[{result:huge}]},{query:{datasetId:uid}},principal,session);
+ assert.equal(tooBig.status,413);assert.equal(tooBig.payload.code,'OWN_GRH_STATEMENT_LINES_TOO_LARGE');assert.equal(tooBig.payload.data,undefined);
 });

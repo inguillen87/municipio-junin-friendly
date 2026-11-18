@@ -3,7 +3,7 @@ import {ownLiquidationBootstrap,ownLiquidationDetail,OWN_LIQ_REVIEW} from './own
 import {fetchOwnLiquidationDetail} from './own-payroll-liquidation-read.js';
 import {verifiedHistoricalCapture} from './own-payroll-historical-result-model.js';
 import {payrollSourceReport,sourceReportCatalog,sourceReportTypeLabel} from './payroll-source-report-model.js';
-import {ownGrhComparison,grhStatementLines,ownGrhComparisonView,ownGrhComparisonDocument,OWN_GRH_JOIN,OWN_GRH_TYPES} from './own-grh-comparison-model.js';
+import {ownGrhComparison,grhStatementLinesExpand,ownGrhComparisonView,ownGrhComparisonDocument,OWN_GRH_JOIN,OWN_GRH_TYPES} from './own-grh-comparison-model.js';
 import {reportCsv,reportXlsx,reportPdf,saveReportBytes,reportExactShown} from './report-document.js';
 const node=(tag,value)=>{const element=document.createElement(tag);if(value!==undefined)element.textContent=value;return element;};
 const option=(label,value)=>{const element=node('option',label);element.value=value;return element;};
@@ -129,7 +129,8 @@ export function mountOwnGrhComparisonPanel(host){
    detail.capture.saved?.result.employeeCount!==item.employeeCount)throw Error('Cambió el cálculo propio desde el catálogo. Consultá nuevamente.');
   if(detail.reviewAccessRequired&&!hasOwnRunAccess(access.caps,OWN_LIQ_REVIEW))throw Object.assign(Error('Este cálculo necesita permiso de revisión.'),{status:403});
   await verifiedHistoricalCapture(detail.capture);valid();
-  const grh=grhStatementLines(await request(grhEndpoint+'?resource=owngrhstatementlines&datasetId='+encodeURIComponent(pair.grhId),signal));valid();
+  // La 242 envía la forma compacta; se expande y valida completa antes de comparar.
+  const grh=grhStatementLinesExpand(await request(grhEndpoint+'?resource=owngrhstatementlines&datasetId='+encodeURIComponent(pair.grhId),signal));valid();
   if(grh.datasetId!==pair.grhId)throw Error('La fuente GRH no corresponde a la selección.');
   const result=ownGrhComparison(detail.capture,grh,OWN_GRH_JOIN);valid();
   // Recaptura catálogo, autorización y SHA antes de entregar resultados, sin sustituirlos.

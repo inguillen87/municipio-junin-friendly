@@ -8,6 +8,9 @@ import {OWN_COMPARISON_MAX_ROWS,ownComparisonCentRounding} from './own-payroll-c
 
 export const OWN_GRH_COMPARISON_VERSION='own-grh-comparison.v1';
 export const GRH_STATEMENT_LINES_VERSION='grh-statement-lines.v1';
+// Forma de transporte (242 → navegador): el catálogo de conceptos va una sola vez y cada renglón es [código, importe, cantidad].
+// Con 30.000 renglones la forma expandida superaba el límite de respuesta de Vercel; ésta queda cerca de un tercio.
+export const GRH_STATEMENT_LINES_COMPACT_VERSION='grh-statement-lines-compact.v1';
 // La unión se declara; nunca se deduce. Número de legajo propio contra legajo GRH, por igualdad exacta de texto:
 // sin convertir a número, sin quitar ceros iniciales ni espacios.
 export const OWN_GRH_JOIN=Object.freeze({own:'employeeNumber',grh:'legajo'});
@@ -35,7 +38,7 @@ export const OWN_GRH_TOTALS=Object.freeze([
 const need=(v,message)=>{if(!v)throw Error(message);};
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const cents=v=>v===null||(typeof v==='string'&&/^-?(0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(v));
-const text=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+const plain=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const technical=code=>Number(code)>=990&&Number(code)<=999;
 const precision=v=>v.split('.')[1]?.length??0;
 const subtract=(own,grh)=>quantize(exactSubtract(decimal(own),decimal(grh)),{precision:Math.max(precision(own),precision(grh)),mode:'exact'}).amount;
@@ -62,10 +65,32 @@ export function grhStatementLines(raw){
   for(const l of s.lines){
    need(salaryExact(l,['code','description','amount','quantity','totalGroup','unit'])&&typeof l.code==='string'&&/^(0|[1-9][0-9]{0,5})$/.test(l.code)&&!codes.has(l.code),'Un renglón GRH tiene código inválido, con ceros iniciales o repetido.');
    codes.add(l.code);
-   need((l.description===null||text(l.description,240))&&cents(l.amount)&&cents(l.quantity)&&(l.totalGroup===null||(typeof l.totalGroup==='string'&&/^\d{1,6}$/.test(l.totalGroup)))&&(l.unit===null||text(l.unit,12)),'Un renglón GRH tiene importe, cantidad, acumulador o unidad inválidos.');
+   // Descripción y unidad son informativas: pueden llegar vacías desde el catálogo GRH (la unidad, hasta 80 como en el reporte de origen).
+   need((l.description===null||plain(l.description,240))&&cents(l.amount)&&cents(l.quantity)&&(l.totalGroup===null||(typeof l.totalGroup==='string'&&/^\d{1,6}$/.test(l.totalGroup)))&&(l.unit===null||plain(l.unit,80)),'Un renglón GRH tiene importe, cantidad, acumulador o unidad inválidos.');
   }
  }
  return raw;
+}
+
+/** Expande la forma de transporte de la 242 a la forma que compara el modelo, sin completar ni inventar nada. */
+export function grhStatementLinesExpand(raw){
+ need(salaryExact(raw,['version','official','datasetId','period','payrollType','closureStatus','sourceHash','complete','concepts','statements'])&&raw.version===GRH_STATEMENT_LINES_COMPACT_VERSION,'La liquidación GRH no tiene el formato esperado.');
+ const concepts=raw.concepts;
+ need(concepts!==null&&typeof concepts==='object'&&!Array.isArray(concepts)&&Object.keys(concepts).length<=30000,'La liquidación GRH no trae su catálogo de conceptos.');
+ for(const [code,c]of Object.entries(concepts))need(/^(0|[1-9][0-9]{0,5})$/.test(code)&&salaryExact(c,['description','totalGroup','unit']),'El catálogo GRH tiene un concepto inválido.');
+ need(Array.isArray(raw.statements),'La liquidación GRH no tiene legajos.');
+ const used=new Set();
+ const statements=raw.statements.map(s=>{
+  need(salaryExact(s,['legajo','statementId','statementHash','lines'])&&Array.isArray(s.lines),'Un recibo GRH no identifica su legajo o su huella.');
+  return {legajo:s.legajo,statementId:s.statementId,statementHash:s.statementHash,lines:s.lines.map(l=>{
+   need(Array.isArray(l)&&l.length===3&&typeof l[0]==='string'&&Object.hasOwn(concepts,l[0]),'Un renglón GRH no corresponde a su catálogo.');
+   used.add(l[0]);const c=concepts[l[0]];
+   return {code:l[0],description:c.description,amount:l[1],quantity:l[2],totalGroup:c.totalGroup,unit:c.unit};
+  })};
+ });
+ need(used.size===Object.keys(concepts).length,'El catálogo GRH trae conceptos que ningún recibo usa.');
+ const {concepts:_concepts,...head}=raw;
+ return grhStatementLines({...head,version:GRH_STATEMENT_LINES_VERSION,statements});
 }
 
 function compare({own,grh,roundingLabel}){
@@ -115,12 +140,15 @@ export function ownGrhComparison(capture,grhRaw,join){
   const byCode=new Map();
   for(const r of mine?.rows??[]){const slot=byCode.get(r.conceptCode)??{};slot[r.nature==='auxiliary'?'auxiliary':'concept']=r;byCode.set(r.conceptCode,slot);}
   const codes=[...new Set([...byCode.keys(),...lines.keys()])].sort(codeOrder);
-  return {legajo,mine,theirs,lines,byCode,codes,size:codes.length+codes.filter(c=>byCode.get(c)?.concept&&byCode.get(c)?.auxiliary).length};
+  // Un total existe si al menos un lado lo informa: el propio siempre; GRH si trae alguno de sus totalizadores.
+  const reported=new Map((theirs?.lines??[]).filter(l=>technical(l.code)).map(l=>[l.code,l.amount]));
+  const totalSet=OWN_GRH_TOTALS.filter(t=>mine||t.grh.some(c=>reported.has(c)));
+  return {legajo,mine,theirs,lines,byCode,codes,reported,totalSet,size:codes.length+codes.filter(c=>byCode.get(c)?.concept&&byCode.get(c)?.auxiliary).length+totalSet.length};
  });
- need(plan.reduce((n,p)=>n+p.size,0)+legajos.length*OWN_GRH_TOTALS.length<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
+ need(plan.reduce((n,p)=>n+p.size,0)<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
 
  const rows=[],totals=[];
- for(const {legajo,mine,theirs,lines,byCode,codes}of plan){
+ for(const {legajo,mine,theirs,lines,byCode,codes,reported,totalSet}of plan){
   const contractId=mine?.contractId??null,statementId=theirs?.statementId??null;
   const ownView=r=>({nature:r.nature,unit:r.unit,amount:r.amount});
   const grhView=l=>({nature:l.totalGroup===null?null:OWN_GRH_GROUP_NATURES[l.totalGroup]??null,unit:'money',amount:l.amount,totalGroup:l.totalGroup,description:l.description,quantity:l.quantity,quantityUnit:l.unit});
@@ -130,8 +158,7 @@ export function ownGrhComparison(capture,grhRaw,join){
    rows.push(row('concept',legajo,contractId,statementId,code,code,paired?ownView(paired):null,line?grhView(line):null,both?'Retenciones':null));
    if(slot.concept&&slot.auxiliary)rows.push(row('concept',legajo,contractId,statementId,code,code,ownView(slot.auxiliary),null,null));
   }
-  const reported=new Map((theirs?.lines??[]).filter(l=>technical(l.code)).map(l=>[l.code,l.amount]));
-  for(const total of OWN_GRH_TOTALS){
+  for(const total of totalSet){
    // Ningún totalizador del total en el recibo: GRH no lo informa («Sólo en MuniControl»). Uno presente y otro
    // ausente, o un importe sin informar: el total GRH es incompleto y no se evalúa. Nunca se completa con cero.
    const parts=total.grh.map(c=>reported.has(c)?reported.get(c):null),present=total.grh.some(c=>reported.has(c));
