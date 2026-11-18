@@ -75,6 +75,29 @@ attendance.area.justifications.status.read, con scope exacto de área y sólo pa
 
 No se propone capacidad de aprobar, rechazar, consultar fundamentos, abrir adjuntos ni cambiar estados. El detalle sigue en el circuito nativo de licencias y sus permisos propios.
 
+## E. Quién ve la campanita diaria de asistencia (jefes de área)
+
+### Qué exige hoy
+La lectura diaria (`/api/internal-attendance-daily-notice`) arma el corte con la 240, que lee el catálogo horario. Por eso
+una cuenta necesita, todas juntas: `attendance.area.read` (con sus áreas), `time.catalog.read`, `workforce.employee.read`,
+autoridad operativa y **un vínculo laboral activo** propio (lo exige `time_catalog_assert_actor_authority_v1`). Si falta
+algo de la cuenta, la lectura responde 403 con el motivo y la campanita no reintenta (`88b63714`, `59945a79`).
+
+### Opción A — dar los permisos que faltan
+- Asignar `time.catalog.read` y `workforce.employee.read` al rol de jefe de área y verificar su vínculo laboral activo.
+- Sin código ni SQL nuevos: funciona apenas se publique la integración y se instalen 240 y 241.
+- Contra: `workforce.employee.read` es de todo el municipio; el jefe de área también podría consultar legajos fuera de su
+  área en otros módulos.
+
+### Opción B — lectura acotada al área (recomendada)
+- Una función nueva que, con la autoridad de `attendance.area.read` y sólo para los contratos de las áreas del jefe,
+  devuelva las asignaciones horarias aprobadas que necesita el corte. El jefe no recibe permisos generales nuevos.
+- Contra: es autoridad nueva sobre el catálogo; requiere diseño, SQL, revisión de Codex e instalación. Unos días.
+- Hasta tenerla, la campanita diaria la ven sólo las cuentas que ya cumplen A (por ejemplo, Recursos Humanos).
+
+### Pregunta para decisión
+¿A (rápido, permisos amplios) o B (acotado, más trabajo)? En ambos casos el jefe necesita vínculo laboral activo.
+
 ## Decisión y despliegue
 
-C y D son propuestas para revisión municipal. No están aprobadas, no crean autoridad y no forman parte de una instalación. Codex debe revisar dependencias, seguridad, SQL y grants después de la decisión explícita de Marcelo.
+C, D y E son propuestas para revisión municipal. No están aprobadas, no crean autoridad y no forman parte de una instalación. Codex debe revisar dependencias, seguridad, SQL y grants después de la decisión explícita de Marcelo.
