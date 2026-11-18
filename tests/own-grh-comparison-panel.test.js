@@ -48,7 +48,9 @@ test('ambos centros integran la pantalla sin reemplazar las dos comparaciones an
  assert.match(source,/resource=owngrhstatementlines&datasetId=/);
  assert.match(source,/grhStatementLinesExpand\(await request\(grhEndpoint\+'\?resource=owngrhstatementlines/,'la forma compacta de la 242 se expande y valida antes de comparar');
  assert.match(source,/resource=payrollsourcereport/);
- assert.match(source,/OWN_GRH_JOIN/);assert.match(source,/verifiedHistoricalCapture/);
+ assert.match(source,/OWN_GRH_JOIN/);
+ const lib=fs.readFileSync('lib/internal-own-grh-statement-lines.js','utf8'),caps=JSON.parse(lib.match(/OWN_GRH_STATEMENT_LINES_CAPABILITIES = Object\.freeze\((\[[^\]]*\])\)/)[1].replaceAll("'",'"'));
+ assert.ok(source.includes('const grhCapabilities='+JSON.stringify(caps).replaceAll('"',"'")+';'),'el panel pide las mismas capacidades que la fachada');assert.match(source,/verifiedHistoricalCapture/);
  assert.match(source,/reportCsv\(doc\).*reportXlsx\(doc\).*reportPdf\(doc\)/s);
  assert.doesNotMatch(source,/localStorage|sessionStorage|method:'POST'|method:"POST"/);
 });
@@ -58,7 +60,7 @@ test('consultar catálogos completa la selección sin errores de ejecución (reg
  const body=new Element(),head=new Element(),hex=c=>c.repeat(64),uid=n=>'10000000-0000-4000-8000-'+String(n).padStart(12,'0');
  globalThis.document={hidden:false,head,querySelectorAll:()=>[],createElement:tag=>new Element(tag),addEventListener(){},removeEventListener(){},getElementById:()=>null};
  globalThis.window={addEventListener(){}};globalThis.setInterval=()=>1;globalThis.clearInterval=()=>{};
- const caps=['payroll.calculation.read','payroll.calculation.nominal.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export','payroll.read','workforce.employee.read'];
+ const caps=['actions.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.export','payroll.read','workforce.employee.read'];
  const {OWN_RUN_NOMINAL}=await import('../assets/own-payroll-run-workspace-model.js');
  const auth={ok:true,authenticated:true,sessionVersion:2,expiresAt:new Date(Date.now()+3600000).toISOString(),user:{id:'qa-user',email:'qa@example.invalid'},
   access:{context:'tenant',tenant:{id:uid(1),roleKey:'qa'},tenantCapabilities:[...new Set([...OWN_RUN_NOMINAL,...caps])]}};

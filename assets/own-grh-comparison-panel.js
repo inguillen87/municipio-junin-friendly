@@ -8,7 +8,8 @@ import {reportCsv,reportXlsx,reportPdf,saveReportBytes,reportExactShown} from '.
 const node=(tag,value)=>{const element=document.createElement(tag);if(value!==undefined)element.textContent=value;return element;};
 const option=(label,value)=>{const element=node('option',label);element.value=value;return element;};
 const ownEndpoint='/api/internal-own-payroll-liquidation',grhEndpoint='/api/internal-data';
-const grhCapabilities=['payroll.read','workforce.employee.read'];
+// Las mismas que exige la lectura GRH por legajo (incluye actions.read, que pide la guarda de sesión de la 007).
+const grhCapabilities=['actions.read','payroll.read','workforce.employee.read'];
 
 /**
  * Lector nominal exclusivamente de consulta. Usa los dos catálogos ya autorizados;
