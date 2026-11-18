@@ -1,7 +1,7 @@
 import {createRrhhReportSnapshot} from './rrhh-report-pack.js';
 const valid=new WeakSet();
 export const ANALYSIS_KINDS=Object.freeze(['sectores','movimientos','ausencias']);
-const counts=(label,key,width=22)=>({label,key,type:'integer',width});
+const counts=(label,key,width=22)=>({label,key,type:'integer',width,...(label==='Año'?{}:{align:'right'})});
 function freeze(x){if(x&&typeof x==='object'){Object.values(x).forEach(freeze);Object.freeze(x)}return x}
 export function analysisModel(source,filter={}){
  const snap=createRrhhReportSnapshot(source,{generatedAt:new Date().toISOString()});
