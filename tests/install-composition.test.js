@@ -202,7 +202,9 @@ test('ChatGPT (6994996082): la guarda fija volatilidad, STRICT, paralelo y leakp
  const ok=deriveSource({...base,attestation:{functions:full,triggers:{},reviewed:true}});
  assert.equal(ok.manifest.installable,true);
  for(const field of ['provolatile','proisstrict','proparallel','proleakproof'])assert.ok(ok.sql.includes('x.'+field),field);
- assert.match(ok.sql,/actual\.volatile IS DISTINCT FROM/);
+ // Alias sin palabras clave de PL/pgSQL: con «AS strict» el registro quedaba sin ese campo en PostgreSQL 16.
+ for(const alias of ['volatility','is_strict','parallel_safety','is_leakproof'])assert.match(ok.sql,new RegExp('actual\\.'+alias+' IS DISTINCT FROM'),alias);
+ assert.doesNotMatch(ok.sql,/AS strict\b/);
  const missing=Object.fromEntries(Object.entries(full).map(([k,v])=>{const {volatile,...rest}=v;return [k,rest];}));
  assert.equal(deriveSource({...base,attestation:{functions:missing,triggers:{},reviewed:true}}).manifest.installable,false);
  const [first]=Object.keys(full);
