@@ -2,7 +2,15 @@
 // has, measured with their real widths, and a page cursor with the few shapes those documents use. It knows no payroll rule and
 // never adds, rounds or completes an amount: values are printed exactly as the closed liquidation gives them.
 import {formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
-const mapping={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2212:45};
+// Defined CP1252 positions 0x80–0x9F (Unicode CP1252.TXT; PDF Reference 1.6, Appendix D).
+// U+2212 -> hyphen is the existing compatibility alias; no other transliteration is performed.
+const mapping={
+ 0x20ac:0x80,0x201a:0x82,0x0192:0x83,0x201e:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,
+ 0x02c6:0x88,0x2030:0x89,0x0160:0x8a,0x2039:0x8b,0x0152:0x8c,0x017d:0x8e,
+ 0x2018:0x91,0x2019:0x92,0x201c:0x93,0x201d:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,
+ 0x02dc:0x98,0x2122:0x99,0x0161:0x9a,0x203a:0x9b,0x0153:0x9c,0x017e:0x9e,0x0178:0x9f,
+ 0x2212:45,
+};
 // Advance widths of Helvetica and Helvetica-Bold (Adobe AFM, thousandths of the font size) for WinAnsi 32–255, two base-36 digits
 // each. With real widths, amounts line up on the right edge and labels wrap where the column ends, not at a guessed character count.
 const WIDTHS=[
@@ -25,13 +33,16 @@ export const ownPdfTaxIdText=value=>{const m=/^(\d{2})(\d{8})(\d)$/.exec(String(
 // Text measured and encoded for the standard fonts. A character they cannot draw stops the document with `unsupported`:
 // nothing is replaced or left out.
 export function ownPdfText(unsupported){
- const bytes=value=>[...String(value)].map(c=>{const n=c.codePointAt(0);if(!(n>=32&&n<=255||mapping[n]!==undefined))throw Error(unsupported);return mapping[n]??n;});
+ const bytes=value=>[...String(value)].map(c=>{const n=c.codePointAt(0);if(!(n>=32&&n<=126||n>=160&&n<=255||mapping[n]!==undefined))throw Object.assign(Error(unsupported),{code:'OWN_PDF_UNSUPPORTED_CHARACTER'});return mapping[n]??n;});
  const hex=value=>'<'+bytes(value).map(n=>n.toString(16).padStart(2,'0')).join('')+'>';
  const width=(value,size,bold=false)=>{const table=WIDTHS[bold?1:0];return bytes(value).reduce((sum,n)=>sum+table[n-32],0)*size/1000;};
  // Lines that fit a width in points. A word wider than the column is cut by characters; no text is dropped.
  const fit=(value,max,size,bold=false)=>{
+  const original=String(value),control=original.match(/[\u0000-\u001f\u007f-\u009f]/);
+  if(control)bytes(control[0]); // Reject raw controls before splitting; preserve the existing Unicode whitespace layout.
   const lines=[];let line='';
-  for(const whole of String(value).split(/\s+/).filter(Boolean)){
+  for(const whole of original.split(/\s+/).filter(Boolean)){
+   bytes(whole); // Also validate a single-character word that does not require a width comparison.
    let word=[...whole];
    while(word.length>1&&width(word.join(''),size,bold)>max){
     if(line){lines.push(line);line='';}
