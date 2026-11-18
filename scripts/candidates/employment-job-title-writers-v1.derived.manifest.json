@@ -40,7 +40,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_change_propose_v1(jsonb,jsonb,uuid)",
@@ -52,7 +56,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_change_review_v1(jsonb,jsonb,uuid)",
@@ -64,7 +72,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -76,7 +88,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -88,7 +104,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -100,7 +120,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -112,7 +136,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -124,7 +152,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -136,7 +168,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -148,7 +184,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -160,7 +200,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -172,7 +216,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -184,7 +232,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -196,7 +248,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -208,7 +264,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -220,7 +280,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -232,7 +296,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -244,7 +312,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -256,7 +328,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -268,7 +344,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -280,7 +360,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -292,7 +376,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -304,7 +392,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -316,7 +408,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       }
     ],
     "triggers": [],
@@ -324,7 +420,7 @@
   },
   "output": {
     "path": "scripts/candidates/employment-job-title-writers-v1.derived.sql.txt",
-    "bytes": 33113,
-    "sha256": "938ca4f5945065711ffebc007cd28e6df2de1b8c5cb6fcd038eee78d3c110598"
+    "bytes": 35177,
+    "sha256": "47c6857240d5c363bfe1e6a75bf55bc49d9c9d1493146219ea5bed6c5449e9d1"
   }
 }

@@ -40,7 +40,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
@@ -52,7 +56,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
@@ -64,7 +72,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)",
@@ -76,7 +88,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -88,7 +104,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -100,7 +120,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -112,7 +136,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -124,7 +152,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -136,7 +168,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": null,
@@ -148,7 +184,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       }
     ],
     "triggers": [],
@@ -162,7 +202,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-workdays-v1.derived.sql.txt",
-    "bytes": 25743,
-    "sha256": "9d948bca2c9665524f654e8921bfc845e294ef898270d051cf23a4c0791c48a7"
+    "bytes": 26925,
+    "sha256": "08328513bec8bab090cf80965019800377df6088e2cfe7248988414acd3267c7"
   }
 }

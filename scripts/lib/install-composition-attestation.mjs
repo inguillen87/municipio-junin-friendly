@@ -59,7 +59,8 @@ SELECT pg_catalog.jsonb_build_object(
     'secdef', p.prosecdef,
     'config', COALESCE(pg_catalog.to_jsonb(p.proconfig), '[]'::jsonb),
     'lang', (SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid = p.prolang),
-    'bin', COALESCE(p.probin, '')))
+    'bin', COALESCE(p.probin, ''),
+    'volatile', p.provolatile::text, 'strict', p.proisstrict, 'parallel', p.proparallel::text, 'leakproof', p.proleakproof))
   FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.proname = ANY(${nameList})), '{}'::jsonb),
  'triggers', COALESCE((
@@ -82,7 +83,9 @@ function validObservedFunction(signature, seen) {
     && typeof seen.secdef === 'boolean'
     && Array.isArray(seen.config) && seen.config.length <= 32 && seen.config.every(c => typeof c === 'string' && SAFE_TEXT.test(c))
     && typeof seen.lang === 'string' && LANG_RE.test(seen.lang)
-    && typeof seen.bin === 'string' && BIN_RE.test(seen.bin);
+    && typeof seen.bin === 'string' && BIN_RE.test(seen.bin)
+    && ['i', 's', 'v'].includes(seen.volatile) && typeof seen.strict === 'boolean'
+    && ['s', 'r', 'u'].includes(seen.parallel) && typeof seen.leakproof === 'boolean';
 }
 
 /**
@@ -120,6 +123,7 @@ export function mergeAttestation(attestation, observation, derivedByName, {onlyS
       functions[signature] = {
         owner: seen.owner, acl: seen.acl, prosrcSha256: seen.prosrcSha256,
         secdef: seen.secdef, config: [...seen.config], lang: seen.lang, bin: seen.bin,
+        volatile: seen.volatile, strict: seen.strict, parallel: seen.parallel, leakproof: seen.leakproof,
       };
     }
     for (const t of manifest.preimages.triggers) {

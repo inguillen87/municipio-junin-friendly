@@ -8,7 +8,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const derived=Object.fromEntries(COMPOSITION_ORDER.map(n=>[n,JSON.parse(read(compositionPaths(n).outputManifest))]));
 const inputs=name=>{const paths=compositionPaths(name),manifestText=read(paths.manifest);return {name,source:read(paths.source),manifest:JSON.parse(manifestText),manifestText};};
 const attestation=JSON.parse(read('scripts/candidates/install-composition-attestation-v1.json'));
-const obsFn=(prosrcSha256,over={})=>({owner:'qa_owner',acl:'<NULL>',prosrcSha256,secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',...over});
+const obsFn=(prosrcSha256,over={})=>({owner:'qa_owner',acl:'<NULL>',prosrcSha256,secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',volatile:'v',strict:false,parallel:'u',leakproof:false,...over});
 
 test('la consulta es de sólo lectura, termina en ROLLBACK y pide todas las funciones y disparadores fijados',()=>{
  const sql=attestationQuery(Object.values(derived));
@@ -23,7 +23,7 @@ test('la consulta es de sólo lectura, termina en ROLLBACK y pide todas las func
  assert.equal(triggers.length,7);
  // Mismas expresiones (calificadas con pg_catalog.) que el bloque de preimágenes de los derivados.
  const derivedSql=read(compositionPaths('attendance-area-history').output);
- for(const expression of ['pg_catalog.sha256(pg_catalog.convert_to(','pg_catalog.pg_get_userbyid(',"'<NULL>'",'prosecdef','proconfig','probin'])
+ for(const expression of ['pg_catalog.sha256(pg_catalog.convert_to(','pg_catalog.pg_get_userbyid(',"'<NULL>'",'prosecdef','proconfig','probin','provolatile','proisstrict','proparallel','proleakproof'])
   assert.ok(sql.includes(expression)&&derivedSql.includes(expression),expression);
 });
 

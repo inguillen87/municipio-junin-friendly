@@ -7,7 +7,7 @@ import {spawnSync} from 'node:child_process';
 import {COMPOSITION_ORDER,compositionPaths,deriveSource} from '../scripts/lib/install-composition-source.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const evidence=JSON.parse(read('scripts/candidates/install-composition-attestation-v1.json'));
-const meta=(over={})=>({owner:'qa_owner',acl:'<NULL>',secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',...over});
+const meta=(over={})=>({owner:'qa_owner',acl:'<NULL>',secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',volatile:'v',strict:false,parallel:'u',leakproof:false,...over});
 const example=name=>{
  const paths=compositionPaths(name),source=read(paths.source),manifestText=read(paths.manifest);
  return {source,...deriveSource({name,source,manifest:JSON.parse(manifestText),manifestText,attestation:evidence.sources[name]})};
@@ -192,4 +192,19 @@ test('Gemini: el comentario Attestation input SHA-256 del SQL coincide con attes
   assert.ok(match,name);
   assert.equal(match[1],dm.attestation.sha256,name);
  }
+});
+
+test('ChatGPT (6994996082): la guarda fija volatilidad, STRICT, paralelo y leakproof; sin ellos no es instalable',()=>{
+ const paths=compositionPaths('attendance-area-authority'),manifestText=read(paths.manifest),source=read(paths.source);
+ const base={name:'attendance-area-authority',source,manifest:JSON.parse(manifestText),manifestText};
+ const deps=deriveSource({...base,attestation:{}}).manifest.preimages.functions;
+ const full=Object.fromEntries(deps.map((p,i)=>['public.'+p.function+'(jsonb)',meta({prosrcSha256:String(i%10).repeat(64)})]));
+ const ok=deriveSource({...base,attestation:{functions:full,triggers:{},reviewed:true}});
+ assert.equal(ok.manifest.installable,true);
+ for(const field of ['provolatile','proisstrict','proparallel','proleakproof'])assert.ok(ok.sql.includes('x.'+field),field);
+ assert.match(ok.sql,/actual\.volatile IS DISTINCT FROM/);
+ const missing=Object.fromEntries(Object.entries(full).map(([k,v])=>{const {volatile,...rest}=v;return [k,rest];}));
+ assert.equal(deriveSource({...base,attestation:{functions:missing,triggers:{},reviewed:true}}).manifest.installable,false);
+ const [first]=Object.keys(full);
+ assert.throws(()=>deriveSource({...base,attestation:{functions:{...full,[first]:{...full[first],volatile:'x'}},triggers:{},reviewed:true}}),/ATTESTATION_INVALID/);
 });

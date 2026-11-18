@@ -125,7 +125,7 @@ function triggerPins(source){
 function validateFunctionAttestation(signature,seen){
  assert.ok(typeof signature==='string'&&signature.length<=512&&SIG_RE.test(signature),'COMPOSITION_ATTESTATION_INVALID: '+signature);
  assert.ok(isPlainObject(seen),'COMPOSITION_ATTESTATION_INVALID: '+signature);
- const allowed=new Set(['owner','acl','prosrcSha256','secdef','config','lang','bin']);
+ const allowed=new Set(['owner','acl','prosrcSha256','secdef','config','lang','bin','volatile','strict','parallel','leakproof']);
  assert.ok(Object.keys(seen).every(k=>allowed.has(k)),'COMPOSITION_ATTESTATION_INVALID: '+signature);
  if(seen.owner!==undefined&&seen.owner!==null)
   assert.ok(typeof seen.owner==='string'&&SAFE_TEXT.test(seen.owner),'COMPOSITION_ATTESTATION_INVALID: '+signature);
@@ -141,6 +141,16 @@ function validateFunctionAttestation(signature,seen){
   assert.ok(typeof seen.lang==='string'&&LANG_RE.test(seen.lang),'COMPOSITION_ATTESTATION_INVALID: '+signature);
  if(seen.bin!==undefined&&seen.bin!==null)
   assert.ok(typeof seen.bin==='string'&&BIN_RE.test(seen.bin),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ // Volatilidad, STRICT, seguridad paralela y leakproof (segunda revisión de ChatGPT, 6994996082): un ALTER FUNCTION
+ // … IMMUTABLE/STRICT cambia el comportamiento sin cambiar el cuerpo, el dueño ni la ACL.
+ if(seen.volatile!==undefined&&seen.volatile!==null)
+  assert.ok(['i','s','v'].includes(seen.volatile),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.strict!==undefined&&seen.strict!==null)
+  assert.ok(typeof seen.strict==='boolean','COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.parallel!==undefined&&seen.parallel!==null)
+  assert.ok(['s','r','u'].includes(seen.parallel),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.leakproof!==undefined&&seen.leakproof!==null)
+  assert.ok(typeof seen.leakproof==='boolean','COMPOSITION_ATTESTATION_INVALID: '+signature);
 }
 function validateTriggerAttestation(key,seen){
  assert.ok(isPlainObject(seen),'COMPOSITION_TRIGGER_ATTESTATION_INVALID: '+key);
@@ -159,17 +169,22 @@ BEGIN
   IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
     OR p->>'signature' IS NULL OR pg_catalog.jsonb_typeof(p->'secdef') <> 'boolean'
     OR pg_catalog.jsonb_typeof(p->'config') <> 'array' OR p->>'lang' IS NULL OR p->>'bin' IS NULL
+    OR p->>'volatile' IS NULL OR pg_catalog.jsonb_typeof(p->'strict') <> 'boolean'
+    OR p->>'parallel' IS NULL OR pg_catalog.jsonb_typeof(p->'leakproof') <> 'boolean'
     THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
   SELECT x.oid,pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
     pg_catalog.pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text,
     x.prosecdef AS secdef,COALESCE(pg_catalog.to_jsonb(x.proconfig),'[]'::jsonb) AS config,
     (SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid=x.prolang) AS lang,
-    COALESCE(x.probin,'') AS bin
+    COALESCE(x.probin,'') AS bin,x.provolatile::text AS volatility,x.proisstrict AS is_strict,
+    x.proparallel::text AS parallel_safety,x.proleakproof AS is_leakproof
     INTO actual FROM pg_catalog.pg_proc x WHERE x.oid=pg_catalog.to_regprocedure(p->>'signature');
   IF NOT FOUND OR actual.body_hash IS DISTINCT FROM p->>'prosrcSha256'
     OR actual.owner_name IS DISTINCT FROM p->>'owner' OR actual.acl_text IS DISTINCT FROM p->>'acl'
     OR actual.secdef IS DISTINCT FROM (p->>'secdef')::boolean OR actual.config IS DISTINCT FROM (p->'config')
     OR actual.lang IS DISTINCT FROM p->>'lang' OR actual.bin IS DISTINCT FROM p->>'bin'
+    OR actual.volatility IS DISTINCT FROM p->>'volatile' OR actual.is_strict IS DISTINCT FROM (p->>'strict')::boolean
+    OR actual.parallel_safety IS DISTINCT FROM p->>'parallel' OR actual.is_leakproof IS DISTINCT FROM (p->>'leakproof')::boolean
     THEN RAISE EXCEPTION 'COMPOSITION_FUNCTION_PREIMAGE_CHANGED: %',p->>'signature'; END IF;
  END LOOP;
  FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements(${trg}::jsonb) LOOP
@@ -232,6 +247,10 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
    config:seen?.config??null,
    lang:seen?.lang??null,
    bin:seen?.bin??null,
+   volatile:seen?.volatile??null,
+   strict:seen?.strict??null,
+   parallel:seen?.parallel??null,
+   leakproof:seen?.leakproof??null,
   };
  };
  const existing=manifestExisting.flatMap(p=>{
@@ -249,7 +268,8 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
   &&existing.every(p=>typeof p.signature==='string'&&SIG_RE.test(p.signature)&&hex.test(p.prosrcSha256??'')
    &&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string'&&p.acl.length>0
    &&typeof p.secdef==='boolean'&&Array.isArray(p.config)&&typeof p.lang==='string'&&LANG_RE.test(p.lang)
-   &&typeof p.bin==='string'&&BIN_RE.test(p.bin))
+   &&typeof p.bin==='string'&&BIN_RE.test(p.bin)
+   &&['i','s','v'].includes(p.volatile)&&typeof p.strict==='boolean'&&['s','r','u'].includes(p.parallel)&&typeof p.leakproof==='boolean')
   &&triggers.every(p=>['O','A'].includes(p.enabled));
  const metadataSha=attestationFileSha??sha(JSON.stringify(attestation));
  const preimage=preimageSql({existing,newFunctions,triggers,metadataSha,attested});

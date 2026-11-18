@@ -40,7 +40,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employee_contract_guard_v1()",
@@ -52,7 +56,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract)",
@@ -64,7 +72,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_void_update_allowed_v1(public.employment_contract,public.employment_contract)",
@@ -76,7 +88,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_change_immutable_v1()",
@@ -88,7 +104,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.native_employment_lifecycle_immutable_v1()",
@@ -100,7 +120,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       }
     ],
     "triggers": [
@@ -174,7 +198,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
-    "bytes": 27886,
-    "sha256": "d0b1d1cd0ac1e26d8266b2352d5cf600a31b4dbdf2cf5604b4fa72414bc2ecfd"
+    "bytes": 28816,
+    "sha256": "be249eca2d94c49be73de88427d8c82186f32116eaa4d75e17e921c3797e471e"
   }
 }

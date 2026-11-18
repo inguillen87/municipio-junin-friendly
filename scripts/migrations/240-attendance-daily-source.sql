@@ -113,6 +113,9 @@ BEGIN
       'complete',
       NOT EXISTS (SELECT 1 FROM assignment_views WHERE assignment IS NULL)
       AND (SELECT count(*) FROM scoped_contracts)=
+        (SELECT count(DISTINCT employment_contract_id) FROM assignment_views WHERE assignment IS NOT NULL)
+      -- Una sola asignación válida por contrato: dos del mismo contrato no se desambiguan (segunda revisión de ChatGPT).
+      AND (SELECT count(*) FROM assignment_views WHERE assignment IS NOT NULL)=
         (SELECT count(DISTINCT employment_contract_id) FROM assignment_views WHERE assignment IS NOT NULL),
       'assignments',
       COALESCE((SELECT jsonb_agg(jsonb_build_object('record',record,'assignment',assignment)

@@ -40,7 +40,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
@@ -52,7 +56,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
@@ -64,7 +72,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       },
       {
         "signature": "public.time_catalog_native_actor_v2(uuid,uuid,uuid)",
@@ -76,7 +88,11 @@
         "secdef": null,
         "config": null,
         "lang": null,
-        "bin": null
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
       }
     ],
     "triggers": [],
@@ -165,7 +181,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
-    "bytes": 60559,
-    "sha256": "12aa20d4b8193f3b4378710be6bb6a35b9871de7fe3cf34f98fef394690765a8"
+    "bytes": 61363,
+    "sha256": "135ebd535e953d41aca804ea3cf6f22a437710dcffce40e779008910869b71b7"
   }
 }
