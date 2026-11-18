@@ -45,3 +45,11 @@ test('the GRH cent-rounding helper remains exported for the future GRH comparato
   assert.equal(ownComparisonCentRounding('Retenciones', '0.03'), true);
   assert.equal(ownComparisonCentRounding('Retenciones', '0.06'), false);
 });
+
+test('«Atrás» con la página guardada no deja muerto el panel de comparación propia',()=>{
+ const s=fs.readFileSync('assets/own-payroll-comparison-panel.js','utf8');
+ assert.match(s,/const unload=e=>\{suspend\('Página cerrada\.'\);if\(e\.persisted\)return;stopped=true;/);
+ assert.match(s,/const restore=e=>\{if\(e\.persisted&&!stopped\)controls\(\);\};/);
+ assert.match(s,/window\.addEventListener\('pagehide',unload\);window\.addEventListener\('pageshow',restore\);/);
+ assert.doesNotMatch(s,/addEventListener\('pagehide',\(\)=>\{stopped=true/);
+});
