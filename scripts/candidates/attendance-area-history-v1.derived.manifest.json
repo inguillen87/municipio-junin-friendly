@@ -1,0 +1,180 @@
+{
+  "version": "municontrol-install-composition-derived.v1",
+  "name": "attendance-area-history",
+  "installable": false,
+  "dryRun": true,
+  "committed": false,
+  "requiresCodexReviewedCommit": true,
+  "source": {
+    "path": "scripts/candidates/attendance-area-history-v1.source.sql.txt",
+    "bytes": 20632,
+    "sha256": "07c55ae591f88606f33b1ca41c8261eda7ab44aee01c8582da86fb50d5fb82fb"
+  },
+  "sourceManifest": {
+    "path": "scripts/candidates/attendance-area-history-v1.source.manifest.json",
+    "sha256": "31711dbb221362cdfd2ca17edf34585ff0e36652345e56b3b886057903f2b201"
+  },
+  "attestation": {
+    "path": "scripts/candidates/install-composition-attestation-v1.json",
+    "sha256": "f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695",
+    "complete": false
+  },
+  "removed": {
+    "barrierSha256": "47bbfdb657cccab75a4df553373867a4abf857a5babf0fbebe35de403a800ce2",
+    "rollbackSha256": "3c41bb5fdf19c0e14c34a58b7dd7ee6c6a1ee9fb70b77b5ce0fe2788a689c8a8"
+  },
+  "preserved": {
+    "prefixSha256": "2cbd236dbc4bec27ccbac492b7031038292c2cf113458a45e37019aa8381932b",
+    "bodySha256": "0d8fb529fa8484692e2916be328c01729089e3fba6df59b7ee8d8b2e0d1eb085",
+    "originalStatementsBytePreserved": true
+  },
+  "preimages": {
+    "functions": [
+      {
+        "signature": "public.reject_immutable_source_change()",
+        "prosrcSha256": "b5babe1755a00845bf4512f6379dc558d556e7ea7be5a1f6bfc932d3582a640d",
+        "kind": "guard",
+        "function": "reject_immutable_source_change",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": "public.native_employee_contract_guard_v1()",
+        "prosrcSha256": "2abc356ccae217ac382ff9e5b82512777e36688a2ec2db3f7d430f71a9ba2dc3",
+        "kind": "guard",
+        "function": "native_employee_contract_guard_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": "public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract)",
+        "prosrcSha256": "f0a939bb82a21f66b08be3568436fbc8bb51821ceacb924596ec198d17bab824",
+        "kind": "guard",
+        "function": "native_employment_change_update_allowed_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": "public.native_employment_void_update_allowed_v1(public.employment_contract,public.employment_contract)",
+        "prosrcSha256": "e630190aabe7fb1d0a4f6f620c106cebbd854e1a469252eabc26de630cde6853",
+        "kind": "guard",
+        "function": "native_employment_void_update_allowed_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": "public.native_employment_change_immutable_v1()",
+        "prosrcSha256": "7dcef4d8cf16a0047f31ebc8ffcaee74f33cff88f6f8af9aaee64cbd6e7c5611",
+        "kind": "guard",
+        "function": "native_employment_change_immutable_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": "public.native_employment_lifecycle_immutable_v1()",
+        "prosrcSha256": "8e018efbdce29c342aa94757880a4e911a8f41567386c7827eb77f46b25837d5",
+        "kind": "guard",
+        "function": "native_employment_lifecycle_immutable_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      }
+    ],
+    "triggers": [
+      {
+        "relation": "public.employment_contract",
+        "name": "employment_contract_batch_system",
+        "function": "public.native_employee_contract_guard_v1()",
+        "type": 31,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employee_registration",
+        "name": "native_employee_registration_immutable",
+        "function": "public.reject_immutable_source_change()",
+        "type": 27,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employee_registration",
+        "name": "native_employee_registration_no_truncate",
+        "function": "public.reject_immutable_source_change()",
+        "type": 34,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_change_proposal",
+        "name": "native_employment_change_proposal_immutable",
+        "function": "public.native_employment_change_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_change_review",
+        "name": "native_employment_change_review_immutable",
+        "function": "public.native_employment_change_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_lifecycle_proposal",
+        "name": "native_employment_lifecycle_proposal_immutable",
+        "function": "public.native_employment_lifecycle_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_lifecycle_review",
+        "name": "native_employment_lifecycle_review_immutable",
+        "function": "public.native_employment_lifecycle_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      }
+    ],
+    "newFunctions": [
+      {
+        "name": "attendance_area_history_guards_v1",
+        "signature": "public.attendance_area_history_guards_v1()",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_history_area_v1",
+        "signature": "public.attendance_area_history_area_v1(jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_history_v1",
+        "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+        "redefined": false
+      }
+    ]
+  },
+  "output": {
+    "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
+    "bytes": 27886,
+    "sha256": "d0b1d1cd0ac1e26d8266b2352d5cf600a31b4dbdf2cf5604b4fa72414bc2ecfd"
+  }
+}
