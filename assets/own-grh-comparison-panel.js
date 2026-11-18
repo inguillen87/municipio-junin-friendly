@@ -205,7 +205,14 @@ export function mountOwnGrhComparisonPanel(host){
  $('next').addEventListener('click',()=>{page++;render();});
  const task=event=>{if(event.detail?.id!=='comparar')suspend('La comparación se retiró al cambiar de tarea.');else controls();};
  const visibility=()=>{if(document.hidden)suspend('La página se ocultó: se retiraron las fuentes nominales.');else controls();};
- const capabilities=event=>{if(access&&!hasOwnRunAccess(new Set(event.detail?.tenantCapabilities??[]),required(reviewRequired)))suspend('Cambió el acceso: consultá nuevamente.');};
+ // Un cambio de capacidades invalida lo que falte para la vista actual y, además, cualquier consulta en curso si retira el
+ // permiso de revisión que la cuenta tenía: esa consulta pudo leer una corrida que lo exige y una autenticación vieja no
+ // puede habilitar su resultado (Codex local, 18/11).
+ const capabilities=event=>{
+  const next=new Set(event.detail?.tenantCapabilities??[]);
+  if(access&&!hasOwnRunAccess(next,required(reviewRequired)))return suspend('Cambió el acceso: consultá nuevamente.');
+  if(busy&&access&&hasOwnRunAccess(access.caps,OWN_LIQ_REVIEW)&&!hasOwnRunAccess(next,OWN_LIQ_REVIEW))suspend('Cambió el permiso de revisión durante la consulta: consultá nuevamente.');
+ };
  document.addEventListener('taskchange',task);
  document.addEventListener('visibilitychange',visibility);
  document.addEventListener('municontrol:capabilities-ready',capabilities);
