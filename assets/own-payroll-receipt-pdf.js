@@ -10,7 +10,15 @@ export const ownReceiptTextWidth=ownPdfText(UNSUPPORTED).width;
 // box, earnings on the left and deductions on the right, each with its total. Employer contributions and technical values go in a
 // separate informative block, so nothing is hidden and nothing that is not pay is mixed with pay. Long receipts continue on more
 // pages that repeat whose they are. Every amount is the exact one of the closed liquidation; this file adds or rounds nothing.
-export function ownReceiptPages(record,params,source,{state='prepared',batchId='Previa sin conservar'}={}){
+export function ownReceiptPages(record,params,source,options={}){
+ try{return drawOwnReceiptPages(record,params,source,options);}
+ catch(error){
+  if(['OWN_PDF_UNSUPPORTED_CHARACTER','OWN_PDF_QUANTITY_OVERFLOW'].includes(error?.code))
+   throw Object.assign(Error('Legajo '+record.employeeNumber+': '+error.message),{code:error.code});
+  throw error;
+ }
+}
+function drawOwnReceiptPages(record,params,source,{state='prepared',batchId='Previa sin conservar'}={}){
  const L=38,R=557,W=R-L,MID=(L+R)/2,EDGES=[L,MID,R],HALF=MID-L;
  for(const concept of record.concepts)if(!Object.hasOwn(OWN_RUN_NATURES,concept.nature))throw Error('El recibo contiene un concepto de una naturaleza desconocida. No se omitió.');
  const type=ownReceiptType(source.type),money=value=>formatOwnRunDecimal(value),totals=record.totals,net=money(totals.net);
@@ -50,8 +58,8 @@ export function ownReceiptPages(record,params,source,{state='prepared',batchId='
   }
   continued=true;
  }});
- // A row that cannot be drawn names the receipt it belongs to, so the operator can find it; nothing is cut or skipped.
- const entry=(concept,options)=>{try{return doc.entry(concept,HALF,options);}catch(error){if(error?.code==='OWN_PDF_QUANTITY_OVERFLOW')throw Object.assign(Error('Legajo '+record.employeeNumber+': '+error.message),{code:error.code});throw error;}};
+ // The outer receipt boundary names this record for text or quantity failures in any block, including the header.
+ const entry=(concept,options)=>doc.entry(concept,HALF,options);
  const group=(nature,title,options)=>{const rows=record.concepts.filter(concept=>concept.nature===nature).map(concept=>entry(concept,printed?{...options,quantity:printed.get(concept.code)??''}:options));return rows.length&&title?[{heading:title,height:12.5},...rows]:rows;};
  const mainHead=()=>{
   doc.box(L,doc.y-16,W,16,{fill:TINT,stroke:null});doc.line(L,doc.y,R,doc.y,STRONG,0.8);
