@@ -1,5 +1,5 @@
 import { getPm10Status } from '../lib/internal-pm10-status.js';
-import { getAttendanceWorkdays, getAttendanceWorkdaysV2, getAttendancePreparte } from '../lib/internal-attendance-workdays.js';
+import { getAttendanceWorkdays, getAttendanceWorkdaysV2, getAttendanceWorkdaysV3, normalizeContinuousWorkdayQueryV3, getAttendancePreparte } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
@@ -187,6 +187,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const clockDashboard = dependencies.getAttendanceClockDashboard ?? getAttendanceClockDashboard;
   const clockWorkdays = dependencies.getAttendanceWorkdays ?? getAttendanceWorkdays;
   const clockWorkdaysV2 = dependencies.getAttendanceWorkdaysV2 ?? getAttendanceWorkdaysV2;
+  const clockWorkdaysV3 = dependencies.getAttendanceWorkdaysV3 ?? getAttendanceWorkdaysV3;
   const clockPreparte = dependencies.getAttendancePreparte ?? getAttendancePreparte;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
@@ -259,6 +260,22 @@ export function createInternalAttendanceHandler(dependencies = {}) {
           });
         }
         return send(res, 200, { ok: true, ...result });
+      }
+
+      if (method === 'GET' && requestedResource === 'clock-workdays-v3') {
+        assertQueryKeys(req,new Set(['resource','source','site','day','page','pageSize','search','status','snapshot','cause']));
+        if (Object.values(req.query).some(value=>typeof value!=='string')) fail('ATTENDANCE_QUERY_AMBIGUOUS',400,'La consulta v3 requiere parámetros de texto únicos');
+        const options={
+          source:queryValue(req,'source'),site:queryValue(req,'site'),day:queryValue(req,'day'),
+          page:queryValue(req,'page','1'),pageSize:queryValue(req,'pageSize','25'),
+          search:queryValue(req,'search'),status:queryValue(req,'status','all'),snapshot:queryValue(req,'snapshot'),
+          cause:req.query.cause===undefined?undefined:queryValue(req,'cause'),
+        };
+        // Reject an implicit/latest or broadened cut before constructing a SQL client.
+        normalizeContinuousWorkdayQueryV3(options);
+        const session=actionMutationSession(access,env),client=await getSql(env);
+        const result=await clockWorkdaysV3(client,access.principal,options,session);
+        return send(res,200,{ok:true,...result});
       }
 
       const tenantSession = actionMutationSession(access, env);
