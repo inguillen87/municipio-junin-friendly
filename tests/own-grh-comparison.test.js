@@ -255,3 +255,13 @@ test('revisión de Codex (58457598): lo que la fachada rechazaría por ambiguo l
  const r=await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines-compact.v1',found:true,official:false,incompatible:true,datasetId:uid}}]},{query:{datasetId:uid}},principal,session);
  assert.equal(r.status,422);assert.equal(r.payload.code,'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPATIBLE');assert.match(r.payload.error,/ceros iniciales/);assert.equal(r.payload.data,undefined);
 });
+
+test('Codex (local): los largos de descripción y unidad se cuentan en caracteres, como length() de PostgreSQL en la 242',()=>{
+ const astral='\u{1D49C}';assert.equal(astral.length,2);
+ const {own,grh}=setup(1);for(const l of grh.statements[0].lines){l.description=astral.repeat(240);l.unit=astral.repeat(80);}
+ assert.doesNotThrow(()=>ownGrhComparison(own,grhStatementLinesExpand(compact(grh)),join),'240 y 80 caracteres fuera del plano básico entran, como en SQL');
+ const over=structuredClone(grh);over.statements[0].lines[0].description=astral.repeat(241);assert.throws(()=>grhStatementLines(over));
+ const overUnit=structuredClone(grh);overUnit.statements[0].lines[0].unit=astral.repeat(81);assert.throws(()=>grhStatementLines(overUnit));
+ const sql=fs.readFileSync('scripts/migrations/242-own-grh-statement-lines.sql','utf8');
+ assert.match(sql,/length\(ds\.concept_catalog->\(ln->>'code'\)->>'description'\)>240/);assert.match(sql,/length\(ds\.concept_catalog->\(ln->>'code'\)->>'unit'\)>80/);
+});

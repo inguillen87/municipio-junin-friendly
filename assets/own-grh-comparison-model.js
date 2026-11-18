@@ -38,7 +38,10 @@ export const OWN_GRH_TOTALS=Object.freeze([
 const need=(v,message)=>{if(!v)throw Error(message);};
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const cents=v=>v===null||(typeof v==='string'&&/^-?(0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(v));
-const plain=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+// Largo en caracteres (puntos de código), igual que length() de PostgreSQL en la 242: un carácter fuera del plano básico
+// cuenta uno, no dos unidades UTF-16. Así la base y la fachada aceptan y rechazan exactamente lo mismo.
+const chars=v=>{let n=0;for(const _ of v)n++;return n;};
+const plain=(v,max)=>typeof v==='string'&&chars(v)<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const technical=code=>Number(code)>=990&&Number(code)<=999;
 const precision=v=>v.split('.')[1]?.length??0;
 const subtract=(own,grh)=>quantize(exactSubtract(decimal(own),decimal(grh)),{precision:Math.max(precision(own),precision(grh)),mode:'exact'}).amount;
