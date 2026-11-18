@@ -65,9 +65,12 @@ export function mountOwnPayrollComparison(host){
     el.addEventListener('click',()=>{$('change').value=$('change').value===filterVal?'all':filterVal;page=1;render();});}
    return el;
   };
-  const unchanged=Math.max(0,v.total-v.changed);
+  // Los conteos usan exactamente el criterio de cada filtro: «con variación o revisión» es changed||review y
+  // «sin variación» excluye ambos; así el número de la tarjeta coincide con las filas que muestra al tocarla.
+  const all=$('view').value==='concepts'?model.rows:model.totals,flagged=all.filter(r=>r.changed||r.review).length;
+  const unchanged=all.length-flagged;
   return [card(model.employees,model.employees===1?'Legajo del alcance':'Legajos del alcance',null,'neutral'),
-   card(v.changed,'Con variación o revisión','changed',v.changed?'alert':'ok'),
+   card(flagged,'Con variación o revisión','changed',flagged?'alert':'ok'),
    card(v.review,'Para revisar','review',v.review?'info':'ok'),
    card(unchanged,'Sin variación','unchanged','ok')];
  }
