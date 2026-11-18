@@ -49,7 +49,7 @@ function bodyPins(manifest,source){
 }
 function triggerPins(source){
  // Literal trigger preimages in the original history guard, not observations of the live DB.
- return [...source.matchAll(/\('((?:public\.)[a-z_]+)',\s*'([a-z_]+)',\s*'(public\.[a-z_]+\([^']*\))',\s*(\d+)\)/g)]
+ return [...source.matchAll(/\('((?:public\.)[a-z0-9_]+)',\s*'([a-z0-9_]+)',\s*'(public\.[a-z0-9_]+\([^']*\))',\s*(\d+)\)/g)]
   .map(m=>({relation:m[1],name:m[2],function:m[3],type:Number(m[4])}));
 }
 function preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed}){

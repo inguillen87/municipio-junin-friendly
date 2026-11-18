@@ -75,6 +75,13 @@
     ],
     "triggers": [
       {
+        "relation": "public.employment_contract",
+        "name": "employment_contract_batch_system",
+        "function": "public.native_employee_contract_guard_v1()",
+        "type": 31,
+        "enabled": null
+      },
+      {
         "relation": "public.native_employee_registration",
         "name": "native_employee_registration_immutable",
         "function": "public.reject_immutable_source_change()",
@@ -86,6 +93,34 @@
         "name": "native_employee_registration_no_truncate",
         "function": "public.reject_immutable_source_change()",
         "type": 34,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_change_proposal",
+        "name": "native_employment_change_proposal_immutable",
+        "function": "public.native_employment_change_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_change_review",
+        "name": "native_employment_change_review_immutable",
+        "function": "public.native_employment_change_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_lifecycle_proposal",
+        "name": "native_employment_lifecycle_proposal_immutable",
+        "function": "public.native_employment_lifecycle_immutable_v1()",
+        "type": 58,
+        "enabled": null
+      },
+      {
+        "relation": "public.native_employment_lifecycle_review",
+        "name": "native_employment_lifecycle_review_immutable",
+        "function": "public.native_employment_lifecycle_immutable_v1()",
+        "type": 58,
         "enabled": null
       }
     ],
@@ -109,7 +144,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
-    "bytes": 25461,
-    "sha256": "40643929d828ebb33177633c1e1f549035241383e83fdde8d2bcff1c3ab28fd0"
+    "bytes": 26412,
+    "sha256": "8784c8ad552ae65f5c29bfe4255bb8b7a69701894b09b8a8add7c4ea79a69995"
   }
 }
