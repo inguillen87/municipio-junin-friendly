@@ -16,6 +16,7 @@ import {mountOwnPayrollReports} from './own-payroll-report-panel.js';
 import {mountOwnPayrollPlanillas} from './own-payroll-receipt-planilla-panel.js';
 import {mountOwnPayrollReceipts} from './own-payroll-receipt-panel.js';
 import {mountOwnPayrollComparison} from './own-payroll-comparison-panel.js';
+import {mountOwnGrhComparisonPanel} from './own-grh-comparison-panel.js';
 import {mountOwnPayrollAccounting} from './own-payroll-accounting-panel.js';
 import {mountOwnBankAccounts} from './own-bank-accounts-panel.js';
 import {mountOwnSalarySeniority} from './own-salary-seniority-panel.js';
@@ -40,7 +41,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const report=document.createElement('div'),ownReport=document.createElement('div'),planillas=document.createElement('div'),sourceReport=document.createElement('div');
  const incorporatedReportEntry=document.createElement('section');incorporatedReportEntry.className='rc-source';incorporatedReportEntry.dataset.payrollIncorporatedReports='true';incorporatedReportEntry.setAttribute('aria-labelledby','incorporatedPayrollReportsTitle');incorporatedReportEntry.innerHTML='<h2 id="incorporatedPayrollReportsTitle">Reportes de liquidaciones incorporadas</h2><p>Reuní liquidaciones del mismo período y descargá su resumen en PDF o Excel.</p><div class="rc-downloads"><a class="rc-button" href="/reportes#resumen-mensual">Abrir resumen mensual</a></div><p>Se conservan los importes incorporados; no se ejecuta un cálculo nuevo. Los informes de cierres y emisiones propios se consultan debajo.</p>';
  mountOwnPayrollReports(ownReport);mountOwnPayrollPlanillas(planillas);mountSourceReports(sourceReport);report.append(incorporatedReportEntry,ownReport,planillas,toolDetails(sourceReport,'Consultar liquidaciones incorporadas desde respaldos'));
- const comparison=document.createElement('div'),ownComparison=document.createElement('div'),sourceComparison=document.createElement('div');mountOwnPayrollComparison(ownComparison);mountPayrollComparison(sourceComparison);comparison.append(ownComparison,toolDetails(sourceComparison,'Comparar liquidaciones incorporadas desde respaldos'));
+ const comparison=document.createElement('div'),ownComparison=document.createElement('div'),grhComparison=document.createElement('div'),sourceComparison=document.createElement('div');mountOwnPayrollComparison(ownComparison);mountOwnGrhComparisonPanel(grhComparison);mountPayrollComparison(sourceComparison);comparison.append(ownComparison,toolDetails(grhComparison,'Comparar MuniControl contra GRH por legajo'),toolDetails(sourceComparison,'Comparar liquidaciones incorporadas desde respaldos'));
  let workspace,calculationPanel,decisionsPanel,fiscalFactsPanel,f931Panel;
  const calculation=document.createElement('div');calculationPanel=mountOwnPayrollRun(calculation,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true)});
  const decisions=document.createElement('div');decisionsPanel=mountOwnPayrollLiquidation(decisions,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
