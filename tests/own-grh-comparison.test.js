@@ -157,3 +157,22 @@ test('la 242 es aditiva, acotada al origen de la sesión, audita y no expone ide
  assert.match(s,/REVOKE ALL ON FUNCTION public\.own_grh_statement_lines_v1/);assert.match(s,/GRANT EXECUTE ON FUNCTION public\.own_grh_statement_lines_v1\(text,uuid,integer,text,uuid,uuid,uuid\) TO municontrol_actions_runtime_app/);
  const api=fs.readFileSync('api/internal-data.js','utf8');assert.match(api,/resource === 'owngrhstatementlines'[\s\S]{0,200}internalOwnGrhStatementLines\(await getPayrollSql\(env\)/);
 });
+
+test('revisión de ChatGPT: códigos con ceros iniciales, totalizadores simples ausentes, límite exacto y contrato de 1.000 renglones',()=>{
+ for(const code of ['0993','0999','00','0100']){const {grh}=setup(1),copy=structuredClone(grh);copy.statements[0].lines.find(l=>l.code==='993').code=code;assert.throws(()=>grhStatementLines(copy),/ceros iniciales/,code);}
+ for(const [code,label]of [['999','Neto calculado'],['996','Retenciones'],['990','Aportes patronales']]){
+  const {own,grh}=setup(1);grh.statements[0].lines=grh.statements[0].lines.filter(l=>l.code!==code);
+  const [t]=find(ownGrhComparison(own,grh,join),'1001',label,'total');assert.equal(t.status,'only_own',code);assert.equal(t.grh,null);assert.equal(t.delta,null);assert.equal(t.statementId,grh.statements[0].statementId);
+ }
+ {const {own,grh}=setup(1);line(grh,'1001','999').amount=null;assert.equal(find(ownGrhComparison(own,grh,join),'1001','Neto calculado','total')[0].status,'missing');}
+ {const {own,grh}=setup(1);grh.statements[0].lines=grh.statements[0].lines.filter(l=>!['993','994','995'].includes(l.code));assert.equal(find(ownGrhComparison(own,grh,join),'1001','Bruto','total')[0].status,'only_own');}
+ const s048=fs.readFileSync('scripts/migrations/048-payroll-detail-source.sql','utf8');assert.match(s048,/jsonb_array_length\(lines\) BETWEEN 1 AND 1000/,'el tope por recibo es el del respaldo');
+});
+
+test('el límite cuenta las filas reales después de unir: 250.000 exactas entran, una más no',()=>{
+ const {own,grh}=setup(1),extra=n=>Array.from({length:n},(_,i)=>({legajo:String(200000+i),statementId:'40000000-0000-4000-8000-'+String(i).padStart(12,'0'),statementHash:hex(90000+i),
+  lines:[{code:'100',description:null,amount:'1.00',quantity:null,totalGroup:'993',unit:null}]}));
+ // Legajo 1001: 6 conceptos unidos + 4 totales = 10. Cada legajo sólo GRH: 1 concepto + 4 totales = 5.
+ grh.statements.push(...extra(49998));const m=ownGrhComparison(own,grh,join);assert.equal(m.rows.length+m.totals.length,250000);
+ grh.statements.push(...extra(49999).slice(49998));assert.throws(()=>ownGrhComparison(own,grh,join),/supera 250\.000 filas/);
+});

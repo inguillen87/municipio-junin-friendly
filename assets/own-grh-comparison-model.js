@@ -56,10 +56,11 @@ export function grhStatementLines(raw){
   need(salaryExact(s,['legajo','statementId','statementHash','lines'])&&typeof s.legajo==='string'&&/^[0-9]{1,12}$/.test(s.legajo)&&uuid(s.statementId)&&salaryHash(s.statementHash),'Un recibo GRH no identifica su legajo o su huella.');
   need(!legajos.has(s.legajo)&&!statements.has(s.statementId),'La liquidación GRH repite un legajo o un recibo: la unión por legajo sería ambigua.');
   legajos.add(s.legajo);statements.add(s.statementId);
-  need(Array.isArray(s.lines)&&s.lines.length>0&&s.lines.length<=1000,'Un recibo GRH no tiene renglones.');
+  // 1.000 renglones por recibo es el contrato del respaldo (CHECK de payroll_detail_statement en la 048), no un recorte.
+  need(Array.isArray(s.lines)&&s.lines.length>0&&s.lines.length<=1000,'Un recibo GRH no tiene renglones o excede el contrato del respaldo.');
   const codes=new Set();
   for(const l of s.lines){
-   need(salaryExact(l,['code','description','amount','quantity','totalGroup','unit'])&&typeof l.code==='string'&&/^\d{1,6}$/.test(l.code)&&!codes.has(l.code),'Un renglón GRH tiene código inválido o repetido.');
+   need(salaryExact(l,['code','description','amount','quantity','totalGroup','unit'])&&typeof l.code==='string'&&/^(0|[1-9][0-9]{0,5})$/.test(l.code)&&!codes.has(l.code),'Un renglón GRH tiene código inválido, con ceros iniciales o repetido.');
    codes.add(l.code);
    need((l.description===null||text(l.description,240))&&cents(l.amount)&&cents(l.quantity)&&(l.totalGroup===null||(typeof l.totalGroup==='string'&&/^\d{1,6}$/.test(l.totalGroup)))&&(l.unit===null||text(l.unit,12)),'Un renglón GRH tiene importe, cantidad, acumulador o unidad inválidos.');
   }
@@ -106,19 +107,24 @@ export function ownGrhComparison(capture,grhRaw,join){
  for(const r of run.result.rows)ownPeople.get(run.people.get(r.contractId).employeeNumber)?.rows.push(r);
  const grhPeople=new Map(grh.statements.map(s=>[s.legajo,s]));
  const legajos=[...new Set([...ownPeople.keys(),...grhPeople.keys()])].sort((a,b)=>order(a,b));
- const conceptCount=legajos.reduce((n,l)=>n+(ownPeople.get(l)?.rows.length??0)+(grhPeople.get(l)?.lines.filter(x=>!technical(x.code)).length??0),0);
- need(conceptCount+legajos.length*OWN_GRH_TOTALS.length<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
-
- const rows=[],totals=[];
- for(const legajo of legajos){
-  const mine=ownPeople.get(legajo)??null,theirs=grhPeople.get(legajo)??null,contractId=mine?.contractId??null,statementId=theirs?.statementId??null;
+ // Primero se arma la unión completa y se cuenta lo que realmente se va a mostrar; recién entonces se compara.
+ const plan=legajos.map(legajo=>{
+  const mine=ownPeople.get(legajo)??null,theirs=grhPeople.get(legajo)??null;
   // Conceptos: un renglón GRH se une con el concepto propio del mismo código y, si no lo hay, con el auxiliar propio de ese código.
   const lines=new Map((theirs?.lines??[]).filter(l=>!technical(l.code)).map(l=>[l.code,l]));
   const byCode=new Map();
   for(const r of mine?.rows??[]){const slot=byCode.get(r.conceptCode)??{};slot[r.nature==='auxiliary'?'auxiliary':'concept']=r;byCode.set(r.conceptCode,slot);}
+  const codes=[...new Set([...byCode.keys(),...lines.keys()])].sort(codeOrder);
+  return {legajo,mine,theirs,lines,byCode,codes,size:codes.length+codes.filter(c=>byCode.get(c)?.concept&&byCode.get(c)?.auxiliary).length};
+ });
+ need(plan.reduce((n,p)=>n+p.size,0)+legajos.length*OWN_GRH_TOTALS.length<=OWN_COMPARISON_MAX_ROWS,'La comparación completa supera 250.000 filas. No se omitieron ni dividieron registros.');
+
+ const rows=[],totals=[];
+ for(const {legajo,mine,theirs,lines,byCode,codes}of plan){
+  const contractId=mine?.contractId??null,statementId=theirs?.statementId??null;
   const ownView=r=>({nature:r.nature,unit:r.unit,amount:r.amount});
   const grhView=l=>({nature:l.totalGroup===null?null:OWN_GRH_GROUP_NATURES[l.totalGroup]??null,unit:'money',amount:l.amount,totalGroup:l.totalGroup,description:l.description,quantity:l.quantity,quantityUnit:l.unit});
-  for(const code of [...new Set([...byCode.keys(),...lines.keys()])].sort(codeOrder)){
+  for(const code of codes){
    const slot=byCode.get(code)??{},line=lines.get(code)??null,paired=slot.concept??slot.auxiliary??null;
    const both=paired&&line&&paired.nature==='deduction'&&grhView(line).nature==='deduction';
    rows.push(row('concept',legajo,contractId,statementId,code,code,paired?ownView(paired):null,line?grhView(line):null,both?'Retenciones':null));
@@ -126,11 +132,12 @@ export function ownGrhComparison(capture,grhRaw,join){
   }
   const reported=new Map((theirs?.lines??[]).filter(l=>technical(l.code)).map(l=>[l.code,l.amount]));
   for(const total of OWN_GRH_TOTALS){
-   const parts=total.grh.map(c=>reported.has(c)?reported.get(c):null);
-   const grhAmount=theirs?(parts.some(v=>v===null)?null:sum(parts)):undefined;
+   // Ningún totalizador del total en el recibo: GRH no lo informa («Sólo en MuniControl»). Uno presente y otro
+   // ausente, o un importe sin informar: el total GRH es incompleto y no se evalúa. Nunca se completa con cero.
+   const parts=total.grh.map(c=>reported.has(c)?reported.get(c):null),present=total.grh.some(c=>reported.has(c));
    totals.push(row('total',legajo,contractId,statementId,total.grh.join('+'),total.label,
     mine?{nature:total.own,unit:'money',amount:mine.totals[total.own]}:null,
-    theirs?{nature:total.own,unit:'money',amount:grhAmount,codes:total.grh}:null,total.label));
+    theirs&&present?{nature:total.own,unit:'money',amount:parts.some(v=>v===null)?null:sum(parts),codes:total.grh}:null,total.label));
   }
  }
  const all=[...rows,...totals],count=status=>all.filter(r=>r.status===status).length;
