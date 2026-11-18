@@ -47,7 +47,8 @@ export async function pendingBellCircuits(getJson, sources, period = lastClosedM
 
 // Asistencia diaria (T4): sólo cuentas con lectura de asistencia por área. El servidor arma el corte por área y sede de los
 // días civiles cerrados y devuelve únicamente conteos, estado y bloqueos; nunca nombres, legajos ni motivos.
-export const PENDING_BELL_DAILY = Object.freeze({capability: 'attendance.area.read', url: '/api/internal-attendance-daily-notice?resource=notices', everyMs: 300000});
+// Las mismas tres capacidades que exige el servidor: sin catálogo de horarios ni lectura de personal no se puede armar el corte.
+export const PENDING_BELL_DAILY = Object.freeze({capabilities: Object.freeze(['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']), url: '/api/internal-attendance-daily-notice?resource=notices', everyMs: 300000});
 const DAILY_READ_FIELDS = ['version', 'ready', 'days', 'scopeCount', 'notices', 'failedScopes'];
 const dailyCount = v => Number.isSafeInteger(v) && v >= 0;
 
@@ -103,7 +104,7 @@ export async function startPendingBell(doc = document, read = getJson, {retry = 
   const actions = doc.querySelector('.topbar .top-actions, .topbar .topbar-actions');
   if (!actions || actions.querySelector('[data-pending-bell-host]')) return null;
   let access; try { access = ownRunWorkspaceAccess(await read('/api/internal-auth')); } catch { return null; }
-  const readers = pendingBellReadersFor(access.caps), sources = visibleApprovalSources(access.caps), daily = access.caps.has(PENDING_BELL_DAILY.capability);
+  const readers = pendingBellReadersFor(access.caps), sources = visibleApprovalSources(access.caps), daily = PENDING_BELL_DAILY.capabilities.every(c => access.caps.has(c));
   if (readers.length === 0 && sources.length === 0 && !daily) return null;
   const reading = pendingBellReading(read, readers, sources, {daily});
   // Una cuenta que sólo lee asistencia por área ve la campanita recién cuando la lectura diaria está instalada y responde;

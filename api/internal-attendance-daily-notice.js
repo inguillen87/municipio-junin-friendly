@@ -16,6 +16,10 @@ export const config = {api: {bodyParser: false}};
 // bell — until the deployment sets ATTENDANCE_DAILY_NOTICE_ENABLED=true after that installation.
 export const ATTENDANCE_DAILY_NOTICE_DEFAULT_DEPS = Object.freeze({producer: produceAttendanceDailySource, scopes: listAttendanceDailyScopes});
 export const attendanceDailyNoticeEnabled = env => env?.ATTENDANCE_DAILY_NOTICE_ENABLED === 'true';
+// Every capability the producer actually needs. The 240 checks time.catalog.read itself, and the
+// assignment view needs workforce.employee.read: without them no cut can be produced, so an account
+// lacking any of them is refused here instead of showing a bell that can only say «sin respuesta».
+export const ATTENDANCE_DAILY_NOTICE_CAPABILITIES = Object.freeze([EXPECTED_DEVICES_READ, 'time.catalog.read', 'workforce.employee.read']);
 
 export function attendanceDailyNoticeHttpQuery(req) {
   if (req.url && Buffer.byteLength(req.url, 'utf8') > 1024) attendanceDailyNoticeFail('QUERY_INVALID', 400, 'La consulta no es válida.');
@@ -38,10 +42,10 @@ export function createAttendanceDailyNoticeHandler(deps = {}) {
     try {
       if ((req.method || 'GET') !== 'GET') {res.setHeader('Allow', 'GET'); attendanceDailyNoticeFail('METHOD_INVALID', 405, 'Esta lectura sólo admite GET.');}
       attendanceDailyNoticeHttpQuery(req);
-      const access = await authorize(req, res, {env, requiredCapabilities: [EXPECTED_DEVICES_READ], capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false});
+      const access = await authorize(req, res, {env, requiredCapabilities: [...ATTENDANCE_DAILY_NOTICE_CAPABILITIES], capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false});
       if (!access) return;
-      if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, [EXPECTED_DEVICES_READ]))
-        attendanceDailyNoticeFail('FORBIDDEN', 403, 'Tu cuenta necesita lectura explícita de asistencia por área.');
+      if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership' || !principalHasCapabilities(access.principal, [...ATTENDANCE_DAILY_NOTICE_CAPABILITIES]))
+        attendanceDailyNoticeFail('FORBIDDEN', 403, 'Tu cuenta necesita lectura de asistencia por área, del catálogo horario y del personal.');
       const session = sessionFor(access, env), enabled = attendanceDailyNoticeEnabled(env);
       const ready = enabled && typeof producer === 'function' && typeof scopes === 'function';
       const sql = ready ? await getSql(env) : null;
