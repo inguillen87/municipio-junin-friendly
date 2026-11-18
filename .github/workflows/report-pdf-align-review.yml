@@ -24,6 +24,12 @@ jobs:
           node-version-file: .nvmrc
       - name: Install test dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Inventory report document builders (read-only)
+        run: |
+          echo 'REPORT_PDF_CSV_XLSX_CONSUMERS'
+          git grep -l -E 'reportPdf|reportCsv|reportXlsx|saveReport' -- assets '*.html' | sort || true
+          echo 'DOCUMENT_COLUMNS_CANDIDATES'
+          git grep -l -E 'columns:[[:space:]]*\\[|columns=[[:space:]]*\\[' -- 'assets/*.js' | sort || true
       - name: Run every affected model and report PDF test (offline)
         run: >
           node --test
