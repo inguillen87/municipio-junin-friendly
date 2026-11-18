@@ -36,7 +36,7 @@
   "tests/fleet-control.test.mjs": "7b898f050213e8e34f205d952de68d2f1c93775977ebe501a059c4f4a10059bf",
   "tests/fleet-delivery.test.mjs": "72680152a01997380d697d84e756085faa0bd7966cc51594cdd2a4044120fb9d",
   "tests/fleet-gateway.test.mjs": "5b9606fd15e931c7ad7aa3e9190d22cb21a8ef0cb6ce49288752108d5a3c107e",
-  "tests/fleet-operator-help.test.mjs": "1c5c4dc094a6e10c6ea99fe1c4c2988e6fa96fc98fcdc6241356b312d3ee81b5",
+  "tests/fleet-operator-help.test.mjs": "0d8727114982f0f7aada97723e5be089c3463a70e1b07a95a60b69bbaf5d4596",
   "tests/fleet-overview.test.mjs": "d5bfcd5b15373b01f90a91c6a56b1d17edad2d6b08b9ad3c1367e174c731893f",
   "tests/fleet-release.test.mjs": "b4777a2d67a980d601044452385e522a048b3d0db0c37ab9a5681a9c8721a2f6",
   "tests/fleet-runner.test.mjs": "367b144eb0ae8408539f6e5689630e447b6dd8364adf2de7e4fe04c612a7c8fa",
