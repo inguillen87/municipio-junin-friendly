@@ -1,6 +1,7 @@
 # Preparte de área — contrato de entrega
 
-**Estado: diseño para implementación; no publicado.** Base:
+**Estado: regla pura de propuesta 107 implementada con pruebas sintéticas;
+el circuito de área sigue en diseño, sin publicación ni instalación.** Base del contrato inicial:
 `3d59c5278151de0df4cd08aa73a0c8e833ab5d35`. Conserva la decisión de
 [Root 6841313525](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6841313525)
 y responde a [evidencia 6842582734](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6842582734)
@@ -8,6 +9,9 @@ y [maqueta 6842674954](https://github.com/inguillen87/municipio-junin-friendly/p
 Actualizado con las respuestas de Liquidaciones comunicadas por Marcelo a Claude el 13/11/2026,
 [comentario 6843539344](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6843539344),
 y el documento R3 de SHA-256 `a21e22eabc60bebb2a9684d8133bd4346d2025c0c5091fb8ab97a329e7c625d0`.
+La actualización del 16/11/2026 implementa la decisión de Marcelo
+[6923480164](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6923480164),
+sobre base de código PR292 `a122d1c094c6a39cbd680c6de060ae9d6a733ef3`.
 
 ## 1. Decisión de dominio, regla 107 confirmada y conversión pendiente
 
@@ -36,6 +40,21 @@ de la escala ya respondida.
 | 2 | 50 % |
 | 3, que representa el tramo de tres o más | 100 % |
 
+**Decisión posterior de Marcelo: cada día entero de 101 cuenta como una falta para
+presentismo.** La regla versionada `own-area-presentismo107-rule.v1` propone
+`cantidad107 = min(3, incidencias107_adicionales + dias101)` y conserva los dos
+componentes originales. `incidencias107_adicionales` debe excluir expresamente los
+días de 101; un total de 107 que ya los contiene no se vuelve a sumar. Si la
+procedencia no permite establecer esa separación, la propuesta queda bloqueada.
+`dias101` son días enteros de inasistencia injustificada declarados con evidencia,
+no días inferidos por falta de marcas. Las fracciones de 101 que pueda producir el
+modelo anterior de tardanzas tampoco son esos días: no se redondean ni se convierten.
+
+La decisión alcanza la pérdida de presentismo. No autoriza un descuento adicional
+de días de sueldo ni calcula un importe del concepto 144. La fecha del comentario
+no establece una fecha efectiva: la aplicación requiere una revisión de política,
+aprobación, área, convenios y vigencia suministrados expresamente para el período.
+
 **Sigue pendiente la regla expresa para convertir tardanzas en esa cantidad.** La respuesta
 «todo» confirma su inclusión, pero no dice cuántas tardanzas equivalen a una unidad, qué minutos
 o umbral considerar ni cómo acumularlas. No se asigna factor por defecto, no se supone que cada
@@ -43,6 +62,10 @@ tardanza vale una unidad o un día y no se deduce una equivalencia de la escala 
 política aprobada, la derivación automática afectada queda bloqueada y conserva las incidencias
 originales para revisión. Una cantidad declarada por el circuito autorizado conserva su propia
 constancia; no se presenta como resultado calculado desde el reloj.
+La entrada distingue las incidencias adicionales de 107 ya declaradas de las
+tardanzas todavía sin conversión. Una tardanza sin conversión bloquea la propuesta
+mensual incluso cuando la suma conocida ya alcanza 3. Esa saturación permite
+conservar un mínimo conocido como evidencia; no completa la regla pendiente.
 
 Los motivos y sus topes deben conservar la referencia aplicable; no se presume que cualquier
 licencia afecta de la misma forma. Los descuentos por minutos de atraso tampoco se confunden con
@@ -58,8 +81,116 @@ de Secretaría. La referencia a la ordenanza se conserva como información recib
 número, texto ni facultades adicionales.
 
 44/95 se admiten únicamente con unidad y lista aprobadas del programa del período; sin ese gate
-tampoco se inventa la conversión horas/porcentaje. 101/144 del pedido anterior pueden mostrarse
-como incidencias, pero su inclusión salarial exige otra entrada explícita de política, no sólo UI.
+tampoco se inventa la conversión horas/porcentaje. La nueva relación entre días 101 y
+cantidad 107 sólo genera una propuesta de presentismo. Incorporar novedades aprobadas
+al cálculo salarial y cualquier otro efecto de 101/144 conservan sus contratos y
+autorizaciones propios.
+
+### 1.1. Regla pura implementada y forma cerrada
+
+[Módulo `evaluateAreaPresentismo107`](../lib/own-area-presentismo107.js): sin acceso
+al reloj, SQL, sesión, red ni estado del programa mensual. Separa versión de entrada,
+regla y propuesta; no cambia los lectores ni hashes existentes.
+
+```text
+{
+  version:'own-area-presentismo107-input.v1', periodMonth:'YYYY-MM-01',
+  subject:{tenantId,sourceBindingId,contractId,identityToken,agreementCode,
+    area:{organizationUnitSourceId,sectorSourceId}},
+  policy:null | {id,revision,sha256,ruleVersion,status,approvalId,
+    scope:{tenantId,sourceBindingId,area,agreementCodes},validFrom,validUntil},
+  cut:{id,sha256,from,to,complete},
+  incidences107:{quantity,origin:'additional_declared_107_excluding_101' | 'unresolved',
+    evidenceRefs:[{id,sha256}]},
+  absence101Days:{quantity,origin:'declared_whole_unjustified_days_101' | 'unresolved',
+    evidenceRefs:[{id,sha256}]},
+  tardiness:{unconvertedCount,evidenceRefs:[{id,sha256}]}
+}
+```
+
+Todas las claves son obligatorias y se rechazan claves ajenas. Cantidades: texto
+canónico de entero no negativo, hasta 18 dígitos, o `null` para desconocido explícito.
+No se admiten números de JavaScript, fracciones, signos, espacios, ceros iniciales
+ni notación exponencial. La suma usa enteros exactos; los valores originales no se
+recortan al tope. `null` bloquea y nunca se transforma en cero. El límite de longitud
+es de representación, no una cantidad autorizada de incidencias. Una cantidad de
+días de 101 superior a los días civiles del mes o del corte parcial es incoherente para un contrato:
+se conserva el original, pero bloquea y no genera suma ni mínimo conocido. Esta
+validación no define días laborables ni deduce un calendario de trabajo.
+
+UUID canónicos no nulos y hashes SHA-256 minúsculos identifican referencias; no son
+credenciales ni una verificación de los bytes. `identityToken` también es SHA-256.
+Área y convenio son identificadores canónicos opacos. Cada referencia pertenece al
+componente en el que se declara, dentro del sujeto y corte de la entrada. Sus IDs
+deben identificar incidencias o conjuntos disjuntos; un archivo compartido que
+contenga distintos hechos necesita referencias separadas certificadas por la fuente.
+Repetir un ID entre componentes bloquea; repetirlo dentro del mismo componente es
+entrada inválida. El módulo no intenta reconstruir, resolver ni deduplicar evidencia.
+Un componente positivo requiere al menos una referencia, y `origin:'unresolved'`
+bloquea aun cuando haya referencias.
+
+La política debe indicar `status:'approved'`, UUID de aprobación, revisión positiva,
+hash y versión exacta de la regla. Su alcance debe coincidir con tenant, binding,
+organización, sector y convenio del sujeto. La vigencia debe cubrir el mes entero.
+`validFrom:null` significa vigencia pendiente y bloquea. `validUntil:null` sólo
+representa una vigencia abierta declarada en la política aprobada suministrada;
+omitir el campo es inválido. Una lista vacía de convenios no habilita todos.
+
+El corte debe cubrir el mes calendario completo y declarar `complete:true`. Una
+entrada diaria o parcial no produce una propuesta mensual: el resumen diario T4
+prepara incidencias y cobertura, y deberá componerlas bajo su propio contrato antes
+de esta evaluación. Ningún resultado de este módulo certifica cobertura.
+
+| Resultado de la evaluación | Significado |
+| --- | --- |
+| `uncappedQuantity` | Suma exacta de los componentes explícitos y disjuntos, sin tope; `null` si no puede establecerse. No incluye tardanzas sin conversión. |
+| `knownQuantity107` | Mínimo conocido, limitado a 3. Un valor positivo puede conservarse en un corte parcial o bloqueado, sólo como evidencia. |
+| `knownQuantity107:'0'` | Sólo con mes completo, corte declarado completo, ambos componentes explícitamente en cero y `unconvertedCount:'0'`. Nunca se infiere de datos ausentes. |
+| `proposedQuantity` | Cantidad de propuesta, sólo si no hay bloqueos. `0` implica pérdida de presentismo propuesta de 0 %; `1/2/3` implica 33/50/100 %. |
+| `presentismoLossPercent` | Porcentaje asociado exclusivamente a la propuesta; `null` cuando `proposedQuantity` es `null`. |
+| `authorizedQuantity` | Siempre `null`: la función no aprueba novedades. |
+
+La salida `own-area-presentismo107-proposal.v1` conserva sujeto, política, corte,
+componentes y referencias como copias inmutables, además de `appliedCap:'3'`, versión
+de regla, vínculo de la decisión y lista de bloqueos. `sourceAuthenticityVerified`,
+`policyAuthorizationVerified`, `coverageCertified`, `payrollEligible`,
+`payrollCalculated`, `payrollPosted` y `grhMutation` permanecen en `false`;
+`baseSalaryDiscount` permanece en `null`. `status:'proposed'` sólo expresa que el
+contrato suministrado pasó los gates de esta función pura. La futura fachada
+acotada del servidor deberá verificar origen, aprobación y cobertura antes de
+preparar el lote. El cliente no puede usar esa etiqueta como autorización.
+
+Bloqueos explícitos: política ausente, no aprobada, versión distinta, alcance
+incompatible, vigencia pendiente o que no cubre el mes; corte parcial/incompleto;
+composición no resuelta o evidencia compartida; cantidades desconocidas o evidencia
+faltante para componentes positivos; días 101 imposibles para el mes o corte; tardanzas
+pendientes de conversión. Una forma inválida arroja
+`OWN_AREA_PRESENTISMO107_INPUT_INVALID` sin incluir datos de entrada en el error.
+Los errores no se convierten en propuestas vacías.
+
+### 1.2. Evidencia comparativa y pruebas sintéticas
+
+Los agregados de GRH comunicados en
+[6905911206](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6905911206)
+incluyen 23 casos con 101 sin 107: 8 con presentismo completo, 10 prorrateados,
+3 con otro comportamiento y 2 sin referencia. Esos antecedentes sirven para
+identificar diferencias esperadas; no sustituyen la decisión nueva ni autorizan
+replicar un prorrateo de días. Los datos de dimensión comunicados en
+[6902753988](https://github.com/inguillen87/municipio-junin-friendly/pull/270#issuecomment-6902753988)
+tampoco definen factores para 44/95 o tardanzas.
+
+[Fixtures inventados](../tests/fixtures/own-area-presentismo107-synthetic.js) y
+[pruebas focales](../tests/own-area-presentismo107.test.js) cubren la suma y escala,
+saturación sin perder los originales, comparación con completo/prorrateo, cero
+explícito, falta de datos, tardanzas sin factor aun con mínimo 3, fracciones
+rechazadas, composición ambigua, evidencia duplicada, alcance, aprobación, vigencia,
+meses de distinta duración y resultado sin efecto salarial. Fechas, IDs y
+aprobaciones de los fixtures son inventados; no autorizan un período municipal.
+No se consultaron ni incorporaron documentos o filas municipales.
+
+```sh
+node --test tests/own-area-presentismo107.test.js
+```
 
 ## 2. Datos del contrato propuesto
 
@@ -174,8 +305,11 @@ Aceptación: aislamiento entre áreas en todas las operaciones, clasificación h
 revisor idéntico rechazado, fuentes/acuerdos cambiados, escala 107 1/2/3 → 33/50/100 conservada,
 derivación de tardanzas bloqueada sin conversión expresa y sin factor por defecto, topes estrictos,
 menor asistencia según política, complementario conflictivo rechazado, bytes TXT completos y
-round-trip, respuesta incierta recuperada con la misma clave. Esta entrega define esos gates;
-no afirma haberlos implementado ni ejecutado.
+round-trip, respuesta incierta recuperada con la misma clave. Sólo la regla pura de
+107 y sus pruebas sintéticas de §1.1–1.2 están implementadas en esta actualización.
+El circuito de área, su autenticación, fachadas, acuerdos, TXT y aprobación siguen
+siendo gates de implementación; estas pruebas no los certifican. El motor económico,
+programa mensual instalado, modelo anterior de tardanzas y batch v1 quedan intactos.
 
 Fuentes reales: [batch](../assets/own-payroll-novelties-model.js),
 [escritor 130](../scripts/migrations/130-own-bulk-novelties.sql),
