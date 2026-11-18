@@ -36,7 +36,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -44,7 +48,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -52,7 +60,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -60,7 +72,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -68,7 +84,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -76,7 +96,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -84,7 +108,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -92,7 +120,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       }
     ],
     "triggers": [],
@@ -126,7 +158,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-authority-v1.derived.sql.txt",
-    "bytes": 18575,
-    "sha256": "473485bd3ace13daa811bc6deef8a1da321c3b0d9bfa22637a93c78af7bc9f8e"
+    "bytes": 19789,
+    "sha256": "a415715e9f96ce579ede377ed898776f17d91c14db862d229d574f9098d10b71"
   }
 }

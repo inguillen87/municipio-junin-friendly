@@ -3,11 +3,14 @@ on:
   pull_request:
     paths:
       - 'scripts/lib/install-composition-source.mjs'
+      - 'scripts/lib/install-composition-attestation.mjs'
       - 'scripts/build-install-composition.mjs'
+      - 'scripts/install-composition-attestation.mjs'
       - 'scripts/candidates/*-v1.derived.*'
       - 'scripts/candidates/*-v1.source.*'
       - 'scripts/candidates/install-composition-attestation-v1.json'
       - 'tests/install-composition.test.js'
+      - 'tests/install-composition-attestation.test.js'
       - '.github/workflows/install-composition-review.yml'
 permissions:
   contents: read
@@ -21,4 +24,4 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node scripts/build-install-composition.mjs --check
-      - run: node --test tests/install-composition.test.js
+      - run: node --test tests/install-composition.test.js tests/install-composition-attestation.test.js

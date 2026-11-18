@@ -36,7 +36,11 @@
         "kind": "guard",
         "function": "reject_immutable_source_change",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employee_contract_guard_v1()",
@@ -44,7 +48,11 @@
         "kind": "guard",
         "function": "native_employee_contract_guard_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract)",
@@ -52,7 +60,11 @@
         "kind": "guard",
         "function": "native_employment_change_update_allowed_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_void_update_allowed_v1(public.employment_contract,public.employment_contract)",
@@ -60,7 +72,11 @@
         "kind": "guard",
         "function": "native_employment_void_update_allowed_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_change_immutable_v1()",
@@ -68,7 +84,11 @@
         "kind": "guard",
         "function": "native_employment_change_immutable_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_lifecycle_immutable_v1()",
@@ -76,7 +96,11 @@
         "kind": "guard",
         "function": "native_employment_lifecycle_immutable_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       }
     ],
     "triggers": [
@@ -150,7 +174,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
-    "bytes": 26774,
-    "sha256": "9eb5fddca399a3816e05859eab8fb4b50f6551d5749ef90c8f8ad09ef997a06b"
+    "bytes": 27886,
+    "sha256": "d0b1d1cd0ac1e26d8266b2352d5cf600a31b4dbdf2cf5604b4fa72414bc2ecfd"
   }
 }

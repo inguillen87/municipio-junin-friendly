@@ -36,7 +36,11 @@
         "kind": "redefined",
         "function": "native_employee_create_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_change_propose_v1(jsonb,jsonb,uuid)",
@@ -44,7 +48,11 @@
         "kind": "redefined",
         "function": "native_employment_change_propose_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.native_employment_change_review_v1(jsonb,jsonb,uuid)",
@@ -52,7 +60,11 @@
         "kind": "redefined",
         "function": "native_employment_change_review_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -60,7 +72,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -68,7 +84,23 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": null,
+        "function": "is_valid_cuil",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -76,7 +108,47 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_context_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_next_number_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_receipt_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -84,7 +156,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -92,7 +168,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -100,7 +180,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -108,7 +192,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -116,7 +204,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -124,7 +216,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -132,7 +228,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -140,7 +240,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -148,7 +252,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -156,7 +264,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -164,7 +276,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -172,7 +288,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -180,7 +300,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": null,
@@ -188,7 +312,11 @@
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       }
     ],
     "triggers": [],
@@ -196,7 +324,7 @@
   },
   "output": {
     "path": "scripts/candidates/employment-job-title-writers-v1.derived.sql.txt",
-    "bytes": 30600,
-    "sha256": "1b56eecb7182809676e5a9a209d836dce663f0fc09e46a7f934071e9f566c69c"
+    "bytes": 33113,
+    "sha256": "938ca4f5945065711ffebc007cd28e6df2de1b8c5cb6fcd038eee78d3c110598"
   }
 }

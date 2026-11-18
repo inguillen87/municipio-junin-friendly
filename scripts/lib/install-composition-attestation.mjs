@@ -8,6 +8,12 @@ export const ATTESTATION_OBSERVATION_VERSION = 'municontrol-install-composition-
 const esc = s => "'" + String(s).replaceAll("'", "''") + "'";
 const fnName = signature => signature.split('(')[0].split('.').pop();
 const ident = /^[a-z_][a-z0-9_]*$/;
+const hex = /^[a-f0-9]{64}$/;
+const SIG_RE = /^public\.[a-z_][a-z0-9_]*\([a-z0-9_.\[\] ,]*\)$/;
+const LANG_RE = /^[a-z_][a-z0-9_]{0,62}$/;
+const BIN_RE = /^(?:\$libdir\/[a-z0-9_./-]{1,120})?$/;
+const SAFE_TEXT = /^[^\x00-\x1f\x7f$]{0,2048}$/;
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** Nombres de función y disparadores que hay que observar, a partir de los manifiestos derivados. */
 export function observationTargets(derivedManifests) {
@@ -29,8 +35,9 @@ export function observationTargets(derivedManifests) {
 
 /**
  * Consulta de sólo lectura. Con search_path=pg_catalog las firmas salen calificadas igual que en los manifiestos
- * (public.f(public.tabla,jsonb)). El dueño, la ACL y el hash del cuerpo usan exactamente las mismas expresiones que
- * el bloque de preimágenes de los SQL derivados. Devuelve todas las sobrecargas: elegir una es parte de la revisión.
+ * (public.f(public.tabla,jsonb)). Dueño, ACL, hash del cuerpo y metadatos (secdef, config, lang, bin) usan exactamente
+ * las mismas expresiones que el bloque de preimágenes de los SQL derivados. Devuelve todas las sobrecargas: elegir
+ * una o varias es parte de la revisión.
  */
 export function attestationQuery(derivedManifests) {
   const {names, triggers} = observationTargets(derivedManifests);
@@ -40,40 +47,62 @@ export function attestationQuery(derivedManifests) {
   return `-- Preimágenes para install-composition-attestation-v1.json. Sólo lectura; no modifica nada.
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL search_path = pg_catalog;
-SELECT jsonb_build_object(
+SELECT pg_catalog.jsonb_build_object(
  'version', ${esc(ATTESTATION_OBSERVATION_VERSION)},
- 'observedAt', statement_timestamp(),
- 'database', current_database(),
+ 'observedAt', pg_catalog.statement_timestamp(),
+ 'database', pg_catalog.current_database(),
  'functions', COALESCE((
-  SELECT jsonb_object_agg(p.oid::regprocedure::text, jsonb_build_object(
-    'owner', pg_get_userbyid(p.proowner),
+  SELECT pg_catalog.jsonb_object_agg(p.oid::regprocedure::text, pg_catalog.jsonb_build_object(
+    'owner', pg_catalog.pg_get_userbyid(p.proowner),
     'acl', COALESCE(p.proacl::text, '<NULL>'),
-    'prosrcSha256', encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex')))
-  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    'prosrcSha256', pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p.prosrc, 'UTF8')), 'hex'),
+    'secdef', p.prosecdef,
+    'config', COALESCE(pg_catalog.to_jsonb(p.proconfig), '[]'::jsonb),
+    'lang', (SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid = p.prolang),
+    'bin', COALESCE(p.probin, '')))
+  FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.proname = ANY(${nameList})), '{}'::jsonb),
  'triggers', COALESCE((
-  SELECT jsonb_object_agg(wanted.relation || ':' || wanted.name, jsonb_build_object(
+  SELECT pg_catalog.jsonb_object_agg(wanted.relation || ':' || wanted.name, pg_catalog.jsonb_build_object(
     'enabled', t.tgenabled::text, 'type', t.tgtype::integer, 'function', t.tgfoid::regprocedure::text,
     'conditional', t.tgqual IS NOT NULL, 'arguments', t.tgnargs))
   FROM (VALUES ${triggerRows}) wanted(relation, name)
-  JOIN pg_trigger t ON t.tgrelid = to_regclass(wanted.relation) AND t.tgname = wanted.name), '{}'::jsonb)
+  JOIN pg_catalog.pg_trigger t ON t.tgrelid = pg_catalog.to_regclass(wanted.relation) AND t.tgname = wanted.name), '{}'::jsonb)
 ) AS observation;
 ROLLBACK;
 `;
 }
 
+function validObservedFunction(signature, seen) {
+  return typeof signature === 'string' && signature.length <= 512 && SIG_RE.test(signature)
+    && isPlainObject(seen)
+    && typeof seen.owner === 'string' && seen.owner.length > 0 && SAFE_TEXT.test(seen.owner)
+    && typeof seen.acl === 'string' && seen.acl.length > 0 && SAFE_TEXT.test(seen.acl)
+    && typeof seen.prosrcSha256 === 'string' && hex.test(seen.prosrcSha256)
+    && typeof seen.secdef === 'boolean'
+    && Array.isArray(seen.config) && seen.config.length <= 32 && seen.config.every(c => typeof c === 'string' && SAFE_TEXT.test(c))
+    && typeof seen.lang === 'string' && LANG_RE.test(seen.lang)
+    && typeof seen.bin === 'string' && BIN_RE.test(seen.bin);
+}
+
 /**
- * Vuelca la observación en la atestación de cada fuente. Sólo copia lo que cada fuente fija; una dependencia sin
- * firma declarada toma la única sobrecarga observada con su nombre (con varias, queda sin atestar y se informa).
- * Nunca pone reviewed:true. Devuelve la atestación nueva y lo que quedó sin resolver.
+ * Vuelca la observación en la atestación de las fuentes pedidas. Sólo copia lo que cada fuente fija; una dependencia
+ * sin firma declarada toma la única sobrecarga observada con su nombre (con varias, queda sin atestar y se informa).
+ * Nunca pone reviewed:true. Nunca copia disparadores deshabilitados o cambiados ni sobrescribe fuentes ya revisadas
+ * salvo que se indique explícitamente onlySources. Devuelve la atestación nueva y lo que quedó sin resolver.
  */
-export function mergeAttestation(attestation, observation, derivedByName) {
+export function mergeAttestation(attestation, observation, derivedByName, {onlySources = null} = {}) {
   assert.equal(observation?.version, ATTESTATION_OBSERVATION_VERSION, 'ATTESTATION_OBSERVATION_VERSION');
-  assert.ok(observation.functions && typeof observation.functions === 'object', 'ATTESTATION_OBSERVATION_FUNCTIONS');
-  assert.ok(observation.triggers && typeof observation.triggers === 'object', 'ATTESTATION_OBSERVATION_TRIGGERS');
-  const observedBy = name => Object.keys(observation.functions).filter(k => fnName(k) === name);
+  assert.ok(isPlainObject(observation.functions), 'ATTESTATION_OBSERVATION_FUNCTIONS');
+  assert.ok(isPlainObject(observation.triggers), 'ATTESTATION_OBSERVATION_TRIGGERS');
+  const targets = onlySources ? onlySources : Object.keys(derivedByName);
+  for (const name of targets) assert.ok(Object.hasOwn(derivedByName, name), 'ATTESTATION_UNKNOWN_SOURCE: ' + name);
+  const observedBy = name => Object.keys(observation.functions).filter(k => fnName(k) === name).sort();
   const sources = {}, unresolved = [];
-  for (const [name, manifest] of Object.entries(derivedByName)) {
+  for (const name of targets) {
+    // Sin --source explícito, preservar las fuentes ya revisadas para no borrar pasos previos de Fase 2.
+    if (!onlySources && attestation.sources?.[name]?.reviewed === true) continue;
+    const manifest = derivedByName[name];
     const functions = {}, triggers = {};
     for (const pin of manifest.preimages.functions) {
       const fname = pin.function ?? fnName(pin.signature);
@@ -85,15 +114,23 @@ export function mergeAttestation(attestation, observation, derivedByName) {
       }
       const seen = observation.functions[signature];
       if (!seen) { unresolved.push({source: name, function: fname, signature, reason: 'missing'}); continue; }
+      if (!validObservedFunction(signature, seen)) { unresolved.push({source: name, function: fname, signature, reason: 'invalid'}); continue; }
       // El cuerpo se copia tal como se observó también para reemplazos y guardas: si difiere del fijado por el
       // manifiesto, deriveSource lo rechaza (ATTESTATION_BODY_MISMATCH) en lugar de ocultar la diferencia.
-      functions[signature] = {owner: seen.owner, acl: seen.acl, prosrcSha256: seen.prosrcSha256};
+      functions[signature] = {
+        owner: seen.owner, acl: seen.acl, prosrcSha256: seen.prosrcSha256,
+        secdef: seen.secdef, config: [...seen.config], lang: seen.lang, bin: seen.bin,
+      };
     }
     for (const t of manifest.preimages.triggers) {
       const key = t.relation + ':' + t.name, seen = observation.triggers[key];
       if (!seen) { unresolved.push({source: name, trigger: key, reason: 'missing'}); continue; }
-      if (seen.function !== t.function || seen.type !== t.type || seen.conditional !== false || seen.arguments !== 0)
-        unresolved.push({source: name, trigger: key, reason: 'changed', observed: seen});
+      if (!isPlainObject(seen) || !['O', 'A'].includes(seen.enabled)) {
+        unresolved.push({source: name, trigger: key, reason: 'disabled', observed: seen}); continue;
+      }
+      if (seen.function !== t.function || seen.type !== t.type || seen.conditional !== false || seen.arguments !== 0) {
+        unresolved.push({source: name, trigger: key, reason: 'changed', observed: seen}); continue;
+      }
       triggers[key] = {enabled: seen.enabled};
     }
     sources[name] = {functions, triggers, reviewed: false};

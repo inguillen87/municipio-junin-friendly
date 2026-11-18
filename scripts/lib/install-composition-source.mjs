@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 
+// Topological order: history depends only on pre-existing guards; expected-devices depends on authority + history.
 export const COMPOSITION_ORDER=Object.freeze([
  'attendance-area-authority',
- 'attendance-expected-devices',
  'attendance-area-history',
+ 'attendance-expected-devices',
  'attendance-area-workdays',
  'employment-job-title-writers',
 ]);
@@ -13,11 +14,21 @@ export const COMPOSITION_ROOT='scripts/candidates/';
 const sha=s=>createHash('sha256').update(s,'utf8').digest('hex');
 const esc=s=>"'"+s.replaceAll("'","''")+"'";
 const hex=/^[a-f0-9]{64}$/;
+const SIG_RE=/^public\.[a-z_][a-z0-9_]*\([a-z0-9_.\[\] ,]*\)$/;
+const LANG_RE=/^[a-z_][a-z0-9_]{0,62}$/;
+const BIN_RE=/^(?:\$libdir\/[a-z0-9_./-]{1,120})?$/;
+const SAFE_TEXT=/^[^\x00-\x1f\x7f$]{0,2048}$/;
+const isPlainObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&[Object.prototype,null].includes(Object.getPrototypeOf(v));
 const canonical=m=>m.sourceSha256??m.candidate?.sha256??m.output?.sha256;
 const sourcePath=name=>COMPOSITION_ROOT+name+'-v1.source.sql.txt';
 const sourceManifestPath=name=>COMPOSITION_ROOT+name+'-v1.source.manifest.json';
 const outputPath=name=>COMPOSITION_ROOT+name+'-v1.derived.sql.txt';
 const outputManifestPath=name=>COMPOSITION_ROOT+name+'-v1.derived.manifest.json';
+
+function stripLineComments(src){return src.replace(/--[^\n]*/g,'');}
+function stripCommentsAndStrings(src){
+ return src.replace(/--[^\n]*|'(?:''|[^'])*'/g,m=>m.replace(/[^\n]/g,' '));
+}
 
 function functionsIn(source){
  const expression=/\bCREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+(public\.[a-z][a-z0-9_]*)\s*\(([\s\S]*?)\)\s+RETURNS\b/gi;
@@ -30,18 +41,59 @@ function functionsIn(source){
   return {name:m[2].split('.')[1],signature,redefined:Boolean(m[1])};
  });
 }
-// Funciones existentes que la fuente invoca y no crea. El manifiesto de origen no siempre las enumera
-// (attendance-area-authority llama a ocho y no declara ninguna): sin esto la composición no las verificaría.
-// Se excluyen relaciones (REFERENCES, INSERT INTO, TABLE, UPDATE) y lo que la propia fuente crea.
-const RELATION_CONTEXT=/\b(?:REFERENCES|INTO|TABLE|UPDATE|ONLY)\s*$/i;
+// Funciones existentes que la fuente invoca (calificadas con public. o sin calificar) y no crea.
+// El manifiesto de origen no siempre las enumera (authority llama a ocho, job-title-writers llama a cuatro
+// sin calificar, workdays llama a digest sin calificar): sin esto la composición no las verificaría.
+const RELATION_CONTEXT=/\b(?:REFERENCES|INTO|TABLE|UPDATE|ONLY|ON\s+CONFLICT)\s*$/i;
+const PG_BUILTINS=new Set([
+ 'if','elsif','while','for','in','not','and','or','when','then','else','case','exists','select','from','where',
+ 'join','on','as','returns','return','values','array','any','all','some','distinct','unique','primary','foreign',
+ 'check','references','constraint','conflict','lateral','materialized','by','over','partition','using','null',
+ 'true','false','between','is','like','ilike','similar','into','set','default','having','group','order','limit',
+ 'offset','union','intersect','except','with','recursive','filter','within','row','rows','range','groups','only',
+ 'varchar','char','character','numeric','decimal','bit','varbit','time','timestamp','interval','bigint','integer',
+ 'smallint','text','boolean','uuid','date','jsonb','json','bytea','oid','regclass','regprocedure','regrole',
+ 'coalesce','nullif','greatest','least','count','min','max','sum','avg','bool_or','bool_and','string_agg','array_agg',
+ 'jsonb_build_object','jsonb_build_array','jsonb_array_elements','jsonb_array_elements_text','jsonb_object_keys',
+ 'jsonb_each','jsonb_each_text','jsonb_typeof','jsonb_array_length','jsonb_set','jsonb_agg','jsonb_strip_nulls',
+ 'to_jsonb','to_char','to_regprocedure','to_regclass','to_regrole','encode','decode','sha256','convert_to',
+ 'substring','substr','length','char_length','octet_length','btrim','ltrim','rtrim','trim','lower','upper',
+ 'lpad','rpad','repeat','replace','split_part','concat','concat_ws','unnest','cardinality','generate_series',
+ 'ascii','normalize','current_setting','set_config','statement_timestamp','clock_timestamp','transaction_timestamp',
+ 'now','gen_random_uuid','pg_input_is_valid','pg_try_advisory_xact_lock','pg_advisory_xact_lock','hashtextextended',
+ 'pg_current_xact_id','pg_current_xact_id_if_assigned','pg_current_snapshot','pg_get_userbyid','pg_get_functiondef',
+ 'lag','lead','row_number','rank','dense_rank','first_value','last_value','extract','position','left','right',
+ 'abs','ceil','floor','round','trunc','mod','power','sqrt','regexp_replace','regexp_match','regexp_matches',
+]);
 const fnName=signature=>signature.split('(')[0].split('.').pop();
 const pinName=p=>p.function??fnName(p.signature);
 export function calledFunctions(source){
- const created=new Set([...source.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|TABLE(?:\s+IF\s+NOT\s+EXISTS)?|VIEW|SEQUENCE|TYPE)\s+public\.([a-z_][a-z0-9_]*)/gi)].map(m=>m[1]));
+ const cleaned=stripCommentsAndStrings(source);
+ const created=new Set([...cleaned.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|TABLE(?:\s+IF\s+NOT\s+EXISTS)?|VIEW|SEQUENCE|TYPE)\s+(?:public\.)?([a-z_][a-z0-9_]*)/gi)].map(m=>m[1].toLowerCase()));
  const names=new Set();
- for(const m of source.matchAll(/\bpublic\.([a-z_][a-z0-9_]*)\s*\(/g)){
-  if(RELATION_CONTEXT.test(source.slice(Math.max(0,m.index-40),m.index))||created.has(m[1]))continue;
-  names.add(m[1]);
+ for(const m of cleaned.matchAll(/\bpublic\.([a-z_][a-z0-9_]*)\s*\(/gi)){
+  const name=m[1].toLowerCase(),before=cleaned.slice(Math.max(0,m.index-60),m.index);
+  if(RELATION_CONTEXT.test(before)||created.has(name))continue;
+  if(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|TABLE(?:\s+IF\s+NOT\s+EXISTS)?|VIEW|SEQUENCE|TYPE)\s+$/i.test(before))continue;
+  if(/\bINDEX\s+[a-z_][a-z0-9_]*\s+ON\s+$/i.test(before))continue;
+  const stmtStart=cleaned.lastIndexOf(';',m.index)+1;
+  if(/^\s*(?:REVOKE|GRANT)\b/i.test(cleaned.slice(stmtStart,m.index)))continue;
+  names.add(name);
+ }
+ for(const m of cleaned.matchAll(/(?<![a-z0-9_.])([a-z_][a-z0-9_]*)\s*\(/gi)){
+  const name=m[1].toLowerCase();
+  if(PG_BUILTINS.has(name)||created.has(name))continue;
+  const before=cleaned.slice(Math.max(0,m.index-60),m.index);
+  if(RELATION_CONTEXT.test(before))continue;
+  if(/\bAS\s+$/i.test(before)||/\)\s+$/i.test(before))continue;
+  if(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|TABLE(?:\s+IF\s+NOT\s+EXISTS)?|VIEW|SEQUENCE|TYPE)\s+$/i.test(before))continue;
+  if(/\bINDEX\s+[a-z_][a-z0-9_]*\s+ON\s+$/i.test(before))continue;
+  const stmtStart=cleaned.lastIndexOf(';',m.index)+1,stmtPrefix=cleaned.slice(stmtStart,m.index);
+  if(/^\s*(?:REVOKE|GRANT)\b/i.test(stmtPrefix))continue;
+  if(/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|UNIQUE\s+INDEX|INDEX|VIEW|SEQUENCE|TYPE)\b/i.test(stmtPrefix))continue;
+  if(/^\s*CREATE\s+TRIGGER\b/i.test(stmtPrefix)&&!/\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+$/i.test(before))continue;
+  if(/\(\s*$/.test(before)&&/\)\.\*/.test(cleaned.slice(m.index,m.index+name.length+5)))continue;
+  names.add(name);
  }
  return [...names].sort();
 }
@@ -60,7 +112,7 @@ function bodyPins(manifest,source){
   pins.push({signature:manifest.authority,prosrcSha256:null,kind:'dependency'});
  for(const signature of manifest.requiredPrivateStableHelpers??[])if(!pins.some(x=>x.signature===signature))
   pins.push({signature,prosrcSha256:null,kind:'dependency'});
- // Dependencias sin firma declarada: firma, cuerpo, dueño y ACL los aporta la atestación de Codex.
+ // Dependencias sin firma declarada: firma(s), cuerpo, dueño, ACL y metadatos los aporta la atestación de Codex.
  for(const name of calledFunctions(source))if(!pins.some(x=>pinName(x)===name))
   pins.push({signature:null,function:name,prosrcSha256:null,kind:'dependency'});
  return pins.map(p=>({...p,function:pinName(p)}));
@@ -70,56 +122,91 @@ function triggerPins(source){
  return [...source.matchAll(/\('(public\.[a-z_][a-z0-9_]*)',\s*'([a-z_][a-z0-9_]*)',\s*'(public\.[a-z_][a-z0-9_]*\([^']*\))',\s*(\d+)\)/g)]
   .map(m=>({relation:m[1],name:m[2],function:m[3],type:Number(m[4])}));
 }
-function preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed}){
+function validateFunctionAttestation(signature,seen){
+ assert.ok(typeof signature==='string'&&signature.length<=512&&SIG_RE.test(signature),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ assert.ok(isPlainObject(seen),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ const allowed=new Set(['owner','acl','prosrcSha256','secdef','config','lang','bin']);
+ assert.ok(Object.keys(seen).every(k=>allowed.has(k)),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.owner!==undefined&&seen.owner!==null)
+  assert.ok(typeof seen.owner==='string'&&SAFE_TEXT.test(seen.owner),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.acl!==undefined&&seen.acl!==null)
+  assert.ok(typeof seen.acl==='string'&&SAFE_TEXT.test(seen.acl),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.prosrcSha256!==undefined&&seen.prosrcSha256!==null)
+  assert.ok(typeof seen.prosrcSha256==='string'&&hex.test(seen.prosrcSha256),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.secdef!==undefined&&seen.secdef!==null)
+  assert.ok(typeof seen.secdef==='boolean','COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.config!==undefined&&seen.config!==null)
+  assert.ok(Array.isArray(seen.config)&&seen.config.length<=32&&seen.config.every(c=>typeof c==='string'&&SAFE_TEXT.test(c)),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.lang!==undefined&&seen.lang!==null)
+  assert.ok(typeof seen.lang==='string'&&LANG_RE.test(seen.lang),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+ if(seen.bin!==undefined&&seen.bin!==null)
+  assert.ok(typeof seen.bin==='string'&&BIN_RE.test(seen.bin),'COMPOSITION_ATTESTATION_INVALID: '+signature);
+}
+function validateTriggerAttestation(key,seen){
+ assert.ok(isPlainObject(seen),'COMPOSITION_TRIGGER_ATTESTATION_INVALID: '+key);
+ assert.ok(Object.keys(seen).every(k=>k==='enabled'),'COMPOSITION_TRIGGER_ATTESTATION_INVALID: '+key);
+ if(seen.enabled!==undefined&&seen.enabled!==null)
+  assert.ok(typeof seen.enabled==='string'&&['O','A','D','R'].includes(seen.enabled),'COMPOSITION_TRIGGER_ATTESTATION_INVALID: '+key);
+}
+function preimageSql({existing,newFunctions,triggers,metadataSha,attested}){
+ assert.match(metadataSha,hex,'COMPOSITION_METADATA_SHA_INVALID');
  const pins=esc(JSON.stringify(existing)),other=esc(JSON.stringify(newFunctions)),trg=esc(JSON.stringify(triggers));
- return `-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/trigger-enable state.
--- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
-DO $composition_preimage$
-DECLARE p jsonb; actual record; t record;
+ const body=`DECLARE p jsonb; actual record; t record;
 BEGIN
- IF ${reviewed?'TRUE':'FALSE'} IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
- IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
- FOR p IN SELECT value FROM jsonb_array_elements(${pins}::jsonb) LOOP
+ IF ${attested?'TRUE':'FALSE'} IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
+ IF pg_catalog.current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements(${pins}::jsonb) LOOP
   IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
-    OR p->>'signature' IS NULL
+    OR p->>'signature' IS NULL OR pg_catalog.jsonb_typeof(p->'secdef') <> 'boolean'
+    OR pg_catalog.jsonb_typeof(p->'config') <> 'array' OR p->>'lang' IS NULL OR p->>'bin' IS NULL
     THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
-  SELECT x.oid,encode(sha256(convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
-    pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text
-    INTO actual FROM pg_proc x WHERE x.oid=to_regprocedure(p->>'signature');
+  SELECT x.oid,pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
+    pg_catalog.pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text,
+    x.prosecdef AS secdef,COALESCE(pg_catalog.to_jsonb(x.proconfig),'[]'::jsonb) AS config,
+    (SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid=x.prolang) AS lang,
+    COALESCE(x.probin,'') AS bin
+    INTO actual FROM pg_catalog.pg_proc x WHERE x.oid=pg_catalog.to_regprocedure(p->>'signature');
   IF NOT FOUND OR actual.body_hash IS DISTINCT FROM p->>'prosrcSha256'
     OR actual.owner_name IS DISTINCT FROM p->>'owner' OR actual.acl_text IS DISTINCT FROM p->>'acl'
+    OR actual.secdef IS DISTINCT FROM (p->>'secdef')::boolean OR actual.config IS DISTINCT FROM (p->'config')
+    OR actual.lang IS DISTINCT FROM p->>'lang' OR actual.bin IS DISTINCT FROM p->>'bin'
     THEN RAISE EXCEPTION 'COMPOSITION_FUNCTION_PREIMAGE_CHANGED: %',p->>'signature'; END IF;
  END LOOP;
- FOR p IN SELECT value FROM jsonb_array_elements(${trg}::jsonb) LOOP
-  IF p->>'enabled' IS NULL THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_NOT_ATTESTED: %',p->>'name';END IF;
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements(${trg}::jsonb) LOOP
+  IF p->>'enabled' IS NULL OR p->>'enabled' NOT IN ('O','A') THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_NOT_ATTESTED: %',p->>'name';END IF;
   SELECT x.tgenabled::text AS enabled, x.tgtype::integer AS trigger_type,x.tgfoid AS function_oid,
    x.tgqual AS condition_value,x.tgnargs AS argument_count INTO t
-   FROM pg_trigger x WHERE x.tgrelid=to_regclass(p->>'relation') AND x.tgname=p->>'name';
-  IF NOT FOUND OR t.enabled IS DISTINCT FROM p->>'enabled' OR t.trigger_type IS DISTINCT FROM (p->>'type')::integer
-    OR t.function_oid IS DISTINCT FROM to_regprocedure(p->>'function') OR t.condition_value IS NOT NULL OR t.argument_count<>0
+   FROM pg_catalog.pg_trigger x WHERE x.tgrelid=pg_catalog.to_regclass(p->>'relation') AND x.tgname=p->>'name';
+  IF NOT FOUND OR t.enabled NOT IN ('O','A') OR t.enabled IS DISTINCT FROM p->>'enabled' OR t.trigger_type IS DISTINCT FROM (p->>'type')::integer
+    OR t.function_oid IS DISTINCT FROM pg_catalog.to_regprocedure(p->>'function') OR t.condition_value IS NOT NULL OR t.argument_count<>0
     THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_CHANGED: %',p->>'name';END IF;
  END LOOP;
- FOR p IN SELECT value FROM jsonb_array_elements(${other}::jsonb) LOOP
-  IF EXISTS (SELECT 1 FROM pg_proc x JOIN pg_namespace n ON n.oid=x.pronamespace
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements(${other}::jsonb) LOOP
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc x JOIN pg_catalog.pg_namespace n ON n.oid=x.pronamespace
     WHERE n.nspname='public' AND x.proname=p->>'name')
     THEN RAISE EXCEPTION 'COMPOSITION_NEW_FUNCTION_COLLISION: %',p->>'name';END IF;
  END LOOP;
-END $composition_preimage$;
--- Attestation input SHA-256: ${metadataSha}. Missing owner/ACL/trigger-enable pins fail closed.
+END`;
+ assert.ok(!body.includes('$composition_preimage$'),'COMPOSITION_DOLLAR_QUOTE_INJECTION');
+ return `-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/metadata/trigger-enable state.
+-- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
+DO $composition_preimage$
+${body} $composition_preimage$;
+-- Attestation input SHA-256: ${metadataSha}. Missing owner/ACL/metadata/trigger-enable pins fail closed.
 `;
 }
-export function deriveSource({name,source,manifest,manifestText,attestation={}}){
+export function deriveSource({name,source,manifest,manifestText,attestation={},attestationFileSha=null}){
  assert.ok(COMPOSITION_ORDER.includes(name),'COMPOSITION_UNKNOWN_SOURCE');
  assert.equal(sha(source),canonical(manifest),'COMPOSITION_SOURCE_SHA_CHANGED: '+name);
  assert.equal(typeof manifestText,'string');assert.deepEqual(JSON.parse(manifestText),manifest);
- assert.equal(typeof attestation,'object');assert.ok(attestation&&!Array.isArray(attestation));
+ assert.ok(isPlainObject(attestation),'COMPOSITION_ATTESTATION_INVALID');
  const barriers=[...source.matchAll(/^DO \$(source_only|not_an_installer)\$ BEGIN[\s\S]*?END \$\1\$;\n/gm)];
  assert.equal(barriers.length,1,'COMPOSITION_BARRIER_COUNT: '+name);
  const b=barriers[0],prefix=source.slice(0,b.index),tail=source.slice(b.index+b[0].length);
  assert.match(prefix,/(?:^|\n)BEGIN;\n$/,'COMPOSITION_TRANSACTION_START');
  assert.ok(tail.endsWith('ROLLBACK;\n'),'COMPOSITION_FINAL_ROLLBACK');
  assert.equal((tail.match(/^ROLLBACK;$/gm)??[]).length,1,'COMPOSITION_ROLLBACK_COUNT');
- assert.ok(!/^COMMIT;$/m.test(source),'COMPOSITION_UNEXPECTED_COMMIT');
+ assert.ok(!/\bCOMMIT\b/i.test(stripLineComments(source)),'COMPOSITION_UNEXPECTED_COMMIT');
  const body=tail.slice(0,-'ROLLBACK;\n'.length);
  const declarations=functionsIn(source),redefined=declarations.filter(f=>f.redefined),
   manifestExisting=bodyPins(manifest,source);
@@ -127,25 +214,45 @@ export function deriveSource({name,source,manifest,manifestText,attestation={}})
  assert.deepEqual(redefined.map(f=>f.signature).sort(),manifestExisting.filter(f=>f.kind==='redefined').map(f=>f.signature).sort(),'COMPOSITION_REDEFINITION_NOT_PINNED');
  const newFunctions=declarations.filter(f=>!f.redefined);
  const observed=attestation.functions??{},observedTriggers=attestation.triggers??{};
- const existing=manifestExisting.map(p=>{
-  let signature=p.signature;
-  if(signature===null){
-   const candidates=Object.keys(observed).filter(k=>fnName(k)===p.function);
-   assert.ok(candidates.length<=1,'COMPOSITION_ATTESTATION_AMBIGUOUS: '+p.function);
-   signature=candidates[0]??null;
-  }
+ assert.ok(isPlainObject(observed),'COMPOSITION_ATTESTATION_INVALID');
+ assert.ok(isPlainObject(observedTriggers),'COMPOSITION_TRIGGER_ATTESTATION_INVALID');
+ for(const [sig,seen] of Object.entries(observed))validateFunctionAttestation(sig,seen);
+ for(const [key,seen] of Object.entries(observedTriggers))validateTriggerAttestation(key,seen);
+ const buildPin=(p,signature)=>{
   const seen=signature===null?undefined:observed[signature];
   // Un cuerpo fijado por el manifiesto (reemplazo o guarda) no se puede cambiar por atestación.
-  if(p.kind!=='dependency'&&seen?.prosrcSha256!==undefined)
+  if(p.kind!=='dependency'&&seen?.prosrcSha256!==undefined&&seen?.prosrcSha256!==null)
    assert.equal(seen.prosrcSha256,p.prosrcSha256,'COMPOSITION_ATTESTATION_BODY_MISMATCH: '+signature);
-  return {...p,signature,prosrcSha256:p.prosrcSha256??seen?.prosrcSha256??null,owner:seen?.owner??null,acl:seen?.acl??null};
+  return {
+   ...p,signature,
+   prosrcSha256:p.prosrcSha256??seen?.prosrcSha256??null,
+   owner:seen?.owner??null,
+   acl:seen?.acl??null,
+   secdef:seen?.secdef??null,
+   config:seen?.config??null,
+   lang:seen?.lang??null,
+   bin:seen?.bin??null,
+  };
+ };
+ const existing=manifestExisting.flatMap(p=>{
+  if(p.signature!==null)return [buildPin(p,p.signature)];
+  // Dependencia por nombre: admite 1..N sobrecargas atestadas explícitamente (ej. digest(bytea,text) y digest(text,text)).
+  const candidates=Object.keys(observed).filter(k=>fnName(k)===p.function).sort();
+  if(candidates.length===0)return [buildPin(p,null)];
+  return candidates.map(signature=>buildPin(p,signature));
  });
  const triggers=triggerPins(source).map(t=>({...t,enabled:observedTriggers[t.relation+':'+t.name]?.enabled??null}));
  assert.deepEqual(Object.keys(observed).sort(),existing.map(p=>p.signature).filter(k=>k!==null&&Object.hasOwn(observed,k)).sort(),'COMPOSITION_UNKNOWN_ATTESTATION');
  const triggerKeys=new Set(triggers.map(t=>t.relation+':'+t.name));
  assert.ok(Object.keys(observedTriggers).every(k=>triggerKeys.has(k)),'COMPOSITION_UNKNOWN_TRIGGER_ATTESTATION');
- const metadataSha=sha(JSON.stringify(attestation));
- const preimage=preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed:attestation.reviewed===true});
+ const attested=attestation.reviewed===true
+  &&existing.every(p=>typeof p.signature==='string'&&SIG_RE.test(p.signature)&&hex.test(p.prosrcSha256??'')
+   &&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string'&&p.acl.length>0
+   &&typeof p.secdef==='boolean'&&Array.isArray(p.config)&&typeof p.lang==='string'&&LANG_RE.test(p.lang)
+   &&typeof p.bin==='string'&&BIN_RE.test(p.bin))
+  &&triggers.every(p=>['O','A'].includes(p.enabled));
+ const metadataSha=attestationFileSha??sha(JSON.stringify(attestation));
+ const preimage=preimageSql({existing,newFunctions,triggers,metadataSha,attested});
  const header=`-- DERIVED REVIEW ARTIFACT ${name}. Never install a source-only file.
 -- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
 -- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
@@ -156,9 +263,8 @@ ROLLBACK;
 `;
  const sql=header+prefix+preimage+body+ending;
  assert.ok(!sql.includes('$source_only$')&&!sql.includes('$not_an_installer$'),'COMPOSITION_BARRIER_REMAINED');
- assert.ok(sql.endsWith('ROLLBACK;\n')&&!/^COMMIT;$/m.test(sql),'COMPOSITION_UNSAFE_TERMINATOR');
- const attested=attestation.reviewed===true&&existing.every(p=>typeof p.signature==='string'&&hex.test(p.prosrcSha256??'')&&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string')
-  &&triggers.every(p=>['O','A'].includes(p.enabled));
+ assert.equal(sql.split('$composition_preimage$').length,3,'COMPOSITION_DOLLAR_QUOTE_INJECTION');
+ assert.ok(sql.endsWith('ROLLBACK;\n')&&!/\bCOMMIT\b/i.test(stripLineComments(sql)),'COMPOSITION_UNSAFE_TERMINATOR');
  return {sql,manifest:{
    version:'municontrol-install-composition-derived.v1',name,installable:attested,
    dryRun:true,committed:false,requiresCodexReviewedCommit:true,

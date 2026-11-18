@@ -13,11 +13,11 @@ const evidenceText=raw(evidencePath),evidence=JSON.parse(evidenceText);
 assert.equal(evidence.version,'municontrol-install-composition-attestation.v1');
 assert.deepEqual(Object.keys(evidence.sources).sort(),[...COMPOSITION_ORDER].sort());
 const hash=s=>createHash('sha256').update(s,'utf8').digest('hex');
+const evidenceSha=hash(evidenceText);
 const records=[];
 for(const name of COMPOSITION_ORDER){
  const paths=compositionPaths(name),source=raw(paths.source),manifestText=raw(paths.manifest);
- const result=deriveSource({name,source,manifestText,manifest:JSON.parse(manifestText),attestation:evidence.sources[name]});
- result.manifest.attestation.sha256=hash(evidenceText);
+ const result=deriveSource({name,source,manifestText,manifest:JSON.parse(manifestText),attestation:evidence.sources[name],attestationFileSha:evidenceSha});
  const generatedManifest=JSON.stringify(result.manifest,null,2)+'\n';
  if(mode==='--write'){
   writeFileSync(url(paths.output),result.sql,'utf8');

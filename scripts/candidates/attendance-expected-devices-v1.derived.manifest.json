@@ -36,7 +36,11 @@
         "kind": "dependency",
         "function": "attendance_area_context_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
@@ -44,7 +48,11 @@
         "kind": "dependency",
         "function": "attendance_area_assert_scope_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
@@ -52,7 +60,11 @@
         "kind": "dependency",
         "function": "attendance_area_history_v1",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       },
       {
         "signature": "public.time_catalog_native_actor_v2(uuid,uuid,uuid)",
@@ -60,7 +72,11 @@
         "kind": "dependency",
         "function": "time_catalog_native_actor_v2",
         "owner": null,
-        "acl": null
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null
       }
     ],
     "triggers": [],
@@ -149,7 +165,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
-    "bytes": 59549,
-    "sha256": "70782f4394727f7101bba03dfb5e2f55b22c3b85d322fbb86ff21874fc7e1bb6"
+    "bytes": 60559,
+    "sha256": "12aa20d4b8193f3b4378710be6bb6a35b9871de7fe3cf34f98fef394690765a8"
   }
 }
