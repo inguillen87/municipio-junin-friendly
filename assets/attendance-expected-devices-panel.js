@@ -247,7 +247,15 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
       ['Contrato', record.contractLabel], ['Repartición y sector', record.areaLabel],
       ['Vigencia desde', aedDay(record.validFrom)], ['Vigencia hasta', record.validUntil ? aedDay(record.validUntil) : 'Sin fecha final declarada'],
       ['Estado', STATES[record.status] ?? record.status], ['Revisión', record.version],
-    ]) if (value !== undefined) dl.append(node(doc, 'dt', label), node(doc, 'dd', String(value)));
+    ]) if (value !== undefined) {
+      const dd = node(doc, 'dd');
+      if (label === 'Estado') {
+        const badge = node(doc, 'span', String(value), 'aed-badge');
+        if (record.status) badge.dataset.status = record.status;
+        dd.append(badge);
+      } else dd.textContent = String(value);
+      dl.append(node(doc, 'dt', label), dd);
+    }
     parent.append(dl);
     const devices = node(doc, 'ul', undefined, 'aed-list');
     for (const device of record.devices) devices.append(node(doc, 'li', device.label + ' · ' + device.siteLabel));
@@ -260,6 +268,7 @@ export function mountAttendanceExpectedDevices(container, options = {}) {
     if (!records.length) $('records').append(node(doc, 'p', 'No hay declaraciones registradas para este filtro. Esto no acredita que el padrón esté completo.', 'aed-note'));
     for (const record of records) {
       const card = node(doc, 'article', undefined, 'aed-card');
+      if (record.status) card.dataset.status = record.status;
       card.append(node(doc, 'h3', record.contractLabel));
       facts(card, record);
       const open = node(doc, 'button', 'Consultar detalle e historial');

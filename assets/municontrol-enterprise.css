@@ -132,8 +132,12 @@ button:hover:not(:disabled) {
   box-shadow: 0 1px 3px rgba(8, 40, 58, .12);
 }
 :is(.button, .btn, button, .rc-button, a.button):focus-visible {
-  outline: 3px solid color-mix(in srgb, #0f766e 48%, transparent);
+  outline: 3px solid #0f766e;
   outline-offset: 2px;
+}
+:is(.skip-link, .skip):not(:focus):not(:focus-visible) {
+  top: -120px !important;
+  transform: translateY(-200%) !important;
 }
 :is(.button.primary, .btn-primary, button.primary, .rc-button:not(.secondary)):not(:disabled) {
   background-image: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, 0) 60%);
@@ -188,6 +192,7 @@ main.content {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
+    animation-delay: 0ms !important;
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
