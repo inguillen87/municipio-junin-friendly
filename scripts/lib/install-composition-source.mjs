@@ -52,13 +52,14 @@ function triggerPins(source){
  return [...source.matchAll(/\('((?:public\.)[a-z_]+)',\s*'([a-z_]+)',\s*'(public\.[a-z_]+\([^']*\))',\s*(\d+)\)/g)]
   .map(m=>({relation:m[1],name:m[2],function:m[3],type:Number(m[4])}));
 }
-function preimageSql({name,existing,newFunctions,triggers,metadataSha}){
+function preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed}){
  const pins=esc(JSON.stringify(existing)),other=esc(JSON.stringify(newFunctions)),trg=esc(JSON.stringify(triggers));
  return `-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/trigger-enable state.
 -- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
 DO $composition_preimage$
 DECLARE p jsonb; actual record; t record;
 BEGIN
+ IF ${reviewed?'TRUE':'FALSE'} IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
  IF current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
  FOR p IN SELECT value FROM jsonb_array_elements(${pins}::jsonb) LOOP
   IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
@@ -111,7 +112,7 @@ export function deriveSource({name,source,manifest,manifestText,attestation={}})
  const triggers=triggerPins(source).map(t=>({...t,enabled:observedTriggers[t.relation+':'+t.name]?.enabled??null}));
  assert.deepEqual(Object.keys(observed).sort(),existing.map(p=>p.signature).filter(k=>Object.hasOwn(observed,k)).sort(),'COMPOSITION_UNKNOWN_ATTESTATION');
  const metadataSha=sha(JSON.stringify(attestation));
- const preimage=preimageSql({name,existing,newFunctions,triggers,metadataSha});
+ const preimage=preimageSql({name,existing,newFunctions,triggers,metadataSha,reviewed:attestation.reviewed===true});
  const header=`-- DERIVED REVIEW ARTIFACT ${name}. Never install a source-only file.
 -- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
 -- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
@@ -123,7 +124,7 @@ ROLLBACK;
  const sql=header+prefix+preimage+body+ending;
  assert.ok(!sql.includes('$source_only$')&&!sql.includes('$not_an_installer$'),'COMPOSITION_BARRIER_REMAINED');
  assert.ok(sql.endsWith('ROLLBACK;\n')&&!/^COMMIT;$/m.test(sql),'COMPOSITION_UNSAFE_TERMINATOR');
- const attested=existing.every(p=>hex.test(p.prosrcSha256??'')&&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string')
+ const attested=attestation.reviewed===true&&existing.every(p=>hex.test(p.prosrcSha256??'')&&typeof p.owner==='string'&&p.owner.length>0&&typeof p.acl==='string')
   &&triggers.every(p=>['O','A'].includes(p.enabled));
  return {sql,manifest:{
    version:'municontrol-install-composition-derived.v1',name,installable:attested,

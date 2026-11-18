@@ -4,23 +4,28 @@
   "sources": {
     "attendance-area-authority": {
       "functions": {},
-      "triggers": {}
+      "triggers": {},
+      "reviewed": false
     },
     "attendance-expected-devices": {
       "functions": {},
-      "triggers": {}
+      "triggers": {},
+      "reviewed": false
     },
     "attendance-area-history": {
       "functions": {},
-      "triggers": {}
+      "triggers": {},
+      "reviewed": false
     },
     "attendance-area-workdays": {
       "functions": {},
-      "triggers": {}
+      "triggers": {},
+      "reviewed": false
     },
     "employment-job-title-writers": {
       "functions": {},
-      "triggers": {}
+      "triggers": {},
+      "reviewed": false
     }
   }
 }
