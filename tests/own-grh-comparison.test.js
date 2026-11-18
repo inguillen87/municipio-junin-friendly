@@ -218,7 +218,7 @@ test('revisión de Codex: unidad o descripción vacías del catálogo GRH se ace
 test('revisión de ChatGPT: la 242 canoniza importes sin cambiar su valor, no normaliza códigos y audita too_large',()=>{
  const s=fs.readFileSync('scripts/migrations/242-own-grh-statement-lines.sql','utf8');
  assert.match(s,/jsonb_build_array\(ln->>'code',\(ln->>'amount'\)::numeric::text,\(ln->>'quantity'\)::numeric::text\)/);
- assert.match(s,/CHECK\(outcome IN \('success','not_found','too_large'\)\)/);
+ assert.match(s,/CHECK\(outcome IN \('success','not_found','too_large','incomplete'\)\)/);
  assert.match(s,/octet_length\(answer::text\)>3800000[\s\S]{0,400}'too_large'[\s\S]{0,300}'tooLarge',true/);
  assert.ok(s.indexOf("'too_large'")<s.lastIndexOf("'success'"),'el éxito se audita sólo si la respuesta entra');
 });
@@ -233,4 +233,14 @@ test('revisión de Codex: la fachada pide actions.read y traduce los rechazos de
   assert.equal(r.status,status,message);assert.equal(r.payload.ok,false);assert.doesNotMatch(JSON.stringify(r.payload),/ACTION_|OWN_GRH_STATEMENT_LINES_(?!SOURCE_INCOMPATIBLE)/);
  }
  await assert.rejects(internalOwnGrhStatementLines({query:async()=>{throw new Error('connection reset');}},{query:{datasetId:uid}},principal,session),/connection reset/);
+});
+
+test('revisión de Codex (P3): auditoría sin TRUNCATE y fuente incompleta auditada antes de rechazarla',async()=>{
+ const s=fs.readFileSync('scripts/migrations/242-own-grh-statement-lines.sql','utf8');
+ assert.match(s,/BEFORE TRUNCATE ON own_grh_statement_lines_read_event FOR EACH STATEMENT EXECUTE FUNCTION employee_payroll_read_reject_change_v1\(\)/);
+ assert.match(s,/CHECK\(outcome IN \('success','not_found','too_large','incomplete'\)\)/);
+ assert.match(s,/actual_lines<>ds\.line_count THEN\s+INSERT INTO own_grh_statement_lines_read_event[\s\S]{0,200}'incomplete',0\);\s+RETURN jsonb_build_object\([^;]*'incomplete',true/);
+ assert.doesNotMatch(s,/RAISE EXCEPTION 'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPLETE'/);
+ const r=await internalOwnGrhStatementLines({query:async()=>[{result:{version:'grh-statement-lines-compact.v1',found:true,official:false,incomplete:true,datasetId:uid}}]},{query:{datasetId:uid}},principal,session);
+ assert.equal(r.status,422);assert.equal(r.payload.code,'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPATIBLE');assert.equal(r.payload.data,undefined);
 });
