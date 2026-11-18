@@ -37,7 +37,7 @@ END IF;END $$;
 
 CREATE FUNCTION public.own_grh_statement_lines_v1(p_email text,p_session uuid,p_version integer,p_release text,p_tenant uuid,p_membership uuid,p_dataset uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
-DECLARE ctx jsonb;ds payroll_detail_dataset%ROWTYPE;actual_n integer;actual_lines integer;statements_json jsonb;answer jsonb;
+DECLARE ctx jsonb;ds payroll_detail_dataset%ROWTYPE;actual_n integer;actual_lines integer;statements_json jsonb;concepts_json jsonb;answer jsonb;
 BEGIN
  IF p_dataset IS NULL THEN RAISE EXCEPTION 'OWN_GRH_STATEMENT_LINES_QUERY_INVALID';END IF;
  ctx:=action_center_assert_tenant_read_session_v2(p_email,p_session,p_version,p_release,p_tenant,p_membership);
@@ -50,24 +50,27 @@ BEGIN
  IF NOT FOUND THEN
   INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
   VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,NULL,'not_found',0);
-  RETURN jsonb_build_object('version','grh-statement-lines.v1','found',false,'official',false);
+  RETURN jsonb_build_object('version','grh-statement-lines-compact.v1','found',false,'official',false);
  END IF;
  SELECT count(*),coalesce(sum(jsonb_array_length(s.lines)),0) INTO actual_n,actual_lines
  FROM payroll_detail_statement s WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant;
  IF actual_n<>ds.statement_count OR actual_lines<>ds.line_count THEN RAISE EXCEPTION 'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPLETE';END IF;
+ -- Forma de transporte compacta (grh-statement-lines-compact.v1): el catálogo de los conceptos usados va una
+ -- sola vez y cada renglón es [código, importe, cantidad]. La forma expandida superaba el límite de respuesta.
+ SELECT coalesce(jsonb_object_agg(q.code,jsonb_build_object('description',ds.concept_catalog->q.code->>'description',
+   'totalGroup',ds.concept_catalog->q.code->>'totalGroup','unit',ds.concept_catalog->q.code->>'unit')),'{}'::jsonb) INTO concepts_json
+ FROM (SELECT DISTINCT ln->>'code' code FROM payroll_detail_statement s CROSS JOIN LATERAL jsonb_array_elements(s.lines) ln
+  WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant) q;
  SELECT coalesce(jsonb_agg(jsonb_build_object(
    'legajo',s.source_legajo,'statementId',s.id,'statementHash',s.statement_sha256,
-   'lines',(SELECT coalesce(jsonb_agg(jsonb_build_object(
-      'code',ln->>'code','description',ds.concept_catalog->(ln->>'code')->>'description',
-      'amount',ln->>'amount','quantity',ln->>'quantity',
-      'totalGroup',ds.concept_catalog->(ln->>'code')->>'totalGroup','unit',ds.concept_catalog->(ln->>'code')->>'unit')
+   'lines',(SELECT coalesce(jsonb_agg(jsonb_build_array(ln->>'code',ln->>'amount',ln->>'quantity')
      ORDER BY (ln->>'code')::integer),'[]'::jsonb) FROM jsonb_array_elements(s.lines) ln))
   ORDER BY length(s.source_legajo),s.source_legajo),'[]'::jsonb) INTO statements_json
  FROM payroll_detail_statement s WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant;
- answer:=jsonb_build_object('version','grh-statement-lines.v1','found',true,'official',false,'datasetId',ds.id,
+ answer:=jsonb_build_object('version','grh-statement-lines-compact.v1','found',true,'official',false,'datasetId',ds.id,
   'period',ds.source_period::text||'-'||lpad(ds.source_month::text,2,'0'),'payrollType',ds.payroll_type,
   'closureStatus',CASE ds.source_closed_flag WHEN 1 THEN 'closed' WHEN 0 THEN 'open' ELSE 'unknown' END,
-  'sourceHash',ds.source_sha256,'complete',true,'statements',statements_json);
+  'sourceHash',ds.source_sha256,'complete',true,'concepts',concepts_json,'statements',statements_json);
  INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
  VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'success',actual_n);
  RETURN answer;
