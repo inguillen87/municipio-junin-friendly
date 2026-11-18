@@ -10,7 +10,7 @@ import {V3_PRINCIPAL, V3_SESSION} from './fixtures/continuous-workdays-v3-api-sy
 import {pendingBellDailySources, pendingBellReading, PENDING_BELL_DAILY} from '../assets/pending-bell-mount.js';
 import {bellState} from '../assets/pending-bell-model.js';
 
-const principal = {...V3_PRINCIPAL, tenant: {...V3_PRINCIPAL.tenant, effectiveCapabilities: ['attendance.area.read']}};
+const principal = {...V3_PRINCIPAL, tenant: {...V3_PRINCIPAL.tenant, effectiveCapabilities: ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']}};
 const session = V3_SESSION;
 const scope = {area: {organizationUnitSourceId: '900', sectorSourceId: '901'}, site: 'qa-site'};
 // 2026-11-15 03:30 UTC is 00:30 of the 15th in Mendoza: yesterday is the fixture day.
@@ -105,7 +105,7 @@ test('the endpoint is GET-only, takes exactly resource=notices and uses the area
   }
   const {h, stats} = handler({ready: true}), res = response(); await h(request(), res);
   assert.equal(res.statusCode, 200); assert.equal(res.payload.data.notices.length, 1); assert.equal(stats.connections, 1);
-  assert.deepEqual(stats.gates.requiredCapabilities, ['attendance.area.read']); assert.equal(stats.gates.capabilityMode, 'all');
+  assert.deepEqual(stats.gates.requiredCapabilities, ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']); assert.equal(stats.gates.capabilityMode, 'all');
   assert.equal(stats.gates.allowLegacy, false); assert.equal(stats.gates.requireDataPlaneReady, true); assert.equal(stats.gates.requireCertifiedDataBinding, true);
   assert.match(res.headers['Cache-Control'] ?? res.headers['cache-control'] ?? '', /no-store/);
 });
@@ -163,7 +163,7 @@ test('the endpoint is registered with a bounded duration and the bell mounts it 
   const config = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
   assert.deepEqual(config.functions['api/internal-attendance-daily-notice.js'], {maxDuration: 20});
   const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8');
-  assert.ok(mount.includes("capability: 'attendance.area.read'") && mount.includes('{daily}'));
+  assert.ok(mount.includes("capabilities: Object.freeze(" + JSON.stringify(['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']).replaceAll('"', "'").replaceAll(',', ', ') + ")") && mount.includes('{daily}'));
   const lib = fs.readFileSync('lib/internal-attendance-daily-notice.js', 'utf8');
   assert.ok(!/sql\.query|FROM |native_leave|time_source/.test(lib), 'the reader never reads tables itself');
 });
@@ -192,7 +192,8 @@ test('production wiring uses migrations 240 and 241 only after ATTENDANCE_DAILY_
   for (const [env, expectReady] of [[{}, false], [{ATTENDANCE_DAILY_NOTICE_ENABLED: '1'}, false], [{ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'}, true]]) {
     let connections = 0;
     const h = createAttendanceDailyNoticeHandler({env, now: () => NOW, sessionFor: () => area.session,
-      requireAccess: async () => ({mode: 'managed', principal: area.principal}), getSql: async () => { connections++; return sqlAll; }});
+      requireAccess: async () => ({mode: 'managed', principal: {...area.principal, tenant: {...area.principal.tenant, effectiveCapabilities: [...area.principal.tenant.effectiveCapabilities, 'time.catalog.read', 'workforce.employee.read']}}}),
+      getSql: async () => { connections++; return sqlAll; }});
     const res = response(); await h(request(), res);
     if (expectReady) { assert.equal(res.statusCode, 503); assert.equal(res.payload.code, 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID'); assert.equal(connections, 1);
       assert.match(texts.at(-1), /attendance_daily_scopes_read_v1/); }
@@ -259,7 +260,7 @@ test('the producer runs in REPEATABLE READ when the client can, and trusts only 
 test('an account that only reads attendance retries the bell on its own after an empty or failed first reading', async () => {
   const {startPendingBell} = await import('../assets/pending-bell-mount.js');
   const auth = {ok: true, authenticated: true, sessionVersion: 2, expiresAt: new Date(Date.now() + 3600000).toISOString(),
-    user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: ['attendance.area.read']}};
+    user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']}};
   let prepended = 0;
   const actions = {querySelector: () => null, prepend: () => { prepended++; }};
   const doc = {querySelector: selector => selector.includes('top-actions') ? actions : null, createElement: () => ({dataset: {}}), addEventListener() {}};
@@ -280,4 +281,25 @@ test('a writable REPEATABLE READ transaction is still one snapshot: FOR SHARE ch
     return [[{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, transaction: {isolation: 'repeatable read', readOnly: 'off', snapshot: '731:731:'}})}]]; }};
   const cut = await produceAttendanceDailySource(sql, area.principal, area.session, area.areaQuery());
   assert.equal(cut.cut.consistency, 'single_snapshot'); assert.match(cut.cut.evidence.sha256, /^[a-f0-9]{64}$/);
+});
+
+test('the bell and the endpoint need every capability the producer needs: area read alone is not enough', async () => {
+  const {startPendingBell} = await import('../assets/pending-bell-mount.js');
+  for (const missing of ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']) {
+    const caps = PENDING_BELL_DAILY.capabilities.filter(c => c !== missing);
+    // Endpoint: the principal's live capabilities are rechecked even if the gateway let it through.
+    let connections = 0;
+    const h = createAttendanceDailyNoticeHandler({env: {ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'}, now: () => NOW, sessionFor: () => session, dayCount: 1, producer, scopes,
+      requireAccess: async () => ({mode: 'managed', principal: {...principal, tenant: {...principal.tenant, effectiveCapabilities: caps}}}), getSql: async () => { connections++; return sql; }});
+    const res = response(); await h(request(), res);
+    assert.equal(res.statusCode, 403, missing); assert.equal(res.payload.code, 'ATTENDANCE_DAILY_NOTICE_FORBIDDEN'); assert.equal(connections, 0);
+    // Bell: without the full set it never asks for the daily reading, never mounts and never schedules a retry.
+    const auth = {ok: true, authenticated: true, sessionVersion: 2, expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      user: {id: 'qa-user', email: 'qa@example.invalid'}, access: {context: 'tenant', tenant: {id: '00000000-0000-4000-8000-000000000001', roleKey: 'qa'}, tenantCapabilities: caps}};
+    const asked = [], scheduled = [];
+    const doc = {querySelector: selector => selector.includes('top-actions') ? {querySelector: () => null, prepend: () => assert.fail('mounted')} : null, createElement: () => ({dataset: {}}), addEventListener() {}};
+    const result = await startPendingBell(doc, async url => { asked.push(url); if (url === '/api/internal-auth') return auth; throw new Error('unexpected ' + url); }, {retry: (fn, ms) => scheduled.push(ms)});
+    assert.equal(result, null); assert.deepEqual(asked, ['/api/internal-auth'], missing); assert.deepEqual(scheduled, []);
+  }
+  assert.ok(Object.isFrozen(PENDING_BELL_DAILY.capabilities));
 });
