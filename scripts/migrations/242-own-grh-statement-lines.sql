@@ -25,15 +25,21 @@ CREATE TABLE IF NOT EXISTS own_grh_statement_lines_read_event (
  source_binding_id uuid NOT NULL, actor_membership_id uuid NOT NULL,
  actor_session_id uuid NOT NULL REFERENCES tenant_identity_session(id),
  dataset_id uuid REFERENCES payroll_detail_dataset(id),
- outcome text NOT NULL CHECK(outcome IN ('success','not_found','too_large')),
+ outcome text NOT NULL CHECK(outcome IN ('success','not_found','too_large','incomplete')),
  result_count integer NOT NULL CHECK(result_count BETWEEN 0 AND 2000), occurred_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(tenant_id,source_binding_id) REFERENCES platform_tenant_source_binding(tenant_id,id),
  FOREIGN KEY(actor_membership_id,tenant_id) REFERENCES tenant_membership(id,tenant_id)
 );
 REVOKE ALL ON own_grh_statement_lines_read_event FROM PUBLIC,municontrol_actions_runtime_app;
-DO $$BEGIN IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='own_grh_statement_lines_read_event_immutable') THEN
- CREATE TRIGGER own_grh_statement_lines_read_event_immutable BEFORE UPDATE OR DELETE ON own_grh_statement_lines_read_event FOR EACH ROW EXECUTE FUNCTION employee_payroll_read_reject_change_v1();
-END IF;END $$;
+-- Auditoría inmutable: sin UPDATE/DELETE por fila ni TRUNCATE (mismo patrón que la 058).
+DO $$BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='own_grh_statement_lines_read_event'::regclass AND tgname='own_grh_statement_lines_read_event_immutable') THEN
+  CREATE TRIGGER own_grh_statement_lines_read_event_immutable BEFORE UPDATE OR DELETE ON own_grh_statement_lines_read_event FOR EACH ROW EXECUTE FUNCTION employee_payroll_read_reject_change_v1();
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='own_grh_statement_lines_read_event'::regclass AND tgname='own_grh_statement_lines_read_event_no_truncate') THEN
+  CREATE TRIGGER own_grh_statement_lines_read_event_no_truncate BEFORE TRUNCATE ON own_grh_statement_lines_read_event FOR EACH STATEMENT EXECUTE FUNCTION employee_payroll_read_reject_change_v1();
+ END IF;
+END $$;
 
 CREATE FUNCTION public.own_grh_statement_lines_v1(p_email text,p_session uuid,p_version integer,p_release text,p_tenant uuid,p_membership uuid,p_dataset uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
@@ -54,7 +60,12 @@ BEGIN
  END IF;
  SELECT count(*),coalesce(sum(jsonb_array_length(s.lines)),0) INTO actual_n,actual_lines
  FROM payroll_detail_statement s WHERE s.dataset_id=ds.id AND s.tenant_id=p_tenant;
- IF actual_n<>ds.statement_count OR actual_lines<>ds.line_count THEN RAISE EXCEPTION 'OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPLETE';END IF;
+ -- Una fuente incompleta no se entrega, pero la lectura autorizada queda auditada (un RAISE la desharía).
+ IF actual_n<>ds.statement_count OR actual_lines<>ds.line_count THEN
+  INSERT INTO own_grh_statement_lines_read_event(tenant_id,source_binding_id,actor_membership_id,actor_session_id,dataset_id,outcome,result_count)
+  VALUES(p_tenant,(ctx->>'sourceBindingId')::uuid,p_membership,p_session,ds.id,'incomplete',0);
+  RETURN jsonb_build_object('version','grh-statement-lines-compact.v1','found',true,'official',false,'incomplete',true,'datasetId',ds.id);
+ END IF;
  -- Forma de transporte compacta (grh-statement-lines-compact.v1): el catálogo de los conceptos usados va una
  -- sola vez y cada renglón es [código, importe, cantidad]. La forma expandida superaba el límite de respuesta.
  SELECT coalesce(jsonb_object_agg(q.code,jsonb_build_object('description',ds.concept_catalog->q.code->>'description',
