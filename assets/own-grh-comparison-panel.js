@@ -31,14 +31,16 @@ export function mountOwnGrhComparisonPanel(host){
  <label>Liquidación GRH incorporada<select data-ogc-grh required><option value="">Elegí una liquidación GRH</option></select></label></div>
  <p data-ogc-catalog-note></p></fieldset><button class="button primary" data-ogc-compare type="submit" disabled>Comparar ambas fuentes completas</button></form>
  <section data-ogc-result hidden aria-labelledby="ownGrhComparisonTitle"><h3 id="ownGrhComparisonTitle" tabindex="-1">Comparación completa por legajo</h3>
- <p data-ogc-sources></p><p data-ogc-warnings class="own-comparison-notice"></p>
+ <p class="own-grh-sources" data-ogc-sources></p>
+ <div class="own-grh-kpis" data-ogc-summary role="group" aria-label="Resumen de la vista elegida"></div>
+ <ul data-ogc-warnings class="own-comparison-notice own-grh-rules" aria-label="Cómo leer la comparación"></ul>
  <div class="own-comparison-grid"><label>Detalle<select data-ogc-view><option value="concepts">Conceptos por legajo</option><option value="totals">Totales por legajo</option></select></label>
  <label>Mostrar sólo en pantalla<select data-ogc-filter><option value="all">Todos</option><option value="review">Para revisar</option><option value="rounding">Diferencias de redondeo</option><option value="equal">Sin diferencia</option></select></label>
  <label>Buscar sólo en pantalla<input data-ogc-search type="search" maxlength="100" autocomplete="off" placeholder="Legajo, código o concepto"></label></div>
- <p data-ogc-summary></p><p>La diferencia exacta es MuniControl menos GRH. De 1 a 5 centavos, en totales y retenciones, se muestra como redondeo y nunca como igualdad. Las descargas incluyen todas las filas de la vista elegida, sin filtros ni paginación.</p>
+ <p class="own-grh-hint">Redondeos y coincidencias se cuentan por separado. Las descargas incluyen todas las filas de la vista elegida, sin filtros ni paginación.</p>
  <div class="own-comparison-actions"><button class="button" type="button" data-ogc-pdf>Descargar PDF completo</button><button class="button" type="button" data-ogc-xlsx>Descargar Excel completo</button><button class="button" type="button" data-ogc-csv>Descargar CSV completo</button></div>
- <div class="own-comparison-scroll" tabindex="0" role="region" aria-label="Comparación MuniControl contra GRH; tabla desplazable"><table>
- <caption data-ogc-caption></caption><thead><tr><th scope="col">Legajo</th><th scope="col">Concepto / total</th><th scope="col">MuniControl</th><th scope="col">GRH</th><th scope="col">Diferencia</th><th scope="col">Estado</th></tr></thead><tbody data-ogc-rows></tbody></table></div>
+ <div class="own-comparison-scroll own-grh-table" tabindex="0" role="region" aria-label="Comparación MuniControl contra GRH; tabla desplazable"><table>
+ <caption data-ogc-caption></caption><thead><tr><th scope="col">Legajo</th><th scope="col">Concepto / total</th><th scope="col" class="num">MuniControl</th><th scope="col" class="num">GRH</th><th scope="col" class="num">Diferencia</th><th scope="col">Estado</th></tr></thead><tbody data-ogc-rows></tbody></table></div>
  <p data-ogc-empty hidden>Sin filas para esta búsqueda. La descarga conserva el detalle completo.</p>
  <nav class="own-comparison-actions" aria-label="Páginas de la comparación"><button class="button" data-ogc-prev type="button">Anterior</button><span data-ogc-page></span><button class="button" data-ogc-next type="button">Siguiente</button></nav>
  <details><summary>Huellas y fuentes originales</summary><dl data-ogc-trace></dl></details></section>`;
@@ -93,8 +95,8 @@ export function mountOwnGrhComparisonPanel(host){
   const payload=await response.json();if(!response.ok)return {ok:false};
   return payload;
  }
- const ownLabel=r=>r.period+' · '+(OWN_RUN_TYPES[r.liquidationType]??r.liquidationType)+' · '+r.employeeCount+' legajos · '+r.id.slice(0,8);
- const grhLabel=r=>r.date+' · '+sourceReportTypeLabel(r.type)+' · '+r.statementCount+' legajos · '+r.datasetId.slice(0,8);
+ const ownLabel=r=>r.period+' · '+(OWN_RUN_TYPES[r.liquidationType]??r.liquidationType)+' · '+r.employeeCount+' legajos · ref. '+r.id.slice(0,8);
+ const grhLabel=r=>r.date+' · '+sourceReportTypeLabel(r.type)+' · '+r.statementCount+' legajos · ref. '+r.datasetId.slice(0,8);
  function grhOptions(){
   const own=ownCatalog?.runs.find(r=>r.id===$('own').value),type=OWN_GRH_TYPES[own?.liquidationType];
   const previous=$('grh').value;
@@ -145,22 +147,47 @@ export function mountOwnGrhComparisonPanel(host){
   await session(signal,{review:detail.reviewAccessRequired});valid();
   return {result,review:detail.reviewAccessRequired};
  }
+ // Sólo presentación: tono del estado. Diferencia es alerta; ausencias e importes no evaluables, a revisar; el redondeo
+ // se distingue de «Sin diferencia» también por color (nunca se iguala).
+ const tone=r=>r.status==='equal'?'ok':r.status==='rounding'?'info':r.status==='difference'?'alert':'warn';
+ const plural=(n,one,many)=>n+' '+(n===1?one:many);
+ const cell=(tag,text,label,className)=>{const element=node(tag,text);element.dataset.label=label;if(className)element.className=className;return element;};
+ function kpis(v){
+  const card=(value,label,status,cardTone)=>{
+   const element=node(status?'button':'div');element.className='own-grh-kpi';element.dataset.tone=cardTone;
+   element.append(node('strong',String(value)),node('span',label));
+   if(status){element.type='button';element.setAttribute('aria-pressed',String($('filter').value===status));
+    element.addEventListener('click',()=>{$('filter').value=$('filter').value===status?'all':status;page=1;render();});}
+   return element;
+  };
+  return [card(model.summary.legajos,model.summary.legajos===1?'Legajo unido':'Legajos unidos',null,'neutral'),
+   card(v.review,'Para revisar','review',v.review?'alert':'ok'),
+   card(v.rounding,v.rounding===1?'Diferencia de redondeo':'Diferencias de redondeo','rounding','info'),
+   card(v.equal,'Sin diferencia','equal','ok')];
+ }
  function render(){
   if(!model)return;
-  const v=ownGrhComparisonView(model,filter());page=v.page;
-  $('caption').textContent=v.total+' registros completos por '+($('view').value==='concepts'?'concepto':'total')+'.';
-  $('summary').textContent=model.summary.legajos+' legajos · '+v.total+' filas de esta vista · '+v.filtered+' coinciden con el filtro · '+v.rounding+' diferencias de redondeo · '+v.equal+' sin diferencia · '+v.review+' para revisar. Redondeos y coincidencias son categorías separadas.';
+  const v=ownGrhComparisonView(model,filter()),concepts=$('view').value==='concepts';page=v.page;
+  $('caption').textContent=plural(v.total,'registro completo','registros completos')+' por '+(concepts?'concepto':'total')+(v.filtered!==v.total?' · '+plural(v.filtered,'coincide','coinciden')+' con el filtro':'')+'.';
+  $('summary').replaceChildren(...kpis(v));
+  const counts={all:v.total,review:v.review,rounding:v.rounding,equal:v.equal};
+  for(const item of $('filter').options??[])item.textContent=item.textContent.replace(/ \(\d+\)$/,'')+' ('+counts[item.value]+')';
   $('page').textContent='Página '+v.page+' de '+v.pages;
   $('empty').hidden=v.filtered!==0;
   $('rows').replaceChildren(...v.rows.map(r=>{
-   const tr=node('tr');tr.dataset.ogrhLegajo=r.legajo;
-   const employee=node('th',r.legajo);employee.scope='row';
-   tr.append(employee,node('td',$('view').value==='concepts'?r.code:r.label));
-   for(const source of ['own','grh']){
-    const value=r[source]===null?'No figura':r[source].amount===null?'No informado':reportExactShown(r[source].amount);
-    tr.append(node('td',value));
+   const tr=node('tr');tr.dataset.ogrhLegajo=r.legajo;tr.dataset.ogrhStatus=r.status;tr.className=r.review?'is-review':r.status==='rounding'?'is-rounding':'';
+   const employee=cell('th',r.legajo,'Legajo');employee.scope='row';
+   const concept=cell('td',undefined,concepts?'Concepto':'Total','own-grh-concept');concept.append(node('span',concepts?r.code:r.label));
+   // La descripción GRH es informativa: ayuda a leer el código, no participa de la unión.
+   if(concepts&&r.grh?.description)concept.append(node('small',r.grh.description));
+   tr.append(employee,concept);
+   for(const [source,label] of [['own','MuniControl'],['grh','GRH']]){
+    const missing=r[source]===null||r[source].amount===null;
+    tr.append(cell('td',r[source]===null?'No figura':r[source].amount===null?'No informado':reportExactShown(r[source].amount),label,missing?'num muted':'num'));
    }
-   tr.append(node('td',r.delta===null?'No evaluable':reportExactShown(r.delta)),node('td',r.state));
+   tr.append(cell('td',r.delta===null?'No evaluable':reportExactShown(r.delta),'Diferencia',r.delta===null?'num muted':'num'));
+   const state=cell('td',undefined,'Estado'),badge=node('span',r.state);badge.className='own-grh-badge';badge.dataset.tone=tone(r);state.append(badge);
+   tr.append(state);
    return tr;
   }));
   controls();
@@ -182,7 +209,7 @@ export function mountOwnGrhComparisonPanel(host){
   if(pair.ownId!==$('own').value||pair.grhId!==$('grh').value)throw Error('Cambió la selección.');
   model=fresh.result;reviewRequired=fresh.review;selection=pair;page=1;$('result').hidden=false;
   $('sources').textContent='MuniControl: '+ownLabel(ownCatalog.runs.find(r=>r.id===pair.ownId))+' · GRH: '+grhLabel(grhCatalog.items.find(r=>r.datasetId===pair.grhId));
-  $('warnings').textContent=model.warnings.join(' ');
+  $('warnings').replaceChildren(...model.warnings.map(text=>node('li',text)));
   const traceDocument=ownGrhComparisonDocument(model,'concepts');
   $('trace').replaceChildren(...traceDocument.metadata.flatMap(([k,v])=>[node('dt',k),node('dd',String(v))]));
   render();$('result').querySelector('h3')?.focus();
