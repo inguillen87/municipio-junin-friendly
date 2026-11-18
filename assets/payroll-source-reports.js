@@ -54,8 +54,8 @@ export function mountSourceReports(host){
   $('[data-source]').textContent=current.sourceLabel+' · '+dateLabel(current.date)+' · '+sourceReportTypeLabel(current.type)+' ('+current.type+') · '+current.statementCount+' legajos de esta corrida. No es el padrón activo completo.';
   $('[data-scope]').textContent=doc.rows.length+' conceptos del filtro. '+doc.notes[1];
   renderSalaryCost($('[data-salary-cost]'),doc.salaryCost);
-  const head=e('tr');doc.columns.forEach(c=>head.append(e('th',c.label)));$('[data-source-report-head]').replaceChildren(head);
-  $('[data-source-report-rows]').replaceChildren(...doc.rows.map(row=>{const tr=e('tr');row.forEach((v,i)=>tr.append(e('td',v===null?'No informado':doc.columns[i].type==='money'?new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)):String(v))));return tr}));
+  const head=e('tr');doc.columns.forEach(c=>head.append(e('th',c.label,['money','integer'].includes(c.type)?'num':'')));$('[data-source-report-head]').replaceChildren(head);
+  $('[data-source-report-rows]').replaceChildren(...doc.rows.map(row=>{const tr=e('tr');if(row[2]==='Total de control')tr.className='is-total';row.forEach((v,i)=>{const num=['money','integer'].includes(doc.columns[i].type),td=e('td',v===null?'No informado':doc.columns[i].type==='money'?new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)):String(v),num?(v===null?'num muted':'num'):'');td.dataset.label=doc.columns[i].label;tr.append(td);});return tr}));
   result.hidden=false;
  }
  $('[data-catalog]').addEventListener('click',async()=>{
