@@ -10,7 +10,7 @@ import {V3_PRINCIPAL, V3_SESSION} from './fixtures/continuous-workdays-v3-api-sy
 import {pendingBellDailySources, pendingBellReading, PENDING_BELL_DAILY} from '../assets/pending-bell-mount.js';
 import {bellState} from '../assets/pending-bell-model.js';
 
-const principal = {...V3_PRINCIPAL, tenant: {...V3_PRINCIPAL.tenant, effectiveCapabilities: ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']}};
+const principal = {...V3_PRINCIPAL, tenant: {...V3_PRINCIPAL.tenant, effectiveCapabilities: ['attendance.area.read']}};
 const session = V3_SESSION;
 const scope = {area: {organizationUnitSourceId: '900', sectorSourceId: '901'}, site: 'qa-site'};
 // 2026-11-15 03:30 UTC is 00:30 of the 15th in Mendoza: yesterday is the fixture day.
@@ -105,7 +105,7 @@ test('the endpoint is GET-only, takes exactly resource=notices and uses the area
   }
   const {h, stats} = handler({ready: true}), res = response(); await h(request(), res);
   assert.equal(res.statusCode, 200); assert.equal(res.payload.data.notices.length, 1); assert.equal(stats.connections, 1);
-  assert.deepEqual(stats.gates.requiredCapabilities, ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']); assert.equal(stats.gates.capabilityMode, 'all');
+  assert.deepEqual(stats.gates.requiredCapabilities, ['attendance.area.read']); assert.equal(stats.gates.capabilityMode, 'all');
   assert.equal(stats.gates.allowLegacy, false); assert.equal(stats.gates.requireDataPlaneReady, true); assert.equal(stats.gates.requireCertifiedDataBinding, true);
   assert.match(res.headers['Cache-Control'] ?? res.headers['cache-control'] ?? '', /no-store/);
 });
@@ -163,7 +163,7 @@ test('the endpoint is registered with a bounded duration and the bell mounts it 
   const config = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
   assert.deepEqual(config.functions['api/internal-attendance-daily-notice.js'], {maxDuration: 20});
   const mount = fs.readFileSync('assets/pending-bell-mount.js', 'utf8');
-  assert.ok(mount.includes("capabilities: Object.freeze(" + JSON.stringify(['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']).replaceAll('"', "'").replaceAll(',', ', ') + ")") && mount.includes('{daily}'));
+  assert.ok(mount.includes("capabilities: Object.freeze(" + JSON.stringify(['attendance.area.read']).replaceAll('"', "'").replaceAll(',', ', ') + ")") && mount.includes('{daily}'));
   const lib = fs.readFileSync('lib/internal-attendance-daily-notice.js', 'utf8');
   assert.ok(!/sql\.query|FROM |native_leave|time_source/.test(lib), 'the reader never reads tables itself');
 });
@@ -283,10 +283,17 @@ test('a writable REPEATABLE READ transaction is still one snapshot: FOR SHARE ch
   assert.equal(cut.cut.consistency, 'single_snapshot'); assert.match(cut.cut.evidence.sha256, /^[a-f0-9]{64}$/);
 });
 
-test('the bell and the endpoint need every capability the producer needs: area read alone is not enough', async () => {
+test('opción B (Marcelo, 18/11): la lectura por área alcanza; sin ella la campanita y el endpoint no leen nada', async () => {
   const {startPendingBell} = await import('../assets/pending-bell-mount.js');
-  for (const missing of ['attendance.area.read', 'time.catalog.read', 'workforce.employee.read']) {
-    const caps = PENDING_BELL_DAILY.capabilities.filter(c => c !== missing);
+  assert.deepEqual([...PENDING_BELL_DAILY.capabilities], ['attendance.area.read']);
+  // Un jefe de área sin catálogo ni lectura de personal ve la campanita diaria.
+  {
+    const h = createAttendanceDailyNoticeHandler({env: {ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'}, now: () => NOW, sessionFor: () => session, dayCount: 1, producer, scopes,
+      requireAccess: async () => ({mode: 'managed', principal: {...principal, tenant: {...principal.tenant, effectiveCapabilities: ['attendance.area.read']}}}), getSql: async () => sql});
+    const res = response(); await h(request(), res); assert.equal(res.statusCode, 200);
+  }
+  for (const missing of ['attendance.area.read']) {
+    const caps = ['time.catalog.read', 'workforce.employee.read', ...PENDING_BELL_DAILY.capabilities].filter(c => c !== missing);
     // Endpoint: the principal's live capabilities are rechecked even if the gateway let it through.
     let connections = 0;
     const h = createAttendanceDailyNoticeHandler({env: {ATTENDANCE_DAILY_NOTICE_ENABLED: 'true'}, now: () => NOW, sessionFor: () => session, dayCount: 1, producer, scopes,
@@ -327,14 +334,11 @@ test('revisión de Codex: una cuenta sin vínculo laboral o autoridad del catál
   assert.equal(result, null); assert.deepEqual(scheduled, [], 'una cuenta rechazada no reintenta cada cinco minutos');
 });
 
-test('revisión de Codex (58457598): la 240 separa la autoridad del actor; listar ámbitos también reconoce una cuenta no elegible', async () => {
-  const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
-  assert.match(sqlText, /catalog_value:=public\.time_catalog_assert_actor_authority_v1\(/);
-  assert.match(sqlText, /EXCEPTION WHEN raise_exception THEN\s+IF SQLERRM IN \('TIME_CATALOG_AUTHORITY_REQUIRED','TIME_CATALOG_CAPABILITY_REQUIRED','TIME_CATALOG_EMPLOYMENT_REQUIRED',\s+'TIME_CATALOG_ASSIGNMENT_CONTRACT_INVALID','TIME_CATALOG_NATIVE_PERIOD_INVALID','TENANT_IAM_SOD_CONFLICT',\s+'TIME_CATALOG_PERSON_SOD_CONFLICT','TIME_CATALOG_SEPARATION_OF_DUTIES'\) THEN\s+RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE'/);
-  // Codex (local): todo código que time_catalog_assert_actor_authority_v1 puede levantar por la cuenta está en el bloque del actor.
-  const actorBlock = sqlText.slice(sqlText.indexOf('catalog_value:=public.time_catalog_assert_actor_authority_v1('), sqlText.indexOf("RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE'"));
-  for (const code of ['TIME_CATALOG_PERSON_SOD_CONFLICT', 'TIME_CATALOG_SEPARATION_OF_DUTIES']) assert.ok(actorBlock.includes("'" + code + "'"), code);
-  assert.match(sqlText, /time_catalog_assignment_view_v2\(catalog_value,entry\.id\)/);
+test('opción B: la 240 no usa la autoridad general del catálogo; listar ámbitos sigue reconociendo una cuenta no elegible', async () => {
+  const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8').replace(/--[^\n]*/g, '');
+  assert.doesNotMatch(sqlText, /time_catalog_assert_actor_authority_v1|ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE/);
+  assert.match(sqlText, /area_value:=public\.attendance_area_workdays_read_v1\(p_context,p_query\)/);
+  // El lector conserva el mapeo por si una instalación anterior de la 240 lo emitiera.
   await assert.rejects(read({producer: async () => { throw new Error('ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE'); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403);
   for (const refusal of ['TENANT_IAM_SOD_CONFLICT', 'ACTION_TENANT_AUTHORITY_REQUIRED'])
     await assert.rejects(read({scopes: async () => { throw new Error(refusal); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403, refusal);

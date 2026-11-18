@@ -267,11 +267,16 @@ test('T4 producer calls one SQL function and its migration scopes approved assig
   const migration = readFileSync(new URL('../scripts/migrations/240-attendance-daily-source.sql', import.meta.url), 'utf8');
   assert.match(migration, /public\.attendance_area_workdays_read_v1\(p_context,p_query\)/);
   assert.match(migration, /scoped_contracts AS MATERIALIZED/);
-  assert.match(migration, /spec\.employment_contract_id=contract\.contract_id::uuid/);
+  assert.match(migration, /spec\.employment_contract_id=scoped\.contract_id/);
   assert.match(migration, /entry\.status='approved'/);
   assert.match(migration, /entry\.effective_from<=\(p_query->>'day'\)::date/);
-  // El contexto del catálogo sale de la autoridad del actor, verificada aparte (revisión de Codex sobre 58457598).
-  assert.match(migration, /time_catalog_assignment_view_v2\(\s*catalog_value,entry\.id\s*\)/);
+  // Opción B (Marcelo, 18/11): sin autoridad general del catálogo ni lectura de personal; proyección mínima sin nombre.
+  const code = migration.replace(/--[^\n]*/g, '');
+  assert.doesNotMatch(code, /time_catalog_assert_actor_authority_v1|time_catalog_assignment_view_v2|payroll_fixed_registry_subject/);
+  assert.match(code, /'target',jsonb_build_object\('contractId',entry\.employment_contract_id,'legajo',contract\.legacy_legajo,'name',NULL\)/);
+  for (const key of ['shift_entry_id', 'calendar_entry_id', 'rule_profile_entry_id'])
+    assert.match(code, new RegExp('time_catalog_entry_snapshot_v1\\(entry\\.' + key + ',entry\\.tenant_id\\)'));
+  assert.match(code, /CASE WHEN contract\.legacy_legajo ~ '\^\[1-9\]\[0-9\]\{0,19\}\$' THEN/);
   assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
 });
