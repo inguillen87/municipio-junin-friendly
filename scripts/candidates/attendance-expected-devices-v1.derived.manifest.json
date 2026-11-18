@@ -34,6 +34,7 @@
         "signature": "public.attendance_area_context_v1(jsonb,text)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_context_v1",
         "owner": null,
         "acl": null
       },
@@ -41,6 +42,7 @@
         "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_assert_scope_v1",
         "owner": null,
         "acl": null
       },
@@ -48,6 +50,7 @@
         "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_history_v1",
         "owner": null,
         "acl": null
       },
@@ -55,6 +58,7 @@
         "signature": "public.time_catalog_native_actor_v2(uuid,uuid,uuid)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "time_catalog_native_actor_v2",
         "owner": null,
         "acl": null
       }
@@ -145,7 +149,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
-    "bytes": 59326,
-    "sha256": "b46b055c0cd3ab59474c75c7ebd9e9068d19cfad7b9412123b8ef0100fe6950b"
+    "bytes": 59549,
+    "sha256": "70782f4394727f7101bba03dfb5e2f55b22c3b85d322fbb86ff21874fc7e1bb6"
   }
 }

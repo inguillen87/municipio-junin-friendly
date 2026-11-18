@@ -34,6 +34,7 @@
         "signature": "public.attendance_area_context_v1(jsonb,text)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_context_v1",
         "owner": null,
         "acl": null
       },
@@ -41,6 +42,7 @@
         "signature": "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_population_v1",
         "owner": null,
         "acl": null
       },
@@ -48,11 +50,53 @@
         "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "attendance_area_history_v1",
         "owner": null,
         "acl": null
       },
       {
         "signature": "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "attendance_expected_devices_effective_v1",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "attendance_area_assert_scope_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "attendance_expected_devices_area_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "attendance_expected_devices_base_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "attendance_expected_devices_date_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "attendance_expected_devices_exact_v1",
         "prosrcSha256": null,
         "kind": "dependency",
         "owner": null,
@@ -70,7 +114,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-workdays-v1.derived.sql.txt",
-    "bytes": 23434,
-    "sha256": "c8b774f4a561ee1925b86cbd2a3e443f9af25caafa91a3242e258b2f5d41bc52"
+    "bytes": 24324,
+    "sha256": "ed0cd4ef4947d29d541444dcb32b87d46e81ce98dd64a15aaf5405a07ff2ca31"
   }
 }

@@ -29,7 +29,72 @@
     "originalStatementsBytePreserved": true
   },
   "preimages": {
-    "functions": [],
+    "functions": [
+      {
+        "signature": null,
+        "function": "attendance_gateway_assert_session_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "digest",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "grh_curated_source_read_lock_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_catalog_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_assert_no_sod_conflict",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_effective_capabilities",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_reject_change",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      },
+      {
+        "signature": null,
+        "function": "time_catalog_native_actor_v2",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null
+      }
+    ],
     "triggers": [],
     "newFunctions": [
       {
@@ -61,7 +126,7 @@
   },
   "output": {
     "path": "scripts/candidates/attendance-area-authority-v1.derived.sql.txt",
-    "bytes": 17527,
-    "sha256": "92e8efc3e13291f2e2f0c4874bddf28283be49e947876c6a7326dd0033f38346"
+    "bytes": 18575,
+    "sha256": "473485bd3ace13daa811bc6deef8a1da321c3b0d9bfa22637a93c78af7bc9f8e"
   }
 }
