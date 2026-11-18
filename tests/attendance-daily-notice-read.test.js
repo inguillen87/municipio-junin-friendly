@@ -326,3 +326,19 @@ test('revisión de Codex: una cuenta sin vínculo laboral o autoridad del catál
   const result = await startPendingBell(doc, async url => url === '/api/internal-auth' ? auth : getJson(url), {retry: (fn, ms) => scheduled.push(ms)});
   assert.equal(result, null); assert.deepEqual(scheduled, [], 'una cuenta rechazada no reintenta cada cinco minutos');
 });
+
+test('revisión de Codex (58457598): la 240 separa la autoridad del actor; listar ámbitos también reconoce una cuenta no elegible', async () => {
+  const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
+  assert.match(sqlText, /catalog_value:=public\.time_catalog_assert_actor_authority_v1\(/);
+  assert.match(sqlText, /EXCEPTION WHEN raise_exception THEN\s+IF SQLERRM IN \('TIME_CATALOG_AUTHORITY_REQUIRED','TIME_CATALOG_CAPABILITY_REQUIRED','TIME_CATALOG_EMPLOYMENT_REQUIRED',\s+'TIME_CATALOG_ASSIGNMENT_CONTRACT_INVALID','TIME_CATALOG_NATIVE_PERIOD_INVALID','TENANT_IAM_SOD_CONFLICT'\) THEN\s+RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE'/);
+  assert.match(sqlText, /time_catalog_assignment_view_v2\(catalog_value,entry\.id\)/);
+  await assert.rejects(read({producer: async () => { throw new Error('ATTENDANCE_DAILY_SOURCE_ACTOR_NOT_ELIGIBLE'); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403);
+  for (const refusal of ['TENANT_IAM_SOD_CONFLICT', 'ACTION_TENANT_AUTHORITY_REQUIRED'])
+    await assert.rejects(read({scopes: async () => { throw new Error(refusal); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403, refusal);
+  // Los mismos códigos sueltos de una asignación concreta siguen siendo un área sin respuesta.
+  for (const areaLevel of ['TIME_CATALOG_ASSIGNMENT_CONTRACT_INVALID', 'TIME_CATALOG_NATIVE_PERIOD_INVALID']) {
+    const data = await read({producer: async () => { throw new Error(areaLevel); }});
+    assert.equal(data.ready, true, areaLevel); assert.ok(data.failedScopes >= 1, areaLevel);
+  }
+  await assert.rejects(read({scopes: async () => { throw new Error('boom'); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID' && e.status === 503);
+});
