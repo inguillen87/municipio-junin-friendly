@@ -1,0 +1,26 @@
+{
+  "version": "municontrol-install-composition-attestation.v1",
+  "description": "Unobserved installed owner, ACL and enabled-trigger pins are deliberately unset. Codex must supply inspected exact preimages through separately reviewed source changes; no repository SHA proves installed metadata.",
+  "sources": {
+    "attendance-area-authority": {
+      "functions": {},
+      "triggers": {}
+    },
+    "attendance-expected-devices": {
+      "functions": {},
+      "triggers": {}
+    },
+    "attendance-area-history": {
+      "functions": {},
+      "triggers": {}
+    },
+    "attendance-area-workdays": {
+      "functions": {},
+      "triggers": {}
+    },
+    "employment-job-title-writers": {
+      "functions": {},
+      "triggers": {}
+    }
+  }
+}
