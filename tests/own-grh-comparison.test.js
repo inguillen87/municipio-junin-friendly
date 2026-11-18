@@ -130,7 +130,7 @@ test('el límite es de la comparación completa: si no entra entera, no se compa
 // Lectura por legajo de la liquidación GRH (migración 242) y su fachada.
 import {internalOwnGrhStatementLines,OWN_GRH_STATEMENT_LINES_SQL} from '../lib/internal-own-grh-statement-lines.js';
 import {capabilitiesForInternalDataResource} from '../lib/internal-resource-access.js';
-const uid=id(1),principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid,membershipId:uid,effectiveCapabilities:['payroll.read','workforce.employee.read']}};
+const uid=id(1),principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid,membershipId:uid,effectiveCapabilities:['actions.read','payroll.read','workforce.employee.read']}};
 const session={email:'qa@example.invalid',id:uid,version:1,releaseSha:'c'.repeat(40)};
 // Forma de transporte de la 242: catálogo de conceptos una vez y renglones [código, importe, cantidad].
 const compact=grh=>{const concepts={};for(const s of grh.statements)for(const l of s.lines)concepts[l.code]={description:l.description,totalGroup:l.totalGroup,unit:l.unit};
@@ -138,7 +138,7 @@ const compact=grh=>{const concepts={};for(const s of grh.statements)for(const l 
 const answer=()=>{const {grh}=setup(2);return {...compact(grh),found:true,datasetId:uid};};
 
 test('la fachada lee con la sesión autenticada, exige ambas capacidades y devuelve sólo el contrato',async()=>{
- assert.deepEqual(capabilitiesForInternalDataResource('owngrhstatementlines'),['workforce.employee.read','payroll.read']);
+ assert.deepEqual(capabilitiesForInternalDataResource('owngrhstatementlines'),['actions.read','workforce.employee.read','payroll.read']);
  let seen;const sql={query:async(text,args)=>{seen={text,args};const a=answer();a.secret='no';a.statements[0].name='Persona';a.statements[0].lines[0].push('extra');Object.values(a.concepts)[0].internal='no';return [{result:a}];}};
  const r=await internalOwnGrhStatementLines(sql,{query:{resource:'owngrhstatementlines',datasetId:uid}},principal,session);
  assert.equal(r.status,200);assert.equal(seen.text,OWN_GRH_STATEMENT_LINES_SQL);assert.deepEqual(seen.args,['qa@example.invalid',uid,1,'c'.repeat(40),uid,uid,uid]);
@@ -221,4 +221,16 @@ test('revisión de ChatGPT: la 242 canoniza importes sin cambiar su valor, no no
  assert.match(s,/CHECK\(outcome IN \('success','not_found','too_large'\)\)/);
  assert.match(s,/octet_length\(answer::text\)>3800000[\s\S]{0,400}'too_large'[\s\S]{0,300}'tooLarge',true/);
  assert.ok(s.indexOf("'too_large'")<s.lastIndexOf("'success'"),'el éxito se audita sólo si la respuesta entra');
+});
+
+test('revisión de Codex: la fachada pide actions.read y traduce los rechazos de la base sin filtrar detalles',async()=>{
+ const never={query:()=>assert.fail('no debe leer')};
+ for(const missing of ['actions.read','payroll.read','workforce.employee.read'])
+  assert.equal((await internalOwnGrhStatementLines(never,{query:{datasetId:uid}},{...principal,tenant:{...principal.tenant,effectiveCapabilities:principal.tenant.effectiveCapabilities.filter(c=>c!==missing)}},session)).status,403,missing);
+ for(const [message,status]of [['ACTION_SESSION_INVALID',401],['ACTION_RELEASE_NOT_CERTIFIED',401],['ACTION_TENANT_AUTHORITY_REQUIRED',403],['ACTION_SOURCE_BINDING_REQUIRED',403],
+   ['OWN_GRH_STATEMENT_LINES_CAPABILITY_REQUIRED',403],['OWN_GRH_STATEMENT_LINES_SOURCE_INCOMPLETE',422],['ACTION_SESSION_BUSY',503]]){
+  const r=await internalOwnGrhStatementLines({query:async()=>{throw new Error(message);}},{query:{datasetId:uid}},principal,session);
+  assert.equal(r.status,status,message);assert.equal(r.payload.ok,false);assert.doesNotMatch(JSON.stringify(r.payload),/ACTION_|OWN_GRH_STATEMENT_LINES_(?!SOURCE_INCOMPATIBLE)/);
+ }
+ await assert.rejects(internalOwnGrhStatementLines({query:async()=>{throw new Error('connection reset');}},{query:{datasetId:uid}},principal,session),/connection reset/);
 });
