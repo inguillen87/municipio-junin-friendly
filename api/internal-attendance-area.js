@@ -8,9 +8,13 @@ import {EXPECTED_DEVICES_READ, expectedDevicesExact} from '../assets/attendance-
 import {expectedDevicesContext} from '../lib/internal-attendance-expected-devices.js';
 import {attendanceAreaQuery, attendanceAreaFail, attendanceAreaRead, attendanceAreaSafeError} from '../lib/internal-attendance-area.js';
 export const config = {api: {bodyParser: false}};
+const ATTENDANCE_AREA_MAX_QUERY_BYTES = 8192;
 export function attendanceAreaHttpQuery(req) {
   const q = req.query ?? {};
-  if (!expectedDevicesExact(q, ['resource', 'area', 'day', 'site'], ['snapshot']) || Object.values(q).some(v => typeof v !== 'string') || q.area.length > 256)
+  if (req.url && Buffer.byteLength(req.url, 'utf8') > ATTENDANCE_AREA_MAX_QUERY_BYTES)
+    attendanceAreaFail('LIMIT', 413, 'La consulta supera el límite técnico de tamaño.');
+  if (!expectedDevicesExact(q, ['resource', 'area', 'day', 'site'], ['snapshot']) || Object.values(q).some(v => typeof v !== 'string')
+    || q.area.length > 256 || q.day.length !== 10 || q.site.length > 96 || q.snapshot !== undefined && q.snapshot.length > 36)
     attendanceAreaFail('QUERY_INVALID', 400, 'Indicá área, sede y día explícitos.');
   if (req.url) {
     const pairs = [...new URL(req.url, 'http://local.invalid').searchParams];
