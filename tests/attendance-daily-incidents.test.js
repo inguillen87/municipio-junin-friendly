@@ -277,6 +277,16 @@ test('T4 producer calls one SQL function and its migration scopes approved assig
   for (const key of ['shift_entry_id', 'calendar_entry_id', 'rule_profile_entry_id'])
     assert.match(code, new RegExp('time_catalog_entry_snapshot_v1\\(entry\\.' + key + ',entry\\.tenant_id\\)'));
   assert.match(code, /CASE WHEN contract\.legacy_legajo ~ '\^\[1-9\]\[0-9\]\{0,19\}\$' THEN/);
+  // Gemini review: shift/calendar/rule_profile must also be approved, in-validity and on the certified binding,
+  // and any unprojected assignment must force catalog.complete=false (never silently disambiguate).
+  for (const [alias, kind] of [['shift_entry', 'shift'], ['calendar_entry', 'calendar'], ['rule_entry', 'rule_profile']]) {
+    assert.match(code, new RegExp(alias + "\\.certified_binding_id=binding_id AND " + alias + "\\.catalog_kind='" + kind + "'"));
+    assert.match(code, new RegExp(alias + "\\.status='approved'"));
+    assert.match(code, new RegExp(alias + "\\.effective_from<=\\(p_query->>'day'\\)::date"));
+  }
+  assert.match(code, /NOT EXISTS \(SELECT 1 FROM assignment_views WHERE assignment IS NULL\)/);
+  assert.match(code, /contract\.source_system='MUNICONTROL' AND contract\.source_batch_id IS NULL/);
+  assert.match(code, /JOIN public\.tenant_identity_policy policy/);
   assert.match(migration, /time_catalog_entry_snapshot_v1\(entry\.id,entry\.tenant_id\)/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.attendance_daily_source_read_v1/);
 });

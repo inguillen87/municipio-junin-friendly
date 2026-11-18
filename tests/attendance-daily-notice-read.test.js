@@ -349,3 +349,41 @@ test('opción B: la 240 no usa la autoridad general del catálogo; listar ámbit
   }
   await assert.rejects(read({scopes: async () => { throw new Error('boom'); }}), e => e.code === 'ATTENDANCE_DAILY_NOTICE_SCOPES_INVALID' && e.status === 503);
 });
+
+test('Gemini review: el productor normaliza parámetros numéricos de PostgreSQL sin redondear y rechaza strings alterados', async () => {
+  const {produceAttendanceDailySource} = await import('../lib/internal-attendance-daily-source.js');
+  const {catalogRecord} = await import('./fixtures/attendance-daily-incidents-synthetic.js');
+  const area = await import('./fixtures/attendance-area-synthetic.js');
+  const aSrc = area.areaSource(), cid = aSrc.population.contracts[0].id;
+  const shift = catalogRecord('shift', 11, {entryToleranceSeconds: 0, exitToleranceSeconds: 0, intervals: [{day: 6, sequence: 1, kind: 'work', start: '07:00:00', end: '13:00:00', crossesMidnight: false}]});
+  const calendar = catalogRecord('calendar', 12, {days: [{date: area.AREA_DAY, kind: 'working', code: 'qa_workday', evidencePresent: true}]});
+  const record = catalogRecord('assignment', 14, {targetType: 'canonical_employment_contract', targetProjected: false, shiftRevision: 1, calendarRevision: 1, ruleProfileRevision: 1});
+  // Exact PostgreSQL jsonb_build_object output: bigint/numeric(20,6) serialized as JSON numbers (including >2^53).
+  const rawSqlJson = JSON.stringify({
+    area: aSrc,
+    catalog: {complete: true, assignments: [{record, assignment: {target: {contractId: cid, legajo: '9001', name: null}, shift, calendar,
+      ruleProfile: catalogRecord('rule_profile', 13, {parameters: [
+        {key: 'attendance.daily_observation_rule', valueKind: 'code', unitCode: 'rule', codeValue: 'single_work_interval.v1'},
+        {key: 'attendance.daily_close_delay_seconds', valueKind: 'integer', unitCode: 'seconds', integerValue: '__INT__'},
+        {key: 'attendance.precision_bigint_check', valueKind: 'integer', unitCode: 'seconds', integerValue: '__BIG__'},
+        {key: 'attendance.precision_decimal_check', valueKind: 'decimal', unitCode: 'ratio', decimalValue: '__DEC__'},
+      ]})}}]},
+    transaction: {isolation: 'repeatable read', readOnly: 'off', snapshot: '731:731:'},
+  }).replace('"__INT__"', '3600').replace('"__BIG__"', '9007199254740993').replace('"__DEC__"', '1.500000');
+  const fakeSql = json => ({async transaction(fn) { fn({query: () => ({})}); return [[{result: json}]]; }});
+  const cut = await produceAttendanceDailySource(fakeSql(rawSqlJson), area.principal, area.session, area.areaQuery());
+  const params = cut.catalog.assignments[0].assignment.ruleProfile.configuration.parameters;
+  assert.equal(params.find(p => p.key === 'attendance.daily_close_delay_seconds').integerValue, '3600');
+  assert.equal(params.find(p => p.key === 'attendance.precision_bigint_check').integerValue, '9007199254740993');
+  assert.equal(params.find(p => p.key === 'attendance.precision_decimal_check').decimalValue, '1.5');
+  // Un parámetro entero devuelto como string desde SQL altera el contrato y se rechaza.
+  const drifted = rawSqlJson.replace('3600', '"3600"');
+  await assert.rejects(produceAttendanceDailySource(fakeSql(drifted), area.principal, area.session, area.areaQuery()), e => e.code === 'ATTENDANCE_DAILY_SOURCE_UNAVAILABLE');
+});
+
+test('Gemini review: ATTENDANCE_AREA_CAPABILITY_REQUIRED desde SQL devuelve 403 con mensaje acorde a opción B', async () => {
+  await assert.rejects(read({scopes: async () => { throw new Error('ATTENDANCE_AREA_CAPABILITY_REQUIRED'); }}),
+    e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403 && !/catálogo horario|vínculo laboral/i.test(e.message));
+  await assert.rejects(read({producer: async () => { throw new Error('ATTENDANCE_AREA_CAPABILITY_REQUIRED'); }}),
+    e => e.code === 'ATTENDANCE_DAILY_NOTICE_ACTOR_NOT_ELIGIBLE' && e.status === 403);
+});

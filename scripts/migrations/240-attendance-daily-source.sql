@@ -19,6 +19,8 @@ BEGIN
     OR to_regclass('public.time_catalog_entry') IS NULL
     OR to_regclass('public.time_assignment_spec') IS NULL
     OR to_regclass('public.employment_contract') IS NULL
+    OR to_regclass('public.platform_tenant_source_binding') IS NULL
+    OR to_regclass('public.tenant_identity_policy') IS NULL
     OR to_regrole('municontrol_actions_runtime_app') IS NULL THEN
     RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_PREREQUISITE';
   END IF;
@@ -35,13 +37,17 @@ SET search_path=pg_catalog,public,pg_temp
 SET timezone='UTC'
 AS $$
 DECLARE
-  result_value jsonb; area_value jsonb; binding_id uuid;
+  result_value jsonb; area_value jsonb; binding_id uuid; binding_company bigint;
 BEGIN
   -- Inside the producer's REPEATABLE READ transaction every statement below shares one snapshot.
   -- This call is the authority: attendance.area.read for this exact area, session and release.
   area_value:=public.attendance_area_workdays_read_v1(p_context,p_query);
-  SELECT source.id INTO binding_id
+  SELECT source.id,source.source_company_id INTO binding_id,binding_company
   FROM public.platform_tenant_source_binding source
+  JOIN public.tenant_identity_policy policy
+    ON policy.tenant_id=source.tenant_id
+   AND policy.certified_source_binding_id=source.id
+   AND policy.tenant_data_plane_ready IS TRUE
   WHERE source.id=(area_value->'principal'->>'sourceBindingId')::uuid
     AND source.tenant_id=(area_value->'principal'->>'tenantId')::uuid
     AND source.source_system='GRH' AND source.verified IS TRUE;
@@ -65,22 +71,48 @@ BEGIN
       AND entry.effective_from<=(p_query->>'day')::date
       AND (entry.effective_to IS NULL OR entry.effective_to>=(p_query->>'day')::date)
   ), assignment_views AS MATERIALIZED (
-    -- Minimized projection: no name. A contract without a valid own legajo yields no assignment,
-    -- so the catalog is declared incomplete and the evaluator blocks instead of guessing.
+    -- Minimized projection: no name. Only approved, in-validity shift/calendar/rule_profile entries
+    -- on the certified binding and contracts with a valid own legajo are projected; any invalid or
+    -- retired dependency yields NULL and marks catalog.complete=false (fail-closed, never disambiguated).
     SELECT entry.id,entry.employment_contract_id,
       public.time_catalog_entry_snapshot_v1(entry.id,entry.tenant_id) AS record,
-      CASE WHEN contract.legacy_legajo ~ '^[1-9][0-9]{0,19}$' THEN jsonb_build_object(
-        'target',jsonb_build_object('contractId',entry.employment_contract_id,'legajo',contract.legacy_legajo,'name',NULL),
-        'shift',public.time_catalog_entry_snapshot_v1(entry.shift_entry_id,entry.tenant_id),
-        'calendar',public.time_catalog_entry_snapshot_v1(entry.calendar_entry_id,entry.tenant_id),
-        'ruleProfile',public.time_catalog_entry_snapshot_v1(entry.rule_profile_entry_id,entry.tenant_id)) END AS assignment
+      CASE WHEN shift_entry.id IS NOT NULL
+        AND calendar_entry.id IS NOT NULL
+        AND rule_entry.id IS NOT NULL THEN
+        CASE WHEN contract.legacy_legajo ~ '^[1-9][0-9]{0,19}$' THEN jsonb_build_object(
+          'target',jsonb_build_object('contractId',entry.employment_contract_id,'legajo',contract.legacy_legajo,'name',NULL),
+          'shift',public.time_catalog_entry_snapshot_v1(entry.shift_entry_id,entry.tenant_id),
+          'calendar',public.time_catalog_entry_snapshot_v1(entry.calendar_entry_id,entry.tenant_id),
+          'ruleProfile',public.time_catalog_entry_snapshot_v1(entry.rule_profile_entry_id,entry.tenant_id)) END
+      END AS assignment
     FROM assignment_entries entry
     LEFT JOIN public.employment_contract contract
       ON contract.id=entry.employment_contract_id AND contract.tenant_id=entry.tenant_id
+     AND contract.source_system='MUNICONTROL' AND contract.source_batch_id IS NULL
+     AND contract.status='active' AND contract.legacy_company_id=binding_company
+    LEFT JOIN public.time_catalog_entry shift_entry
+      ON shift_entry.id=entry.shift_entry_id AND shift_entry.tenant_id=entry.tenant_id
+     AND shift_entry.certified_binding_id=binding_id AND shift_entry.catalog_kind='shift'
+     AND shift_entry.status='approved'
+     AND shift_entry.effective_from<=(p_query->>'day')::date
+     AND (shift_entry.effective_to IS NULL OR shift_entry.effective_to>=(p_query->>'day')::date)
+    LEFT JOIN public.time_catalog_entry calendar_entry
+      ON calendar_entry.id=entry.calendar_entry_id AND calendar_entry.tenant_id=entry.tenant_id
+     AND calendar_entry.certified_binding_id=binding_id AND calendar_entry.catalog_kind='calendar'
+     AND calendar_entry.status='approved'
+     AND calendar_entry.effective_from<=(p_query->>'day')::date
+     AND (calendar_entry.effective_to IS NULL OR calendar_entry.effective_to>=(p_query->>'day')::date)
+    LEFT JOIN public.time_catalog_entry rule_entry
+      ON rule_entry.id=entry.rule_profile_entry_id AND rule_entry.tenant_id=entry.tenant_id
+     AND rule_entry.certified_binding_id=binding_id AND rule_entry.catalog_kind='rule_profile'
+     AND rule_entry.status='approved'
+     AND rule_entry.effective_from<=(p_query->>'day')::date
+     AND (rule_entry.effective_to IS NULL OR rule_entry.effective_to>=(p_query->>'day')::date)
   ), catalog AS MATERIALIZED (
     SELECT jsonb_build_object(
       'complete',
-      (SELECT count(*) FROM scoped_contracts)=
+      NOT EXISTS (SELECT 1 FROM assignment_views WHERE assignment IS NULL)
+      AND (SELECT count(*) FROM scoped_contracts)=
         (SELECT count(DISTINCT employment_contract_id) FROM assignment_views WHERE assignment IS NOT NULL),
       'assignments',
       COALESCE((SELECT jsonb_agg(jsonb_build_object('record',record,'assignment',assignment)
