@@ -156,7 +156,14 @@ En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el conv
 | Conceptos que GRH liquidó y MuniControl no | 44 (37 personas), 95 (25), 80 (19, asignación familiar), 300 a 309, 602 a 678 y otros: son novedades y descuentos de octubre que nunca se cargaron en MuniControl |
 | Aportes y contribuciones (600, 601, 604, 685, 701, 703) | Distintos en 67 o 68 personas, porque la base sobre la que se calculan difiere |
 
-Qué deja esto en claro: el motor, la captura, la verificación en la base y el guardado funcionan de punta a punta. Lo que separa a MuniControl de GRH en octubre es, en este orden: las **novedades y descuentos del mes sin cargar**, los datos por persona sin informar, el básico de 38 personas (a estudiar: proporcionales o categoría) y un redondeo de un centavo en cuatro conceptos.
+Qué deja esto en claro: el motor, la captura, la verificación en la base y el guardado funcionan de punta a punta. Lo que separa a MuniControl de GRH en octubre es, en este orden: las **novedades y descuentos del mes sin cargar**, los datos por persona sin informar, y cinco importes del catálogo salarial corridos en centavos, que arrastran un centavo a otros cinco conceptos.
+
+**Estudio de las diferencias (sólo distribuciones).**
+
+- **Básico.** No es proporcional por días ni una categoría mal asignada: es el valor del catálogo salarial, corrido en centavos y constante por categoría. Categorías 8 y 10: igual (38 personas). Categoría 12: MuniControl 1 centavo por debajo de GRH (12 personas). Categoría 3: 1 centavo por debajo (4). Categoría 6: 2 centavos por debajo (10). Categoría 9: 1 centavo por encima (11). Categoría 13: 3 centavos por encima (1). Corregir esos cinco importes en el catálogo de octubre deja el básico igual en las 76 personas que lo cobran en ambos sistemas.
+- **Conceptos 48, 50, 51, 52 y 58.** Difieren en 1 o 2 centavos, hacia los dos lados. Es el arrastre del básico, no un modo de redondeo distinto.
+- **Concepto 144.** GRH paga el importe de MuniControl multiplicado por 2 (18 personas), 1,5 (5), 1,3 (3) y otros factores. Coincide con el adicional por mayor dedicación, que en la copia se cargó en «no» para todos.
+- **Tres personas con básico sólo en MuniControl.** Tienen recibo de GRH sin básico; falta cargar su situación del mes (licencia o ausencia).
 
 **Riesgo de rendimiento encontrado.** Verificar y guardar esa corrida de 81 personas llevó unos cinco minutos en la copia (resultado de 17 MB). La función publicada que calcula y guarda no declara su límite de tiempo. Con ese tiempo una corrida de este tamaño puede cortarse antes de guardarse, y un convenio de 292 personas no entra. Hay que medirlo en la base operativa y, según dé, declarar el límite, aligerar la verificación o pasarla a un trabajo en segundo plano.
 
