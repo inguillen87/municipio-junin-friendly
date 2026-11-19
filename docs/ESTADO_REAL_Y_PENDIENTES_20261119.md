@@ -272,3 +272,10 @@ La causa encontrada es otra. La máquina de Oracle entra a la red municipal con 
 **Convenio 6 calculado en la copia de ensayo (19/11, no oficial).** Con el tope de captura subido en la copia (prueba de la migración 246, huellas en el PR 270) y los insumos del 6 cargados como ensayo (jornada 180 h igual que el 1 según GRH, antigüedad desde las unidades del concepto 48, familia desde el recibo de GRH, novedades de octubre de legamov), las 292 personas se calcularon en tres tandas de 100. Coinciden con GRH 3.807 de 4.815 celdas persona×concepto (79 %) y 77 personas completas. Faltan la regla 44 propia del 6 (suma `R[59]`), las novedades fijas 80/56/607 del 6, revisar 95 y básico, y la política de las forzadas.
 
 Con la regla 44 propia del 6 y las novedades fijas 80/56 cargadas en la copia, el convenio 6 llega a 4.254 de 4.816 celdas iguales a GRH (88 %) y 95 de 292 personas completas. Queda revisar 95 (full time), 144, 607 (seguro mutual del cónyuge) y las deducciones que arrastran la base.
+
+## Producción, 19/11 a la tarde
+
+Candidato 9 publicado (las únicas fallas de verificación fueron de infraestructura). Con la planilla pegada con columna de concepto se cargaron en la sesión del titular las 304 novedades de octubre del convenio 1 (74 contratos, 20 conceptos, todos los legajos encontrados); el lote quedó **enviado a revisión** y lo aprueba otra persona con su propio usuario. El PR 304 pasó al candidato 10 (carga conjunta de novedades fijas y migración 246), con la suite completa en verde; la 246 no está instalada en producción.
+
+**Para seguir con octubre del convenio 1 en producción:** (1) otra persona aprueba el lote de 304 filas; (2) una cuenta de liquidación prepara las 24 novedades fijas 80/56/57 (con el candidato 10, de una sola vez desde la planilla privada) y el titular las aprueba; (3) declaración familiar y condiciones salariales del convenio 1, preparadas por una cuenta de liquidación; (4) calcular por tandas de hasta 100 personas y comparar con GRH.
+
