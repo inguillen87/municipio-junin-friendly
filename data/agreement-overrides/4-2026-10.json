@@ -1,0 +1,38 @@
+{
+  "version": "own-program-agreement-overrides.v1",
+  "source": "1",
+  "target": "4",
+  "period": "2026-10",
+  "reference": "GRH codliq 28/10, convenio 4",
+  "changes": [
+    {
+      "id": "c4.44.add-59",
+      "collection": "rules",
+      "code": "44",
+      "liquidationType": "monthly",
+      "match": {"op": "add"},
+      "action": "add",
+      "value": {"op": "concept", "code": "59", "stage": "exact"}
+    },
+    {
+      "id": "c4.649.amount-source",
+      "collection": "rules",
+      "code": "649",
+      "liquidationType": "monthly",
+      "match": {"op": "input", "binding": {"sourceKind": "monthly_amount", "sourceCode": "649", "unit": "money"}},
+      "action": "useAsExpression"
+    }
+  ],
+  "unresolved": [
+    {
+      "code": "48",
+      "reference": "GRH codliq 28/10, convenio 4: L[24] > 0.06 || L[27] > 0.06",
+      "reason": "Faltan las entradas y unidades declaradas de L[24] y L[27]. Con unidad común, compare(max(a,b),0.06) expresa la condición; no se inventa su enlace."
+    },
+    {
+      "code": "670",
+      "reference": "GRH codliq 28/10, convenio 4: L[196]",
+      "reason": "Falta el enlace explícito de L[196] a una entrada propia y su unidad. No se deduce un hecho laboral, parámetro o escala por el número."
+    }
+  ]
+}
