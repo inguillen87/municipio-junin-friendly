@@ -194,7 +194,19 @@ Para calcular octubre del convenio 1 faltan, en este orden: aprobar el programa;
 
 Además, por conteo de filas: 8.744 renglones de cálculo nuevos (la liquidación de noviembre tipo V), 2.677 movimientos de legajo, 22 ausencias, 16 asientos de foja y 1 embargo. La liquidación mensual de noviembre figura abierta en GRH a esa fecha. **Cargada en la base operativa el 19/11, con decisión expresa de Marcelo y respaldo previo: la liquidación de noviembre 2026 tipo V (cerrada), 539 recibos y 8.260 renglones.** Se usó la entrega gobernada de siempre: extracción privada con `scripts/extract-grh-payroll-detail.py`, contenido cifrado, preautorización de la entrega con sus huellas y envío por `api/payroll-source-delivery`. Ensayada antes en una copia con el mismo contenido. La respuesta y la base coinciden: 539 recibos, 8.260 renglones, sin modificar ninguna nómina; la entrega quedó aplicada y su frase borrada.
 
-La liquidación mensual de noviembre (843 recibos, 19.730 renglones) **no se cargó**: en GRH figura abierta y puede cambiar. Falta además el resto del respaldo, que va por el procedimiento de reemplazo de fuente: el alta, los 4 cambios de estado, los movimientos y las ausencias (extracción estricta del núcleo, análisis de sucesor, ensayo e incorporación con revisión).
+La liquidación mensual de noviembre (843 recibos, 19.730 renglones) **no se cargó**: en GRH figura abierta y puede cambiar. **Octubre no cambió.** Las cuatro liquidaciones de octubre (F, M, O y V) son idénticas recibo por recibo entre el corte del 28/10 y el del 9/11: lo que MuniControl tiene de octubre es definitivo.
+
+**Novedades de personal de GRH que el padrón propio todavía no refleja** (cruce por legajo contra la base operativa, sólo conteos). El núcleo de personal de MuniControl viene del corte del 10/09 y desde la adopción se mantiene con cargas propias, así que estas novedades se cargan en Personal, con su aprobación:
+
+| Novedad en GRH entre el 28/10 y el 9/11 | Cantidad | En MuniControl |
+|---|---|---|
+| Alta (ingreso 1/11, convenio 6) | 1 | No existe |
+| Baja (egreso 1/11, 1/11 y 9/11) | 3 | Siguen activos |
+| Reingreso (GRH quitó el egreso de febrero) | 1 | Sigue inactivo |
+| Cambio de convenio (del 1 al 2) | 1 | Sigue en el 1 |
+| Cambio de cuenta bancaria | 2 | Sin reflejar |
+
+La lista con los legajos quedó en un archivo privado en la PC de Marcelo, para Noelia; no se publica. Los movimientos (2.677) y las ausencias (22) nuevas son insumo de noviembre.
 
 **Oracle (19/11).** Con la consola abierta por Marcelo, sólo lectura: la máquina del colector de relojes está encendida (Ubuntu 24.04, creada el 23/09) y con actividad sostenida, cerca del 20 % de procesador y 22 % de memoria durante la última hora. La cuenta muestra que la prueba gratuita terminó y que sólo siguen los recursos «Always Free»; la máquina tiene esa forma. No se entró por SSH.
 
