@@ -138,7 +138,11 @@ En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el conv
 3. Con la 245 instalada en la copia, la captura se rechaza con `OWN_RUN_SALARY_NATIVE_APPROVAL_REQUIRED`: el programa nuevo usa cuatro condiciones salariales que nadie cargó todavía (adicional docente, importe de referencia docente, vivienda o mayor dedicación, días base del mes). Se cargan de una vez para todos los contratos elegidos: una persona propone y otra aprueba. En la copia se hizo con valores neutros para los 81 contratos y funcionó.
 4. La captura del convenio 1 pasa: 81 personas, con los dos lotes de novedades incluidos.
 5. El motor se detiene con `SOURCE_VALUE_MISSING`: la antigüedad de octubre está aprobada para los 848 contratos, pero **332 quedaron con los años «sin informar»**, y el motor no supone cero. Por convenio: 1 → 5 de 81; 2 → 1 de 23; 3 → 1 de 1; 4 → 26 de 158; 5 → 166 de 166; 6 → 22 de 292; 7 → 2 de 10; 9 → 1 de 1; 11 → 4 de 12; 12 → 44 de 44; 13 → 56 de 56; 14 → 4 de 4. Sólo bloquea donde la fórmula del convenio usa la antigüedad. En la copia se cargó 0 para los 5 del convenio 1 con el comando real (propone una persona, aprueba otra) y funcionó.
-6. El motor se detiene con `INPUT_MISSING` al pedir el dato familiar «cónyuge»: **los hechos familiares de octubre sólo están aprobados para 2 personas**; a 79 de las 81 del convenio 1 les faltan (cónyuge, hijos por nivel escolar, discapacidad, familia numerosa, prenatal). Hasta ahí llegó el ensayo.
+6. El motor se detiene con `INPUT_MISSING` al pedir el dato familiar «cónyuge». La declaración familiar de octubre **está aprobada para los 81 contratos, pero con las doce cantidades «sin informar» en 79 de ellos** (cónyuge, hijos por nivel escolar, discapacidad, familia numerosa, prenatal, personas a cargo); además nadie tiene informados los meses de ajuste prenatal, la región ni el promedio semestral. En la copia se completaron con cero las cantidades de los 79 con el comando real y funcionó.
+7. El motor pide entonces los meses de ajuste prenatal (sin informar en los 81). Completados con cero en la copia.
+8. El motor pide la antigüedad parcial (`partialSeniorityYears`), que está aprobada «sin informar» en los 81 contratos. Hasta ahí llegó el ensayo. Quedan sin valor, y pueden ser lo siguiente que pida una fórmula: el importe de referencia docente y dos datos docentes (81), el código y el porcentaje de título (27) y las nueve tarifas familiares (81).
+
+El patrón es uno solo: las cargas de octubre se aprobaron en bloque con muchos campos «sin informar», y las fórmulas del convenio 1 piden un valor explícito en cada uno, aunque sea cero. El motor avisa de a un dato por vez.
 
 Dos cosas del producto que el ensayo dejó a la vista y todavía no están resueltas:
 
@@ -147,6 +151,6 @@ Dos cosas del producto que el ensayo dejó a la vista y todavía no están resue
 
 En la base operativa no se aprobó ni se cargó nada. La migración 245 **quedó instalada el 19/11**, con decisión expresa y respaldo previo, y verificada.
 
-Para calcular octubre del convenio 1 faltan, en este orden: aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; cargar y aprobar los hechos familiares de las 79 personas que faltan; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
+Para calcular octubre del convenio 1 faltan, en este orden: aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; informar las cantidades familiares de 79 personas y los meses de ajuste prenatal de las 81; informar la antigüedad parcial de las 81; lo que el motor pida después; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
 
 **Respaldo de GRH del 10/11.** No fue entregado todavía.
