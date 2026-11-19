@@ -68,3 +68,13 @@ test('the complete V6 origin note stays together within the page margins on a lo
  assert.ok(end>start);const origin=notes.slice(start,end);assert.equal(origin.map(op=>op.text).join(' '),V6_ORIGIN);
  for(const op of origin){assert.equal(op.size,7.5);assert.ok(op.x>=38&&op.x+ownReceiptTextWidth(op.text,op.size,op.bold)<=557.01);assert.ok(op.y>64,'the note stays above the footer');}
 });
+
+test('V6: pie «Página X de Y» y render determinista, sin fecha de generación variable',()=>{
+ const b=fixture(6),snap=b.snapshot,r=snap.records[0],source=snap.sources[0];
+ const a=ownReceiptPages(r,snap.params,source,{state:'prepared',batchId:'QA-FIJO'});
+ const again=ownReceiptPages(r,snap.params,source,{state:'prepared',batchId:'QA-FIJO'});
+ assert.deepEqual(a,again,'idéntica representación al regenerar el mismo recibo');
+ const shown=a.map(page=>page.flatMap(op=>[...op.matchAll(/<([a-f0-9]+)> Tj/g)].map(m=>Buffer.from(m[1],'hex').toString('latin1'))));
+ for(const [i,parts]of shown.entries())assert.ok(parts.includes('Página '+(i+1)+' de '+a.length),'numeración V6');
+ assert.ok(shown.flat().every(part=>!/^(?:PDF generado|Emitido )/.test(part)),'no contiene fecha de reloj');
+});

@@ -102,7 +102,7 @@ export function createReportPdf({title = 'Informe', subtitle = '', footer = '', 
     const parts=columns.map((c,i)=>fit(r[i],widths[i],false)),totalLines=Math.max(...parts.map(lines=>lines.length));
     const normalHeight=totalLines*leading+pad*2,freshHeight=A4.h-46-headerHeight-(M+18);
     if(normalHeight<=freshHeight&&y-normalHeight<M+18){newPage();head();}
-    let offset=0;const totalRow=/^(?:total|totales|subtotal)(?:\\b|\\s|:)/i.test(String(r[0]??''));
+    let offset=0;const totalRow=/^(?:total|totales|subtotal)(?:\b|\s|:)/i.test(String(r[0]??''));
     while(offset<totalLines){
      let capacity=Math.floor((y-(M+18)-pad*2)/leading);
      if(capacity<1){newPage();head();capacity=Math.floor((y-(M+18)-pad*2)/leading);}

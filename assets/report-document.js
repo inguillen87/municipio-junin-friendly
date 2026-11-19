@@ -159,9 +159,19 @@ export function reportPdfHeading(label,inner){
 export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y,pageHasData=false;
  const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
- const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5)};
+ const issued='Emitido '+pdfIssuedOn();const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-224,H-31,issued,7.2);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5);ops.push('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
- function head(){ops=[];pages.push(ops);pageHasData=false;rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');(()=>{const size=d.layout==='own-position-comparison.v1'?13:18,parts=fitPdfCellLines([d.title],width,size,true);if(parts.length===1)text(left,56,d.title,size,true,'1 1 1');else{const wrapped=fitPdfCellLines([d.title],width,10.5,true);if(wrapped.length>2)throw Error('El título no cabe en el PDF. Descargá Excel o CSV.');wrapped.forEach((p,i)=>text(left,52+i*14,p,10.5,true,'1 1 1'));}})();text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
+ let detailPages=0;
+ function head(){
+  const continuation=detailPages++>0;ops=[];pages.push(ops);pageHasData=false;
+  if(continuation){
+   rect(0,0,W,51,'0.045 0.15 0.20');rect(0,51,W,2,'0.0 0.50 0.46');
+   text(left,19,'MuniControl | Centro de reportes',9,true,'1 1 1');text(W-114,19,'Continuación',8,false,'0.80 0.91 0.92');
+   const baseSize=11,available=width-115,needed=pdfLineWidth(d.title,baseSize,true),size=Math.max(6,Math.min(baseSize,baseSize*available/needed));
+   if(pdfLineWidth(d.title,size,true)>available+0.02)throw Error('El título de continuación no cabe completo en el PDF.');
+   text(left,42,d.title,+size.toFixed(2),true,'1 1 1');y=67;
+  }else{rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');(()=>{const size=d.layout==='own-position-comparison.v1'?13:18,parts=fitPdfCellLines([d.title],width,size,true);if(parts.length===1)text(left,56,d.title,size,true,'1 1 1');else{const wrapped=fitPdfCellLines([d.title],width,10.5,true);if(wrapped.length>2)throw Error('El título no cabe en el PDF. Descargá Excel o CSV.');wrapped.forEach((p,i)=>text(left,52+i*14,p,10.5,true,'1 1 1'));}})();text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
+
   const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
   const value=key=>d.metadata.find(r=>r[0]===key)?.[1]??'No informado';
   if(d.layout==='own-payroll-comparison.v1'){for(const s of ['Base: '+value('Período base')+' · Comparada: '+value('Período comparada')+' · '+value('Tipo'),'Diferencia: comparada menos base · '+value('Contratos distintos')+' contratos · '+value('Registros del alcance completo')+' filas completas']){text(left,y,s,8.5);y+=12;}}
@@ -171,30 +181,37 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
   }
   y+=10;
   for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of fitPdfCellLines(lines(note,Math.floor(width/4.5)),width,8)){text(left,y,l,8);y+=11}y+=5}
+  }
   const headings=d.columns.map((c,i)=>reportPdfHeading(c.label,widths[i]-12)),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(h=>h.parts.length*10+14)):32;
-  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
+  y+=continuation?2:8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
  if(d.payrollStatement)pages.push(statementCoverPage(d));head();
  d.rows.forEach((r,index)=>{
   const parts=r.map((v,i)=>fitPdfCellLines(lines(shown(v,d.columns[i]),Math.max(7,Math.floor((widths[i]-12)/4.3))),widths[i]-12,8.5,i>0&&d.columns[i].type!=='text'));
-  const lineCount=Math.max(...parts.map(p=>p.length)),height=lineCount*12+14;
+  const lineCount=Math.max(...parts.map(p=>p.length)),height=lineCount*10+7;
   // Keep ordinary rows together. A row larger than a fresh page continues by lines,
   // with the same columns and alternating background; each cell is emitted only once.
-  if(pageHasData&&y+height>H-62)head();
+  if(pageHasData&&y+height>H-88)head();
   let offset=0;
   while(offset<lineCount){
-   const capacity=Math.floor((H-62-y-14)/12);
+   const capacity=Math.floor((H-88-y-7)/10);
    if(capacity<1)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');
-   const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*12+14;
+   const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*10+7;
    const totalRow=/^(?:total|totales|subtotal)(?:\b|\s|:)/i.test(String(r[0]??''));if(totalRow)rect(left,y,width,fragmentHeight,'0.87 0.95 0.93');else if(index%2===0)rect(left,y,width,fragmentHeight,'0.94 0.97 0.97');
    let x=left;
-   parts.forEach((p,i)=>{const bold=totalRow||i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+15+j*12,l,8.5,bold));x+=widths[i];});
+   parts.forEach((p,i)=>{const bold=totalRow||i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+12+j*10,l,8.5,bold));x+=widths[i];});
    y+=fragmentHeight;pageHasData=true;offset+=count;
    if(offset<lineCount)head();
   }
  });
- if(!d.rows.length){if(y+25>H-62)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
-  const issue='Emitido '+pdfIssuedOn();for(let i=0;i<pages.length;i++){const page=pages[i],pageW=page.width??W,label=issue+' · Página '+(i+1)+' de '+pages.length,x=pageW-36-pdfLineWidth(label,7.2);page.push('BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+x.toFixed(2)+' 31 Tm '+show(label,'F1',7.2)+' ET');}
+ if(!d.rows.length){if(y+25>H-88)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
+  for(let i=0;i<pages.length;i++){
+   const page=pages[i],pageW=page.width??W,label='Página '+(i+1)+' de '+pages.length;
+   const pageX=pageW-36-pdfLineWidth(label,7.2),pageOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+pageX.toFixed(2)+' 31 Tm '+show(label,'F1',7.2)+' ET';
+   const pending=page.indexOf('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');
+   if(pending>=0)page[pending]=pageOp;
+   else {const dateOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+(pageW-224)+' 31 Tm '+show(issued,'F1',7.2)+' ET';page.push(dateOp,pageOp);}
+  }
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
  // La fuente Symbol sólo se declara si alguna hoja usa la flecha, después de las hojas: los demás objetos no cambian de número.
  const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';

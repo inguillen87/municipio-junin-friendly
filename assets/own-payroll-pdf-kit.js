@@ -61,7 +61,7 @@ export function ownPdfText(unsupported){
 
 // A document as a list of pages, each a list of PDF operations. `y` is the top of the next block; `header(doc)` draws the top of
 // every page. Coordinates are points on an A4 sheet (595 × 842), origin at the bottom left.
-export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
+export function ownPdfDocument({unsupported,bottom=76,top=806,header=null,professional=false}){
  const {hex,width,fit,shrink}=ownPdfText(unsupported),pages=[],n=value=>+value.toFixed(2);let ops=null;
  const doc={y:0,pages,bottom,width,fit,shrink,
   page(){ops=[];pages.push(ops);doc.y=top;header?.(doc);},
@@ -73,6 +73,7 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
   box(x,y,w,h,{fill=null,stroke=OWN_PDF_LINE,weight=0.6}={}){if(fill)ops.push(`${fill} rg ${n(x)} ${n(y)} ${n(w)} ${n(h)} re f`);if(stroke)ops.push(`${stroke} RG ${weight} w ${n(x)} ${n(y)} ${n(w)} ${n(h)} re S`);},
   // A row of labelled values across [x, x+w]: small label above, value below.
   cells(items,x,w,{bold=false,size=9}={}){
+   if(!professional){items.forEach(([label,value],i)=>{const each=w/items.length,at=x+i*each;doc.put(at,doc.y,label,7,false,OWN_PDF_MUTED);doc.put(at,doc.y-size-2.5,value,shrink(value,each-8,size,bold),bold);});doc.y-=size+2.5;return;}
    const each=w/items.length,prepared=items.map(([label,value])=>{
     const font=shrink(value,each-8,size,bold),parts=width(value,font,bold)<=each-8?[String(value)]:fit(value,each-8,font,bold);
     return {label,parts,font};
@@ -86,14 +87,14 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
   entry(concept,columnWidth,{size=8.5,withSign=false,lead=2.5,pad=2.5,labelX=38,reserve=62,quantity=null}={}){
    const inner=columnWidth-labelX-6,unit=ownPdfUnitText(concept.unit),value=formatOwnRunDecimal(concept.amount,withSign&&concept.unit==='money')+(unit?' '+unit:'');
    if(quantity===null){
-    const valueSize=shrink(value,inner-66,size,true);if(width(value,valueSize,true)>inner-66)throw Object.assign(Error('El importe del concepto '+concept.code+' excede la columna y no se recortó.'),{code:'OWN_PDF_QUANTITY_OVERFLOW'});const label=fit(concept.label,Math.min(inner-reserve-6,inner-width(value,valueSize,true)-6),size);
+    const valueSize=shrink(value,inner-66,size,true),label=fit(concept.label,Math.min(inner-reserve-6,inner-width(value,valueSize,true)-6),size);
     return {code:concept.code,label,size,lead,labelX,value,valueSize,height:label.length*(size+lead)+pad};
    }
    // A quantity that does not fit the standard column even at 6 pt widens it towards the label, which wraps; only when
    // the label would keep less than OWN_PDF_QUANTITY_MIN_LABEL does the row stop the document, naming its concept.
    let column=OWN_PDF_QUANTITY_COLUMN,quantitySize=shrink(quantity,column-4,size-1);
    if(width(quantity,quantitySize)>column-4)column=Math.ceil(width(quantity,quantitySize))+4;
-   const valueSize=shrink(value,inner-66-column,size,true);if(width(value,valueSize,true)>inner-66-column)throw Object.assign(Error('El importe del concepto '+concept.code+' excede la columna y no se recortó.'),{code:'OWN_PDF_QUANTITY_OVERFLOW'});const taken=Math.max(reserve,width(value,valueSize,true))+OWN_PDF_QUANTITY_GAP;
+   const valueSize=shrink(value,inner-66-column,size,true),taken=Math.max(reserve,width(value,valueSize,true))+OWN_PDF_QUANTITY_GAP;
    if(column>OWN_PDF_QUANTITY_COLUMN&&inner-taken-column-6<OWN_PDF_QUANTITY_MIN_LABEL)throw Object.assign(Error('La cantidad del concepto '+concept.code+' no entra en su columna. No se recortó ni se omitió.'),{code:'OWN_PDF_QUANTITY_OVERFLOW'});
    const label=fit(concept.label,inner-taken-column-6,size);
    return {code:concept.code,label,size,lead,labelX,value,valueSize,quantity,quantitySize,quantityRight:6+taken,height:label.length*(size+lead)+pad};
@@ -117,7 +118,7 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
    for(;;){
     doc.ensure(headHeight+Math.max(first(left,li),first(right,ri))+4);
     const bandTop=doc.y;head?.();const from=doc.y;
-    const column=(items,start,a,b)=>{let at=start,yy=from;while(at<items.length&&yy-first(items,at)>=bottom){if(!items[at].heading&&!items[at].note&&at%2===0)doc.box(a,yy-items[at].height,b-a,items[at].height,{fill:OWN_PDF_TINT,stroke:null});draw(items[at],a,b,yy);yy-=items[at].height;at++;}return [at,yy];};
+    const column=(items,start,a,b)=>{let at=start,yy=from;while(at<items.length&&yy-first(items,at)>=bottom){if(professional&&!items[at].heading&&!items[at].note&&at%2===0)doc.box(a,yy-items[at].height,b-a,items[at].height,{fill:OWN_PDF_TINT,stroke:null});draw(items[at],a,b,yy);yy-=items[at].height;at++;}return [at,yy];};
     const [nl,yl]=column(left,li,x0,xm),[nr,yr]=column(right,ri,xm,x1);
     if(nl===li&&nr===ri)throw Error('Un concepto no entra en una página. No se recortó ni se omitió.');
     li=nl;ri=nr;doc.y=Math.min(yl,yr)-2;
