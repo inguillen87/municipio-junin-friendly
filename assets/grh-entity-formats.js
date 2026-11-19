@@ -355,9 +355,13 @@ export function pastedSheetSuggestion(sheet) {
   const quantityColumn = named(/cantidad|horas|porcentaje|unidades|d[ií]as/i);
   let amountColumn = named(/importe|monto/i);
   // Without an amount title: the last column that reads as money, unless the sheet only brings a named quantity.
-  if (amountColumn < 0 && !(quantityColumn >= 0 && sheet.columns === 2)) amountColumn = columns.filter(i => i !== quantityColumn && money(i) && digits(i, 7, 8) < 0.9).at(-1) ?? -1;
+  // A sheet that brings several concepts says so in a titled column; it is proposed only by its title, never guessed
+  // from digits (a column of small numbers can be a quantity), and it is never taken for the amount.
+  const conceptNamed = named(/^(?:c[oó]d(?:igo)?\.?\s*(?:de\s*)?)?concepto$|^conc\.?$/i);
+  if (amountColumn < 0 && !(quantityColumn >= 0 && sheet.columns === 2)) amountColumn = columns.filter(i => i !== quantityColumn && i !== conceptNamed && money(i) && digits(i, 7, 8) < 0.9).at(-1) ?? -1;
+  const conceptColumn = conceptNamed >= 0 && ![identityColumn, amountColumn, quantityColumn].includes(conceptNamed) ? conceptNamed : null;
   // If an amount is present, hours can be an intermediate calculation; only an explicit column choice loads them.
-  return freeze({ labels, identityColumn: identityColumn >= 0 ? identityColumn : null, identity, amountColumn: amountColumn >= 0 ? amountColumn : null, quantityColumn: amountColumn < 0 && quantityColumn >= 0 && quantityColumn !== identityColumn ? quantityColumn : null });
+  return freeze({ labels, identityColumn: identityColumn >= 0 ? identityColumn : null, identity, amountColumn: amountColumn >= 0 ? amountColumn : null, quantityColumn: amountColumn < 0 && quantityColumn >= 0 && quantityColumn !== identityColumn ? quantityColumn : null, conceptColumn });
 }
 const sheetValue = cell => cell.trim().replace(/\s+/g, ' ').toUpperCase();
 /**
@@ -372,11 +376,11 @@ export function pastedSheetValues(sheet, column) {
   return counts.size > 60 ? null : freeze([...counts].map(([value, rows]) => ({ value, rows })).sort((x, y) => y.rows - x.rows || (x.value < y.value ? -1 : 1)));
 }
 /** Reads the pasted rows with the chosen columns: the whole selection or nothing, like a TXT. */
-export function readPastedSheet(text, { identityColumn, identity, amountColumn = null, quantityColumn = null, sumRepeated = false, skipZeroRows = false, filterColumn = null, filterValues = null } = {}) {
+export function readPastedSheet(text, { identityColumn, identity, amountColumn = null, quantityColumn = null, sumRepeated = false, skipZeroRows = false, filterColumn = null, filterValues = null, conceptColumn = null } = {}) {
   const sheet = pastedSheetCells(text), inRange = i => Number.isInteger(i) && i >= 0 && i < sheet.columns;
   if (!inRange(identityColumn) || !['legajo', 'dni'].includes(identity)) throw new EntityTxtError('Elegí la columna que identifica a la persona y si trae legajo o DNI.');
   if (amountColumn === null && quantityColumn === null) throw new EntityTxtError('Elegí la columna del importe o la de la cantidad.');
-  if ([amountColumn, quantityColumn].some(i => i !== null && (!inRange(i) || i === identityColumn)) || (amountColumn !== null && amountColumn === quantityColumn)) throw new EntityTxtError('Cada dato tiene que venir de una columna distinta.');
+  if ([amountColumn, quantityColumn, conceptColumn].some(i => i !== null && (!inRange(i) || i === identityColumn)) || (amountColumn !== null && amountColumn === quantityColumn) || (conceptColumn !== null && [amountColumn, quantityColumn].includes(conceptColumn))) throw new EntityTxtError('Cada dato tiene que venir de una columna distinta.');
   const isZero = v => v === null || /^0(?:\.0+)?$/.test(v);
   if (filterColumn !== null && (!inRange(filterColumn) || !(filterValues instanceof Set))) throw new EntityTxtError('Elegí la columna del filtro y qué valores se cargan.');
   const issues = [], parsed = [], noValue = []; let zeroLines = 0, blankIdentity = 0, filteredOut = 0;
@@ -387,13 +391,16 @@ export function readPastedSheet(text, { identityColumn, identity, amountColumn =
       // subtitle, a person listed with a remark only): they are counted and left out, never guessed.
       if (cells[identityColumn] === '') { blankIdentity++; continue; }
       if (filterColumn !== null && !filterValues.has(sheetValue(cells[filterColumn]))) { filteredOut++; continue; }
-      if ([identityColumn, amountColumn, quantityColumn].some(i => i !== null && embeddedBreaks.includes(i))) throw Error('el legajo, DNI, importe y cantidad no pueden contener saltos de renglón ni tabulaciones dentro de una celda');
+      if ([identityColumn, amountColumn, quantityColumn, conceptColumn].some(i => i !== null && embeddedBreaks.includes(i))) throw Error('el legajo, DNI, importe y cantidad no pueden contener saltos de renglón ni tabulaciones dentro de una celda');
       if (amountRaw === '' && quantityRaw === '') { noValue.push(line); continue; }
       const key = sheetIdentity(cells[identityColumn]);
       if (key === null || (identity === 'dni' && (key.length < 6 || key.length > 8)) || (identity === 'legajo' && key.length > 8)) throw Error(identity === 'dni' ? 'DNI inválido' : 'legajo inválido');
       const amount = sheetDecimal(amountRaw, 2), quantity = sheetDecimal(quantityRaw, 6);
       if (amount === null && quantity === null) throw Error('no informa cantidad ni importe');
-      const row = { line, sourceLines: [line], identity, key, quantityDecimal: quantity === null ? null : quantity.whole + (quantity.part ? '.' + quantity.part : ''), amountCents: amount === null ? null : (BigInt(amount.whole) * 100n + BigInt((amount.part + '00').slice(0, 2))).toString() };
+      // With a concept column every row says its own concept; a row that does not is an error, never a default.
+      const concept = conceptColumn === null ? null : cells[conceptColumn].trim();
+      if (concept !== null && !/^[1-9]\d{0,19}$/.test(concept)) throw Error('concepto inválido: tiene que ser el número del concepto');
+      const row = { line, sourceLines: [line], identity, key, ...(concept === null ? {} : { concept }), quantityDecimal: quantity === null ? null : quantity.whole + (quantity.part ? '.' + quantity.part : ''), amountCents: amount === null ? null : (BigInt(amount.whole) * 100n + BigInt((amount.part + '00').slice(0, 2))).toString() };
       if (row.quantityDecimal !== null && !/^\d{1,12}(?:\.\d{1,6})?$/.test(row.quantityDecimal)) throw Error('cantidad fuera de rango');
       if (row.amountCents !== null && row.amountCents.length > 20) throw Error('importe fuera de rango');
       if (skipZeroRows && isZero(row.quantityDecimal) && isZero(row.amountCents)) { zeroLines++; continue; }
@@ -401,13 +408,14 @@ export function readPastedSheet(text, { identityColumn, identity, amountColumn =
     } catch (error) { issues.push({ line, message: error.message }); }
   }
   const rows = [], byKey = new Map(), seen = new Map(), repeats = []; let identicalRepeats = 0;
-  const signature = parsed.map(r => r.key + '|' + r.amountCents + '|' + r.quantityDecimal), half = parsed.length / 2;
+  const target = r => conceptColumn === null ? r.key : r.key + '\u001f' + r.concept;
+  const signature = parsed.map(r => target(r) + '|' + r.amountCents + '|' + r.quantityDecimal), half = parsed.length / 2;
   const halves = parsed.length >= 4 && Number.isInteger(half) && signature.slice(0, half).every((x, i) => x === signature[half + i]);
   for (const row of parsed) {
-    const prior = byKey.get(row.key), worth = row.amountCents + '|' + row.quantityDecimal;
-    if (!prior) { byKey.set(row.key, row); seen.set(row.key, new Set([worth])); rows.push(row); continue; }
-    if (seen.get(row.key).has(worth)) identicalRepeats++; else seen.get(row.key).add(worth);
-    repeats.push({ line: row.line, message: `${identity === 'dni' ? 'DNI' : 'legajo'} repetido (también en la fila ${prior.line}); marcá «Sumar repetidos» si corresponde`, repeated: true });
+    const prior = byKey.get(target(row)), worth = row.amountCents + '|' + row.quantityDecimal;
+    if (!prior) { byKey.set(target(row), row); seen.set(target(row), new Set([worth])); rows.push(row); continue; }
+    if (seen.get(target(row)).has(worth)) identicalRepeats++; else seen.get(target(row)).add(worth);
+    repeats.push({ line: row.line, message: `${identity === 'dni' ? 'DNI' : 'legajo'} repetido${conceptColumn === null ? '' : ' para el mismo concepto'} (también en la fila ${prior.line}); marcá «Sumar repetidos» si corresponde`, repeated: true });
     if (!sumRepeated) continue;
     prior.quantityDecimal = addQuantity(prior.quantityDecimal, row.quantityDecimal);
     prior.amountCents = prior.amountCents === null ? row.amountCents : row.amountCents === null ? prior.amountCents : (BigInt(prior.amountCents) + BigInt(row.amountCents)).toString();
@@ -418,5 +426,8 @@ export function readPastedSheet(text, { identityColumn, identity, amountColumn =
   if (!sumRepeated) issues.push(...repeats);
   if (issues.length) throw new EntityTxtError(`${issues.length} de ${sheet.rows.length} filas no se pueden leer. No se carga una parte de la planilla.`, issues.sort((x, y) => x.line - y.line));
   const totalCents = rows.reduce((sum, r) => sum + BigInt(r.amountCents ?? '0'), 0n).toString();
-  return freeze({ formatId: null, identity, lines: sheet.rows.length, rows, longerLines: 0, shortLines: 0, zeroLines, blankIdentity, noValueLines: noValue, filteredOut, leadingLines: sheet.leading, recordLength: null, totalCents, wholePesos: false, droppedCents: '0', split: null, codeConcept: null, mixedCodes: null, repeatedRows: repeats.length, duplicatedFile, withAmount: rows.filter(r => r.amountCents !== null).length, withQuantity: rows.filter(r => r.quantityDecimal !== null).length });
+  // Distinct concepts of the sheet with their rows, in numeric order; null when the concept is typed once for all rows.
+  const conceptRows = new Map(); for (const r of rows) if (r.concept) conceptRows.set(r.concept, (conceptRows.get(r.concept) ?? 0) + 1);
+  const sheetConcepts = conceptColumn === null ? null : [...conceptRows].map(([concept, count]) => ({ concept, rows: count })).sort((x, y) => (BigInt(x.concept) < BigInt(y.concept) ? -1 : 1));
+  return freeze({ formatId: null, identity, lines: sheet.rows.length, rows, longerLines: 0, shortLines: 0, zeroLines, blankIdentity, noValueLines: noValue, filteredOut, leadingLines: sheet.leading, recordLength: null, totalCents, wholePesos: false, droppedCents: '0', split: null, codeConcept: null, mixedCodes: null, repeatedRows: repeats.length, duplicatedFile, withAmount: rows.filter(r => r.amountCents !== null).length, withQuantity: rows.filter(r => r.quantityDecimal !== null).length, sheetConcepts });
 }

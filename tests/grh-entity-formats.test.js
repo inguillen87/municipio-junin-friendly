@@ -374,3 +374,40 @@ test('embedded line breaks or tabs remain valid text but can never join digits i
     assert.throws(() => readPastedSheet('LEGAJO\tIMPORTE\tCANTIDAD\n' + row + '\n13\t200,00\t2', options), e => e.issues.length === 1 && e.issues[0].line === 2 && /dentro de una celda/.test(e.issues[0].message));
   }
 });
+
+test('a pasted sheet can bring several concepts in a column: each row keeps its own and nothing is guessed', () => {
+  const sheet = 'Legajo\tConcepto\tUnidades\tImporte\n12\t601\t5\t0\n12\t95\t100\t0\n13\t601\t5\t0\n13\t678\t0\t15000,00\n14\t44\t30\t0';
+  const guess = pastedSheetSuggestion(pastedSheetCells(sheet));
+  assert.deepEqual([guess.identityColumn, guess.identity, guess.conceptColumn, guess.amountColumn, guess.quantityColumn], [0, 'legajo', 1, 3, null]);
+  const options = { identityColumn: 0, identity: 'legajo', conceptColumn: 1, quantityColumn: 2, amountColumn: 3 };
+  const read = readPastedSheet(sheet, options);
+  assert.deepEqual(read.rows.map(r => [r.key, r.concept, r.quantityDecimal, r.amountCents]), [['12', '601', '5', '0'], ['12', '95', '100', '0'], ['13', '601', '5', '0'], ['13', '678', '0', '1500000'], ['14', '44', '30', '0']]);
+  assert.deepEqual(read.sheetConcepts, [{ concept: '44', rows: 1 }, { concept: '95', rows: 1 }, { concept: '601', rows: 2 }, { concept: '678', rows: 1 }]);
+  assert.equal(read.repeatedRows, 0);
+  // The same person twice for the same concept is still a repeat; for two concepts it is not.
+  assert.throws(() => readPastedSheet(sheet + '\n12\t601\t1\t0', options), e => e.issues.length === 1 && e.issues[0].repeated && /para el mismo concepto \(también en la fila 2\)/.test(e.issues[0].message));
+  assert.deepEqual(readPastedSheet(sheet + '\n12\t601\t1\t0', { ...options, sumRepeated: true }).rows.find(r => r.key === '12' && r.concept === '601').quantityDecimal, '6');
+  // A row without a valid concept number is an error of the whole sheet, never a default concept.
+  for (const cell of ['', 'OSEP', '0', '6 01', '-601']) assert.throws(() => readPastedSheet('Legajo\tConcepto\tImporte\n12\t' + cell + '\t10', { identityColumn: 0, identity: 'legajo', conceptColumn: 1, amountColumn: 2 }), e => /concepto inválido/.test(e.issues[0].message));
+  for (const wrong of [{ ...options, conceptColumn: 0 }, { ...options, conceptColumn: 2 }, { ...options, conceptColumn: 3 }, { ...options, conceptColumn: 9 }, { ...options, conceptColumn: 1.5 }]) assert.throws(() => readPastedSheet(sheet, wrong), /columna distinta/);
+  // Without the column nothing changes: one concept typed for the whole sheet and no per-row concept.
+  const single = readPastedSheet('Legajo\tImporte\n12\t10\n13\t20', { identityColumn: 0, identity: 'legajo', amountColumn: 1 });
+  assert.deepEqual([single.sheetConcepts, single.rows.some(r => 'concept' in r), pastedSheetSuggestion(pastedSheetCells('Legajo\tImporte\n12\t10')).conceptColumn], [null, false, null]);
+  // A titled concept column is never proposed as the amount, and digits alone never make a concept column.
+  const untitledAmount = pastedSheetSuggestion(pastedSheetCells('Legajo\tConcepto\tValor\n12\t601\t10,50\n13\t678\t20,00'));
+  assert.deepEqual([untitledAmount.conceptColumn, untitledAmount.amountColumn], [1, 2]);
+  assert.equal(pastedSheetSuggestion(pastedSheetCells('12\t601\t10,50\n13\t678\t20,00')).conceptColumn, null);
+  // Each row resolves on its own, so one person receives every concept of the sheet.
+  const linked = resolveEntityRows(read, [{ contractId: 'c12', legajo: '12', status: 'active' }, { contractId: 'c13', legajo: '13', status: 'active' }], [{ contractId: 'c12', legajo: '12', identityToken: 't12' }, { contractId: 'c13', legajo: '13', identityToken: 't13' }]);
+  assert.deepEqual([linked.resolved.map(r => r.contractId + ':' + r.concept), linked.missing.map(r => r.key + ':' + r.concept)], [['c12:601', 'c12:95', 'c13:601', 'c13:678'], ['14:44']]);
+});
+
+test('the own novelties panel offers the concept column and loads each row with its own concept', () => {
+  const panel = fs.readFileSync('assets/own-payroll-novelties-panel.js', 'utf8');
+  assert.match(panel, /<select data-n-paste-concept-column><\/select>/);
+  assert.match(panel, /fill\('paste-concept-column',guess\.conceptColumn,/);
+  assert.match(panel, /conceptColumn=column\('paste-concept-column'\),concept=conceptColumn===null\?\$\('paste-concept'\)\.value\.trim\(\):null/);
+  assert.match(panel, /filterValues:[^;]*,conceptColumn\}\);/);
+  assert.match(panel, /conceptSourceId:r\.concept\?\?concept/);
+  assert.match(panel, /input\.disabled=several/);
+});
