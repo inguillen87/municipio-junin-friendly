@@ -155,17 +155,42 @@ En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el conv
 | Conceptos que coinciden donde ambos sistemas liquidan | 24 (50 de 51), 606 (76 de 79), 607 (35 de 36), 53 (6 de 6) |
 | Básico (concepto 1) | 38 personas iguales, 38 distintas, 3 sólo en MuniControl |
 | Diferencias de un centavo (redondeo) | 48 (28 personas, 3 centavos en total), 51, 52 y 58 |
-| Conceptos que GRH liquidó y MuniControl no | 44 (37 personas), 95 (25), 80 (19, asignación familiar), 300 a 309, 602 a 678 y otros: son novedades y descuentos de octubre que nunca se cargaron en MuniControl |
+| Conceptos que GRH liquidó y MuniControl no | 44 mayor dedicación (37 personas), 95 full time (25), 80 responsabilidad jerárquica (19), 300 a 309 asignaciones familiares, 602 a 678 entidades y otros |
 | Aportes y contribuciones (600, 601, 604, 685, 701, 703) | Distintos en 67 o 68 personas, porque la base sobre la que se calculan difiere |
 
-Qué deja esto en claro: el motor, la captura, la verificación en la base y el guardado funcionan de punta a punta. Lo que separa a MuniControl de GRH en octubre es, en este orden: las **novedades y descuentos del mes sin cargar**, los datos por persona sin informar, y cinco importes del catálogo salarial corridos en centavos, que arrastran un centavo a otros cinco conceptos.
+**Corrección del 19/11 al mediodía sobre esta primera lectura.** Dos conclusiones de la madrugada estaban mal y se retiran:
 
-**Estudio de las diferencias (sólo distribuciones).**
+- **No hay que corregir ningún importe del maestro.** El maestro del convenio 1 de octubre coincide con la tabla de escalas de GRH en las nueve categorías. La diferencia del básico es de GRH: **GRH guarda cada importe en precisión simple** (número de 32 bits), y arriba de $131.072 esa precisión no alcanza para todos los centavos. Paga 382.692,72 donde la escala dice ,71; 463.058,20 por ,18; 524.289,00 por ,01; 600.827,56 por ,55 y 654.404,50 por ,53: es exactamente el valor en precisión simple escrito con los dígitos mínimos. Se comprobó sobre los 17.846 importes no nulos de la liquidación mensual de octubre de GRH: **el 100 % es representable así**, incluidos los 7.537 mayores a $131.072, donde un importe decimal exacto sólo pasaría la prueba entre el 16 % y el 64 % de las veces.
+- **El 144 es presentismo, no mayor dedicación.** Difiere porque su base incluye conceptos que todavía faltan (44, 95, 80).
 
-- **Básico.** No es proporcional por días ni una categoría mal asignada: es el valor del catálogo salarial, corrido en centavos y constante por categoría. Categorías 8 y 10: igual (38 personas). Categoría 12: MuniControl 1 centavo por debajo de GRH (12 personas). Categoría 3: 1 centavo por debajo (4). Categoría 6: 2 centavos por debajo (10). Categoría 9: 1 centavo por encima (11). Categoría 13: 3 centavos por encima (1). Corregir esos cinco importes en el catálogo de octubre deja el básico igual en las 76 personas que lo cobran en ambos sistemas.
-- **Conceptos 48, 50, 51, 52 y 58.** Difieren en 1 o 2 centavos, hacia los dos lados. Es el arrastre del básico, no un modo de redondeo distinto.
-- **Concepto 144.** GRH paga el importe de MuniControl multiplicado por 2 (18 personas), 1,5 (5), 1,3 (3) y otros factores. Coincide con el adicional por mayor dedicación, que en la copia se cargó en «no» para todos.
-- **Tres personas con básico sólo en MuniControl.** Tienen recibo de GRH sin básico; falta cargar su situación del mes (licencia o ausencia).
+Consecuencia para la comparación: «igual al centavo» contra GRH no es alcanzable para importes grandes, y tampoco es deseable copiarle el error. El criterio que se usa desde ahora es: **el importe exacto de MuniControl, pasado a precisión simple, tiene que dar el de GRH**. Es una regla exacta, no una tolerancia.
+
+**Novedades de octubre cargadas en el ensayo (19/11, 12:10).** El programa lee las novedades del mes como cantidades, importes y presencias por concepto. En la base operativa hay 7 filas de novedades propias aprobadas para octubre; GRH liquidó octubre con 2.927 (849 legajos). Se cargaron en la copia, con las funciones reales (una cuenta prepara y envía, otra aprueba), las 318 del convenio 1 tomadas del respaldo del 28/10, con la misma codificación que las 7 ya aprobadas. Resultado, sobre 79 personas y 1.329 celdas persona × concepto:
+
+| | Antes | Con las novedades |
+|---|---|---|
+| Iguales al centavo | 340 | 744 |
+| Iguales con la precisión de GRH | — | 163 más: **907 de 1.329** |
+| Conceptos que coinciden en todas las personas | 4 | 21, entre ellos todas las entidades (mutuales, seguros, gremios, colegio, IPV) |
+| Básico | 38 iguales, 38 distintos | 38 al centavo + 38 por precisión + 0 distintos |
+| Antigüedad | 48 iguales, 28 distintos | 48 + 26 + 2 distintos |
+
+**Lo que falta de verdad para cerrar el convenio 1 de octubre** (conteos del ensayo):
+
+| Falta | Personas | Cómo se carga |
+|---|---|---|
+| Responsabilidad jerárquica (80), cajeros (56), sistemas (57) | 19, 4 y 1 | Novedades fijas con cantidad |
+| Asignaciones familiares (300 a 309) y seguro mutual por hijo (612) | 37 cónyuge, 28 hijos, 19 escolaridad media, 10 primaria, 5 preescolar, 3 familia numerosa, 1 y 1 con discapacidad · 28 | Declaración familiar con cantidades |
+| Novedades que GRH marca «forzadas» y las reglas no saben aplicar | 14 filas: embargo alimentario (4, con importe) y diez que fuerzan a cero un concepto calculado (básico 3, 107 2, riesgoso 2, cónyuge, presentismo, seguro por hijo) | Falta una regla. Hoy el motor frena con «las reglas no dicen cómo aplicarla»; en el ensayo se dejaron fuera en memoria para poder comparar, sin guardar nada así |
+| Mayor dedicación, full time, presentismo, jubilación, OSEP y contribuciones | 17 a 29 | Se corrigen solos al cargar lo anterior: sus bases incluyen 80, 56 y 57 |
+
+Quedan dos archivos privados en la PC de Marcelo, para liquidaciones: la planilla de diferencias por legajo y concepto (587 filas, con el nombre de cada concepto y qué revisar) y las novedades de octubre del convenio 1 listas para cargar (304 filas, sin las 14 forzadas, que van aparte). No se publican.
+
+**Cargar esas novedades en la base operativa hoy pide 26 pegados**, uno por concepto, porque la planilla pegada de Novedades admite un solo concepto. El candidato 8 le agrega una **columna de concepto**: un pegado carga todos. La carga la prepara una cuenta y la aprueba otra persona.
+
+**Estudio de las diferencias (primera lectura, se conserva lo que sigue en pie).**
+
+- **Tres personas con básico sólo en MuniControl.** Tienen recibo de GRH sin básico: son tres de las novedades forzadas a cero.
 
 **Límites reales de una corrida, medidos.**
 
