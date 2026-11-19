@@ -175,7 +175,11 @@ Consecuencia para la comparación: «igual al centavo» contra GRH no es alcanza
 | Básico | 38 iguales, 38 distintos | 38 al centavo + 38 por precisión + 0 distintos |
 | Antigüedad | 48 iguales, 28 distintos | 48 + 26 + 2 distintos |
 
-**Lo que falta de verdad para cerrar el convenio 1 de octubre** (conteos del ensayo):
+**Novedades fijas 80, 56 y 57 cargadas en el ensayo (19/11, 12:45).** Con el registro real (una cuenta propone, otra revisa) se cargaron las 25 novedades fijas vigentes en octubre de esos tres conceptos para las personas del convenio 1, tomadas de la tabla de fijos del respaldo, con la misma forma que la única que ya existía (1 unidad, vigencia de alta a vencimiento). Resultado: **1.119 de 1.329 celdas coinciden** (910 al centavo y 209 por precisión de GRH), y 18 de las 79 personas coinciden en todos sus conceptos. Responsabilidad jerárquica, cajeros y sistemas cierran completos; mayor dedicación pasa a 34 de 37, full time a 25 de 26, presentismo a 71 de 79, y OSEP y jubilación quedan con 3 a 8 distintos.
+
+De las 210 celdas que siguen distintas, 132 son asignaciones familiares y seguro por hijo (faltan las cantidades declaradas), 4 el embargo alimentario forzado, unas 30 son de las tres personas con básico forzado a cero y el resto es arrastre de esas mismas faltas.
+
+**Lo que falta de verdad para cerrar el convenio 1 de octubre** (conteos del ensayo, antes de cargar las fijas):
 
 | Falta | Personas | Cómo se carga |
 |---|---|---|
