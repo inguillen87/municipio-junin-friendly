@@ -42,8 +42,24 @@ const emptyClose={...closeDetail(1),rows:[],captures:[],groups:[],canWrite:true}
 const state={programme:bootstrap({program:approved()}),roster:ownRoster(1),rosterError:false,showCapture:false,receiptCount:0,lastPreview:null,batch:receiptBatch(2),close:emptyClose};
 const requests=[],checks=[],screenshots=[],errors=[],unexpectedRequests=[],requestFailures=[],downloads=[],requestDiagnostics=[],serverDiagnostics=[],transportDrains=[];let browser,page,driverName,origin,server,egressGuard;
 const verifierSha256=sha(fs.readFileSync(new URL(import.meta.url)));
-const pendingApiRequests=new Map(),pendingResponseCompletions=new Map(),transportWaiters=new Set();let transportPhase='initial',idleSequence=0;
+const pendingApiRequests=new Map(),pendingResponseCompletions=new Map(),pendingAssetRequests=new Set(),transportWaiters=new Set();let transportPhase='initial',idleSequence=0;
 function transportChanged(){for(const resolve of [...transportWaiters])resolve();}
+// The verifier's own navigation must not cut off product loads still in flight: a stylesheet or chart module a
+// panel loads lazily (own-run-charts → mc-charts.css) would be aborted by page.goto (NS_BINDING_ABORTED in Firefox)
+// and read as a product failure. Before navigating, every same-origin load settles; any real failure still fails.
+async function settleAssets(phase){
+ const deadline=Date.now()+15000;
+ for(;;){
+  while(pendingAssetRequests.size){
+   assert.deepEqual(requestFailures,[],'Synthetic request failure while settling '+phase);
+   const remaining=deadline-Date.now();assert.ok(remaining>0,'Static loads did not settle in '+phase+': '+JSON.stringify([...pendingAssetRequests].map(request=>new URL(request.url()).pathname)));
+   await new Promise(resolve=>{let timer;const done=()=>{clearTimeout(timer);transportWaiters.delete(done);resolve();};transportWaiters.add(done);timer=setTimeout(done,remaining);});
+  }
+  await page.evaluate(()=>new Promise(resolve=>{const timer=setTimeout(resolve,250);requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(timer);resolve();}));}));
+  if(!pendingAssetRequests.size)break;
+ }
+ assert.deepEqual(requestFailures,[],'Synthetic request failure before leaving '+phase);
+}
 function transportPending(){return {requests:[...pendingApiRequests.values()],responseCompletions:[...pendingResponseCompletions.values()]};}
 async function drainApi(phase){
  transportPhase=phase;const startedAt=new Date().toISOString(),deadline=Date.now()+15000;
@@ -103,7 +119,7 @@ async function handler(req,res){
 server=http.createServer((req,res)=>{res.setHeader('Content-Security-Policy',syntheticCsp);return handler(req,res).catch(error=>{errors.push('Synthetic server: '+error.message);json(res,500,{ok:false,error:'Fallo del ensayo ficticio'});});});
 const idle=async selector=>{await page.locator(selector).waitFor({state:'attached'});await page.waitForFunction(s=>document.querySelector(s)?.getAttribute('aria-busy')==='false',selector);await drainApi('idle-'+(++idleSequence)+':'+selector);};
 const c=key=>page.locator('[data-own-'+key+']'),r=key=>page.locator('[data-receipt-'+key+']'),l=key=>page.locator('[data-close-'+key+']');
-async function open(panel){await drainApi('before-navigation:'+panel);transportPhase='navigation:'+panel;await page.goto(origin+'/qa.html?panel='+panel);await idle({calculation:'.own-run',receipt:'.own-receipt',close:'.own-close'}[panel]);}
+async function open(panel){await drainApi('before-navigation:'+panel);await settleAssets('before-navigation:'+panel);transportPhase='navigation:'+panel;await page.goto(origin+'/qa.html?panel='+panel);await idle({calculation:'.own-run',receipt:'.own-receipt',close:'.own-close'}[panel]);}
 async function responsive(scenario){
  for(const width of [1366,390,320]){
   await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),scenario+' fits '+width+'px without document overflow');
@@ -131,10 +147,10 @@ try{
  const probeResponse=await probePage.goto(origin+'/qa-egress-probe.html');assert.equal(probeResponse.headers()['content-security-policy'],syntheticCsp);
  const probe=await probePage.evaluate(()=>new Promise(resolve=>{const timer=setTimeout(()=>resolve({blocked:false,error:'No CSP violation was observed'}),5000);document.addEventListener('securitypolicyviolation',event=>{if(event.effectiveDirective==='connect-src'){clearTimeout(timer);resolve({blocked:true,directive:event.effectiveDirective,blockedUri:event.blockedURI,disposition:event.disposition});}},{once:true});fetch('https://synthetic-egress.invalid/noelia-qa-egress-probe').catch(()=>{});}));
  assert.deepEqual(probeExternalResponses,[]);check(probe.blocked===true&&probe.directive==='connect-src'&&probe.disposition==='enforce'&&new URL(probe.blockedUri).origin==='https://synthetic-egress.invalid','Synthetic CSP blocks an external connection before transport without intercepting local API requests');egressGuard={mode:'browser_enforced_csp',policy:syntheticCsp,probe,externalResponses:probeExternalResponses};await probePage.close();
- page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(new URL(request.url()).origin!==origin)errors.push('Unexpected non-loopback browser request: '+request.url());const diagnostic=requestDiagnostic(request,'request-started');if(diagnostic)pendingApiRequests.set(diagnostic.id,diagnostic);transportChanged();});page.on('requestfinished',request=>{const diagnostic=requestDiagnostic(request,'request-finished');if(diagnostic)pendingApiRequests.delete(diagnostic.id);transportChanged();});page.on('response',response=>{
+ page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(new URL(request.url()).origin!==origin)errors.push('Unexpected non-loopback browser request: '+request.url());const diagnostic=requestDiagnostic(request,'request-started');if(diagnostic)pendingApiRequests.set(diagnostic.id,diagnostic);else pendingAssetRequests.add(request);transportChanged();});page.on('requestfinished',request=>{const diagnostic=requestDiagnostic(request,'request-finished');if(diagnostic)pendingApiRequests.delete(diagnostic.id);pendingAssetRequests.delete(request);transportChanged();});page.on('response',response=>{
   const headers=response.headers(),request=response.request(),diagnostic=requestDiagnostic(request,'response-received',{status:response.status(),serverId:headers['x-noelia-qa-request-id']??null,contentLength:headers['content-length']??null,announcedJsonBytes:headers['x-municontrol-json-bytes']??null});
   if(diagnostic){pendingResponseCompletions.set(diagnostic.id,diagnostic);response.finished().then(error=>requestDiagnostic(request,'response-completion',{completionError:error?.message??null})).catch(error=>requestDiagnostic(request,'response-completion',{completionError:error.message})).finally(()=>{pendingResponseCompletions.delete(diagnostic.id);transportChanged();});}
- });page.on('requestfailed',request=>{const diagnostic=requestDiagnostic(request,'request-failed',{error:request.failure()?.errorText});if(diagnostic){pendingApiRequests.delete(diagnostic.id);const pending=pendingResponseCompletions.get(diagnostic.id);if(pending)requestDiagnostic(request,'response-failed-before-completion',{serverId:pending.serverId,error:request.failure()?.errorText});}requestFailures.push({url:new URL(request.url()).pathname,error:request.failure()?.errorText});transportChanged();});page.on('download',download=>downloads.push(download));
+ });page.on('requestfailed',request=>{pendingAssetRequests.delete(request);const diagnostic=requestDiagnostic(request,'request-failed',{error:request.failure()?.errorText});if(diagnostic){pendingApiRequests.delete(diagnostic.id);const pending=pendingResponseCompletions.get(diagnostic.id);if(pending)requestDiagnostic(request,'response-failed-before-completion',{serverId:pending.serverId,error:request.failure()?.errorText});}requestFailures.push({url:new URL(request.url()).pathname,error:request.failure()?.errorText});transportChanged();});page.on('download',download=>downloads.push(download));
 
  // The readiness facts sit inside the collapsed «Cómo se prepara un mes nuevo» help: read their text, not their rendering.
  state.roster=ownRoster(0);state.programme=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await open('calculation');
