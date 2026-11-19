@@ -38,4 +38,26 @@ Dos aclaraciones sobre los archivos:
 
 ## Lo que sigue después del convenio 1
 
-Los otros once convenios todavía no tienen todas sus reglas (faltan 15). Las novedades de octubre del resto de las personas son 2.609 filas más, y las fijas vigentes de 80, 56 y 57 son 97 más.
+Se compararon las fórmulas de GRH de cada convenio con las del convenio 1, sólo para los conceptos que GRH liquidó de verdad en la mensual de octubre (fórmula, unidades, condición y tipos de liquidación; es una primera lectura, no revisa acumuladores):
+
+| Convenio | Personas en octubre | Conceptos liquidados | Iguales al convenio 1 | Distintos | Sin regla en el 1 |
+|---|---|---|---|---|---|
+| 6 · Personal interino | 295 | 57 | 51 | 6 | 0 |
+| 5 · Jardines maternales | 164 | 37 | 15 | 16 | 6 |
+| 4 · Personal temporario | 160 | 48 | 39 | 9 | 0 |
+| 1 · Planta permanente | 79 | 55 | 55 | — | — |
+| 13 · Horas cátedra cultura | 54 | 30 | 12 | 17 | 1 |
+| 12 · Horas cátedra deportes | 43 | 27 | 12 | 14 | 1 |
+| 2 · Funcionarios | 23 | 32 | 24 | 7 | 1 |
+| 11 · HCD secretarios | 12 | 22 | 14 | 7 | 1 |
+| 7 · Concejales | 10 | 23 | 14 | 7 | 2 |
+| 14 · Orquestas infantiles | 4 | 17 | 7 | 8 | 2 |
+
+**El 6 y el 4 son casi el convenio 1.** En la liquidación mensual, lo que cambia de verdad es:
+
+- Convenio 6: la base de mayor dedicación (44) suma un concepto más (el 59) y el embargo alimentario (670) se toma por cantidad en lugar de importe. Los otros cuatro «distintos» sólo difieren en qué tipos de liquidación alcanzan, y la mensual está en todos.
+- Convenio 4: lo mismo en el 44; la antigüedad (48) tiene otra condición; el 649 se toma por importe y el 670 sale de un dato del legajo. Los otros cinco sólo difieren en los tipos.
+
+Entre el 1, el 6 y el 4 son 534 de las 844 personas con recibo en octubre. La aplicación ya tiene «copiar reglas de otro convenio»: el camino corto es copiar el 1 y tocar esas dos o cuatro reglas. Los convenios docentes (5, 12, 13 y 14) son otra familia de fórmulas y van aparte.
+
+Además, las novedades de octubre del resto de las personas son 2.609 filas, y las fijas vigentes de 80, 56 y 57 son 97 más.
