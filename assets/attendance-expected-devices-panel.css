@@ -47,7 +47,7 @@
 .aed-timeline li{padding-left:4px;min-width:0}
 .aed-timeline p{margin:4px 0}
 .aed details{border:1px solid var(--line,#d8e3e1);border-radius:10px;background:#fff;padding:18px}
-.aed summary{font-size:18px;font-weight:750;cursor:pointer}
+.aed summary{display:flex;align-items:center;min-height:44px;font-size:18px;font-weight:750;cursor:pointer}
 .aed [data-aed-receipt]{padding:18px;background:#e6f4ec;border:1px solid #9bc8b2;border-radius:10px}
 @media(max-width:640px){
   .site-header{padding:16px;align-items:flex-start;flex-direction:column;gap:12px}
