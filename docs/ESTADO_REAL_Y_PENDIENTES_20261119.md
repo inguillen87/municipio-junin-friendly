@@ -85,6 +85,14 @@ Setenta y un flujos que construyen el sitio completo cada uno saturan los ejecut
 
 El PR #304 avanza con las dos correcciones de navegador, el límite de 30 minutos y la prueba estática de la migración 245.
 
+**Corrida sobre `350904ee` (PR #304), 19/11 09:40.** 74 flujos: 60 pasaron y 14 fallaron. «Own payroll calculation» y el circuito de Noelia pasan con las correcciones de navegador, el circuito completo con PostgreSQL 17 y 18. Ningún trabajo se canceló por tiempo.
+
+- 12 fallas son de la infraestructura de los ejecutores: el archivo de paquetes de Ubuntu no respondió al instalar las dependencias del navegador o el cliente de PostgreSQL (`Connection timed out`). No llegaron a ejecutar ninguna comprobación.
+- «GRH coordinated source publication checks»: la comprobación `verify-payroll-summary-055` esperaba que abrir el archivo de Personal no consultara nada hasta apretar «Buscar». La pantalla consulta al abrir, a propósito, desde hace varias versiones; antes este flujo se cancelaba por tiempo y la falla no se veía. Se reprodujo en Chromium y se actualizó la comprobación.
+- «Own period participation» con PostgreSQL 18: un 503 en el paso que prueba la recuperación de lecturas ocupadas. Había pasado sobre `b9b3c463`; perfil de carga.
+
+**El cálculo dice qué dato falta (candidato 7, sin publicar).** Cuando una fórmula pide un dato sin valor, el motor informa qué clave pidió, el servidor dice de qué fuente sale y a cuántas de las personas elegidas les falta, y el panel arma el texto con su propio vocabulario. Ejemplo con el caso del ensayo: «Falta cargar los datos familiares del período (cónyuge): sin valor en 79 de 81 personas elegidas. No se supuso cero. Completá ese dato, aprobalo y volvé a calcular. Clave en las reglas: familia_spouse.» El aviso no lleva datos de personas. Como cambia un archivo del motor, cambia la huella del algoritmo: una captura hecha antes de publicar y todavía sin calcular hay que repetirla. Batería completa: 14.728 pruebas, 0 fallas.
+
 ## Medido en la base operativa el 19/11 (sólo totales)
 
 **Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. Estado por reloj:

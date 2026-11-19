@@ -6,7 +6,7 @@ import { schoolCertificateSafeError } from '../lib/internal-family-certificates.
 import { readRawPrivateJson } from '../lib/private-json-body.js';
 import { employeeContext } from '../lib/internal-native-employees.js';
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
-import { ownRunCommand, OWN_RUN_MAX_BODY } from '../assets/own-payroll-run-model.js';
+import { ownRunCommand, OWN_RUN_MAX_BODY, ownRunMissing } from '../assets/own-payroll-run-model.js';
 import { RUN_READ, RUN_NOMINAL, RUN_CALCULATE, runFail, runError, ownRunOperation } from '../lib/internal-own-payroll-run.js';
 import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
 import {supportsOwnPayrollStream,sendOwnPayrollStream} from '../lib/own-payroll-response.js';
@@ -58,7 +58,8 @@ export function createOwnRunHandler(deps = {}) {
     } catch (e) {
       if(res.headersSent){res.destroy();return;}
       const safe = String(e?.code ?? '').startsWith('SCHOOL_CERTIFICATE_') ? schoolCertificateSafeError(e) : runError(e);
-      return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message });
+      const missing = safe.code === 'OWN_RUN_INPUT_MISSING' ? ownRunMissing(safe.missing) : null;
+      return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message, ...(missing ? { missing } : {}) });
     }
   };
 }

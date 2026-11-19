@@ -68,9 +68,12 @@ try {
   page.on('pageerror',error=>errors.push(error.message));page.on('download',()=>downloads++);
   await page.goto(origin+'/internal-dashboard.html#legajos');
   const directory=page.locator('#employeeHistory');assert.equal(await directory.evaluate(n=>n.open),false);assert.equal(directoryReads,0);
-  await directory.locator('summary').first().click();assert.equal(directoryReads,0);
-  await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  // Abrir el archivo lo consulta de inmediato (vista de activos), sin un «Buscar» extra; «Buscar» lo vuelve a consultar.
+  await directory.locator('summary').first().click();
   await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).first().waitFor();assert.equal(directoryReads,1);
+  await page.locator('#employeeFilters').getByRole('button',{name:'Buscar',exact:true}).click();
+  for(let i=0;i<200&&directoryReads<2;i++)await page.waitForTimeout(25);
+  await page.locator('#employeeRows').getByRole('button',{name:'Ver ficha',exact:true}).first().waitFor();assert.equal(directoryReads,2);
   checks.push('payroll history starts from one explicit reference-directory query and never loads the archive automatically');
   await page.locator('#employeeRows button').first().click();
   await page.getByRole('button',{name:'Ver liquidaciones',exact:true}).click();

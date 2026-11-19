@@ -76,3 +76,41 @@ export function ownRunSaved(v, captureId = null, algorithm = null) {
   require(salaryExact(r, ['version', 'period', 'liquidationType', 'selection', 'sourceVersions', 'employeeCount', 'rowCount', 'rows', 'employeeTotals', 'payrollCalculated', 'payrollPosted', 'municipalApprovalVerified', 'paymentExecuted']) && r.version === (input.version === 'own-payroll-input.v2' ? 'own-payroll-result.v2' : 'own-payroll-result.v1') && r.period === input.period && r.liquidationType === input.liquidationType && salarySerialized(r.selection) === salarySerialized(input.selection) && salarySerialized(r.sourceVersions) === salarySerialized(input.sourceVersions) && Array.isArray(r.rows) && r.rowCount === r.rows.length && Array.isArray(r.employeeTotals) && r.employeeCount === r.employeeTotals.length && r.employeeCount > 0 && r.payrollCalculated === true && r.payrollPosted === false && r.municipalApprovalVerified === false && r.paymentExecuted === false, 'RUN_CONTRACT_INVALID', 'El resultado no corresponde a las fuentes y al alcance de la corrida.');
   return v;
 }
+
+// Qué dato faltó al calcular. El servidor informa la clave que pidió la fórmula, de qué fuente sale y a cuántas de las
+// personas elegidas les falta. El texto se arma acá, con vocabulario propio: nunca se muestra texto libre del servidor.
+export const OWN_RUN_MISSING_SOURCES = Object.freeze({
+  family_fact: 'los datos familiares del período', employment_fact: 'la antigüedad reconocida del contrato',
+  salary_condition_fact: 'las condiciones salariales del contrato', working_time_fact: 'la jornada del contrato',
+  conditional_working_time_fact: 'la jornada del contrato', agreement_time_fact: 'la jornada del convenio',
+  classification_fact: 'la clasificación del contrato', period_fact: 'la participación en el período',
+  period_context_fact: 'el contexto del período', monthly_amount: 'una novedad mensual', monthly_quantity: 'una novedad mensual',
+  monthly_presence: 'una novedad mensual', fixed_quantity: 'una novedad fija', fixed_presence: 'una novedad fija'
+});
+export const OWN_RUN_MISSING_FIELDS = Object.freeze({
+  spouse: 'cónyuge', children: 'hijos', childrenWithDisability: 'hijos con discapacidad', dependants: 'personas a cargo',
+  largeFamily: 'familia numerosa', prenatal: 'prenatal', prenatalAdjustmentMonths: 'meses de ajuste prenatal',
+  preschool: 'preescolar', preschoolWithDisability: 'preescolar con discapacidad', primary: 'primaria',
+  primaryWithDisability: 'primaria con discapacidad', secondary: 'secundaria', secondaryWithDisability: 'secundaria con discapacidad',
+  seniorityYears: 'años de antigüedad', partialSeniorityYears: 'antigüedad parcial', titleStatus: 'título', titleCode: 'código de título',
+  titlePercentage: 'porcentaje de título', unhealthyWork: 'tarea insalubre', teacherPayEnabled: 'adicional docente',
+  teacherReferenceAmount: 'importe de referencia docente', housingHigherDedicationPayEnabled: 'vivienda o mayor dedicación',
+  payrollMonthBaseDays: 'días base del mes', monthlyHours: 'horas mensuales', dailyHours: 'horas diarias', categoryCode: 'categoría',
+  baseUnits: 'unidades base', recognizedUnits: 'unidades reconocidas', monthNumber: 'mes'
+});
+/** Devuelve el aviso normalizado o null. Sólo acepta la forma exacta, claves del vocabulario y conteos coherentes. */
+export function ownRunMissing(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).sort().join(',') !== 'key,people,sourceField,sourceKind,without') return null;
+  if (typeof v.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(v.key)
+    || !(v.sourceKind === null || typeof v.sourceKind === 'string' && Object.hasOwn(OWN_RUN_MISSING_SOURCES, v.sourceKind))
+    || !(v.sourceField === null || typeof v.sourceField === 'string' && Object.hasOwn(OWN_RUN_MISSING_FIELDS, v.sourceField))
+    || !Number.isSafeInteger(v.people) || !Number.isSafeInteger(v.without) || v.people < 1 || v.people > 10000 || v.without < 1 || v.without > v.people) return null;
+  return { key: v.key, sourceKind: v.sourceKind, sourceField: v.sourceField, without: v.without, people: v.people };
+}
+export function ownRunMissingMessage(v) {
+  const m = ownRunMissing(v); if (!m) return null;
+  const source = m.sourceKind === null ? 'un dato que usa la fórmula' : OWN_RUN_MISSING_SOURCES[m.sourceKind];
+  const field = m.sourceField === null ? '' : ' (' + OWN_RUN_MISSING_FIELDS[m.sourceField] + ')';
+  return 'Falta cargar ' + source + field + ': sin valor en ' + m.without + ' de ' + m.people + (m.people === 1 ? ' persona elegida' : ' personas elegidas')
+    + '. No se supuso cero. Completá ese dato, aprobalo y volvé a calcular. Clave en las reglas: ' + m.key + '.';
+}

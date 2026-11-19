@@ -1,5 +1,7 @@
-import { decimal, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require } from './own-payroll-exact.js';
+import { decimal, exactAdd, exactSubtract, exactMultiply, exactDivide, exactCompare, exactEvidence, quantize, roundingPolicy, payrollRequire as require, OwnPayrollError } from './own-payroll-exact.js';
 import { conditionUnit, conditionValue } from './own-payroll-conditions.js';
+// La clave pedida viaja con el error sólo para poder decir qué dato faltó. No participa de ningún cálculo.
+const requireInput = (input, key, message) => { if (!(input && input.value !== null)) throw Object.assign(new OwnPayrollError('INPUT_MISSING', message), { inputKey: key }); };
 
 const units = new Set(['money', 'hours', 'minutes', 'days', 'percent', 'units', 'coefficient']);
 const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
@@ -66,8 +68,8 @@ export function evaluatePayrollExpression(expression, { consume, inputs, referen
     consume();
     let value, quantityStage = null;
     if (n.op === 'literal') value = decimal(n.value);
-    else if (n.op === 'input') { const input = inputs.get(n.key); require(input && input.value !== null, 'INPUT_MISSING', 'Falta una entrada necesaria; no se supone cero.'); require(input.unit === n.unit, 'UNIT_MISMATCH', 'La entrada tiene otra unidad.'); value = decimal(input.value); }
-    else if (n.op === 'match') { const input = inputs.get(n.key); require(input && input.value !== null, 'INPUT_MISSING', 'Falta la condición necesaria; no se supone no, sin título ni cero.'); require(input.unit === n.type && conditionValue(input.unit, input.value), 'UNIT_MISMATCH', 'La condición tiene otro tipo.'); value = n.operator === 'eq' ? input.value === n.value : input.value !== n.value; }
+    else if (n.op === 'input') { const input = inputs.get(n.key); requireInput(input, n.key, 'Falta una entrada necesaria; no se supone cero.'); require(input.unit === n.unit, 'UNIT_MISMATCH', 'La entrada tiene otra unidad.'); value = decimal(input.value); }
+    else if (n.op === 'match') { const input = inputs.get(n.key); requireInput(input, n.key, 'Falta la condición necesaria; no se supone no, sin título ni cero.'); require(input.unit === n.type && conditionValue(input.unit, input.value), 'UNIT_MISMATCH', 'La condición tiene otro tipo.'); value = n.operator === 'eq' ? input.value === n.value : input.value !== n.value; }
     else if (n.op === 'concept' || n.op === 'auxiliary') { const referenced = reference(n); value = n.stage === 'exact' ? referenced.exact : referenced.value; }
     else if (n.op === 'quantity') { const referenced = quantity(n); value = referenced.value; quantityStage = referenced.stage; }
     else if (n.op === 'round') value = quantize(evaluate(n.value), n.rounding).value;
