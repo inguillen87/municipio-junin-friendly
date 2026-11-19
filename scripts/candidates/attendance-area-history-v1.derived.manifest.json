@@ -196,6 +196,7 @@
       }
     ]
   },
+  "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
     "bytes": 28816,

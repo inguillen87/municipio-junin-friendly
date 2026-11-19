@@ -175,10 +175,26 @@
         "leakproof": null
       },
       {
-        "signature": null,
-        "function": "digest",
+        "signature": "public.digest(bytea,text)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "digest",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.digest(text,text)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "digest",
         "owner": null,
         "acl": null,
         "secdef": null,
@@ -200,9 +216,12 @@
       }
     ]
   },
+  "runtimeGrants": [
+    "public.attendance_area_workdays_read_v1(jsonb,jsonb)"
+  ],
   "output": {
     "path": "scripts/candidates/attendance-area-workdays-v1.derived.sql.txt",
-    "bytes": 26925,
-    "sha256": "08328513bec8bab090cf80965019800377df6088e2cfe7248988414acd3267c7"
+    "bytes": 27415,
+    "sha256": "4bd47b5e5a6da66bed0dfb0cda622d2848de741532bd9e07b173bb09ceff1cb9"
   }
 }

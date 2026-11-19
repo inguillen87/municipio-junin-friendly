@@ -97,7 +97,37 @@ export function calledFunctions(source){
  }
  return [...names].sort();
 }
-function bodyPins(manifest,source){
+// pgcrypto está en public con dos sobrecargas de digest: (bytea,text) y (text,text). Una dependencia declarada sólo por
+// nombre con varias sobrecargas observadas queda ambigua en la atestación (Codex, PR 270 6996579811), y está bien que así
+// sea. Cada fuente fija acá las firmas que usan sus llamadas reales; tests/install-composition.test.js clasifica cada
+// llamada a digest de cada fuente y exige que coincida exactamente con esta tabla.
+export const DECLARED_DEPENDENCY_SIGNATURES=Object.freeze({
+ 'attendance-area-authority':Object.freeze({digest:Object.freeze(['public.digest(text,text)'])}),
+ 'attendance-area-workdays':Object.freeze({digest:Object.freeze(['public.digest(bytea,text)','public.digest(text,text)'])}),
+ 'employment-job-title-writers':Object.freeze({digest:Object.freeze(['public.digest(bytea,text)','public.digest(text,text)'])}),
+});
+// Fachadas que la aplicación llama directamente: lib/internal-attendance-expected-devices.js (read y command) y
+// lib/internal-attendance-area.js (workdays). Las fuentes revocan todo «y dejan el GRANT a la composición revisada»;
+// sin esto, instaladas, esas rutas fallarían por permiso (Codex, PR 270 6996579811). Sólo estas tres, SECURITY DEFINER
+// y con su propia autoridad (attendance_area_context_v1); los ayudantes y las tablas quedan revocados. Esto no da
+// capacidades ni alcances de área a ninguna cuenta.
+export const COMPOSITION_RUNTIME_ROLE='municontrol_actions_runtime_app';
+export const COMPOSITION_RUNTIME_GRANTS=Object.freeze({
+ 'attendance-expected-devices':Object.freeze(['public.attendance_expected_devices_read_v1(jsonb,jsonb)','public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)']),
+ 'attendance-area-workdays':Object.freeze(['public.attendance_area_workdays_read_v1(jsonb,jsonb)']),
+});
+function runtimeGrantSql(name,source,newFunctions){
+ const grants=COMPOSITION_RUNTIME_GRANTS[name]??[];
+ for(const signature of grants){
+  assert.ok(newFunctions.some(f=>f.signature===signature),'COMPOSITION_GRANT_NOT_CREATED_HERE: '+signature);
+  const fn=signature.split('(')[0].replace('.','\\.'),at=source.search(new RegExp('CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+'+fn+'\\s*\\('));
+  const rest=source.slice(Math.max(at,0)),bodyStart=rest.search(/\bAS\s*\$[a-z_]*\$/i),header=bodyStart>0?rest.slice(0,bodyStart):'';
+  assert.ok(at>=0&&/\bSECURITY\s+DEFINER\b/i.test(header)&&/\bSET\s+search_path\b/i.test(header),'COMPOSITION_GRANT_NOT_DEFINER: '+signature);
+ }
+ return {grants:[...grants],sql:grants.length?'-- Reviewed composition grant (PR 270): only the facades the application calls; helpers and tables stay revoked.\n'
+  +grants.map(g=>'GRANT EXECUTE ON FUNCTION '+g+' TO '+COMPOSITION_RUNTIME_ROLE+';\n').join(''):''};
+}
+function bodyPins(manifest,source,name){
  const pins=[];
  for(const f of manifest.functions??[])if(f.beforeBodySha256) pins.push({signature:f.signature,prosrcSha256:f.beforeBodySha256,kind:'redefined'});
  for(const p of manifest.originalBodyPins??[]){
@@ -113,8 +143,12 @@ function bodyPins(manifest,source){
  for(const signature of manifest.requiredPrivateStableHelpers??[])if(!pins.some(x=>x.signature===signature))
   pins.push({signature,prosrcSha256:null,kind:'dependency'});
  // Dependencias sin firma declarada: firma(s), cuerpo, dueño, ACL y metadatos los aporta la atestación de Codex.
- for(const name of calledFunctions(source))if(!pins.some(x=>pinName(x)===name))
-  pins.push({signature:null,function:name,prosrcSha256:null,kind:'dependency'});
+ const declared=DECLARED_DEPENDENCY_SIGNATURES[name]??{},called=calledFunctions(source);
+ for(const fn of Object.keys(declared))assert.ok(called.includes(fn),'COMPOSITION_DECLARED_DEPENDENCY_NOT_CALLED: '+name+' '+fn);
+ for(const fn of called)if(!pins.some(x=>pinName(x)===fn)){
+  if(Object.hasOwn(declared,fn))for(const signature of declared[fn])pins.push({signature,prosrcSha256:null,kind:'dependency'});
+  else pins.push({signature:null,function:fn,prosrcSha256:null,kind:'dependency'});
+ }
  return pins.map(p=>({...p,function:pinName(p)}));
 }
 function triggerPins(source){
@@ -224,7 +258,7 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
  assert.ok(!/\bCOMMIT\b/i.test(stripLineComments(source)),'COMPOSITION_UNEXPECTED_COMMIT');
  const body=tail.slice(0,-'ROLLBACK;\n'.length);
  const declarations=functionsIn(source),redefined=declarations.filter(f=>f.redefined),
-  manifestExisting=bodyPins(manifest,source);
+  manifestExisting=bodyPins(manifest,source,name);
  assert.equal(new Set(declarations.map(f=>f.name)).size,declarations.length,'COMPOSITION_DUPLICATE_DEFINITION');
  assert.deepEqual(redefined.map(f=>f.signature).sort(),manifestExisting.filter(f=>f.kind==='redefined').map(f=>f.signature).sort(),'COMPOSITION_REDEFINITION_NOT_PINNED');
  const newFunctions=declarations.filter(f=>!f.redefined);
@@ -281,7 +315,8 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
 -- CODEX_REVIEWED_COMMIT marker bound to the reviewed derived SQL SHA-256 and recorded preimages.
 ROLLBACK;
 `;
- const sql=header+prefix+preimage+body+ending;
+ const runtime=runtimeGrantSql(name,source,newFunctions);
+ const sql=header+prefix+preimage+body+runtime.sql+ending;
  assert.ok(!sql.includes('$source_only$')&&!sql.includes('$not_an_installer$'),'COMPOSITION_BARRIER_REMAINED');
  assert.equal(sql.split('$composition_preimage$').length,3,'COMPOSITION_DOLLAR_QUOTE_INJECTION');
  assert.ok(sql.endsWith('ROLLBACK;\n')&&!/\bCOMMIT\b/i.test(stripLineComments(sql)),'COMPOSITION_UNSAFE_TERMINATOR');
@@ -294,6 +329,7 @@ ROLLBACK;
    removed:{barrierSha256:sha(b[0]),rollbackSha256:sha('ROLLBACK;\n')},
    preserved:{prefixSha256:sha(prefix),bodySha256:sha(body),originalStatementsBytePreserved:true},
    preimages:{functions:existing,triggers,newFunctions},
+   runtimeGrants:runtime.grants,
    output:{path:outputPath(name),bytes:Buffer.byteLength(sql,'utf8'),sha256:sha(sql)},
  }};
 }

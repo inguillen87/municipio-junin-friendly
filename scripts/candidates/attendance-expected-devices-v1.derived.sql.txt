@@ -712,6 +712,9 @@ REVOKE ALL ON FUNCTION
  public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid),
  public.attendance_expected_devices_effective_v1(jsonb,uuid,date)
  FROM PUBLIC,municontrol_actions_runtime_app;
+-- Reviewed composition grant (PR 270): only the facades the application calls; helpers and tables stay revoked.
+GRANT EXECUTE ON FUNCTION public.attendance_expected_devices_read_v1(jsonb,jsonb) TO municontrol_actions_runtime_app;
+GRANT EXECUTE ON FUNCTION public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid) TO municontrol_actions_runtime_app;
 -- CODEX INSTALLATION RULE: replace the final ROLLBACK only after adding an explicit
 -- CODEX_REVIEWED_COMMIT marker bound to the reviewed derived SQL SHA-256 and recorded preimages.
 ROLLBACK;

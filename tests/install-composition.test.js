@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {COMPOSITION_ORDER,compositionPaths,deriveSource} from '../scripts/lib/install-composition-source.mjs';
+import {COMPOSITION_ORDER,compositionPaths,deriveSource,COMPOSITION_RUNTIME_GRANTS,COMPOSITION_RUNTIME_ROLE} from '../scripts/lib/install-composition-source.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const evidence=JSON.parse(read('scripts/candidates/install-composition-attestation-v1.json'));
 const meta=(over={})=>({owner:'qa_owner',acl:'<NULL>',secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',volatile:'v',strict:false,parallel:'u',leakproof:false,...over});
@@ -51,7 +51,7 @@ test('history guards pin original function bodies and enabled triggers, and fail
  assert.match(sql,/COMPOSITION_PREIMAGE_NOT_ATTESTED/);
  assert.match(sql,/t\.enabled NOT IN \('O','A'\)/);
 });
-test('topological order puts history before expected devices; all installed source files preserve their REVOKE statements, never add GRANT',()=>{
+test('topological order puts history before expected devices; all installed source files preserve their REVOKE statements and add only the declared facade GRANTs',()=>{
  assert.deepEqual(COMPOSITION_ORDER.slice(0,4),['attendance-area-authority','attendance-area-history','attendance-expected-devices','attendance-area-workdays']);
  // Ninguna fuente puede depender de una función creada por una fuente posterior en COMPOSITION_ORDER.
  const createdBefore=new Set(),createdBy=new Map();
@@ -65,7 +65,8 @@ test('topological order puts history before expected devices; all installed sour
   }
   for(const nf of manifest.preimages.newFunctions)createdBefore.add(nf.name);
   const count=s=>(s.match(/\bGRANT\s+(?:(?:ALL|EXECUTE|SELECT|INSERT|UPDATE|DELETE)\s+)?ON\b/gi)??[]).length;
-  assert.equal(count(sql),count(source),name);
+  // La composición sólo agrega los GRANT declarados de las fachadas (Codex 6996579811); ninguno más.
+  assert.equal(count(sql),count(source)+(COMPOSITION_RUNTIME_GRANTS[name]?.length??0),name);
   const revoked=source.match(/REVOKE ALL ON[\s\S]*?FROM PUBLIC,municontrol_actions_runtime_app;/g)??[];
   for(const statement of revoked)assert.ok(sql.includes(statement),name);
  }
@@ -131,18 +132,18 @@ test('Claude: una atestación completa habilita la composición; un cuerpo fijad
  assert.throws(()=>deriveSource({...history,attestation:{functions:{...functions,[first.signature]:meta({prosrcSha256:'0'.repeat(64)})},triggers,reviewed:true}}),/ATTESTATION_BODY_MISMATCH/);
  assert.throws(()=>deriveSource({...history,attestation:{functions,triggers:{...triggers,'public.x:y':{enabled:'O'}},reviewed:true}}),/UNKNOWN_TRIGGER_ATTESTATION/);
  const authority=inputs('attendance-area-authority'),deps=deriveSource({...authority,attestation:{}}).manifest.preimages.functions;
- const attested=Object.fromEntries(deps.map((p,i)=>['public.'+p.function+'(jsonb)',meta({prosrcSha256:String(i%10).repeat(64)})]));
+ const attested=Object.fromEntries(deps.map((p,i)=>[p.signature??('public.'+p.function+'(jsonb)'),meta({prosrcSha256:String(i%10).repeat(64)})]));
  const done=deriveSource({...authority,attestation:{functions:attested,triggers:{},reviewed:true}}).manifest;
  assert.equal(done.installable,true);
- assert.ok(done.preimages.functions.every(p=>p.signature==='public.'+p.function+'(jsonb)'&&/^[0-9a-f]{64}$/.test(p.prosrcSha256)));
+ assert.ok(done.preimages.functions.every(p=>Object.hasOwn(attested,p.signature)&&/^[0-9a-f]{64}$/.test(p.prosrcSha256)));
 });
 
 // Revisión adversarial de Gemini: inyección dollar-quote, barrera con trigger deshabilitado, llamadas sin calificar, sobrecargas y SHA unificado.
 test('Gemini: rechaza inyección por cierre de dollar-quote ($composition_preimage$) en owner, acl, firma o config',()=>{
  const inputs=name=>{const paths=compositionPaths(name),manifestText=read(paths.manifest);return {name,source:read(paths.source),manifest:JSON.parse(manifestText),manifestText};};
  const auth=inputs('attendance-area-authority'),deps=deriveSource({...auth,attestation:{}}).manifest.preimages.functions;
- const valid=Object.fromEntries(deps.map((p,i)=>['public.'+p.function+'(jsonb)',meta({prosrcSha256:String(i%10).repeat(64)})]));
- const sig='public.'+deps[0].function+'(jsonb)';
+ const valid=Object.fromEntries(deps.map((p,i)=>[p.signature??('public.'+p.function+'(jsonb)'),meta({prosrcSha256:String(i%10).repeat(64)})]));
+ const sig=deps[0].signature??('public.'+deps[0].function+'(jsonb)');
  for(const bad of [
   {...valid,[sig]:meta({owner:'$composition_preimage$; ROLLBACK; CREATE ROLE pwn; --',prosrcSha256:'a'.repeat(64)})},
   {...valid,[sig]:meta({acl:'$composition_preimage$; COMMIT;',prosrcSha256:'a'.repeat(64)})},
@@ -198,7 +199,7 @@ test('ChatGPT (6994996082): la guarda fija volatilidad, STRICT, paralelo y leakp
  const paths=compositionPaths('attendance-area-authority'),manifestText=read(paths.manifest),source=read(paths.source);
  const base={name:'attendance-area-authority',source,manifest:JSON.parse(manifestText),manifestText};
  const deps=deriveSource({...base,attestation:{}}).manifest.preimages.functions;
- const full=Object.fromEntries(deps.map((p,i)=>['public.'+p.function+'(jsonb)',meta({prosrcSha256:String(i%10).repeat(64)})]));
+ const full=Object.fromEntries(deps.map((p,i)=>[p.signature??('public.'+p.function+'(jsonb)'),meta({prosrcSha256:String(i%10).repeat(64)})]));
  const ok=deriveSource({...base,attestation:{functions:full,triggers:{},reviewed:true}});
  assert.equal(ok.manifest.installable,true);
  for(const field of ['provolatile','proisstrict','proparallel','proleakproof'])assert.ok(ok.sql.includes('x.'+field),field);
@@ -209,4 +210,27 @@ test('ChatGPT (6994996082): la guarda fija volatilidad, STRICT, paralelo y leakp
  assert.equal(deriveSource({...base,attestation:{functions:missing,triggers:{},reviewed:true}}).manifest.installable,false);
  const [first]=Object.keys(full);
  assert.throws(()=>deriveSource({...base,attestation:{functions:{...full,[first]:{...full[first],volatile:'x'}},triggers:{},reviewed:true}}),/ATTESTATION_INVALID/);
+});
+
+// Codex (PR 270, 6996579811): las fuentes revocan EXECUTE incluso en las fachadas que la aplicación llama directamente y
+// dejan el GRANT a la composición revisada. Sin él, instaladas, esas rutas fallarían por permiso.
+test('Codex (6996579811): la composición concede EXECUTE sólo a las fachadas que llama la aplicación, después de la guarda',()=>{
+ const appCalls=file=>[...readFileSync(file,'utf8').matchAll(/SELECT public\.([a-z_0-9]+)\(/g)].map(m=>m[1]);
+ const called=new Set([...appCalls('lib/internal-attendance-expected-devices.js'),...appCalls('lib/internal-attendance-area.js')]);
+ const granted=Object.values(COMPOSITION_RUNTIME_GRANTS).flat();
+ assert.deepEqual([...called].sort(),granted.map(g=>g.split('(')[0].split('.')[1]).sort(),'cada llamada directa de la app tiene su GRANT y ningún GRANT sobra');
+ for(const name of COMPOSITION_ORDER){
+  const {sql,manifest}=example(name),declared=COMPOSITION_RUNTIME_GRANTS[name]??[];
+  assert.deepEqual(manifest.runtimeGrants,[...declared],name);
+  const statements=[...sql.matchAll(/^GRANT EXECUTE ON FUNCTION (public\.[a-z_0-9]+\([a-z0-9_,.]*\)) TO ([a-z_]+);$/gm)];
+  assert.deepEqual(statements.map(m=>m[1]),[...declared],name);
+  for(const m of statements){
+   assert.equal(m[2],COMPOSITION_RUNTIME_ROLE);
+   assert.ok(m.index>sql.lastIndexOf('$composition_preimage$'),'el GRANT va después de la guarda de preimágenes');
+   assert.ok(m.index>sql.lastIndexOf('REVOKE ALL ON FUNCTION'),'el GRANT va después de las revocaciones de la fuente');
+   assert.ok(m.index<sql.lastIndexOf('ROLLBACK;'),'dentro de la misma transacción');
+  }
+  for(const helper of manifest.preimages.newFunctions.filter(f=>!declared.includes(f.signature)))
+   assert.ok(!new RegExp('^\\s*GRANT\\b[^;]*\\b'+helper.name+'\\(','m').test(sql),name+': '+helper.name+' sigue revocada');
+ }
 });

@@ -143,8 +143,11 @@ test('the T4 · A producer feeds the bell end to end; its partial cut is shown a
   const {produceAttendanceDailySource} = await import('../lib/internal-attendance-daily-source.js');
   const area = await import('./fixtures/attendance-area-synthetic.js');
   const calls = [];
-  const areaSql = {async query(text, values) { calls.push({text, q: JSON.parse(values[1])}); return [{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []},
-    transaction: {isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'}})}]; }};
+  // The producer only reads inside a transaction; this one reports READ COMMITTED, so the cut stays unconfirmed.
+  const areaSql = {async query() { throw new Error('a bare query is never used'); },
+    async transaction(build) { build({query: (text, values) => { calls.push({text, q: JSON.parse(values[1])}); return {text}; }});
+      return [[{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []},
+        transaction: {isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'}})}]]; }};
   // 2026-11-15 03:30 UTC: yesterday in Mendoza is the synthetic area day.
   const data = await attendanceDailyNoticeRead({sql: areaSql, principal: area.principal, session: area.session, now: NOW, dayCount: 1,
     producer: produceAttendanceDailySource, scopes: async () => [{area: structuredClone(area.area), site: 'qa-site'}]});
@@ -244,15 +247,23 @@ test('the producer runs in REPEATABLE READ when the client can, and trusts only 
     assert.equal(cut.cut.consistency, 'unconfirmed'); assert.equal(cut.cut.evidence, null);
     assert.ok(evaluateAttendanceDailyIncidents(cut).blockerCodes.includes('JOINT_CUT_UNCONFIRMED'));
   }
-  // A client without transactions keeps the plain call and stays unconfirmed.
-  const plain = {async query() { return [{result: body({isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'})}]; }};
-  assert.equal((await produceAttendanceDailySource(plain, area.principal, area.session, area.areaQuery())).cut.consistency, 'unconfirmed');
+  // A client without transactions is refused before any read (Codex, PR 270 6996579811): no read outside REPEATABLE READ.
+  let bare = 0;
+  const plain = {async query() { bare++; return [{result: body({isolation: 'read committed', readOnly: 'off', snapshot: '730:730:'})}]; }};
+  await assert.rejects(produceAttendanceDailySource(plain, area.principal, area.session, area.areaQuery()), e => e.code === 'ATTENDANCE_DAILY_SOURCE_UNAVAILABLE');
+  assert.equal(bare, 0);
   // The report itself must be exact.
   for (const bad of [undefined, {isolation: 'repeatable read', readOnly: 'on'}, {isolation: 'snapshot', readOnly: 'on', snapshot: '1:1:'}, {isolation: 'repeatable read', readOnly: 'on', snapshot: 'x'}]) {
-    const sql = {async query() { return [{result: JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, ...(bad ? {transaction: bad} : {})})}]; }};
+    const result = JSON.stringify({area: area.areaSource(), catalog: {complete: false, assignments: []}, ...(bad ? {transaction: bad} : {})});
+    const sql = {async query() { throw new Error('a bare query is never used'); }, async transaction(build) { build({query: (text, params) => ({text, params})}); return [[{result}]]; }};
     await assert.rejects(produceAttendanceDailySource(sql, area.principal, area.session, area.areaQuery()), e => e.code === 'ATTENDANCE_DAILY_SOURCE_UNAVAILABLE', JSON.stringify(bad));
   }
   const sqlText = fs.readFileSync('scripts/migrations/240-attendance-daily-source.sql', 'utf8');
+  // The reader enforces REPEATABLE READ before its first read, and does not swallow serialization failures.
+  const guard = sqlText.indexOf("IF current_setting('transaction_isolation')<>'repeatable read' THEN");
+  assert.ok(guard > 0 && guard < sqlText.indexOf('public.attendance_area_workdays_read_v1(p_context,p_query)'));
+  assert.match(sqlText, /RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_ISOLATION_REQUIRED'/);
+  assert.doesNotMatch(sqlText, /serialization_failure/);
   assert.match(sqlText, /'isolation',current_setting\('transaction_isolation'\)/); assert.match(sqlText, /'readOnly',current_setting\('transaction_read_only'\)/);
   assert.match(sqlText, /'snapshot',pg_current_snapshot\(\)::text/);
 });

@@ -179,9 +179,13 @@
       }
     ]
   },
+  "runtimeGrants": [
+    "public.attendance_expected_devices_read_v1(jsonb,jsonb)",
+    "public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)"
+  ],
   "output": {
     "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
-    "bytes": 61363,
-    "sha256": "135ebd535e953d41aca804ea3cf6f22a437710dcffce40e779008910869b71b7"
+    "bytes": 61720,
+    "sha256": "9ef3416cb12c5491167a4b63156d946eeb4286b637538b143d9c0c422f7cfc19"
   }
 }

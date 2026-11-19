@@ -39,7 +39,12 @@ AS $$
 DECLARE
   result_value jsonb; area_value jsonb; binding_id uuid; binding_company bigint;
 BEGIN
-  -- Inside the producer's REPEATABLE READ transaction every statement below shares one snapshot.
+  -- One snapshot for every statement below, enforced before anything is read (Codex, PR 270 6996579811):
+  -- outside REPEATABLE READ the reader refuses instead of reporting the isolation only at the end.
+  -- A serialization failure is not caught here: it aborts the whole transaction with its own SQLSTATE.
+  IF current_setting('transaction_isolation')<>'repeatable read' THEN
+    RAISE EXCEPTION 'ATTENDANCE_DAILY_SOURCE_ISOLATION_REQUIRED' USING ERRCODE='P0001';
+  END IF;
   -- This call is the authority: attendance.area.read for this exact area, session and release.
   area_value:=public.attendance_area_workdays_read_v1(p_context,p_query);
   SELECT source.id,source.source_company_id INTO binding_id,binding_company

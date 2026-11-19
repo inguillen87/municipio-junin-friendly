@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {COMPOSITION_ORDER,compositionPaths,deriveSource} from '../scripts/lib/install-composition-source.mjs';
+import {COMPOSITION_ORDER,compositionPaths,deriveSource,DECLARED_DEPENDENCY_SIGNATURES} from '../scripts/lib/install-composition-source.mjs';
 import {attestationQuery,mergeAttestation,observationTargets,ATTESTATION_OBSERVATION_VERSION} from '../scripts/lib/install-composition-attestation.mjs';
 
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
@@ -30,7 +30,7 @@ test('la consulta es de sólo lectura, termina en ROLLBACK y pide todas las func
 test('el volcado resuelve dependencias por nombre, nunca marca revisado y una atestación revisada habilita authority',()=>{
  const deps=derived['attendance-area-authority'].preimages.functions;
  const observation={version:ATTESTATION_OBSERVATION_VERSION,observedAt:'2026-11-18T21:00:00Z',database:'qa',triggers:{},
-  functions:Object.fromEntries(deps.map((p,i)=>['public.'+p.function+'(jsonb)',obsFn(String(i%10).repeat(64))]))};
+  functions:Object.fromEntries(deps.map((p,i)=>[p.signature??('public.'+p.function+'(jsonb)'),obsFn(String(i%10).repeat(64))]))};
  const {attestation:merged,unresolved}=mergeAttestation(attestation,observation,{'attendance-area-authority':derived['attendance-area-authority']});
  assert.deepEqual(unresolved,[]);
  const source=merged.sources['attendance-area-authority'];
@@ -73,4 +73,50 @@ test('el volcado informa sobrecargas ambiguas, faltantes, disparadores cambiados
  assert.deepEqual(scoped.unresolved,[]);
  assert.equal(scoped.attestation.sources['attendance-area-authority'].reviewed,true);
  assert.equal(scoped.attestation.sources['attendance-area-history'].reviewed,false);
+});
+
+// Codex (PR 270, 6996579811): en el destino digest tiene dos sobrecargas, (bytea,text) y (text,text), y authority quedó
+// «ambiguous». Cada fuente fija las firmas de sus llamadas reales; una dependencia que siga sólo por nombre con varias
+// sobrecargas sigue siendo ambigua (prueba anterior).
+const digestCalls=source=>{
+ const out=[];
+ for(const m of source.matchAll(/(?<![a-z_.])(?:public\.)?digest\(/g)){
+  let depth=1,j=m.index+m[0].length,first='',done=false;
+  for(;j<source.length&&depth;j++){const c=source[j];if(c==='(')depth++;else if(c===')')depth--;if(depth===1&&c===','&&!done){done=true;continue;}if(!done&&depth>0)first+=c;}
+  out.push(first.replace(/\s+/g,' ').trim());
+ }
+ return out;
+};
+// Tipo del primer argumento. Una llamada nueva que no encaje en ninguna regla hace fallar la prueba: hay que revisarla a mano.
+const digestType=arg=>{
+ if(/^convert_to\(/.test(arg)||/^decode\(/.test(arg)||/^string_agg\([a-z_.]+,decode\(/.test(arg)||/^substring\(q\.records_payload FROM /.test(arg))return 'bytea';
+ if(/::text$/.test(arg)||/^'[^']*'\|\|/.test(arg)||/^concat_ws\(/.test(arg)||/::text\|\|/.test(arg))return 'text';
+ return null;
+};
+test('Codex (6996579811): cada fuente fija las sobrecargas de digest que usan sus llamadas reales',()=>{
+ for(const name of COMPOSITION_ORDER){
+  const calls=digestCalls(inputs(name).source),types=calls.map(digestType);
+  assert.ok(types.every(Boolean),name+': llamada a digest sin clasificar '+JSON.stringify(calls.filter((c,i)=>!types[i])));
+  const used=[...new Set(types)].sort().map(t=>'public.digest('+t+',text)');
+  assert.deepEqual([...(DECLARED_DEPENDENCY_SIGNATURES[name]?.digest??[])].sort(),used,name);
+  const pins=derived[name].preimages.functions.filter(p=>p.function==='digest');
+  assert.deepEqual(pins.map(p=>p.signature).sort(),used,name+': el manifiesto derivado fija esas firmas y ninguna por nombre');
+ }
+ assert.deepEqual(DECLARED_DEPENDENCY_SIGNATURES['attendance-area-authority'].digest,['public.digest(text,text)']);
+});
+test('Codex (6996579811): con las dos sobrecargas de digest en el destino, authority se resuelve sin ambigüedad y sólo atesta (text,text)',()=>{
+ const authority=derived['attendance-area-authority'],workdays=derived['attendance-area-workdays'];
+ const functions={};
+ for(const p of authority.preimages.functions)functions[p.signature??('public.'+p.function+'(jsonb)')]=obsFn('1'.repeat(64));
+ functions['public.digest(bytea,text)']=obsFn('2'.repeat(64),{lang:'c',bin:'$libdir/pgcrypto',secdef:false,config:[],volatile:'i',strict:true,parallel:'s'});
+ functions['public.digest(text,text)']=obsFn('3'.repeat(64),{lang:'c',bin:'$libdir/pgcrypto',secdef:false,config:[],volatile:'i',strict:true,parallel:'s'});
+ const {attestation:merged,unresolved}=mergeAttestation(attestation,{version:ATTESTATION_OBSERVATION_VERSION,functions,triggers:{}},{'attendance-area-authority':authority},{onlySources:['attendance-area-authority']});
+ assert.deepEqual(unresolved,[]);
+ const source=merged.sources['attendance-area-authority'];
+ assert.ok(Object.hasOwn(source.functions,'public.digest(text,text)'));
+ assert.ok(!Object.hasOwn(source.functions,'public.digest(bytea,text)'),'la sobrecarga que authority no usa no se atesta');
+ assert.equal(deriveSource({...inputs('attendance-area-authority'),attestation:{...source,reviewed:true}}).manifest.installable,true);
+ const wd=mergeAttestation(attestation,{version:ATTESTATION_OBSERVATION_VERSION,functions,triggers:{}},{'attendance-area-workdays':workdays},{onlySources:['attendance-area-workdays']});
+ for(const signature of ['public.digest(bytea,text)','public.digest(text,text)'])
+  assert.ok(Object.hasOwn(wd.attestation.sources['attendance-area-workdays'].functions,signature),'workdays atesta '+signature);
 });

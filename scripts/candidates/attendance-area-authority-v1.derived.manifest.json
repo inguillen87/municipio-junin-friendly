@@ -47,10 +47,10 @@
         "leakproof": null
       },
       {
-        "signature": null,
-        "function": "digest",
+        "signature": "public.digest(text,text)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "digest",
         "owner": null,
         "acl": null,
         "secdef": null,
@@ -188,9 +188,10 @@
       }
     ]
   },
+  "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/attendance-area-authority-v1.derived.sql.txt",
-    "bytes": 20845,
-    "sha256": "35550e651c35c69c8a01f49dfb8691ee255c9718f45d784e3bfee572363610e4"
+    "bytes": 20867,
+    "sha256": "a43ee4d7247d284da5955efc53666ad74e8f90c02ce400264b8f26a6ffd38bd4"
   }
 }

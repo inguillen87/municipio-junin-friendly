@@ -79,10 +79,26 @@
         "leakproof": null
       },
       {
-        "signature": null,
-        "function": "digest",
+        "signature": "public.digest(bytea,text)",
         "prosrcSha256": null,
         "kind": "dependency",
+        "function": "digest",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.digest(text,text)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "digest",
         "owner": null,
         "acl": null,
         "secdef": null,
@@ -418,9 +434,10 @@
     "triggers": [],
     "newFunctions": []
   },
+  "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/employment-job-title-writers-v1.derived.sql.txt",
-    "bytes": 35177,
-    "sha256": "47c6857240d5c363bfe1e6a75bf55bc49d9c9d1493146219ea5bed6c5449e9d1"
+    "bytes": 35439,
+    "sha256": "c24c47aeefbfefd5e2dfde5924eca260547a5430f1b0d1ebeb92e83ac7600fc3"
   }
 }
