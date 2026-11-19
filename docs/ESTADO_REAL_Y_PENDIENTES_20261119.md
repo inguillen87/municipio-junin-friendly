@@ -65,4 +65,4 @@ Sobre el candidato 2, 57 de 68 flujos pasaban. Las fallas restantes eran de la p
 
 La corrida completa sobre el candidato 5 (`claude/integracion-20261117`) quedó lanzada el 19/11.
 
-Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0 y ensayo de ambas migraciones, en orden, sobre una copia aislada de la base operativa.
+Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0, 14.684 pruebas y 0 fallas; ambas migraciones ensayadas en orden sobre una copia aislada de la base operativa, con `plpgsql_check` sin hallazgos en las funciones nuevas; los dos paneles nuevos revisados en navegador real a 375 y 1366 px. Al cierre de este documento las migraciones 243 y 244 no están instaladas en la base operativa y el candidato 6 no está publicado: ambas cosas esperan la decisión expresa del municipio.
