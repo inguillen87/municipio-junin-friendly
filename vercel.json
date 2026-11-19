@@ -103,6 +103,9 @@
     },
     "api/internal-attendance-area-scopes.js": {
       "maxDuration": 20
+    },
+    "api/internal-attendance-area-effectivity.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

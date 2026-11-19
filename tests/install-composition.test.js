@@ -253,7 +253,7 @@ test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su co
   });
   return found;
  };
- const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql'];
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql','scripts/migrations/244-attendance-area-effectivity-declaration.sql'];
  assert.deepEqual(files.flatMap(offenders),[]);
  // La regla detecta el caso real que falló en el ensayo.
  const probe=join(mkdtempSync(join(tmpdir(),'mc-if-case-')),'probe.sql');
@@ -266,7 +266,7 @@ test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su co
 // función no lo detecta: falla recién al ejecutar esa rama. Toda resta o suma después de un operador JSON va con paréntesis.
 test('ensayo PG17: ningún operador JSON queda sin paréntesis delante de + o -',()=>{
  const risky=/(?:->>?|#>>?)\s*(?:'[^']*'|[a-z_.]+)\s*[-+]\s*(?:'|[a-z0-9_(])/g;
- const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql'];
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql','scripts/migrations/244-attendance-area-effectivity-declaration.sql'];
  for(const file of files)assert.deepEqual(readFileSync(file,'utf8').replace(/--[^\n]*/g,'').match(risky)??[],[],file);
  assert.equal("x->'source_payload'-'employment'".match(risky)?.length,1,'la regla detecta el caso real');
  assert.equal("(x->'source_payload')-'employment'".match(risky),null);
