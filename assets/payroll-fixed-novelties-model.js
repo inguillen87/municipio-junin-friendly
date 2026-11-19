@@ -1,4 +1,5 @@
 import { civilDate } from './civil-date.js';
+import { payrollOperatorIdentity } from './payroll-operator-identity.js';
 
 export const FIXED_MAX_ROWS = 500;
 export const FIXED_TYPES = Object.freeze({ monthly: 'Mensual', first_fortnight: 'Primera quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Liquidación final', other: 'Otra' });
@@ -135,12 +136,18 @@ function envelope(payload, version, keys) {
   const d=payload?.data;if(payload?.ok!==true||!exact(d,['version',...keys])||d.version!==version) fail();return d;
 }
 export function fixedBootstrap(payload) {
-  const d=envelope(payload,'payroll-fixed-bootstrap.v1',['principal','limits','payrollTypes','effects']),p=d.principal;
-  if (!exact(p,['tenantId','membershipId','certifiedBindingId','capabilities','employmentLinked'])||!uuid(p.tenantId)||!uuid(p.membershipId)||!uuid(p.certifiedBindingId)
+  const version=payload?.data?.version;if(!['payroll-fixed-bootstrap.v1','payroll-fixed-bootstrap.v2'].includes(version))fail();
+  const d=envelope(payload,version,['principal','limits','payrollTypes','effects']),p=d.principal,operatorVersion=version==='payroll-fixed-bootstrap.v2';
+  if (!exact(p,['tenantId','membershipId','certifiedBindingId','capabilities','employmentLinked',...(operatorVersion?['actorIdentityVerified','actorIdentityBasis']:[])])||!uuid(p.tenantId)||!uuid(p.membershipId)||!uuid(p.certifiedBindingId)
     ||!Array.isArray(p.capabilities)||p.capabilities.some(c=>!safeText(c,100))||new Set(p.capabilities).size!==p.capabilities.length||typeof p.employmentLinked!=='boolean'
     ||!exact(d.limits,['maxRecords','maxHistory'])||d.limits.maxRecords!==500||d.limits.maxHistory!==100
     ||!Array.isArray(d.payrollTypes)||d.payrollTypes.length!==Object.keys(FIXED_TYPES).length||new Set(d.payrollTypes).size!==d.payrollTypes.length||d.payrollTypes.some(t=>!Object.hasOwn(FIXED_TYPES,t))) fail();
+  try{payrollOperatorIdentity(p,{required:operatorVersion});}catch{fail();}
   return freeze({...d,principal:{...p,capabilities:[...p.capabilities]},limits:{...d.limits},payrollTypes:[...d.payrollTypes],effects:effects(d.effects)});
+}
+export function fixedActorReady(bootstrap){
+  if(!['payroll-fixed-bootstrap.v1','payroll-fixed-bootstrap.v2'].includes(bootstrap?.version))return false;
+  try{return payrollOperatorIdentity(bootstrap.principal,{required:bootstrap.version==='payroll-fixed-bootstrap.v2'}).verified;}catch{return false;}
 }
 export function fixedEmployee(payload, expected) {
   const d=envelope(payload,'payroll-fixed-employee.v1',['subject']),next=subject(d.subject);

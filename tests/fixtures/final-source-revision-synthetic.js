@@ -60,6 +60,8 @@ export function finalRevisionClient(pack,options={}){
    if(text.startsWith('BEGIN')){transaction=checkpoint();return {rows:[]};}
    if(text==='ROLLBACK'){restore(transaction);return {rows:[]};}
    if(text==='COMMIT'||text.startsWith('SET LOCAL'))return {rows:[]};
+   if(text.includes('source-analyze:guard'))return {rows:values[0].map(name=>({name,kind:'r',allowed:true}))};
+   if(text.startsWith('ANALYZE public.'))return {rows:[]};
    if(text.includes('final-revision:state'))return {rows:[state]};
    if(text.includes('final-revision:private-schema'))return {rows:[options.protection??{tables:3,protected:true,runtime_access:false}]};
    if(text===SOURCE_CAPACITY_QUERY)return {rows:[options.capacity?.(++capacities)??{database_bytes:'1000000',cluster_bytes:'4000000'}]};

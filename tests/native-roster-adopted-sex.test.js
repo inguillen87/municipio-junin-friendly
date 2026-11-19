@@ -86,6 +86,6 @@ test('revocation is still checked before the roster query and source sex changes
 
 test('CALCULAR readiness sees all851 adopted rows and still requires the actual approved program rather than inventing eligibility',()=>{
  const roster=completeSynthetic(),values={run:{version:'own-payroll-bootstrap.v2',scopeVersion:hash('a'),programVersion:hash('b'),canCalculate:true,runs:[],complete:true},program:bootstrap(),roster};
- const result=ownPayrollReadiness(clone(values),roster.scope.tenantId);assert.equal(result.rosterTotal,851);assert.equal(result.state,'program_required');assert.equal(result.catalogRevision,1);assert.equal(result.programRevision,0);assert.equal(ownPayrollReadinessAllowsNew(result),false);assert.match(result.description,/programa de cálculo propio aprobado/);
+ const result=ownPayrollReadiness(clone(values),roster.scope.tenantId);assert.equal(result.rosterTotal,851);assert.equal(result.state,'program_required');assert.equal(result.catalogRevision,1);assert.equal(result.programRevision,0);assert.equal(ownPayrollReadinessAllowsNew(result),false);assert.match(result.description,/configuración de cálculo vigente/);assert.match(result.description,/Reglas de cálculo/);
  values.roster.rows[850].sexCode='X'.repeat(17);assert.throws(()=>ownPayrollReadiness(clone(values),roster.scope.tenantId));
 });

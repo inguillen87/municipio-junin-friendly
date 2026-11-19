@@ -7,15 +7,14 @@ import { chromium } from 'playwright';
 const root=path.resolve(process.env.PICKER_LOADING_ROOT||'.');
 const out=path.resolve('verification/employee-picker-loading');
 fs.mkdirSync(out,{recursive:true});
-const modelUrl='data:text/javascript;base64,'+fs.readFileSync(path.join(root,'assets/employee-picker-model.js')).toString('base64');
-const source=fs.readFileSync(path.join(root,'assets/employee-picker.js'),'utf8');
-assert.equal(source.split("from './employee-picker-model.js'").length,2,'known single model import');
-const moduleUrl='data:text/javascript;base64,'+Buffer.from(source.replace("from './employee-picker-model.js'","from '"+modelUrl+"'")).toString('base64');
+// Serve the real ESM graph: picker/model now both have relative dependencies.
+// A data: URL has no hierarchical base for those imports.
+const fixtureOrigin='https://picker-loading.test',assetsRoot=path.resolve(root,'assets');
 const checks=[],errors=[];
 const employee=(n=1)=>({contractId:'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),legajo:String(1000+n),nombre:'Persona sintética '+n,sector:'Sector de prueba',convenio:'Convenio de prueba',activo:true,statusSnapshotDate:'2026-09-10'});
 const payload=(n=1,cutoff='2026-09-10')=>({ok:true,version:'employee-picker.v1',data:[employee(n)],pagination:{page:1,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:cutoff,sourceCutoffTo:cutoff}});
-const html=`<!doctype html><html lang="es"><meta charset="utf-8"><title>Selector — prueba sintética</title><button id="open">Abrir</button><script type="module">
-import {createEmployeePicker} from '${moduleUrl}';
+const html=`<!doctype html><html lang="es"><meta charset="utf-8"><title>Selector — prueba sintética</title><link rel="icon" href="data:,"><button id="open">Abrir</button><script type="module">
+import {createEmployeePicker} from '/assets/employee-picker.js';
 window.allowed=true;window.invalidated=0;window.used=[];
 window.picker=createEmployeePicker({canUse:()=>window.allowed,onDirectoryInvalidated:()=>window.invalidated++});
 document.querySelector('#open').onclick=()=>window.picker.open({multiple:true,maximum:5,onUse:rows=>window.used.push(rows)});
@@ -25,7 +24,16 @@ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CH
 async function scenario(name,run){
  const context=await browser.newContext({serviceWorkers:'block'});
  try{
-  await context.route('**/*',route=>{errors.push('Unexpected network request');return route.abort();});
+  await context.route('**/*',route=>{
+   const request=route.request(),url=new URL(request.url());
+   const reject=message=>{errors.push(message);return route.abort();};
+   if(request.method()!=='GET'||url.origin!==fixtureOrigin)return reject('Unexpected network request: '+request.method()+' '+url.pathname);
+   if(url.pathname==='/fixture.html')return route.fulfill({status:200,contentType:'text/html; charset=utf-8',body:html});
+   if(!url.pathname.startsWith('/assets/')||path.extname(url.pathname)!=='.js')return reject('Unexpected fixture asset: '+url.pathname);
+   const file=path.resolve(root,'.'+url.pathname);
+   if(!file.startsWith(assetsRoot+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return reject('Fixture module unavailable: '+url.pathname);
+   return route.fulfill({status:200,contentType:'application/javascript; charset=utf-8',body:fs.readFileSync(file)});
+  });
   const installSyntheticFetch=()=>{
    const original=window.fetch.bind(window);window.reads=[];
    // Deliberately do not settle on abort: late responses must be ignored even
@@ -38,8 +46,15 @@ async function scenario(name,run){
    window.deliver=(i,data,status=200)=>window.reads[i].resolve({ok:status>=200&&status<300,status,json:async()=>{window.reads[i].bodyRequested=true;return data;}});
    window.headers=i=>window.reads[i].resolve({ok:true,status:200,json:()=>{window.reads[i].bodyRequested=true;return new Promise(resolve=>{window.reads[i].body=resolve;});}});
   };
-  const page=await context.newPage();page.setDefaultTimeout(5000);page.on('pageerror',error=>errors.push(error.message));
-  await page.evaluate(installSyntheticFetch);await page.setContent(html);await page.waitForFunction(()=>window.ready);await page.locator('#open').click();
+  const page=await context.newPage(),bootErrorStart=errors.length;page.setDefaultTimeout(5000);page.on('pageerror',error=>errors.push(error.message));
+  page.on('requestfailed',request=>errors.push('Request failed: '+new URL(request.url()).pathname+' '+(request.failure()?.errorText??'unknown')));
+  // Init survives the fixture navigation and runs before its module script.
+  // The deferred API responses and all cancellation/race oracles stay unchanged.
+  await page.addInitScript(installSyntheticFetch);
+  try{
+   await page.goto(fixtureOrigin+'/fixture.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ready);
+  }catch(error){const observed=errors.slice(bootErrorStart);throw new Error('PICKER_LOADING_BOOT_FAILED: '+name+': '+(observed.length?observed.join(' | '):error.message),{cause:error});}
+  await page.locator('#open').click();
   const dialog=page.locator('#employeePicker'),form=dialog.locator('[data-picker-form]'),input=dialog.locator('input[type=search]'),button=form.locator('button'),state=dialog.locator('[data-picker-state]'),source=dialog.locator('[data-picker-source]'),rows=dialog.locator('.picker-row'),apply=dialog.locator('[data-picker-apply]');
   const submit=()=>form.evaluate(n=>n.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   const search=async(text='Persona')=>{await input.fill(text);await submit();};

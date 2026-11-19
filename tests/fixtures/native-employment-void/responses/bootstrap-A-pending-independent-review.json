@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "scopeVersion": "4b5c3acfa1a1f4625703439d817c127f4cdc671d90dc3d67cac5c635b7a5a7ad",
+    "baseVersion": "f1eaac171faccef4b8a1549e622c3e573ac530a53319bbff5ce62e5aeb19256d",
+    "subject": {
+      "contractId": "f1000000-0000-4000-8000-000000000001",
+      "registrationId": "f1000000-0000-4000-8000-000000000101",
+      "legajo": "990001",
+      "employeeName": "Persona sintética A — fixture UI",
+      "status": "active",
+      "startDate": "2000-01-01",
+      "endDate": null
+    },
+    "state": {
+      "voided": false,
+      "version": null,
+      "approvalId": null,
+      "approvedAt": null
+    },
+    "dependencies": [],
+    "pendingOperations": [
+      {
+        "kind": "lifecycle",
+        "id": "f1000000-0000-4000-8000-000000000401",
+        "version": "1ade11557cc99fcbacf9e76ef1568f66f89b4a61d909fb14b11ef388fdf70585"
+      },
+      {
+        "kind": "lifecycle",
+        "id": "f1000000-0000-4000-8000-000000000402",
+        "version": "1d036fe1ddbe0b4323480170461da08259c4fafcf4beb4f4d53b748a4d0b1c2b"
+      }
+    ],
+    "proposals": [
+      {
+        "id": "f1000000-0000-4000-8000-000000000201",
+        "contractId": "f1000000-0000-4000-8000-000000000001",
+        "status": "pending",
+        "reason": "Incorporación histórica sintética sin relación vigente, para prueba de interfaz.",
+        "createdAt": "2026-11-09T20:00:00Z",
+        "authorLabel": "Preparador sintético QA",
+        "proposalVersion": "5b0e4da228343f7205fe87bc56f18ea8f688c71a37301c44ad2c496bbba5da6e",
+        "canReview": true
+      }
+    ],
+    "permissions": {
+      "canPropose": false,
+      "canReview": true
+    },
+    "complete": true
+  }
+}

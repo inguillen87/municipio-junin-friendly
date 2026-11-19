@@ -56,6 +56,7 @@ prisma/
 !scripts/tests/058-payroll-monthly-source-summary.test.sql
 !scripts/tests/059-action-source-history.test.sql
 !scripts/rollback/059-action-source-history.sql
+!scripts/install-schooling-read-v6-transaction.sql
 *.sql.gz
 *.backup*
 

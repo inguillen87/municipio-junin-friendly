@@ -1,1 +1,46 @@
 .own-comparison{color:#173b4c;background:#fff;border:1px solid #d6e1df;border-top:3px solid #14796e;border-radius:16px;padding:clamp(16px,3vw,28px);margin-bottom:24px;min-width:0}.own-comparison h2{font-size:clamp(22px,3vw,30px);margin:8px 0}.own-comparison h3{font-size:21px}.own-comparison p{line-height:1.65}.own-comparison-eyebrow{font-size:12px;font-weight:800;letter-spacing:.1em;color:#14796e}.own-comparison-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));gap:16px;margin:16px 0}.own-comparison label{display:flex;flex-direction:column;gap:8px;font-weight:700}.own-comparison input,.own-comparison select{font:inherit;color:inherit;min-height:48px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #a7bfbb;border-radius:8px;background:#fff}.own-comparison fieldset{min-width:0;border:1px solid #d6e1df;border-radius:10px;padding:16px;margin:16px 0}.own-comparison .button{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-weight:700;text-decoration:none;border:1px solid #a7bfbb;border-radius:8px;background:#fff;color:#173b4c;padding:10px 16px;box-sizing:border-box;cursor:pointer;min-height:48px;white-space:normal;overflow-wrap:anywhere}.own-comparison .button.primary{background:#14796e;border-color:#14796e;color:#fff}.own-comparison .button:disabled{opacity:.55;cursor:not-allowed}.own-comparison-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0}.own-comparison-notice{background:#f1f7f5;padding:14px;border-left:3px solid #14796e}.own-comparison-scroll{max-width:100%;overflow:auto;border:1px solid #d6e1df;border-radius:10px}.own-comparison table{border-collapse:collapse;min-width:930px;width:100%}.own-comparison caption{text-align:left;font-weight:700;padding:14px}.own-comparison th,.own-comparison td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #e2eae8;max-width:260px;overflow-wrap:anywhere}.own-comparison thead th{background:#f1f7f5}.own-comparison td small{display:block;color:#50676b;margin-top:5px}.own-comparison details{margin:12px 0}.own-comparison summary{cursor:pointer;min-height:44px;line-height:1.5}.own-comparison pre{max-width:340px;max-height:300px;overflow:auto;font-size:12px}.own-comparison dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:10px}.own-comparison dt{font-weight:700}.own-comparison dd{margin:0;overflow-wrap:anywhere}.own-comparison :focus-visible{outline:3px solid #b88020;outline-offset:3px}.own-comparison [hidden]{display:none!important}@media(max-width:480px){.own-comparison{padding:16px}.own-comparison fieldset{padding:12px}.own-comparison-actions .button{width:100%}.own-comparison dl{grid-template-columns:1fr}.own-comparison dd{margin-bottom:8px}}
+
+/* MuniControl contra GRH: resumen, estados y lectura en teléfono (sólo presentación). */
+.own-grh-sources{color:#50676b;font-size:14px}
+.own-grh-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px;margin:16px 0}
+.own-grh-kpi{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-height:84px;box-sizing:border-box;padding:14px 16px;font:inherit;color:inherit;text-align:left;background:#f7faf9;border:1px solid #d6e1df;border-radius:12px}
+button.own-grh-kpi{cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}
+button.own-grh-kpi:hover{border-color:#14796e;background:#f1f7f5}
+.own-grh-kpi[aria-pressed=true]{border-color:#14796e;background:#e9f5f1;box-shadow:inset 0 0 0 1px #14796e}
+.own-grh-kpi strong{font-size:30px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums;color:#173b4c}
+.own-grh-kpi span{font-size:13px;font-weight:700;color:#50676b}
+.own-grh-kpi[data-tone=alert] strong{color:#b42318}
+.own-grh-kpi[data-tone=info] strong{color:#8a5a00}
+.own-grh-kpi[data-tone=ok] strong{color:#0f6b61}
+.own-grh-rules{margin:16px 0;padding:12px 16px 12px 34px;font-size:14px;line-height:1.55}
+.own-grh-rules li+li{margin-top:4px}
+.own-grh-hint{font-size:14px;color:#50676b}
+.own-comparison th.num,.own-comparison td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.own-comparison td.muted{color:#6b8084;font-style:italic}
+.own-grh-concept span{font-weight:700;font-variant-numeric:tabular-nums}
+.own-grh-concept small{display:block;color:#50676b;margin-top:3px;font-weight:400}
+.own-grh-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:700;line-height:1.5;background:#eef2f1;color:#3d5559}
+.own-grh-badge[data-tone=ok]{background:#e3f3ee;color:#0b5a51}
+.own-grh-badge[data-tone=info]{background:#fff2d6;color:#6f4700}
+.own-grh-badge[data-tone=warn]{background:#fde9d7;color:#8a3505}
+.own-grh-badge[data-tone=alert]{background:#fde4e1;color:#9b2215}
+.own-grh-table tbody th{position:sticky;left:0;z-index:1;background:#fff}
+.own-grh-table tr.is-review>th{box-shadow:inset 4px 0 0 #c2410c}
+.own-grh-table tr.is-rounding>th{box-shadow:inset 4px 0 0 #c99a2e}
+.own-grh-table tbody tr:hover>*{background:#f7faf9}
+@media(max-width:640px){
+ .own-grh-table{border:0;overflow:visible}
+ .own-grh-table table{min-width:0}
+ .own-grh-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .own-grh-table caption{padding:0 0 10px}
+ .own-grh-table tbody,.own-grh-table tr{display:block}
+ .own-grh-table tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 12px;margin:0 0 12px;padding:12px 14px;border:1px solid #d6e1df;border-radius:12px;background:#fff}
+ .own-grh-table tr.is-review{border-left:4px solid #c2410c}
+ .own-grh-table tr.is-rounding{border-left:4px solid #c99a2e}
+ .own-grh-table tbody th,.own-grh-table tbody td{display:block;position:static;padding:6px 0;border:0;max-width:none;background:none;box-shadow:none;text-align:left}
+ .own-grh-table tbody tr:hover>*{background:none}
+ .own-grh-table tr.is-review>th,.own-grh-table tr.is-rounding>th{box-shadow:none}
+ .own-grh-table tbody th::before,.own-grh-table tbody td::before{content:attr(data-label);display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#50676b;margin-bottom:2px;font-style:normal}
+ .own-grh-table td.num{text-align:left}
+ .own-grh-table td:last-child{grid-column:1/-1}
+}

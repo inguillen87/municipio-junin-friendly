@@ -31,7 +31,7 @@ try{
   if(published){let r=await fetch(u.href,{credentials:'omit',redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(20000)});if(r.status===307&&u.pathname==='/relojes-marcaciones.html'){const canonical='/relojes'+u.search;assert.equal(r.headers.get('location'),canonical);await r.body?.cancel();r=await fetch(origin+canonical,{credentials:'omit',redirect:'error',signal:AbortSignal.timeout(20000)});}assert.equal(r.status,200,u.pathname);body=Buffer.from(await r.arrayBuffer());assert.ok(expected.equals(body),'Published mismatch: '+pathname);verified.add(pathname);}
   return route.fulfill({body,contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream'});
  });
- page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.clock.install({time:new Date('2026-09-24T10:00:00Z')});await page.goto(origin+'/relojes');
+await context.addInitScript(()=>{try{localStorage.setItem('mc.relojes.tab','parque')}catch{}});/* la pantalla tiene pestañas: esta verificación trabaja en «parque» */ page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.clock.install({time:new Date('2026-09-24T10:00:00Z')});await page.goto(origin+'/relojes');
  const panel=page.locator('#clockFleetReception'),v=k=>panel.locator('[data-workspace="'+k+'"]'),reads=()=>calls.filter(c=>c.path==='/api/internal-clock-source'&&c.view==='workspace').length;
  async function ready(){await v('devices').filter({hasText:'6'}).waitFor();await page.waitForFunction(()=>document.getElementById('clockFleetReception').getAttribute('aria-busy')==='false');}
  async function refresh(){await page.clock.runFor(3100);await v('refresh').click();}
@@ -53,7 +53,9 @@ try{
  mode='mismatch';await refresh();await v('error').waitFor();assert.equal(await panel.locator('.workspace-card').count(),0);assert.equal(await v('devices').textContent(),'—');
  checks.push('A mismatched source point clears the combined read rather than joining on labels.');
  mode='ok';await refresh();await ready();await panel.locator('[data-stage="consultable"]').getByRole('button',{name:'Ver marcaciones'}).click();await page.waitForFunction(()=>document.getElementById('clockOperations').dataset.state==='ready');assert.ok(calls.some(c=>c.resource==='clock-dashboard'&&c.site==='pm-10'));
- checks.push('The exact device card opens its point in the existing workday/mark workspace.');
+ assert.equal(await page.locator('.mc-section-tabs [role=tab][aria-selected=true]').getAttribute('data-tab'),'uso');assert.equal(await page.locator('#clockOperations').isVisible(),true);
+ checks.push('The exact device card opens its point in the existing workday/mark workspace and brings the «Reloj en uso» tab forward.');
+ await page.getByRole('tab',{name:/Todos los relojes/}).click();
  mode='park';await refresh();await ready();assert.equal(await v('points').textContent(),'14');assert.equal(await v('devices').textContent(),'6');assert.equal(await v('unregistered').textContent(),'8');assert.equal(await panel.locator('.workspace-card').count(),14);
  const unregistered=panel.locator('[data-stage="registration"]');assert.equal(await unregistered.count(),8);assert.equal(await unregistered.getByRole('button',{name:'Ver marcaciones'}).count(),0);assert.equal(await unregistered.locator('[data-device]').count(),0);assert.doesNotMatch(await unregistered.first().innerText(),/0 registros|apagado|no marca/i);assert.match(await unregistered.first().innerText(),/Sin verificar/);
  checks.push('All fourteen points are visible: six actual device identities and eight reported points with unknown reception, no synthetic devices or fabricated zeros.');

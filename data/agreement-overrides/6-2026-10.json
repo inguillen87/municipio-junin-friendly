@@ -1,0 +1,32 @@
+{
+  "version": "own-program-agreement-overrides.v1",
+  "source": "1",
+  "target": "6",
+  "period": "2026-10",
+  "reference": "GRH codliq 28/10, convenio 6",
+  "changes": [
+    {
+      "id": "c6.44.add-59",
+      "collection": "rules",
+      "code": "44",
+      "liquidationType": "monthly",
+      "match": {"op": "add"},
+      "action": "add",
+      "value": {"op": "concept", "code": "59", "stage": "exact"}
+    },
+    {
+      "id": "c6.670.quantity-source",
+      "collection": "rules",
+      "code": "670",
+      "liquidationType": "monthly",
+      "match": {"op": "input", "binding": {"sourceKind": "monthly_amount", "sourceCode": "670", "unit": "money"}},
+      "action": "rebind",
+      "bindingPatch": {
+        "key": "grh_N_670",
+        "sourceKind": "monthly_quantity",
+        "ruleReference": "GRH codliq 28/10, convenio 6: N[670] en lugar de I[670]"
+      }
+    }
+  ],
+  "unresolved": []
+}

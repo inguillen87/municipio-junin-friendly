@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 import { inspectCuratedReplay, safeRrhhImportError } from './lib/rrhh-import-replay.mjs';
 import { getGrhSourceProfile, defaultGrhSourceProfile } from './lib/grh-source-profile.mjs';
+import { analyzeCommittedSource } from './lib/source-import-analyze.mjs';
 
 const DATA_DIR = new URL('../rrhh-data/', import.meta.url);
 const MANIFEST_FILE = 'curated-manifest.json';
@@ -586,11 +587,13 @@ export async function importCuratedRrhh({ client, source, log = console.log }) {
     await client.query('COMMIT');
     inTransaction = false;
     committed = true;
+    const plannerMaintenance = await analyzeCommittedSource({client, profile: 'curated_import', committed});
 
     log(
       JSON.stringify(
         {
           status: 'completed',
+          plannerMaintenance,
           importRunId: String(runId),
           sourceSha256,
           manifestSha256,

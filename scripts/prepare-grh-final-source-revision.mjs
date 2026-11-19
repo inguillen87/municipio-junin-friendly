@@ -6,6 +6,7 @@ import {validateSuccessorTarget} from './lib/grh-successor-operational-read.mjs'
 import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput,FINAL_SOURCE_REVISION_PROFILES,validateFinalSourceConservationProfile} from './lib/grh-final-source-revision.mjs';
 import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTransition} from './lib/grh-final-contract-transition.mjs';
 import {verifyCoreManifestProvenance} from './lib/grh-core-manifest-provenance.mjs';
+import {analyzeCommittedSource} from './lib/source-import-analyze.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 export const finalSourceMaintenanceErrorCode=error=>/^(?:GRH_FINAL_(?:REVISION|CONSUMER|TRANSITION)|SUCCESSOR)_[A-Z_]+$/.test(error?.code??'')
  ?error.code:'GRH_FINAL_REVISION_FAILED';
@@ -40,7 +41,12 @@ export async function executeFinalSourceRevision({connect,prepared,target,expect
    sourceProfileId:checked.pack.candidate.profileId,signal})):null;
   signal?.throwIfAborted();commitSent=commit;
   await client.query(commit?'COMMIT':'ROLLBACK');inTransaction=false;
+  // The source transaction has a known outcome before planner maintenance starts.
+  commitSent=false;
+  const plannerMaintenance=await analyzeCommittedSource({client,profile:'final_revision',committed:commit});
+  if(!plannerMaintenance.connectionReusable)discard=true;
   return Object.freeze({...receipt,committed:commit,rolledBack:!commit,callerOwnedTransaction:false,
+   plannerMaintenance,
    ...(contractTransition?{contractTransition}:{}),
    maintenanceOutcome:commit?'revision_saved':'rehearsal_rolled_back'});
  }catch(error){

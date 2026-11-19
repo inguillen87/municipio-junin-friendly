@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reportFixture,historicalReportFixture,rehashReportFixture} from './fixtures/own-payroll-report-synthetic.js';
 import {ownReportBundle,ownReportDocument,ownStatisticsChoices,ownStatisticsSelection,emptyOwnStatisticsSelection,emptyOwnReportFilters} from '../assets/own-payroll-report-model.js';
-import {reportCsv,reportXlsx,reportPdf} from '../assets/report-document.js';
+import {reportCsv,reportXlsx,reportPdf,reportExactShown} from '../assets/report-document.js';
 const value=f=>ownReportBundle(f.query,f.details,f.receipts);
 const choice=patch=>({...emptyOwnStatisticsSelection(),...patch});
 const stats=(f,selection={},grouping='agreement_department',jurisdiction='all',filters=emptyOwnReportFilters())=>ownReportDocument(value(f),filters,'statistics',grouping,[],jurisdiction,choice(selection));
@@ -97,7 +97,8 @@ test('Excel y PDF incluyen conciliación y selecciones; CSV conserva contexto y 
  const originals=f.receipts[0].snapshot.employees.filter(e=>e.departmentCode==='01'),precision=Math.max(...originals.map(e=>e.precision)),scale=10n**BigInt(precision);
  const numerator=originals.reduce((n,e)=>{const [whole,fraction='']=e.totals.gross.split('.');return n+BigInt(whole)*scale+BigInt(fraction.padEnd(precision,'0')||'0');},0n);
  const gross=String(numerator/scale)+(precision?'.'+String(numerator%scale).padStart(precision,'0'):'');
- assert.ok(pdf.includes(gross));assert.equal(d.payrollStatement.reconciliation.find(r=>r[0]==='Bruto')[1],gross);
+ // El PDF muestra el bruto exacto como se lee (separadores es-AR); el documento y Excel conservan el texto original.
+ assert.ok(pdf.includes(reportExactShown(gross)));assert.equal(reportExactShown(gross).replaceAll('.','').replace(',','.'),gross);assert.equal(d.payrollStatement.reconciliation.find(r=>r[0]==='Bruto')[1],gross);
 });
 test('estadísticas agregadas no exponen contrato, nombre, DNI o clave de cierre',()=>{
  const f=varied(2),d=stats(f);for(const output of [reportCsv(d),Buffer.from(reportXlsx(d)).toString('utf8'),pdfText(d)]){

@@ -69,6 +69,8 @@ export async function prepareBankControl(batchValue, accountsValue, profileValue
   return prepareSource(batchValue, accountsValue, bankControlProfile(profileValue), closeValues, 'control');
 }
 async function prepareSource(batchValue, accountsValue, profile, closeValues, kind) {
+  // Keep the complete reviewed source stable across asynchronous hash checks.
+  batchValue=structuredClone(batchValue);accountsValue=structuredClone(accountsValue);closeValues=structuredClone(closeValues);
   const batch = ownReceiptBatch(batchValue), accounts = bankAccountsBootstrap(accountsValue), banking = kind === 'bna', nacionOnly = banking && profile.destinationScope === 'nacion_ca';
   await ownReceiptVerifyHash(batch.snapshot, batch.snapshotSha256);
   const snapshot = batch.snapshot, issues = [], add = code => issues.push(code);

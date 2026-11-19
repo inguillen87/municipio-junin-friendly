@@ -16,6 +16,17 @@ function closedPeriodPlan(current,chosen,updates,validFrom,validUntil){
  return {items,changes,selectedCount:chosen.size,unchangedSelectedCount:0,newDefinitionsCount:chosen.size,relatedDefinitionsCount:0,relinkedFutureDefinitionsCount:0,validFrom,previousUntil:null,validUntil,preparationMode:'closed_period'};
 }
 
+// An increase said as a coefficient («1,02») is the same increase as its percentage («2»): the exact value of
+// (coefficient − 1) × 100, moving the decimal point two places. Nothing is rounded; a coefficient of 1 or less is not an increase.
+export function salaryCoefficientPercentage(value){
+ requireInput(typeof value==='string'&&/^[1-9][0-9]{0,2}(?:\.[0-9]{1,8})?$/.test(value),'Informá el coeficiente con hasta ocho decimales, por ejemplo 1,02. Sin separador de miles ni exponente.');
+ const [whole,fraction='']=value.split('.'),scaled=BigInt(whole+fraction)-10n**BigInt(fraction.length);
+ requireInput(scaled>0n,'El coeficiente debe ser mayor que 1 para ser un aumento. Para bajar un importe, declaralo de forma exacta.');
+ const digits=(scaled*100n).toString().padStart(fraction.length+1,'0'),at=digits.length-fraction.length;
+ const text=digits.slice(0,at)+(fraction.length?'.'+digits.slice(at):'');
+ return text.includes('.')?text.replace(/0+$/,'').replace(/\.$/,''):text;
+}
+
 // An explicitly selected scale increase prepares definitions, never salaries.
 // Exact arithmetic is shared with the published decimal primitives; rounding
 // modes, formula evaluation and automatic approval are not offered here.

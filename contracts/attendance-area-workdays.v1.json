@@ -1,0 +1,22 @@
+{
+  "version": "attendance-area-workdays.v1",
+  "api": "/api/internal-attendance-area",
+  "method": "GET",
+  "query": {"resource": "day", "area": "exact JSON organizationUnitSourceId/nullable sectorSourceId", "site": "explicit technical site key", "day": "explicit 2000-2099 civil date", "snapshot": "optional exact prior revision; never authority"},
+  "authorization": "managed certified tenant session + attendance.area.read + exact live area scope",
+  "serverPopulation": "only native contracts with a proved history; unknown source candidates remain a completeness blocker",
+  "eventPopulation": "exact canonical contract UUID, unique active map and proved membership on the event's own civil date",
+  "scopeOfNamesAndCounts": "only the authorized subset; a foreign payload rejects the whole API response",
+  "consistency": "one SQL statement snapshot for population, history, expected devices, identities and marks",
+  "workdaysVersion": "clock-workday-source.v3",
+  "deviceKeyNamespace": "clock-device-v2",
+  "deviceKeyFormula": "SHA-256('clock-device-v2:' + tenant UUID + ':' + attendance_device.id UUID)",
+  "expectedDevices": "approved immutable declaration effective on the requested day; partial area population cannot become globally complete",
+  "civilDateMismatch": "blocked before returning any source, without discarding the attributed event as an absence",
+  "readiness": "PERIOD_COVERAGE_UNCONFIRMED always retained; this source does not certify absence, payroll conversion or notifications",
+  "technicalLimits": {"privateRawContextRecords": 25000, "populationCandidates": 2000, "responseBytes": 4194304},
+  "coverageCertified": false,
+  "payrollPosted": false,
+  "installationReady": false,
+  "NoeliaReady": false
+}

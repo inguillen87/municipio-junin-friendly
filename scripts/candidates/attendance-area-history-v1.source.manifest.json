@@ -1,0 +1,103 @@
+{
+  "version": "attendance-area-history-source-manifest.v1",
+  "baseCommit": "ad0d80d989b736dee52a0102ef3200b8905b65b2",
+  "candidate": {
+    "path": "scripts/candidates/attendance-area-history-v1.source.sql.txt",
+    "sha256": "c828b0b75934d17347147802201f6c22eba90cbcf0f2b34f9a00b4095416131c"
+  },
+  "contract": "contracts/attendance-area-history.v1.json",
+  "originalSources": [
+    {
+      "path": "scripts/migrations/002-canonical-integration.sql",
+      "sha256": "56e91a93d39901a7fc937ee1666ba7987ebc17852de3d14477da68ca68f9541d",
+      "purpose": "Immutable registration trigger body"
+    },
+    {
+      "path": "scripts/migrations/067-native-employee-registration.sql",
+      "sha256": "aa33538cea459a275de8056b8316f3eb4465ebb88ad1de54578bb24380c4d749",
+      "purpose": "Immutable registration metadata and original contract provenance"
+    },
+    {
+      "path": "scripts/migrations/095-native-employee-jurisdiction.sql",
+      "sha256": "48aecdd294bf11ec7f2a956b30eb455f2acc5be7d8825669249fed8ada7d90b5",
+      "purpose": "Declared registration start date and catalog-selected labels"
+    },
+    {
+      "path": "scripts/migrations/104-native-employment-changes.sql",
+      "sha256": "0f3e408bb12ef64c0d197826ce4331b263987c6d7f36719e528648f4b750de4a",
+      "purpose": "Immutable proposal/review snapshots without effective date"
+    },
+    {
+      "path": "scripts/migrations/110-native-employment-lifecycle.sql",
+      "sha256": "e31ee11235b8ac2579e2d0d4c863627a146d062e883faef48420e4d39fb66219",
+      "purpose": "Explicit movement_date and approved employment intervals"
+    },
+    {
+      "path": "scripts/migrations/133-employment-adoption-application.sql",
+      "sha256": "36230ca788dc8afc3312c9bbb25ecf45029bf84a1a2373669a48245cca798ea9",
+      "purpose": "Adoption provenance; explicitly excluded as dated area proof"
+    },
+    {
+      "path": "scripts/migrations/167-classification-registration-use.sql",
+      "sha256": "8eef9142231b660bdac357312cc1c9ee29ab79a65e04422c5bd5bfab77189c38",
+      "purpose": "Current catalog eligibility of the registration writer"
+    },
+    {
+      "path": "scripts/migrations/177-own-period-classification.sql",
+      "sha256": "d99fede293297f1c1e8876188a39cd24eac568b12ad84fea026b10a459131291",
+      "purpose": "Monthly semantics; explicitly excluded as daily history"
+    },
+    {
+      "path": "scripts/migrations/224-native-employment-void.sql",
+      "sha256": "ad708d03348188a09d26ebb22980133e6be96cc5ef9cc3e156f90601362ce384",
+      "purpose": "Withdrawal and current rectification/contract guard"
+    }
+  ],
+  "originalBodyPins": [
+    {
+      "function": "reject_immutable_source_change",
+      "path": "scripts/migrations/002-canonical-integration.sql",
+      "anchor": "FUNCTION reject_immutable_source_change(",
+      "delimiter": "$$",
+      "prosrcSha256": "b5babe1755a00845bf4512f6379dc558d556e7ea7be5a1f6bfc932d3582a640d"
+    },
+    {
+      "function": "native_employee_contract_guard_v1",
+      "path": "scripts/migrations/224-native-employment-void.sql",
+      "anchor": "FUNCTION public.native_employee_contract_guard_v1(",
+      "delimiter": "$function$",
+      "prosrcSha256": "2abc356ccae217ac382ff9e5b82512777e36688a2ec2db3f7d430f71a9ba2dc3"
+    },
+    {
+      "function": "native_employment_change_update_allowed_v1",
+      "path": "scripts/migrations/104-native-employment-changes.sql",
+      "anchor": "FUNCTION public.native_employment_change_update_allowed_v1(",
+      "delimiter": "$$",
+      "prosrcSha256": "f0a939bb82a21f66b08be3568436fbc8bb51821ceacb924596ec198d17bab824"
+    },
+    {
+      "function": "native_employment_void_update_allowed_v1",
+      "path": "scripts/migrations/224-native-employment-void.sql",
+      "anchor": "FUNCTION public.native_employment_void_update_allowed_v1(",
+      "delimiter": "$$",
+      "prosrcSha256": "e630190aabe7fb1d0a4f6f620c106cebbd854e1a469252eabc26de630cde6853"
+    },
+    {
+      "function": "native_employment_change_immutable_v1",
+      "path": "scripts/migrations/104-native-employment-changes.sql",
+      "anchor": "FUNCTION public.native_employment_change_immutable_v1(",
+      "delimiter": "$$",
+      "prosrcSha256": "7dcef4d8cf16a0047f31ebc8ffcaee74f33cff88f6f8af9aaee64cbd6e7c5611"
+    },
+    {
+      "function": "native_employment_lifecycle_immutable_v1",
+      "path": "scripts/migrations/110-native-employment-lifecycle.sql",
+      "anchor": "FUNCTION public.native_employment_lifecycle_immutable_v1(",
+      "delimiter": "$$",
+      "prosrcSha256": "8e018efbdce29c342aa94757880a4e911a8f41567386c7827eb77f46b25837d5"
+    }
+  ],
+  "runtimeSqlExecuted": false,
+  "installed": false,
+  "NoeliaReady": false
+}

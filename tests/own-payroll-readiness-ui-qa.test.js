@@ -7,7 +7,7 @@ const qa={schema:'mc_qa_fixed_092_'+'a'.repeat(32),pins:"current_database()<>'ow
 test('readiness adapter accepts only exact canonical reads and preserves SQL-bound text',async()=>{
  const calls=[],returned=[{result:{fromSyntheticDatabase:true}}],db={run:async(sql,runtime)=>{calls.push({sql,runtime});return returned;}},sql=createOwnPayrollReadinessSql(db,qa);
  assert.equal(await sql.query(NATIVE_ROSTER_V2_SQL,['{}','all','','',"O'Hara $&",'','',MAX_NATIVE_ROSTER_ROWS+1]),returned);
- assert.match(calls[0].sql,/SELECT coalesce\(jsonb_agg\(to_jsonb\(qa_read\)\)/);assert.ok(calls[0].sql.includes("'O''Hara $&'"));assert.ok(calls[0].sql.includes(qa.schema+'.native_employee_read_projection_v1'));
+ assert.match(calls[0].sql,/SELECT coalesce\(jsonb_agg\(to_jsonb\(qa_read\)\)/);assert.ok(calls[0].sql.includes("'O''Hara $&'"));assert.ok(calls[0].sql.includes(qa.schema+'.native_employee_roster_projection_batch_v1'));
  await sql.query('SELECT public.native_employee_directory_snapshot_v1($1::jsonb) AS result',['{}']);await sql.query('SELECT public.own_program_bootstrap_v1($1::jsonb) AS result',['{}']);assert.equal(calls.length,3);assert.equal(calls[1].runtime,true);assert.equal(calls[2].runtime,true);
  for(const statement of [NATIVE_ROSTER_V2_SQL+';SELECT 1','SELECT public.own_program_command_v1($1::jsonb) AS result','DELETE FROM employment_contract'])await assert.rejects(sql.query(statement,['{}']));
  await assert.rejects(sql.query(NATIVE_ROSTER_V2_SQL,['{}','all','','','','','',1]));assert.equal(calls.length,3);

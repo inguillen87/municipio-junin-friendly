@@ -334,6 +334,23 @@
     .funding-reconciliation strong { color: var(--navy); font-size: 11px; }
     .funding-reconciliation span { color: var(--muted); font-size: 10px; }
     .funding-total { flex: 0 0 auto; color: var(--navy) !important; font-weight: 850; font-variant-numeric: tabular-nums; }
+    /* Ayuda visual: tramos y barras proporcionales a importes publicados; no agrega cifras ni porcentajes. */
+    .funding-bar { margin: 0; padding: 14px 17px 16px; border: 1px solid var(--line-strong); border-top: 0; background: #fff; }
+    .funding-bar figcaption { margin-bottom: 9px; color: var(--navy); font-size: 11px; font-weight: 800; }
+    .funding-bar-track { display: flex; gap: 3px; height: 30px; overflow: hidden; border-radius: 9px; background: #e6eeec; }
+    .funding-bar-part { flex: 1 1 0; min-width: 6px; transform-origin: left; animation: funding-grow .7s cubic-bezier(.2, .8, .2, 1); }
+    .funding-bar-part.is-resources { background: linear-gradient(90deg, #0f766e, #14a08f); }
+    .funding-bar-part.is-financing { background: linear-gradient(90deg, #c98a1b, #e0a023); }
+    .funding-bar-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 9px 0 0; padding: 0; list-style: none; color: var(--navy); font-size: 11px; font-weight: 700; }
+    .funding-bar-legend li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; background: #0f766e; }
+    .funding-bar-legend li.is-financing::before { background: #e0a023; }
+    .funding-bar-note { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
+    .breakdown-row > .breakdown-label { flex-direction: column; align-items: stretch; gap: 7px; }
+    .breakdown-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #e6eeec; }
+    .breakdown-bar i { display: block; width: calc(var(--share, 0) * 100%); min-width: 3px; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0f766e, #14a08f); transform-origin: left; animation: funding-grow .7s cubic-bezier(.2, .8, .2, 1); }
+    @keyframes funding-grow { from { transform: scaleX(.15); opacity: .4; } to { transform: none; opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .funding-bar-part, .breakdown-bar i { animation: none; } }
+    @media print { .funding-bar-part, .breakdown-bar i { animation: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 
     .breakdown-stack { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
     .breakdown-domain + .breakdown-domain { border-top: 1px solid var(--line-strong); }
@@ -455,6 +472,9 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
+  <script src="assets/role-label.js"></script>
 </head>
 <body data-mc-page="budget">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -539,9 +559,9 @@
           <div id="mainView" hidden>
             <header class="page-head">
               <div>
-                <p class="eyebrow">Hacienda · crédito autorizado</p>
+                <p class="eyebrow">Hacienda · ordenanza de presupuesto</p>
                 <h1>Presupuesto aprobado <span id="fiscalYearHeading">2026</span></h1>
-                <p class="page-lead">Una lectura exacta del presupuesto sancionado: gastos, recursos y financiamiento con su instrumento legal. La ejecución permanece separada hasta incorporar una fuente oficial conciliada.</p>
+                <p class="page-lead">Lo que aprobó el Concejo para el año: cuánto se puede gastar, con qué recursos y cómo se financia, con la ordenanza que lo respalda. Lo realmente gastado se va a sumar cuando haya una fuente oficial.</p>
               </div>
               <aside class="status-panel" id="overallStatus" aria-live="polite">
                 <strong id="overallTitle">Fuente en preparación</strong>
@@ -554,9 +574,10 @@
               <div><strong>Presupuesto aprobado no equivale a gasto ejecutado</strong><p>No se calculan porcentajes de ejecución, desvíos ni semáforos mientras falten crédito vigente, compromiso, devengado y pagado de una fuente oficial.</p></div>
             </div>
 
+            <div data-mc-tabs='[{"id":"aprobado","label":"Lo aprobado","hint":"Gastos, recursos y financiamiento","sel":"section[aria-labelledby=approvedTitle]"},{"id":"desglose","label":"En qué se gasta","hint":"Detalle por rubro","sel":"section[aria-labelledby=breakdownsTitle]"},{"id":"partidas","label":"Partidas","hint":"Importes con destino fijo","sel":"#appropriationsSection"},{"id":"planta","label":"Planta de personal","hint":"Cargos que autoriza la norma","sel":"#staffingSection"},{"id":"ejecucion","label":"Ejecución y respaldo","hint":"Avance del gasto y fuente","sel":"section[aria-labelledby=executionTitle],section[aria-labelledby=evidenceTitle]"}]' data-mc-tabs-key="mc.presupuesto.tab" data-mc-tabs-label="Secciones de Presupuesto"></div>
             <section class="section" aria-labelledby="approvedTitle">
               <div class="section-head">
-                <div><span class="section-index">01 · Crédito aprobado</span><h2 id="approvedTitle">Magnitudes autorizadas</h2><p>Montos nominales en pesos argentinos. Se conservan centavos y precisión decimal tal como los publica el contrato de datos.</p></div>
+                <div><span class="section-index">01 · Crédito aprobado</span><h2 id="approvedTitle">Cuánto se aprobó</h2><p>Importes en pesos argentinos, tal como figuran en la ordenanza, con sus centavos.</p></div>
                 <span class="status-pill ready" id="approvedBadge">Fuente aprobada</span>
               </div>
               <div class="summary-ledger" aria-label="Resumen del presupuesto aprobado">
@@ -568,11 +589,23 @@
                 <div><strong>Recursos + financiamiento</strong><br><span id="reconciliationSummary">La conciliación se muestra únicamente si la API publica su control.</span></div>
                 <span class="funding-total" id="fundingTotalValue">No informado</span>
               </div>
+              <figure class="funding-bar" id="fundingBar" hidden aria-labelledby="fundingBarCaption">
+                <figcaption id="fundingBarCaption">Con qué se cubre el gasto aprobado</figcaption>
+                <div class="funding-bar-track" id="fundingBarTrack" role="img">
+                  <span class="funding-bar-part is-resources" id="fundingBarResources"></span>
+                  <span class="funding-bar-part is-financing" id="fundingBarFinancing"></span>
+                </div>
+                <ul class="funding-bar-legend">
+                  <li class="is-resources">Recursos estimados</li>
+                  <li class="is-financing">Financiamiento estimado</li>
+                </ul>
+                <p class="funding-bar-note">Ayuda visual: cada tramo es proporcional a su importe. Los importes exactos son los de arriba.</p>
+              </figure>
             </section>
 
             <section class="section" aria-labelledby="breakdownsTitle">
               <div class="section-head">
-                <div><span class="section-index">02 · Composición</span><h2 id="breakdownsTitle">Desglose publicado</h2><p>Cada renglón conserva referencia normativa, denominación, monto y cobertura de la fuente. No se infieren partidas ausentes ni porcentajes.</p></div>
+                <div><span class="section-index">02 · Composición</span><h2 id="breakdownsTitle">En qué se gasta y cómo se financia</h2><p>Cada renglón muestra su nombre, su importe y el artículo de la ordenanza que lo respalda. No se agregan partidas ni porcentajes que la norma no publique.</p></div>
                 <span class="status-pill context" id="breakdownsBadge">Detalle documental</span>
               </div>
               <div class="breakdown-stack" id="breakdownStack">
@@ -593,7 +626,7 @@
 
             <section class="section" id="appropriationsSection" aria-labelledby="appropriationsTitle" hidden>
               <div class="section-head">
-                <div><span class="section-index" id="appropriationsIndex">03 · Partidas específicas</span><h2 id="appropriationsTitle">Autorizaciones explícitas</h2><p>Importes individualizados por la ordenanza. El total listado y la cobertura pertenecen a cada bloque; no representan una clasificación exhaustiva salvo indicación expresa de la fuente.</p></div>
+                <div><span class="section-index" id="appropriationsIndex">03 · Partidas específicas</span><h2 id="appropriationsTitle">Partidas con destino fijo</h2><p>Importes que la ordenanza asigna a un fin puntual. No es una lista completa del gasto, salvo que la propia norma lo indique.</p></div>
                 <span class="status-pill context">Detalle normativo</span>
               </div>
               <div class="breakdown-stack" id="appropriationsStack"></div>
@@ -601,7 +634,7 @@
 
             <section class="section" id="staffingSection" aria-labelledby="staffingTitle" hidden>
               <div class="section-head">
-                <div><span class="section-index" id="staffingIndex">04 · Planta autorizada</span><h2 id="staffingTitle">Unidades declaradas por la norma</h2><p>La planta se preserva por unidad de medida. Cargos, horas cátedra y personal contratado no se consolidan en un único total.</p></div>
+                <div><span class="section-index" id="staffingIndex">04 · Planta autorizada</span><h2 id="staffingTitle">Cargos que autoriza la norma</h2><p>La planta se muestra en la unidad que usa la ordenanza: cargos, horas cátedra y personal contratado no se suman entre sí.</p></div>
                 <span class="status-pill partial">No aditivo</span>
               </div>
               <div class="staffing-ledger" id="staffingLedger"></div>
@@ -610,7 +643,7 @@
 
             <section class="section" aria-labelledby="executionTitle">
               <div class="section-head">
-                <div><span class="section-index" id="executionIndex">05 · Ejecución</span><h2 id="executionTitle">Estado de disponibilidad</h2><p>Este dominio necesita una fuente transaccional con período, etapa contable y fecha de actualización verificables.</p></div>
+                <div><span class="section-index" id="executionIndex">05 · Ejecución</span><h2 id="executionTitle">Cuánto se lleva gastado</h2><p>Todavía no hay una fuente oficial de ejecución con período, etapa contable y fecha de actualización. Hasta entonces no se muestran porcentajes de avance.</p></div>
               </div>
               <article class="execution-panel">
                 <div class="execution-intro">
@@ -629,7 +662,7 @@
 
             <section class="section" aria-labelledby="evidenceTitle">
               <div class="section-head">
-                <div><span class="section-index" id="evidenceIndex">06 · Evidencia</span><h2 id="evidenceTitle">Fuente, corte y controles</h2><p>La trazabilidad y las salvedades forman parte del resultado: deben acompañar cualquier exportación o comunicación institucional.</p></div>
+                <div><span class="section-index" id="evidenceIndex">06 · Evidencia</span><h2 id="evidenceTitle">De dónde salen los datos</h2><p>Fuente, fecha y advertencias. Conviene incluirlas en cualquier exportación o informe que se comparta.</p></div>
                 <span class="status-pill context" id="qualityBadge">Verificando</span>
               </div>
               <div class="evidence-grid">
@@ -949,7 +982,7 @@
         var root = asObject(payload);
         var user = asObject(firstValue(root.user, root.data && root.data.user, root.data, root.session));
         var name = text(firstValue(user.name, user.displayName, user.email), 'Sesión municipal');
-        var role = text(firstValue(user.role, user.profile, user.type), 'Acceso interno');
+        var role = (window.MuniControlRoleLabel || function (value) { return value; })(text(firstValue(user.role, user.profile, user.type), 'Acceso interno'));
         byId('userName').textContent = name;
         byId('userRole').textContent = role;
         var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');
@@ -1016,15 +1049,39 @@
           host.append(create('div', 'breakdown-empty', 'Sin desglose publicado para este dominio.'));
           return;
         }
-        rows.forEach(function (row) {
+        // Barra proporcional al renglón más grande del mismo bloque. Sólo se dibuja si todos los importes son válidos:
+        // un renglón sin importe no se muestra como barra vacía.
+        var amounts = rows.map(function (row) { var exact = canonicalDecimal(row.amount); return exact ? Number(exact) : NaN; });
+        var largest = amounts.every(function (value) { return Number.isFinite(value) && value >= 0; }) ? Math.max.apply(null, amounts) : 0;
+        rows.forEach(function (row, index) {
           var item = create('div', 'breakdown-row');
+          var label = create('div', 'breakdown-label');
+          label.append(create('span', '', row.label || 'Denominación no informada'));
+          if (largest > 0 && rows.length > 1) {
+            var bar = create('span', 'breakdown-bar'); bar.setAttribute('aria-hidden', 'true');
+            var fill = create('i'); fill.style.setProperty('--share', String(amounts[index] / largest)); bar.append(fill); label.append(bar);
+          }
           item.append(
             create('div', 'breakdown-code', row.code || 'Sin código'),
-            create('div', 'breakdown-label', row.label || 'Denominación no informada'),
+            label,
             create('div', 'breakdown-amount', formatMoney(row.amount))
           );
           host.append(item);
         });
+      }
+
+      // «Con qué se cubre el gasto»: dos tramos proporcionales a recursos y financiamiento aprobados. Sin esos dos
+      // importes válidos la figura no se muestra; no se estima ni se completa nada.
+      function renderFundingBar(resources, financing) {
+        var figure = byId('fundingBar');
+        var a = canonicalDecimal(resources), b = canonicalDecimal(financing);
+        var ok = Boolean(a && b) && Number(a) > 0 && Number(b) >= 0;
+        figure.hidden = !ok;
+        if (!ok) return;
+        byId('fundingBarResources').style.flexGrow = String(Number(a) / (Number(a) + Number(b)) * 1000);
+        byId('fundingBarFinancing').style.flexGrow = String(Number(b) / (Number(a) + Number(b)) * 1000);
+        byId('fundingBarFinancing').hidden = Number(b) === 0;
+        byId('fundingBarTrack').setAttribute('aria-label', 'Recursos estimados ' + formatMoney(resources) + ' y financiamiento estimado ' + formatMoney(financing) + '.');
       }
 
       function coverageText(rows, fallback) {
@@ -1042,6 +1099,7 @@
         byId('resourcesValue').textContent = formatMoney(model.approved.resources);
         byId('financingValue').textContent = formatMoney(model.approved.financing);
         byId('fundingTotalValue').textContent = formatMoney(model.approved.fundingTotal);
+        renderFundingBar(model.approved.resources, model.approved.financing);
         byId('expenseDomainTotal').textContent = formatMoney(model.approved.expenditures);
         byId('resourceDomainTotal').textContent = formatMoney(model.approved.resources);
         byId('financingDomainTotal').textContent = formatMoney(model.approved.financing);

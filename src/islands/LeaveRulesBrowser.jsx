@@ -33,37 +33,45 @@ const styles = `
 [data-leave-rules-workspace] .lr-detail dt{font-size:11px;font-weight:700;color:#58717e;margin:0 0 3px}
 [data-leave-rules-workspace] .lr-detail dd{margin:0}
 [data-leave-rules-workspace] .lr-scope{padding:12px 14px;margin:16px 0 0;border-left:3px solid #b4883c;background:#fbf7ee;font-size:12px;line-height:1.7;color:#5a522e}
+[data-leave-rules-workspace] .lr-pages{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:13px;font-weight:700}
+[data-leave-rules-workspace] .lr-pages button:disabled{opacity:.45;cursor:default}
 [data-leave-rules-workspace] .lr-empty{padding:24px 16px;border:1px dashed #bdcfd7;border-radius:9px;font-size:14px;line-height:1.7}
 [data-leave-rules-workspace] :is(button,input,summary):focus-visible{outline:3px solid #a66b12;outline-offset:3px}
 @media(max-width:600px){[data-leave-rules-workspace] .lr-search{max-width:none;width:100%}[data-leave-rules-workspace] .lr-filters button{flex:1 1 120px}[data-leave-rules-workspace] .lr-rule summary{padding:14px;flex-wrap:wrap;gap:8px}[data-leave-rules-workspace] .lr-rule-title{flex-basis:calc(100% - 40px);order:0}[data-leave-rules-workspace] .lr-rule summary::after{order:1}[data-leave-rules-workspace] .lr-category{order:2}[data-leave-rules-workspace] .lr-detail{padding:14px}}
-@media print{[data-leave-rules-workspace] .lr-search,[data-leave-rules-workspace] .lr-filters,[data-leave-rules-workspace] .lr-reset{display:none!important}}
+@media print{[data-leave-rules-workspace] .lr-search,[data-leave-rules-workspace] .lr-filters,[data-leave-rules-workspace] .lr-reset,[data-leave-rules-workspace] .lr-pages{display:none!important}}
 `;
+
+const PAGE_SIZE = 8;
 
 export default function LeaveRulesBrowser({ rules, onReady }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const input = useRef(null);
   const id = useId();
+  const [page, setPage] = useState(0);
   const visible = filterLeaveRules(rules, { query, category });
+  // De a pocas reglas por vez: la lista completa ocupaba varias pantallas. La búsqueda y los filtros vuelven al inicio.
+  const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE)), current = Math.min(page, pages - 1);
+  const shown = visible.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
   const counts = leaveRuleCounts(rules, query);
   useLayoutEffect(() => { onReady(); }, [onReady]);
-  function clear() { setQuery(''); input.current?.focus(); }
+  function clear() { setQuery(''); setPage(0); input.current?.focus(); }
   function reset() { setCategory('all'); clear(); }
   return <div data-leave-rules-workspace="v1">
     <style>{styles}</style>
     <div className="lr-intro">
       <div><h3>Encontrá la regla que necesitás revisar</h3><p>Buscá por licencia, código, artículo o documentación requerida. Abrí una regla para consultar sus condiciones y límites.</p></div>
-      <label className="lr-search">Buscar una regla<input ref={input} type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} aria-describedby={id} placeholder="Anual, familiar, antigüedad…" /></label>
+      <label className="lr-search">Buscar una regla<input ref={input} type="search" maxLength={100} value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} aria-describedby={id} placeholder="Anual, familiar, antigüedad…" /></label>
     </div>
     <div className="lr-filters" role="group" aria-label="Calculabilidad de la regla">
-      {LEAVE_RULE_FILTERS.map(filter => <button type="button" key={filter.id} aria-pressed={category === filter.id} onClick={() => setCategory(filter.id)}>{filter.label}<span className="lr-count" aria-hidden="true">{counts[filter.id]}</span></button>)}
+      {LEAVE_RULE_FILTERS.map(filter => <button type="button" key={filter.id} aria-pressed={category === filter.id} onClick={() => { setCategory(filter.id); setPage(0); }}>{filter.label}<span className="lr-count" aria-hidden="true">{counts[filter.id]}</span></button>)}
     </div>
     <div className="lr-resultbar">
-      <p id={id} role="status" aria-live="polite" aria-atomic="true">{visible.length} de {rules.length} reglas{category !== 'all' ? ` · ${leaveRuleLabel(category)}` : ''}{query ? ' · Búsqueda aplicada' : ''}.</p>
+      <p id={id} role="status" aria-live="polite" aria-atomic="true">{visible.length} de {rules.length} reglas{pages > 1 ? ` · mostrando ${current * PAGE_SIZE + 1} a ${current * PAGE_SIZE + shown.length}` : ''}{category !== 'all' ? ` · ${leaveRuleLabel(category)}` : ''}{query ? ' · Búsqueda aplicada' : ''}.</p>
       <div className="lr-reset">{query ? <button type="button" onClick={clear}>Limpiar búsqueda</button> : null}{category !== 'all' ? <button type="button" onClick={reset}>Restablecer filtros</button> : null}</div>
     </div>
     <div className="lr-results">
-      {visible.map(rule => <details className="lr-rule" key={rule.key} data-category={rule.category}>
+      {shown.map(rule => <details className="lr-rule" key={rule.key} data-category={rule.category}>
         <summary><span className="lr-rule-title"><strong>{rule.label}</strong><small>{rule.code ? `Código: ${rule.code}` : 'Sin código informado'}{rule.basis ? ` · ${rule.basis}` : ''}</small></span><span className="lr-category">{leaveRuleLabel(rule.category)}</span></summary>
         <div className="lr-detail">{rule.summary ? <p>{rule.summary}</p> : null}<dl>
           {rule.unit ? <div><dt>Unidad</dt><dd>{rule.unit}</dd></div> : null}
@@ -73,6 +81,11 @@ export default function LeaveRulesBrowser({ rules, onReady }) {
         </dl></div>
       </details>)}
     </div>
+    {pages > 1 ? <nav className="lr-pages" aria-label="Páginas de reglas">
+      <button type="button" disabled={current === 0} onClick={() => setPage(current - 1)}>‹ Anterior</button>
+      <span>Página {current + 1} de {pages}</span>
+      <button type="button" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Siguiente ›</button>
+    </nav> : null}
     {!visible.length ? <p className="lr-empty">{rules.length ? 'No hay reglas que coincidan. Cambiá la búsqueda o restablecé los filtros.' : 'La consulta no devolvió reglas. No se agregan reglas ni plazos de ejemplo.'}</p> : null}
     <p className="lr-scope"><strong>Regla, evidencia y decisión son cosas distintas.</strong> “Calculable” no significa saldo disponible, licencia aprobada ni novedad salarial confirmada.</p>
   </div>;

@@ -6,10 +6,11 @@ import { schoolCertificateSafeError } from '../lib/internal-family-certificates.
 import { readRawPrivateJson } from '../lib/private-json-body.js';
 import { employeeContext } from '../lib/internal-native-employees.js';
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
-import { ownRunCommand, OWN_RUN_MAX_BODY } from '../assets/own-payroll-run-model.js';
+import { ownRunCommand, OWN_RUN_MAX_BODY, ownRunMissing } from '../assets/own-payroll-run-model.js';
 import { RUN_READ, RUN_NOMINAL, RUN_CALCULATE, runFail, runError, ownRunOperation } from '../lib/internal-own-payroll-run.js';
 import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
 import {supportsOwnPayrollStream,sendOwnPayrollStream} from '../lib/own-payroll-response.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 export const config = { api: { bodyParser: false } };
 export function createOwnRunHandler(deps = {}) {
   const env = deps.env ?? process.env, authorize = deps.requireAccess ?? requireCompatibleInternalAccess,
@@ -49,7 +50,7 @@ export function createOwnRunHandler(deps = {}) {
         if (!salaryExact(body, ['operation', 'payload']) || body.operation !== 'calculate') runFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
         input = { body: ownRunCommand(body.payload), key: schoolCertificateHttp.header(req, 'idempotency-key') };
       }
-      const data = await ownRunOperation(await getSql(env), access.principal, session, operation, input, {...deps,fullJson});
+      const data = await ownRunOperation((req.method || 'GET') === 'GET' ? busyRetrySql(await getSql(env)) : await getSql(env), access.principal, session, operation, input, {...deps,fullJson});
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       const status=method === 'POST' && !data.replayed ? 201 : 200;
       if(fullJson)return await sendOwnPayrollStream(res,status,data);
@@ -57,7 +58,8 @@ export function createOwnRunHandler(deps = {}) {
     } catch (e) {
       if(res.headersSent){res.destroy();return;}
       const safe = String(e?.code ?? '').startsWith('SCHOOL_CERTIFICATE_') ? schoolCertificateSafeError(e) : runError(e);
-      return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message });
+      const missing = safe.code === 'OWN_RUN_INPUT_MISSING' ? ownRunMissing(safe.missing) : null;
+      return res.status(safe.status).json({ ok: false, code: safe.code, error: safe.message, ...(missing ? { missing } : {}) });
     }
   };
 }

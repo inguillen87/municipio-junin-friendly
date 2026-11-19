@@ -1,0 +1,53 @@
+{
+  "version": "attendance-area-history.v1",
+  "sourceVersion": "attendance-area-history-source.v1",
+  "scope": ["tenantId", "sourceBindingId", "contractId"],
+  "query": ["tenantId", "sourceBindingId", "contractId", "validFrom", "validUntil"],
+  "dateSemantics": {
+    "bounds": "inclusive",
+    "validUntilNull": "requires_an_explicit_open_employment_interval",
+    "registeredAt": "audit_only",
+    "reviewedAt": "audit_only",
+    "adoptedAt": "audit_only",
+    "effectiveFromOnChange104Or224": "not_recorded"
+  },
+  "resolvedAreaFields": ["organizationUnitSourceId", "sectorSourceId", "organizationName", "sectorName", "areaLabel"],
+  "evidenceFields": ["sourceVersion", "registrationId", "registrationRequestSha256", "registrationCatalogSha256", "registeredAt", "changeApprovalIds", "lifecycleApprovalIds"],
+  "acceptedMembershipBasis": "unchanged_native_registration_area_with_complete_approved_chains",
+  "acceptedDates": ["native_registration.start_date", "native_registration.end_date", "approved_lifecycle110.movement_date"],
+  "blockedOrigins": ["grh", "adopted_grh", "unconfirmed"],
+  "blockedReasons": [
+    "AREA_HISTORY_SCOPE_MISMATCH",
+    "AREA_HISTORY_INCOMPLETE",
+    "AREA_HISTORY_NATIVE_PROVENANCE_REQUIRED",
+    "AREA_HISTORY_REGISTRATION_UNPROVEN",
+    "AREA_HISTORY_WITHDRAWN",
+    "AREA_HISTORY_CHAIN_INVALID",
+    "AREA_HISTORY_EFFECTIVITY_REQUIRED",
+    "AREA_HISTORY_LIFECYCLE_INVALID",
+    "AREA_HISTORY_RANGE_NOT_ACTIVE"
+  ],
+  "blockedProjection": {"area": null, "evidence": null},
+  "privateSqlSignature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+  "privateSqlSource": "scripts/candidates/attendance-area-history-v1.source.sql.txt",
+  "pureResolver": "lib/attendance-area-history.js#resolveAttendanceAreaHistory",
+  "authority": {
+    "pureFactsAuthenticate": false,
+    "helperAuthenticatesUser": false,
+    "serverContextRequired": "attendance_area_context_v1",
+    "snapshot": "invoking_statement_mvcc_snapshot",
+    "population": "server_sql_resolved_area_before_identity_projection",
+    "runtimeExecuteGrant": false
+  },
+  "forbiddenFallbacks": [
+    "current_area_without_registration_and_complete_chain",
+    "join_by_legajo",
+    "approval_timestamp_as_effective_date",
+    "adoption_timestamp_as_effective_date",
+    "monthly_classification177_as_unversioned_daily_history",
+    "marks_as_membership_or_device_expectation",
+    "client_filter_of_global_population"
+  ],
+  "installationState": "source_candidate_not_installed",
+  "NoeliaReady": false
+}

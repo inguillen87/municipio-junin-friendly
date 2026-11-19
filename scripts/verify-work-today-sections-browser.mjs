@@ -22,8 +22,10 @@ try{
  await page.goto(origin+'/personal#inicio');const panel=page.locator('#workToday');await panel.waitFor();
  assert.equal(await panel.getAttribute('data-mode'),'prepare');assert.equal(await panel.locator('[data-work-today-other-modes] details').count(),2);
  const review=panel.locator('[data-work-today-mode=decide]'),consult=panel.locator('[data-work-today-mode=consult]');
- assert.equal(await review.locator('a').count(),3);const before=requests.length;
- await review.locator('summary').click();assert.equal(await review.locator('a:visible').count(),3);await consult.locator('summary').click();
+ // Revisar also carries «Pendientes de aprobación» for whoever approves (09a8db0d).
+ assert.equal(await review.locator('a').count(),4);const before=requests.length;
+ await review.locator('summary').click();await page.waitForFunction(()=>[...document.querySelectorAll('[data-work-today-mode=decide] a')].filter(a=>a.getBoundingClientRect().height>0).length===4);assert.equal(await review.locator('a:visible').count(),4);await consult.locator('summary').click();
+ await panel.locator('[data-work-today-other-modes] a[href="/juridica"]').first().waitFor();await consult.locator('a[href="/relojes"]').first().waitFor(); // short opening animation
  assert.equal(await panel.locator('[data-work-today-other-modes] a[href="/juridica"]:visible').count(),1);
  assert.equal(await consult.locator('a[href="/relojes"]:visible').count(),1);assert.match(await panel.innerText(),/no trámites pendientes/);
  assert.equal(requests.length,before);checks.push('mixed permissions expose preparation, review and consultation without new API requests');

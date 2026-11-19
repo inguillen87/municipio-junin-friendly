@@ -17,6 +17,7 @@ import { prepareOwnPlanilla } from '../assets/own-payroll-receipt-planilla-model
 import { employeeDraft } from '../assets/native-employee-contract.js';
 import { independentParticipationReference } from './lib/period-participation-qa-reference.mjs';
 import {createInternalDataHandler} from '../api/internal-data.js';
+import {observeOwnQaCommand} from './lib/qa-lock-observation.mjs';
 const j=v=>q(JSON.stringify(v))+'::jsonb';
 const cuil=dni=>{const b='20'+dni,rem=11-[5,4,3,2,7,6,5,4,3,2].reduce((a,w,i)=>a+w*Number(b[i]),0)%11;return b+(rem===11?'0':rem===10?'9':String(rem));};
 export async function verifyOwnPeriodParticipation(options) {
@@ -117,7 +118,7 @@ export async function verifyOwnPeriodParticipation(options) {
   const exitReceipt=await db.run('SELECT native_employment_lifecycle_review_v2('+j(qa.actors.checker)+','+j({contractId:exiting.contractId,proposalId:exitProposal.proposalId,scopeVersion:exitReview.scopeVersion,decision:'approve',reason:'Baja revisada independientemente y exclusivamente sintética QA'})+','+q(randomUUID())+'::uuid)',true);
   assert.equal(exitReceipt.status,'approved');
   const newParticipation=await api('participation',{query:query(exiting.contractId)});assert.notEqual(newParticipation.source.version,oldParticipation.source.version);assert.equal(newParticipation.source.fullPeriod,false);
-  const staleScope=await api('run');await api('run',{body:{...legacyBody,scopeVersion:staleScope.scopeVersion,programVersion:staleScope.programVersion},expected:409});
+  const staleScope=await api('run'),staleCapture=await api('run',{body:{...legacyBody,scopeVersion:staleScope.scopeVersion,programVersion:staleScope.programVersion},expected:409});assert.equal(staleCapture.code,'OWN_RUN_SOURCE_IDENTITY_CHANGED');
   await approve(await prepare(exiting,'1'));
   ok(true,'independently approved partial exit invalidates previous participation; fresh documentary review restores calculation without erasing employment history');
   const runBoot=await api('run'),body={...legacyBody,scopeVersion:runBoot.scopeVersion,programVersion:runBoot.programVersion},missingKey=randomUUID(),before=await db.run('SELECT to_jsonb(count(*)) FROM own_payroll_run_result');
@@ -155,7 +156,11 @@ export async function verifyOwnPeriodParticipation(options) {
   setActor(qa.actors.maker);const params={...emptyOwnReceiptParams(period),contracts:selection.values,issuer:{name:'Municipio exclusivamente sintético',taxId:'30990000001',address:'Domicilio ficticio 123'}},preview=await api('receipt',{previewParams:params});
   assert.equal(preview.snapshot.records.length,count);
   const receiptBody={command:'prepare',scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params,batchId:null,batchSha256:null,reason:'Emisión parcial exclusivamente sintética QA',reviewConfirmed:false},emitted=await api('receipt',{body:receiptBody,expected:201});
-  setActor(qa.actors.checker);const receiptBatch=await api('receipt',{query:{resource:'batch',id:emitted.batchId}}),receiptPreview=await api('receipt',{previewParams:params});
+   setActor(qa.actors.checker);const receiptBatch=await api('receipt',{query:{resource:'batch',id:emitted.batchId}});
+   const previewForChecker=()=>api('receipt',{previewParams:params});
+   const receiptPreview=process.env.MC_QA_RECEIPT_PREVIEW_LOCK_OBSERVATION==='1'
+    ?await observeOwnQaCommand({db,schema:qa.schema,activity:true,execute:previewForChecker,record:value=>fs.appendFileSync(path.join(h.destination,'receipt-preview-lock-observations.ndjson'),JSON.stringify({operation:'receipt_preview_checker',...value})+'\n')})
+    :await previewForChecker();
   await api('receipt',{expected:201,body:{...receiptBody,command:'approve',scopeVersion:receiptPreview.scopeVersion,sourceVersion:receiptPreview.snapshot.sourceVersion,params:null,batchId:emitted.batchId,batchSha256:receiptBatch.snapshotSha256,reason:'Emisión parcial revisada exclusivamente sintética QA',reviewConfirmed:true}});
   const approvedReceipt=await api('receipt',{query:{resource:'batch',id:emitted.batchId}}),pdf=await createOwnReceiptPdf(approvedReceipt),originalCloses=[];
   for(const original of approvedReceipt.snapshot.sources)originalCloses.push(await api('close',{query:{resource:'group',id:original.id}}));

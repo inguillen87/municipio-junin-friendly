@@ -50,7 +50,7 @@ async function harness({own=false,initialPlan=()=>({})}={}){
   let value,status=step.status??200;
   if(kind==='access')value={ok:status===200,authenticated:status===200,user:{email:step.actor??session.email},access:{context:'tenant',tenant:{id:normal.scope.tenantId},tenantCapabilities:step.capabilities??['workforce.employee.read']}};
   else if(kind==='review')value={ok:true,data:step.review??normal};
-  else if(kind==='mixed-sources'||kind==='final-sources'){const s=mixed.source.finalRevision;value={ok:true,data:{version:kind==='mixed-sources'?'employment-adoption-final-sources.v2':'employment-adoption-final-sources.v1',scope:mixed.scope,total:1,rows:[{revisionId:s.revisionId,packageSha256:s.packageSha256,cutoff:s.cutoff}]}};}
+  else if(kind==='mixed-sources'||kind==='final-sources'||kind==='prepared-sources'){const s=mixed.source.finalRevision;value={ok:true,data:{version:kind==='prepared-sources'?'employment-adoption-prepared-sources.v1':kind==='mixed-sources'?'employment-adoption-final-sources.v2':'employment-adoption-final-sources.v1',scope:mixed.scope,total:1,rows:[{revisionId:s.revisionId,packageSha256:s.packageSha256,cutoff:s.cutoff}]}};}
   else if(kind==='mixed-bootstrap')value={ok:true,data:{version:'employment-adoption-preparation.v8',review:step.review??mixed,catalogVersion,canPrepare:true,applicationAvailable:false,attempts:[]}};
   else if(kind==='bootstrap')value={ok:true,data:{version:'employment-adoption-preparation.v1',review:step.review??normal,catalogVersion,canPrepare:true,applicationAvailable:false,attempts:[]}};
   else throw Error('Unadmitted mock route: '+kind);
@@ -70,7 +70,7 @@ async function harness({own=false,initialPlan=()=>({})}={}){
 
 test('mixed-cut auth20s plus GET20s completes each full review without a chain deadline or POST',async()=>{
  const h=await harness();h.setPlan(()=>({elapsed:20000}));await h.selectMixed();
- assert.equal(h.now(),80000);assert.deepEqual(h.calls.map(r=>r.kind),['access','mixed-sources','access','mixed-bootstrap']);assert.equal(h.transportErrors.length,0);
+ assert.equal(h.now(),80000);assert.deepEqual(h.calls.map(r=>r.kind),['access','prepared-sources','access','mixed-bootstrap']);assert.equal(h.transportErrors.length,0);
  assert.equal(h.field('result').hidden,false,h.field('status').textContent);assert.match(h.field('counts').textContent,/63 registros.*37 activos conocidos/);
  assert.equal(h.field('preparation').lastReview.total,37);assert.equal(h.field('preparation').lastReview.rows.length,37);assert.equal(h.deadlines.length,4);assert.equal(h.downloads.length,0);
 });

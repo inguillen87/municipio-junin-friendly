@@ -12,9 +12,17 @@ const good={path:'app/clock-fleet/gateway.mjs',bytes:bytes.length,sha256:createH
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const root=fileURLToPath(new URL('../',import.meta.url));
 let releaseFixture;
+// La lista del kit fijado es la de su propio commit, no la actual. La recuperación de capturas (2337aeaa) se agregó después
+// a RELEASE_FILES y llega a los relojes por el actualizador (scripts/install-fleet-capture-release.mjs), no por el kit fijado
+// del instalador; leer la lista actual pedía al commit fijado un archivo que no tiene.
+function pinnedReleaseFiles(){
+ const source=execFileSync('git',['show',`${RELEASE_COMMIT}:scripts/build-municipal-clock-release.mjs`],{cwd:root,encoding:'utf8',windowsHide:true});
+ const block=source.match(/export const RELEASE_FILES = Object\.freeze\((\{[\s\S]*?\})\);/)[1];
+ return JSON.parse(block.replace(/'/g,'"').replace(/([{,]\s*)([a-z0-9]+)\s*:/g,'$1"$2":'));
+}
 function pinnedReleaseFixture(){
  if(!releaseFixture){
-  const planned=Object.entries(RELEASE_FILES).flatMap(([family,names])=>names.map(name=>({source:`local-agents/${family}/${name}`,target:`app/${family}/${name}`})));
+  const planned=Object.entries(pinnedReleaseFiles()).flatMap(([family,names])=>names.map(name=>({source:`local-agents/${family}/${name}`,target:`app/${family}/${name}`})));
   planned.push({source:'scripts/verify-municipal-clock-release.mjs',target:'verify-release.mjs'});
   const files=planned.sort((a,b)=>a.target.localeCompare(b.target,'en')).map(item=>{
    const data=execFileSync('git',['show',`${RELEASE_COMMIT}:${item.source}`],{cwd:root,windowsHide:true,maxBuffer:4*1024*1024});
@@ -78,4 +86,16 @@ test('valid source hashes cannot smuggle extra manifest fields or change package
   m=>m.runtimeIncluded=true,m=>m.credentialsIncluded=true,m=>m.municipalRecordsIncluded=true,m=>m.credentialsIncluded='false'];
  for(const mutate of mutations){const manifest=pinnedReleaseFixture();mutate(manifest);assert.throws(()=>assertReleasePin(manifest),/INSTALLER_RELEASE_PIN_MISMATCH/);}
  assert.throws(()=>assertReleasePin(null),/INSTALLER_RELEASE_PIN_MISMATCH/);
+});
+
+test('cada archivo agregado a la versión después del commit fijado del instalador llega por el actualizador de capturas',()=>{
+ const pinned=pinnedReleaseFiles(),updater=readFileSync(new URL('../scripts/install-fleet-capture-release.mjs',import.meta.url),'utf8');
+ const names=JSON.parse(updater.match(/const names=(\[[^\]]*\]);/)[1].replace(/'/g,'"'));
+ for(const [family,files] of Object.entries(RELEASE_FILES)){
+  for(const file of pinned[family]??[])assert.ok(files.includes(file),'la versión actual conserva '+family+'/'+file);
+  for(const file of files.filter(f=>!(pinned[family]??[]).includes(f))){
+   assert.equal(family,'clock-fleet',family+'/'+file+' no está en el kit fijado ni en el actualizador');
+   assert.ok(names.includes(file),'clock-fleet/'+file+' debe llegar por el actualizador de capturas');
+  }
+ }
 });

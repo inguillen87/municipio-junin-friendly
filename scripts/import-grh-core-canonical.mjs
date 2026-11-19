@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 import { acquireGrhPublicationLocks } from './lib/grh-publication-lock.mjs';
 import { getGrhSourceProfile, defaultGrhSourceProfile } from './lib/grh-source-profile.mjs';
+import { analyzeCommittedSource } from './lib/source-import-analyze.mjs';
 
 import {
   directCanonicalDatabaseUrl,
@@ -1191,9 +1192,10 @@ export async function runGrhCoreCliTransaction({ client, operation, apply = fals
       rollbackConfirmed = true;
     }
     transactionStarted = false;
+    const plannerMaintenance = await analyzeCommittedSource({client, profile: 'core_import', committed});
     return {
       ...result, ok: true, status: apply ? 'completed' : 'verified-rolled-back', source: 'GRH core',
-      committed, rollbackConfirmed, requiresLedgerReconciliation: false,
+      committed, rollbackConfirmed, requiresLedgerReconciliation: false, plannerMaintenance,
     };
   } catch (error) {
     if (transactionStarted && !commitAttempted && !rollbackAttempted) {

@@ -9,7 +9,7 @@
 .own-individual ol {list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .own-individual li {background:#fff;border:1px solid #d7dfdc;border-radius:10px;padding:16px;min-width:0}
 .own-individual li p {margin:8px 0}
-.own-individual-amount {font-weight:800;font-variant-numeric:tabular-nums}
-.own-individual :focus-visible {outline:3px solid #315f82;outline-offset:3px}
+.own-individual-amount {font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.own-individual :focus-visible {outline:3px solid #0f766e;outline-offset:2px}
 .own-individual button,.own-individual summary {min-height:44px}
-@media(max-width:700px){.own-individual{padding:12px}.own-individual header{flex-direction:column}.own-individual header button{width:100%}.own-individual ol{grid-template-columns:1fr}.own-individual dl{grid-template-columns:1fr!important}.own-individual dd{text-align:left}}
+@media(max-width:700px){.own-individual{padding:12px}.own-individual header{flex-direction:column}.own-individual header button{width:100%}.own-individual ol{grid-template-columns:1fr}.own-individual dl{grid-template-columns:1fr!important}.own-individual dd{text-align:right;border-bottom:1px solid #e1ece8;padding-bottom:6px}}

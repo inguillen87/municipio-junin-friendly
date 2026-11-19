@@ -49,7 +49,7 @@
     button, input, select, textarea { font: inherit; }
     button, a { -webkit-tap-highlight-color: transparent; }
     button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-      outline: 3px solid rgba(15, 118, 110, .3);
+      outline: 3px solid #0f766e;
       outline-offset: 2px;
     }
     [hidden] { display: none !important; }
@@ -179,7 +179,7 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
     th { color: var(--navy); background: var(--surface-2); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
-    td { color: #2c4653; font-size: 13px; }
+    td { color: #2c4653; font-size: 13px; font-variant-numeric: tabular-nums; }
     tbody tr[data-open-row] { cursor: pointer; }
     tbody tr[data-open-row]:hover, tbody tr[data-open-row]:focus-within { background: #f7faf9; }
     .cell-title { display: block; color: var(--navy); font-weight: 800; }
@@ -300,7 +300,7 @@
     .scope-draft-row strong, .scope-draft-row span { display: block; }
     .scope-draft-row strong { color: var(--navy); font-size: 12px; }
     .scope-draft-row span { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.4; }
-    .scope-draft-row .button { min-height: 38px; padding: 7px 9px; }
+    .scope-draft-row .button { min-height: 44px; padding: 8px 12px; }
     .scope-empty { padding: 16px 12px; color: var(--muted); background: #fff; border: 1px dashed var(--line-strong); border-radius: 4px; text-align: center; font-size: 11px; line-height: 1.45; }
 
     .source-onboarding-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
@@ -335,6 +335,11 @@
       .summary-rail { grid-template-columns: 1fr 1fr; }
       .summary-rail > div:nth-child(2) { border-right: 0; }
       .summary-rail > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    }
+    @media (max-width: 400px) {
+      .summary-rail { grid-template-columns: 1fr; }
+      .summary-rail > div { border-right: 0; border-bottom: 1px solid var(--line); }
+      .summary-rail > div:last-child { border-bottom: 0; }
     }
 
     @media (max-width: 820px) {
@@ -440,6 +445,8 @@
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/release-status.css">
   <script type="module" src="assets/release-status-panel.js"></script>
+  <link rel="stylesheet" href="assets/attendance-area-scopes-panel.css">
+  <script type="module" src="assets/attendance-area-scopes-panel.js"></script>
 </head>
 <body data-mc-page="platformAdmin">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -454,6 +461,7 @@
       <div class="gate-actions" id="platformContextActions" hidden>
         <button class="button primary" id="switchToPlatformButton" type="button">Cambiar a Administración de plataforma</button>
         <a class="button" id="reloginPlatformLink" href="login.html?next=administracion-plataforma.html">Volver a ingresar y elegir Plataforma</a>
+        <a class="button" href="/homologacion">Probar circuitos en mi ámbito municipal</a>
         <a class="button quiet" href="internal-dashboard.html#inicio">Volver a la operación de Junín</a>
       </div>
     </div>
@@ -478,6 +486,8 @@
           <span class="nav-label">Identidad y acceso</span>
           <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
           <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+          <button class="nav-link" type="button" data-admin-view="attendanceAreas"><span class="nav-code" aria-hidden="true">AR</span>Áreas de asistencia</button>
+          <a class="nav-link" href="/homologacion" data-operation-target="/homologacion"><span class="nav-code" aria-hidden="true">QA</span>Homologación de desarrollo</a>
           <a class="nav-link" href="seguridad-cuenta.html"><span class="nav-code" aria-hidden="true">SE</span>Mi seguridad</a>
         </div>
         <div class="nav-group">
@@ -764,6 +774,24 @@
             </section>
           </section>
 
+          <section class="view" id="attendanceAreasView" data-view-panel="attendanceAreas" aria-labelledby="attendanceAreasTitle" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Identidad · asistencia por área</p>
+                <h1 id="attendanceAreasTitle">Áreas de asistencia por cuenta</h1>
+                <p class="page-lead">Definí en qué reparticiones y sectores puede usar cada cuenta sus permisos de asistencia por área. Cada cambio pide una referencia de autorización y queda registrado. Los permisos se siguen asignando en Usuarios y roles.</p>
+              </div>
+            </header>
+
+            <section class="panel" aria-labelledby="attendanceAreasPanelTitle">
+              <header class="panel-head"><div><h2 id="attendanceAreasPanelTitle">Áreas por cuenta</h2><p>Trabaja sobre el municipio elegido en el filtro de administración. Sin un área concedida, una cuenta no ve datos de asistencia por área.</p></div></header>
+              <div class="panel-body">
+                <div id="attendanceAreaScopes" data-tenant-id="" data-tenant-label="" data-can-read="false" data-can-manage="false" data-visible="false"><p role="status">Abrí esta sección con un municipio seleccionado para consultar sus áreas de asistencia.</p></div>
+                <noscript><p>Esta sección necesita JavaScript para verificar el acceso y consultar las áreas autorizadas.</p></noscript>
+              </div>
+            </section>
+          </section>
+
           <section class="view" id="auditView" data-view-panel="audit" aria-labelledby="auditTitle" hidden>
             <header class="page-head">
               <div>
@@ -965,6 +993,7 @@
       'platform.roles.manage'
     ]);
     var OPERATION_TARGETS = Object.freeze([
+      '/homologacion',
       'internal-dashboard.html#inicio',
       'centro-acciones.html'
     ]);
@@ -1333,6 +1362,7 @@
         key: key,
         label: text(first(row.label, row.name, row.title), titleize(key)),
         description: text(first(row.description, row.help, row.explanation), 'Capacidad publicada por el backend.'),
+        scopeKind: text(first(row.scopeKind, row.scope, row.scope_kind), 'unknown'),
         conflictsWith: conflicts,
         roleKey: roleKey || ''
       };
@@ -1613,6 +1643,7 @@
         },
         capabilities: capabilities,
         eligibleCapabilities: eligible,
+        sodEditBaseline: row.sodEditBaseline || null,
         version: version
       };
     }
@@ -1976,16 +2007,35 @@
       return role ? role.capabilities.map(function (capability) { return capability.key; }) : [];
     }
 
-    function sodConflicts(selectedKeys) {
+    // Only for an edit of the SAME active directory row and role. This is display
+    // evidence about an already accepted state, not permission to add any new pair.
+    function reviewedSodBaseline(row, roleKey, tenantId) {
+      var valid = new Set(), b = row && row.sodEditBaseline;
+      if (!b || b.schema !== 'iam.current-pairs.v1' || !tenantId || row.tenantId !== tenantId ||
+          row.status !== 'active' || b.tenantId !== tenantId || b.membershipId !== row.membershipId ||
+          row.roleKey !== roleKey || b.roleKey !== roleKey || !Number.isSafeInteger(row.version) ||
+          row.version < 1 || b.membershipVersion !== row.version || !Array.isArray(b.pairs) ||
+          !Array.isArray(row.capabilities)) return valid;
+      var prior = new Set(row.capabilities);
+      for (var i=0; i<b.pairs.length; i++) {
+        var p=b.pairs[i];
+        if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'string' || typeof p[1] !== 'string' ||
+            p[0] === p[1] || !prior.has(p[0]) || !prior.has(p[1])) return new Set();
+        valid.add(JSON.stringify([p[0],p[1]].sort()));
+      }
+      return valid;
+    }
+    function sodConflicts(selectedKeys, reviewedPairs) {
       var selected = selectedKeys instanceof Set ? selectedKeys : new Set(selectedKeys || []);
       var conflicts = [];
+      function known(a,b) { return !!reviewedPairs && reviewedPairs.has(JSON.stringify([a,b].sort())); }
       state.sodRules.forEach(function (rule) {
-        if (selected.has(rule.left) && selected.has(rule.right)) conflicts.push(rule.reason + ' (' + rule.left + ' / ' + rule.right + ')');
+        if (selected.has(rule.left) && selected.has(rule.right) && !known(rule.left,rule.right)) conflicts.push(rule.reason + ' (' + rule.left + ' / ' + rule.right + ')');
       });
       selected.forEach(function (key) {
         var capability = capabilityByKey(key);
         capability.conflictsWith.forEach(function (other) {
-          if (selected.has(other)) conflicts.push('Las capacidades ' + key + ' y ' + other + ' son incompatibles.');
+          if (selected.has(other) && !known(key,other)) conflicts.push('Las capacidades ' + key + ' y ' + other + ' son incompatibles.');
         });
       });
       return Array.from(new Set(conflicts));
@@ -2001,9 +2051,18 @@
       var tenantKeys = new Set(state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).reduce(function (all, role) {
         return all.concat(role.capabilities.map(function (capability) { return capability.key; }));
       }, []));
+      // Para una membresía municipal se ofrece todo el catálogo publicado menos lo exclusivo de plataforma. Antes sólo se
+      // ofrecía lo que algún rol municipal trae de fábrica, y una capacidad publicada fuera de los roles no se podía otorgar.
+      var platformKeys = new Set(state.roles.filter(function (role) { return role.scopeKind === 'platform'; }).reduce(function (all, role) {
+        return all.concat(role.capabilities.map(function (capability) { return capability.key; }));
+      }, []));
       var catalog = String(prefix || '').indexOf('roleMatrix') === 0
         ? state.capabilities.slice()
-        : state.capabilities.filter(function (capability) { return tenantKeys.has(capability.key); });
+        : state.capabilities.filter(function (capability) {
+          if (capability.scopeKind === 'tenant') return true;
+          if (capability.scopeKind !== 'unknown') return false;
+          return tenantKeys.has(capability.key) || (!platformKeys.has(capability.key) && capability.key.indexOf('platform.') !== 0);
+        });
       selected.forEach(function (key) {
         if (!catalog.some(function (capability) { return capability.key === key; })) catalog.push(capabilityByKey(key));
       });
@@ -3001,7 +3060,9 @@
       var user = state.selectedUser;
       if (!user) return;
       var selected = capabilityKeysFrom(el.userAccessCapabilities);
-      var conflicts = sodConflicts(new Set(selected));
+      // La línea base revisada es de la membresía y de su municipio; el filtro administrativo sólo decide qué filas se listan.
+      var reviewedPairs = reviewedSodBaseline(user, el.userAccessRole.value, state.context.tenantId || user.tenantId);
+      var conflicts = sodConflicts(new Set(selected), reviewedPairs);
       var selectedRoleAdministrative = administrativeOnlyRole(el.userAccessRole.value);
       var operationalKeys = new Set(state.operationalCatalog.scopeCapabilities.map(function (capability) { return capability.key; }));
       var selectedOperational = selected.filter(function (key) { return operationalKeys.has(key) || /^(?:leave\.request|time\.overtime|absence|employee\.record)\./.test(key); });
@@ -3014,6 +3075,7 @@
       el.userEffectiveSummary.append(node('strong', '', (roleByKey(el.userAccessRole.value) || {}).label || 'Rol no informado'));
       el.userEffectiveSummary.appendChild(document.createTextNode(' · ' + selected.length + ' capacidades solicitadas · tenant ' + user.tenantName + '. El backend define el acceso final.'));
       renderConflictBox(el.userConflictBox, conflicts, mutationAllowed('update_access', true));
+      if (reviewedPairs.size) el.userConflictBox.append(node('span', '', 'Se verificó la configuración vigente de esta membresía. Las incompatibilidades nuevas siguen bloqueadas.'));
       var self = state.user && user.email && state.user.email && user.email.toLowerCase() === state.user.email.toLowerCase();
       el.suspendMembershipButton.disabled = !mutationAllowed('suspend_membership', false) || !user.membershipId || !versionReady || self || normalizeUserStatus(user.status) === 'suspended';
       var invitationVersionReady = Number.isSafeInteger(Number(user.invitation.version)) && Number(user.invitation.version) >= 1;
@@ -3021,6 +3083,23 @@
       el.issueInvitationButton.textContent = user.invitation.status === 'issued' ? 'Invitación emitida' : user.invitation.status === 'accepted' ? 'Invitación aceptada' : 'Emitir invitación';
       el.reactivateMembershipButton.disabled = !mutationAllowed('request_membership_reactivation', true)
         || !user.membershipId || !versionReady || !reasonReady || normalizeUserStatus(user.status) !== 'suspended';
+    }
+
+    // El directorio de «Plataforma completa» llega sin la constancia de los pares ya revisados del rol: sólo la entrega
+    // la consulta del municipio de la membresía. Sin ella, la ficha marcaba como conflicto nuevo lo que el rol ya trae y
+    // dejaba «Actualizar acceso» apagado. Se pide para esa misma fila y versión; si no coincide o falla, sigue bloqueando.
+    async function loadSodBaselineFor(user) {
+      if (!user || user.sodEditBaseline || !user.tenantId || !user.membershipId || state.context.tenantId === user.tenantId) return;
+      try {
+        var payload = await requestJson(contextQuery('users', user.tenantId));
+        var match = findArray(payload, ['users','items','memberships','invitations']).map(normalizeUser).find(function (row) {
+          return row.id === user.id && row.membershipId === user.membershipId && row.tenantId === user.tenantId
+            && row.roleKey === user.roleKey && Number(row.version) === Number(user.version);
+        });
+        if (!match || !match.sodEditBaseline || state.selectedUser !== user) return;
+        user.sodEditBaseline = match.sodEditBaseline;
+        updateUserAccessGate();
+      } catch (error) { /* sin constancia la ficha conserva el bloqueo; el backend valida igual al guardar */ }
     }
 
     function openUserDetail(userId) {
@@ -3052,6 +3131,7 @@
       updateUserAccessGate();
       renderOperationalWorkbench(user);
       openDialog(el.userDetailDialog);
+      loadSodBaselineFor(user);
     }
 
     function renderConflictBox(box, conflicts, commandReady) {
@@ -3380,6 +3460,7 @@
     async function loadAll(requestedTenantId) {
       var version = ++state.loadVersion;
       setLoading(true);
+      publishAttendanceAreaContext();
       try {
         var loaded = await loadBootstrap(requestedTenantId || '', version);
         if (!loaded || version !== state.loadVersion) return;
@@ -3395,7 +3476,7 @@
         el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
         throw error;
       } finally {
-        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderSourceOnboarding(); renderControls(); renderPlatformGovernance(); }
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderSourceOnboarding(); renderControls(); renderPlatformGovernance(); publishAttendanceAreaContext(); }
       }
     }
 
@@ -3417,11 +3498,37 @@
       openDialog(el.createTenantDialog);
     }
 
+    // El panel de áreas de asistencia es un módulo aparte: sólo recibe el municipio filtrado, si esta sesión
+    // puede consultar o cambiar y si su sección está a la vista. Con cada aviso retira lo que tenía en pantalla.
+    function publishAttendanceAreaContext() {
+      var container = document.getElementById('attendanceAreaScopes');
+      if (!container) return;
+      var tenantId = text(state.context && state.context.tenantId).toLowerCase();
+      if (!UUID_PATTERN.test(tenantId)) tenantId = '';
+      var canRead = platformCapabilityAllowed(['platform.users.manage']);
+      var detail = {
+        tenantId: tenantId,
+        tenantLabel: tenantId ? text(state.context.label) : '',
+        canRead: canRead,
+        canManage: canRead && platformCapabilityAllowed(['platform.roles.manage']),
+        visible: state.activeView === 'attendanceAreas' && !state.loading
+      };
+      container.dataset.tenantId = detail.tenantId;
+      container.dataset.tenantLabel = detail.tenantLabel;
+      container.dataset.canRead = String(detail.canRead);
+      container.dataset.canManage = String(detail.canManage);
+      container.dataset.visible = String(detail.visible);
+      if (typeof window.CustomEvent === 'function') {
+        document.dispatchEvent(new window.CustomEvent('municontrol:area-scopes-context', { detail: detail }));
+      }
+    }
+
     function showView(view) {
       var titles = {
         portfolio: ['Cartera institucional','Superadministración multi-gobierno'],
         access: ['Usuarios y accesos','Identidad y menor privilegio'],
         controls: ['Controles exclusivos','Responsabilidades operativas'],
+        attendanceAreas: ['Áreas de asistencia','Áreas de asistencia por cuenta'],
         audit: ['Auditoría','Evidencia administrativa']
       };
       if (!titles[view]) return;
@@ -3431,6 +3538,7 @@
         if (button.dataset.adminView === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
       el.breadcrumbCurrent.textContent = titles[view][0]; el.topViewTitle.textContent = titles[view][1];
+      publishAttendanceAreaContext();
       closeMenu(false);
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       el.mainContent.focus({ preventScroll: true });

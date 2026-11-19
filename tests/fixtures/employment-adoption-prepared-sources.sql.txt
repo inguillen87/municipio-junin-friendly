@@ -1,0 +1,34 @@
+CREATE OR REPLACE FUNCTION public.employment_adoption_prepared_sources_v1(p jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE ctx jsonb;records jsonb;n integer;invalid_tuple boolean;distinct_revisions integer;distinct_profiles integer;
+BEGIN
+ ctx:=public.native_employee_context_v1(p);
+ IF NOT public.action_center_context_has_capability(ctx,'workforce.employee.read') THEN
+  RAISE EXCEPTION 'EMPLOYMENT_ADOPTION_FORBIDDEN';
+ END IF;
+ PERFORM public.municipal_adoption_ready_v1();
+ SELECT count(*),count(DISTINCT r.id),count(DISTINCT r.source_profile),
+  coalesce(bool_or(((((r.source_profile = 'grh-junin-2026-10-01'::text) AND (r.source_sha256 = '50a4cc2673be5e275dc5850aa8779f46de82dd81733a87e4b2cfa2aec49e025f'::text) AND (r.source_cutoff = '2026-10-01 15:17:29'::timestamp without time zone)) OR ((r.source_profile = 'grh-junin-2026-10-14'::text) AND (r.source_sha256 = '3efa61a77e5b160dff14dbb53a3634054dbc70a284c3f5101acd98ee9b5aecf4'::text) AND (r.source_cutoff = '2026-10-14 15:18:17'::timestamp without time zone)) OR ((r.source_profile = 'grh-junin-2026-10-28'::text) AND (r.source_sha256 = 'fef5aada3142e475d0519f7647377465d95ee55b4038aff035ff7d41d5748cc1'::text) AND (r.source_cutoff = '2026-10-28 15:16:35'::timestamp without time zone)))) IS NOT TRUE),false),
+  coalesce(jsonb_agg(jsonb_build_object('revisionId',r.id,'packageSha256',r.package_sha256,
+   'cutoff',to_char(r.source_cutoff,'YYYY-MM-DD"T"HH24:MI:SS')) ORDER BY r.source_cutoff DESC,r.id),'[]'::jsonb)
+ INTO n,distinct_revisions,distinct_profiles,invalid_tuple,records
+ FROM public.grh_final_source_revision r
+ JOIN public.grh_final_source_seal seal ON seal.revision_id=r.id
+ JOIN public.grh_effective_source_binding selected ON selected.tenant_id=r.tenant_id
+  AND selected.source_binding_id=r.source_binding_id AND selected.source_version_id=r.parent_core_version_id
+  AND selected.publication_sha256=r.parent_publication_sha256
+ WHERE r.tenant_id=(ctx->>'tenantId')::uuid AND r.source_binding_id=(ctx->>'sourceBindingId')::uuid;
+ IF n>3 OR invalid_tuple OR distinct_revisions<>n OR distinct_profiles<>n THEN
+  RAISE EXCEPTION 'EMPLOYMENT_ADOPTION_SOURCE_CHANGED';
+ END IF;
+ RETURN jsonb_build_object('version','employment-adoption-prepared-sources.v1',
+  'scope',jsonb_build_object('tenantId',ctx->>'tenantId','membershipId',ctx->>'membershipId',
+   'bindingId',ctx->>'sourceBindingId','companyId',(ctx->>'sourceCompanyId')::integer),
+  'total',n,'rows',records);
+END
+$function$

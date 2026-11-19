@@ -8,6 +8,7 @@ import {employeeContext} from '../lib/internal-native-employees.js';
 import {salaryExact,salaryCommand,salaryHash} from '../assets/native-salary-catalog-model.js';
 import {SALARY_STREAM_MAX_PAGES} from '../assets/native-salary-stream-model.js';
 import {SALARY_READ,SALARY_CAPS,SALARY_MAX_BYTES,salaryFail,salaryError,salaryOperation} from '../lib/internal-native-salary.js';
+import {busyRetrySql} from '../lib/busy-read-retry.js';
 export const config={api:{bodyParser:false}};
 const readSalaryBody=req=>readRawPrivateJson(req,{maxBytes:SALARY_MAX_BYTES,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>{
  if(kind==='large')salaryFail('LIMIT',413,'El formulario completo supera 4 MiB. No se recortaron filas.');
@@ -30,7 +31,9 @@ export function createNativeSalaryHandler(deps={}){
    if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,SALARY_READ))salaryFail('FORBIDDEN',403,'La membresía no permite consultar el maestro salarial.');
    const session=sessionFor(access,env);employeeContext(access.principal,session);
    if(method==='POST'){const body=await readSalaryBody(req);if(!salaryExact(body,['operation','payload'])||body.operation!=='command')salaryFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');const command=salaryCommand(body.payload);if(!principalHasCapabilities(access.principal,SALARY_CAPS[command.command]))salaryFail('FORBIDDEN',403,'La membresía no permite esta operación.');operation='command';input={body:command,key:schoolCertificateHttp.header(req,'idempotency-key')};}
-   const data=await salaryOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
+   // Every reading of the master holds the municipality's catalog lock while it runs, so two readings that meet (the screen's
+   // own blocks and the approvals inbox, both automatic) made the second fail at once. A reading is idempotent: retry it briefly.
+   const data=await salaryOperation(method==='GET'?busyRetrySql(await getSql(env)):await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
   }catch(e){const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):salaryError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}
  };
 }

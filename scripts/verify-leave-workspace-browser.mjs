@@ -55,6 +55,20 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/licencias');
   const workspace = page.locator('[data-leave-rules-workspace="v1"]');
+  // La pantalla se reparte en pestañas: cada una muestra sólo sus secciones y recuerda la última elegida.
+  const tab = name => page.getByRole('tab', { name }).click();
+  const shown = () => page.locator('#mainView > section.section').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).map(node => node.id));
+  await page.locator('.mc-section-tabs').waitFor();
+  assert.deepEqual(await page.getByRole('tab').evaluateAll(nodes => nodes.filter(node => !node.hidden).map(node => node.dataset.tab)), ['resumen', 'persona', 'reglas', 'motivos', 'normas', 'limites']);
+  assert.deepEqual(await shown(), ['overallPanel', 'legalPanel']);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight * 2.6), 'la primera pestaña entra en pocas pantallas');
+  await tab(/Motivos de GRH/); assert.deepEqual(await shown(), ['mappingPanel']);
+  await tab(/Datos y límites/); assert.deepEqual(await shown(), ['readinessPanel', 'limitationsPanel']);
+  await page.emulateMedia({ media: 'print' });
+  assert.equal((await shown()).length, 8, 'al imprimir salen todas las secciones');
+  await page.emulateMedia({ media: 'screen' });
+  await tab(/Reglas de licencias/); assert.deepEqual(await shown(), ['matrixPanel']);
+  checks.push('six plain-language tabs; one group of sections at a time; print keeps every section');
   await workspace.waitFor();
   assert.equal(await page.locator('#municipalStatus').getAttribute('data-status'), 'partial');
   assert.equal(await page.locator('#applicabilityStatus').getAttribute('data-status'), 'partial');
@@ -70,6 +84,7 @@ try {
   await input.fill('antiguedad');
   assert.equal(await workspace.locator('.lr-rule').count(), 1);
   await workspace.locator('summary').click();
+  await workspace.locator('.lr-detail').filter({ hasText: /Referencia informada\s*0/ }).waitFor(); // sections open with a short animation
   assert.match(await workspace.locator('.lr-detail').innerText(), /Referencia informada\s*0/);
   await categories.getByRole('button', { name: 'Requieren validación', exact: true }).click();
   assert.equal(await workspace.locator('.lr-rule').count(), 0);
@@ -85,7 +100,9 @@ try {
   await reset();
   checks.push('search, accents, categories, honest zero results, zero reference value, focus recovery and keyboard selection');
 
+  await tab(/Consultar una persona/);
   await page.locator('#legajoInput').fill('123');
+  await tab(/Reglas de licencias/);
   await input.fill('medica');
   await page.locator('#refreshButton').click();
   await page.locator('#mainView:not([hidden])').waitFor();
@@ -133,7 +150,19 @@ try {
   await page.locator('#mainView:not([hidden])').waitFor();
   assert.equal(await page.locator('#leaveRulesLegacy').isVisible(), true);
   assert.equal(await page.locator('#leaveRulesLegacy .rule-card').count(), 5);
+  await tab(/Consultar una persona/);
   assert.equal(await page.locator('#previewForm').isVisible(), true);
+  // El enlace que llega desde la ficha (#preview) abre «Consultar una persona» sin cambiar la pestaña recordada.
+  await tab(/Resumen/);
+  await page.goto(origin + '/licencias#preview');
+  await page.locator('#previewForm').waitFor(); // misma página: el cambio de ancla alcanza
+  assert.equal(await page.evaluate(() => localStorage.getItem('mc.licencias.tab')), 'resumen');
+  await tab(/Resumen/);
+  await page.reload(); // llegada desde otra pantalla
+  await page.locator('#mainView:not([hidden])').waitFor();
+  await page.locator('#previewForm').waitFor();
+  assert.equal(await page.getByRole('tab', { name: /Consultar una persona/ }).getAttribute('aria-selected'), 'true');
+  assert.equal(await page.evaluate(() => localStorage.getItem('mc.licencias.tab')), 'resumen');
   blockBundle = false; deny = true;
   await page.reload();
   await page.waitForURL(url => url.pathname === '/acceso');

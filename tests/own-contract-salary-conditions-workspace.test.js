@@ -14,3 +14,18 @@ for(const[label,change]of[
 for(const[label,change]of[
  ['missing last row',v=>v.split('\r\n').slice(0,-2).join('\r\n')+'\r\n'],['unexpected column',v=>v.replace('"contrato"','"dni"')],['a changed legajo',v=>v.replace("'QA-2","'QA-3")],['nondecimal percentage',v=>v.replace("'12.00000001","'1e2")],['extra precision',v=>v.replace("'12.00000001","'12.000000001")],['numeric unhealthy-work flag',v=>v.replace("'si","'1")],['unterminated quote',v=>v.slice(0,-3)],['ambiguous quoted suffix',v=>v.replace('"contrato";','"contrato"x;')],
 ])test('complete CSV rejects '+label+' atomically',()=>{const b=boot(2),d=items(2);d[1].definition.title={status:'declared',code:'0056',percentage:'12.00000001'};d[1].definition.unhealthyWork=true;const original=structuredClone(d);assert.throws(()=>conditionsFile(b,change(conditionsCsv(b,d))));assert.deepEqual(d,original);});
+import {conditionsPreparationFile} from '../assets/own-contract-salary-conditions-workspace.js';
+const preparation=(b,d,extra={})=>JSON.stringify({version:'junin-salary-conditions-private-preparation.v1',nativeDefinitionVersion:'own-contract-salary-conditions.v1',readyToPost:false,period:b.period,rows:[...d].reverse().map((r,i)=>({contractId:r.contractId,legajo:b.source.subjects[d.length-1-i].legajo,definition:r.definition})),...extra});
+test('a complete JSON preparation from the municipal source is matched by contract and legajo; identities come from the session',()=>{
+ const b=boot(855),d=items(855);d.at(-1).definition={...d.at(-1).definition,unhealthyWork:true};
+ const got=conditionsPreparationFile(b,preparation(b,d));assert.equal(got.length,855);assert.deepEqual(got,d);
+ assert.equal(got.at(-1).identityToken,b.source.subjects.at(-1).identityToken);
+});
+test('a JSON preparation is refused atomically if the period, population, legajo or format differ',()=>{
+ const b=boot(3),d=items(3);
+ assert.throws(()=>conditionsPreparationFile(b,preparation(b,d,{period:'2026-01'})),/Elegí el mismo período/);
+ assert.throws(()=>conditionsPreparationFile(b,preparation(b,d.slice(0,2))),/Rehacé la preparación/);
+ assert.throws(()=>conditionsPreparationFile(b,preparation(b,d,{readyToPost:true})),/no es una preparación/);
+ const wrong=JSON.parse(preparation(b,d));wrong.rows[0].legajo='otro';assert.throws(()=>conditionsPreparationFile(b,JSON.stringify(wrong)),/no coincide/);
+ assert.throws(()=>conditionsPreparationFile(b,'{no'),/JSON válido/);
+});

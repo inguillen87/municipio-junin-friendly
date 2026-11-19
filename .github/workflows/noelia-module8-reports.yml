@@ -15,6 +15,8 @@ on:
       - 'scripts/verify-noelia-feedback-publication.mjs'
       - 'internal-dashboard.html'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/verify-source-report-filters-browser.mjs'
       - 'scripts/verify-employee-source-seniority-browser.mjs'
       - 'scripts/verify-noelia-module8-production.mjs'

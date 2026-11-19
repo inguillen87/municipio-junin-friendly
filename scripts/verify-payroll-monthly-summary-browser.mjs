@@ -83,7 +83,9 @@ try {
   await page.goto(origin + '/reportes#resumen-mensual');
   assert.equal(await page.getByRole('tab', { name: 'Resumen mensual', exact: true }).getAttribute('aria-selected'), 'true');
   assert.equal(await panel.locator('[data-ms-result]').isVisible(), false);
-  assert.equal(calls.filter(c => c.path.includes('monthly-source-summary')).length, 0);
+  // Owner decision 0b89ec09: entering lists the available liquidations (catalog GET) without reading any summary.
+  assert.equal(calls.filter(c => c.path.includes('monthly-source-summary') && c.resource !== 'catalog').length, 0);
+  assert.ok(calls.every(c => c.method === 'GET'));
   checks.push('explicit Resumen mensual deep link mounts without reading payroll before the consult action');
   await available(); assert.equal(await panel.locator('[data-ms-id]:checked').count(), 0); assert.equal(await panel.locator('[data-ms-consult]').isDisabled(), true);
   assert.match(await panel.innerText(), /2026-09-01/); assert.match(await panel.innerText(), /Cerrada en origen/); assert.match(await panel.innerText(), /Abierta en origen/); assert.match(await panel.innerText(), /Cierre no informado/);

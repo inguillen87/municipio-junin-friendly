@@ -2,6 +2,7 @@
 // bodies are copied from the parent fixture. All later baseline definitions are
 // reproduced from reviewed source generators; this is a semantic fixture, not
 // a second claim that the production installation protocol ran here.
+import {createOwnReceiptSyntheticRuntimeQa,OWN_RECEIPT_SYNTHETIC_RUNTIME_EVIDENCE} from './own-receipt-synthetic-runtime-qa.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -187,7 +188,7 @@ export function buildOwnPeriodClassificationFinalQa({read,sourceCommit,major,ins
 export async function runFinalClassificationReceiptPreviewQa({read,schema,rendered,execute,onSqlError,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))}){
  assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/);assert.equal(typeof read,'function');assert.equal(typeof execute,'function');assert.equal(typeof onSqlError,'function');assert.equal(typeof pause,'function');
  assert.ok(rendered.startsWith('SELECT '+schema+'.own_receipt_preview_v1(')&&rendered.endsWith(' AS result'),'FINAL_CLASSIFICATION_RECEIPT_PREVIEW_ONLY');
- const sourcePins=[['scripts/migrations/126-own-payroll-receipts.sql','9f3e93154590b79d027d30a1408d07251211a67e87b581e570bdef013c2d33dc'],['scripts/migrations/142-adopted-own-payroll-receipts.sql','c92e086f7aa3c43e4662ead5ded70709092a03d9d6612bd81cdc7ba302deb294'],['scripts/lib/own-payroll-psql-qa.mjs','0e2ffc0cc8932548fd18975575709b2e9517dbecedd61a1a8f1ce26768bad037']];
+ const sourcePins=[['scripts/migrations/126-own-payroll-receipts.sql','9f3e93154590b79d027d30a1408d07251211a67e87b581e570bdef013c2d33dc'],['scripts/migrations/142-adopted-own-payroll-receipts.sql','c92e086f7aa3c43e4662ead5ded70709092a03d9d6612bd81cdc7ba302deb294'],['scripts/lib/own-payroll-psql-qa.mjs','bb8992cced0475aedae552e672ed0506d9e28b94bfde04565b0fd6c667c8a1ea']];
  const sources=Object.fromEntries(sourcePins.map(([file,pin])=>{const source=read(file).replace(/\r\n?/g,'\n');assert.equal(fileHash(source),pin,'FINAL_CLASSIFICATION_RECEIPT_PREVIEW_SOURCE_CHANGED: '+file);return[file,source];}));
  const relations=['person_identity','employment_contract','native_employee_registration','employment_adoption_application','employment_adoption_decision','employment_adoption_proposal'];
  assert.equal(sources['scripts/migrations/142-adopted-own-payroll-receipts.sql'].split('LOCK TABLE '+relations.map(r=>'public.'+r).join(',')+' IN SHARE MODE NOWAIT;').length,2,'FINAL_CLASSIFICATION_RECEIPT_PREVIEW_LOCKS_CHANGED');
@@ -205,7 +206,7 @@ export async function runFinalClassificationReceiptPreviewQa({read,schema,render
  assert.fail('FINAL_CLASSIFICATION_RECEIPT_PREVIEW_ATTEMPT_LIMIT');
 }
 
-export function makeFinalClassificationQaHandlers({qa,db,onSqlError=()=>{},read=file=>fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8')}){
+export function makeFinalClassificationQaHandlers({qa,db,major,onSqlError=()=>{},read=file=>fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8')}){
  assert.equal(typeof onSqlError,'function');let current=qa.actors.maker,lastSqlError=null;
  const previewReadProof={requests:0,attempts:0,retries:0,maxAttempts:3,maxObservedAttempts:0};
  const caps=[...new Set([...qa.caps,'payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve'])];
@@ -223,14 +224,14 @@ export function makeFinalClassificationQaHandlers({qa,db,onSqlError=()=>{},read=
   }
   try{return [{result:await db.run(rendered,true)}];}catch(error){recordError(error);throw error;}
  }};
- const env={INTERNAL_APP_ORIGIN:'https://final-period-classification-qa.example'},deps={env,requireAccess:()=>({mode:'managed',principal:{user:{email:current.actorEmail},tenant:{source:'membership',id:current.tenantId,membershipId:current.membershipId,effectiveCapabilities:caps}}}),sessionFor:()=>({email:current.actorEmail,id:current.actorSessionId,version:current.actorSessionVersion,releaseSha:current.releaseSha}),getSql:()=>adapter};
- const handlers={salary:createNativeSalaryHandler(deps),program:createOwnProgramHandler(deps),run:createOwnRunHandler(deps),liquidation:createOwnLiquidationHandler(deps),close:createOwnCloseHandler(deps),receipt:createOwnReceiptHandler(deps),seniority:createOwnSalarySeniorityHandler(deps),participation:createOwnPeriodParticipationHandler(deps),workingTime:createOwnContractWorkingTimeHandler(deps),salaryConditions:createOwnContractSalaryConditionsHandler(deps),classification:createOwnPeriodClassificationHandler(deps)};
+ const receiptRuntimeQa=createOwnReceiptSyntheticRuntimeQa({sql:adapter,major}),env={...receiptRuntimeQa.env,INTERNAL_APP_ORIGIN:'https://final-period-classification-qa.example'},deps={env,requireAccess:()=>({mode:'managed',principal:{user:{email:current.actorEmail},tenant:{source:'membership',id:current.tenantId,membershipId:current.membershipId,effectiveCapabilities:caps}}}),sessionFor:()=>({email:current.actorEmail,id:current.actorSessionId,version:current.actorSessionVersion,releaseSha:current.releaseSha}),getSql:()=>adapter};
+ const handlers={salary:createNativeSalaryHandler(deps),program:createOwnProgramHandler(deps),run:createOwnRunHandler(deps),liquidation:createOwnLiquidationHandler(deps),close:createOwnCloseHandler(deps),receipt:createOwnReceiptHandler({...deps,getSql:receiptRuntimeQa.getSql}),seniority:createOwnSalarySeniorityHandler(deps),participation:createOwnPeriodParticipationHandler(deps),workingTime:createOwnContractWorkingTimeHandler(deps),salaryConditions:createOwnContractSalaryConditionsHandler(deps),classification:createOwnPeriodClassificationHandler(deps)};
  const api=async(kind,{query={resource:'bootstrap'},key=randomUUID(),body,previewParams,expected=200}={})=>{
   lastSqlError=null;assert.equal(typeof handlers[kind],'function');const res={setHeader(){},status(n){this.statusCode=n;return this;},json(v){this.value=v;return this;}},posted=!!(body||previewParams);
   await handlers[kind]({method:posted?'POST':'GET',url:'/api/final-qa-'+kind+(posted?'':'?'+new URLSearchParams(query)),query:posted?{}:query,headers:posted?{origin:env.INTERNAL_APP_ORIGIN,'content-type':'application/json','idempotency-key':key}:{},...(posted?{body:JSON.stringify(previewParams?{operation:'preview',params:previewParams}:{operation:kind==='run'?'calculate':'command',payload:body})}:{})},res);
   assert.equal(res.statusCode,expected,JSON.stringify(res.value)+(lastSqlError?'\nSynthetic fixture SQL cause: '+lastSqlError.message:''));return res.value.data??res.value;
  };
- return {handlers,adapter,env,api,setActor:a=>{current=a;},caps,receiptPreviewReadProof:()=>({...previewReadProof})};
+ return {handlers,adapter,env,receiptRuntimeQa,api,setActor:a=>{current=a;},caps,receiptPreviewReadProof:()=>({...previewReadProof})};
 }
 
 // Validate only the declared fixture evidence. This does not resolve an
@@ -327,7 +328,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const originals=await sourceState();
   await sql(tx(["ALTER TABLE tenant_action_employment_link ADD COLUMN IF NOT EXISTS revoked_at timestamptz",...blueprint.baseline,blueprint.beforeCheck]));assert.deepEqual(await sourceState(),originals);
   await sql(tx([...blueprint.classification,blueprint.afterCheck]));assert.deepEqual(await sourceState(),originals);
-  const f=makeFinalClassificationQaHandlers({qa,db,read:h.options.read,onSqlError:value=>fs.appendFileSync(path.join(folder,'handler-sql-errors.jsonl'),JSON.stringify(value)+'\n')}),child={...h,qa,db,sql:source=>sql(tx([source])),...f},actors=qa.actors;
+  const f=makeFinalClassificationQaHandlers({qa,db,major,read:h.options.read,onSqlError:value=>fs.appendFileSync(path.join(folder,'handler-sql-errors.jsonl'),JSON.stringify(value)+'\n')}),child={...h,qa,db,sql:source=>sql(tx([source])),...f},actors=qa.actors;
   let receiptPreviewStateChecks=0;
   const receiptPreviewState=async()=>({source:await sourceState(),payroll:await db.run("SELECT jsonb_build_object('captures',(SELECT md5(coalesce(jsonb_agg(to_jsonb(c) ORDER BY id),'[]')::text) FROM own_payroll_run_capture c),'results',(SELECT md5(coalesce(jsonb_agg(to_jsonb(r) ORDER BY capture_id),'[]')::text) FROM own_payroll_run_result r),'decisions',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_payroll_liquidation_event e),'closes',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_payroll_close_event e),'receipts',(SELECT md5(coalesce(jsonb_agg(to_jsonb(e) ORDER BY id),'[]')::text) FROM own_payroll_receipt_event e),'receiptEventCount',(SELECT count(*) FROM own_payroll_receipt_event))")});
   const receiptPreview=async params=>{const before=await receiptPreviewState(),value=await child.api('receipt',{previewParams:params});assert.deepEqual(await receiptPreviewState(),before,'FINAL_CLASSIFICATION_RECEIPT_PREVIEW_CHANGED_BUSINESS_STATE');receiptPreviewStateChecks++;return value;};
@@ -371,7 +372,7 @@ export async function finalAdoptedHistory({h,installation,major,transport='local
   const issued=await child.api('receipt',{query:{resource:'batch',id:emission.batchId}}),group=await child.api('close',{query:{resource:'group',id:closed.groupId}}),planilla=await prepareOwnPlanilla(issued,[group],'55');assert.equal(planilla.total,2);assert.equal(planilla.selected,2);assert.ok(planilla.records.every(r=>r.departmentCode==='21'&&r.jurisdiction==='55'&&r.totals.net==='500.22'));
   assert.deepEqual(await sourceState(),originals);assert.deepEqual(await parentState(),parentBefore);
   const receiptPreviewReads=child.receiptPreviewReadProof();assert.equal(receiptPreviewStateChecks,2);assert.equal(receiptPreviewReads.requests,2);assert.equal(receiptPreviewReads.attempts,receiptPreviewReads.requests+receiptPreviewReads.retries);assert.ok(receiptPreviewReads.maxObservedAttempts>=1&&receiptPreviewReads.maxObservedAttempts<=3);
-  proof={version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,...inactiveSalaryGuardProof,inactiveSalarySubjectStillDenied:true,receiptPreviewReads,receiptPreviewStateChecks,receiptPreviewBusinessStatePreserved:true,receiptPreviewEventWrites:0,period,historicalPeriodBasis:'sealed_final_source_cutoff',historicalSourceCutoff:dates.sourceCutoff,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
+  proof={receiptRuntimeIdentity:OWN_RECEIPT_SYNTHETIC_RUNTIME_EVIDENCE,version:'own-period-classification-final-qa.v1',actualSql:true,actualHandlers:true,normalFinalApplication:true,historicalCaptureConfirmedClosedReceipt:true,technicalInstallationProtocol:false,predecessorAdapters:true,finalInputVersion:body.version,cohort:57,active:2,inactive:55,...rangeProof,...inactiveSalaryGuardProof,inactiveSalarySubjectStillDenied:true,receiptPreviewReads,receiptPreviewStateChecks,receiptPreviewBusinessStatePreserved:true,receiptPreviewEventWrites:0,period,historicalPeriodBasis:'sealed_final_source_cutoff',historicalSourceCutoff:dates.sourceCutoff,originalRegistrationDate:dates.createdDate,declaredHistoricalCategory:'7',declaredHistoricalSector:'21',declaredHistoricalJurisdiction:'55',provenance:provenanceValue,sourceAndApplicationsPreserved:true,parentCapturesAndResultsPreserved:true,productiveBusinessWrites:0,syntheticOnly:true};
  }finally{
   if(seeded){assert.equal(await db.run('SELECT to_jsonb(count(*)) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name='+q(db.applicationName)),0);await sql(tx(['DROP SCHEMA '+qa.schema+' CASCADE']));assert.deepEqual(await parentState(),parentBefore);assert.deepEqual(await schemaInventory(),schemasBefore);if(proof){proof.syntheticSchemaRemoved=true;proof.priorSchemaInventoryPreserved=true;}}
  }

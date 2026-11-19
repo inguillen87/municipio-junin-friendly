@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-// Two explicit synthetic destinations: the existing Windows QA and the
-// ephemeral GitHub service. There is no URL, host or executable CLI override.
+// Explicit synthetic destinations: the existing Windows QA, the repository's
+// Linux QA bundle and the ephemeral GitHub service. No URL, host or client override.
 export const NOELIA_CI_PASSWORD = 'noelia-circuit-synthetic-qa';
 export function noeliaQaApplicationName(schema) {
   assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/,'QA_SCHEMA_INVALID');
@@ -12,7 +12,7 @@ export function noeliaQaApplicationName(schema) {
 export function noeliaCircuitRuntime({root, major, transport = 'local', browser = 'none'},
   {platform = process.platform, env = process.env, realpath = fs.realpathSync} = {}) {
   assert.ok([17, 18].includes(major), 'QA_MAJOR_UNSUPPORTED');
-  assert.ok(['local', 'ci'].includes(transport), 'QA_TRANSPORT_UNSUPPORTED');
+  assert.ok(['local', 'local-linux', 'ci'].includes(transport), 'QA_TRANSPORT_UNSUPPORTED');
   assert.ok(['none', 'chrome', 'chromium'].includes(browser), 'QA_BROWSER_UNSUPPORTED');
   const paths = platform === 'win32' ? path.win32 : path.posix;
   const environment = {...env};
@@ -27,6 +27,11 @@ export function noeliaCircuitRuntime({root, major, transport = 'local', browser 
     executable = '/usr/bin/psql';
     assert.ok(['/usr/share/postgresql-common/pg_wrapper', '/usr/lib/postgresql/17/bin/psql', '/usr/lib/postgresql/18/bin/psql'].includes(realpath(executable)), 'QA_CI_CLIENT_CHANGED');
     environment.PGPASSWORD = NOELIA_CI_PASSWORD;
+  } else if(transport === 'local-linux') {
+    assert.equal(platform, 'linux', 'QA_LOCAL_LINUX_REQUIRED');
+    assert.notEqual(browser, 'chrome', 'QA_LOCAL_LINUX_CHROMIUM_REQUIRED');
+    executable = path.posix.join(realpath(root), 'verification', 'postgresql-qa-linux', 'pg'+major, 'pgsql', 'bin', 'psql');
+    assert.equal(realpath(executable), executable, 'QA_LOCAL_LINUX_CLIENT_CHANGED');
   } else {
     assert.equal(platform, 'win32', 'QA_LOCAL_WINDOWS_REQUIRED');
     executable = paths.join(root, 'verification', 'postgresql-qa-20261004', 'pg'+major, 'pgsql', 'bin', 'psql.exe');
@@ -45,8 +50,9 @@ export function noeliaCircuitOptions(argv) {
   assert.ok(['17', '18'].includes(args.major), 'QA_MAJOR_UNSUPPORTED');
   assert.ok(typeof args.output === 'string' && args.output.length > 0, 'QA_OUTPUT_REQUIRED');
   assert.match(args['source-commit'] ?? '', /^[a-f0-9]{40}$/, 'QA_SOURCE_COMMIT_REQUIRED');
-  assert.ok(args.browser === undefined || ['chrome', 'chromium'].includes(args.browser), 'QA_BROWSER_UNSUPPORTED');
-  assert.ok(args.transport === undefined || ['local', 'ci'].includes(args.transport), 'QA_TRANSPORT_UNSUPPORTED');
+  assert.ok(args.transport === undefined || ['local', 'local-linux', 'ci'].includes(args.transport), 'QA_TRANSPORT_UNSUPPORTED');
+  const browsers = args.transport === 'local-linux' ? ['none', 'chromium'] : ['chrome', 'chromium'];
+  assert.ok(args.browser === undefined || browsers.includes(args.browser), 'QA_BROWSER_UNSUPPORTED');
   for(const option of ['positions', 'jurisdictions']) assert.ok(args[option] === undefined || args[option] === 'true', 'QA_OPTION_INVALID');
   return {major:Number(args.major), output:args.output, sourceCommit:args['source-commit'], browser:args.browser ?? 'none',
     transport:args.transport ?? 'local', positions:args.positions === 'true', jurisdictions:args.jurisdictions === 'true'};

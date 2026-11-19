@@ -1,0 +1,29 @@
+{
+  "version": "own-osep-closed-mapping.v1",
+  "id": "junin-grh-osep-206-draft",
+  "revision": 1,
+  "activation": "PREPARATION_ONLY",
+  "institutionalValidation": "pending",
+  "officialSubmissionAllowed": false,
+  "profileId": "osep-206-crlf.v1",
+  "populationPolicy": "complete_closed_snapshots",
+  "jurisdictionPolicy": "explicit_single_jurisdiction",
+  "participationPolicy": "one_closed_participation_per_contract",
+  "documentTypePolicy": "source_bound_explicit_declaration",
+  "bankruptDefault": false,
+  "amountPolicy": "explicit_exact_cents_no_rounding",
+  "fields": [
+    { "fieldId": "employerContributionCents", "terms": [{ "kind": "concept", "code": "701", "namespace": "concept", "nature": "employer_contribution" }] },
+    { "fieldId": "subjectSalaryCents", "terms": [{ "kind": "concept", "code": "993", "namespace": "auxiliary", "nature": "auxiliary" }, { "kind": "concept", "code": "994", "namespace": "auxiliary", "nature": "auxiliary" }] },
+    { "fieldId": "netPayCents", "terms": [{ "kind": "concept", "code": "998", "namespace": "auxiliary", "nature": "auxiliary" }] },
+    { "fieldId": "quotaCents", "terms": [{ "kind": "concept", "code": "601", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "voluntaryPureCents", "terms": [{ "kind": "concept", "code": "602", "namespace": "concept", "nature": "deduction" }, { "kind": "concept", "code": "608", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "voluntaryStudentCents", "terms": [{ "kind": "concept", "code": "603", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "catastrophicCents", "terms": [{ "kind": "concept", "code": "604", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "catastrophicIndirectCents", "terms": [{ "kind": "concept", "code": "682", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "catastrophicVoluntaryCents", "terms": [{ "kind": "concept", "code": "683", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "catastrophicStudentCents", "terms": [{ "kind": "concept", "code": "684", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "currentAccountCents", "terms": [{ "kind": "concept", "code": "605", "namespace": "concept", "nature": "deduction" }] },
+    { "fieldId": "disabilityDirectCents", "terms": [{ "kind": "concept", "code": "685", "namespace": "concept", "nature": "deduction" }] }
+  ]
+}

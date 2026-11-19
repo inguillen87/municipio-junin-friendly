@@ -1,4 +1,5 @@
 import { getInternalSql } from '../lib/internal-neon.js';
+import {ACTION_RUNTIME_IDENTITY_SQL,recordActionRuntimeIdentity,assertActionRuntimeDestination} from '../lib/action-runtime-identity.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
   InternalCertifiedDataContractError,
@@ -246,12 +247,12 @@ export function assertActionCenterRuntimeIdentity(identity) {
   }
 }
 
-export async function getActionCenterSql(env = process.env) {
+export async function getActionCenterSql(env = process.env, {expectedDestination = null} = {}) {
   const configuredUrl = typeof env?.ACTIONS_DATABASE_URL === 'string'
     ? env.ACTIONS_DATABASE_URL.trim()
     : '';
   if (!configuredUrl) {
-    if (productionLike(env)) {
+    if (productionLike(env) || expectedDestination !== null) {
       const error = new Error('ACTIONS_DATABASE_URL no está configurado');
       error.code = 'ACTION_DATABASE_ROLE_REQUIRED';
       throw error;
@@ -270,10 +271,9 @@ export async function getActionCenterSql(env = process.env) {
     cachedActionsSqlPromise = import('@neondatabase/serverless')
       .then(async ({ neon }) => {
         const sql = neon(configuredUrl);
-        const roles = await sql.query(`
-          SELECT current_user AS "currentUser", session_user AS "sessionUser"
-        `);
+        const roles = await sql.query(ACTION_RUNTIME_IDENTITY_SQL);
         assertActionCenterRuntimeIdentity(roles[0]);
+        recordActionRuntimeIdentity(sql,roles[0]);
         return sql;
       })
       .catch((error) => {
@@ -282,7 +282,8 @@ export async function getActionCenterSql(env = process.env) {
         throw error;
       });
   }
-  return cachedActionsSqlPromise;
+  const sql = await cachedActionsSqlPromise;
+  return assertActionRuntimeDestination(sql,expectedDestination);
 }
 
 export function createInternalActionsHandler(dependencies = {}) {

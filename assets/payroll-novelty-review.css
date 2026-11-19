@@ -76,3 +76,6 @@
 #savedReviewConceptRows th[scope="row"] .button { margin-top:8px;font-size:12px; }
 #savedReviewPanel :is(summary,.table-wrap):focus-visible,#savedReviewRange:focus { outline:3px solid #b27a24;outline-offset:3px; }
 @media(max-width:400px) { #savedReviewPanel .novelty-control { padding:10px; } }
+/* El concepto se lee con su denominación debajo del código, sin ensanchar la tabla en pantallas chicas. */
+.novelty-review-concept small { display:block;margin-top:2px;max-width:22ch;white-space:normal;overflow-wrap:anywhere;font-size:11px;line-height:1.35;color:#456975; }
+@media(max-width:700px) { .novelty-review-concept small { max-width:13ch; } }

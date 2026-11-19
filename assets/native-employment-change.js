@@ -7,7 +7,7 @@ const statuses={pending:'Pendiente de revisión',approved:'Aprobada y aplicada',
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const stamp=v=>v?new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(v)):'Encuadre del alta';
 const issue=(code,status)=>Object.assign(Error(),{code,status});
-const errorText=e=>e.code==='ACTOR_CHANGED'?'Cambió la cuenta o el ámbito del legajo. El intento original se conserva y sólo puede recuperarse con el acceso original.':[401,403].includes(e.status)?'Tu sesión o permiso cambió. Los datos fueron retirados. Volvé a consultar con una sesión autorizada.':e.status===409?'El encuadre, las opciones o la propuesta cambió. Conservamos tu borrador sin mezclar versiones; revisá el estado vigente.':e.status===404?'Todavía no hay confirmación. Podés consultar otra vez o reenviar exactamente el mismo intento.':'No se pudo verificar la respuesta. Conservamos el borrador y la referencia de cualquier envío sin confirmar.';
+const errorText=e=>e.code==='ACTOR_CHANGED'?'Cambió la cuenta o el ámbito del legajo. El intento original se conserva y sólo puede recuperarse con el acceso original.':[401,403].includes(e.status)?'Tu sesión o permiso cambió. Los datos fueron retirados. Volvé a consultar con una sesión autorizada.':e.status===409?(/BUSY$/.test(String(e.code??''))?'Hay otra operación en curso sobre este legajo. Tocá «Actualizar consulta» en unos segundos.':e.serverMessage||'El encuadre, las opciones o la propuesta cambió. Conservamos tu borrador sin mezclar versiones; revisá el estado vigente.'):e.status===404?'Todavía no hay confirmación. Podés consultar otra vez o reenviar exactamente el mismo intento.':'No se pudo verificar la respuesta. Conservamos el borrador y la referencia de cualquier envío sin confirmar.';
 
 // These references live only in this page. Closing a sheet never silently retries a write.
 if(typeof window!=='undefined'){
@@ -50,8 +50,14 @@ export function mountNativeEmploymentChange(host,{contractId,onApplied}={}){
   if(detail&&approvalStale&&detail.status==='pending')$('[data-nec-review-status]').textContent='La versión de origen cambió. Esta propuesta no puede aprobarse; una persona habilitada puede rechazarla con motivo.';
  }
  async function request(url,options={}){
-  const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});
-  let d;try{d=await r.json();}catch{throw issue('RESPONSE_INVALID',503);}if(!r.ok||d?.ok!==true)throw issue(typeof d?.code==='string'?d.code:'UNAVAILABLE',r.status);return d;
+  // Reads only: a short wait when another operation holds the same legajo (several panels of the ficha load together).
+  const read=!options.method||options.method==='GET';
+  for(let attempt=0;;attempt++){
+   const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});
+   let d;try{d=await r.json();}catch{throw issue('RESPONSE_INVALID',503);}
+   if(read&&r.status===409&&/BUSY$/.test(String(d?.code??''))&&attempt<3){await new Promise(done=>setTimeout(done,400+attempt*600));continue;}
+   if(!r.ok||d?.ok!==true)throw Object.assign(issue(typeof d?.code==='string'?d.code:'UNAVAILABLE',r.status),{serverMessage:typeof d?.error==='string'?d.error:''});return d;
+  }
  }
  async function authority(seq){
   const value=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');

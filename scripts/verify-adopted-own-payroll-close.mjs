@@ -26,11 +26,24 @@ try{
  const maker=identity(qa.actors.maker,RUN_CALCULATE),reviewer=identity(qa.actors.checker,OWN_CLOSE_WRITE),alias=identity(qa.actors.samePerson,OWN_CLOSE_WRITE);
  const run=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liq=(actor,op,input)=>ownLiquidationOperation(db,actor.principal,actor.session,op,input),close=(actor,op,input)=>ownCloseOperation(db,actor.principal,actor.session,op,input);
  const boot=await run('bootstrap'),body=(period,selection={kind:'all',values:[]})=>({period,liquidationType:'monthly',selection,scopeVersion:boot.scopeVersion,programVersion:boot.programVersion,populationDomain:'native_registered'});
- const query={period:'2026-11',liquidationType:'monthly'};
+ // Use the actual registration month of this disposable fixture. A hire's
+ // startDate does not prove its classification in an earlier payroll month.
+ const periods=await db.run(`SELECT jsonb_build_object(
+   'baseline',to_char(recorded_month,'YYYY-MM'),
+   'adopted',to_char(recorded_month+interval '1 month','YYYY-MM'),
+   'unknownHistory',to_char(recorded_month-interval '1 month','YYYY-MM'))
+   FROM(SELECT date_trunc('month',max(created_at) AT TIME ZONE 'America/Argentina/Mendoza') recorded_month
+        FROM native_employee_registration) fixture_period`);
+ assert.ok(Object.values(periods).every(p=>typeof p==='string'&&/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(p)));
+ assert.ok(periods.baseline>='2026-10','The fixture programme starts in October 2026.');
+ const query={period:periods.adopted,liquidationType:'monthly'};
  const lc=(d,command='confirm',selection={kind:'all',values:[]})=>({runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command,selection,reason:'Decisión inventada para regresión sintética QA',reviewConfirmed:true});
  const cc=(d,selection={kind:'all',values:[]},patch={})=>({period:d.period,liquidationType:d.liquidationType,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,selection,command:'close',groupId:null,reason:'Cierre exclusivamente sintético QA',reviewConfirmed:true,...patch});
- const old=await run('calculate',{key:randomUUID(),body:body('2026-10')});await liq(reviewer,'command',{key:randomUUID(),body:lc(await liq(reviewer,'detail',{id:old.id}))});
- const oldDetail=await close(reviewer,'detail',{period:'2026-10',liquidationType:'monthly'}),oldBody=cc(oldDetail),oldKey=randomUUID();
+ const beforeUnknown=await db.run('SELECT to_jsonb(count(*)) FROM own_payroll_run_capture');
+ await assert.rejects(run('calculate',{key:randomUUID(),body:body(periods.unknownHistory)}),e=>e.code==='OWN_RUN_HISTORY_REQUIRED');checks++;
+ check(await db.run('SELECT to_jsonb(count(*)) FROM own_payroll_run_capture')===beforeUnknown,'missing historical classification stores no capture');
+ const old=await run('calculate',{key:randomUUID(),body:body(periods.baseline)});await liq(reviewer,'command',{key:randomUUID(),body:lc(await liq(reviewer,'detail',{id:old.id}))});
+ const oldDetail=await close(reviewer,'detail',{period:periods.baseline,liquidationType:'monthly'}),oldBody=cc(oldDetail),oldKey=randomUUID();
  const oldClose=await close(reviewer,'command',{key:oldKey,body:oldBody});check(oldClose.snapshot.populationComplete,'baseline close covers the complete original own roster');
  const before=await db.run("SELECT to_jsonb(p)-'prosrc' FROM pg_proc p WHERE oid='"+qa.schema+".own_close_roster_v1(jsonb,text)'::regprocedure");
  // SQL132/133 adoption is private, authorized only inside this synthetic QA.
@@ -86,6 +99,6 @@ try{
  await db.run('DELETE FROM capabilities WHERE membership_id='+q(qa.ids.checker)+"::uuid AND capability_key='payroll.calculation.approve'");
  await assert.rejects(close(reviewer,'group',{id:whole.groupId}),e=>e.status===403);checks++;
  fs.writeFileSync(prefix+'-fixture.json',JSON.stringify({synthetic:true,actor:qa.actors.checker,partialBefore,before:d,detail:finalDetail,receipt:storedGroup,partial,old:oldClose,reopened,captures:[capture,recalculated]},null,2),{flag:'wx'});
- report={passed:true,synthetic:true,major,checks,separateConnections:db.connections.length,completePopulation:qa.completePopulation,oldClosesAndPendingKeysPreserved:true,municipalInstallation:false,payrollPosted:false,paymentExecuted:false};
+ report={passed:true,synthetic:true,major,checks,separateConnections:db.connections.length,completePopulation:qa.completePopulation,oldClosesAndPendingKeysPreserved:true,periods,historicalGuardPreserved:true,municipalInstallation:false,payrollPosted:false,paymentExecuted:false};
 }catch(e){report={passed:false,synthetic:true,major,checks,message:e.message,cause:e.cause?.message,sqlDetail:e.cause?.stderr?.slice(0,2400)};process.exitCode=1;}
 finally{if(installed)try{await db.run('DROP SCHEMA '+qa.schema+' CASCADE');}catch(e){report.cleanupError=e.message;process.exitCode=1;}fs.writeFileSync(output,JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify(report));}

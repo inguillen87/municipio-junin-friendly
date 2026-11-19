@@ -1,5 +1,6 @@
 import {trustedOwnArtReport,artCentsText} from './own-art-report-model.js';
 import {storedZip} from './clock-dashboard-zip.js';
+import {ART_EXTRA_SUSS_HEADERS,ART_EXTRA_SUSS_SHEET,ART_EXTRA_SUSS_TEMPLATE_VERSION,artExtraSussName,artExtraSussReadiness,artExtraSussExactInteger,artExtraSussExactCents} from './art-extra-suss-template.js';
 const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','>':'&gt;','<':'&lt;','"':'&quot;',"'":'&apos;'}[c]));
 const cell=v=>'"'+(/^[\s]*[=+\-@\t\r\n]/.test(String(v))?"'":'')+String(v??'').replaceAll('"','""')+'"';
 function table(v){trustedOwnArtReport(v);if(!v.canExport)throw Error('Corregí todas las observaciones antes de descargar ART completo.');return [['DNI','CUIL','Sexo','Días trabajados','Sueldo (993 + 995)'],...v.rows.map(r=>[r.dni,r.cuil,r.sex,r.workedDays,artCentsText(r.salaryCents)])];}
@@ -12,4 +13,23 @@ export function ownArtXlsx(v){const rows=table(v),provenance=[['Procedencia','Va
  'xl/_rels/workbook.xml.rels':'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
  'xl/worksheets/sheet1.xml':sheet(rows),'xl/worksheets/sheet2.xml':sheet(provenance)};
  return storedZip(Object.entries(entries));
+}
+// Official insurer template from the same trusted report: eight fixed columns, B and G empty as in
+// the municipal example, numbers as numeric cells, names in upper case. Same export gate as the review file.
+function extraSussRows(v){trustedOwnArtReport(v);if(!v.canExport)throw Error('Corregí todas las observaciones antes de descargar la plantilla extra-SUSS.');
+ const readiness=artExtraSussReadiness(v);if(!readiness.canExport)throw Error('La plantilla extra-SUSS tiene '+readiness.issueCount+' observaciones propias (legajo '+readiness.rows[0].employeeNumber+': '+readiness.rows[0].issues[0]+'). No se exporta parcial ni redondeado.');
+ return v.rows.map(r=>{const name=artExtraSussName(r.name),dni=artExtraSussExactInteger(String(r.dni)),cuil=artExtraSussExactInteger(String(r.cuil)),days=artExtraSussExactInteger(String(r.workedDays)),salary=artExtraSussExactCents(String(r.salaryCents));
+  if(!name||dni===null||cuil===null||days===null||salary===null||!/^\d{11}$/.test(cuil))throw Error('La plantilla extra-SUSS requiere nombre, DNI, CUIL, días y sueldo exactos para el legajo '+r.employeeNumber+'.');
+  return [{n:dni},null,{n:cuil},{s:name},{s:r.sex},{n:days},null,{n:salary}];});}
+const col=j=>String.fromCharCode(65+j);
+function extraSussSheet(rows){const header='<row r="1">'+ART_EXTRA_SUSS_HEADERS.map((h,j)=>'<c r="'+col(j)+'1" t="inlineStr"><is><t xml:space="preserve">'+xml(h)+'</t></is></c>').join('')+'</row>';
+ const body=rows.map((r,i)=>'<row r="'+(i+2)+'">'+r.map((c,j)=>c===null?'':c.n!==undefined?'<c r="'+col(j)+(i+2)+'"><v>'+xml(c.n)+'</v></c>':'<c r="'+col(j)+(i+2)+'" t="inlineStr"><is><t xml:space="preserve">'+xml(c.s)+'</t></is></c>').join('')+'</row>').join('');
+ return '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="3" width="14" customWidth="1"/><col min="4" max="4" width="42" customWidth="1"/><col min="5" max="8" width="16" customWidth="1"/></cols><sheetData>'+header+body+'</sheetData></worksheet>';}
+export function ownArtExtraSussXlsx(v){const rows=extraSussRows(v);
+ const entries={'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+ '_rels/.rels':'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+ 'xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="'+ART_EXTRA_SUSS_SHEET+'" sheetId="1" r:id="rId1"/></sheets></workbook>',
+ 'xl/_rels/workbook.xml.rels':'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+ 'xl/worksheets/sheet1.xml':extraSussSheet(rows)};
+ return Object.assign(storedZip(Object.entries(entries)),{templateVersion:ART_EXTRA_SUSS_TEMPLATE_VERSION,rowCount:rows.length});
 }

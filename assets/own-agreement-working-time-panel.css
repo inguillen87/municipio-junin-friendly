@@ -3,6 +3,39 @@
 .own-agreement-time label{display:flex;flex-direction:column;gap:.4rem;font-weight:650;margin:.65rem 0}.own-agreement-time input,.own-agreement-time select,.own-agreement-time textarea{width:100%;min-width:0;min-height:44px;font:inherit;padding:.65rem;border:1px solid #adbfbd;border-radius:6px;background:#fff;color:#153847}
 .own-agreement-time fieldset{border:1px solid #d2dfdc;border-radius:8px;margin:1rem 0;padding:1rem;min-width:0}.own-agreement-time legend{font-weight:750;padding:0 .4rem}.own-agreement-time details{border-bottom:1px solid #d7e2df;padding:.8rem 0}.own-agreement-time summary{cursor:pointer;min-height:44px;padding:.5rem;font-weight:700}
 .own-agreement-time button{min-height:44px;padding:.65rem 1rem;border:1px solid #15776f;border-radius:6px;background:#fff;color:#15534f;font:inherit;font-weight:700;cursor:pointer;max-width:100%;white-space:normal}.own-agreement-time button:disabled{opacity:.55;cursor:default}.own-agreement-time :focus-visible{outline:3px solid #075c80;outline-offset:3px}
-.own-agreement-time [data-agreement-time-send]{background:#15776f;color:#fff}.agreement-time-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 1rem}.agreement-time-row{border:1px solid #d6e2df;border-radius:8px;padding:1rem;margin:1rem 0;background:#f9fcfb}.agreement-time-row h4{margin:0 0 .6rem}.agreement-time-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem}.agreement-time-pair dl{margin:.5rem 0}.agreement-time-pair dt{font-weight:700}.agreement-time-pair dd{margin:0 0 .6rem}.agreement-time-pair h5{font-size:1rem;margin:.3rem 0}
+.own-agreement-time [data-agreement-time-send]{background:#15776f;color:#fff}.agreement-time-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 1rem}.agreement-time-row{border:1px solid #d6e2df;border-radius:8px;padding:.7rem 1rem;margin:.5rem 0;background:#f9fcfb}.agreement-time-row h4{margin:0 0 .3rem}[data-agreement-time-rows] .agreement-time-row{padding:0}.own-agreement-time details.agreement-time-fold{border:0;padding:0}.own-agreement-time .agreement-time-fold>summary{display:flex;flex-wrap:wrap;gap:.2rem 1rem;justify-content:space-between;align-items:center;padding:.2rem .9rem;font-weight:400}.agreement-time-fold>summary h4{margin:0;font-size:1rem}.agreement-time-fold>summary span{color:#4d6763;font-size:.9rem}.agreement-time-fold[open]{background:#fff;border-radius:8px}.agreement-time-fold>p{margin:.2rem .9rem;font-size:.9rem;color:#4d6763}.agreement-time-fold>.agreement-time-grid{padding:.2rem .9rem .8rem}.agreement-time-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem}.agreement-time-pair dl{margin:.4rem 0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.15rem .9rem}.agreement-time-pair dt{font-weight:700}.agreement-time-pair dd{margin:0}.agreement-time-pair p{margin:.4rem 0}.agreement-time-pair h5{font-size:1rem;margin:.3rem 0}
 .agreement-time-actions,.agreement-time-pages{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:1rem 0}.own-agreement-time .agreement-time-check{flex-direction:row;align-items:flex-start}.own-agreement-time .agreement-time-check input{width:22px;min-height:22px;flex:0 0 22px}.own-agreement-time [data-agreement-time-status]{padding:.8rem;border-left:4px solid #15776f;background:#eff7f5}.own-agreement-time [data-state=warning]{border-color:#a55a0c;background:#fff8ed}.own-agreement-time [data-agreement-time-comparison]{border-top:2px solid #15776f;margin-top:1rem;padding-top:1rem}
 @media(max-width:900px){.agreement-time-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.own-agreement-time{padding:1rem}.agreement-time-grid,.agreement-time-pair{grid-template-columns:minmax(0,1fr)}.agreement-time-pages button,.agreement-time-actions button{width:100%}.own-agreement-time button{width:100%}.own-agreement-time h2{font-size:1.35rem}.agreement-time-row{padding:.8rem}}
+/* Período y botón de consulta en un mismo renglón. */
+.own-agreement-time [data-agreement-time-target]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.4rem 1rem}.own-agreement-time [data-agreement-time-target]>label{flex:0 1 280px;margin:.2rem 0}.own-agreement-time [data-agreement-time-target]>button{margin:.2rem 0}
+/* Mientras se revisa la comparación, el listado de convenios se retira de la vista: una cosa por vez, sin página larga. */
+.own-agreement-time:has([data-agreement-time-comparison]:not([hidden])) :is([data-agreement-time-rows],[data-agreement-time-count],label:has(>[data-agreement-time-search]),.agreement-time-pages:has(>[data-agreement-time-prev])){display:none}
+/* Flecha de «se puede abrir»: el renglón plegado usa flex y pierde el triángulo del navegador. */
+.own-agreement-time .agreement-time-fold>summary{list-style:none}.own-agreement-time .agreement-time-fold>summary::-webkit-details-marker{display:none}
+.own-agreement-time .agreement-time-fold>summary::before{content:'';flex:none;width:8px;height:8px;margin:0 .35rem 0 .1rem;border-right:2px solid #15776f;border-bottom:2px solid #15776f;transform:rotate(-45deg);transition:transform .15s ease}
+.own-agreement-time .agreement-time-fold[open]>summary::before{transform:rotate(45deg)}
+.own-agreement-time .agreement-time-fold>summary>h4{flex:1 1 12rem;min-width:0}
+@media(prefers-reduced-motion:reduce){.own-agreement-time .agreement-time-fold>summary::before{transition:none}}
+/* Barra de confirmación: el tilde y el botón quedan a la vista mientras se recorre la comparación. */
+.own-agreement-time .agreement-time-actions:has(>:not([hidden])){position:sticky;bottom:0;z-index:3;margin:1rem -.5rem 0;padding:.75rem 1rem;background:#fff;border:1px solid #c9d8d5;border-radius:12px 12px 0 0;box-shadow:0 -8px 20px rgba(16,42,48,.12)}
+.own-agreement-time .agreement-time-actions .agreement-time-check{flex:1 1 22rem;margin:0}
+.own-agreement-time .agreement-time-next{margin:.6rem 0 0;font-size:.92rem;color:#4a5d61}
+.own-agreement-time .agreement-time-next.agreement-time-warn{padding:.55rem .75rem;border-left:4px solid #b25e00;background:#fff5e6;color:#5f3200;font-weight:650}
+@media print{.own-agreement-time .agreement-time-actions{position:static;box-shadow:none;border:0}.own-agreement-time .agreement-time-next{display:none}}
+.own-agreement-time .agreement-time-example{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .8rem;font-size:.92rem;color:#4a5d61}
+.own-agreement-time .agreement-time-example button{width:auto;min-height:44px;padding:.45rem .9rem;font-weight:650;border-style:dashed}
+.own-agreement-time .agreement-time-example span{flex:1 1 16rem}
+.own-agreement-time textarea::placeholder{color:#6b7f83;font-weight:400;opacity:1}
+@media print{.own-agreement-time .agreement-time-example{display:none}}
+/* Aviso de propuesta pendiente para quien revisa. */
+.own-agreement-time .agreement-time-pending{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 1rem;padding:.8rem 1rem;border:1px solid #e3c184;border-left:5px solid #b25e00;border-radius:8px;background:#fff8ea}
+.own-agreement-time .agreement-time-pending p{flex:1 1 18rem;margin:0;font-weight:650;color:#4d2c00;overflow-wrap:anywhere}
+.own-agreement-time .agreement-time-pending button{width:auto;background:#15776f;border-color:#15776f;color:#fff}
+@media print{.own-agreement-time .agreement-time-pending{display:none}}
+/* Estado del período y, a su lado, «Traer lo aprobado el mes anterior». */
+.own-agreement-time .agreement-time-carry{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:0}
+.own-agreement-time .agreement-time-carry+p{margin-top:.3rem}
+.own-agreement-time .agreement-time-carry p{flex:1 1 18rem;margin:0}
+.own-agreement-time .agreement-time-carry button{width:auto}
+@media (max-width:480px){.own-agreement-time .agreement-time-carry button{width:100%}}
+@media print{.own-agreement-time .agreement-time-carry button{display:none}}

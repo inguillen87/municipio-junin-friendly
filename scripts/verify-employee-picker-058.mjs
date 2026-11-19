@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Full existing workbench UI. Every API read/write is intercepted with synthetic data inside this browser. */
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 const live=process.env.EMPLOYEE_PICKER_LIVE_ASSETS==='1';
@@ -43,7 +44,7 @@ try{
  const select=async index=>dialog.locator('[data-picker-results] input').nth(index).check();
  const apply=async()=>dialog.locator('[data-picker-apply]').click();
  const open=async()=>{await page.locator('#pickLegajoButton').click();await dialog.waitFor();};
- const boot=async()=>{await page.goto(origin+'/novedades-nomina.html');await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();};
+ const boot=async()=>{await page.goto(origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();};
  await boot();assert.equal(calls.length,0);assert.equal(posts.length,0);checks.push('no directory lookup or payroll write on page load');
  await page.locator('#legajo').fill('1005');await page.locator('#conceptSourceId').fill('44');await page.locator('#quantityDecimal').fill('2,5');await page.locator('#preflightButton').click();assert.equal(await page.locator('#prepareButton').isEnabled(),true);
  await open();assert.equal(calls.length,0);await query.fill('a');await dialog.locator('[data-picker-form] button').click();assert.equal(calls.length,0);checks.push('explicit search with minimum length; opening lookup does not invalidate prepared input');

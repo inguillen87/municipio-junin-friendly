@@ -1,3 +1,5 @@
+import {hasOwnOfficialReceipt,hasOwnReceiptPrintFacts,ownOfficialReceiptRecord,verifiedOwnOfficialReceiptEvidence} from './own-payroll-official-receipt-model.js';
+import {OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION} from './own-payroll-receipt-print-facts.js';
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownReportQuery,ownReportFilters,emptyOwnReportFilters} from './own-payroll-report-model.js';
 import {OWN_CLOSE_NOMINAL,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
@@ -14,6 +16,18 @@ export const OWN_RECEIPT_MAX_CONCEPTS=250000;
 export const OWN_RECEIPT_MAX_BYTES=32*1024*1024;
 const need=(value,message)=>{if(!value)throw Error(message);};
 const text=(value,min,max)=>typeof value==='string'&&value===value.trim()&&value===value.normalize('NFC')&&value.length>=min&&value.length<=max&&!/[<>\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(value);
+// Same rule ownReceiptCommand applies to `reason` (text(value,10,1000)), explained before sending. null = accepted.
+export function ownReceiptReasonProblem(value){
+ if(text(value,10,1000))return null;
+ if(typeof value!=='string')return 'Completá un motivo de al menos 10 caracteres.';
+ if(/[\r\n]/.test(value))return 'El motivo va en un solo renglón: quitá los saltos de línea.';
+ if(value!==value.trim())return 'Quitá los espacios al principio y al final del motivo.';
+ if(value.length<10)return 'Completá un motivo de al menos 10 caracteres.';
+ if(value.length>1000)return 'El motivo admite hasta 1000 caracteres.';
+ if(/[<>]/.test(value))return 'El motivo no admite los signos < ni >.';
+ if(value!==value.normalize('NFC'))return 'Escribí el motivo de nuevo: tiene acentos en una forma que el sistema no acepta.';
+ return 'El motivo tiene caracteres de control o de dirección de texto: escribilo de nuevo sin pegarlo.';
+}
 const code=value=>typeof value==='string'&&/^\d{1,9}$/.test(value);
 export function ownReceiptContracts(value){
  need(Array.isArray(value)&&value.length<=200&&Object.keys(value).length===value.length&&value.every(salaryUuid)&&new Set(value).size===value.length,'Elegí hasta 200 contratos distintos de la previa completa; no se recorta la selección.');
@@ -58,8 +72,15 @@ export function ownReceiptIssuer(value,expectedScope){
  return freeze(structuredClone(value));
 }
 export function emptyOwnReceiptParams(period){return {period,types:['monthly'],filters:emptyOwnReportFilters(),issuer:{name:'',taxId:'',address:''},paymentDate:null,legend:''};}
+const OWN_RECEIPT_COMMAND_KEYS=Object.freeze(['command','scopeVersion','sourceVersion','params','batchId','batchSha256','reason','reviewConfirmed']);
+// Two closed shapes and nothing in between: the eight keys every earlier command has, or those eight plus
+// `previewSha256` when preparing a v6 copy. The ninth key is the hash of the complete preview that was shown and
+// verified; SQL composes the copy again under its locks and refuses to keep it if that hash changed. It is never an
+// optional flag: approving or withdrawing with it is rejected, and so is a malformed hash.
 export function ownReceiptCommand(value){
- need(salaryExact(value,['command','scopeVersion','sourceVersion','params','batchId','batchSha256','reason','reviewConfirmed'])&&['prepare','approve','withdraw'].includes(value.command)&&[value.scopeVersion,value.sourceVersion].every(salaryHash)&&text(value.reason,10,1000)&&typeof value.reviewConfirmed==='boolean','Revisá operación, revisión completa y fundamento de la emisión.');
+ const withPreview=value!==null&&typeof value==='object'&&Object.hasOwn(value,'previewSha256');
+ need(salaryExact(value,withPreview?[...OWN_RECEIPT_COMMAND_KEYS,'previewSha256']:OWN_RECEIPT_COMMAND_KEYS)&&['prepare','approve','withdraw'].includes(value.command)&&[value.scopeVersion,value.sourceVersion].every(salaryHash)&&text(value.reason,10,1000)&&typeof value.reviewConfirmed==='boolean','Revisá operación, revisión completa y fundamento de la emisión.');
+ need(!withPreview||value.command==='prepare'&&salaryHash(value.previewSha256),'La huella de la previa sólo acompaña a una preparación y debe ser una huella completa.');
  if(value.command==='prepare'){
   need(value.batchId===null&&value.batchSha256===null&&value.params!==null&&value.reviewConfirmed===false,'Preparar conserva una copia para revisión; no la aprueba.');
   return {...value,params:ownReceiptParams(value.params)};
@@ -67,8 +88,24 @@ export function ownReceiptCommand(value){
  need(salaryUuid(value.batchId)&&salaryHash(value.batchSha256)&&value.params===null&&value.reviewConfirmed===true,'Elegí la emisión completa y confirmá su revisión.');
  return {...value};
 }
+// What a prepare body takes from a preview, copied and frozen at the moment the preview was verified. The returned preview
+// stays an ordinary, mutable object for the panel; changing it afterwards cannot change this record, which is the only
+// authority the body is built from. A preview without a record is validated in full, exactly as before.
+const prepareSeeds=new WeakMap();
+const prepareSeed=preview=>freeze({scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params:structuredClone(preview.snapshot.params),version:preview.snapshot.version,snapshotSha256:preview.snapshotSha256});
+// The body that prepares the copy of a verified preview. A v6 preview travels with its own hash; any earlier version
+// keeps the eight keys, because sending the ninth for them is rejected.
+export function ownReceiptPrepareBody(preview,reason){
+ const seed=prepareSeeds.get(preview)??prepareSeed(ownReceiptPreview(preview));
+ const body={command:'prepare',scopeVersion:seed.scopeVersion,sourceVersion:seed.sourceVersion,params:structuredClone(seed.params),batchId:null,batchSha256:null,reason,reviewConfirmed:false};
+ return seed.version===OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION?{...body,previewSha256:seed.snapshotSha256}:body;
+}
 
 export function ownReceiptRecord(record){
+ if(hasOwnOfficialReceipt(record))return ownOfficialReceiptRecord(record,ownReceiptLegacyRecord);
+ return ownReceiptLegacyRecord(record);
+}
+function ownReceiptLegacyRecord(record){
  const namespaced=record?.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION;
  need(salaryExact(record,['sourceGroupId','contractId','personId','registrationId','employeeNumber','name','dni','cuil','agreementCode','departmentCode','runId','liquidationVersion','precision','totals','concepts',...(namespaced?['namespaceVersion']:[])])&&[record.sourceGroupId,record.contractId,record.personId,record.registrationId,record.runId].every(salaryUuid)&&ownPayrollEmployeeNumber(record.employeeNumber)&&[record.agreementCode,record.departmentCode].every(code)&&text(record.name,3,160)&&typeof record.dni==='string'&&/^\d{5,12}$/.test(record.dni)&&typeof record.cuil==='string'&&/^\d{11}$/.test(record.cuil)&&Number.isSafeInteger(record.liquidationVersion)&&record.liquidationVersion>0&&Number.isInteger(record.precision)&&record.precision>=0&&record.precision<=8&&salaryExact(record.totals,OWN_CLOSE_TOTAL_KEYS)&&Array.isArray(record.concepts)&&record.concepts.length<=OWN_RECEIPT_MAX_CONCEPTS,'No se verificó la identidad propia o la copia financiera del recibo.');
  const seen=new Set(),sums=Object.fromEntries(OWN_CLOSE_TOTAL_KEYS.slice(0,4).map(key=>[key,rational(0n)]));
@@ -83,7 +120,8 @@ export function ownReceiptRecord(record){
  return record;
 }
 export function ownReceiptSnapshot(value){
- need(salaryExact(value,['version','params','sourceVersion','sources','records','recordCount','conceptCount','identityBasis','paymentDateBasis','signatureState','payrollPosted','paymentExecuted'])&&((value.version==='own-receipt-snapshot.v1'&&value.identityBasis==='native_registration_immutable')||(['own-receipt-snapshot.v2','own-receipt-snapshot.v3'].includes(value.version)&&value.identityBasis==='owned_registration_verified_at_capture'))&&salaryHash(value.sourceVersion)&&value.paymentDateBasis==='declared'&&value.signatureState==='pending'&&value.payrollPosted===false&&value.paymentExecuted===false,'No se verificó la copia de emisión y sus estados.');
+ const printFacts=value?.version===OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION,official=printFacts||['own-receipt-snapshot.v4','own-receipt-snapshot.v5'].includes(value?.version);
+ need(salaryExact(value,['version','params','sourceVersion','sources','records','recordCount','conceptCount','identityBasis','paymentDateBasis','signatureState','payrollPosted','paymentExecuted',...(official?['economicConceptCount','omittedRowCount']:[])])&&((value.version==='own-receipt-snapshot.v1'&&value.identityBasis==='native_registration_immutable')||(['own-receipt-snapshot.v2','own-receipt-snapshot.v3','own-receipt-snapshot.v4','own-receipt-snapshot.v5',OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION].includes(value.version)&&value.identityBasis==='owned_registration_verified_at_capture'))&&salaryHash(value.sourceVersion)&&value.paymentDateBasis==='declared'&&value.signatureState==='pending'&&value.payrollPosted===false&&value.paymentExecuted===false,'No se verificó la copia de emisión y sus estados.');
  const params=ownReceiptParams(value.params),groups=new Map(),identities=new Set();
  need(value.version!=='own-receipt-snapshot.v1'||!Object.hasOwn(params,'contracts'),'La selección exacta requiere una copia de emisión v2.');
  need(Array.isArray(value.sources)&&value.sources.length<=1000&&Array.isArray(value.records)&&value.records.length<=OWN_RECEIPT_MAX_RECORDS&&value.recordCount===value.records.length&&Number.isSafeInteger(value.conceptCount)&&value.conceptCount>=0&&value.conceptCount<=OWN_RECEIPT_MAX_CONCEPTS,'La emisión completa supera la capacidad o perdió documentos; no se exportará un subconjunto.');
@@ -92,22 +130,34 @@ export function ownReceiptSnapshot(value){
  }
  let concepts=0;const sourceCounts=new Map();
  for(const record of value.records){
-  ownReceiptRecord(record);need(value.version==='own-receipt-snapshot.v3'||!Object.hasOwn(record,'namespaceVersion'),'La emisión anterior no declara referencias separadas.');need(value.version!=='own-receipt-snapshot.v1'||code(record.employeeNumber),'La copia original v1 requiere un legajo numérico.');need(!params.contracts?.length||params.contracts.includes(record.contractId),'El recibo está fuera de la selección exacta revisada.');const source=groups.get(record.sourceGroupId);need(source,'Un recibo no pertenece a una fuente original verificada.');
+  ownReceiptRecord(record);need(!hasOwnOfficialReceipt(record)||official,'Los totales oficiales requieren una emisión explícita v4 o v5.');need(official||value.version==='own-receipt-snapshot.v3'||!Object.hasOwn(record,'namespaceVersion'),'La emisión anterior no declara referencias separadas.');need(value.version!=='own-receipt-snapshot.v1'||code(record.employeeNumber),'La copia original v1 requiere un legajo numérico.');need(!params.contracts?.length||params.contracts.includes(record.contractId),'El recibo está fuera de la selección exacta revisada.');const source=groups.get(record.sourceGroupId);need(source,'Un recibo no pertenece a una fuente original verificada.');
   const identity=source.period+':'+source.type+':'+record.contractId;need(!identities.has(identity),'Un contrato está repetido en el mismo período y tipo.');identities.add(identity);concepts+=record.concepts.length;sourceCounts.set(source.id,(sourceCounts.get(source.id)??0)+1);
   need(!(params.filters.employeeFrom||params.filters.employeeTo)||code(record.employeeNumber),'El rango numérico no puede ordenar un legajo no numérico. Elegí contratos exactos de la previa completa.');
   for(const [range,field] of [['employee','employeeNumber'],['agreement','agreementCode'],['department','departmentCode']])need((!params.filters[range+'From']||BigInt(record[field])>=BigInt(params.filters[range+'From']))&&(!params.filters[range+'To']||BigInt(record[field])<=BigInt(params.filters[range+'To'])),'El recibo está fuera de los límites inclusivos revisados.');
  }
  need(concepts===value.conceptCount&&value.sources.every(source=>(sourceCounts.get(source.id)??0)===source.selectedCount),'Faltan recibos o conceptos del conjunto completo.');
  need(value.version!=='own-receipt-snapshot.v3'||value.records.some(r=>r.namespaceVersion===OWN_PAYROLL_NAMESPACE_VERSION),'La emisión v3 requiere una referencia separada conservada.');
+ if(official){
+  const officialRecords=value.records.filter(hasOwnOfficialReceipt),hasV5=officialRecords.some(record=>record.inputVersion==='own-payroll-input.v5');
+  // v6 keeps the v4/v5 economic evidence and adds frozen print facts to every official record; it does not rename the calculation.
+  // A v4/v5 copy never carries them: versions and fields are not mixed to make a copy pass.
+  const withFacts=officialRecords.filter(hasOwnReceiptPrintFacts).length;
+  need(officialRecords.length>0&&(printFacts?withFacts===officialRecords.length:withFacts===0&&value.version===(hasV5?'own-receipt-snapshot.v5':'own-receipt-snapshot.v4')),printFacts?'La versión de emisión no corresponde a sus cálculos originales o a sus datos de impresión.':'La versión de emisión no corresponde a sus cálculos originales.');
+  // The declared account is the one in force on the declared payment date of this same emission.
+  need(officialRecords.every(record=>!record.printFacts?.paymentDestination||record.printFacts.paymentDestination.referenceDate===params.paymentDate),'La cuenta declarada no corresponde a la fecha de pago declarada de la emisión.');
+  need(Number.isSafeInteger(value.economicConceptCount)&&value.economicConceptCount>=value.conceptCount&&value.economicConceptCount<=OWN_RECEIPT_MAX_CONCEPTS&&value.economicConceptCount===value.records.reduce((sum,record)=>sum+(hasOwnOfficialReceipt(record)?record.economicConceptCount:record.concepts.length),0)&&Number.isSafeInteger(value.omittedRowCount)&&value.omittedRowCount>=0&&value.omittedRowCount===officialRecords.reduce((sum,record)=>sum+record.omittedRowCount,0),'La emisión perdió renglones económicos o decisiones de impresión.');
+ }
  return value;
 }
 export function ownReceiptPreview(value){
  need(salaryExact(value,['version','scopeVersion','snapshot','snapshotSha256','permissions'])&&value.version==='own-receipt-preview.v1'&&salaryHash(value.scopeVersion)&&salaryHash(value.snapshotSha256)&&salaryExact(value.permissions,['canPrepare'])&&typeof value.permissions.canPrepare==='boolean','No se verificó la previa de emisión.');ownReceiptSnapshot(value.snapshot);return value;
 }
 export async function ownReceiptVerifyHash(value,expected){
- need(salaryHash(expected),'No se verificó la huella de emisión.');const actual=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(byte=>byte.toString(16).padStart(2,'0')).join('');need(actual===expected,'Cambió el contenido conservado de la emisión.');return value;
+ value=structuredClone(value);
+ need(salaryHash(expected),'No se verificó la huella de emisión.');const actual=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(value))))].map(byte=>byte.toString(16).padStart(2,'0')).join('');need(actual===expected,'Cambió el contenido conservado de la emisión.');// A v6 copy carries the same official economic evidence as v4/v5 and is verified the same way before it is shown.
+ if(['own-receipt-snapshot.v4','own-receipt-snapshot.v5',OWN_RECEIPT_PRINT_FACTS_SNAPSHOT_VERSION].includes(value?.version))await verifiedOwnOfficialReceiptEvidence(value);return value;
 }
-export async function verifiedOwnReceiptPreview(value){ownReceiptPreview(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);return value;}
+export async function verifiedOwnReceiptPreview(value){value=structuredClone(value);ownReceiptPreview(value);const seed=prepareSeed(value);await ownReceiptVerifyHash(value.snapshot,value.snapshotSha256);prepareSeeds.set(value,seed);return value;}
 export function ownReceiptBatch(value){
  need(salaryExact(value,['version','id','preparedAt','preparedBy','snapshot','snapshotSha256','state','sourceCurrent','review','permissions'])&&value.version==='own-receipt-batch.v1'&&salaryUuid(value.id)&&at(value.preparedAt)&&text(value.preparedBy,1,160)&&salaryHash(value.snapshotSha256)&&['prepared','approved','withdrawn'].includes(value.state)&&typeof value.sourceCurrent==='boolean'&&salaryExact(value.permissions,['canApprove','canWithdraw','canDownload'])&&Object.values(value.permissions).every(v=>typeof v==='boolean'),'No se verificó la emisión conservada.');ownReceiptSnapshot(value.snapshot);
  if(value.state==='prepared')need(value.review===null,'La preparación no tiene una aprobación implícita.');
@@ -132,7 +182,10 @@ export function ownReceiptSelf(value){
  for(const item of value.items){
   need(salaryExact(item,['batchId','preparedAt','approvedAt','params','record','source','signatureState','paymentDateBasis','payrollPosted','paymentExecuted'])&&salaryUuid(item.batchId)&&at(item.preparedAt)&&at(item.approvedAt)&&item.signatureState==='pending'&&item.paymentDateBasis==='declared'&&item.payrollPosted===false&&item.paymentExecuted===false,'No se verificaron la revisión y estados de tu recibo.');
   need(salaryExact(item.params,['period','issuer','paymentDate','legend'])&&salaryExact(item.source,['id','snapshotSha256','period','type'])&&salaryUuid(item.source.id)&&salaryHash(item.source.snapshotSha256)&&item.source.period===item.params.period&&Object.hasOwn(OWN_RUN_TYPES,item.source.type),'La consulta propia contiene datos de otro alcance.');
-  ownReceiptParams({...item.params,types:[item.source.type],filters:emptyOwnReportFilters()});ownReceiptRecord(item.record);need(item.record.sourceGroupId===item.source.id,'No se verificó la fuente de tu recibo.');
+  ownReceiptParams({...item.params,types:[item.source.type],filters:emptyOwnReportFilters()});ownReceiptRecord(item.record);need(item.record.sourceGroupId===item.source.id,'No se verificó la fuente de tu recibo.');need(!item.record.printFacts?.paymentDestination||item.record.printFacts.paymentDestination.referenceDate===item.params.paymentDate,'La cuenta declarada no corresponde a la fecha de pago declarada de tu recibo.');
   contract??=item.record.contractId;person??=item.record.personId;const key=item.batchId+':'+item.source.id;need(contract===item.record.contractId&&person===item.record.personId&&!seen.has(key),'La consulta no pertenece exclusivamente a un agente.');seen.add(key);
  }return value;
 }
+
+export async function verifiedOwnReceiptSelf(value){value=structuredClone(value);ownReceiptSelf(value);await verifiedOwnOfficialReceiptEvidence(value);return value;}
+export async function verifiedOwnReceiptSnapshot(value){value=structuredClone(value);ownReceiptSnapshot(value);await verifiedOwnOfficialReceiptEvidence(value);return value;}

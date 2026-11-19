@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "scopeVersion": "4cbc1e26c5be07304d0fe93a1f412b81f9b9d9fb5a998b8dfff4027af7559cb1",
+    "proposal": {
+      "id": "f1000000-0000-4000-8000-000000000203",
+      "contractId": "f1000000-0000-4000-8000-000000000003",
+      "status": "pending",
+      "reason": "Incorporación histórica sintética sin relación vigente, para prueba de interfaz.",
+      "createdAt": "2026-11-09T20:00:00Z",
+      "authorLabel": "Preparador sintético QA",
+      "proposalVersion": "8f11584f0cac44a170e6e3fb3e04958cf4c5a3d77c6741ad7036dc0d40ccfa75",
+      "canReview": true,
+      "baseVersion": "73fca45a1951d869c5e5f0e1dec5c71399129e7d8ecd4d15d4ec8ecc85992b95",
+      "pendingOperations": [
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000404",
+          "version": "31bbb83dd24f2a057f524fc26b3adb3c0f8d69f2f492e31877171e1623581758"
+        }
+      ],
+      "before": {
+        "status": "active",
+        "startDate": "2000-01-01",
+        "endDate": null
+      },
+      "after": {
+        "status": "inactive",
+        "startDate": "2000-01-01",
+        "endDate": null
+      },
+      "review": null
+    }
+  }
+}

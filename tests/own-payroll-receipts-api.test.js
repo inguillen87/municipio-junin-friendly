@@ -1,12 +1,15 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createOwnReceiptHandler} from '../api/internal-own-payroll-receipts.js';
-import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_SELF} from '../assets/own-payroll-receipt-model.js';
+import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,OWN_RECEIPT_SELF} from '../assets/own-payroll-receipt-model.js';
+import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {receiptCommand,receiptEvent,receiptPreview,receiptSelf} from './fixtures/own-payroll-receipt-synthetic.js';import {uid} from './fixtures/own-payroll-program-synthetic.js';
 import {receiptError} from '../lib/internal-own-payroll-receipts.js';
+import {ACTION_RUNTIME_IDENTITY_SQL} from '../lib/action-runtime-identity.js';
+import {syntheticReceiptBindingEnv,syntheticReceiptIdentity,syntheticReceiptClient} from './fixtures/own-receipt-runtime-binding-synthetic.js';
 const p={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid(50),membershipId:uid(51),effectiveCapabilities:OWN_RECEIPT_PREPARE}},session={email:p.user.email,id:uid(52),version:1,releaseSha:'d'.repeat(40)};
 const req=()=>({method:'POST',url:'/api/internal-own-payroll-receipts',query:{},headers:{origin:'http://localhost:8080','content-type':'application/json','idempotency-key':uid(9)},body:JSON.stringify({operation:'command',payload:receiptCommand()})});
 const res=()=>({headers:{},statusCode:0,setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(v){this.body=v;return this;}});
-function setup(caps=OWN_RECEIPT_PREPARE,value=receiptEvent()){const calls=[],stats={connect:0},handler=createOwnReceiptHandler({env:{INTERNAL_APP_ORIGIN:'http://localhost:8080'},requireAccess:async()=>({mode:'managed',principal:{...p,tenant:{...p.tenant,effectiveCapabilities:caps}}}),sessionFor:()=>session,getSql:async()=>{stats.connect++;return{query:async(q,v)=>{calls.push({q,v});return[{result:value}];}};}});return{handler,calls,stats};}
+function setup(caps=OWN_RECEIPT_PREPARE,value=receiptEvent()){const calls=[],stats={connect:0},handler=createOwnReceiptHandler({env:syntheticReceiptBindingEnv(),requireAccess:async()=>({mode:'managed',principal:{...p,tenant:{...p.tenant,effectiveCapabilities:caps}}}),sessionFor:()=>session,getSql:async()=>{stats.connect++;return syntheticReceiptClient(async(q,v)=>{if(q===ACTION_RUNTIME_IDENTITY_SQL)return[syntheticReceiptIdentity()];calls.push({q,v});return[{result:value}];});}});return{handler,calls,stats};}
 test('preparación toma identidad de sesión y ningún importe del cliente',async()=>{const a=setup(),r=res();await a.handler(req(),r);assert.equal(r.statusCode,201);assert.match(a.calls[0].q,/own_receipt_command/);assert.equal(JSON.parse(a.calls[0].v[0]).membershipId,p.tenant.membershipId);assert.deepEqual(JSON.parse(a.calls[0].v[1]),receiptCommand());assert.match(r.headers['Cache-Control'],/no-store/);});
 test('cada capacidad nominal revocada impide leer el formulario y conectar',async()=>{for(const cap of OWN_RECEIPT_READ){const a=setup(OWN_RECEIPT_PREPARE.filter(c=>c!==cap)),request=req(),r=res();Object.defineProperty(request,'body',{get(){throw Error('Body must remain unread');}});await a.handler(request,r);assert.equal(r.statusCode,403,cap);assert.equal(a.stats.connect,0);}});
 test('permiso específico revocado no escribe ni cambia el intento',async()=>{const a=setup(OWN_RECEIPT_READ),r=res();await a.handler(req(),r);assert.equal(r.statusCode,403);assert.equal(a.stats.connect,0);});
@@ -64,4 +67,23 @@ test('recurso issuer exige GET exacto sin período, selección ajena ni consulta
 
 test('perfil configurado corrupto falla cerrado sin identificación parcial ni SQL',async()=>{
  const bad=inventedIssuer();bad.source.validityDeclared=true;const a=issuerSetup({profiles:{[p.tenant.id]:bad}}),r=res();await a.handler(issuerRequest(),r);assert.equal(r.statusCode,503);assert.equal(r.body.code,'OWN_RECEIPT_CONTRACT_INVALID');assert.equal(r.body.data,undefined);assert.equal(a.stats.connect,0);
+});
+
+// Receipt v6 transport: the API admits the two closed command shapes through the shared validator and forwards the body unchanged.
+const v6Prepare=()=>({...receiptCommand(),previewSha256:'e'.repeat(64)});
+test('una preparación v6 llega a SQL con su novena clave intacta y la confirmación conserva ese mismo cuerpo',async()=>{
+ const body=v6Prepare(),event={...receiptEvent(),body,bodySha256:ownRunHash(body)},a=setup(OWN_RECEIPT_PREPARE,event),r=res(),request=req();request.body=JSON.stringify({operation:'command',payload:body});
+ await a.handler(request,r);assert.equal(r.statusCode,201);assert.deepEqual(JSON.parse(a.calls[0].v[1]),body);assert.equal(r.body.data.body.previewSha256,'e'.repeat(64));
+ // Una confirmación cuyo cuerpo perdió la huella es otro intento: no se entrega como éxito.
+ const lost=setup(OWN_RECEIPT_PREPARE,receiptEvent()),bad=res(),again=req();again.body=JSON.stringify({operation:'command',payload:body});await lost.handler(again,bad);assert.ok(bad.statusCode>=500,String(bad.statusCode));assert.equal(bad.body.ok,false);
+ // Y al revés: un cuerpo de ocho claves no se confirma con uno que ganó la huella.
+ const gained=setup(OWN_RECEIPT_PREPARE,event),worse=res();await gained.handler(req(),worse);assert.ok(worse.statusCode>=500,String(worse.statusCode));
+});
+test('la huella de la previa no es un indicador opcional: aprobar, retirar o enviarla mal formada no llega a SQL',async()=>{
+ const decision={...receiptCommand(),command:'approve',params:null,batchId:uid(800),batchSha256:'a'.repeat(64),reviewConfirmed:true},all=[...new Set([...OWN_RECEIPT_PREPARE,...OWN_RECEIPT_APPROVE])];
+ for(const [name,payload] of [['aprobar',{...decision,previewSha256:'e'.repeat(64)}],['retirar',{...decision,command:'withdraw',previewSha256:'e'.repeat(64)}],['huella corta',{...receiptCommand(),previewSha256:'e'.repeat(63)}],['huella nula',{...receiptCommand(),previewSha256:null}],['décima clave',{...v6Prepare(),previewVersion:'own-receipt-snapshot.v6'}]]){
+  const a=setup(all),r=res(),request=req();request.body=JSON.stringify({operation:'command',payload});await a.handler(request,r);assert.equal(r.statusCode,422,name);assert.equal(a.stats.connect,0,name);
+ }
+ // La decisión sin la novena clave sigue pasando igual que antes.
+ const event={...receiptEvent(),body:decision,bodySha256:ownRunHash(decision)},ok=setup(all,event),r=res(),request=req();request.body=JSON.stringify({operation:'command',payload:decision});await ok.handler(request,r);assert.equal(r.statusCode,201);assert.deepEqual(JSON.parse(ok.calls[0].v[1]),decision);
 });

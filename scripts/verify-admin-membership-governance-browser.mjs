@@ -671,6 +671,9 @@ async function verifyViewport(browser, config, viewport) {
     const associationReloadEvent = evidence.events.indexOf('get:bootstrap', associationEvent + 1);
     assert.ok(associationEvent >= 0 && associationReloadEvent > associationEvent, 'ADMIN_MEMBERSHIP_BROWSER_ASSOCIATION_RELOAD_ORDER_INVALID');
 
+    // The page reloads bootstrap, identity, users, invitations, owners and audit in sequence after each write;
+    // wait for that sequence to finish instead of racing it.
+    for (let waited = 0; waited < 10000 && !(evidence.bootstrapGets >= 3 && evidence.userGets >= 3 && evidence.auditGets >= 3 && evidence.identityGets >= 3 && evidence.platformOwnerGets >= 3); waited += 100) await page.waitForTimeout(100);
     assert.equal(evidence.authGets, 1, 'ADMIN_MEMBERSHIP_BROWSER_AUTH_COUNT_INVALID');
     assert.ok(evidence.bootstrapGets >= 3, 'ADMIN_MEMBERSHIP_BROWSER_BOOTSTRAP_RELOADS_MISSING');
     assert.ok(evidence.userGets >= 3, 'ADMIN_MEMBERSHIP_BROWSER_USERS_RELOADS_MISSING');

@@ -11,10 +11,12 @@ import {pinsCheck,preservationSnapshot} from './native-leave-installation.mjs';
 export const OWN_PERIOD_CLASSIFICATION_QA_FIXTURE_CHAIN='legacy-native-payroll-without-final-source.v1';
 const files=Object.freeze({
  'scripts/lib/own-period-participation-installation.mjs':'2274e017f769ea4b490de36cb473360c26fdd7104fe528bf4fac8e669755b713',
- 'scripts/lib/noelia-payroll-circuit-qa.mjs':'4a750d1759f7091304fa03984e19b6b52f6cd52cc73fc055dc961711761ae765',
- 'scripts/verify-salary-auxiliary-namespace.mjs':'04807f61392adc55e0b3c7ab0ba2a2f3cc5409a0b7d6402dd0fa1f81eee64680',
- 'scripts/verify-own-salary-seniority.mjs':'2435a7fde224545dab0f4ce26f16a94a6ffd5f60bd79ad9eb97882915c6cc1e7',
- 'scripts/verify-own-period-participation.mjs':'0ce4389c99028ecbcd79f987d2a7f062616f4c179d590b7f90d1ea6a54d1b48f',
+ 'scripts/lib/noelia-payroll-circuit-qa.mjs':'5884c679649c5614fd3015dbc9bf3a730452763ed619441f4a0520e17b79c6d0',
+ 'scripts/verify-salary-auxiliary-namespace.mjs':'bb056fd72d8f3c7d9534a3d61788409ab653621bf4197d00df37183f67fec4a5',
+ 'scripts/verify-own-salary-seniority.mjs':'5d0dd47d5f0a5365938c412f63ac0853bb3caf5335edbf4812d76a88aabeef34',
+ 'scripts/verify-own-period-participation.mjs':'042cf1ff441c58944c68f9a78cb9f8534c802cb0bc9518f1b1f6a520dbac2877',
+ 'scripts/lib/qa-lock-observation.mjs':'b2c2e099c6597fafaba59cb952c2a54ca4dfca41d01bf5d67d4c716e6fd706f9',
+ 'scripts/lib/qa-run-capture-lock.mjs':'80369adf746d65426040db4016ee72bf7c49e0ecbb5fe0986458590d5a4f88d6',
  'scripts/migrations/138-adopted-fixed-novelties.sql':'da7bc276e367dc3c0377c99e3c687747665a53c0c186eb457f27ab9032803469',
 });
 const hash=s=>createHash('sha256').update(s).digest('hex'),lf=s=>s.replace(/\r\n?/g,'\n');

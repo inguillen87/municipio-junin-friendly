@@ -2,7 +2,7 @@ import {verifiedAdoptionReview,adoptionReviewCsv,adoptionReviewScope,ADOPTION_RE
 import {mountAdoptionPreparation} from './employment-adoption-preparation-ui.js';
 import {mountMunicipalAdoptionOperator} from './municipal-adoption-operator-ui.js';
 import {mountMunicipalOwnerAdoption} from './municipal-owner-adoption-workspace.js';
-import {adoptionFinalSources,adoptionMixedSources,adoptionPreparationBootstrap} from './employment-adoption-preparation-model.js';
+import {adoptionPreparedSources,adoptionPreparationBootstrap} from './employment-adoption-preparation-model.js';
 import {MIXED_ADOPTION_COHORT} from './employment-adoption-mixed-cohort.js';
 import {appendAdoptionChanges} from './employment-adoption-changes-ui.js';
 import {parseMunicipalAdoptionNavigation,resolveOwnAdoptionNavigation,shortMunicipalAdoptionId} from './municipal-adoption-navigation-model.js';
@@ -118,7 +118,7 @@ export function mountAdoptionReview(root){
  }
  async function cuts(){
   if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;controls();message('Consultando referencias de respaldos preparados…');
-  try{await authority(signal);const value=adoptionFinalSources(await adoptionRequest('?resource=final-sources',signal));if(token!==generation||!live())return;
+  try{await authority(signal);const value=adoptionPreparedSources(await adoptionRequest('?resource=prepared-sources',signal));if(token!==generation||!live())return;
    if(snapshot&&adoptionReviewScope(value.scope)!==adoptionReviewScope(snapshot.scope)){invalidate('Cambió el ámbito. Consultá nuevamente el padrón.');return;}
    $('cut-options').replaceChildren();for(const row of value.rows){const button=document.createElement('button');button.type='button';button.className='button primary';button.textContent='Revisar personal activo · '+row.cutoff.replace('T',' ');button.addEventListener('click',()=>run(false,{...row,cohort:'active-contracts.v1'}));$('cut-options').append(button);const history=document.createElement('details'),summary=document.createElement('summary'),legacy=document.createElement('button');summary.textContent='Consultar antecedentes históricos';legacy.type='button';legacy.className='button';legacy.textContent='Revisar fuente histórica completa';legacy.addEventListener('click',()=>run(false,row));history.append(summary,legacy);$('cut-options').append(history);}
    message(value.total?'Elegí el corte para revisar todos sus activos. Los inactivos se conservan como antecedentes. No se aplicaron cambios.':'No hay respaldos finales preparados en este ámbito. La consulta del padrón instalado sigue disponible.');
@@ -128,7 +128,7 @@ export function mountAdoptionReview(root){
  $('cuts').addEventListener('click',cuts);
  async function mixedCuts(){
   if(busy||!live())return;const token=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal;busy=true;controls();message('Consultando cortes preparados para revisar el padrón mixto…');
-  try{await authority(signal);const value=adoptionMixedSources(await adoptionRequest('?resource=mixed-sources',signal));if(token!==generation||!live())return;if(snapshot&&adoptionReviewScope(value.scope)!==adoptionReviewScope(snapshot.scope)){invalidate('Cambió el ámbito. Consultá nuevamente el padrón.');return;}
+  try{await authority(signal);const value=adoptionPreparedSources(await adoptionRequest('?resource=prepared-sources',signal));if(token!==generation||!live())return;if(snapshot&&adoptionReviewScope(value.scope)!==adoptionReviewScope(snapshot.scope)){invalidate('Cambió el ámbito. Consultá nuevamente el padrón.');return;}
    $('mixed-options').replaceChildren();for(const row of value.rows){const button=document.createElement('button');button.type='button';button.className='button primary';button.textContent='Revisar activos conocidos · '+row.cutoff.replace('T',' ');button.addEventListener('click',()=>run(false,{...row,cohort:MIXED_ADOPTION_COHORT}));$('mixed-options').append(button);}
    message(value.total?'Elegí expresamente un corte. La revisión mostrará todos los registros conocidos y las cantidades conservadas de los pendientes; no se eligió el último respaldo automáticamente.':'No hay cortes mixtos preparados en este ámbito. Las propuestas y revisiones anteriores conservan su propio circuito.');
   }catch(e){if(token===generation){if([401,403].includes(e.status)){allowed=false;invalidate(e.message);}else message(e.message||'No se pudieron verificar los cortes mixtos completos.');}}finally{if(token===generation){busy=false;controls();}}

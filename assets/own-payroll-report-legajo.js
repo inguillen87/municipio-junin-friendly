@@ -1,3 +1,4 @@
+import {ownHistoricalNamespaced} from './own-payroll-historical-result-model.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownReportVariableSources,OWN_VARIABLE_UNITS} from './own-payroll-report-variables.js';
@@ -11,7 +12,7 @@ const totals=[['remuneration','Remunerativo'],['non_remuneration','No remunerati
 export function ownLegajoReportRows(bundle,selected,maximum=250000){
  const originals=ownReportVariableSources(bundle,bundle.captures,maximum),catalogs=new Map(),concepts=new Map();
  for(const [id,{capture,rows,people}]of originals.runs){
-  const catalog=new Map(),period=capture.body.period,namespaced=capture.saved.input.version==='own-payroll-input.v2';
+  const catalog=new Map(),period=capture.body.period,namespaced=ownHistoricalNamespaced(capture.saved.input);
   for(const d of capture.payload.programState.salaryCatalog.items){
    if(!['concept',...(namespaced?['auxiliary']:[])].includes(d.kind)||namespaced&&d.kind==='concept'&&d.nature==='auxiliary'||!d.active||d.validFrom>period||d.validUntil!==null&&d.validUntil<period)continue;
    const key=salarySerialized([d.agreementCode,d.code,...(namespaced?[d.kind]:[])]);
@@ -34,12 +35,16 @@ export function ownLegajoReportRows(bundle,selected,maximum=250000){
   const period=item.period+' / '+OWN_RUN_TYPES[item.type],context=e.employeeNumber+' / '+e.agreementCode+' / '+e.departmentCode;
   const version=String(e.liquidationVersion)+' / '+(capture.body.liquidationDate??'Fecha no declarada');
   for(const r of concepts.get(e.runId).get(e.contractId)){
-   const d=catalogs.get(e.runId).get(salarySerialized([e.agreementCode,r.conceptCode,...(capture.saved.input.version==='own-payroll-input.v2'?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
+   const d=catalogs.get(e.runId).get(salarySerialized([e.agreementCode,r.conceptCode,...(ownHistoricalNamespaced(capture.saved.input)?[r.nature==='auxiliary'?'auxiliary':'concept']:[])]));
    need(d&&d.nature===r.nature,'Falta la descripción y naturaleza originales de un concepto. No se usó el catálogo actual.');
    const row=[period,context,r.conceptCode+' / '+d.label+' / '+OWN_RUN_NATURES[r.nature]+' / '+OWN_VARIABLE_UNITS[r.unit],'','','','','',version];
    row[buckets[r.nature]]=r.amount;result.push(row);
   }
   for(const [key,label]of totals)result.push([period,context,'Total cerrado: '+label,'','','','',e.totals[key],version]);
+  if(e.totalReconciliation){
+   result.push([period,context,'Neto de renglones conservados','','','','',e.lineTotals.net,version]);
+   result.push([period,context,'Conciliación del neto: oficial menos renglones; no es un concepto','','','','',e.totalReconciliation.netDifferenceFromLines,version]);
+  }
   need(result.length<=maximum,'El informe completo por legajo supera 250.000 filas. No se omitieron conceptos ni totales.');
  }
  return result;

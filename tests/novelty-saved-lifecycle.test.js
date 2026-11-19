@@ -39,23 +39,31 @@ test('failed replacement cannot leave the previous lot available for a decision'
   assert.equal(h.context.reviewedBatch,null);assert.equal(h.q('detailPanel').hidden,true);assert.equal(h.q('detailActions').textContent,'');
 });
 
-test('hiding and returning a cached page withdraws nominal data but retains the exact uncertain attempt',()=>{
-  const elements=new Map(),listeners=new Map();
-  const element=id=>{if(!elements.has(id))elements.set(id,{textContent:'Dato sintético',value:'',hidden:false,querySelectorAll:()=>[],replaceChildren(){this.textContent='';}});return elements.get(id);};
+test('hiding withdraws nominal data and retains the exact uncertain attempt; returning reads again by itself',()=>{
+  const elements=new Map(),listeners=new Map(),reads=[],refreshes=[];
+  const element=id=>{if(!elements.has(id))elements.set(id,{textContent:'Dato sintético',value:'',hidden:false,querySelectorAll:()=>[],addEventListener:(type,fn)=>listeners.set(id+':'+type,fn),replaceChildren(){this.textContent='';}});return elements.get(id);};
   const pending=Object.freeze({attempt:Object.freeze({body:'synthetic pending request',key:id(80)}),uncertain:true});
   const panel={clear(){},clearLookupLabels(){},deny(){},close(){}};
   const context={pendingWrite:pending,reviewedBatch:savedNoveltyBatch(batch()),detailReadVersion:0,requestEpoch:0,lookupEpoch:0,
     readBlocked:false,suspendedFields:null,byId:element,cancelFileRead(){},savedReviewPanel:panel,reviewPanel:panel,issuesPanel:panel,
     employeePicker:panel,monthlyPicker:panel,attendancePreparte:panel,sheetEditor:panel,fixedNovelties:panel,nativeMonthlyReview:panel,preparedNativeReview:{},
-    applyMonthlyLocks(){},showMessage(){},monthlySubject:null,monthlyContractId:null,agileDraftRows:[],agileTemplate:null,
+    applyMonthlyLocks(){},showMessage(){},ownBulkNovelties:null,legacyNoveltyOperationPending:()=>true,refreshNoveltyWorkspace:()=>refreshes.push(1),loadBootstrap:options=>reads.push({...options}),monthlySubject:null,monthlyContractId:null,agileDraftRows:[],agileTemplate:null,
     clearAgileInput(){},invalidatePreparedDraft(){},renderAgileRows(){},
     document:{hidden:true,addEventListener:(type,fn)=>listeners.set(type,fn)},window:{addEventListener:(type,fn)=>listeners.set(type,fn)}};
   vm.createContext(context);
   vm.runInContext(clearFunctions+source.slice(source.indexOf('function clearConsulted('),source.indexOf('function discardLocalDraft(')),context);
-  vm.runInContext(source.slice(source.indexOf("  document.addEventListener('visibilitychange'"),source.indexOf("  window.addEventListener('beforeunload'")),context);
+  vm.runInContext(source.slice(source.indexOf("  const reconsult = () => {"),source.indexOf("  window.addEventListener('beforeunload'")),context);
   listeners.get('visibilitychange')();assert.equal(context.pendingWrite,pending);assert.equal(context.readBlocked,true);
   assert.equal(context.reviewedBatch,null);assert.equal(element('detailRows').textContent,'');assert.equal(element('detailPanel').hidden,true);
   assert.equal(context.preparedNativeReview,null);
   listeners.get('pagehide')();assert.equal(context.pendingWrite,pending);
-  context.document.hidden=false;listeners.get('visibilitychange')();assert.equal(context.pendingWrite,pending);assert.equal(context.readBlocked,true);
+  assert.deepEqual(reads,[],'nothing is read while the page is hidden');listeners.get('noveltyReferenceWorkspace:toggle')({currentTarget:{open:true}});assert.deepEqual(reads,[]);
+  // Returning asks for the access and the lots again; the view stays withdrawn until that read answers, and the attempt is untouched.
+  context.document.hidden=false;listeners.get('visibilitychange')();assert.equal(context.pendingWrite,pending);assert.equal(context.readBlocked,true);assert.deepEqual(reads,[{quiet:true}]);
+  // Opening the block while it is still withdrawn (a failed read) asks again; folding it, or opening it once consulted, does not.
+  listeners.get('noveltyReferenceWorkspace:toggle')({currentTarget:{open:false}});assert.equal(reads.length,1);
+  listeners.get('noveltyReferenceWorkspace:toggle')({currentTarget:{open:true}});assert.deepEqual(reads,[{quiet:true},{quiet:true}]);
+  context.readBlocked=false;listeners.get('noveltyReferenceWorkspace:toggle')({currentTarget:{open:true}});listeners.get('visibilitychange')();assert.equal(reads.length,2);
+  // With a send pending in both spaces nothing is read: the person gets the same notice as with «Actualizar».
+  context.readBlocked=true;context.ownBulkNovelties={hasPending:()=>true};listeners.get('visibilitychange')();assert.equal(reads.length,2);assert.equal(refreshes.length,1);assert.equal(context.pendingWrite,pending);
 });

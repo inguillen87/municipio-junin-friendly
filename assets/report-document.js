@@ -1,43 +1,118 @@
+import {checkOwnStatementEvidence} from './own-payroll-statement-evidence-model.js';
 import {storedZip} from './clock-dashboard-zip.js';
 const xml=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'');
 const col=n=>String.fromCharCode(65+n);
 const integer=new Intl.NumberFormat('es-AR');
 function checkedStatement(d){
- const s=d.payrollStatement,keys=['version','totals','reconciliation','coverage','status','populationNotice'];
- if(d.layout!=='own-payroll-report.v1'||!s||Object.keys(s).sort().join('|')!==keys.sort().join('|')||s.version!=='own-payroll-statement.v1'
+ const s=d.payrollStatement,official=s?.version==='own-payroll-statement.v2',keys=['version','totals','reconciliation','coverage','status','populationNotice',...(official?['originalEvidence']:[])];
+ if(d.layout!=='own-payroll-report.v1'||!s||Object.keys(s).sort().join('|')!==keys.sort().join('|')||!['own-payroll-statement.v1','own-payroll-statement.v2'].includes(s.version)
   ||!Array.isArray(s.totals)||s.totals.length!==6||!Array.isArray(s.reconciliation)||s.reconciliation.length!==6
   ||!Array.isArray(s.coverage)||s.coverage.length!==4||![s.status,s.populationNotice].every(v=>typeof v==='string'&&v.length<=300))throw Error('Primera hoja no válida');
  const amount=v=>v===null||typeof v==='string'&&/^-?(?:0|[1-9][0-9]{0,95})(?:\.[0-9]{1,8})?$/.test(v);
  for(let i=0;i<6;i++)if(!Array.isArray(s.reconciliation[i])||s.reconciliation[i].length!==4||typeof s.reconciliation[i][0]!=='string'
   ||s.reconciliation[i][0].length>60||!s.reconciliation[i].slice(1).every(amount)||!Array.isArray(s.totals[i])||s.totals[i].length!==2
   ||s.totals[i][0]!==s.reconciliation[i][0]||s.totals[i][1]!==s.reconciliation[i][1]
-  ||!(s.reconciliation[i].slice(1).every(v=>v===null)||s.reconciliation[i][1]!==null&&s.reconciliation[i][1]===s.reconciliation[i][2]&&/^-?0(?:\.0+)?$/.test(s.reconciliation[i][3])))throw Error('Conciliación no válida');
+  ||!official&&!(s.reconciliation[i].slice(1).every(v=>v===null)||s.reconciliation[i][1]!==null&&s.reconciliation[i][1]===s.reconciliation[i][2]&&/^-?0(?:\.0+)?$/.test(s.reconciliation[i][3])))throw Error('Conciliación no válida');
+ if(official)checkOwnStatementEvidence(s);
  for(const row of s.coverage)if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||row[0].length>100||!Number.isSafeInteger(row[1])||row[1]<0)throw Error('Cobertura no válida');
 }
-function checked(d){if(!d||!Array.isArray(d.columns)||d.columns.length<2||d.columns.length>(d.layout==='own-payroll-report.v1'?9:8)||!Array.isArray(d.rows)||d.rows.length>(['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1'].includes(d.layout)?250000:2000)||!Array.isArray(d.metadata)||d.metadata.length>30||!Array.isArray(d.notes)||d.notes.length>10||!/^municontrol_[a-z0-9_-]+$/.test(d.filename))throw Error('Reporte no válido');for(const row of d.rows){if(row.length!==d.columns.length)throw Error('Columnas inconsistentes');row.forEach((v,i)=>{const t=d.columns[i].type;if(v===null)return;if(t==='integer'&&!Number.isSafeInteger(v))throw Error('Conteo inválido');if(t==='money'&&(!/^-?\d{1,13}\.\d{2}$/.test(v)||!Number.isSafeInteger(Number(v.replace('.','')))))throw Error('Importe inválido');if(t==='text'&&(typeof v!=='string'||v.length>1000))throw Error('Texto inválido')})}if(d.legajoReport!==undefined&&(d.legajoReport!==true||d.layout!=='own-payroll-report.v1'||d.columns.length!==9||d.statisticsSelection!==undefined||d.payrollStatement!==undefined))throw Error('Informe por legajo no válido');if(d.statisticsSelection!==undefined&&(!d.payrollStatement||d.layout!=='own-payroll-report.v1'||!d.statisticsSelection||Object.keys(d.statisticsSelection).sort().join('|')!=='agreement|concept|department'||!Object.values(d.statisticsSelection).every(v=>typeof v==='string'&&(v===''||/^[0-9]{1,9}$/.test(v)))))throw Error('Selección de estadísticas no válida');if(d.salaryCost!==undefined)checkedCost(d.salaryCost);if(d.payrollStatement!==undefined)checkedStatement(d);return d}
-const shown=(v,c)=>v===null?'No informado':c.type==='money'?new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)):c.type==='integer'?integer.format(v):String(v);
+function checked(d){if(!d||!Array.isArray(d.columns)||d.columns.length<2||d.columns.length>(d.layout==='own-payroll-report.v1'?9:8)||!Array.isArray(d.rows)||d.rows.length>(['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)?250000:2000)||!Array.isArray(d.metadata)||d.metadata.length>30||!Array.isArray(d.notes)||d.notes.length>10||!/^municontrol_[a-z0-9_-]+$/.test(d.filename))throw Error('Reporte no válido');for(const row of d.rows){if(row.length!==d.columns.length)throw Error('Columnas inconsistentes');row.forEach((v,i)=>{const t=d.columns[i].type;if(v===null)return;if(t==='integer'&&!Number.isSafeInteger(v))throw Error('Conteo inválido');if(t==='money'&&(!/^-?\d{1,13}\.\d{2}$/.test(v)||!Number.isSafeInteger(Number(v.replace('.','')))))throw Error('Importe inválido');if(t==='text'&&(typeof v!=='string'||v.length>1000))throw Error('Texto inválido')})}if(d.legajoReport!==undefined&&(d.legajoReport!==true||d.layout!=='own-payroll-report.v1'||d.columns.length!==9||d.statisticsSelection!==undefined||d.payrollStatement!==undefined))throw Error('Informe por legajo no válido');if(d.statisticsSelection!==undefined&&(!d.payrollStatement||d.layout!=='own-payroll-report.v1'||!d.statisticsSelection||Object.keys(d.statisticsSelection).sort().join('|')!=='agreement|concept|department'||!Object.values(d.statisticsSelection).every(v=>typeof v==='string'&&(v===''||/^[0-9]{1,9}$/.test(v)))))throw Error('Selección de estadísticas no válida');if(d.salaryCost!==undefined)checkedCost(d.salaryCost);if(d.payrollStatement!==undefined)checkedStatement(d);return d}
+// Sólo para el PDF: un decimal exacto que viaja como texto se muestra como lo lee una persona en Argentina (382.692,71).
+// No se redondea ni se recorta ningún dígito, y CSV y Excel conservan el texto original para no perder exactitud.
+export const reportExactShown=v=>{const m=typeof v==='string'?/^(-?)(0|[1-9]\d*)(?:\.(\d+))?$/.exec(v):null;return m?m[1]+BigInt(m[2]).toLocaleString('es-AR')+(m[3]===undefined?'':','+m[3]):v;};
+const shown=(v,c)=>v===null?'No informado':c.type==='money'?new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)):c.type==='integer'?integer.format(v):c.pdfExact?reportExactShown(v):String(v);
 const csvCell=v=>'"'+String(v??'').replace(/^[\s\u0000-\u001f]*[=+@-]/,"'$&").replaceAll('"','""')+'"';
-export function reportCsv(d){checked(d);if(d.statisticsSelection){const context=['Períodos','Jurisdicción elegida','Repartición elegida','Convenio elegido','Concepto elegido'];return '\ufeff'+[[...context,...d.columns.map(c=>c.label)],...d.rows.map(row=>[...context.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])].map(row=>row.map(csvCell).join(';')).join('\r\n')+'\r\n';}if(d.layout==='own-payroll-comparison.v1'){const sourceKeys=['Período base','Período comparada','Tipo','Resultado base SHA-256','Resultado comparada SHA-256'];return '\ufeff'+[[...sourceKeys,...d.columns.map(c=>c.label)],...d.rows.map(row=>[...sourceKeys.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';}return '\ufeff'+[...(d.layout==='own-position-comparison.v1'?[[...['Ejercicio','Período','Tipo','Versión normativa','SHA-256 norma','SHA-256 consulta','Estado elegido'].map(k=>k),...d.columns.map(c=>c.label)],...d.rows.map(row=>[...['Ejercicio','Período','Tipo','Versión normativa','SHA-256 norma','SHA-256 consulta','Estado elegido'].map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])]:[d.columns.map(c=>c.label),...d.rows.map(row=>row.map((v,i)=>v===null?'':d.columns[i].type==='money'?v.replace('.',','):v))])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n'}
+// Un decimal exacto (-0.01) no es una fórmula: se deja tal cual para que un lector decimal lo lea. Cualquier otra celda
+// que empiece con = + @ - sigue neutralizada.
+const csvExactCell=v=>typeof v==='string'&&/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(v)?'"'+v+'"':csvCell(v);
+export function reportCsv(d){checked(d);if(d.statisticsSelection){const context=['Períodos','Jurisdicción elegida','Repartición elegida','Convenio elegido','Concepto elegido'];return '\ufeff'+[[...context,...d.columns.map(c=>c.label)],...d.rows.map(row=>[...context.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])].map(row=>row.map(csvCell).join(';')).join('\r\n')+'\r\n';}if(d.layout==='own-payroll-report.v1'){const context=['Períodos','Jurisdicción elegida','Repartición elegida','Convenio elegido','Rangos','Selección de legajos'];return '\ufeff'+[[...d.columns.map(c=>c.label),...context],...d.rows.map(row=>[...row.map((v,i)=>v===null?'':d.columns[i].type==='money'?v.replace('.',','):v),...context.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??'')])].map(row=>row.map(csvCell).join(';')).join('\r\n')+'\r\n';}if(d.layout==='own-grh-comparison.v1'){const fields=['Período','Tipo propio','Resultado propio SHA-256','Liquidación GRH','Fuente GRH SHA-256'];return '\ufeff'+[[...fields,...d.columns.map(c=>c.label)],...d.rows.map(row=>[...fields.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])].map(r=>r.map(csvExactCell).join(';')).join('\r\n')+'\r\n';}if(d.layout==='own-payroll-comparison.v1'){const sourceKeys=['Período base','Período comparada','Tipo','Resultado base SHA-256','Resultado comparada SHA-256'];return '\ufeff'+[[...sourceKeys,...d.columns.map(c=>c.label)],...d.rows.map(row=>[...sourceKeys.map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';}return '\ufeff'+[...(d.layout==='own-position-comparison.v1'?[[...['Ejercicio','Período','Tipo','Versión normativa','SHA-256 norma','SHA-256 consulta','Estado elegido'].map(k=>k),...d.columns.map(c=>c.label)],...d.rows.map(row=>[...['Ejercicio','Período','Tipo','Versión normativa','SHA-256 norma','SHA-256 consulta','Estado elegido'].map(k=>d.metadata.find(r=>r[0]===k)?.[1]??''),...row])]:[d.columns.map(c=>c.label),...d.rows.map(row=>row.map((v,i)=>v===null?'':d.columns[i].type==='money'?v.replace('.',','):v))])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n'}
 function reportRowHeight(row,widths,header){return Math.max(header?32:30,...row.map((v,i)=>typeof v==='string'?lines(v,Math.max(6,Math.floor((widths[i]||23)*0.85))).length*15+10:30))}
 function sheet(rows,widths,filter=false,numericTypes=[]){
- const cells=rows.map((row,i)=>`<row r="${i+1}" ht="${reportRowHeight(row,widths,i===0)}" customHeight="1">`+row.map((value,j)=>{const ref=col(j)+(i+1);if(value&&typeof value==='object'&&'formula'in value)return`<c r="${ref}" s="${value.money?3:2}"><f>${xml(value.formula)}</f><v>${value.value}</v></c>`;if(i>0&&typeof value==='number')return`<c r="${ref}" s="${numericTypes[j]==='money'?3:2}"><v>${value}</v></c>`;return`<c r="${ref}" t="inlineStr" s="${i===0?1:0}"><is><t xml:space="preserve">${xml(value)}</t></is></c>`}).join('')+'</row>').join('');
+ const cells=rows.map((row,i)=>`<row r="${i+1}" ht="${reportRowHeight(row,widths,i===0)}" customHeight="1">`+row.map((value,j)=>{const ref=col(j)+(i+1);if(value===XLSX_NA)return`<c r="${ref}" t="e" s="3"><v>#N/A</v></c>`;if(value&&typeof value==='object'&&'formula'in value)return`<c r="${ref}" s="${value.money?3:2}"><f>${xml(value.formula)}</f><v>${value.value}</v></c>`;if(i>0&&typeof value==='number')return`<c r="${ref}" s="${numericTypes[j]==='money'?3:2}"><v>${value}</v></c>`;return`<c r="${ref}" t="inlineStr" s="${i===0?1:0}"><is><t xml:space="preserve">${xml(value)}</t></is></c>`}).join('')+'</row>').join('');
  return`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${cells}</sheetData>${filter?`<autoFilter ref="A1:${col(widths.length-1)}${Math.max(1,rows.length)}"/>`:''}<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.6" bottom="0.6" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;LMuniControl · consulta de datos&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter></worksheet>`;
+}
+// The original decimal strings are evidence. Excel's numeric copies use at most 15 digits in
+// integer cents, including two positions for cents even when an amount happens to end in zero.
+const XLSX_NA=Symbol('unavailable numeric amount'), XLSX_MAX_CENTS=999999999999999n;
+const XLSX_PAYROLL_AMOUNTS={gross:'Bruto',deduction:'Retenciones',net:'Neto'};
+function xlsxPayrollCents(value){
+ const m=typeof value==='string'&&/^(-?)([0-9]+)(?:\.([0-9]+))?$/.exec(value);
+ if(!m)return null;
+ const fraction=m[3]??'';
+ if(/[1-9]/.test(fraction.slice(2)))return null;
+ const magnitude=BigInt(m[2])*100n+BigInt(fraction.slice(0,2).padEnd(2,'0'));
+ return magnitude>XLSX_MAX_CENTS?null:(m[1]==='-'?-magnitude:magnitude);
+}
+function addPayrollXlsxAmounts(d,data,totals,control,widths,types){
+ const marked=d.columns.flatMap((c,i)=>c.xlsxAmount===undefined?[]:[{...c,i}]);
+ if(!marked.length)return;
+ if(d.layout!=='own-payroll-report.v1'||marked.length!==3||marked.some((c,i)=>c.type!=='text'||c.xlsxAmount!==['gross','deduction','net'][i]))throw Error('Columnas monetarias de Excel no válidas');
+ control.push(['Importes para sumar','Las columnas exactas conservan el texto original. Las columnas numéricas admiten importes expresables en centavos. #N/A impide una suma parcial: consultá las columnas exactas y la hoja Totales.']);
+ for(const c of marked){
+  const label=XLSX_PAYROLL_AMOUNTS[c.xlsxAmount]+' (numérico)',letter=col(widths.length);
+  const cells=d.rows.map(row=>xlsxPayrollCents(row[c.i]));
+  let sum=0n,magnitude=0n,missing=0;
+  for(const n of cells){if(n===null){missing++;continue;}sum+=n;magnitude+=n<0n?-n:n;}
+  // This bound keeps every possible intermediate sum of integer cents within Excel's precision.
+  const over=magnitude>XLSX_MAX_CENTS;
+  data[0].push(label);widths.push(24);types.push('money');
+  cells.forEach((n,i)=>data[i+1].push(over||n===null?XLSX_NA:Number(n)/100));
+  const reason=over?'La suma de importes absolutos excede el rango seguro de 15 dígitos en centavos.':
+   missing?('Filas sin importe numérico: '+missing+'. Hay un valor ausente, con fracción de centavo o fuera del rango de 15 dígitos en centavos.'):'';
+  // #N/A in Datos propagates through SUM; never silently drop unrepresentable rows.
+  // Convert each numeric value back to its integer cents before summing, to avoid cumulative float error.
+  totals.push([label,reason?'No sumable. '+reason:!cells.length?'Sin participaciones':{
+   formula:`SUMPRODUCT(ROUND(Datos!${letter}2:${letter}${data.length}*100,0))/100`,value:Number(sum)/100,money:true}]);
+ }
 }
 export function reportXlsx(d){checked(d);
  const data=[d.columns.map(c=>c.label),...d.rows.map(r=>r.map((v,i)=>v===null?'No informado':d.columns[i].type==='money'?Number(v):v))];
  const totals=[['Control del filtro','Resultado'],['Filas exportadas',d.statisticsSelection||d.legajoReport?d.rows.length:d.rows.length?{formula:`COUNTA(Datos!A2:A${data.length})`,value:d.rows.length}:0]];
  for(const j of d.totals||[]){if(!Number.isSafeInteger(j)||j<0||j>=d.columns.length||d.columns[j].type==='text')throw Error('Total no válido');const missing=d.rows.some(r=>r[j]===null);const money=d.columns[j].type==='money';const val=money?Number(d.rows.reduce((s,r)=>s+(r[j]===null?0n:BigInt(r[j].replace('.',''))),0n))/100:d.rows.reduce((s,r)=>s+(r[j]??0),0);totals.push([d.columns[j].label,missing?'No evaluable: valores ausentes':!d.rows.length?0:{formula:`SUM(Datos!${col(j)}2:${col(j)}${data.length})`,value:val,money}])}
  const names=['Datos','Totales','Control',...(d.salaryCost?['Costo salarial']:[]),...(d.payrollStatement?[d.statisticsSelection?'Estadísticas':'Expediente','Conciliación']:[])],control=[['Trazabilidad','Valor'],['Reporte',d.title],...d.metadata,...d.notes.map((n,i)=>['Nota '+(i+1),n])];
+ if(d.payrollStatement?.version==='own-payroll-statement.v2')for(const e of d.payrollStatement.originalEvidence)control.push(['Conciliación original / '+e.contractId,'Cierre '+e.sourceGroupId+' / SHA-256 '+e.sourceSha256+' / cálculo '+e.runId+' / neto oficial '+e.totals.net+' / neto de renglones '+e.lineTotals.net+' / diferencia oficial menos renglones '+(e.totalReconciliation?.netDifferenceFromLines??'0')]);
+ const widths=d.columns.map(c=>c.width||23),types=d.columns.map(c=>c.type);
+ addPayrollXlsxAmounts(d,data,totals,control,widths,types);
  const styles=`<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00;[Red]-#,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/><color rgb="FF173B4C"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF143849"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
- return storedZip([['[Content_Types].xml',`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${names.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],['_rels/.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],['xl/workbook.xml',`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n,i)=>`<sheet name="${n}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],['xl/_rels/workbook.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${names.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],['xl/styles.xml',styles],['xl/worksheets/sheet1.xml',sheet(data,d.columns.map(c=>c.width||23),true,d.columns.map(c=>c.type))],['xl/worksheets/sheet2.xml',sheet(totals,[42,38])],['xl/worksheets/sheet3.xml',sheet(control,[32,100])],...(d.salaryCost?[['xl/worksheets/sheet4.xml',sheet(costSheet(d.salaryCost),[12,57,26],false,['text','text','money'])]]:[]),...(d.payrollStatement?[['xl/worksheets/sheet'+(d.salaryCost?5:4)+'.xml',sheet([[d.statisticsSelection?'Resumen de estadísticas':'Informe para expediente','Valor'],...d.metadata,...d.payrollStatement.coverage,['Control',d.payrollStatement.status],['Cobertura',d.payrollStatement.populationNotice]],[42,100])],['xl/worksheets/sheet'+(d.salaryCost?6:5)+'.xml',sheet([['Naturaleza','Total cerrado exacto','Desde conceptos exacto','Diferencia exacta'],...d.payrollStatement.reconciliation.map(r=>r.map(v=>v===null?'No informado':v))],[32,32,32,32])]]:[])]);
+ return storedZip([['[Content_Types].xml',`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${names.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],['_rels/.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],['xl/workbook.xml',`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n,i)=>`<sheet name="${n}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],['xl/_rels/workbook.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${names.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],['xl/styles.xml',styles],['xl/worksheets/sheet1.xml',sheet(data,widths,true,types)],['xl/worksheets/sheet2.xml',sheet(totals,[42,38])],['xl/worksheets/sheet3.xml',sheet(control,[32,100])],...(d.salaryCost?[['xl/worksheets/sheet4.xml',sheet(costSheet(d.salaryCost),[12,57,26],false,['text','text','money'])]]:[]),...(d.payrollStatement?[['xl/worksheets/sheet'+(d.salaryCost?5:4)+'.xml',sheet([[d.statisticsSelection?'Resumen de estadísticas':'Informe para expediente','Valor'],...d.metadata,...d.payrollStatement.coverage,['Control',d.payrollStatement.status],['Cobertura',d.payrollStatement.populationNotice]],[42,100])],['xl/worksheets/sheet'+(d.salaryCost?6:5)+'.xml',sheet([['Naturaleza','Total cerrado exacto','Desde conceptos exacto','Diferencia exacta'],...d.payrollStatement.reconciliation.map(r=>r.map(v=>v===null?'No informado':v))],[32,32,32,32])]]:[])]);
 }
 const chars={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149};
 function hex(s){return '<'+[...String(s)].map(c=>{const n=c.codePointAt(0);return(n<=255?n:(chars[n]??63)).toString(16).padStart(2,'0')}).join('')+'>'}
+// «→» (vigencias «desde → hasta», cambios «antes → después») no existe en WinAnsi y salía como «?». Se dibuja con la
+// flecha real de la fuente estándar Symbol; un texto sin flechas produce exactamente los mismos bytes que antes.
+const PDF_ARROW='\u2192',PDF_ARROW_WIDTH=987;
+function show(s,font,size){return String(s).split(PDF_ARROW).map(part=>hex(part)+' Tj').join(` /F3 ${size} Tf <ae> Tj /${font} ${size} Tf `)}
+const usesSymbol=pages=>pages.some(page=>page.some(op=>typeof op==='string'&&op.includes(' /F3 ')));
+const SYMBOL_FONT='<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>';
 function lines(s,max){const out=[];let current='';for(const word0 of String(s).split(/\s+/)){const words=word0.match(new RegExp('.{1,'+max+'}','g'))||[''];for(const w of words){if((current+' '+w).trim().length>max&&current){out.push(current);current=w}else current=(current+' '+w).trim()}}if(current)out.push(current);return out.length?out:['']}
+// Widths in 1/1000 em for the embedded standard WinAnsi Type1 fonts.
+// Keep existing line breaks; only split a line further when its actual glyph width exceeds the cell.
+const REPORT_PDF_FONT_WIDTHS=[[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500],[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556]];
+// Ancho de una línea con las métricas de la fuente del PDF. Sólo lo usan las columnas que piden align:'right'.
+function pdfLineWidth(line,size,bold=false){const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];return [...String(line)].reduce((n,character)=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return n+PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return n+(metrics[code-32]??metrics[63-32]);},0)*size/1000;}
+const pdfCellX=(column,x,cellWidth,line,size,bold)=>column.align==='right'?x+cellWidth-6-pdfLineWidth(line,size,bold):x+6;
+const pdfIssuedOn=()=>new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
+function fitPdfCellLines(parts,width,size,bold=false){
+ const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0],limit=width*1000/size;
+ const advance=character=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return metrics[code-32]??metrics[63-32];};
+ return parts.flatMap(part=>{
+  const points=[...part];if(points.reduce((n,c)=>n+advance(c),0)<=limit)return [part];
+  const fitted=[];let start=0;
+  while(start<points.length){
+   let end=start,used=0,lastSpace=-1;
+   while(end<points.length&&used+advance(points[end])<=limit){if(points[end]===' ')lastSpace=end;used+=advance(points[end]);end++;}
+   if(end===start)throw Error('Una columna no deja espacio suficiente para el texto. Descargá Excel o CSV para conservarlo completo.');
+   const cut=end<points.length&&lastSpace>start?lastSpace:end;
+   fitted.push(points.slice(start,cut).join(''));start=cut;if(points[start]===' ')start++;
+  }
+  return fitted;
+ });
+}
+
 function statementCoverPage(d){
  const W=595,H=842,left=36,width=W-72,ops=[],s=d.payrollStatement;
  ops.width=W;ops.height=H;
- const text=(x,y,value,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-y} Tm ${hex(value)} Tj ET`);
+ const text=(x,y,value,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-y} Tm ${show(value,bold?'F2':'F1',size)} ET`);
  const rect=(x,y,w,h,color)=>ops.push(`${color} rg ${x} ${H-y-h} ${w} ${h} re f`);
  const metadata=k=>d.metadata.find(row=>row[0]===k)?.[1]??'No informado';
  rect(0,0,W,88,'0.045 0.15 0.20');rect(0,88,W,3,'0.0 0.50 0.46');
@@ -45,7 +120,7 @@ function statementCoverPage(d){
  text(left,56,d.statisticsSelection?'Estadísticas de conceptos':'Informe de liquidación',19,true,'1 1 1');
  text(left,76,d.statisticsSelection?'Conciliación del alcance completo con sus fuentes cerradas':'Primera hoja para revisión del expediente de sueldos',10,false,'0.80 0.91 0.92');
  let y=117;
- for(const key of ['Períodos','Tipos','Jurisdicción elegida',...(d.statisticsSelection?['Repartición elegida','Convenio elegido','Concepto elegido']:[]),'Rangos','Selección de legajos']){
+ for(const key of ['Períodos','Tipos','Jurisdicción elegida','Repartición elegida','Convenio elegido',...(d.statisticsSelection?['Concepto elegido']:[]),'Rangos','Selección de legajos']){
   for(const line of lines(key+': '+metadata(key),105)){text(left,y,line,9);y+=13;}
   y+=3;
  }
@@ -57,7 +132,7 @@ function statementCoverPage(d){
  rect(left,y,width,30,'0.09 0.24 0.30');let x=left;
  for(let i=0;i<4;i++){text(x+6,y+19,headers[i],8.5,true,'1 1 1');x+=widths[i];}y+=30;
  for(let i=0;i<s.reconciliation.length;i++){
-  const parts=s.reconciliation[i].map((v,j)=>lines(v===null?'No informado':v,Math.floor((widths[j]-12)/4.5)));
+  const parts=s.reconciliation[i].map((v,j)=>lines(v===null?'No informado':j===0?v:reportExactShown(v),Math.floor((widths[j]-12)/4.5)));
   const height=Math.max(...parts.map(p=>p.length))*12+14;
   if(i%2===0)rect(left,y,width,height,'0.94 0.97 0.97');x=left;
   for(let j=0;j<4;j++){parts[j].forEach((line,n)=>text(x+6,y+16+n*12,line,8.5,j===0));x+=widths[j];}y+=height;
@@ -70,30 +145,99 @@ function statementCoverPage(d){
  for(const line of lines('Las páginas siguientes contienen todo el detalle agrupado del mismo alcance. Los auxiliares no se suman como haberes. Importes originales exactos, sin un nuevo cálculo salarial.',105)){text(left,y,line,8);y+=12;}
  if(y>H-62)throw Error('La primera hoja supera la capacidad del PDF. Descargá Excel o CSV para conservar todo el alcance.');
  text(left,H-31,'MuniControl | Documento de consulta sin firma, imputación ni pago',8);
- text(W-101,H-31,'Página 1',8);return ops;
+ return ops;
 }
-export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y;
- const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${hex(s)} Tj ET`);
+const pdfTextWidth=(s,size,bold)=>{const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];let n=0;for(const character of String(s)){const point=character.codePointAt(0),code=point<=255?point:(chars[point]??63);n+=character===PDF_ARROW?PDF_ARROW_WIDTH:(metrics[code-32]??metrics[63-32]);}return n*size/1000;};
+// Encabezado de columna. Si todas sus palabras entran, se arma como siempre. Si una palabra no entra en su columna
+// («Participaciones», «Contribuciones»), se achica la letra de ese encabezado hasta que entra, en vez de partirla.
+export function reportPdfHeading(label,inner){
+ const max=Math.max(7,Math.floor(inner/4.5)),words=String(label).split(/\s+/);
+ if(words.every(word=>word.length<=max))return {parts:lines(label,max),size:8};
+ for(const size of [7.5,7,6.5,6])if(words.every(word=>pdfTextWidth(word,size,true)<=inner))return {parts:fitPdfCellLines([words.join(' ')],inner,size,true),size};
+ return {parts:lines(label,max),size:8};
+}
+export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y,pageHasData=false;
+ const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
- const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-109,H-31,'Página '+pages.length,8);if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5)};
+ const issued='Emitido '+pdfIssuedOn();const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-224,H-31,issued,7.2);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5);ops.push('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
- function head(){ops=[];pages.push(ops);rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');text(left,56,d.title,d.layout==='own-position-comparison.v1'?13:18,true,'1 1 1');text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
-  const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+ // Source, closure and type travel with each physical sheet, including continuations.
+ const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+ const compactContext=d.metadata.filter(row=>contextKeys.has(row[0])).map(([key,value])=>key+': '+value);
+ let detailPages=0;
+ function head(){
+  const continuation=detailPages++>0;ops=[];pages.push(ops);pageHasData=false;
+  if(continuation){
+   rect(0,0,W,51,'0.045 0.15 0.20');rect(0,51,W,2,'0.0 0.50 0.46');
+   text(left,19,'MuniControl | Centro de reportes',9,true,'1 1 1');text(W-114,19,'Continuación',8,false,'0.80 0.91 0.92');
+   const baseSize=11,available=width-115,needed=pdfLineWidth(d.title,baseSize,true),size=Math.max(6,Math.min(baseSize,baseSize*available/needed));
+   if(pdfLineWidth(d.title,size,true)>available+0.02)throw Error('El título de continuación no cabe completo en el PDF.');
+   text(left,42,d.title,+size.toFixed(2),true,'1 1 1');y=67;
+   if(compactContext.length){
+    // Keep each complete "Clave: valor" pair together. No source/status may be cropped or abbreviated.
+    const measure=font=>pdfLineWidth(compactContext.join(' · '),font,false);
+    const font=measure(7.2)<=width?7.2:6.2;
+    const sourceLines=[];
+    if(measure(font)<=width)sourceLines.push(compactContext.join(' · '));
+    else {
+     let line='';
+     for(const item of compactContext){
+      if(pdfLineWidth(item,font)>width)throw Error('El contexto de origen no cabe completo en el PDF; descargá Excel o CSV.');
+      const next=line?line+' · '+item:item;
+      if(line&&pdfLineWidth(next,font)>width){sourceLines.push(line);line=item;}else line=next;
+     }
+     if(line)sourceLines.push(line);
+    }
+    sourceLines.forEach((line,i)=>text(left,65+i*9,line,font,false,'0.30 0.42 0.48'));
+    y=65+sourceLines.length*9+2;
+   }
+  }else{rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');(()=>{const size=d.layout==='own-position-comparison.v1'?13:18,parts=fitPdfCellLines([d.title],width,size,true);if(parts.length===1)text(left,56,d.title,size,true,'1 1 1');else{const wrapped=fitPdfCellLines([d.title],width,10.5,true);if(wrapped.length>2)throw Error('El título no cabe en el PDF. Descargá Excel o CSV.');wrapped.forEach((p,i)=>text(left,52+i*14,p,10.5,true,'1 1 1'));}})();text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
+
   const value=key=>d.metadata.find(r=>r[0]===key)?.[1]??'No informado';
   if(d.layout==='own-payroll-comparison.v1'){for(const s of ['Base: '+value('Período base')+' · Comparada: '+value('Período comparada')+' · '+value('Tipo'),'Diferencia: comparada menos base · '+value('Contratos distintos')+' contratos · '+value('Registros del alcance completo')+' filas completas']){text(left,y,s,8.5);y+=12;}}
-  const context=d.layout==='own-position-comparison.v1'?[['Consulta',`Ejercicio ${value('Ejercicio')} · Período ${value('Período')} · ${value('Tipo')} · Versión normativa ${value('Versión normativa')}`],['Norma',value('Norma')],['Filtro',`${value('Estado elegido')} · ${value('Orden')}`],['Cobertura',`${value('Grupos cerrados')} grupos · ${value('Legajos del alcance')} legajos · ${value('Filas completas')} filas · Nombres: ${value('Nombres conservados')}`]]:d.layout==='own-payroll-report.v1'?[['Tipos',value('Tipos')],['Rangos',value('Rangos')],['Cobertura consultada',`Grupos cerrados: ${value('Grupos originales cerrados')} · Participaciones: ${value('Participaciones seleccionadas')} · Contratos: ${value('Contratos distintos')} · Filas del informe: ${value('Filas completas del informe')}`],['Totales del alcance',`Bruto: ${value('Bruto exacto del alcance')} · Retenciones: ${value('Retenciones exactas del alcance')} · Neto: ${value('Neto exacto del alcance')}`]]:d.metadata.filter(r=>contextKeys.has(r[0]));
-  for(const [label,value] of context){
-   for(const l of lines(label+': '+value,Math.floor(width/4.5))){text(left,y,l,8.5,label==='Estado');y+=12}
+  const context=d.layout==='own-position-comparison.v1'?[['Consulta',`Ejercicio ${value('Ejercicio')} · Período ${value('Período')} · ${value('Tipo')} · Versión normativa ${value('Versión normativa')}`],['Norma',value('Norma')],['Filtro',`${value('Estado elegido')} · ${value('Orden')}`],['Cobertura',`${value('Grupos cerrados')} grupos · ${value('Legajos del alcance')} legajos · ${value('Filas completas')} filas · Nombres: ${value('Nombres conservados')}`]]:d.layout==='own-payroll-report.v1'?[['Tipos',value('Tipos')],['Alcance exacto',`Repartición elegida: ${value('Repartición elegida')} · Convenio elegido: ${value('Convenio elegido')} · Jurisdicción elegida: ${value('Jurisdicción elegida')}`],['Rangos',value('Rangos')],['Cobertura consultada',`Grupos cerrados: ${value('Grupos originales cerrados')} · Participaciones: ${value('Participaciones seleccionadas')} · Contratos: ${value('Contratos distintos')} · Filas del informe: ${value('Filas completas del informe')}`],['Totales del alcance',`Bruto: ${reportExactShown(value('Bruto exacto del alcance'))} · Retenciones: ${reportExactShown(value('Retenciones exactas del alcance'))} · Neto: ${reportExactShown(value('Neto exacto del alcance'))}`]]:d.metadata.filter(r=>contextKeys.has(r[0]));
+  // Specialized reports also print any supplied source/closure pairs on their first sheet.
+  const extraContext=['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)?d.metadata.filter(row=>contextKeys.has(row[0])):[];
+  for(const [label,value] of [...context,...extraContext]){
+   for(const l of fitPdfCellLines(lines(label+': '+value,Math.floor(width/4.5)),width,8.5,label==='Estado')){text(left,y,l,8.5,label==='Estado');y+=12}
   }
   y+=10;
-  for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
-  const headings=d.columns.map((c,i)=>lines(c.label,Math.max(7,Math.floor((widths[i]-12)/4.5)))),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(p=>p.length*10+14)):32;
-  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach((parts,i)=>{parts.forEach((l,j)=>text(x+6,y+12+j*10,l,8,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
+  for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of fitPdfCellLines(lines(note,Math.floor(width/4.5)),width,8)){text(left,y,l,8);y+=11}y+=5}
+  }
+  const headings=d.columns.map((c,i)=>reportPdfHeading(c.label,widths[i]-12)),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(h=>h.parts.length*10+14)):32;
+  y+=continuation?2:8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
- if(d.payrollStatement)pages.push(statementCoverPage(d));head();d.rows.forEach((r,index)=>{const parts=r.map((v,i)=>lines(shown(v,d.columns[i]),Math.max(7,Math.floor((widths[i]-12)/4.3))));const height=Math.max(...parts.map(p=>p.length))*12+14;if(y+height>H-62)head();if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;parts.forEach((p,i)=>{p.forEach((l,j)=>text(x+6,y+15+j*12,l,8.5,i>0&&d.columns[i].type!=='text'));x+=widths[i]});y+=height});
- if(!d.rows.length)text(left,y+25,'Sin resultados para los filtros seleccionados.',10);
+ if(d.payrollStatement)pages.push(statementCoverPage(d));head();
+ d.rows.forEach((r,index)=>{
+  const parts=r.map((v,i)=>fitPdfCellLines(lines(shown(v,d.columns[i]),Math.max(7,Math.floor((widths[i]-12)/4.3))),widths[i]-12,8.5,i>0&&d.columns[i].type!=='text'));
+  const lineCount=Math.max(...parts.map(p=>p.length)),height=lineCount*10+7;
+  // Keep ordinary rows together. A row larger than a fresh page continues by lines,
+  // with the same columns and alternating background; each cell is emitted only once.
+  if(pageHasData&&y+height>H-88)head();
+  let offset=0;
+  while(offset<lineCount){
+   const capacity=Math.floor((H-88-y-7)/10);
+   if(capacity<1)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');
+   const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*10+7;
+   const totalRow=/^(?:total|totales|subtotal)(?:\b|\s|:)/i.test(String(r[0]??''));if(totalRow)rect(left,y,width,fragmentHeight,'0.87 0.95 0.93');else if(index%2===0)rect(left,y,width,fragmentHeight,'0.94 0.97 0.97');
+   let x=left;
+   parts.forEach((p,i)=>{const bold=totalRow||i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+12+j*10,l,8.5,bold));x+=widths[i];});
+   y+=fragmentHeight;pageHasData=true;offset+=count;
+   if(offset<lineCount)head();
+  }
+ });
+ if(!d.rows.length){if(y+25>H-88)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
+  for(let i=0;i<pages.length;i++){
+   const page=pages[i],pageW=page.width??W,label='Página '+(i+1)+' de '+pages.length;
+   const pageX=pageW-36-pdfLineWidth(label,7.2),pageOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+pageX.toFixed(2)+' 31 Tm '+show(label,'F1',7.2)+' ET';
+   const pending=page.indexOf('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');
+   if(pending>=0)page[pending]=pageOp;
+   else {const dateOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+(pageW-224)+' 31 Tm '+show(issued,'F1',7.2)+' ET';page.push(dateOp,pageOp);}
+  }
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
- for(const page of pages){const id=objects.length;const content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width??W} ${page.height??H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)}objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n'});const pos=out.length;out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;return new TextEncoder().encode(out);
+ // La fuente Symbol sólo se declara si alguna hoja usa la flecha, después de las hojas: los demás objetos no cambian de número.
+ const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
+ for(const page of pages){const id=objects.length;const content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width??W} ${page.height??H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${symbol} >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)}if(symbol)objects.push(SYMBOL_FONT);objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n'});const pos=out.length;out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;return new TextEncoder().encode(out);
 }
 export function saveReport(d,format){checked(d);if(!['pdf','xlsx','csv'].includes(format))throw Error('Formato inválido');const bytes=format==='pdf'?reportPdf(d):format==='xlsx'?reportXlsx(d):reportCsv(d);return saveReportBytes(d,format,bytes)}
 export function saveReportBytes(d,format,bytes){checked(d);if(!['pdf','xlsx','csv'].includes(format)||(format==='csv'?typeof bytes!=='string':!(bytes instanceof Uint8Array)))throw Error('Archivo no válido');const mime={pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',csv:'text/csv;charset=utf-8'}[format];const url=URL.createObjectURL(new Blob([bytes],{type:mime})),a=document.createElement('a');a.href=url;a.download=d.filename+'.'+format;a.rel='noopener';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);return a.download}
@@ -143,9 +287,9 @@ function costSheet(c) {
 function compactConceptPdf(d) {
   const W=595, H=842, left=36, width=W-72, widths=[36,207,105,64,111], pages=[];
   let ops, y;
-  const text=(x,top,s,size=8.5,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${hex(s)} Tj ET`);
+  const text=(x,top,s,size=8.5,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
   const rect=(x,top,w,h,color)=>ops.push(`${color} rg ${x} ${H-top-h} ${w} ${h} re f`);
-  const wrap=(s,w,size=8.5)=>lines(s,Math.max(7,Math.floor(w/(size*.52))));
+  const wrap=(s,w,size=8.5,bold=false)=>fitPdfCellLines(lines(s,Math.max(7,Math.floor(w/(size*.52)))),w,size,bold);
   const meta=key=>d.metadata.find(r=>r[0]===key)?.[1];
   function head(first) {
     ops=[];pages.push(ops);
@@ -168,21 +312,29 @@ function compactConceptPdf(d) {
       text(left,y,'El costo no cambia con el filtro. Los controles no ajustan la fuente.',8);y+=15;
     } else {text(left,y,`${meta('Filas del filtro')} conceptos en el detalle · continuación de la misma fuente`,8);y+=16;}
     rect(left,y,width,27,'0.09 0.24 0.30');let x=left;
-    d.columns.forEach((c,i)=>{wrap(c.label,widths[i]-10,7.7).forEach((line,j)=>text(x+5,y+10+j*9,line,7.7,true,'1 1 1'));x+=widths[i];});y+=27;
+    d.columns.forEach((c,i)=>{wrap(c.label,widths[i]-10,7.7).forEach((line,j)=>text(c.align==='right'?pdfCellX(c,x,widths[i],line,7.7,true):x+5,y+10+j*9,line,7.7,true,'1 1 1'));x+=widths[i];});y+=27;
   }
   head(true);
   d.rows.forEach((r,index)=>{
     const parts=r.map((v,i)=>wrap(v===null?'No informado':d.columns[i].type==='money'?exactCostMoney(v):shown(v,d.columns[i]),widths[i]-10,8.3));
-    const height=Math.max(...parts.map(p=>p.length))*10.5+7;
-    if(y+height>H-49)head(false);
-    if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;
-    parts.forEach((p,i)=>{p.forEach((line,j)=>text(x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;
+    const totalLines=Math.max(...parts.map(p=>p.length));let offset=0;
+    while(offset<totalLines){
+     let capacity=Math.floor((H-49-y-7)/10.5);
+     if(capacity<1){head(false);capacity=Math.floor((H-49-y-7)/10.5);}
+     if(capacity<1)throw Error('El encabezado no deja espacio al detalle completo. Descargá Excel o CSV.');
+     const count=Math.min(totalLines-offset,capacity),height=count*10.5+7;
+     if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;
+     parts.forEach((p,i)=>{p.slice(offset,offset+count).forEach((line,j)=>text(d.columns[i].align==='right'?pdfCellX(d.columns[i],x,widths[i],line,8.3,d.columns[i].type==='money'):x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;offset+=count;
+     if(offset<totalLines)head(false);
+    }
   });
   if(!d.rows.length)text(left,y+20,'Sin conceptos en el filtro. El costo conserva el alcance de la corrida.',9);
-  const saved=ops;
-  for(let i=0;i<pages.length;i++){ops=pages[i];text(left,H-27,'MuniControl · Consulta interna · Sin firma ni presentación oficial',7.2);text(W-110,H-27,`Página ${i+1} de ${pages.length}`,7.2);text(left,H-14,String(meta('SHA-256')||''),6.2);}ops=saved;
+  const saved=ops,issued=pdfIssuedOn();
+  for(let i=0;i<pages.length;i++){ops=pages[i];text(left,H-27,'MuniControl · Consulta interna · Sin firma ni presentación oficial',7.2);const label='Emitido '+issued+' · Página '+(i+1)+' de '+pages.length;text(W-36-pdfLineWidth(label,7.2),H-27,label,7.2);text(left,H-14,String(meta('SHA-256')||''),6.2);}ops=saved;
   const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
-  for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);}
+  const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
+  for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${symbol} >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);}
+  if(symbol)objects.push(SYMBOL_FONT);
   objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];
   objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n';});const pos=out.length;
   out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`;

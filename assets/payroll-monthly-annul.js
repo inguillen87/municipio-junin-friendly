@@ -1,11 +1,14 @@
 import {monthlyDecisionAccess,sameMonthlyDecisionAccess} from './payroll-monthly-decisions-model.js';
 import {monthlyAnnulBootstrap,monthlyAnnulDetail,monthlyAnnulPlan,monthlyAnnulReviewPlan,monthlyAnnulUnchanged,monthlyAnnulAttempt,monthlyAnnulReceipt} from './payroll-monthly-annul-model.js';
+import {conceptText} from './code-name-help.js';
+import {costCenterText} from './grh-cost-centers.js';
+import {centsToPesosText} from './money-entry.js';
 const API='/api/internal-payroll-monthly-annul';
 const el=(tag,text,id)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(id)node.id='monthlyAnnul'+id;return node;};
 const button=(text,id)=>{const n=el('button',text,id);n.type='button';n.className='button';return n;};
 const field=(text,input)=>{const n=el('label',text);n.append(input);return n;};
 const short=id=>id.slice(0,8).toUpperCase()+'…'+id.slice(-6).toUpperCase();
-const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'SAC',vacation:'Vacaciones',supplementary:'Complementaria',final:'Final',other:'Otra'};
+const types={monthly:'Mensual',first_fortnight:'Primera quincena',sac:'Aguinaldo (SAC)',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra'};
 const states={pending:'Propuesta pendiente',approved:'Anulación aprobada',rejected:'Anulación rechazada'};
 
 export function mountMonthlyAnnul(host,{request,onLockChange,onChanged,onAccessInvalidated,externalLocked}){
@@ -81,8 +84,8 @@ export function mountMonthlyAnnul(host,{request,onLockChange,onChanged,onAccessI
   batches.replaceChildren();const total=items.reduce((n,i)=>n+i.batch.rowCount,0);scope.textContent=`${items.length} lotes completos · ${total} filas originales aprobadas. ${reviewReason?'Motivo de la propuesta: '+reviewReason:''}`;
   for(const item of items){const b=item.batch,section=el('details');section.append(el('summary',`Lote ${short(b.id)} · ${b.periodMonth} · ${types[b.payrollType]} · ${b.rowCount} filas · ${b.contractVersion.endsWith('v2')?'Alta propia':'Origen histórico'}`));
    section.append(el('p',`Aprobación original: ${b.decidedAt} · versión ${b.version}. Estos valores se conservan completos.`));
-   for(const r of b.rows){const row=el('details');row.dataset.annulRow=String(r.rowOrdinal);row.append(el('summary',`Fila ${r.rowOrdinal} · Legajo ${r.legajo} · Concepto ${r.conceptSourceId}`));const dl=el('dl');
-    for(const[label,value]of [['Persona',r.subject?.employeeName??'Nombre no informado'],['Vínculo',r.employmentContractId],['Legajo',r.legajo],['Concepto',r.conceptSourceId],['Centro de costo',r.costCenterSourceId],['Mes de ajuste',r.adjustmentMonth],['Unidades exactas',r.quantityDecimal],['Importe informado en centavos',r.amountCents],['Movimiento',r.movementType],['Instrumento legal',r.legalInstrument],['Observación',r.observation],['Forzado',r.forced?'Sí':'No'],['Registro propio',r.subject?.registrationId??'No corresponde'],['Fecha de alta propia',r.subject?.registeredAt??'No corresponde'],['Validaciones',r.issues.length?JSON.stringify(r.issues):'Sin observaciones']])dl.append(el('dt',label),el('dd',value===null?'No informado':value));row.append(dl);section.append(row);
+   for(const r of b.rows){const row=el('details');row.dataset.annulRow=String(r.rowOrdinal);row.append(el('summary',`Fila ${r.rowOrdinal} · Legajo ${r.legajo} · Concepto ${conceptText(r.conceptSourceId)}`));const dl=el('dl');
+    for(const[label,value]of [['Persona',r.subject?.employeeName??'Nombre no informado'],['Vínculo',r.employmentContractId],['Legajo',r.legajo],['Concepto',conceptText(r.conceptSourceId)],['Centro de costo',r.costCenterSourceId===null?null:costCenterText(r.costCenterSourceId)],['Mes de ajuste',r.adjustmentMonth],['Unidades exactas',r.quantityDecimal],['Importe informado',r.amountCents===null?null:centsToPesosText(r.amountCents)],['Movimiento',r.movementType],['Instrumento legal',r.legalInstrument],['Observación',r.observation],['Forzado',r.forced?'Sí':'No'],['Registro propio',r.subject?.registrationId??'No corresponde'],['Fecha de alta propia',r.subject?.registeredAt??'No corresponde'],['Validaciones',r.issues.length?JSON.stringify(r.issues):'Sin observaciones']])dl.append(el('dt',label),el('dd',value===null?'No informado':value));row.append(dl);section.append(row);
    }batches.append(section);
   }review.hidden=false;confirm.checked=false;
  }

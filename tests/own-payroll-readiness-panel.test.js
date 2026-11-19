@@ -13,6 +13,7 @@ import {catalog as classification} from './fixtures/native-employee-synthetic.js
 import {capture} from './fixtures/own-payroll-run-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {annulDetail,annulReceipt,afterAnnul} from './fixtures/own-payroll-annulment-synthetic.js';
+import {ownRecaptureContext,ownRecaptureEvents} from '../assets/own-payroll-recapture-model.js';
 
 class Element{
  constructor(tag='div'){this.tagName=tag.toLowerCase();this.children=[];this.parentElement=null;this.attributes={};this.listeners=new Map();this.hidden=false;this.disabled=false;this.checked=false;this.selected=false;this.open=false;this._value=undefined;this._text='';this.isConnected=true;this.dataset=new Proxy({}, {set:(target,key,value)=>{target[key]=String(value);this.attributes['data-'+String(key).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});}
@@ -43,10 +44,10 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
 function harness(t){
  const host=new Element(),docEvents=events(),winEvents=events(),requests=[],names=['document','window','fetch','setTimeout','clearTimeout','setInterval','clearInterval'],before=new Map(names.map(n=>[n,Object.getOwnPropertyDescriptor(globalThis,n)]));
- const state={annul:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
- let clock=0,timerId=0;const deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
- const document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:()=>null};
- Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:()=>1,clearInterval(){}});
+ const state={annul:null,liquidation:null,lookup:null,caps:[...OWN_RUN_PREPARE],sessionId:uid(30),program:bootstrap({program:approved()}),catalogItems:classification.items,roster:ownRoster(1),readFailure:null,readThrow:null,malformedRoster:false,authFailure:null,postFailure:true,hold:null,receipt:null};
+ let clock=0,timerId=0;const intervals=new Map(),deadlines=new Map(),advance=ms=>{clock+=ms;for(const[id,t]of [...deadlines])if(t.at<=clock){deadlines.delete(id);t.fn();}};
+ const logoutButton=new Element('button'),document={...docEvents,hidden:false,head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag),querySelectorAll:()=>[],getElementById:id=>id==='logoutButton'?logoutButton:null};
+ Object.assign(globalThis,{document,window:winEvents,setTimeout:(fn,ms)=>{const id=++timerId;deadlines.set(id,{at:clock+ms,fn});return id;},clearTimeout:id=>deadlines.delete(id),setInterval:(fn,ms)=>{const id=++timerId;intervals.set(id,{fn,ms});return id;},clearInterval:id=>intervals.delete(id)});
  globalThis.fetch=async(url,options={})=>{
   const method=options.method??'GET',request={url,method,body:options.body??null,key:options.headers?.['Idempotency-Key']??null};requests.push(request);
   if(state.readStepMs?.length){advance(state.readStepMs.shift());if(options.signal?.aborted)throw new DOMException('Synthetic single HTTP deadline','AbortError');}
@@ -60,10 +61,16 @@ function harness(t){
   else if(url==='/api/internal-own-payroll-program?resource=bootstrap')payload={ok:true,data:state.program};
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=attempt')){assert.ok(state.annul);payload={ok:true,data:state.annul.receipt};}
   else if(url.startsWith('/api/internal-own-payroll-annulment?resource=detail')){assert.ok(state.annul);payload={ok:true,data:state.annul.detail};}
+  else if(url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')){assert.ok(state.liquidation);payload={ok:true,data:state.liquidation};}
   else if(url.startsWith('/api/internal-data?resource=employees')){assert.ok(state.lookup,'Explicit synthetic directory fixture');payload=state.lookup;}
   else if(url.startsWith('/api/internal-data?resource=nativeroster')){if(state.readThrow)throw state.readThrow;if(state.malformedRoster)return new Response('not JSON');if(state.readFailure){status=state.readFailure.status;payload={ok:false,code:state.readFailure.code};}else payload={ok:true,data:state.roster};}
   else assert.fail('Unexpected synthetic HTTP '+url);
-  return new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json'}});
+  const response=new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json'}});
+  // Deliberately return a response formed BEFORE the hold, even if its signal is later aborted.
+  // This tests stale-result guards rather than relying on a cooperative fetch mock.
+  const held=state.responseHold;
+  if(held?.url===url&&held.remaining>0){held.remaining--;held.payloadSnapshot=structuredClone(payload);held.signal=options.signal;held.entered=true;await held.wait;}
+  return response;
  };
  const mounted=mountOwnPayrollRun(host),q=key=>{const value=host.querySelector('[data-own-'+key+']');assert.ok(value,'Actual panel control '+key);return value;};
  const idle=async()=>{const deadline=performance.now()+5000;while(host.getAttribute('aria-busy')!=='false'){if(performance.now()>=deadline)assert.fail('Panel did not settle within 5s; status: '+q('status').textContent+'; preparation: '+q('readiness-title').textContent);await delay(5);}};
@@ -71,7 +78,7 @@ function harness(t){
  const prepare=async()=>{q('period').value='2026-10';q('date').value='2026-10-31';q('type').value='monthly';q('kind').value='all';await q('kind').emit('change');q('confirm').checked=true;await q('confirm').emit('change');};
  const submit=async()=>{await q('form').emit('submit');await idle();};
  t.after(()=>{winEvents.dispatch('pagehide');for(const [key,descriptor]of before)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];});
- return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,document,now:()=>clock};
+ return {state,requests,q,host,start,idle,prepare,submit,refresh:mounted.refresh,queuePreparation:mounted.queuePreparation,event:docEvents.dispatch,windowEvent:winEvents.dispatch,logout:()=>logoutButton.emit('click'),document,now:()=>clock,advance,poll:()=>{const ticks=[...intervals.values()].filter(t=>t.ms===60000);assert.equal(ticks.length,2,'Actual calculation and unopened position-client intervals');return Promise.all(ticks.map(t=>t.fn()));},pendingTimers:()=>deadlines.size,intervalCount:()=>intervals.size};
 }
 
 function assertActionHelp(h,pattern,{href=null}={}){
@@ -107,7 +114,7 @@ test('permiso de calcular con cero legajos propios no habilita el botón ni una 
 });
 test('maestro pendiente y programa pendiente muestran su paso real, sin aprobarlos en pantalla',async t=>{
  const h=harness(t);h.state.program=bootstrap({salaryCatalog:{version:hash('c'),revision:0,items:[]}});await h.start();assert.equal(h.q('readiness-link').href,'/nomina#parametros');assert.equal(h.q('fields').disabled,true);
- h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.equal(h.q('send').disabled,true);assertActionHelp(h,/falta aprobar las reglas/,{href:'/nomina#reglas'});assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+ h.state.program=bootstrap();await h.refresh();assert.equal(h.q('readiness-link').href,'/nomina#reglas');assert.match(h.q('readiness-facts').textContent,/configuración de cálculo sin registrar/);assert.equal(h.q('send').disabled,true);assert.equal(h.q('readiness').hidden,false);assert.equal(h.q('readiness-link').hidden,false);assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.equal(h.q('action-help-link').hidden,true);assert.equal(h.q('action-help-link').getAttribute('href'),null);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 test('error de servicio, capacidad, aborto, JSON inválido y filtro se muestran sin verificar, nunca como cero',async t=>{
  const h=harness(t);await h.start();assert.equal(h.q('fields').disabled,false);
@@ -184,7 +191,7 @@ test('una preparación encolada mientras está oculta no provoca lectura nominal
 
 test('851 propios verificados y programa cero permiten borrador completo sin clave, ACK ni POST',async t=>{
  const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);h.state.roster.rows[0].recordKind='adopted';h.state.roster.rows[0].sexCode='Femenino';h.state.roster.rows[1].recordKind='adopted';h.state.roster.rows[1].sexCode='Masculino';await h.start();
- assert.match(h.q('readiness-facts').textContent,/851 legajos propios/);assert.match(h.q('readiness-facts').textContent,/programa sin aprobación/);assert.match(h.q('readiness-description').textContent,/borrador/);assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
+ assert.match(h.q('readiness-facts').textContent,/851 legajos propios/);assert.match(h.q('readiness-facts').textContent,/configuración de cálculo sin registrar/);assert.match(h.q('readiness-description').textContent,/borrador/);assert.equal(h.q('fields').disabled,false);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').hidden,false);assert.equal(h.q('send').disabled,true);
  h.q('period').value='2026-10';await h.q('period-end').emit('click');assert.equal(h.q('date').value,'2026-10-31');h.q('type').value='monthly';h.q('kind').value='departments';await h.q('kind').emit('change');assert.ok(h.q('codes').options.length);h.q('codes').options[0].selected=true;await h.q('codes').emit('change');assert.equal(h.q('codes').selectedOptions.length,1);
  // A forged DOM checkbox/submission still cannot cross the unchanged canStart gate.
  h.q('confirm').checked=true;await h.submit();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.q('recover').hidden,true);
@@ -195,14 +202,14 @@ test('picker de Calcular busca1339sobre851propios completos sin programa ni dire
  const h=harness(t);h.state.program=bootstrap();h.state.roster=ownRoster(851);const r=h.state.roster.rows[850];Object.assign(r,{legajo:'1339',name:'PERSONA1339SINTÉTICA QA',recordKind:'adopted',sexCode:'Femenino'});
  await h.start();const before=h.requests.length;const dialog=await searchOwnPicker(h,'1339'),rows=dialog.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1);assert.equal(rows[0].value,r.contractId);assert.equal(rows[0].disabled,false);
  assert.match(dialog.querySelector('[data-picker-source]').textContent,/851 legajos consultados/);assert.doesNotMatch(dialog.querySelector('[data-picker-source]').textContent,/Fuente incorporada/);
- rows[0].checked=true;await rows[0].emit('change');assert.equal(dialog.querySelector('[data-picker-apply]').disabled,false);await dialog.querySelector('[data-picker-apply]').emit('click');assert.equal(dialog.open,false);assert.match(h.q('chips').textContent,/1339/);assert.match(h.q('scope').textContent,/1 legajos propios elegidos/);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').disabled,true);await h.submit();
+ rows[0].checked=true;await rows[0].emit('change');assert.equal(dialog.querySelector('[data-picker-apply]').disabled,false);await dialog.querySelector('[data-picker-apply]').emit('click');assert.equal(dialog.open,false);assert.match(h.q('chips').textContent,/1339/);assert.match(h.q('scope').textContent,/1 legajo propio elegido/);assert.equal(h.q('confirm').disabled,true);assert.equal(h.q('send').disabled,true);await h.submit();
  const reads=h.requests.slice(before);assert.ok(reads.every(r=>r.method==='GET'));assert.equal(reads.filter(r=>r.url.startsWith('/api/internal-data?resource=employees')).length,0);assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,4);assert.equal(reads.filter(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')).length,2);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 
 test('aprobación posterior conserva borrador completo y exige revisión manual antes de POST fresco',async t=>{
  const h=harness(t);h.state.program=bootstrap();h.state.postFailure=false;await h.start();await h.prepare();h.q('kind').value='departments';await h.q('kind').emit('change');h.q('codes').options[0].selected=true;const codes=h.q('codes').selectedOptions.map(o=>o.value);h.state.program=bootstrap({program:approved()});await h.refresh();
- assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),codes);assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assertActionHelp(h,/Marcá «Revisé el período/);
- h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);assertActionHelp(h,/Revisión marcada/);const before=h.requests.length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].body).payload.selection,{kind:'departments',values:codes});assert.ok(h.requests.slice(before).some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('kind').value,'departments');assert.deepEqual(h.q('codes').selectedOptions.map(o=>o.value),codes);assert.equal(h.q('confirm').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assertActionHelp(h,/Marcá la revisión de los datos/);
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);assert.equal(h.q('readiness').hidden,true);assert.equal(h.q('action-help').hidden,true);assert.equal(h.q('action-help-text').textContent,'');assert.equal(h.q('action-help-link').hidden,true);const before=h.requests.length;await h.submit();const posts=h.requests.filter(r=>r.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].body).payload.selection,{kind:'departments',values:codes});assert.ok(h.requests.slice(before).some(r=>r.url.startsWith('/api/internal-data?resource=nativeroster')));
 });
 
 test('borrador sin programa se retira al ocultar; sólo vuelve tras padrón y acceso completos frescos',async t=>{
@@ -226,6 +233,47 @@ test('contexto externo espera reglas y, tras aceptación real, reemplaza el borr
  await h.start();await h.prepare();h.q('period').value='2026-11';h.q('date').value='2026-11-30';const accessKey=JSON.stringify([h.state.sessionId,'synthetic-readiness@example.invalid',roster(1).scope.tenantId,'QA']);assert.equal(h.queuePreparation({kind:'consolidated',liquidationDate:'2026-10-31',key:r.key,accessKey}),true);await h.refresh();assert.equal(h.q('period').value,'2026-11');assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,0);
  h.state.program=bootstrap({program:approved()});await h.refresh();assert.equal(h.requests.filter(req=>req.url.includes('internal-own-payroll-annulment')).length,2);assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);
  await h.refresh();assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');assert.match(h.q('chips').textContent,new RegExp(employee.employeeNumber));assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.filter(req=>req.method==='POST').length,0);
+});
+
+function recordedRecapture(h){
+ const before=annulDetail(6),receipt=annulReceipt(before),detail=afterAnnul(before,receipt).runs[0];h.state.liquidation=detail;h.state.roster=ownRoster(6);
+ for(const [index,row]of h.state.roster.rows.entries()){row.contractId=detail.capture.saved.input.employees[index].contractId;row.legajo=detail.capture.saved.input.employees[index].employeeNumber;}
+ return ownRecaptureContext({kind:'annulled-event',source:ownRecaptureEvents(detail)[0].source});
+}
+
+test('recaptura contextual abre el alcance del evento ajeno con la cuenta receptora y no calcula hasta otra confirmación explícita',async t=>{
+ const h=harness(t),context=recordedRecapture(h);assert.equal(h.state.caps.includes('payroll.calculation.approve'),false);
+ assert.equal(h.queuePreparation(context),true);await h.start();
+ assert.equal(h.q('period').value,'2026-10');assert.equal(h.q('type').value,'monthly');assert.equal(h.q('date').value,'2026-10-31');assert.equal(h.q('kind').value,'contracts');
+ assert.equal(h.q('recapture').hidden,false);assert.match(h.q('recapture-summary').textContent,/2026-10.*Mensual.*3 legajos/);assert.ok(h.q('recapture-summary').textContent.includes(context.source.eventId));
+ for(const field of ['period','type','date','kind','picker'])assert.equal(h.q(field).disabled,true,field+' conserva el alcance');
+ assert.equal(h.q('confirm').checked,false);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.some(request=>request.method==='POST'),false);
+ assert.ok(h.requests.some(request=>request.url.startsWith('/api/internal-own-payroll-liquidation?resource=detail')));
+ assert.equal(h.requests.some(request=>request.url.includes('resource=attempt')||request.url.includes('internal-own-payroll-annulment')),false,'no consulta intentos privados del actor que anuló');
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');assert.equal(h.q('send').disabled,false);await h.submit();
+ const posts=h.requests.filter(request=>request.method==='POST');assert.equal(posts.length,1);const body=JSON.parse(posts[0].body).payload;
+ assert.deepEqual(body.selection,{kind:'contracts',values:h.state.liquidation.employees.filter(employee=>employee.state==='annulled').map(employee=>employee.contractId).sort()});
+ assert.equal(body.period,'2026-10');assert.equal(body.liquidationType,'monthly');assert.equal(body.liquidationDate,'2026-10-31');assert.equal(Object.hasOwn(body,'source'),false,'conserva el contrato SQL existente');
+});
+
+test('estado cambiado después de recuperar el evento bloquea el POST completo y retira la confirmación',async t=>{
+ const h=harness(t),context=recordedRecapture(h);h.queuePreparation(context);await h.start();
+ h.q('confirm').checked=true;await h.q('confirm').emit('change');h.state.liquidation.employees.find(employee=>employee.state==='annulled').blockedBy=uid(999);
+ await h.submit();assert.equal(h.requests.some(request=>request.method==='POST'),false);assert.equal(h.q('confirm').checked,false);assert.match(h.q('status').textContent,/alcance parcial/);
+});
+
+test('contexto de recaptura adulterado o receptor sin preparar no habilita una consulta nominal ni un cálculo',async t=>{
+ const h=harness(t),context=recordedRecapture(h);
+ assert.equal(h.queuePreparation({...context,accessKey:'authority-from-another-actor'}),false);assert.equal(h.queuePreparation({...context,source:{...context.source,employeeNumber:'synthetic'}}),false);
+ h.state.caps=h.state.caps.filter(cap=>cap!=='payroll.calculation.prepare');assert.equal(h.queuePreparation(context),true);await h.start();
+ assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('send').disabled,true);assert.equal(h.requests.some(request=>request.url.includes('resource=detail')||request.method==='POST'),false);
+});
+
+test('la referencia se conserva al ocultar para la misma cuenta y se retira sólo con una decisión explícita de otro alcance',async t=>{
+ const h=harness(t),context=recordedRecapture(h);h.queuePreparation(context);await h.start();
+ h.document.hidden=true;h.event('visibilitychange');assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('chips').children.length,0);
+ h.document.hidden=false;h.event('visibilitychange');await h.idle();assert.equal(h.q('recapture').hidden,false);assert.ok(h.q('recapture-summary').textContent.includes(context.source.eventId));assert.equal(h.q('confirm').checked,false);
+ await h.q('recapture-clear').emit('click');assert.equal(h.q('recapture').hidden,true);assert.equal(h.q('period').disabled,false);assert.equal(h.q('kind').disabled,false);assert.equal(h.q('picker').disabled,false);assert.equal(h.q('confirm').checked,false);assert.equal(h.requests.some(request=>request.method==='POST'),false);
 });
 
 async function searchOwnPicker(h,term){
@@ -262,4 +310,92 @@ for(const failure of['onUse','selectionIssue'])test('legacy '+failure+'retiene s
  h.state.lookup={ok:true,version:'employee-picker.v1',data:[employee],pagination:{page:1,limit:20,total:1,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-10-01',sourceCutoffTo:'2026-10-01'}};
  const picker=createEmployeePicker({instanceId:'legacyQaPicker',canUse:()=>true,selectionIssue:()=>issue?'Revisión legacy sintética requerida':null});picker.open({onUse:()=>{throw Object.assign(Error('Aplicación legacy sintética fallida'),{name:'AbortError'});}});const d=h.document.body.querySelectorAll('dialog').at(-1);d.querySelector('#legacyQaPickerSearch').value='1339';await d.querySelector('[data-picker-form]').emit('submit');await settleOwnPicker(d);const row=d.querySelector('[data-picker-results] input');row.checked=true;await row.emit('change');const results=d.querySelector('[data-picker-results]').children[0],chips=d.querySelector('[data-picker-chips]').children[0];issue=failure==='selectionIssue';await d.querySelector('[data-picker-apply]').emit('click');
  assert.equal(d.open,true);assert.equal(d.querySelector('[data-picker-results]').children[0],results);assert.equal(d.querySelector('[data-picker-chips]').children[0],chips);assert.match(d.querySelector('[data-picker-count]').textContent,/1 legajo seleccionado/);assert.equal(d.querySelector('[data-picker-apply]').disabled,false);assert.match(d.querySelector('[data-picker-state]').textContent,failure==='onUse'?/Aplicación legacy sintética fallida/:/Revisión legacy sintética requerida/);assert.equal(h.requests.some(r=>r.method==='POST'),false);picker.close();
+});
+
+// Focused poll/picker regression. Original fixtures, DOM, parser and panel modules above are retained.
+const POLL_ROSTER_URL='/api/internal-data?resource=nativeroster&schema=2&search=&status=all&jurisdiction=&organization=&sector=&agreement=';
+const ownedDeferred=()=>{let release;const wait=new Promise(resolve=>{release=resolve;});return{wait,release};};
+async function waitUntil(predicate){for(let i=0;i<200&&!predicate();i++)await settle();assert.ok(predicate(),'Controlled synthetic HTTP reached its hold');}
+function holdOneAuth(h){const gate=ownedDeferred(),held={url:'/api/internal-auth',remaining:1,entered:false,wait:gate.wait,release:gate.release};h.state.responseHold=held;return held;}
+async function selectedPicker(h){const d=await searchOwnPicker(h,'5001'),row=d.querySelector('[data-picker-results] input');assert.ok(row,'Actual complete roster row');row.checked=true;await row.emit('change');return d;}
+const noPollPost=h=>assert.equal(h.requests.some(r=>r.method==='POST'),false,'Session polling never starts a business command');
+
+test('poll60000 same identity during pending roster keeps exact picker row and Buscar usable',async t=>{
+ const h=harness(t);await h.start();const gate=ownedDeferred();h.state.hold={url:POLL_ROSTER_URL,wait:gate.wait};
+ h.q('kind').value='contracts';await h.q('kind').emit('change');await h.q('picker').emit('click');const d=h.document.body.querySelector('dialog');d.querySelector('#ownRunPickerSearch').value='5001';
+ const before=h.requests.length;await d.querySelector('[data-picker-form]').emit('submit');await waitUntil(()=>h.requests.slice(before).some(r=>r.url===POLL_ROSTER_URL));
+ const held=holdOneAuth(h),pollStart=h.requests.length,poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);
+  assert.equal(h.requests.slice(pollStart).filter(r=>r.url==='/api/internal-auth').length,1,'Unopened position client emits no auth; the held request belongs to Calcular');
+  assert.equal(held.payloadSnapshot.user.id,h.state.sessionId,'Preformed auth snapshot belongs to the active calculation account');
+  assert.deepEqual(held.payloadSnapshot.access.tenantCapabilities,h.state.caps,'Preformed same-account auth retains the original fixture capabilities');
+  h.state.hold=null;gate.release();await settleOwnPicker(d);
+  assert.equal(d.open,true);const rows=d.querySelectorAll('[data-picker-results] input');assert.equal(rows.length,1,'Same-identity poll must not invalidate the pending roster');
+  assert.equal(rows[0].value,h.state.roster.rows[0].contractId,'Original canonical contract identity');
+  assert.equal(d.querySelector('[data-picker-form] button').disabled,false);assert.equal(h.q('fields').disabled,false);
+  rows[0].checked=true;await rows[0].emit('change');assert.equal(d.querySelector('[data-picker-apply]').disabled,false);noPollPost(h);
+ }finally{h.state.hold=null;gate.release();held.release();await poll;await h.idle();await settle();}
+ noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+for(const[label,change]of[
+ ['401',s=>s.authFailure=401],['403',s=>s.authFailure=403],['different-account',s=>s.sessionId=uid(31)],
+ ['same-key-nominal-revoked',s=>s.caps=s.caps.filter(c=>c!=='payroll.novelty.nominal.read')],
+ ['same-key-prepare-revoked',s=>s.caps=s.caps.filter(c=>c!=='payroll.calculation.prepare')]
+])test('poll60000 '+label+' withdraws the old picker without a command',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h);change(h.state);await h.poll();await h.idle();await settle();
+ assert.equal(d.open,false);assert.equal(d.querySelector('[data-picker-results]').children.length,0);assert.equal(h.q('fields').disabled,true);assert.equal(h.q('chips').children.length,0);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('captured old auth cannot restore prepare revoked by a capability event or the next passive poll',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);assert.ok(held.payloadSnapshot.access.tenantCapabilities.includes('payroll.calculation.prepare'),'Old grant captured before the hold');
+  h.event('municontrol:capabilities-ready',{tenantCapabilities:h.state.caps.filter(c=>c!=='payroll.calculation.prepare')});
+  assert.equal(d.open,false);assert.equal(h.q('fields').disabled,true);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.q('fields').disabled,true);await h.poll();await h.idle();assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('captured old auth cannot overwrite a newer operation with fewer capabilities',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);assert.ok(held.payloadSnapshot.access.tenantCapabilities.includes('payroll.calculation.prepare'));
+  h.state.caps=h.state.caps.filter(c=>c!=='payroll.calculation.prepare');await h.refresh();await h.idle();
+  assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.q('fields').disabled,true);assert.equal(d.open,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+for(const mode of['hidden','taskchange','pagehide','logout'])test('captured old auth after '+mode+' never restores a nominal view',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);
+  if(mode==='hidden'){h.document.hidden=true;h.event('visibilitychange');}
+  else if(mode==='taskchange')h.event('taskchange',{id:'decisiones'});
+  else if(mode==='pagehide')h.windowEvent('pagehide');
+  else await h.logout();
+  assert.equal(d.open,false);assert.equal(d.querySelector('[data-picker-results]').children.length,0);
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(d.open,false);assert.equal(h.q('chips').children.length,0);assert.equal(h.q('fields').disabled,true);noPollPost(h);assert.equal(h.pendingTimers(),0);
+ if(mode==='pagehide')assert.equal(h.intervalCount(),0);
+});
+
+test('the owned auth deadline remains45000 and cancellation permits the next interval without a command',async t=>{
+ const h=harness(t);await h.start();const d=await selectedPicker(h),held=holdOneAuth(h),poll=h.poll();
+ try{
+  await waitUntil(()=>held.entered);h.advance(44999);assert.equal(held.signal.aborted,false);h.advance(1);assert.equal(held.signal.aborted,true,'Unchanged45000ms budget');
+ }finally{held.release();await poll;await h.idle();await settle();}
+ assert.equal(h.pendingTimers(),0);assert.equal(d.open,true);assert.equal(h.q('fields').disabled,false);
+ await h.poll();await h.idle();await settle();assert.equal(d.open,true);assert.equal(h.q('fields').disabled,false);noPollPost(h);assert.equal(h.pendingTimers(),0);
+});
+
+test('the interval starts no auth when the panel is busy and owns no duplicate overlapping poll',async t=>{
+ const h=harness(t);await h.start();let held=holdOneAuth(h),work=h.refresh();
+ try{await waitUntil(()=>held.entered);const before=h.requests.length;await h.poll();assert.equal(h.requests.length,before,'Original !busy entry guard');}
+ finally{held.release();await work;await h.idle();await settle();}
+ held=holdOneAuth(h);const poll=h.poll();
+ try{await waitUntil(()=>held.entered);const before=h.requests.length;await h.poll();assert.equal(h.requests.length,before,'One owned session poll');}
+ finally{held.release();await poll;await h.idle();await settle();}
+ noPollPost(h);assert.equal(h.pendingTimers(),0);
 });

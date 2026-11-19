@@ -35,7 +35,10 @@ export function taskWorkspace({host,groups,initial,aliases={},sections=null,menu
   roving(id);const section=sectionOf.get(id);if(section&&!section.open)section.open=true;
   host.dataset.activeTask=id;
   if(history){if(location.hash!=='#'+id)window.history.pushState(null,'','#'+id);if(nav.parentElement===host)nav.scrollIntoView({block:'nearest',behavior:'instant'});else host.scrollIntoView({block:'start',behavior:'instant'})}
-  host.dispatchEvent(new CustomEvent('taskchange',{detail:{id},bubbles:true}));return true;
+  host.dispatchEvent(new CustomEvent('taskchange',{detail:{id},bubbles:true}));
+  // A withdrawal notice written while the task was hidden is noise once it is shown again: clear text-only status lines.
+  for(const line of panels.get(id).querySelectorAll?.('[role=status],[aria-live]')??[])if(!line.children.length&&/al cambiar de tarea/.test(line.textContent))line.textContent='';
+  return true;
  }
  function fromHash(){
   let key;try{key=decodeURIComponent(location.hash.slice(1))}catch{key=''}

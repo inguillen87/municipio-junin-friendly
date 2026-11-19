@@ -1,0 +1,170 @@
+{
+  "version": "attendance-area-authority-source.v1",
+  "sourceFile": "scripts/candidates/attendance-area-authority-v1.source.sql.txt",
+  "sourceSha256": "db13b2abf4845aa1107fd10d7f79e43a84b6bb2b103d011af0e95454dc41f192",
+  "baseCommit": "ad0d80d989b736dee52a0102ef3200b8905b65b2",
+  "installed": false,
+  "installable": false,
+  "sqlExecuted": false,
+  "sqlEngineValidated": false,
+  "NoeliaReady": false,
+  "originalSourcePins": [
+    {
+      "path": "scripts/migrations/004-tenant-iam-control-plane.sql",
+      "sha256": "d22712fc9179d529bcec4d8347a9d845ed873dabee9c005db44b507c731a2195"
+    },
+    {
+      "path": "scripts/migrations/006-tenant-action-authority.sql",
+      "sha256": "0d00147d965884f163b614d2fc1f8f167c27dd91060b101495c08b2275563e4a"
+    },
+    {
+      "path": "scripts/migrations/010-governed-time-source-registry.sql",
+      "sha256": "66ab3584315db1baba52f08ac7579eddbe04898fd5fa2c383f4e778a2f1a7034"
+    },
+    {
+      "path": "scripts/migrations/022-attendance-device-gateway.sql",
+      "sha256": "122994f6627ad6769e8930b62f765025d0506a0956a0bbf457344714b80b8ef7"
+    },
+    {
+      "path": "scripts/migrations/103-native-employment-catalog.sql",
+      "sha256": "759bde35236dc0add938e55664f0addb3c301f79e4ecfdf0771300dbd9795cd6"
+    },
+    {
+      "path": "scripts/migrations/116-native-time-catalog.sql",
+      "sha256": "32f575407ae82e498cb96dc4a63460de20691b947548b9556bdcf31b4bd9b36f"
+    }
+  ],
+  "functions": [
+    {
+      "name": "attendance_area_scope_guard_v1",
+      "signature": "public.attendance_area_scope_guard_v1()",
+      "parameters": [],
+      "returns": "trigger",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "520438651c3706769605e1d89df05ea1477af87683a9d331332d3fdb87ea2f66",
+      "declarationSha256": "42d3678da7da6c352f201c822462b0e6db104c43c991a766cee3cf4b3fef88c7",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_area_scope_audit_v1",
+      "signature": "public.attendance_area_scope_audit_v1()",
+      "parameters": [],
+      "returns": "trigger",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "2d4e53f41eabcd4b4c46682a78275ca4e8a1038477b0cb113fc3225818db3927",
+      "declarationSha256": "84561ff42e074d78a9d5258cb2bb8b53b83bea3428f8d70f0e34bb3e5439b4ef",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_area_catalog_label_v1",
+      "signature": "public.attendance_area_catalog_label_v1(jsonb,jsonb)",
+      "parameters": [
+        {
+          "name": "catalog",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "area",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "b0a3563edf2d594ccf8d9d61ceb4e9a5a9219dbde60ed4ea63bc7972979e4d51",
+      "declarationSha256": "0f2d0478b557d7fd37437d3059129c45b92bb2dc64deab24ae3460b61f2a19fd",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_area_context_v1",
+      "signature": "public.attendance_area_context_v1(jsonb,text)",
+      "parameters": [
+        {
+          "name": "p",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "required_capability",
+          "type": "text",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "VOLATILE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "c9e0f67075092018749db1f6580f0a9d6a44905470bab751a53012dbc8c67efe",
+      "declarationSha256": "241c9076a8256d7cc26b8e3365448eba00bfe96cf3f0d43e7925080c0a636413",
+      "candidateRuntimeFacade": false
+    },
+    {
+      "name": "attendance_area_assert_scope_v1",
+      "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
+      "parameters": [
+        {
+          "name": "c",
+          "type": "jsonb",
+          "default": null
+        },
+        {
+          "name": "area",
+          "type": "jsonb",
+          "default": null
+        }
+      ],
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "volatility": "IMMUTABLE",
+      "securityDefiner": true,
+      "settings": [
+        "search_path=pg_catalog,public,pg_temp"
+      ],
+      "prosrcSha256": "f4e8e5ea28a37945048ccac2c74ceb9ab0d6e25b6c6ff25e4e254fa23b60a800",
+      "declarationSha256": "8693428f0f513cb47b6b3b0589be9a2beba4bbb12c1f958f3c559270259803a4",
+      "candidateRuntimeFacade": false
+    }
+  ],
+  "newTables": [
+    "public.attendance_area_scope",
+    "public.attendance_area_scope_event"
+  ],
+  "capabilities": [
+    "attendance.area.read",
+    "attendance.area.devices.propose",
+    "attendance.area.devices.approve",
+    "attendance.area.devices.audit.read"
+  ],
+  "semantics": {
+    "grants": "none; explicit per-action grants and effective IAM required together",
+    "nullSector": "exact area without a sector, never organization-wide or company-wide",
+    "areaLabels": "unique organization/sector selections from native_employee_catalog_v1; no labels supplied by the requester",
+    "scopeVersion": "session, verified actor, binding, company, source database, all effective area grants and catalogue version",
+    "audit": "versioned scope event; UPDATE/DELETE/TRUNCATE cannot erase event history",
+    "person": "read can lack a verified actor link; proposal and decision cannot"
+  },
+  "compositionRequired": [
+    "pin actual prerequisite schema, function settings, ownership, trigger metadata and ACL closure",
+    "validate candidate and concurrency in the independently authorized isolated laboratory",
+    "provision only explicitly approved grants; no role names or leave scopes confer automatic access"
+  ]
+}
