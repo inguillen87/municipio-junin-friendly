@@ -47,7 +47,7 @@
     button, a { -webkit-tap-highlight-color: transparent; }
     a { color: inherit; }
     [hidden] { display: none !important; }
-    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    :focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 
     .visually-hidden {
       position: absolute !important;
@@ -257,7 +257,7 @@
     .progress-card { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
     .progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
     .progress-head strong { color: var(--navy); }
-    .progress-head span { color: var(--green); font-size: 12px; font-weight: 850; }
+    .progress-head span { color: var(--green); font-size: 12px; font-weight: 850; font-variant-numeric: tabular-nums; }
     .progress-track { height: 8px; margin: 11px 0 8px; overflow: hidden; background: #e0e6e3; border-radius: 2px; }
     .progress-track span { display: block; width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
     .progress-card p { margin: 0; color: var(--muted); font-size: 11px; }
@@ -377,7 +377,7 @@
     .glossary-card { padding: 14px; }
     .glossary-card dt { color: var(--navy); font-weight: 850; }
     .glossary-card dd { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .no-results { padding: 34px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); text-align: center; }
+    .no-results { padding: 34px 20px; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); text-align: center; }
     .no-results strong { display: block; margin-bottom: 4px; color: var(--navy); }
 
     .error-card { width: min(560px, calc(100% - 40px)); margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); box-shadow: var(--shadow); }
@@ -412,6 +412,8 @@
       .section-head p { margin-top: 4px; text-align: left; }
       .assistant-panel { grid-template-columns: 1fr; }
       .assistant-panel .button { width: 100%; }
+      .progress-actions { flex-wrap: wrap; }
+      .progress-actions .button { flex: 1 1 140px; }
       .check-row { grid-template-columns: auto minmax(0, 1fr); }
       .check-row > .button { grid-column: 2; justify-self: start; }
     }

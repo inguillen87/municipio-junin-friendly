@@ -18,7 +18,7 @@
 .access-page [hidden] { display: none !important; }
 .access-page button, .access-page input { font: inherit; }
 .access-page a { color: var(--access-green); text-underline-offset: 4px; }
-.access-page :is(a, button, input, summary):focus-visible { outline: 3px solid #237e76; outline-offset: 3px; }
+.access-page :is(a, button, input, summary):focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 .access-page .skip-link { position: fixed; z-index: 10001; top: 8px; left: 16px; padding: 12px 18px; color: #fff; background: #153a4b; border-radius: 8px; transform: translateY(-150%); }
 .access-page .skip-link:focus { transform: translateY(0); }
 .access-page .site-header { background: #fff; border-bottom: 1px solid var(--access-line); }
@@ -59,7 +59,7 @@
 .access-page .form-input:focus { border-color: var(--access-green); box-shadow: 0 0 0 3px #16746812; }
 .access-page .password-field { position: relative; }
 .access-page .password-field .form-input { padding-right: 84px; }
-.access-page .toggle-pass { position: absolute; top: 3px; right: 5px; min-width: 70px; min-height: 43px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: #23685e; font-size: 12px; font-weight: 650; cursor: pointer; }
+.access-page .toggle-pass { position: absolute; top: 2px; right: 4px; min-width: 72px; min-height: 44px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: #23685e; font-size: 12px; font-weight: 650; cursor: pointer; }
 .access-page .toggle-pass:hover { background: #eef6f2; box-shadow: none; }
 .access-page .form-help { margin: -3px 0 22px; color: var(--access-muted); font-size: 11px; line-height: 1.6; }
 .access-page .button { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 16px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 650; line-height: 1.4; text-align: center; cursor: pointer; }
@@ -72,7 +72,7 @@
 .access-page .button.is-loading .loading-indicator { display: inline-block; }
 @keyframes access-spin { to { transform: rotate(360deg); } }
 .access-page .access-links { display: grid; gap: 0; margin-top: 18px; padding-top: 10px; border-top: 1px solid #e4e9e5; }
-.access-page .access-links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; color: #38645c; font-size: 12px; font-weight: 500; text-decoration: none; }
+.access-page .access-links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; color: #38645c; font-size: 12px; font-weight: 500; text-decoration: none; }
 .access-page .access-links a > span { color: #607b74; font-size: 15px; }
 .access-page .access-links a:hover { text-decoration: underline; }
 .access-page .access-status { margin: 0; color: var(--access-muted); font-size: 12px; line-height: 1.5; }
@@ -132,6 +132,7 @@
   .access-page .access-layout { grid-template-columns: minmax(0, 1fr); gap: 26px; }
   .access-page .access-panel, .access-page .public-route { grid-column: auto; }
   .access-page .context-panel { grid-row: auto; order: 1; margin-top: 2px; padding: 30px; }
+  .access-page .portal-illustration { top: auto; bottom: -24px; right: 0; width: 220px; height: 220px; }
   .access-page .context-panel h1 { font-size: 31px; }
   .access-page .intro { font-size: 14px; }
   .access-page .portal-areas { gap: 19px; margin: 28px 0; }
@@ -146,6 +147,7 @@
   .access-page .login-form { padding: 22px; }
   .access-page h2 { font-size: 25px; }
   .access-page .form-input { font-size: 16px; }
+  .access-page .password-field .form-input { padding-right: 78px; font-size: 15px; }
   .access-page .mfa-actions { grid-template-columns: 1fr; }
   .access-page .login-recovery-codes { grid-template-columns: 1fr; }
   .access-page .context-panel { padding: 28px 24px; }
