@@ -4,6 +4,7 @@ import {qaPdfProSamples} from '../scripts/qa-pdf-pro.mjs';
 import {reportPdf,reportCsv,reportXlsx} from '../assets/report-document.js';
 import {ownReceiptPages} from '../assets/own-payroll-receipt-pdf.js';
 import {receiptSnapshot} from './fixtures/own-payroll-receipt-synthetic.js';
+import {createReportPdf} from '../assets/absence-report-pdf.js';
 const textNodes = pdf => [...Buffer.from(pdf).toString('latin1').matchAll(/<([0-9a-f]+)> Tj/g)]
  .map(m => Buffer.from(m[1],'hex').toString('latin1'));
 const countPages = pdf => (Buffer.from(pdf).toString('latin1').match(/\/Type \/Page \/Parent/g) || []).length;
@@ -45,8 +46,9 @@ test('recibo: identidad, neto y número de página; origen económico inmutable'
  assert.ok(texts.includes('PDF generado')===false,'el PDF guarda texto hex, no texto sin codificar');
  const printable=pages.flatMap(p=>p.flatMap(line=>[...line.matchAll(/<([0-9a-f]+)> Tj/g)].map(m=>Buffer.from(m[1],'hex').toString('latin1'))));
  assert.equal(printable.filter(t=>t==='RECIBO DE HABERES').length,pages.length);
- for(let i=1;i<=pages.length;i++)assert.ok(printable.includes('Página '+i+' de '+pages.length));
- assert.ok(printable.some(t=>t.startsWith('PDF generado ')));
+ // This synthetic sample uses a V1–V5 receipt: frozen bytes keep the historical footer.
+ for(let i=1;i<=pages.length;i++)assert.ok(printable.includes(i+' / '+pages.length));
+ assert.ok(!printable.some(t=>/PDF generado|Emitido /.test(t)),'no wall-clock date in receipts');
  assert.ok(printable.includes('Neto'));
 });
 test('presupuesto: cada hoja mantiene los títulos y la fuente, nombres y legajos',()=>{
@@ -67,4 +69,15 @@ test('la presentación PDF nunca modifica filas ni bytes CSV/XLSX',()=>{
  assert.deepEqual(reportXlsx(d),xlsx);
  assert.ok(Buffer.from(pdf).toString('latin1').includes('0.87 0.95 0.93 rg'));
  assert.ok(text.includes('1.234,56'));
+});
+
+test('ausentismo: «Total general» (con espacio) recibe banda de total sin modificar la celda',()=>{
+ const pdf=createReportPdf({title:'QA de totales'}).table(
+  [{label:'Detalle',weight:3},{label:'Cantidad',weight:1,align:'right'}],
+  [['Detalle individual','7'],['Total general','7']]
+ ).bytes();
+ const bytes=Buffer.from(pdf).toString('latin1');
+ assert.ok(bytes.includes('0.898 0.953 0.937 rg'),'RGB del total con separación por espacio');
+ assert.ok(allText(pdf).includes('Total general'));
+ assert.ok(allText(pdf).includes('7'));
 });
