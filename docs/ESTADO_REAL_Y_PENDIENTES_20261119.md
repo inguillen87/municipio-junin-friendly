@@ -107,6 +107,13 @@ Alcance medido contra la liquidación mensual de octubre de GRH (844 recibos, 21
 
 En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el convenio 1 y 15 no tienen regla en ningún lado (10, 30, 49, 70, 79, 97, 115, 140, 168, 169, 195, 199, 203, 206 y 640). Que el código coincida no garantiza que la fórmula sea la misma en otro convenio: cada regla replicada hay que contrastarla con GRH en el comparador.
 
-Para calcular octubre completo faltan, en este orden: llevar las reglas a los otros once convenios y escribir las 15 que no existen; aprobar el programa (dos personas); cargar las novedades fijas y mensuales; correr la liquidación; comparar contra GRH.
+**Ensayo con las funciones reales, en una copia aislada de la base.** Se aprobó allí la propuesta pendiente con otra persona que la que la preparó (el programa pasó a revisión 2, con 172 reglas) y se pidió la captura de octubre:
+
+1. Con la dotación completa, la captura se rechaza con `OWN_RUN_OFFICIAL_MULTIPLE_AGREEMENTS_UNSUPPORTED`: con el programa nuevo, cada corrida es de **un solo convenio**.
+2. Con sólo el convenio 1, la captura se rechaza con `DECLARED_ADJUSTMENT_REVIEW_REQUIRED`: antes de calcular hay que **cargar y revisar los ajustes mensuales declarados de octubre**.
+
+En la base operativa no se aprobó ni se cambió nada.
+
+Para calcular octubre faltan, en este orden: llevar las reglas a los otros once convenios y escribir las 15 que no existen; aprobar el programa; cargar las novedades fijas y los ajustes mensuales de octubre y revisarlos; correr la liquidación **convenio por convenio**; comparar contra GRH.
 
 **Respaldo de GRH del 10/11.** No fue entregado todavía.
