@@ -6,7 +6,7 @@ Este documento reemplaza, como punto de partida, a las notas de entrega de novie
 
 | Qué | Estado verificado |
 |---|---|
-| Sitio | `municontrol.com` sirve `651fbfb7` (candidato 4): PDF con paginado y pies documentales, pantallas de la ronda 2 (14 pantallas, 320/375/768/1366 px), panel «MuniControl contra GRH». |
+| Sitio | `municontrol.com` sirve `b9b3c463` (candidato 6). Desde el candidato 4: PDF con paginado y pies documentales, pantallas de la ronda 2 (14 pantallas, 320/375/768/1366 px), panel «MuniControl contra GRH». |
 | Migraciones del repositorio | Las 149 migraciones de `scripts/migrations` que crean funciones o tablas propias están completas, incluidas 234 a 242. Las 45 que sólo redefinen objetos no se pueden comprobar por nombre. |
 | Asistencia por áreas (composición) | Instaladas el 19/11, en orden: autoridad, historial, dispositivos esperados, jornadas por área y escritoras de cargo; después 240 y 241. Cada artefacto idéntico byte a byte al ensayado. |
 | Interruptor `ATTENDANCE_DAILY_NOTICE_ENABLED` | Sin definir. El aviso diario sigue apagado. |
@@ -65,4 +65,6 @@ Sobre el candidato 2, 57 de 68 flujos pasaban. Las fallas restantes eran de la p
 
 La corrida completa sobre el candidato 5 (`claude/integracion-20261117`) quedó lanzada el 19/11.
 
-Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0, 14.719 pruebas, 0 fallas y 3 omitidas; ambas migraciones ensayadas en orden sobre una copia aislada de la base operativa, con `plpgsql_check` sin hallazgos en las funciones nuevas; los dos paneles nuevos revisados en navegador real a 375 y 1366 px. Al cierre de este documento las migraciones 243 y 244 no están instaladas en la base operativa y el candidato 6 no está publicado: ambas cosas esperan la decisión expresa del municipio.
+Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0, 14.719 pruebas, 0 fallas y 3 omitidas; ambas migraciones ensayadas en orden sobre una copia aislada de la base operativa, con `plpgsql_check` sin hallazgos en las funciones nuevas; los dos paneles nuevos revisados en navegador real a 375 y 1366 px.
+
+**Instalado y publicado el 19/11/2026**, con decisión expresa: migraciones 243 y 244 en la base operativa (los mismos archivos del ensayo, con respaldo previo) y candidato 6 en `municontrol.com` (`b9b3c463`). Verificado después: 20 funciones nuevas, sólo las 4 fachadas concedidas a la aplicación y ninguna a PUBLIC; 3 tablas nuevas con RLS y sin permisos para la aplicación; guardas en verdadero; los cuatro consumidores con la huella esperada; sin filas nuevas; el sitio sirve las dos pantallas y sus servicios rechazan un pedido sin sesión.
