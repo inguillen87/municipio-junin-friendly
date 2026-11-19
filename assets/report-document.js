@@ -161,6 +161,9 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
  const issued='Emitido '+pdfIssuedOn();const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-224,H-31,issued,7.2);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5);ops.push('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
+ // Source, closure and type travel with each physical sheet, including continuations.
+ const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+ const compactContext=d.metadata.filter(row=>contextKeys.has(row[0])).map(([key,value])=>key+': '+value);
  let detailPages=0;
  function head(){
   const continuation=detailPages++>0;ops=[];pages.push(ops);pageHasData=false;
@@ -170,13 +173,32 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
    const baseSize=11,available=width-115,needed=pdfLineWidth(d.title,baseSize,true),size=Math.max(6,Math.min(baseSize,baseSize*available/needed));
    if(pdfLineWidth(d.title,size,true)>available+0.02)throw Error('El título de continuación no cabe completo en el PDF.');
    text(left,42,d.title,+size.toFixed(2),true,'1 1 1');y=67;
+   if(compactContext.length){
+    // Keep each complete "Clave: valor" pair together. No source/status may be cropped or abbreviated.
+    const measure=font=>pdfLineWidth(compactContext.join(' · '),font,false);
+    const font=measure(7.2)<=width?7.2:6.2;
+    const sourceLines=[];
+    if(measure(font)<=width)sourceLines.push(compactContext.join(' · '));
+    else {
+     let line='';
+     for(const item of compactContext){
+      if(pdfLineWidth(item,font)>width)throw Error('El contexto de origen no cabe completo en el PDF; descargá Excel o CSV.');
+      const next=line?line+' · '+item:item;
+      if(line&&pdfLineWidth(next,font)>width){sourceLines.push(line);line=item;}else line=next;
+     }
+     if(line)sourceLines.push(line);
+    }
+    sourceLines.forEach((line,i)=>text(left,65+i*9,line,font,false,'0.30 0.42 0.48'));
+    y=65+sourceLines.length*9+2;
+   }
   }else{rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');(()=>{const size=d.layout==='own-position-comparison.v1'?13:18,parts=fitPdfCellLines([d.title],width,size,true);if(parts.length===1)text(left,56,d.title,size,true,'1 1 1');else{const wrapped=fitPdfCellLines([d.title],width,10.5,true);if(wrapped.length>2)throw Error('El título no cabe en el PDF. Descargá Excel o CSV.');wrapped.forEach((p,i)=>text(left,52+i*14,p,10.5,true,'1 1 1'));}})();text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
 
-  const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
   const value=key=>d.metadata.find(r=>r[0]===key)?.[1]??'No informado';
   if(d.layout==='own-payroll-comparison.v1'){for(const s of ['Base: '+value('Período base')+' · Comparada: '+value('Período comparada')+' · '+value('Tipo'),'Diferencia: comparada menos base · '+value('Contratos distintos')+' contratos · '+value('Registros del alcance completo')+' filas completas']){text(left,y,s,8.5);y+=12;}}
   const context=d.layout==='own-position-comparison.v1'?[['Consulta',`Ejercicio ${value('Ejercicio')} · Período ${value('Período')} · ${value('Tipo')} · Versión normativa ${value('Versión normativa')}`],['Norma',value('Norma')],['Filtro',`${value('Estado elegido')} · ${value('Orden')}`],['Cobertura',`${value('Grupos cerrados')} grupos · ${value('Legajos del alcance')} legajos · ${value('Filas completas')} filas · Nombres: ${value('Nombres conservados')}`]]:d.layout==='own-payroll-report.v1'?[['Tipos',value('Tipos')],['Alcance exacto',`Repartición elegida: ${value('Repartición elegida')} · Convenio elegido: ${value('Convenio elegido')} · Jurisdicción elegida: ${value('Jurisdicción elegida')}`],['Rangos',value('Rangos')],['Cobertura consultada',`Grupos cerrados: ${value('Grupos originales cerrados')} · Participaciones: ${value('Participaciones seleccionadas')} · Contratos: ${value('Contratos distintos')} · Filas del informe: ${value('Filas completas del informe')}`],['Totales del alcance',`Bruto: ${reportExactShown(value('Bruto exacto del alcance'))} · Retenciones: ${reportExactShown(value('Retenciones exactas del alcance'))} · Neto: ${reportExactShown(value('Neto exacto del alcance'))}`]]:d.metadata.filter(r=>contextKeys.has(r[0]));
-  for(const [label,value] of context){
+  // Specialized reports also print any supplied source/closure pairs on their first sheet.
+  const extraContext=['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)?d.metadata.filter(row=>contextKeys.has(row[0])):[];
+  for(const [label,value] of [...context,...extraContext]){
    for(const l of fitPdfCellLines(lines(label+': '+value,Math.floor(width/4.5)),width,8.5,label==='Estado')){text(left,y,l,8.5,label==='Estado');y+=12}
   }
   y+=10;

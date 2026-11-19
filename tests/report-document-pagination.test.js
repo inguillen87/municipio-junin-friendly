@@ -84,11 +84,17 @@ test('PDF: las filas breves conservan orden, celdas vacías, cero y precisión',
 
 test('PDF multipágina: desde la segunda hoja usa encabezado compacto, conserva 68 filas completas y aumenta la densidad',()=>{
  const d=report(Array.from({length:68},(_,i)=>row('EMP-'+String(i+1).padStart(3,'0'),'Detalle de gestión y control')));
+ // Tracing fields travel with each sheet; long specialized scope and notes remain first-page only.
+ d.metadata.push(['Fuente','Captura sintética QA'],['Estado','Estado de cierre conservado'],['Tipo','Mensual'],['Filas del filtro',68]);
  const before=structuredClone(d),pages=parsedPdf(reportPdf(d));
  assert.ok(pages.length>=4&&pages.length<=8,'68 filas de dos líneas, hojas reales: '+pages.length);
  assertAllData(d,pages);
+ for(const [key,value] of d.metadata.filter(([key])=>['Fuente','Estado','Tipo','Filas del filtro'].includes(key)))
+  assert.equal(pages[0].operations.filter(op=>op.text.includes(key+': '+value)).length,1,'primera hoja '+key);
  for(const page of pages.slice(1)){
   assert.ok(page.operations.some(op=>op.text==='Continuación'),'continuación explícita');
+  for(const [key,value] of d.metadata.filter(([key])=>['Fuente','Estado','Tipo','Filas del filtro'].includes(key)))
+   assert.equal(page.operations.filter(op=>op.text.includes(key+': '+value)).length,1,'trazabilidad '+key+' por hoja');
   assert.ok(!page.operations.some(op=>op.text.startsWith('Alcance exacto:')),'no repetir contexto completo');
   assert.ok(!page.operations.some(op=>op.text==='Datos exclusivamente sintéticos para verificar el documento completo.'),'notas solo en primera hoja');
  }
