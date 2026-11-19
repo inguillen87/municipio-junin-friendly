@@ -104,3 +104,13 @@ test('la lista adicional se valida entera: forma exacta, sin repetidos y con top
   for (const bad of [[], 'x', [{...also[0], extra: 1}], [{...also[0], without: 82}], [{...also[0], without: 0}], [{...also[0], key: 'familia_spouse'}], [also[0], also[0]], [{...also[0], sourceKind: 'x'}],
     Array.from({length: 13}, (_, i) => ({...also[0], key: 'k' + i})), [null]]) assert.equal(ownRunMissing({...missing, also: bad}), null, JSON.stringify(bad).slice(0, 80));
 });
+
+test('los rechazos que encontró el ensayo dicen qué hacer y no mandan a revisar otra cosa', () => {
+  const panel = readFileSync('assets/own-payroll-run-panel.js', 'utf8');
+  const text = code => new RegExp(code + ":'([^']+)'").exec(panel)?.[1] ?? '';
+  // Una antigüedad sin informar llega como SOURCE_VALUE_MISSING: el texto no puede hablar sólo de novedades.
+  assert.match(text('OWN_RUN_SOURCE_VALUE_MISSING'), /antigüedad.*jornada.*condiciones salariales.*declaración familiar.*catálogo.*novedad/);
+  assert.match(text('OWN_RUN_SOURCE_VALUE_MISSING'), /si corresponde cero, hay que informarlo/);
+  assert.match(text('OWN_RUN_LIMIT'), /Elegí menos personas.*dependencia.*volvé a calcular/);
+  assert.match(text('OWN_RUN_SINGLE_AGREEMENT_REQUIRED'), /uno solo/);
+});
