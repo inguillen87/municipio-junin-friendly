@@ -3,7 +3,7 @@
   "baseCommit": "ad0d80d989b736dee52a0102ef3200b8905b65b2",
   "candidate": {
     "path": "scripts/candidates/attendance-area-history-v1.source.sql.txt",
-    "sha256": "99bdb9594d9cd5809a4a72e128ad0a218d6b235852824d62774b41834ffcfe7c"
+    "sha256": "c828b0b75934d17347147802201f6c22eba90cbcf0f2b34f9a00b4095416131c"
   },
   "contract": "contracts/attendance-area-history.v1.json",
   "originalSources": [

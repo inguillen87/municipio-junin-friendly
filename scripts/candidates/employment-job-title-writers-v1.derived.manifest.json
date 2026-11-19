@@ -437,7 +437,7 @@
   "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/employment-job-title-writers-v1.derived.sql.txt",
-    "bytes": 35439,
-    "sha256": "c24c47aeefbfefd5e2dfde5924eca260547a5430f1b0d1ebeb92e83ac7600fc3"
+    "bytes": 35547,
+    "sha256": "1f2888dce3a283ce3cea7a7cd5bab9514c2b89aa336f84a4b08de56d12af827d"
   }
 }

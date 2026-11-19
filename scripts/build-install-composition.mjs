@@ -17,7 +17,8 @@ const evidenceSha=hash(evidenceText);
 const records=[];
 for(const name of COMPOSITION_ORDER){
  const paths=compositionPaths(name),source=raw(paths.source),manifestText=raw(paths.manifest);
- const result=deriveSource({name,source,manifestText,manifest:JSON.parse(manifestText),attestation:evidence.sources[name],attestationFileSha:evidenceSha});
+ const earlierSources=Object.fromEntries(COMPOSITION_ORDER.slice(0,COMPOSITION_ORDER.indexOf(name)).map(earlier=>[earlier,raw(compositionPaths(earlier).source)]));
+ const result=deriveSource({name,source,manifestText,manifest:JSON.parse(manifestText),attestation:evidence.sources[name],attestationFileSha:evidenceSha,earlierSources});
  const generatedManifest=JSON.stringify(result.manifest,null,2)+'\n';
  if(mode==='--write'){
   writeFileSync(url(paths.output),result.sql,'utf8');

@@ -149,7 +149,7 @@ BEGIN
   OR change_row.before_contract IS DISTINCT FROM previous_snapshot
   OR(change_row.before_contract-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'])
    IS DISTINCT FROM(change_row.after_contract-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'])
-  OR(change_row.before_contract->'source_payload'-'employment') IS DISTINCT FROM(change_row.after_contract->'source_payload'-'employment')
+  OR((change_row.before_contract->'source_payload')-'employment') IS DISTINCT FROM((change_row.after_contract->'source_payload')-'employment')
   THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_CHAIN_INVALID'));END IF;
   before_area:=public.attendance_area_history_area_v1(change_row.before_contract);
   after_area:=public.attendance_area_history_area_v1(change_row.after_contract);

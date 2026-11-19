@@ -191,7 +191,7 @@
   "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/attendance-area-authority-v1.derived.sql.txt",
-    "bytes": 20867,
-    "sha256": "a43ee4d7247d284da5955efc53666ad74e8f90c02ce400264b8f26a6ffd38bd4"
+    "bytes": 20975,
+    "sha256": "59aee8a298347fdcb6e8a11b1614e4d4fa8881f40f64515edba8945736742268"
   }
 }

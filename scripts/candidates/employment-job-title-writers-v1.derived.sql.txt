@@ -1,5 +1,6 @@
 -- DERIVED REVIEW ARTIFACT employment-job-title-writers. Never install a source-only file.
--- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
+-- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK;
+-- the reviewed composition appends only the declared facade GRANTs listed in the manifest (runtimeGrants).
 -- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
 -- SOURCE PROPOSAL ONLY. NOT AN INSTALLER. EXACT ORIGINALS AND METADATA REQUIRE REVIEWED COMPOSITION.
 BEGIN;

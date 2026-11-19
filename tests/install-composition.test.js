@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {COMPOSITION_ORDER,compositionPaths,deriveSource,COMPOSITION_RUNTIME_GRANTS,COMPOSITION_RUNTIME_ROLE} from '../scripts/lib/install-composition-source.mjs';
+import {COMPOSITION_ORDER,compositionPaths,deriveSource,COMPOSITION_RUNTIME_GRANTS,COMPOSITION_RUNTIME_ROLE,createdFunctionBodies} from '../scripts/lib/install-composition-source.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const evidence=JSON.parse(read('scripts/candidates/install-composition-attestation-v1.json'));
 const meta=(over={})=>({owner:'qa_owner',acl:'<NULL>',secdef:true,config:['search_path=pg_catalog, public, pg_temp'],lang:'plpgsql',bin:'',volatile:'v',strict:false,parallel:'u',leakproof:false,...over});
@@ -259,4 +259,34 @@ test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su co
  const probe=join(mkdtempSync(join(tmpdir(),'mc-if-case-')),'probe.sql');
  writeFileSync(probe,"BEGIN\n IF a IS DISTINCT FROM CASE WHEN b IS NULL THEN NULL ELSE c END\n THEN RETURN 1;END IF;\n IF a IS DISTINCT FROM (CASE WHEN b IS NULL THEN NULL ELSE c END) THEN RETURN 2;END IF;\nEND");
  assert.deepEqual(offenders(probe),[probe+':2']);rmSync(dirname(probe),{recursive:true,force:true});
+});
+
+// Ensayo en PostgreSQL 17 con plpgsql_check (18/11): «operator is not unique: unknown - unknown». Los operadores JSON
+// (-> ->> #> #>>) tienen MENOS precedencia que + y -, así que a->'x'-'y' se evalúa como a->('x'-'y'). La creación de la
+// función no lo detecta: falla recién al ejecutar esa rama. Toda resta o suma después de un operador JSON va con paréntesis.
+test('ensayo PG17: ningún operador JSON queda sin paréntesis delante de + o -',()=>{
+ const risky=/(?:->>?|#>>?)\s*(?:'[^']*'|[a-z_.]+)\s*[-+]\s*(?:'|[a-z0-9_(])/g;
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql'];
+ for(const file of files)assert.deepEqual(readFileSync(file,'utf8').replace(/--[^\n]*/g,'').match(risky)??[],[],file);
+ assert.equal("x->'source_payload'-'employment'".match(risky)?.length,1,'la regla detecta el caso real');
+ assert.equal("(x->'source_payload')-'employment'".match(risky),null);
+});
+
+// Revisión independiente (18/11, P2): una dependencia creada por una fuente anterior se fijaba sólo por lo observado.
+test('una dependencia creada por una fuente anterior sólo se atesta con el cuerpo de esa fuente revisada',()=>{
+ const input=name=>{const paths=compositionPaths(name),manifestText=readFileSync(paths.manifest,'utf8');return {name,source:readFileSync(paths.source,'utf8'),manifest:JSON.parse(manifestText),manifestText};};
+ const earlier=name=>Object.fromEntries(COMPOSITION_ORDER.slice(0,COMPOSITION_ORDER.indexOf(name)).map(n=>[n,readFileSync(compositionPaths(n).source,'utf8')]));
+ const name='attendance-area-workdays',base={...input(name),earlierSources:earlier(name)};
+ const reviewed=new Map(Object.values(base.earlierSources).flatMap(text=>[...createdFunctionBodies(text)]));
+ const context='public.attendance_area_context_v1(jsonb,text)';
+ assert.match(reviewed.get(context),/^[a-f0-9]{64}$/);
+ // prosrc es el texto exacto entre las comillas de dólar: mismo hash que observó PostgreSQL 17 en el ensayo.
+ assert.equal(reviewed.get(context).slice(0,12),'c9e0f6707509');
+ assert.equal(reviewed.get('public.attendance_area_assert_scope_v1(jsonb,jsonb)').slice(0,12),'f4e8e5ea28a3');
+ const pins=deriveSource({...base,attestation:{}}).manifest.preimages.functions;
+ const functions=Object.fromEntries(pins.map((p,i)=>{const signature=p.signature??('public.'+p.function+'(jsonb)');return [signature,meta({prosrcSha256:reviewed.get(signature)??p.prosrcSha256??String(i%10).repeat(64)})];}));
+ assert.equal(deriveSource({...base,attestation:{functions,triggers:{},reviewed:true}}).manifest.installable,true);
+ assert.throws(()=>deriveSource({...base,attestation:{functions:{...functions,[context]:meta({prosrcSha256:'a'.repeat(64)})},triggers:{},reviewed:true}}),/COMPOSITION_DEPENDENCY_BODY_MISMATCH: public\.attendance_area_context_v1/);
+ // Sin las fuentes anteriores completas no se acepta la comprobación a medias.
+ assert.throws(()=>deriveSource({...base,earlierSources:{}}),/COMPOSITION_EARLIER_SOURCES_INCOMPLETE/);
 });

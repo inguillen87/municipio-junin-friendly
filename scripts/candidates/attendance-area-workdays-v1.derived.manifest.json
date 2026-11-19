@@ -221,7 +221,7 @@
   ],
   "output": {
     "path": "scripts/candidates/attendance-area-workdays-v1.derived.sql.txt",
-    "bytes": 27415,
-    "sha256": "4bd47b5e5a6da66bed0dfb0cda622d2848de741532bd9e07b173bb09ceff1cb9"
+    "bytes": 27523,
+    "sha256": "28eb39719e29ba9f34d8e571b19dd97cc06785b7cdc176afd8123b4252fbd7b7"
   }
 }

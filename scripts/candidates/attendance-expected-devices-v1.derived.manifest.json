@@ -185,7 +185,7 @@
   ],
   "output": {
     "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
-    "bytes": 61720,
-    "sha256": "9ef3416cb12c5491167a4b63156d946eeb4286b637538b143d9c0c422f7cfc19"
+    "bytes": 61828,
+    "sha256": "9100ddef82df438bd15f846f63ee1e773ccc68741ac99b1473c6ca263500a0ae"
   }
 }

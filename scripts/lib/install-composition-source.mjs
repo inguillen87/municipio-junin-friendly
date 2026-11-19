@@ -66,6 +66,17 @@ const PG_BUILTINS=new Set([
  'abs','ceil','floor','round','trunc','mod','power','sqrt','regexp_replace','regexp_match','regexp_matches',
 ]);
 const fnName=signature=>signature.split('(')[0].split('.').pop();
+// Cuerpo (prosrc) de cada función que crea una fuente: el texto exacto entre sus comillas de dólar.
+export function createdFunctionBodies(source){
+ const bodies=new Map();
+ for(const f of functionsIn(source)){
+  const at=source.search(new RegExp('\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+public\\.'+f.name+'\\s*\\(','i'));
+  const open=/\bAS\s+(\$[A-Za-z_0-9]*\$)/.exec(source.slice(at));assert.ok(at>=0&&open,'COMPOSITION_FUNCTION_BODY_UNPARSEABLE: '+f.signature);
+  const start=at+open.index+open[0].length,end=source.indexOf(open[1],start);assert.ok(end>start,'COMPOSITION_FUNCTION_BODY_UNPARSEABLE: '+f.signature);
+  bodies.set(f.signature,sha(source.slice(start,end)));
+ }
+ return bodies;
+}
 const pinName=p=>p.function??fnName(p.signature);
 export function calledFunctions(source){
  const cleaned=stripCommentsAndStrings(source);
@@ -99,7 +110,7 @@ export function calledFunctions(source){
 }
 // pgcrypto está en public con dos sobrecargas de digest: (bytea,text) y (text,text). Una dependencia declarada sólo por
 // nombre con varias sobrecargas observadas queda ambigua en la atestación (Codex, PR 270 6996579811), y está bien que así
-// sea. Cada fuente fija acá las firmas que usan sus llamadas reales; tests/install-composition.test.js clasifica cada
+// sea. Cada fuente fija acá las firmas que usan sus llamadas reales; tests/install-composition-attestation.test.js clasifica cada
 // llamada a digest de cada fuente y exige que coincida exactamente con esta tabla.
 export const DECLARED_DEPENDENCY_SIGNATURES=Object.freeze({
  'attendance-area-authority':Object.freeze({digest:Object.freeze(['public.digest(text,text)'])}),
@@ -244,7 +255,7 @@ ${body} $composition_preimage$;
 -- Attestation input SHA-256: ${metadataSha}. Missing owner/ACL/metadata/trigger-enable pins fail closed.
 `;
 }
-export function deriveSource({name,source,manifest,manifestText,attestation={},attestationFileSha=null}){
+export function deriveSource({name,source,manifest,manifestText,attestation={},attestationFileSha=null,earlierSources=null}){
  assert.ok(COMPOSITION_ORDER.includes(name),'COMPOSITION_UNKNOWN_SOURCE');
  assert.equal(sha(source),canonical(manifest),'COMPOSITION_SOURCE_SHA_CHANGED: '+name);
  assert.equal(typeof manifestText,'string');assert.deepEqual(JSON.parse(manifestText),manifest);
@@ -267,8 +278,19 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
  assert.ok(isPlainObject(observedTriggers),'COMPOSITION_TRIGGER_ATTESTATION_INVALID');
  for(const [sig,seen] of Object.entries(observed))validateFunctionAttestation(sig,seen);
  for(const [key,seen] of Object.entries(observedTriggers))validateTriggerAttestation(key,seen);
+ // Una dependencia creada por una fuente anterior de la composición no se fija sólo por lo observado: su cuerpo
+ // atestado tiene que ser el de esa fuente revisada (revisión independiente del 18/11, P2). Así una rama o base con
+ // un cuerpo viejo o alterado de, por ejemplo, attendance_area_context_v1 no puede convertirse en el pin.
+ const reviewedBodies=new Map();
+ if(earlierSources!==null){
+  assert.ok(isPlainObject(earlierSources),'COMPOSITION_EARLIER_SOURCES_INVALID');
+  assert.deepEqual(Object.keys(earlierSources).sort(),COMPOSITION_ORDER.slice(0,COMPOSITION_ORDER.indexOf(name)).sort(),'COMPOSITION_EARLIER_SOURCES_INCOMPLETE: '+name);
+  for(const text of Object.values(earlierSources))for(const [signature,body] of createdFunctionBodies(text))reviewedBodies.set(signature,body);
+ }
  const buildPin=(p,signature)=>{
   const seen=signature===null?undefined:observed[signature];
+  if(p.kind==='dependency'&&signature!==null&&reviewedBodies.has(signature)&&seen?.prosrcSha256!==undefined&&seen?.prosrcSha256!==null)
+   assert.equal(seen.prosrcSha256,reviewedBodies.get(signature),'COMPOSITION_DEPENDENCY_BODY_MISMATCH: '+signature);
   // Un cuerpo fijado por el manifiesto (reemplazo o guarda) no se puede cambiar por atestación.
   if(p.kind!=='dependency'&&seen?.prosrcSha256!==undefined&&seen?.prosrcSha256!==null)
    assert.equal(seen.prosrcSha256,p.prosrcSha256,'COMPOSITION_ATTESTATION_BODY_MISMATCH: '+signature);
@@ -308,7 +330,8 @@ export function deriveSource({name,source,manifest,manifestText,attestation={},a
  const metadataSha=attestationFileSha??sha(JSON.stringify(attestation));
  const preimage=preimageSql({existing,newFunctions,triggers,metadataSha,attested});
  const header=`-- DERIVED REVIEW ARTIFACT ${name}. Never install a source-only file.
--- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK.
+-- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK;
+-- the reviewed composition appends only the declared facade GRANTs listed in the manifest (runtimeGrants).
 -- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
 `;
  const ending=`-- CODEX INSTALLATION RULE: replace the final ROLLBACK only after adding an explicit
