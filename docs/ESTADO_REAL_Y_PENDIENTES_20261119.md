@@ -110,10 +110,19 @@ En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el conv
 **Ensayo con las funciones reales, en una copia aislada de la base.** Se aprobó allí la propuesta pendiente con otra persona que la que la preparó (el programa pasó a revisión 2, con 172 reglas) y se pidió la captura de octubre:
 
 1. Con la dotación completa, la captura se rechaza con `OWN_RUN_OFFICIAL_MULTIPLE_AGREEMENTS_UNSUPPORTED`: con el programa nuevo, cada corrida es de **un solo convenio**.
-2. Con sólo el convenio 1, la captura se rechaza con `DECLARED_ADJUSTMENT_REVIEW_REQUIRED`: antes de calcular hay que **cargar y revisar los ajustes mensuales declarados de octubre**.
+2. Con sólo el convenio 1, la captura se rechazaba con `DECLARED_ADJUSTMENT_REVIEW_REQUIRED`. **No era una carga pendiente: era un defecto.** Octubre ya tiene dos lotes de novedades preparados y aprobados por dos personas distintas (7 renglones); las cuatro funciones que controlan esa doble revisión exigían que el identificador de persona de cada actor tuviera formato RFC 4122, y los identificadores de persona de este municipio son derivados (el 92 % no lo cumple; ninguno de los actores que ya operaron lo cumple). La migración 245 corrige sólo ese control y recompone la cadena de atestación. Ver `docs/OWN_RUN_ACTOR_PERSON_FORMAT_20261119.md`.
+3. Con la 245 instalada en la copia, la captura se rechaza con `OWN_RUN_SALARY_NATIVE_APPROVAL_REQUIRED`: el programa nuevo usa cuatro condiciones salariales que nadie cargó todavía (adicional docente, importe de referencia docente, vivienda o mayor dedicación, días base del mes). Se cargan de una vez para todos los contratos elegidos: una persona propone y otra aprueba. En la copia se hizo con valores neutros para los 81 contratos y funcionó.
+4. La captura del convenio 1 pasa: 81 personas, con los dos lotes de novedades incluidos.
+5. El motor se detiene con `SOURCE_VALUE_MISSING`: la antigüedad de octubre está aprobada para los 848 contratos, pero **332 quedaron con los años «sin informar»**, y el motor no supone cero. Por convenio: 1 → 5 de 81; 2 → 1 de 23; 3 → 1 de 1; 4 → 26 de 158; 5 → 166 de 166; 6 → 22 de 292; 7 → 2 de 10; 9 → 1 de 1; 11 → 4 de 12; 12 → 44 de 44; 13 → 56 de 56; 14 → 4 de 4. Sólo bloquea donde la fórmula del convenio usa la antigüedad. En la copia se cargó 0 para los 5 del convenio 1 con el comando real (propone una persona, aprueba otra) y funcionó.
+6. El motor se detiene con `INPUT_MISSING` al pedir el dato familiar «cónyuge»: **los hechos familiares de octubre sólo están aprobados para 2 personas**; a 79 de las 81 del convenio 1 les faltan (cónyuge, hijos por nivel escolar, discapacidad, familia numerosa, prenatal). Hasta ahí llegó el ensayo.
 
-En la base operativa no se aprobó ni se cambió nada.
+Dos cosas del producto que el ensayo dejó a la vista y todavía no están resueltas:
 
-Para calcular octubre faltan, en este orden: llevar las reglas a los otros once convenios y escribir las 15 que no existen; aprobar el programa; cargar las novedades fijas y los ajustes mensuales de octubre y revisarlos; correr la liquidación **convenio por convenio**; comparar contra GRH.
+- `INPUT_MISSING` no dice **qué** dato falta ni **a cuántas personas**. Quien opera ve «Falta una entrada necesaria» y no sabe qué cargar. Hace falta una pantalla de preparación del período que lo liste por fuente antes de calcular.
+- Sólo la jornada y la antigüedad tienen carga colectiva con seguimiento; las condiciones salariales y los hechos familiares se cargan con un único comando para muchos contratos, sin archivo ni reanudación.
+
+En la base operativa no se aprobó ni se cambió nada. La migración 245 está ensayada y **no está instalada**.
+
+Para calcular octubre del convenio 1 faltan, en este orden: instalar la 245; aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; cargar y aprobar los hechos familiares de las 79 personas que faltan; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
 
 **Respaldo de GRH del 10/11.** No fue entregado todavía.
