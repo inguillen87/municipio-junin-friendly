@@ -68,3 +68,11 @@ La corrida completa sobre el candidato 5 (`claude/integracion-20261117`) quedó 
 Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0, 14.719 pruebas, 0 fallas y 3 omitidas; ambas migraciones ensayadas en orden sobre una copia aislada de la base operativa, con `plpgsql_check` sin hallazgos en las funciones nuevas; los dos paneles nuevos revisados en navegador real a 375 y 1366 px.
 
 **Instalado y publicado el 19/11/2026**, con decisión expresa: migraciones 243 y 244 en la base operativa (los mismos archivos del ensayo, con respaldo previo) y candidato 6 en `municontrol.com` (`b9b3c463`). Verificado después: 20 funciones nuevas, sólo las 4 fachadas concedidas a la aplicación y ninguna a PUBLIC; 3 tablas nuevas con RLS y sin permisos para la aplicación; guardas en verdadero; los cuatro consumidores con la huella esperada; sin filas nuevas; el sitio sirve las dos pantallas y sus servicios rechazan un pedido sin sesión.
+
+## Medido en la base operativa el 19/11 (sólo totales)
+
+**Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. La recolección automática funciona: la última marcación llegó el 19/11 a las 00:39 y entran entre 116 y 128 por día. Pero desde el 13/11 entrega **un solo dispositivo**; el 12/11 entregaron dos. Los otros cinco puntos registrados no están entregando y ocho puntos más no están registrados. Lo que falta es conectividad en sitio (red municipal o VPN hacia cada reloj), no desarrollo.
+
+**Liquidación propia de octubre.** Hay 3 capturas de entradas del 6/11 (dos de la dotación completa: 848 personas, 29 departamentos; una de un contrato). Ninguna tiene resultado: `payrollCalculated=false`. Las capturas muestran además **0 novedades fijas y 0 lotes de novedades mensuales** cargados, y una propuesta de programa de reglas sin decidir. Para calcular octubre faltan, en este orden: aprobar el programa de reglas (dos personas), cargar las novedades fijas y mensuales, correr la liquidación y recién entonces comparar contra GRH.
+
+**Respaldo de GRH del 10/11.** No fue entregado todavía.
