@@ -1,0 +1,53 @@
+name: PDF professional layouts - visual QA
+on:
+  pull_request:
+    paths:
+      - assets/report-document.js
+      - assets/own-payroll-pdf-kit.js
+      - assets/own-payroll-receipt-pdf.js
+      - assets/absence-report-pdf.js
+      - assets/budget-structure-pdf.js
+      - scripts/qa-pdf-pro.mjs
+      - tests/pdf-pro-layout.test.js
+      - .github/workflows/pdf-pro-visual-qa.yml
+permissions:
+  contents: read
+jobs:
+  pdf-professional-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise PDF + original financial regression tests
+        run: >
+          node --test
+          tests/pdf-pro-layout.test.js
+          tests/report-*.test.js
+          tests/own-payroll-receipt-layout.test.js
+          tests/own-payroll-pdf-winansi.test.js
+          tests/own-payroll-receipt-quantity-column.test.js
+          tests/budget-structure.test.js
+      - name: Generate four real synthetic PDFs
+        run: node scripts/qa-pdf-pro.mjs
+      - name: Render every QA page as PNG and check PDF structure
+        shell: bash
+        run: |
+          if ! command -v pdftoppm >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y poppler-utils; fi
+          mkdir -p out/pdf-pro/rendered
+          for f in out/pdf-pro/*.pdf; do
+            stem="${f##*/}"; stem="${stem%.pdf}"
+            pdfinfo "$f" | tee "out/pdf-pro/rendered/${stem}.info.txt"
+            pdftoppm -r 110 -png "$f" "out/pdf-pro/rendered/${stem}" >/dev/null
+            pdftotext -layout "$f" "out/pdf-pro/rendered/${stem}.txt"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: pdf-pro-synthetic-visual-qa
+          path: out/pdf-pro/
+          if-no-files-found: warn
+          retention-days: 7

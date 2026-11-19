@@ -25,6 +25,7 @@ function fallbackWidth(text, size, bold) {
  */
 export function createReportPdf({title = 'Informe', subtitle = '', footer = '', measure = fallbackWidth} = {}) {
  const pages = [], images = [];
+ const issuedOn=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
  let ops = null, y = 0;
  const width = (t, s, b) => measure(t, s, b);
  function newPage() { ops = []; pages.push(ops); y = A4.h - M; header(); }
@@ -40,9 +41,18 @@ export function createReportPdf({title = 'Informe', subtitle = '', footer = '', 
   const lines = [];
   for (const para of String(t ?? '').split('\n')) {
    let line = '';
-   for (const word of para.split(/\s+/).filter(Boolean)) {
-    const next = line ? line + ' ' + word : word;
-    if (width(next, size, bold) > maxW && line) { lines.push(line); line = word; } else line = next;
+   for (const full of para.split(/\s+/).filter(Boolean)) {
+    let word = [...full];
+    while (word.length && width(word.join(''), size, bold) > maxW) {
+     if (line) { lines.push(line); line = ''; }
+     let cut = 1;
+     while (cut < word.length && width(word.slice(0, cut + 1).join(''), size, bold) <= maxW) cut++;
+     if (width(word.slice(0, cut).join(''), size, bold) > maxW) throw Error('Una columna PDF es demasiado estrecha para su texto.');
+     lines.push(word.slice(0, cut).join('')); word = word.slice(cut);
+    }
+    const tail = word.join(''), next = line ? line + ' ' + tail : tail;
+    if (line && width(next, size, bold) > maxW) { lines.push(line); line = tail; }
+    else line = next;
    }
    lines.push(line);
   }
@@ -75,20 +85,35 @@ export function createReportPdf({title = 'Informe', subtitle = '', footer = '', 
    if (caption) api.text(caption, {size: 8, color: '#5d6f78'}); else y -= 4; return api;
   },
   table(columns, rows, {size = 8.2} = {}) {
-   const total = A4.w - 2 * M, weights = columns.map(c => c.weight || 1), sum = weights.reduce((a, b) => a + b, 0);
-   const widths = weights.map(w => w / sum * total), rowH = size * 2.2;
-   const head = () => { ensure(rowH * 2); fill('#123247'); ops.push(`${num(M)} ${num(y - rowH)} ${num(total)} ${num(rowH)} re f`); let x = M; columns.forEach((c, i) => { cell(c.label, x, widths[i], true, '#ffffff', c.align); x += widths[i]; }); y -= rowH; };
-   const cell = (t, x, w, bold, color, align) => {
-    let s = String(t ?? ''); while (s.length > 1 && width(s, size, bold) > w - 8) s = s.slice(0, -2) + '…';
-    const tx = align === 'right' ? x + w - 4 - width(s, size, bold) : x + 4; write(s, tx, y - rowH + size * 0.75, size, bold, color);
+   const total = A4.w - 2*M, weights = columns.map(c => c.weight || 1), sum = weights.reduce((a,b)=>a+b,0);
+   const widths = weights.map(w=>w/sum*total), leading=size*1.35, pad=7;
+   const fit=(v,w,bold)=>wrap(v,size,bold,w-10);
+   const headingParts=columns.map((c,i)=>fit(c.label,widths[i],true));
+   const headerHeight=Math.max(24,...headingParts.map(lines=>lines.length*leading+pad*2));
+   const render=(parts,height,bold,color)=>{
+    let x=M;columns.forEach((c,i)=>{
+     parts[i].forEach((line,j)=>{const tx=c.align==='right'?x+widths[i]-5-width(line,size,bold):x+5;write(line,tx,y-pad-size-j*leading,size,bold,color);});
+     x+=widths[i];
+    });y-=height;
    };
+   const head=()=>{ensure(headerHeight+12);fill('#123247');ops.push(`${num(M)} ${num(y-headerHeight)} ${num(total)} ${num(headerHeight)} re f`);render(headingParts,headerHeight,true,'#ffffff');};
    head();
-   rows.forEach((r, ri) => {
-    if (y - rowH < M + 18) { newPage(); head(); }
-    if (ri % 2) { fill('#f4f7f8'); ops.push(`${num(M)} ${num(y - rowH)} ${num(total)} ${num(rowH)} re f`); }
-    let x = M; columns.forEach((c, i) => { cell(r[i], x, widths[i], false, '#18252d', c.align); x += widths[i]; }); y -= rowH;
+   rows.forEach((r,index)=>{
+    const parts=columns.map((c,i)=>fit(r[i],widths[i],false)),totalLines=Math.max(...parts.map(lines=>lines.length));
+    const normalHeight=totalLines*leading+pad*2,freshHeight=A4.h-46-headerHeight-(M+18);
+    if(normalHeight<=freshHeight&&y-normalHeight<M+18){newPage();head();}
+    let offset=0;const totalRow=/^(?:total|totales|subtotal)(?:\\b|\\s|:)/i.test(String(r[0]??''));
+    while(offset<totalLines){
+     let capacity=Math.floor((y-(M+18)-pad*2)/leading);
+     if(capacity<1){newPage();head();capacity=Math.floor((y-(M+18)-pad*2)/leading);}
+     if(capacity<1)throw Error('No hay espacio en el PDF para una fila completa.');
+     const count=Math.min(totalLines-offset,capacity),height=count*leading+pad*2;
+     if(totalRow||index%2===1){fill(totalRow?'#e5f3ef':'#f4f7f8');ops.push(`${num(M)} ${num(y-height)} ${num(total)} ${num(height)} re f`);}
+     render(parts.map(lines=>lines.slice(offset,offset+count)),height,totalRow,'#18252d');
+     offset+=count;if(offset<totalLines){newPage();head();}
+    }
    });
-   y -= 10; return api;
+   y-=10;return api;
   },
   keep(h) { ensure(h); return api; },
   spacer(h = 10) { y -= h; return api; },
@@ -103,7 +128,11 @@ export function createReportPdf({title = 'Informe', subtitle = '', footer = '', 
    const imageIds = images.map(im => obj({stream: im.jpeg, dict: `/Type /XObject /Subtype /Image /Width ${im.px.w} /Height ${im.px.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`}));
    const xobjects = images.map((im, i) => `/${im.name} ${imageIds[i]} 0 R`).join(' ');
    const pageIds = pages.map((p, i) => {
-    const footerOps = [`BT /F1 7.5 Tf ${rgb('#5d6f78')} rg ${M} 22 Td ${winAnsi(footer)} Tj ET`, `BT /F1 7.5 Tf ${rgb('#5d6f78')} rg ${num(A4.w - M - 60)} 22 Td ${winAnsi(`Página ${i + 1} de ${pages.length}`)} Tj ET`];
+    const footLines=wrap([footer,'Emitido '+issuedOn].filter(Boolean).join(' · '),7.2,false,A4.w-2*M-124);
+    if(footLines.length>3)throw Error('El pie del PDF supera el espacio reservado.');
+    const footerOps=footLines.map((line,j)=>`BT /F1 7.2 Tf ${rgb('#5d6f78')} rg ${M} ${22+j*10} Td ${winAnsi(line)} Tj ET`);
+    const pageText=`Página ${i+1} de ${pages.length}`;
+    footerOps.push(`BT /F1 7.5 Tf ${rgb('#5d6f78')} rg ${num(A4.w-M-width(pageText,7.5,false))} 22 Td ${winAnsi(pageText)} Tj ET`);
     const content = obj({stream: enc.encode([...p, ...footerOps].join('\n')), dict: ''});
     return obj(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${num(A4.w)} ${num(A4.h)}] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >>${xobjects ? ` /XObject << ${xobjects} >>` : ''} >> /Contents ${content} 0 R >>`);
    });

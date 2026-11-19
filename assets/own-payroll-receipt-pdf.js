@@ -105,7 +105,8 @@ function drawOwnReceiptPages(record,params,source,{state='prepared',batchId='Pre
  // When this block lands on a later page than the totals, the net is repeated so the last page still says what is paid.
  if(doc.pages.length!==netPage)notes.unshift([`Neto: ${net} (totales en la página ${netPage})`,true,INK]);
  for(const [part,bold,color]of notes){doc.put(L,doc.y,part,7.5,bold,color);doc.y-=10;}
- for(const i of doc.pages.keys()){doc.select(i);doc.line(L,64,R,64);doc.put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);doc.put(L,41,`Legajo ${record.employeeNumber} · ${source.period} · ${type}`,7.5,false,MUTED);doc.right(R,46,`${i+1} / ${doc.pages.length}`,8);}
+ const generatedOn=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
+ for(const i of doc.pages.keys()){doc.select(i);doc.line(L,64,R,64);doc.put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);doc.put(L,41,`Legajo ${record.employeeNumber} · ${source.period} · ${type}`,7.5,false,MUTED);doc.right(R,52,'PDF generado '+generatedOn,7,false,MUTED);doc.right(R,41,'Página '+(i+1)+' de '+doc.pages.length,8);}
  return doc.pages;
 }
 export async function createOwnReceiptPdf(value,{signal,preview=false,self=false,index=0}={}){
