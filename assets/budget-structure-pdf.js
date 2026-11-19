@@ -7,6 +7,7 @@ export function budgetStructurePdf(raw,filters={}){
  const data=verifyBudgetStructure(raw),view=structureView(data,filters),W=842,H=595,L=28,BOTTOM=548;
  const widths=[30,28,30,30,35,35,42,297,40,43,84,92]; // sum 886 scaled into the printable band
  const scale=(W-L*2)/widths.reduce((a,b)=>a+b,0),sizes=widths.map(n=>n*scale),pages=[];let ops,y,current=null;
+ const issuedOn=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
  const text=(x,top,s,size=8,bold=false,color='0.08 0.18 0.22')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x.toFixed(2)} ${(H-top).toFixed(2)} Tm ${hex(s)} Tj ET`);
  const rect=(x,top,w,h,color)=>ops.push(`${color} rg ${x.toFixed(2)} ${(H-top-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
  const putLines=(s,size=7.5)=>{for(const line of wrap(s,Math.floor((W-L*2)/(size*.55)))){text(L,y,line,size);y+=size+3}};
@@ -15,14 +16,22 @@ export function budgetStructurePdf(raw,filters={}){
   putLines(data.issuer+' | Emisión informada: '+data.issuedAt);putLines('Vista '+(view.mode==='simple'?'simple':'detallada')+' | Orden: '+({source:'original',number:'número de legajo',name:'alfabético'})[view.order]+' | '+view.visibleGroups+' de '+view.sourceGroups+' estructuras | '+view.assignments+' filas nominales | Cant informada: '+view.reportedQuantity);
   putLines('Búsqueda: '+(view.query||'sin filtro')+'. Se incluyen completos los cargos coincidentes.');
   putLines('Fuente documental: no acredita cupo anual aprobado, cargo liquidado, pago ni vigencia del legajo. Cant y Estado se conservan sin reinterpretar.');
-  rect(L,y,W-L*2,24,'0.09 0.25 0.30');let x=L;
-  STRUCTURE_COLUMNS.forEach((label,i)=>{text(x+3,y+15,label,7.4,true,'1 1 1');x+=sizes[i]});y+=24;
+  const heads=STRUCTURE_COLUMNS.map((label,i)=>wrap(label,Math.max(2,Math.floor((sizes[i]-6)/(7.4*.62))))),headHeight=Math.max(25,...heads.map(parts=>parts.length*9+7));
+  rect(L,y,W-L*2,headHeight,'0.09 0.25 0.30');let x=L;
+  heads.forEach((parts,i)=>{parts.forEach((part,j)=>text(x+3,y+12+j*9,part,7.4,true,'1 1 1'));x+=sizes[i]});y+=headHeight;
  }
  function group(g,continuation=false){
-  const parts=g.values.map((v,i)=>wrap(v,Math.max(2,Math.floor((sizes[i]-7)/(7.6*.56))))),height=Math.max(1,...parts.map(a=>a.length))*10+10;
-  if(y+height+(!continuation&&view.mode==='detailed'&&g.members.length?25:0)>BOTTOM)header();
-  rect(L,y,W-L*2,height,'0.89 0.94 0.94');let x=L;
-  parts.forEach((p,i)=>{p.forEach((s,j)=>text(x+3,y+12+j*10,s,7.6,i===7));x+=sizes[i]});y+=height;
+  const parts=g.values.map((v,i)=>wrap(v,Math.max(2,Math.floor((sizes[i]-7)/(7.6*.56))))),maxLines=Math.max(1,...parts.map(p=>p.length));
+  let offset=0;
+  while(offset<maxLines){
+   let capacity=Math.floor((BOTTOM-y-10)/10);
+   if(capacity<1){header();capacity=Math.floor((BOTTOM-y-10)/10);}
+   if(capacity<1)throw Error('No queda espacio para la estructura completa en el PDF.');
+   const count=Math.min(maxLines-offset,capacity),height=count*10+10;
+   rect(L,y,W-L*2,height,'0.89 0.94 0.94');let x=L;
+   parts.forEach((lines,i)=>{lines.slice(offset,offset+count).forEach((part,j)=>text(x+3,y+12+j*10,part,7.6,i===7));x+=sizes[i]});
+   y+=height;offset+=count;if(offset<maxLines)header();
+  }
   if(view.mode==='detailed'){
    text(L+6,y+11,'Fuente pág. '+g.sourcePage+(continuation?' | continuación':''),7);
    text(L+120,y+11,'LEGAJO',7.5,true);text(L+190,y+11,'NOMBRE',7.5,true);text(W-L-64,y+11,'Pág. fuente',7,true);y+=18;
@@ -42,7 +51,7 @@ export function budgetStructurePdf(raw,filters={}){
    if(!g.quantityMatchesDetail){if(y+20>BOTTOM){header();group(current,true)}text(L+6,y+12,'Observación: Cant informada y filas nominales no coinciden; se conserva la fuente.',7.5,true);y+=20;}
   }y+=5;
  }
- for(const [i,page]of pages.entries()){ops=page;text(L,570,'Consulta documental | Sin firma ni homologación presupuestaria | Página '+(i+1)+' de '+pages.length,7);text(L,584,'SHA-256 del PDF fuente: '+data.sha256,6.5);}
+ for(const [i,page]of pages.entries()){ops=page;text(L,570,'Consulta documental | Sin firma ni homologación presupuestaria',7);const label='Emitido '+issuedOn+' | Página '+(i+1)+' de '+pages.length;text(W-L-6-label.length*3.55,570,label,7);text(L,584,'SHA-256 del PDF fuente: '+data.sha256,6.5);}
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
  for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)}
  objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;let out='%PDF-1.4\n',offsets=[0];objects.slice(1).forEach((v,i)=>{offsets.push(out.length);out+=(i+1)+' 0 obj\n'+v+'\nendobj\n'});const at=out.length;

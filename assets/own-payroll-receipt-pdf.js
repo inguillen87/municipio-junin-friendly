@@ -25,7 +25,7 @@ function drawOwnReceiptPages(record,params,source,{state='prepared',batchId='Pre
  // Receipt v6: frozen print facts. `printed` is null for every earlier version, whose pages stay exactly as they were.
  const facts=record.printFacts??null,printed=ownReceiptPrintedQuantities(record),ABSENT='Sin dato conservado';
  let continued=false;
- const doc=ownPdfDocument({unsupported:UNSUPPORTED,header(doc){
+ const doc=ownPdfDocument({unsupported:UNSUPPORTED,professional:!!facts,header(doc){
   // Employer on the left, kind of document on the right.
   const issuer=doc.fit(params.issuer.name,330,12,true),place=doc.fit(`CUIT ${ownPdfTaxIdText(params.issuer.taxId)} · ${params.issuer.address}`,330,8);
   issuer.forEach((part,i)=>doc.put(L,doc.y-i*14,part,12,true));
@@ -105,7 +105,8 @@ function drawOwnReceiptPages(record,params,source,{state='prepared',batchId='Pre
  // When this block lands on a later page than the totals, the net is repeated so the last page still says what is paid.
  if(doc.pages.length!==netPage)notes.unshift([`Neto: ${net} (totales en la página ${netPage})`,true,INK]);
  for(const [part,bold,color]of notes){doc.put(L,doc.y,part,7.5,bold,color);doc.y-=10;}
- for(const i of doc.pages.keys()){doc.select(i);doc.line(L,64,R,64);doc.put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);doc.put(L,41,`Legajo ${record.employeeNumber} · ${source.period} · ${type}`,7.5,false,MUTED);doc.right(R,46,`${i+1} / ${doc.pages.length}`,8);}
+ // Immutable V1–V5 receipts retain byte-identical footer and geometry. V6 has a fixed layout without clock-derived fields.
+ for(const i of doc.pages.keys()){doc.select(i);doc.line(L,64,R,64);doc.put(L,52,'SIN FIRMA DIGITAL · COPIA PARA REVISIÓN',8,true);doc.put(L,41,`Legajo ${record.employeeNumber} · ${source.period} · ${type}`,7.5,false,MUTED);if(facts)doc.right(R,46,'Página '+(i+1)+' de '+doc.pages.length,8);else doc.right(R,46,`${i+1} / ${doc.pages.length}`,8);}
  return doc.pages;
 }
 export async function createOwnReceiptPdf(value,{signal,preview=false,self=false,index=0}={}){

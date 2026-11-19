@@ -61,7 +61,7 @@ export function ownPdfText(unsupported){
 
 // A document as a list of pages, each a list of PDF operations. `y` is the top of the next block; `header(doc)` draws the top of
 // every page. Coordinates are points on an A4 sheet (595 × 842), origin at the bottom left.
-export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
+export function ownPdfDocument({unsupported,bottom=76,top=806,header=null,professional=false}){
  const {hex,width,fit,shrink}=ownPdfText(unsupported),pages=[],n=value=>+value.toFixed(2);let ops=null;
  const doc={y:0,pages,bottom,width,fit,shrink,
   page(){ops=[];pages.push(ops);doc.y=top;header?.(doc);},
@@ -72,7 +72,15 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
   line(x1,y1,x2,y2,shade=OWN_PDF_LINE,weight=0.6){ops.push(`${shade} RG ${weight} w ${n(x1)} ${n(y1)} m ${n(x2)} ${n(y2)} l S`);},
   box(x,y,w,h,{fill=null,stroke=OWN_PDF_LINE,weight=0.6}={}){if(fill)ops.push(`${fill} rg ${n(x)} ${n(y)} ${n(w)} ${n(h)} re f`);if(stroke)ops.push(`${stroke} RG ${weight} w ${n(x)} ${n(y)} ${n(w)} ${n(h)} re S`);},
   // A row of labelled values across [x, x+w]: small label above, value below.
-  cells(items,x,w,{bold=false,size=9}={}){const each=w/items.length;items.forEach(([label,value],i)=>{const at=x+i*each;doc.put(at,doc.y,label,7,false,OWN_PDF_MUTED);doc.put(at,doc.y-size-2.5,value,shrink(value,each-8,size,bold),bold);});doc.y-=size+2.5;},
+  cells(items,x,w,{bold=false,size=9}={}){
+   if(!professional){items.forEach(([label,value],i)=>{const each=w/items.length,at=x+i*each;doc.put(at,doc.y,label,7,false,OWN_PDF_MUTED);doc.put(at,doc.y-size-2.5,value,shrink(value,each-8,size,bold),bold);});doc.y-=size+2.5;return;}
+   const each=w/items.length,prepared=items.map(([label,value])=>{
+    const font=shrink(value,each-8,size,bold),parts=width(value,font,bold)<=each-8?[String(value)]:fit(value,each-8,font,bold);
+    return {label,parts,font};
+   }),extra=Math.max(0,...prepared.map(p=>p.parts.length-1))*(size+1);
+   if(doc.y-size-2.5-extra<bottom)throw Error('Los datos del recibo no caben en el área imprimible.');
+   prepared.forEach(({label,parts,font},i)=>{const at=x+i*each;doc.put(at,doc.y,label,7,false,OWN_PDF_MUTED);parts.forEach((part,j)=>doc.put(at,doc.y-size-2.5-j*(size+1),part,font,bold));});doc.y-=size+2.5+extra;
+  },
   // One concept as a row of a column `columnWidth` wide: code, label wrapped to the real width, value on the right edge.
   // Money goes without sign under a column that already says it is money; elsewhere `withSign` writes it.
   // `quantity` (a text, possibly empty) opens a quantity column between the label and the value; `null` draws the row as before.
@@ -110,7 +118,7 @@ export function ownPdfDocument({unsupported,bottom=76,top=806,header=null}){
    for(;;){
     doc.ensure(headHeight+Math.max(first(left,li),first(right,ri))+4);
     const bandTop=doc.y;head?.();const from=doc.y;
-    const column=(items,start,a,b)=>{let at=start,yy=from;while(at<items.length&&yy-first(items,at)>=bottom){draw(items[at],a,b,yy);yy-=items[at].height;at++;}return [at,yy];};
+    const column=(items,start,a,b)=>{let at=start,yy=from;while(at<items.length&&yy-first(items,at)>=bottom){if(professional&&!items[at].heading&&!items[at].note&&at%2===0)doc.box(a,yy-items[at].height,b-a,items[at].height,{fill:OWN_PDF_TINT,stroke:null});draw(items[at],a,b,yy);yy-=items[at].height;at++;}return [at,yy];};
     const [nl,yl]=column(left,li,x0,xm),[nr,yr]=column(right,ri,xm,x1);
     if(nl===li&&nr===ri)throw Error('Un concepto no entra en una página. No se recortó ni se omitió.');
     li=nl;ri=nr;doc.y=Math.min(yl,yr)-2;

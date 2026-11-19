@@ -91,6 +91,7 @@ const REPORT_PDF_FONT_WIDTHS=[[278,278,355,556,556,889,667,191,333,333,389,584,2
 // Ancho de una línea con las métricas de la fuente del PDF. Sólo lo usan las columnas que piden align:'right'.
 function pdfLineWidth(line,size,bold=false){const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];return [...String(line)].reduce((n,character)=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return n+PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return n+(metrics[code-32]??metrics[63-32]);},0)*size/1000;}
 const pdfCellX=(column,x,cellWidth,line,size,bold)=>column.align==='right'?x+cellWidth-6-pdfLineWidth(line,size,bold):x+6;
+const pdfIssuedOn=()=>new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
 function fitPdfCellLines(parts,width,size,bold=false){
  const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0],limit=width*1000/size;
  const advance=character=>{const point=character.codePointAt(0);if(character===PDF_ARROW)return PDF_ARROW_WIDTH;const code=point<=255?point:(chars[point]??63);return metrics[code-32]??metrics[63-32];};
@@ -144,7 +145,7 @@ function statementCoverPage(d){
  for(const line of lines('Las páginas siguientes contienen todo el detalle agrupado del mismo alcance. Los auxiliares no se suman como haberes. Importes originales exactos, sin un nuevo cálculo salarial.',105)){text(left,y,line,8);y+=12;}
  if(y>H-62)throw Error('La primera hoja supera la capacidad del PDF. Descargá Excel o CSV para conservar todo el alcance.');
  text(left,H-31,'MuniControl | Documento de consulta sin firma, imputación ni pago',8);
- text(W-101,H-31,'Página 1',8);return ops;
+ return ops;
 }
 const pdfTextWidth=(s,size,bold)=>{const metrics=REPORT_PDF_FONT_WIDTHS[bold?1:0];let n=0;for(const character of String(s)){const point=character.codePointAt(0),code=point<=255?point:(chars[point]??63);n+=character===PDF_ARROW?PDF_ARROW_WIDTH:(metrics[code-32]??metrics[63-32]);}return n*size/1000;};
 // Encabezado de columna. Si todas sus palabras entran, se arma como siempre. Si una palabra no entra en su columna
@@ -158,41 +159,81 @@ export function reportPdfHeading(label,inner){
 export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1','own-payroll-report.v1'].includes(d.layout)&&[d.title,...d.rows.flat(),...d.metadata.flat(),...d.notes,...(d.payrollStatement?[...d.payrollStatement.reconciliation.flat(),d.payrollStatement.status,d.payrollStatement.populationNotice]:[])].some(v=>[...String(v??'')].some(c=>c.codePointAt(0)>255&&!Object.hasOwn(chars,c.codePointAt(0)))))throw Error('El PDF no admite un carácter de esta fuente. Descargá Excel o CSV para conservar el texto original.');if(d.salaryCost&&d.layout==='compact-concepts.v1')return compactConceptPdf(d);const landscape=d.columns.length>5,W=landscape?842:595,H=landscape?595:842,left=36,width=W-72,pages=[];let ops,y,pageHasData=false;
  const text=(x,top,s,size=9,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
  const rect=(x,top,w,h,c)=>ops.push(`${c} rg ${x} ${H-top-h} ${w} ${h} re f`);
- const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-109,H-31,'Página '+pages.length,8);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5)};
+ const issued='Emitido '+pdfIssuedOn();const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-224,H-31,issued,7.2);if(d.layout==='own-grh-comparison.v1'){text(left,H-19,'Resultado propio SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado propio SHA-256')?.[1]??''),6.5);text(left,H-8,'Fuente GRH SHA-256: '+(d.metadata.find(r=>r[0]==='Fuente GRH SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-payroll-comparison.v1'){text(left,H-19,'Resultado base SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado base SHA-256')?.[1]??''),6.5);text(left,H-8,'Resultado comparada SHA-256: '+(d.metadata.find(r=>r[0]==='Resultado comparada SHA-256')?.[1]??''),6.5);}else if(d.layout==='own-position-comparison.v1'){text(left,H-19,'Norma SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 norma')?.[1]??''),6.5);text(left,H-8,'Consulta SHA-256: '+(d.metadata.find(r=>r[0]==='SHA-256 consulta')?.[1]??''),6.5);}else text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5);ops.push('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
- function head(){ops=[];pages.push(ops);pageHasData=false;rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');text(left,56,d.title,d.layout==='own-position-comparison.v1'?13:18,true,'1 1 1');text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
-  const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+ // Source, closure and type travel with each physical sheet, including continuations.
+ const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+ const compactContext=d.metadata.filter(row=>contextKeys.has(row[0])).map(([key,value])=>key+': '+value);
+ let detailPages=0;
+ function head(){
+  const continuation=detailPages++>0;ops=[];pages.push(ops);pageHasData=false;
+  if(continuation){
+   rect(0,0,W,51,'0.045 0.15 0.20');rect(0,51,W,2,'0.0 0.50 0.46');
+   text(left,19,'MuniControl | Centro de reportes',9,true,'1 1 1');text(W-114,19,'Continuación',8,false,'0.80 0.91 0.92');
+   const baseSize=11,available=width-115,needed=pdfLineWidth(d.title,baseSize,true),size=Math.max(6,Math.min(baseSize,baseSize*available/needed));
+   if(pdfLineWidth(d.title,size,true)>available+0.02)throw Error('El título de continuación no cabe completo en el PDF.');
+   text(left,42,d.title,+size.toFixed(2),true,'1 1 1');y=67;
+   if(compactContext.length){
+    // Keep each complete "Clave: valor" pair together. No source/status may be cropped or abbreviated.
+    const measure=font=>pdfLineWidth(compactContext.join(' · '),font,false);
+    const font=measure(7.2)<=width?7.2:6.2;
+    const sourceLines=[];
+    if(measure(font)<=width)sourceLines.push(compactContext.join(' · '));
+    else {
+     let line='';
+     for(const item of compactContext){
+      if(pdfLineWidth(item,font)>width)throw Error('El contexto de origen no cabe completo en el PDF; descargá Excel o CSV.');
+      const next=line?line+' · '+item:item;
+      if(line&&pdfLineWidth(next,font)>width){sourceLines.push(line);line=item;}else line=next;
+     }
+     if(line)sourceLines.push(line);
+    }
+    sourceLines.forEach((line,i)=>text(left,65+i*9,line,font,false,'0.30 0.42 0.48'));
+    y=65+sourceLines.length*9+2;
+   }
+  }else{rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');(()=>{const size=d.layout==='own-position-comparison.v1'?13:18,parts=fitPdfCellLines([d.title],width,size,true);if(parts.length===1)text(left,56,d.title,size,true,'1 1 1');else{const wrapped=fitPdfCellLines([d.title],width,10.5,true);if(wrapped.length>2)throw Error('El título no cabe en el PDF. Descargá Excel o CSV.');wrapped.forEach((p,i)=>text(left,52+i*14,p,10.5,true,'1 1 1'));}})();text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||d.metadata.find(r=>r[0]==='Períodos')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
+
   const value=key=>d.metadata.find(r=>r[0]===key)?.[1]??'No informado';
   if(d.layout==='own-payroll-comparison.v1'){for(const s of ['Base: '+value('Período base')+' · Comparada: '+value('Período comparada')+' · '+value('Tipo'),'Diferencia: comparada menos base · '+value('Contratos distintos')+' contratos · '+value('Registros del alcance completo')+' filas completas']){text(left,y,s,8.5);y+=12;}}
   const context=d.layout==='own-position-comparison.v1'?[['Consulta',`Ejercicio ${value('Ejercicio')} · Período ${value('Período')} · ${value('Tipo')} · Versión normativa ${value('Versión normativa')}`],['Norma',value('Norma')],['Filtro',`${value('Estado elegido')} · ${value('Orden')}`],['Cobertura',`${value('Grupos cerrados')} grupos · ${value('Legajos del alcance')} legajos · ${value('Filas completas')} filas · Nombres: ${value('Nombres conservados')}`]]:d.layout==='own-payroll-report.v1'?[['Tipos',value('Tipos')],['Alcance exacto',`Repartición elegida: ${value('Repartición elegida')} · Convenio elegido: ${value('Convenio elegido')} · Jurisdicción elegida: ${value('Jurisdicción elegida')}`],['Rangos',value('Rangos')],['Cobertura consultada',`Grupos cerrados: ${value('Grupos originales cerrados')} · Participaciones: ${value('Participaciones seleccionadas')} · Contratos: ${value('Contratos distintos')} · Filas del informe: ${value('Filas completas del informe')}`],['Totales del alcance',`Bruto: ${reportExactShown(value('Bruto exacto del alcance'))} · Retenciones: ${reportExactShown(value('Retenciones exactas del alcance'))} · Neto: ${reportExactShown(value('Neto exacto del alcance'))}`]]:d.metadata.filter(r=>contextKeys.has(r[0]));
-  for(const [label,value] of context){
-   for(const l of lines(label+': '+value,Math.floor(width/4.5))){text(left,y,l,8.5,label==='Estado');y+=12}
+  // Specialized reports also print any supplied source/closure pairs on their first sheet.
+  const extraContext=['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)?d.metadata.filter(row=>contextKeys.has(row[0])):[];
+  for(const [label,value] of [...context,...extraContext]){
+   for(const l of fitPdfCellLines(lines(label+': '+value,Math.floor(width/4.5)),width,8.5,label==='Estado')){text(left,y,l,8.5,label==='Estado');y+=12}
   }
   y+=10;
-  for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
+  for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1','own-grh-comparison.v1'].includes(d.layout)&&pages.length>(d.payrollStatement?2:1)?[]:d.notes){for(const l of fitPdfCellLines(lines(note,Math.floor(width/4.5)),width,8)){text(left,y,l,8);y+=11}y+=5}
+  }
   const headings=d.columns.map((c,i)=>reportPdfHeading(c.label,widths[i]-12)),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(h=>h.parts.length*10+14)):32;
-  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
+  y+=continuation?2:8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach(({parts,size},i)=>{parts.forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,size,true),y+12+j*10,l,size,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
  if(d.payrollStatement)pages.push(statementCoverPage(d));head();
  d.rows.forEach((r,index)=>{
   const parts=r.map((v,i)=>fitPdfCellLines(lines(shown(v,d.columns[i]),Math.max(7,Math.floor((widths[i]-12)/4.3))),widths[i]-12,8.5,i>0&&d.columns[i].type!=='text'));
-  const lineCount=Math.max(...parts.map(p=>p.length)),height=lineCount*12+14;
+  const lineCount=Math.max(...parts.map(p=>p.length)),height=lineCount*10+7;
   // Keep ordinary rows together. A row larger than a fresh page continues by lines,
   // with the same columns and alternating background; each cell is emitted only once.
-  if(pageHasData&&y+height>H-62)head();
+  if(pageHasData&&y+height>H-88)head();
   let offset=0;
   while(offset<lineCount){
-   const capacity=Math.floor((H-62-y-14)/12);
+   const capacity=Math.floor((H-88-y-7)/10);
    if(capacity<1)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');
-   const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*12+14;
-   if(index%2===0)rect(left,y,width,fragmentHeight,'0.94 0.97 0.97');
+   const count=Math.min(capacity,lineCount-offset),fragmentHeight=count*10+7;
+   const totalRow=/^(?:total|totales|subtotal)(?:\b|\s|:)/i.test(String(r[0]??''));if(totalRow)rect(left,y,width,fragmentHeight,'0.87 0.95 0.93');else if(index%2===0)rect(left,y,width,fragmentHeight,'0.94 0.97 0.97');
    let x=left;
-   parts.forEach((p,i)=>{const bold=i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+15+j*12,l,8.5,bold));x+=widths[i];});
+   parts.forEach((p,i)=>{const bold=totalRow||i>0&&d.columns[i].type!=='text';p.slice(offset,offset+count).forEach((l,j)=>text(pdfCellX(d.columns[i],x,widths[i],l,8.5,bold),y+12+j*10,l,8.5,bold));x+=widths[i];});
    y+=fragmentHeight;pageHasData=true;offset+=count;
    if(offset<lineCount)head();
   }
  });
- if(!d.rows.length){if(y+25>H-62)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
+ if(!d.rows.length){if(y+25>H-88)throw Error('El encabezado no deja espacio para el detalle del PDF. Descargá Excel o CSV para conservar todo el alcance.');text(left,y+25,'Sin resultados para los filtros seleccionados.',10);}
+  for(let i=0;i<pages.length;i++){
+   const page=pages[i],pageW=page.width??W,label='Página '+(i+1)+' de '+pages.length;
+   const pageX=pageW-36-pdfLineWidth(label,7.2),pageOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+pageX.toFixed(2)+' 31 Tm '+show(label,'F1',7.2)+' ET';
+   const pending=page.indexOf('PDF_PRO_PAGE_FOOTER_PLACEHOLDER');
+   if(pending>=0)page[pending]=pageOp;
+   else {const dateOp='BT /F1 7.2 Tf 0.33 0.42 0.47 rg 1 0 0 1 '+(pageW-224)+' 31 Tm '+show(issued,'F1',7.2)+' ET';page.push(dateOp,pageOp);}
+  }
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
  // La fuente Symbol sólo se declara si alguna hoja usa la flecha, después de las hojas: los demás objetos no cambian de número.
  const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
@@ -248,7 +289,7 @@ function compactConceptPdf(d) {
   let ops, y;
   const text=(x,top,s,size=8.5,bold=false,color='0.08 0.22 0.29')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${H-top} Tm ${show(s,bold?'F2':'F1',size)} ET`);
   const rect=(x,top,w,h,color)=>ops.push(`${color} rg ${x} ${H-top-h} ${w} ${h} re f`);
-  const wrap=(s,w,size=8.5)=>lines(s,Math.max(7,Math.floor(w/(size*.52))));
+  const wrap=(s,w,size=8.5,bold=false)=>fitPdfCellLines(lines(s,Math.max(7,Math.floor(w/(size*.52)))),w,size,bold);
   const meta=key=>d.metadata.find(r=>r[0]===key)?.[1];
   function head(first) {
     ops=[];pages.push(ops);
@@ -276,14 +317,20 @@ function compactConceptPdf(d) {
   head(true);
   d.rows.forEach((r,index)=>{
     const parts=r.map((v,i)=>wrap(v===null?'No informado':d.columns[i].type==='money'?exactCostMoney(v):shown(v,d.columns[i]),widths[i]-10,8.3));
-    const height=Math.max(...parts.map(p=>p.length))*10.5+7;
-    if(y+height>H-49)head(false);
-    if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;
-    parts.forEach((p,i)=>{p.forEach((line,j)=>text(d.columns[i].align==='right'?pdfCellX(d.columns[i],x,widths[i],line,8.3,d.columns[i].type==='money'):x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;
+    const totalLines=Math.max(...parts.map(p=>p.length));let offset=0;
+    while(offset<totalLines){
+     let capacity=Math.floor((H-49-y-7)/10.5);
+     if(capacity<1){head(false);capacity=Math.floor((H-49-y-7)/10.5);}
+     if(capacity<1)throw Error('El encabezado no deja espacio al detalle completo. Descargá Excel o CSV.');
+     const count=Math.min(totalLines-offset,capacity),height=count*10.5+7;
+     if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;
+     parts.forEach((p,i)=>{p.slice(offset,offset+count).forEach((line,j)=>text(d.columns[i].align==='right'?pdfCellX(d.columns[i],x,widths[i],line,8.3,d.columns[i].type==='money'):x+5,y+11+j*10.5,line,8.3,d.columns[i].type==='money'));x+=widths[i];});y+=height;offset+=count;
+     if(offset<totalLines)head(false);
+    }
   });
   if(!d.rows.length)text(left,y+20,'Sin conceptos en el filtro. El costo conserva el alcance de la corrida.',9);
-  const saved=ops;
-  for(let i=0;i<pages.length;i++){ops=pages[i];text(left,H-27,'MuniControl · Consulta interna · Sin firma ni presentación oficial',7.2);text(W-110,H-27,`Página ${i+1} de ${pages.length}`,7.2);text(left,H-14,String(meta('SHA-256')||''),6.2);}ops=saved;
+  const saved=ops,issued=pdfIssuedOn();
+  for(let i=0;i<pages.length;i++){ops=pages[i];text(left,H-27,'MuniControl · Consulta interna · Sin firma ni presentación oficial',7.2);const label='Emitido '+issued+' · Página '+(i+1)+' de '+pages.length;text(W-36-pdfLineWidth(label,7.2),H-27,label,7.2);text(left,H-14,String(meta('SHA-256')||''),6.2);}ops=saved;
   const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'],kids=[];
   const symbol=usesSymbol(pages)?` /F3 ${5+pages.length*2} 0 R`:'';
   for(const page of pages){const id=objects.length,content=page.join('\n');kids.push(id+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${symbol} >> >> /Contents ${id+1} 0 R >>`,`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);}

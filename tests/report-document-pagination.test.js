@@ -16,7 +16,7 @@ function parsedPdf(bytes){
  assert.equal(streams.length,dimensions.length);
  return streams.map((m,index)=>{
   const operations=[...m[1].matchAll(/BT \/(F1|F2) ([\d.]+) Tf [\d. ]+ rg 1 0 0 1 ([\d.eE+-]+) ([\d.eE+-]+) Tm <([a-f0-9]*)> Tj ET/g)].map(v=>({font:v[1],size:Number(v[2]),x:Number(v[3]),y:Number(v[4]),text:new TextDecoder('windows-1252').decode(Buffer.from(v[5],'hex'))}));
-  const footer=operations.findIndex(v=>v.y===31&&v.text==='Página '+(index+1));assert.ok(footer>=0,'Página numerada');
+  const footer=operations.findIndex(v=>v.y===31&&v.text==='Página '+(index+1)+' de '+dimensions.length);assert.ok(footer>=0,'Página numerada');
   const data=operations.slice(footer+1).filter(v=>v.text!==''&&!/^(Norma|Consulta|Resultado base|Resultado comparada) SHA-256:/.test(v.text));
   return {...dimensions[index],operations,data};
  });
@@ -80,4 +80,23 @@ test('PDF: un encabezado sin espacio útil rechaza la exportación sin entregar 
 test('PDF: las filas breves conservan orden, celdas vacías, cero y precisión',()=>{
  const a=row('EMP-CORTO',''),b=row('EMP-CERO','Cero explícito');a[3]='0.00000000';b[3]='-0.01000000';
  const d=report([a,b]),pages=parsedPdf(reportPdf(d));assert.equal(pages.length,1);assertAllData(d,pages);
+});
+
+test('PDF multipágina: desde la segunda hoja usa encabezado compacto, conserva 68 filas completas y aumenta la densidad',()=>{
+ const d=report(Array.from({length:68},(_,i)=>row('EMP-'+String(i+1).padStart(3,'0'),'Detalle de gestión y control')));
+ // Tracing fields travel with each sheet; long specialized scope and notes remain first-page only.
+ d.metadata.push(['Fuente','Captura sintética QA'],['Estado','Estado de cierre conservado'],['Tipo','Mensual'],['Filas del filtro',68]);
+ const before=structuredClone(d),pages=parsedPdf(reportPdf(d));
+ assert.ok(pages.length>=4&&pages.length<=8,'68 filas de dos líneas, hojas reales: '+pages.length);
+ assertAllData(d,pages);
+ for(const [key,value] of d.metadata.filter(([key])=>['Fuente','Estado','Tipo','Filas del filtro'].includes(key)))
+  assert.equal(pages[0].operations.filter(op=>op.text.includes(key+': '+value)).length,1,'primera hoja '+key);
+ for(const page of pages.slice(1)){
+  assert.ok(page.operations.some(op=>op.text==='Continuación'),'continuación explícita');
+  for(const [key,value] of d.metadata.filter(([key])=>['Fuente','Estado','Tipo','Filas del filtro'].includes(key)))
+   assert.equal(page.operations.filter(op=>op.text.includes(key+': '+value)).length,1,'trazabilidad '+key+' por hoja');
+  assert.ok(!page.operations.some(op=>op.text.startsWith('Alcance exacto:')),'no repetir contexto completo');
+  assert.ok(!page.operations.some(op=>op.text==='Datos exclusivamente sintéticos para verificar el documento completo.'),'notas solo en primera hoja');
+ }
+ assert.deepEqual(d,before);
 });
