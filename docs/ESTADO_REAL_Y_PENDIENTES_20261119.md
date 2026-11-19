@@ -182,4 +182,16 @@ En la base operativa no se aprobó ni se cargó nada. La migración 245 **quedó
 
 Para calcular octubre del convenio 1 faltan, en este orden: aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; informar las cantidades familiares de 79 personas y los meses de ajuste prenatal de las 81; informar la antigüedad parcial de las 81; lo que el motor pida después; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
 
-**Respaldo de GRH del 10/11.** No fue entregado todavía.
+**Respaldo de GRH del 9/11 (corrección).** El respaldo **sí había sido entregado**, varias veces desde el 10/11; el error fue de Claude, que lo buscaba con otro nombre y otra fecha. Es el corte del 9/11/2026 15:17. Ya está perfilado y comparado contra el corte del 28/10 15:16, que es el último incorporado (los conjuntos de octubre se importaron el 4/11). Informe agregado `grh-backup-review.v1`, sin datos de personas:
+
+| Tabla | Corte 28/10 | Corte 9/11 | Diferencia |
+|---|---|---|---|
+| persona | 2.357 | 2.358 | 1 alta |
+| legajo | 2.458 | 2.459 | 1 alta; 778 con fechas actualizadas; 4 cambios de estado |
+| familia, vínculo, organización | 3.656 · 9 · 83 | iguales | sin cambios |
+| histocal (liquidaciones) | 635 | 636 | 1 nueva: **noviembre 2026 tipo V, cerrada** |
+| histolegajo | 845 | 843 | identificadores regenerados por el sistema origen; se compara con el análisis de sucesor |
+
+Además, por conteo de filas: 8.744 renglones de cálculo nuevos (la liquidación de noviembre tipo V), 2.677 movimientos de legajo, 22 ausencias, 16 asientos de foja y 1 embargo. La liquidación mensual de noviembre figura abierta en GRH a esa fecha. Falta el resto del procedimiento gobernado: extracción estricta, análisis de sucesor, ensayo de reemplazo de fuente e incorporación con revisión.
+
+**Oracle (19/11).** Con la consola abierta por Marcelo, sólo lectura: la máquina del colector de relojes está encendida (Ubuntu 24.04, creada el 23/09) y con actividad sostenida, cerca del 20 % de procesador y 22 % de memoria durante la última hora. La cuenta muestra que la prueba gratuita terminó y que sólo siguen los recursos «Always Free»; la máquina tiene esa forma. No se entró por SSH: qué relojes atiende esa máquina y por qué B, C y D dejaron de entregar entre el 10 y el 12/11 sigue sin verificar.
