@@ -18,6 +18,9 @@
     "api/internal-data.js": {
       "maxDuration": 60
     },
+    "api/internal-own-payroll-run.js": {
+      "maxDuration": 800
+    },
     "api/internal-employment-catalog.js": {
       "maxDuration": 20
     },

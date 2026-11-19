@@ -165,7 +165,11 @@ Qué deja esto en claro: el motor, la captura, la verificación en la base y el 
 - **Concepto 144.** GRH paga el importe de MuniControl multiplicado por 2 (18 personas), 1,5 (5), 1,3 (3) y otros factores. Coincide con el adicional por mayor dedicación, que en la copia se cargó en «no» para todos.
 - **Tres personas con básico sólo en MuniControl.** Tienen recibo de GRH sin básico; falta cargar su situación del mes (licencia o ausencia).
 
-**Riesgo de rendimiento encontrado.** Verificar y guardar esa corrida de 81 personas llevó unos cinco minutos en la copia (resultado de 17 MB). La función publicada que calcula y guarda no declara su límite de tiempo. Con ese tiempo una corrida de este tamaño puede cortarse antes de guardarse, y un convenio de 292 personas no entra. Hay que medirlo en la base operativa y, según dé, declarar el límite, aligerar la verificación o pasarla a un trabajo en segundo plano.
+**Límites reales de una corrida, medidos.**
+
+- **Tiempo.** Verificar y guardar la corrida de 81 personas llevó unos cinco minutos en la copia. La función publicada que calcula y guarda no declaraba su límite y corría con el valor por defecto del proyecto, 300 segundos: justo en el borde. Desde el candidato 7 declara 800 segundos, el máximo del plan.
+- **Tamaño.** La base rechaza con `OWN_RUN_LIMIT` una corrida cuya captura, entrada y resultado sumen más de 32 MB. La de 81 personas suma unos 22 MB (el resultado solo, 17 MB). Con el programa actual el tope queda cerca de **120 personas por corrida**.
+- **Consecuencia práctica.** Octubre no se puede calcular en una sola corrida ni siquiera por convenio: los convenios 4 (158 personas), 5 (166) y 6 (292) hay que partirlos por dependencia. Para la dotación completa son del orden de diez corridas. Pendiente: que la pantalla lo avise antes de calcular y proponga cómo partir, y estudiar por qué la verificación tarda tanto (o pasarla a un trabajo en segundo plano).
 
 El patrón es uno solo: las cargas de octubre se aprobaron en bloque con muchos campos «sin informar», y las fórmulas del convenio 1 piden un valor explícito en cada uno, aunque sea cero. El motor avisa de a un dato por vez.
 

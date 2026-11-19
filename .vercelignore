@@ -432,6 +432,9 @@ local-agents/
 # la vista previa fallaba con ENOENT desde 49369b84. La página de dispositivos esperados ya tiene ruta y puerta de
 # capacidades publicadas (app-routes, internal-capability-gate). Los .sql/.txt son fuentes revisables, sin datos.
 !asistencia-dispositivos.html
+!scripts/migrations/231-own-monthly-declared-adjustments.sql
+!scripts/migrations/233-own-quantity-only-inputs.sql
+!scripts/migrations/235-own-capped-deduction-effects.sql
 !scripts/migrations/237-own-approved-period-values.sql
 !scripts/migrations/240-attendance-daily-source.sql
 !scripts/migrations/241-attendance-daily-scopes.sql
