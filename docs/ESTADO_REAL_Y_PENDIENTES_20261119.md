@@ -256,3 +256,13 @@ La causa encontrada es otra. La máquina de Oracle entra a la red municipal con 
 **Lo que sigue sin verificar:** el estado por dentro de la máquina de Oracle (si las tres lecturas quedaron bloqueadas esperando revisión o se retoman solas). El sistema de seguridad de Claude rechazó la entrada por SSH y no se buscó otro camino. Se mira desde la base si vuelven a entregar.
 
 **Arreglo de fondo, pendiente:** mientras PC y Oracle compartan identidad, cada vez que alguien prenda la VPN en la PC para usar GRH se caen los relojes. Las dos salidas son una segunda identidad de VPN para la máquina de Oracle (la emite el municipio) o que la PC llegue a GRH pasando por la máquina de Oracle, sin abrir su propio túnel.
+
+## Lo que se supo el 19/11 por la tarde
+
+**Quién prepara qué.** La cuenta del titular prepara y aprueba novedades del mes, pero las novedades fijas, el programa, la declaración familiar y las condiciones salariales sólo las aprueba: las tiene que preparar una cuenta de liquidación. Por eso las 24 novedades fijas 80/56/57 del convenio 1 no se pudieron cargar desde su sesión. El diseño de una carga conjunta de fijas quedó en `docs/DISENO_CARGA_CONJUNTA_FIJAS_20261119.md`.
+
+**Convenio 6 como copia del 1.** En la copia aislada, sin guardar, se propuso el programa con todo lo de octubre del convenio 1 clonado para el 6 (122 reglas, 164 entradas, 27 políticas, 122 tratamientos). Pasa la política de participación y la unicidad de políticas, y se detiene porque el maestro propio no tiene las definiciones del convenio 6: tiene 29 y hacen falta unas 282.
+
+**Capacidad.** El maestro propio admite hasta 1.000 definiciones y hoy tiene 821; el programa admite hasta 1.000 reglas y 1.000 entradas y hoy tiene 172 y 164, todo de un solo convenio. Con los trece convenios harían falta unas 3.600 definiciones, 1.600 reglas y 2.100 entradas. Sumar sólo el convenio 6 ya pasa el tope del maestro. Antes de componer otro convenio hace falta una migración de capacidad (las funciones con el tope están fijadas por huella, como en la 245) o que reglas y definiciones admitan varios convenios.
+
+**Codex.** En la PC del titular la sesión de Codex rechaza todos los modelos; hay que volver a iniciar sesión. La tarea de la carga conjunta de fijas quedó lista para lanzar en un clon limpio.
