@@ -27,15 +27,19 @@ Reglas que salieron del ensayo y ya tienen prueba de regresión:
 - Los operadores JSON (`->`, `->>`, `#>`, `#>>`) tienen menos precedencia que `+` y `-`: `(a->'x')-'y'`.
 - Una dependencia creada por una fuente anterior se atesta sólo con el cuerpo de esa fuente revisada.
 
-## Qué falta para usar la asistencia por áreas
+## Asistencia por áreas: qué quedó resuelto y qué pasos hace el municipio
 
-La instalación deja la base preparada, pero hoy nadie puede obtener un resultado por persona. Faltan tres piezas, en este orden:
+Las dos piezas que faltaban ya tienen función y pantalla:
 
-1. **Capacidades.** Las cuatro `attendance.area.*` existen en el catálogo; hay que asignarlas a las membresías que correspondan.
-2. **Alcance de área por cuenta.** `attendance_area_scope` está vacía y no existe función ni pantalla que la escriba. Hace falta una fachada gobernada (quién concede, con qué referencia de autorización) y su pantalla en Administración.
-3. **Vigencia de área de los contratos adoptados.** `attendance_area_history_v1` responde `blocked / AREA_HISTORY_NATIVE_PROVENANCE_REQUIRED` para los 851 contratos propios: todos vienen de la adopción desde GRH. `docs/ATTENDANCE_AREA_HISTORY_20261116.md` exige «una fuente de vigencia diaria explícita con otro contrato versionado» y ese diseño no existe.
+- **Alcance de área por cuenta** (migración 243): Administración → «Áreas de asistencia». Ver `docs/ATTENDANCE_AREA_SCOPE_ADMIN_20261119.md`.
+- **Vigencia de área de los contratos adoptados** (migración 244): Personal → «Vigencia de área de los contratos adoptados». Ver `docs/ATTENDANCE_AREA_EFFECTIVITY_20261119.md`.
 
-Propuesta para el punto 3 (a decidir por el municipio): una **declaración municipal de vigencia por corte**. Una persona prepara y otra aprueba que, desde una fecha declarada, cada contrato adoptado activo pertenece al área que figura en su legajo. La declaración es inmutable, lleva referencia documental y sella la lista de contratos y áreas. No infiere nada hacia atrás: los días anteriores a la fecha declarada siguen sin acreditar. Las rectificaciones posteriores que cambien de área siguen necesitando su propia fecha efectiva.
+Lo que sigue son actos del municipio dentro de la aplicación, no desarrollo pendiente:
+
+1. Asignar la capacidad «Consultar asistencia por área» a las cuentas que correspondan (Usuarios y roles).
+2. Concederles sus áreas (Áreas de asistencia).
+3. Declarar la vigencia: una persona prepara y otra aprueba. Hoy hay 787 contratos declarables en 124 áreas; 61 legajos no tienen repartición completa y hay que rectificarlos antes.
+4. Declarar los relojes esperados de cada contrato.
 
 ## Qué falta en los demás circuitos
 
@@ -60,3 +64,5 @@ Sobre el candidato 2, 57 de 68 flujos pasaban. Las fallas restantes eran de la p
 - «Own contract working time» y «Own payroll administrative operator»: cada una pasa con una versión de PostgreSQL y falla con la otra, al revés entre sí. Perfil de falla por carga de los ejecutores; pendiente de confirmar con una corrida sin cola.
 
 La corrida completa sobre el candidato 5 (`claude/integracion-20261117`) quedó lanzada el 19/11.
+
+Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0 y ensayo de ambas migraciones, en orden, sobre una copia aislada de la base operativa.

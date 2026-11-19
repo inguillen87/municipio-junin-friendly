@@ -145,8 +145,8 @@ export function mountAreaEffectivity(root, options = {}) {
     box.append(el('h4', 'Preparar una declaración'));
     // Con declaraciones vigentes hay dos alcances: completar los que faltan o declarar de nuevo a todos.
     const choices = [
-      ['missing', 'Sólo los que todavía no tienen declaración vigente (' + scopes.missing.eligible + ')'],
-      ['all', 'Todos los que están en condiciones (' + scopes.all.eligible + '): reemplaza la fecha declarada antes'],
+      ['missing', 'Sólo los que faltan (' + scopes.missing.eligible + ')'],
+      ['all', 'Todos, con fecha nueva (' + scopes.all.eligible + ')'],
     ].filter(([name]) => scopes[name].eligible > 0 && (name === 'missing' || current.declaredContracts > 0));
     const scope = el('select', undefined, 'scope');
     for (const [name, label] of choices) { const option = el('option', label); option.value = name; option.setAttribute('value', name); scope.append(option); }

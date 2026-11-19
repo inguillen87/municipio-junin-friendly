@@ -13,7 +13,7 @@
 .area-effectivity dd{margin:0}
 .area-effectivity label{display:grid;gap:8px;margin:18px 0;font-weight:650}
 .area-effectivity label small{font-weight:400;color:#4b6670;line-height:1.5}
-.area-effectivity :is(input[type=date],textarea){box-sizing:border-box;width:100%;max-width:560px;min-width:0;min-height:46px;padding:10px;border:1px solid #b8cdd0;border-radius:8px;background:#fff;color:inherit;font:inherit}
+.area-effectivity :is(input[type=date],textarea,select){box-sizing:border-box;width:100%;max-width:560px;min-width:0;min-height:46px;padding:10px;border:1px solid #b8cdd0;border-radius:8px;background:#fff;color:inherit;font:inherit}
 .area-effectivity .ae-confirm{display:flex;align-items:flex-start;gap:12px;font-weight:400}
 .area-effectivity .ae-confirm input{width:24px;height:24px;flex-shrink:0;margin-top:2px}
 .area-effectivity .ae-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
@@ -25,7 +25,7 @@
 .area-effectivity :is(th,td){text-align:left;padding:8px 12px;border-top:1px solid #dbe7e5;vertical-align:top}
 .area-effectivity :is(th,td):last-child{text-align:right;white-space:nowrap}
 .area-effectivity thead th{position:sticky;top:0;background:#edf5f2}
-.area-effectivity :is(button,summary,input,textarea):focus-visible{outline:3px solid #0b5fa5;outline-offset:2px}
+.area-effectivity :is(button,summary,input,textarea,select):focus-visible{outline:3px solid #0b5fa5;outline-offset:2px}
 @media(max-width:650px){
  .area-effectivity>summary{padding:18px 14px}
  .area-effectivity .ae-body{padding:0 14px 18px}
