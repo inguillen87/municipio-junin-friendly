@@ -75,6 +75,16 @@ Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0
 - El circuito de Noelia, relanzado sobre la corrección: pasa con PostgreSQL 18; con PostgreSQL 17 se detuvo antes, en otro paso, con `EMPLOYMENT_ADOPTION_BUSY` (la función no obtuvo un bloqueo dentro de su límite). Es el perfil de carga de los ejecutores; se reintentó una vez.
 - Las 2 cancelaciones («Complete municipal clock park» e «Institutional access origin recovery») cortaron a los 15 minutos exactos, durante la construcción del sitio: es el límite de tiempo del trabajo, no una falla. La batería creció a 14.722 pruebas y con la cola cargada la construcción ya no entra en 15 o 20 minutos. Los trabajos con límite menor a 30 minutos en flujos que construyen el sitio pasan a 30 (37 archivos).
 
+**Cierre de la corrida sobre el candidato 6 (`b9b3c463`), 19/11 07:20.** 71 flujos: 64 pasaron, 2 fallaron y 5 se cancelaron. Ningún defecto del producto.
+
+- Fallas (2): las dos comprobaciones de navegador ya corregidas.
+- Cancelaciones (5): todas por límite de tiempo del trabajo, con los ejecutores cargados. Tres cortaron durante la construcción del sitio con límites de 15, 20 y 25 minutos (cubiertas por el límite nuevo de 30). «Municipal owner salary» (PostgreSQL 18) agotó sus 45 minutos todavía instalando dependencias del navegador.
+- Circuito de Noelia sobre la corrección, segundo intento: PostgreSQL 18 pasa; PostgreSQL 17 superó el paso que había respondido `EMPLOYMENT_ADOPTION_BUSY` y agotó sus 45 minutos en un paso posterior. Queda sin una corrida completa en verde con PostgreSQL 17.
+
+Setenta y un flujos que construyen el sitio completo cada uno saturan los ejecutores: la cola tarda unas cuatro horas y los límites de tiempo cortan trabajos sanos. Pendiente: construir una sola vez por commit y compartir el resultado entre flujos.
+
+El PR #304 avanza con las dos correcciones de navegador, el límite de 30 minutos y la prueba estática de la migración 245.
+
 ## Medido en la base operativa el 19/11 (sólo totales)
 
 **Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. Estado por reloj:
