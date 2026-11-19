@@ -69,6 +69,12 @@ Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0
 
 **Instalado y publicado el 19/11/2026**, con decisión expresa: migraciones 243 y 244 en la base operativa (los mismos archivos del ensayo, con respaldo previo) y candidato 6 en `municontrol.com` (`b9b3c463`). Verificado después: 20 funciones nuevas, sólo las 4 fachadas concedidas a la aplicación y ninguna a PUBLIC; 3 tablas nuevas con RLS y sin permisos para la aplicación; guardas en verdadero; los cuatro consumidores con la huella esperada; sin filas nuevas; el sitio sirve las dos pantallas y sus servicios rechazan un pedido sin sesión.
 
+**Revisión de las 05:00 del 19/11 sobre el candidato 6 (`b9b3c463`).** 30 flujos pasaron, 2 fallaron, 2 se cancelaron y 37 seguían corriendo o en cola.
+
+- Las 2 fallas son las dos comprobaciones de navegador ya corregidas después de publicar («Own payroll calculation» esperaba `display: grid` en filas que la ronda 2 muestra como tarjetas; el circuito de Noelia leía un acordeón antes de que terminara de abrirse). Ninguna es un defecto del producto.
+- El circuito de Noelia, relanzado sobre la corrección: pasa con PostgreSQL 18; con PostgreSQL 17 se detuvo antes, en otro paso, con `EMPLOYMENT_ADOPTION_BUSY` (la función no obtuvo un bloqueo dentro de su límite). Es el perfil de carga de los ejecutores; se reintentó una vez.
+- Las 2 cancelaciones («Complete municipal clock park» e «Institutional access origin recovery») cortaron a los 15 minutos exactos, durante la construcción del sitio: es el límite de tiempo del trabajo, no una falla. La batería creció a 14.722 pruebas y con la cola cargada la construcción ya no entra en 15 o 20 minutos. Los trabajos con límite menor a 30 minutos en flujos que construyen el sitio pasan a 30 (37 archivos).
+
 ## Medido en la base operativa el 19/11 (sólo totales)
 
 **Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. Estado por reloj:
