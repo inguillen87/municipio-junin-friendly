@@ -237,7 +237,7 @@ test('Codex (6996579811): la composición concede EXECUTE sólo a las fachadas q
 
 // Ensayo en PostgreSQL 17 (rama de ensayo, 18/11): dentro de la condición de un IF de PL/pgSQL, un CASE sin paréntesis
 // corta la condición en su primer THEN y la función no se crea («syntax error at end of input»). Ninguna fuente,
-// ni la 240/241/242, puede tener un CASE a profundidad 0 entre IF/ELSIF y su THEN.
+// ni la 240/241/242/243, puede tener un CASE a profundidad 0 entre IF/ELSIF y su THEN.
 test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su condición',()=>{
  const blank=src=>src.replace(/--[^\n]*|'(?:''|[^'])*'/g,m=>m.replace(/[^\n]/g,' '));
  const offenders=file=>{
@@ -253,7 +253,7 @@ test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su co
   });
   return found;
  };
- const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql'];
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql'];
  assert.deepEqual(files.flatMap(offenders),[]);
  // La regla detecta el caso real que falló en el ensayo.
  const probe=join(mkdtempSync(join(tmpdir(),'mc-if-case-')),'probe.sql');
@@ -266,7 +266,7 @@ test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su co
 // función no lo detecta: falla recién al ejecutar esa rama. Toda resta o suma después de un operador JSON va con paréntesis.
 test('ensayo PG17: ningún operador JSON queda sin paréntesis delante de + o -',()=>{
  const risky=/(?:->>?|#>>?)\s*(?:'[^']*'|[a-z_.]+)\s*[-+]\s*(?:'|[a-z0-9_(])/g;
- const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql'];
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql','scripts/migrations/243-attendance-area-scope-administration.sql'];
  for(const file of files)assert.deepEqual(readFileSync(file,'utf8').replace(/--[^\n]*/g,'').match(risky)??[],[],file);
  assert.equal("x->'source_payload'-'employment'".match(risky)?.length,1,'la regla detecta el caso real');
  assert.equal("(x->'source_payload')-'employment'".match(risky),null);

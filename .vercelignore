@@ -436,6 +436,7 @@ local-agents/
 !scripts/migrations/240-attendance-daily-source.sql
 !scripts/migrations/241-attendance-daily-scopes.sql
 !scripts/migrations/242-own-grh-statement-lines.sql
+!scripts/migrations/243-attendance-area-scope-administration.sql
 !scripts/candidates/attendance-area-authority-v1.source.sql.txt
 !scripts/candidates/attendance-area-authority-v1.derived.sql.txt
 !scripts/candidates/attendance-area-history-v1.source.sql.txt

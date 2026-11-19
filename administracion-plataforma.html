@@ -445,6 +445,8 @@
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/release-status.css">
   <script type="module" src="assets/release-status-panel.js"></script>
+  <link rel="stylesheet" href="assets/attendance-area-scopes-panel.css">
+  <script type="module" src="assets/attendance-area-scopes-panel.js"></script>
 </head>
 <body data-mc-page="platformAdmin">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -484,6 +486,7 @@
           <span class="nav-label">Identidad y acceso</span>
           <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
           <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+          <button class="nav-link" type="button" data-admin-view="attendanceAreas"><span class="nav-code" aria-hidden="true">AR</span>Áreas de asistencia</button>
           <a class="nav-link" href="/homologacion" data-operation-target="/homologacion"><span class="nav-code" aria-hidden="true">QA</span>Homologación de desarrollo</a>
           <a class="nav-link" href="seguridad-cuenta.html"><span class="nav-code" aria-hidden="true">SE</span>Mi seguridad</a>
         </div>
@@ -767,6 +770,24 @@
                   <div class="control-value" id="absenceControlState">No informado<span id="absenceControlSource">La API todavía no publicó este control.</span></div>
                   <div class="effective-box" id="absenceControlExplanation"><strong>Fail-closed.</strong> La pantalla no habilita decisiones de licencias desde un catálogo incompleto.</div>
                 </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" id="attendanceAreasView" data-view-panel="attendanceAreas" aria-labelledby="attendanceAreasTitle" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Identidad · asistencia por área</p>
+                <h1 id="attendanceAreasTitle">Áreas de asistencia por cuenta</h1>
+                <p class="page-lead">Definí en qué reparticiones y sectores puede usar cada cuenta sus permisos de asistencia por área. Cada cambio pide una referencia de autorización y queda registrado. Los permisos se siguen asignando en Usuarios y roles.</p>
+              </div>
+            </header>
+
+            <section class="panel" aria-labelledby="attendanceAreasPanelTitle">
+              <header class="panel-head"><div><h2 id="attendanceAreasPanelTitle">Áreas por cuenta</h2><p>Trabaja sobre el municipio elegido en el filtro de administración. Sin un área concedida, una cuenta no ve datos de asistencia por área.</p></div></header>
+              <div class="panel-body">
+                <div id="attendanceAreaScopes" data-tenant-id="" data-tenant-label="" data-can-read="false" data-can-manage="false" data-visible="false"><p role="status">Abrí esta sección con un municipio seleccionado para consultar sus áreas de asistencia.</p></div>
+                <noscript><p>Esta sección necesita JavaScript para verificar el acceso y consultar las áreas autorizadas.</p></noscript>
               </div>
             </section>
           </section>
@@ -3439,6 +3460,7 @@
     async function loadAll(requestedTenantId) {
       var version = ++state.loadVersion;
       setLoading(true);
+      publishAttendanceAreaContext();
       try {
         var loaded = await loadBootstrap(requestedTenantId || '', version);
         if (!loaded || version !== state.loadVersion) return;
@@ -3454,7 +3476,7 @@
         el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
         throw error;
       } finally {
-        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderSourceOnboarding(); renderControls(); renderPlatformGovernance(); }
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderSourceOnboarding(); renderControls(); renderPlatformGovernance(); publishAttendanceAreaContext(); }
       }
     }
 
@@ -3476,11 +3498,37 @@
       openDialog(el.createTenantDialog);
     }
 
+    // El panel de áreas de asistencia es un módulo aparte: sólo recibe el municipio filtrado, si esta sesión
+    // puede consultar o cambiar y si su sección está a la vista. Con cada aviso retira lo que tenía en pantalla.
+    function publishAttendanceAreaContext() {
+      var container = document.getElementById('attendanceAreaScopes');
+      if (!container) return;
+      var tenantId = text(state.context && state.context.tenantId).toLowerCase();
+      if (!UUID_PATTERN.test(tenantId)) tenantId = '';
+      var canRead = platformCapabilityAllowed(['platform.users.manage']);
+      var detail = {
+        tenantId: tenantId,
+        tenantLabel: tenantId ? text(state.context.label) : '',
+        canRead: canRead,
+        canManage: canRead && platformCapabilityAllowed(['platform.roles.manage']),
+        visible: state.activeView === 'attendanceAreas' && !state.loading
+      };
+      container.dataset.tenantId = detail.tenantId;
+      container.dataset.tenantLabel = detail.tenantLabel;
+      container.dataset.canRead = String(detail.canRead);
+      container.dataset.canManage = String(detail.canManage);
+      container.dataset.visible = String(detail.visible);
+      if (typeof window.CustomEvent === 'function') {
+        document.dispatchEvent(new window.CustomEvent('municontrol:area-scopes-context', { detail: detail }));
+      }
+    }
+
     function showView(view) {
       var titles = {
         portfolio: ['Cartera institucional','Superadministración multi-gobierno'],
         access: ['Usuarios y accesos','Identidad y menor privilegio'],
         controls: ['Controles exclusivos','Responsabilidades operativas'],
+        attendanceAreas: ['Áreas de asistencia','Áreas de asistencia por cuenta'],
         audit: ['Auditoría','Evidencia administrativa']
       };
       if (!titles[view]) return;
@@ -3490,6 +3538,7 @@
         if (button.dataset.adminView === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
       el.breadcrumbCurrent.textContent = titles[view][0]; el.topViewTitle.textContent = titles[view][1];
+      publishAttendanceAreaContext();
       closeMenu(false);
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       el.mainContent.focus({ preventScroll: true });
