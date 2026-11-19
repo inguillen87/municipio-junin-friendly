@@ -73,6 +73,29 @@ Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0
 
 **Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. La recolección automática funciona: la última marcación llegó el 19/11 a las 00:39 y entran entre 116 y 128 por día. Pero desde el 13/11 entrega **un solo dispositivo**; el 12/11 entregaron dos. Los otros cinco puntos registrados no están entregando y ocho puntos más no están registrados. Lo que falta es conectividad en sitio (red municipal o VPN hacia cada reloj), no desarrollo.
 
-**Liquidación propia de octubre.** Hay 3 capturas de entradas del 6/11 (dos de la dotación completa: 848 personas, 29 departamentos; una de un contrato). Ninguna tiene resultado: `payrollCalculated=false`. Las capturas muestran además **0 novedades fijas y 0 lotes de novedades mensuales** cargados, y una propuesta de programa de reglas sin decidir. Para calcular octubre faltan, en este orden: aprobar el programa de reglas (dos personas), cargar las novedades fijas y mensuales, correr la liquidación y recién entonces comparar contra GRH.
+**Liquidación propia de octubre: por qué no calculó y qué falta de verdad.** Se reprodujo en memoria, sin escribir nada, el cálculo que la aplicación intentó sobre la captura guardada del 6/11 (848 personas). Todas las fuentes están completas (condiciones salariales, jornada, antigüedad y participación de las 848; catálogo salarial de 391 conceptos). El motor se detiene con `PAY_RULE_MISSING`: «faltan reglas de haberes vigentes para un contrato del conjunto».
+
+- El programa aprobado (revisión 1) tiene 50 reglas, todas del **convenio 1** y con vigencia **sólo de septiembre**. Para octubre no hay ninguna regla vigente.
+- La propuesta pendiente del 14/11 tiene 172 reglas (122 para octubre), también **todas del convenio 1**. Aprobarla alcanza, como máximo, a las 81 personas de ese convenio. Los otros once convenios (767 personas) no tienen ninguna regla, ni aprobada ni propuesta.
+- Además hay 0 novedades fijas y 0 lotes de novedades mensuales cargados.
+
+Alcance medido contra la liquidación mensual de octubre de GRH (844 recibos, 21.472 renglones, 89 conceptos usados; los códigos 990 a 999 son totales, no conceptos con regla):
+
+| Convenio | Recibos GRH | Conceptos usados | Ya tienen regla en el convenio 1 | Conceptos sin regla en ningún convenio |
+|---|---|---|---|---|
+| 1 | 79 | 65 | 55 | ninguno |
+| 2 | 23 | 42 | 30 | 140, 203 |
+| 4 | 160 | 58 | 48 | ninguno |
+| 5 | 164 | 47 | 27 | 30, 49, 70, 79, 97, 115, 168, 169, 195, 199 |
+| 6 | 295 | 67 | 55 | 206, 640 |
+| 7 | 10 | 32 | 21 | 10, 140 |
+| 11 | 12 | 32 | 21 | 140 |
+| 12 | 43 | 37 | 24 | 30, 70, 195 |
+| 13 | 54 | 40 | 27 | 30, 70, 195 |
+| 14 | 4 | 27 | 13 | 30, 70, 115, 195 |
+
+En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el convenio 1 y 15 no tienen regla en ningún lado (10, 30, 49, 70, 79, 97, 115, 140, 168, 169, 195, 199, 203, 206 y 640). Que el código coincida no garantiza que la fórmula sea la misma en otro convenio: cada regla replicada hay que contrastarla con GRH en el comparador.
+
+Para calcular octubre completo faltan, en este orden: llevar las reglas a los otros once convenios y escribir las 15 que no existen; aprobar el programa (dos personas); cargar las novedades fijas y mensuales; correr la liquidación; comparar contra GRH.
 
 **Respaldo de GRH del 10/11.** No fue entregado todavía.
