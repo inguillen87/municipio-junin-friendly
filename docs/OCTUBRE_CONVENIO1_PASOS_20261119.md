@@ -38,4 +38,4 @@ Dos aclaraciones sobre los archivos:
 
 ## Lo que sigue después del convenio 1
 
-Los otros once convenios todavía no tienen todas sus reglas (faltan 15). Las novedades de octubre del resto de las personas son 2.609 filas más, y las fijas vigentes de 80, 56 y 57 son 98 más.
+Los otros once convenios todavía no tienen todas sus reglas (faltan 15). Las novedades de octubre del resto de las personas son 2.609 filas más, y las fijas vigentes de 80, 56 y 57 son 97 más.
