@@ -66,5 +66,41 @@ test('la interfaz del servidor y el panel usan el aviso validado, nunca texto li
   assert.match(api, /const missing = safe\.code === 'OWN_RUN_INPUT_MISSING' \? ownRunMissing\(safe\.missing\) : null;\n\s+return res\.status\(safe\.status\)\.json\(\{ ok: false, code: safe\.code, error: safe\.message, \.\.\.\(missing \? \{ missing \} : \{\}\) \}\);/);
   assert.match(panel, /Error\(\(payload\?\.code==='OWN_RUN_INPUT_MISSING'\?ownRunMissingMessage\(payload\.missing\):null\)\?\?errors\[payload\?\.code\]\?\?\(/);
   assert.doesNotMatch(panel, /payload\??\.error\b/, 'el panel no muestra el texto del servidor');
-  assert.match(lib, /catch \(e\) \{ throw ownRunMissingInput\(e, input, payload\.programState\.program\.definition\); \}/);
+  assert.match(lib, /catch \(e\) \{ throw ownRunMissingInput\(e, input, payload\.programState\.program\.definition, calculate\); \}/);
+});
+
+test('una simulación en memoria lista de una vez los datos que las fórmulas pedirían después', () => {
+  const definition2 = {bindings: [{key: 'familia_spouse', sourceKind: 'family_fact', sourceField: 'spouse'}, {key: 'antiguedad', sourceKind: 'employment_fact', sourceField: 'seniorityYears'},
+    {key: 'insalubre', sourceKind: 'salary_condition_fact', sourceField: 'unhealthyWork'}, {key: 'titulo', sourceKind: 'salary_condition_fact', sourceField: 'titleCode'}]};
+  const make = () => ({employees: [
+    person('contrato-uno', [{key: 'familia_spouse', value: null, unit: 'count'}, {key: 'antiguedad', value: null, unit: 'years'}, {key: 'insalubre', value: null, unit: 'boolean'}, {key: 'titulo', value: null, unit: 'code'}]),
+    person('contrato-dos', [{key: 'familia_spouse', value: '1', unit: 'count'}, {key: 'antiguedad', value: null, unit: 'years'}, {key: 'insalubre', value: true, unit: 'boolean'}, {key: 'titulo', value: 'A1', unit: 'code'}])]});
+  // Motor de mentira: pide las claves en orden y falla en la primera sin valor.
+  const order = ['familia_spouse', 'antiguedad', 'insalubre', 'titulo'];
+  const calculate = value => { for (const key of order) for (const p of value.employees) { const item = p.inputs.find(i => i.key === key); if (!item || item.value === null) throw engineError(key); } return {ok: true}; };
+  const input = make(), frozen = JSON.stringify(input);
+  let first; try { calculate(input); } catch (e) { first = e; }
+  const error = ownRunMissingInput(first, input, definition2, calculate);
+  assert.equal(JSON.stringify(input), frozen, 'la entrada aprobada no se toca');
+  assert.deepEqual(error.missing, {key: 'familia_spouse', sourceKind: 'family_fact', sourceField: 'spouse', without: 1, people: 2, also: [
+    {key: 'antiguedad', sourceKind: 'employment_fact', sourceField: 'seniorityYears', without: 2},
+    {key: 'insalubre', sourceKind: 'salary_condition_fact', sourceField: 'unhealthyWork', without: 1},
+    {key: 'titulo', sourceKind: 'salary_condition_fact', sourceField: 'titleCode', without: 1}]});
+  assert.equal(error.message, 'Falta cargar los datos familiares del período (cónyuge): sin valor en 1 de 2 personas elegidas. No se supuso cero. Completá ese dato, aprobalo y volvé a calcular. Clave en las reglas: familia_spouse.'
+    + ' Después las fórmulas también van a pedir, según una simulación que no se guarda: la antigüedad reconocida del contrato (años de antigüedad), sin valor en 2 (clave antiguedad); las condiciones salariales del contrato (tarea insalubre), sin valor en 1 (clave insalubre); las condiciones salariales del contrato (código de título), sin valor en 1 (clave titulo).');
+  assert.deepEqual(ownRunMissing(error.missing), error.missing);
+  // Sin motor para simular, o si la simulación falla por otra causa, queda el aviso de un solo dato.
+  assert.equal(ownRunMissingInput(first, input, definition2).missing.also, undefined);
+  assert.equal(ownRunMissingInput(first, input, definition2, () => { throw new Error('otra cosa'); }).missing.also, undefined);
+  assert.equal(ownRunMissingInput(first, input, definition2, () => ({ok: true})).missing.also, undefined);
+  // Un código no se puede suponer: la simulación se detiene ahí. Y respeta el tiempo máximo.
+  const codeFirst = ownRunMissingInput(engineError('titulo'), input, definition2, calculate); assert.equal(codeFirst.missing.key, 'titulo'); assert.equal(codeFirst.missing.also, undefined);
+  let clock = 0; const slow = ownRunMissingInput(first, input, definition2, calculate, () => (clock += 15000)); assert.equal(slow.missing.also.length, 1);
+});
+
+test('la lista adicional se valida entera: forma exacta, sin repetidos y con tope', () => {
+  const also = [{key: 'antiguedad', sourceKind: 'employment_fact', sourceField: 'seniorityYears', without: 5}];
+  assert.deepEqual(ownRunMissing({...missing, also}), {...missing, also});
+  for (const bad of [[], 'x', [{...also[0], extra: 1}], [{...also[0], without: 82}], [{...also[0], without: 0}], [{...also[0], key: 'familia_spouse'}], [also[0], also[0]], [{...also[0], sourceKind: 'x'}],
+    Array.from({length: 13}, (_, i) => ({...also[0], key: 'k' + i})), [null]]) assert.equal(ownRunMissing({...missing, also: bad}), null, JSON.stringify(bad).slice(0, 80));
 });

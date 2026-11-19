@@ -98,19 +98,34 @@ export const OWN_RUN_MISSING_FIELDS = Object.freeze({
   payrollMonthBaseDays: 'días base del mes', monthlyHours: 'horas mensuales', dailyHours: 'horas diarias', categoryCode: 'categoría',
   baseUnits: 'unidades base', recognizedUnits: 'unidades reconocidas', monthNumber: 'mes'
 });
-/** Devuelve el aviso normalizado o null. Sólo acepta la forma exacta, claves del vocabulario y conteos coherentes. */
+export const OWN_RUN_MISSING_ALSO_MAX = 12;
+const missingEntry = (v, people) => typeof v.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(v.key)
+  && (v.sourceKind === null || typeof v.sourceKind === 'string' && Object.hasOwn(OWN_RUN_MISSING_SOURCES, v.sourceKind))
+  && (v.sourceField === null || typeof v.sourceField === 'string' && Object.hasOwn(OWN_RUN_MISSING_FIELDS, v.sourceField))
+  && Number.isSafeInteger(v.without) && v.without >= 1 && v.without <= people;
+/** Devuelve el aviso normalizado o null. Sólo acepta la forma exacta, claves del vocabulario y conteos coherentes.
+ *  «also» es opcional: otros datos sin valor que las fórmulas pedirían después, hallados con una simulación que no se guarda. */
 export function ownRunMissing(v) {
-  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).sort().join(',') !== 'key,people,sourceField,sourceKind,without') return null;
-  if (typeof v.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(v.key)
-    || !(v.sourceKind === null || typeof v.sourceKind === 'string' && Object.hasOwn(OWN_RUN_MISSING_SOURCES, v.sourceKind))
-    || !(v.sourceField === null || typeof v.sourceField === 'string' && Object.hasOwn(OWN_RUN_MISSING_FIELDS, v.sourceField))
-    || !Number.isSafeInteger(v.people) || !Number.isSafeInteger(v.without) || v.people < 1 || v.people > 10000 || v.without < 1 || v.without > v.people) return null;
-  return { key: v.key, sourceKind: v.sourceKind, sourceField: v.sourceField, without: v.without, people: v.people };
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const keys = Object.keys(v).sort().join(',');
+  if (keys !== 'key,people,sourceField,sourceKind,without' && keys !== 'also,key,people,sourceField,sourceKind,without') return null;
+  if (!Number.isSafeInteger(v.people) || v.people < 1 || v.people > 10000 || !missingEntry(v, v.people)) return null;
+  const base = { key: v.key, sourceKind: v.sourceKind, sourceField: v.sourceField, without: v.without, people: v.people };
+  if (!Object.hasOwn(v, 'also')) return base;
+  if (!Array.isArray(v.also) || v.also.length < 1 || v.also.length > OWN_RUN_MISSING_ALSO_MAX) return null;
+  const seen = new Set([v.key]), also = [];
+  for (const item of v.also) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).sort().join(',') !== 'key,sourceField,sourceKind,without' || !missingEntry(item, v.people) || seen.has(item.key)) return null;
+    seen.add(item.key); also.push({ key: item.key, sourceKind: item.sourceKind, sourceField: item.sourceField, without: item.without });
+  }
+  return { ...base, also };
 }
+const missingLabel = m => (m.sourceKind === null ? 'un dato que usa la fórmula' : OWN_RUN_MISSING_SOURCES[m.sourceKind]) + (m.sourceField === null ? '' : ' (' + OWN_RUN_MISSING_FIELDS[m.sourceField] + ')');
 export function ownRunMissingMessage(v) {
   const m = ownRunMissing(v); if (!m) return null;
-  const source = m.sourceKind === null ? 'un dato que usa la fórmula' : OWN_RUN_MISSING_SOURCES[m.sourceKind];
-  const field = m.sourceField === null ? '' : ' (' + OWN_RUN_MISSING_FIELDS[m.sourceField] + ')';
-  return 'Falta cargar ' + source + field + ': sin valor en ' + m.without + ' de ' + m.people + (m.people === 1 ? ' persona elegida' : ' personas elegidas')
+  const first = 'Falta cargar ' + missingLabel(m) + ': sin valor en ' + m.without + ' de ' + m.people + (m.people === 1 ? ' persona elegida' : ' personas elegidas')
     + '. No se supuso cero. Completá ese dato, aprobalo y volvé a calcular. Clave en las reglas: ' + m.key + '.';
+  if (!m.also) return first;
+  return first + ' Después las fórmulas también van a pedir, según una simulación que no se guarda: '
+    + m.also.map(a => missingLabel(a) + ', sin valor en ' + a.without + ' (clave ' + a.key + ')').join('; ') + '.';
 }
