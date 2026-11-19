@@ -40,7 +40,14 @@ En una copia aislada de la base operativa, con las funciones reales:
 
 Lo que el ensayo encontró después de este punto está en `docs/ESTADO_REAL_Y_PENDIENTES_20261119.md`.
 
+## Instalación en la base operativa · 19/11/2026
+
+Con decisión expresa de Marcelo y respaldo previo. El archivo instalado es el mismo del ensayo (misma huella SHA-256 que el del repositorio).
+
+- Ensayo en seco sobre la base operativa: mismas siete huellas resultantes que en la copia, familias completas, sin cambios al deshacer.
+- Instalación: las siete funciones quedaron con las huellas fijadas; dueño, permisos, volatilidad y configuración sin cambios.
+- Después: 1.381 funciones y 232 tablas, igual que antes; 3 capturas y 9 eventos de novedades, igual que antes (la migración no escribe datos); ninguna de las siete funciones es ejecutable por PUBLIC ni por el rol de la aplicación, igual que antes; las dos familias completas con 62 y 30 miembros.
+
 ## Pendiente
 
-- Instalar en la base operativa, con respaldo previo y el mismo artefacto ensayado. Decisión de Marcelo.
 - Agregar a las verificaciones con PostgreSQL real un caso con identificador de persona derivado, para que este control no vuelva a endurecerse sin que una prueba falle.

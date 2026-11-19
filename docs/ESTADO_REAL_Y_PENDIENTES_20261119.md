@@ -137,8 +137,8 @@ Dos cosas del producto que el ensayo dejó a la vista y todavía no están resue
 - `INPUT_MISSING` no dice **qué** dato falta ni **a cuántas personas**. Quien opera ve «Falta una entrada necesaria» y no sabe qué cargar. Hace falta una pantalla de preparación del período que lo liste por fuente antes de calcular.
 - Sólo la jornada y la antigüedad tienen carga colectiva con seguimiento; las condiciones salariales y los hechos familiares se cargan con un único comando para muchos contratos, sin archivo ni reanudación.
 
-En la base operativa no se aprobó ni se cambió nada. La migración 245 está ensayada y **no está instalada**.
+En la base operativa no se aprobó ni se cargó nada. La migración 245 **quedó instalada el 19/11**, con decisión expresa y respaldo previo, y verificada.
 
-Para calcular octubre del convenio 1 faltan, en este orden: instalar la 245; aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; cargar y aprobar los hechos familiares de las 79 personas que faltan; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
+Para calcular octubre del convenio 1 faltan, en este orden: aprobar el programa; cargar y aprobar las cuatro condiciones salariales nuevas; informar la antigüedad de los 5 contratos que la tienen vacía; cargar y aprobar los hechos familiares de las 79 personas que faltan; calcular; comparar contra GRH. Para los otros once convenios falta además llevarles las reglas y escribir las 15 que no existen.
 
 **Respaldo de GRH del 10/11.** No fue entregado todavía.
