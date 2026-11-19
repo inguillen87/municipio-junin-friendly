@@ -189,6 +189,18 @@ export async function runEntityImportVerification() {
     check(/3 renglones → 1 fila por legajo\. Con legajo encontrado: 1 · importe \$ 13\.690,00/.test(text) && /1 fila quedó afuera por los valores destildados\./.test(text) && /1 fila sin importe ni cantidad no se carga: la 5\. Revisá que no falte un valor\./.test(text), 'lo destildado queda afuera y quien no trae importe se informa con su fila');
     await $('paste-filter').selectOption({ label: 'B · APELLIDO' }); check(await $('paste-values').isVisible() && await ticks.count() === 3, 'se puede cambiar la columna del filtro');
     await $('paste-filter').selectOption('');
+    // Una planilla con varios conceptos: la columna «Concepto» con números se propone y cada fila se carga con el suyo.
+    // La del club, que titula «CONCEPTO» una columna con palabras, no se confunde con esto (se comprobó arriba: pidió el concepto).
+    const MULTI = ['Legajo\tConcepto\tUnidades\tImporte', '46\t601\t5\t0', '46\t95\t100\t0', '47\t601\t5\t0', '47\t678\t0\t15000,00'].join('\r\n');
+    await $('paste').fill(MULTI); await page.waitForFunction(() => !document.querySelector('[data-n-paste-columns]').hidden && document.querySelector('[data-n-paste-concept-column]').value === '1');
+    check(await $('paste-concept').isDisabled() && await $('paste-concept').inputValue() === '' && await $('paste-amount').inputValue() === '3' && await $('paste-quantity').inputValue() === '' && await $('paste-identity').inputValue() === '0', 'una columna «Concepto» con números se propone como columna de concepto y el concepto único queda deshabilitado');
+    await $('paste-quantity').selectOption('2'); await $('paste-read').click(); await page.waitForFunction(() => /Con legajo encontrado/.test(document.querySelector('[data-n-import-result]').textContent)); lastText = text = (await result.innerText()).replace(/\s+/g, ' ');
+    check(/La planilla trae 3 conceptos y cada fila se carga con el suyo: 95 \(1 fila\), 601 \(2 filas\), 678 \(1 fila\)\./.test(text) && /Agregar 4 filas al lote \(3 conceptos\)/.test(text) && /4 renglones → 4 filas por legajo/.test(text) && /4 con cantidad/.test(text), 'la lectura dice cuántos conceptos trae la planilla, cuántas filas tiene cada uno y arma un solo agregado');
+    await $('paste').fill(MULTI + '\r\n46\t601\t1\t0'); await page.waitForFunction(() => document.querySelector('[data-n-paste-concept-column]').value === '1'); await $('paste-quantity').selectOption('2'); await $('paste-read').click();
+    await page.waitForFunction(() => /no se pueden leer/.test(document.querySelector('[data-n-import-result]').textContent)); lastText = text = (await result.innerText()).replace(/\s+/g, ' ');
+    check(/legajo repetido para el mismo concepto/.test(text) && await page.locator('[data-n-import-add]').count() === 0, 'la misma persona dos veces para el mismo concepto se informa como repetido y no se agrega nada');
+    await $('paste').fill(MULTI); await page.waitForFunction(() => document.querySelector('[data-n-paste-concept-column]').value === '1'); await $('paste-concept-column').selectOption('');
+    check(!(await $('paste-concept').isDisabled()) && (await result.innerText()).trim() === '', 'sin columna de concepto vuelve el concepto único y se descarta la lectura anterior');
     await $('paste').fill('una sola columna\n12\n13'); await page.waitForFunction(() => /al menos dos columnas/.test(document.querySelector('[data-n-paste-hint]').textContent));
     check(await $('paste-columns').isHidden(), 'si lo pegado no es una planilla se dice y no se ofrecen columnas');
     await $('paste').fill(SHEET); await page.waitForFunction(() => !document.querySelector('[data-n-paste-columns]').hidden);

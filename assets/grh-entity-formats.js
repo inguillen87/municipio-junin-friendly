@@ -355,9 +355,11 @@ export function pastedSheetSuggestion(sheet) {
   const quantityColumn = named(/cantidad|horas|porcentaje|unidades|d[ií]as/i);
   let amountColumn = named(/importe|monto/i);
   // Without an amount title: the last column that reads as money, unless the sheet only brings a named quantity.
-  // A sheet that brings several concepts says so in a titled column; it is proposed only by its title, never guessed
-  // from digits (a column of small numbers can be a quantity), and it is never taken for the amount.
-  const conceptNamed = named(/^(?:c[oó]d(?:igo)?\.?\s*(?:de\s*)?)?concepto$|^conc\.?$/i);
+  // A sheet that brings several concepts says so in a titled column whose cells are concept numbers. The title alone is
+  // not enough (a club sheet titles «CONCEPTO» a column that says «CUOTA MES» or «JUBILADO»), and digits alone are not
+  // enough either (a column of small numbers can be a quantity). It is never taken for the amount.
+  const conceptTitled = named(/^(?:c[oó]d(?:igo)?\.?\s*(?:de\s*)?)?concepto$|^conc\.?$/i);
+  const conceptNamed = conceptTitled >= 0 && share(conceptTitled, c => /^[1-9]\d{0,5}$/.test(c.trim())) >= 0.9 ? conceptTitled : -1;
   if (amountColumn < 0 && !(quantityColumn >= 0 && sheet.columns === 2)) amountColumn = columns.filter(i => i !== quantityColumn && i !== conceptNamed && money(i) && digits(i, 7, 8) < 0.9).at(-1) ?? -1;
   const conceptColumn = conceptNamed >= 0 && ![identityColumn, amountColumn, quantityColumn].includes(conceptNamed) ? conceptNamed : null;
   // If an amount is present, hours can be an intermediate calculation; only an explicit column choice loads them.

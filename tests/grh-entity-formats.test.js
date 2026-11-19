@@ -397,6 +397,9 @@ test('a pasted sheet can bring several concepts in a column: each row keeps its 
   const untitledAmount = pastedSheetSuggestion(pastedSheetCells('Legajo\tConcepto\tValor\n12\t601\t10,50\n13\t678\t20,00'));
   assert.deepEqual([untitledAmount.conceptColumn, untitledAmount.amountColumn], [1, 2]);
   assert.equal(pastedSheetSuggestion(pastedSheetCells('12\t601\t10,50\n13\t678\t20,00')).conceptColumn, null);
+  // A column titled «CONCEPTO» that holds words (as the club sheet does) is a classification, not a concept number.
+  const club = pastedSheetSuggestion(pastedSheetCells('LEGAJO\tAPELLIDO\tCONCEPTO\tIMPORTE\n12\tUNO\tCUOTA MES\t100,00\n13\tDOS\tJUBILADO\t50,00\n14\tTRES\tCUOTA MES\t100,00'));
+  assert.deepEqual([club.conceptColumn, club.identityColumn, club.amountColumn], [null, 0, 3]);
   // Each row resolves on its own, so one person receives every concept of the sheet.
   const linked = resolveEntityRows(read, [{ contractId: 'c12', legajo: '12', status: 'active' }, { contractId: 'c13', legajo: '13', status: 'active' }], [{ contractId: 'c12', legajo: '12', identityToken: 't12' }, { contractId: 'c13', legajo: '13', identityToken: 't13' }]);
   assert.deepEqual([linked.resolved.map(r => r.contractId + ':' + r.concept), linked.missing.map(r => r.key + ':' + r.concept)], [['c12:601', 'c12:95', 'c13:601', 'c13:678'], ['14:44']]);
