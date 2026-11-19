@@ -1,6 +1,6 @@
 # Octubre, convenio 1: qué falta cargar y en qué orden
 
-19/11/2026. Para liquidaciones y para quien acompañe la carga. No tiene datos de personas: los valores están en cinco archivos privados que quedaron en la PC de Marcelo y no se publican.
+19/11/2026. Para liquidaciones y para quien acompañe la carga. No tiene datos de personas: los valores están en archivos privados que quedaron en la PC de Marcelo, en la carpeta «MuniControl-octubre-privado» de Descargas, y no se publican.
 
 ## Dónde estamos
 
@@ -21,7 +21,7 @@ Cada carga la prepara una persona y la aprueba otra. Marcelo puede preparar nove
 
 | # | Qué | Dónde | Quién prepara | Archivo de apoyo |
 |---|---|---|---|---|
-| 1 | Novedades del mes: 304 filas, 74 personas, 26 conceptos | Novedades → Cargar novedades → planilla pegada, con la columna de concepto (candidato 8) | Marcelo o liquidaciones | `novedades-octubre-2026-convenio1-para-importar` |
+| 1 | Novedades del mes: 304 filas, 74 personas, 26 conceptos | Novedades → Cargar novedades → planilla pegada, con la columna de concepto (candidato 8) | Marcelo o liquidaciones | `novedades-octubre-2026-convenio1-para-pegar` (legajo, concepto, unidades, importe) |
 | 2 | Novedades fijas de responsabilidad jerárquica (80), cajeros (56) y sistemas (57): 24 | Novedades → Novedades fijas | Marcelo o liquidaciones | `novedades-fijas-80-56-57-convenio1` |
 | 3 | Declaración familiar con cantidades: 50 personas con cargas, 31 en cero | Asignaciones familiares (admite la planilla completa en CSV) | Liquidaciones | `familia-octubre-2026-convenio1` |
 | 4 | Condiciones salariales propias, antigüedad de 5 contratos y antigüedad parcial | Reglas y parámetros | Liquidaciones | — |
@@ -60,4 +60,4 @@ Se compararon las fórmulas de GRH de cada convenio con las del convenio 1, sól
 
 Entre el 1, el 6 y el 4 son 534 de las 844 personas con recibo en octubre. La aplicación ya tiene «copiar reglas de otro convenio»: el camino corto es copiar el 1 y tocar esas dos o cuatro reglas. Los convenios docentes (5, 12, 13 y 14) son otra familia de fórmulas y van aparte.
 
-Además, las novedades de octubre del resto de las personas son 2.609 filas, y las fijas vigentes de 80, 56 y 57 son 97 más.
+Las novedades de octubre de los otros nueve convenios ya están preparadas en la misma carpeta, un archivo por convenio listo para pegar (2.236 filas en total; el 6 tiene 1.062 y el 4, 479) y, aparte, sus forzadas (342). Las fijas vigentes de 80, 56 y 57 del resto son 97.
