@@ -29,6 +29,6 @@
  .own-close tbody tr{display:grid;gap:.35rem;padding:.85rem;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
  .own-close tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem;padding:.3rem 0;border-bottom:1px solid #eef2f3;text-align:right;overflow-wrap:anywhere}
  .own-close tbody td:last-child{border-bottom:0;padding-bottom:0}
- .own-close tbody td[data-label]::before{content:attr(data-label);font-size:.76rem;font-weight:700;color:#475569;text-align:left;flex:0 1 auto}
+ .own-close tbody td[data-label]::before{content:attr(data-label);font-size:.76rem;font-weight:700;color:#475569;text-align:left;flex:0 0 auto;white-space:nowrap}
  .own-close-badge{white-space:normal;text-align:right}
 }

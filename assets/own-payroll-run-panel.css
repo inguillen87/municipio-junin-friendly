@@ -49,7 +49,8 @@
  .own-run tbody tr{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--own-line);border-radius:10px;background:#fff}
  .own-run tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:1px solid #eef2f3;max-width:none;overflow-wrap:anywhere;text-align:right}
  .own-run tbody td:last-child{border-bottom:0;padding-bottom:0}
- .own-run tbody td[data-label]::before{content:attr(data-label);font-size:12px;font-weight:700;color:#4a606c;text-align:left;flex:0 1 auto}
+ .own-run tbody td[data-label]::before{content:attr(data-label);font-size:12px;font-weight:700;color:#4a606c;text-align:left;flex:0 0 auto;white-space:nowrap}
+ .own-run tbody td:has(.button){flex-direction:column;align-items:stretch;gap:6px;text-align:left}
  .own-run tbody td .button{width:100%}
 }
 

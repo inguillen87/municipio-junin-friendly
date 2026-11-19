@@ -371,7 +371,9 @@
       .table-wrap tbody tr { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
       .table-wrap tbody td { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 0; border-bottom: 1px solid #eef2f1; text-align: right; overflow-wrap: anywhere; }
       .table-wrap tbody td:last-child { border-bottom: 0; padding-bottom: 0; }
-      .table-wrap tbody td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 750; color: var(--muted); text-align: left; flex: 0 1 auto; }
+      .table-wrap tbody td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 750; color: var(--muted); text-align: left; flex: 0 0 auto; white-space: nowrap; }
+      .table-wrap tbody td:has(.button) { flex-direction: column; align-items: stretch; gap: 6px; text-align: left; }
+      .table-wrap tbody td .button { width: 100%; }
       .table-wrap tbody td.empty { display: block; text-align: center; border-bottom: 0; }
     }
     @media (max-width: 480px) {

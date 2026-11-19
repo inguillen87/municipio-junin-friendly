@@ -27,7 +27,8 @@
  .own-liquidation tbody tr{display:grid;gap:.35rem;padding:.85rem;border:1px solid #d4e0dd;border-radius:10px;background:#fff}
  .own-liquidation tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem;padding:.3rem 0;border-bottom:1px solid #eef2f3;text-align:right;overflow-wrap:anywhere}
  .own-liquidation tbody td:last-child{border-bottom:0;padding-bottom:0}
- .own-liquidation tbody td[data-label]::before{content:attr(data-label);font-size:.76rem;font-weight:700;color:#4a606c;text-align:left;flex:0 1 auto}
+ .own-liquidation tbody td[data-label]::before{content:attr(data-label);font-size:.76rem;font-weight:700;color:#4a606c;text-align:left;flex:0 0 auto;white-space:nowrap}
+ .own-liquidation tbody td:has(.button),.own-liquidation tbody td:has(details){flex-direction:column;align-items:stretch;gap:.35rem;text-align:left}
  .own-liquidation tbody td[colspan]{display:block;text-align:left;border-bottom:0}
  .own-liquidation tbody td .button{width:100%}
  .own-liquidation tbody td details{width:100%;text-align:left}
