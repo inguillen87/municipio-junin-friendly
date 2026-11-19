@@ -578,6 +578,7 @@ const shellFiles = [
   'assets/payroll-monthly-correction-model.js',
   'assets/payroll-monthly-correction.css',
   'assets/payroll-fixed-novelties.js',
+  'assets/payroll-fixed-bulk-model.js',
   'assets/payroll-fixed-novelties-model.js',
   'assets/payroll-operator-identity.js',
   'assets/payroll-fixed-concepts.js',
