@@ -181,6 +181,8 @@ Consecuencia para la comparación: «igual al centavo» contra GRH no es alcanza
 
 De las 210 celdas que siguen distintas, 132 son asignaciones familiares y seguro por hijo (faltan las cantidades declaradas), 4 el embargo alimentario forzado, unas 30 son de las tres personas con básico forzado a cero y el resto es arrastre de esas mismas faltas.
 
+**Cantidades familiares cargadas en el ensayo (19/11, 13:00).** Las doce cantidades de la declaración se corresponden una a una con los conceptos 300 a 310 y 313 de GRH. Se calcularon dentro de la copia como el importe de cada concepto del recibo de octubre dividido por la tarifa del programa: las 104 líneas dieron división exacta (37 cónyuges, 41 hijos, 21 en media, 13 en primaria, 5 en preescolar, 3 familias numerosas, 2 con discapacidad), con región 1 y un promedio semestral de ensayo, porque el respaldo no lo trae por persona. Resultado: **1.251 de 1.329 celdas coinciden y 53 de las 79 personas tienen todos sus conceptos iguales.** Todas las asignaciones y el seguro por hijo cierran al centavo. De las 78 celdas restantes, 19 son de uno o dos centavos en importes que GRH calcula en cadena con precisión simple, y las demás vienen de las 14 novedades forzadas. Los pasos para repetir esto en la base operativa están en `docs/OCTUBRE_CONVENIO1_PASOS_20261119.md`.
+
 **Lo que falta de verdad para cerrar el convenio 1 de octubre** (conteos del ensayo, antes de cargar las fijas):
 
 | Falta | Personas | Cómo se carga |
