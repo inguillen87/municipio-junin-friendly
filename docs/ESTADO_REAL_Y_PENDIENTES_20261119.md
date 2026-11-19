@@ -93,6 +93,8 @@ El PR #304 avanza con las dos correcciones de navegador, el límite de 30 minuto
 
 **El cálculo dice qué dato falta (candidato 7, sin publicar).** Cuando una fórmula pide un dato sin valor, el motor informa qué clave pidió, el servidor dice de qué fuente sale y a cuántas de las personas elegidas les falta, y el panel arma el texto con su propio vocabulario. Ejemplo con el caso del ensayo: «Falta cargar los datos familiares del período (cónyuge): sin valor en 79 de 81 personas elegidas. No se supuso cero. Completá ese dato, aprobalo y volvé a calcular. Clave en las reglas: familia_spouse.» Además, para no avisar de a un dato por intento, el servidor completa ese dato con un valor neutro sobre una copia en memoria y vuelve a calcular hasta doce veces o veinte segundos, sólo para listar qué pedirían después las fórmulas; esa copia no se guarda ni se devuelve, y los conteos salen siempre de la entrada aprobada. El aviso no lleva datos de personas. Como cambia un archivo del motor, cambia la huella del algoritmo: una captura hecha antes de publicar y todavía sin calcular hay que repetirla. Batería completa: 14.730 pruebas, 0 fallas.
 
+**Candidato 8 (`404cc4c3`, PR #304, en verificación desde las 12:50 del 19/11).** Es el candidato 7 más un cambio: la planilla pegada de Novedades acepta una columna de concepto, así un solo pegado carga las novedades de varios conceptos. Pruebas locales completas: 14.733, con 14.729 aprobadas, 3 omitidas y 1 falla de redacción (un plural fijo) corregida antes de subir. El candidato 7 no se publica aparte: sus verificaciones llevaban 128 flujos aprobados y ninguna falla cuando el 8 lo reemplazó.
+
 ## Medido en la base operativa el 19/11 (sólo totales)
 
 **Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. Estado por reloj:
@@ -246,6 +248,8 @@ La lista con los legajos quedó en un archivo privado en la PC de Marcelo, para 
 La causa encontrada es otra. La máquina de Oracle entra a la red municipal con **la misma identidad de VPN que la PC de Marcelo**, y el plan lo advierte: nunca los dos túneles a la vez. La VPN de la PC estaba conectada desde el 18/11 a las 17:00 y su registro muestra **282 reinicios por inactividad, uno cada cuatro minutos**, hasta el 19/11 a las 11:46: es el patrón de dos clientes con la misma identidad que se desplazan uno al otro. Con el túnel cortándose así, PM-14 alcanza a entregar en los intervalos (269 lotes en diez días, último el 19/11 a las 11:03) y los otros se quedaron a mitad de lectura: PM-03 el 10/11 a las 20:43, PM-02 el 11/11 a las 20:57 y PM-10 el 12/11 a las 16:37, siempre después del corte y ya desde Oracle. PM-05 y PM-06 sólo tienen la carga histórica del 5/11.
 
 **Hecho el 19/11 a las 11:52:** se desconectó la sesión de VPN de la PC con el comando de desconexión del propio cliente, sin tocar su configuración. Quedó sin proceso y sin ruta municipal. Claude no necesita esa VPN: el respaldo de GRH está en archivos locales.
+
+**Después de desconectarla:** PM-14 entregó tres lotes entre las 12:19 y las 12:49, uno cada quince minutos, sin los huecos de más de una hora de la mañana. PM-02, PM-03 y PM-10 siguen sin entregar: no se retoman solos.
 
 **Lo que sigue sin verificar:** el estado por dentro de la máquina de Oracle (si las tres lecturas quedaron bloqueadas esperando revisión o se retoman solas). El sistema de seguridad de Claude rechazó la entrada por SSH y no se buscó otro camino. Se mira desde la base si vuelven a entregar.
 
