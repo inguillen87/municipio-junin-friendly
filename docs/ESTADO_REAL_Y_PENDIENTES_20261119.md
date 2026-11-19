@@ -71,7 +71,18 @@ Candidato 6 (243 y 244 sobre el candidato 5): batería completa con Node 24.21.0
 
 ## Medido en la base operativa el 19/11 (sólo totales)
 
-**Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. La recolección automática funciona: la última marcación llegó el 19/11 a las 00:39 y entran entre 116 y 128 por día. Pero desde el 13/11 entrega **un solo dispositivo**; el 12/11 entregaron dos. Los otros cinco puntos registrados no están entregando y ocho puntos más no están registrados. Lo que falta es conectividad en sitio (red municipal o VPN hacia cada reloj), no desarrollo.
+**Relojes.** 6 puntos y 6 dispositivos activos, 85.170 marcaciones crudas en total. Estado por reloj:
+
+| Reloj | Marcaciones | Última recibida | Situación |
+|---|---|---|---|
+| A | 11.412 | 19/11, 00:39 | Entrega sola, en lotes a lo largo del día (186 lotes en 7 días). Es el único automatizado de punta a punta. |
+| B | 15.122 | 12/11 | Dejó de entregar el 12/11. |
+| C | 5.787 | 11/11 | Dejó de entregar el 11/11. |
+| D | 37.625 | 10/11 | Dejó de entregar el 10/11. |
+| E | 13.765 | 5/11 (marcas hasta el 6/10) | Sólo una carga histórica. |
+| F | 1.459 | 5/11 (marcas hasta el 6/10) | Sólo una carga histórica. |
+
+Los relojes B, C y D dependían del recolector anterior, que está detenido desde esas fechas; no se reanuda solo. Ocho puntos más no están registrados. Lo que falta es operación y conectividad en sitio (recolector autónomo con llegada a cada reloj por la red municipal o VPN), no desarrollo. El estado de la máquina virtual del recolector no se pudo consultar: la consola pidió contraseña.
 
 **Liquidación propia de octubre: por qué no calculó y qué falta de verdad.** Se reprodujo en memoria, sin escribir nada, el cálculo que la aplicación intentó sobre la captura guardada del 6/11 (848 personas). Todas las fuentes están completas (condiciones salariales, jornada, antigüedad y participación de las 848; catálogo salarial de 391 conceptos). El motor se detiene con `PAY_RULE_MISSING`: «faltan reglas de haberes vigentes para un contrato del conjunto».
 
