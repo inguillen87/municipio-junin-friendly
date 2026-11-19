@@ -8,7 +8,8 @@ import fs from 'node:fs';
 const source = fs.readFileSync(new URL('../assets/payroll-fixed-novelties.js', import.meta.url), 'utf8');
 
 test('abrir antes de conocer el acceso no lee nada y deja anotado que falta consultar', () => {
-  assert.match(source, /shell\.addEventListener\('toggle',\(\)=>\{if\(shell\.open\)\{mount\(\);if\(!hasRead\(access\)\)openedWithoutAccess=true;else if\(!data&&!editor&&!busy\)refresh\(\);\}/);
+  // Al reabrir una carga conjunta conserva el editor y recupera su progreso sin reenviar.
+  assert.match(source, /shell\.addEventListener\('toggle',\(\)=>\{if\(shell\.open\)\{mount\(\);if\(!hasRead\(access\)\)openedWithoutAccess=true;else if\(!data&&!editor&&!busy\)refresh\(\);else if\(editor\?\.kind==='bulkPropose'&&!busy\)refresh\(\);\}/);
 });
 
 test('al llegar el acceso, la sección ya abierta consulta: no queda abierta y vacía', () => {
