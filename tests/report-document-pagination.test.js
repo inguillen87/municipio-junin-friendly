@@ -83,7 +83,7 @@ test('PDF: las filas breves conservan orden, celdas vacías, cero y precisión',
 });
 
 test('PDF multipágina: desde la segunda hoja usa encabezado compacto, conserva 68 filas completas y aumenta la densidad',()=>{
- const d=report(Array.from({length:68},(_,i)=>row('EMP-'+String(i+1).padStart(3,'0'),'Descripción administrativa completa de prueba')));
+ const d=report(Array.from({length:68},(_,i)=>row('EMP-'+String(i+1).padStart(3,'0'),'Detalle de gestión y control')));
  const before=structuredClone(d),pages=parsedPdf(reportPdf(d));
  assert.ok(pages.length>=4&&pages.length<=8,'68 filas de dos líneas, hojas reales: '+pages.length);
  assertAllData(d,pages);
