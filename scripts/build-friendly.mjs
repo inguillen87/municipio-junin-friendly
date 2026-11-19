@@ -253,6 +253,7 @@ const shellFiles = [
   'assets/payroll-comparison.css',
   'assets/own-payroll-comparison-model.js',
   'assets/own-payroll-comparison-panel.js',
+  'assets/grh-single-precision.js',
   'assets/own-grh-comparison-model.js',
   'assets/own-grh-comparison-panel.js',
   'assets/own-payroll-comparison-panel.css',

@@ -5,6 +5,7 @@ import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-m
 import {ownHistoricalRunResult} from './own-payroll-historical-result-model.js';
 import {decimal,exactAdd,exactSubtract,quantize,rational} from './own-payroll-exact.js';
 import {OWN_COMPARISON_MAX_ROWS,ownComparisonCentRounding} from './own-payroll-comparison-model.js';
+import {grhSinglePrecision} from './grh-single-precision.js';
 
 export const OWN_GRH_COMPARISON_VERSION='own-grh-comparison.v1';
 export const GRH_STATEMENT_LINES_VERSION='grh-statement-lines.v1';
@@ -20,6 +21,7 @@ export const OWN_GRH_TYPES=Object.freeze({monthly:'M',first_fortnight:'P',sac:'S
 export const OWN_GRH_GROUP_NATURES=Object.freeze({'990':'employer_contribution','993':'remuneration','994':'non_remuneration','995':'non_remuneration','996':'deduction'});
 export const OWN_GRH_STATUS=Object.freeze({
  equal:'Sin diferencia',
+ grh_precision:'Igual con la precisión de GRH',
  rounding:'Diferencia de redondeo (hasta 5 centavos)',
  difference:'Diferencia',
  only_own:'Sólo en MuniControl',
@@ -103,12 +105,16 @@ function compare({own,grh,roundingLabel}){
  if(own.amount===null||grh.amount===null)return {status:'missing',delta:null};
  const delta=subtract(own.amount,grh.amount);
  if(zero(delta))return {status:'equal',delta};
+ // GRH guarda cada importe en precisión simple: si el importe exacto propio, guardado así, da el de GRH, no hay diferencia real.
+ // Es una regla exacta (ver grh-single-precision.js), no una tolerancia.
+ const single=grhSinglePrecision(own.amount);
+ if(single!==null&&zero(subtract(single,grh.amount)))return {status:'grh_precision',delta};
  return {status:roundingLabel&&ownComparisonCentRounding(roundingLabel,delta)?'rounding':'difference',delta};
 }
 function row(kind,legajo,contractId,statementId,code,label,own,grh,roundingLabel){
  const {status,delta}=compare({own,grh,roundingLabel});
  return {kind,legajo,contractId,statementId,code,label,own,grh,delta,status,state:OWN_GRH_STATUS[status],
-  rounding:status==='rounding',review:!['equal','rounding'].includes(status)};
+  rounding:status==='rounding',review:!['equal','rounding','grh_precision'].includes(status)};
 }
 
 /**
@@ -184,17 +190,17 @@ export function ownGrhComparison(capture,grhRaw,join){
   grh:{datasetId:grh.datasetId,period:grh.period,payrollType:grh.payrollType,closureStatus:grh.closureStatus,sourceHash:grh.sourceHash,statementCount:grh.statements.length},
   rows,totals,
   summary:{legajos:legajos.length,onlyOwnLegajos:[...ownPeople.keys()].filter(l=>!grhPeople.has(l)).length,onlyGrhLegajos:[...grhPeople.keys()].filter(l=>!ownPeople.has(l)).length,
-   equal:count('equal'),rounding:count('rounding'),difference:count('difference'),onlyOwn:count('only_own'),onlyGrh:count('only_grh'),notComparable:count('not_comparable'),missing:count('missing'),review:all.filter(r=>r.review).length},
+   equal:count('equal'),grhPrecision:count('grh_precision'),rounding:count('rounding'),difference:count('difference'),onlyOwn:count('only_own'),onlyGrh:count('only_grh'),notComparable:count('not_comparable'),missing:count('missing'),review:all.filter(r=>r.review).length},
   warnings,proof:salarySerialized([capture.id,capture.payloadSha256,capture.saved.inputSha256,capture.saved.resultSha256,grh.datasetId,grh.sourceHash,grh.statements.map(s=>s.statementHash)])});
 }
 
 /**
  * Vista paginada, sólo para presentación. Nunca modifica ni reduce el modelo completo;
- * 'rounding' es una categoría independiente de 'equal'.
+ * 'rounding' y 'grh_precision' son categorías independientes de 'equal'.
  */
 export function ownGrhComparisonView(model,{view='concepts',status='all',search='',page=1,pageSize=25}={}){
  need(model?.version===OWN_GRH_COMPARISON_VERSION&&Array.isArray(model.rows)&&Array.isArray(model.totals),'Consultá una comparación MuniControl contra GRH válida.');
- need(['concepts','totals'].includes(view)&&['all','review','rounding','equal'].includes(status)&&
+ need(['concepts','totals'].includes(view)&&['all','review','rounding','grh_precision','equal'].includes(status)&&
    typeof search==='string'&&search.length<=100&&Number.isSafeInteger(page)&&page>0&&
    Number.isSafeInteger(pageSize)&&pageSize>0&&pageSize<=100,'Elegí una vista y filtros válidos.');
  const all=view==='concepts'?model.rows:model.totals;
@@ -203,7 +209,7 @@ export function ownGrhComparisonView(model,{view='concepts',status='all',search=
  const filtered=all.filter(r=>(status==='all'||status==='review'&&r.review||status===r.status)&&(!term||searchable(r).includes(term)));
  const pages=Math.max(1,Math.ceil(filtered.length/pageSize)),current=Math.min(page,pages);
  return {rows:filtered.slice((current-1)*pageSize,current*pageSize),filtered:filtered.length,total:all.length,
-  page:current,pages,review:all.filter(r=>r.review).length,rounding:all.filter(r=>r.status==='rounding').length,
+  page:current,pages,review:all.filter(r=>r.review).length,rounding:all.filter(r=>r.status==='rounding').length,grhPrecision:all.filter(r=>r.status==='grh_precision').length,
   equal:all.filter(r=>r.status==='equal').length,difference:all.filter(r=>r.status==='difference').length};
 }
 const displayAmount=(part)=>part===null?'No figura':part.amount===null?'No informado':part.amount;
@@ -238,10 +244,11 @@ export function ownGrhComparisonDocument(model,view='concepts'){
    ['Liquidación GRH',model.grh.datasetId],['Fuente GRH SHA-256',model.grh.sourceHash],
    ['Cierre GRH',model.grh.closureStatus],['Legajos en unión',model.summary.legajos],
    ['Filas completas',rows.length],['Redondeos (vista completa)',rows.filter(r=>r.status==='rounding').length],
+   ['Iguales con la precisión de GRH (vista completa)',rows.filter(r=>r.status==='grh_precision').length],
    ['Sin diferencia (vista completa)',rows.filter(r=>r.status==='equal').length],
    ['Para revisar (vista completa)',rows.filter(r=>r.review).length],
   ],
-  notes:[...model.warnings,'La descarga contiene todas las filas de la vista elegida, con independencia del filtro, búsqueda o página de pantalla.'],
+  notes:[...model.warnings,...(rows.some(r=>r.status==='grh_precision')?['«Igual con la precisión de GRH»: GRH guarda cada importe en precisión simple y arriba de $131.072 no puede dar todos los centavos. El importe exacto de MuniControl, guardado de esa forma, da exactamente el de GRH.']:[]),'La descarga contiene todas las filas de la vista elegida, con independencia del filtro, búsqueda o página de pantalla.'],
   filename:'municontrol_comparacion_grh_'+view+'_'+model.own.period+'_'+model.grh.payrollType.toLowerCase(),
  };
 }
