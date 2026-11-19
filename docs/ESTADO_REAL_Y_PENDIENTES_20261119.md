@@ -142,6 +142,24 @@ En total, 64 de los 89 conceptos usados ya tienen una regla escrita para el conv
 7. El motor pide entonces los meses de ajuste prenatal (sin informar en los 81). Completados con cero en la copia.
 8. El motor pide la antigüedad parcial (`partialSeniorityYears`), que está aprobada «sin informar» en los 81 contratos. Hasta ahí llegó el ensayo. Quedan sin valor, y pueden ser lo siguiente que pida una fórmula: el importe de referencia docente y dos datos docentes (81), el código y el porcentaje de título (27) y las nueve tarifas familiares (81).
 
+9. Completada con cero la antigüedad parcial de los 81 contratos, **el cálculo de octubre del convenio 1 termina**: 81 personas, 9.882 renglones. La base verificó el resultado entero y lo guardó en la copia. Es la primera corrida completa de octubre con las funciones reales; sus valores no son oficiales porque varios datos se completaron con cero.
+
+**Comparación contra GRH de esa corrida** (sólo conteos; 79 de las 81 personas tienen recibo de GRH en octubre):
+
+| Qué | Resultado |
+|---|---|
+| Personas con todo igual | 0 de 79 (esperable: faltan las novedades del mes y los datos familiares van en cero) |
+| Celdas persona × concepto iguales al centavo | 340 de 1.329 |
+| Conceptos que coinciden donde ambos sistemas liquidan | 24 (50 de 51), 606 (76 de 79), 607 (35 de 36), 53 (6 de 6) |
+| Básico (concepto 1) | 38 personas iguales, 38 distintas, 3 sólo en MuniControl |
+| Diferencias de un centavo (redondeo) | 48 (28 personas, 3 centavos en total), 51, 52 y 58 |
+| Conceptos que GRH liquidó y MuniControl no | 44 (37 personas), 95 (25), 80 (19, asignación familiar), 300 a 309, 602 a 678 y otros: son novedades y descuentos de octubre que nunca se cargaron en MuniControl |
+| Aportes y contribuciones (600, 601, 604, 685, 701, 703) | Distintos en 67 o 68 personas, porque la base sobre la que se calculan difiere |
+
+Qué deja esto en claro: el motor, la captura, la verificación en la base y el guardado funcionan de punta a punta. Lo que separa a MuniControl de GRH en octubre es, en este orden: las **novedades y descuentos del mes sin cargar**, los datos por persona sin informar, el básico de 38 personas (a estudiar: proporcionales o categoría) y un redondeo de un centavo en cuatro conceptos.
+
+**Riesgo de rendimiento encontrado.** Verificar y guardar esa corrida de 81 personas llevó unos cinco minutos en la copia (resultado de 17 MB). La función publicada que calcula y guarda no declara su límite de tiempo. Con ese tiempo una corrida de este tamaño puede cortarse antes de guardarse, y un convenio de 292 personas no entra. Hay que medirlo en la base operativa y, según dé, declarar el límite, aligerar la verificación o pasarla a un trabajo en segundo plano.
+
 El patrón es uno solo: las cargas de octubre se aprobaron en bloque con muchos campos «sin informar», y las fórmulas del convenio 1 piden un valor explícito en cada uno, aunque sea cero. El motor avisa de a un dato por vez.
 
 Dos cosas del producto que el ensayo dejó a la vista y todavía no están resueltas:
