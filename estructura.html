@@ -290,10 +290,10 @@
     .table-status { display: flex; justify-content: space-between; gap: 15px; align-items: center; padding: 12px 19px; background: var(--paper-2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
     .table-status strong { color: var(--ink); }
     .table-wrap { max-width: 100%; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid #e4e9e7; vertical-align: middle; }
-    th { position: sticky; top: 0; z-index: 1; background: #f2f5f3; color: #52656e; font-size: 9px; font-weight: 850; letter-spacing: .055em; text-transform: uppercase; white-space: nowrap; }
-    td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid #e4e9e7; vertical-align: middle; font-variant-numeric: tabular-nums; }
+    th { position: sticky; top: 0; z-index: 1; background: #f2f5f3; color: #364f5a; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    td.numeric, th.numeric { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     tbody tr:hover { background: #f8faf9; }
     .entity { color: var(--navy); font-weight: 780; }
     .muted { color: var(--muted); }
@@ -309,7 +309,7 @@
     .catalog-card span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
     details { border-bottom: 1px solid var(--line); }
     details:last-child { border-bottom: 0; }
-    summary { padding: 14px 19px; color: var(--navy); font-weight: 820; cursor: pointer; }
+    summary { display: flex; align-items: center; min-height: 44px; padding: 12px 19px; color: var(--navy); font-weight: 820; cursor: pointer; }
     summary small { margin-left: 7px; color: var(--muted); font-weight: 600; }
     .catalog-note { margin: 0; padding: 0 19px 14px; color: var(--muted); font-size: 10px; }
 
@@ -362,6 +362,17 @@
       .field { flex: 1 1 170px; }
       input, select { width: 100%; min-width: 0; }
       .definitions { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .table-wrap { overflow: visible; padding: 10px 12px; }
+      .table-wrap table { display: block; min-width: 0; }
+      .table-wrap thead, .table-wrap thead tr, .table-wrap thead th { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
+      .table-wrap tbody { display: grid; gap: 10px; }
+      .table-wrap tbody tr { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+      .table-wrap tbody td { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 0; border-bottom: 1px solid #eef2f1; text-align: right; overflow-wrap: anywhere; }
+      .table-wrap tbody td:last-child { border-bottom: 0; padding-bottom: 0; }
+      .table-wrap tbody td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 750; color: var(--muted); text-align: left; flex: 0 1 auto; }
+      .table-wrap tbody td.empty { display: block; text-align: center; border-bottom: 0; }
     }
     @media (max-width: 480px) {
       .metrics { grid-template-columns: 1fr; }
@@ -628,8 +639,8 @@
       }
 
       function nominalCell(row, field) {
-        if (!state.canReadPeople || row.assigned !== true) return '<td>—</td>';
-        return '<td><button type="button" class="button sp-entry" data-sp-open data-sp-field="' + field + '" data-sp-label="' + escapeHTML(row.label) + '">Ver legajos</button></td>';
+        if (!state.canReadPeople || row.assigned !== true) return '<td data-label="Legajos">—</td>';
+        return '<td data-label="Legajos"><button type="button" class="button sp-entry" data-sp-open data-sp-field="' + field + '" data-sp-label="' + escapeHTML(row.label) + '">Ver legajos</button></td>';
       }
       function renderOrganizations() {
         var rows = state.payload.organizations.filter(function (row) {
@@ -638,12 +649,12 @@
         byId('organizationResultCount').textContent = formatNumber(rows.length);
         byId('organizationRows').innerHTML = rows.map(function (row) {
           return '<tr>' +
-            '<td><span class="entity">' + escapeHTML(row.label) + '</span> ' + (row.assigned ? '' : '<span class="badge warn">Sin dato</span>') + '</td>' +
-            '<td class="code-list">' + codes(row.organizationIds) + '</td>' +
-            '<td class="numeric">' + formatNumber(row.active) + '</td>' +
-            '<td class="numeric">' + formatNumber(row.inactive) + '</td>' +
-            '<td class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
-            '<td class="numeric">' + formatNumber(row.sectorCount) + '</td>' + nominalCell(row, 'organization') +
+            '<td data-label="Organización"><span class="entity">' + escapeHTML(row.label) + '</span> ' + (row.assigned ? '' : '<span class="badge warn">Sin dato</span>') + '</td>' +
+            '<td data-label="IDs fuente" class="code-list">' + codes(row.organizationIds) + '</td>' +
+            '<td data-label="Activos" class="numeric">' + formatNumber(row.active) + '</td>' +
+            '<td data-label="Inactivos" class="numeric">' + formatNumber(row.inactive) + '</td>' +
+            '<td data-label="Histórico" class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
+            '<td data-label="Sectores" class="numeric">' + formatNumber(row.sectorCount) + '</td>' + nominalCell(row, 'organization') +
           '</tr>';
         }).join('');
         byId('organizationEmpty').hidden = rows.length > 0;
@@ -657,12 +668,12 @@
         byId('sectorResultCount').textContent = formatNumber(rows.length);
         byId('sectorRows').innerHTML = rows.map(function (row) {
           return '<tr>' +
-            '<td><span class="entity">' + escapeHTML(row.label) + '</span> ' + (row.assigned ? '' : '<span class="badge warn">Sin dato</span>') + '</td>' +
-            '<td class="code-list">' + codes(row.sectorCodes) + '</td>' +
-            '<td class="numeric">' + formatNumber(row.active) + '</td>' +
-            '<td class="numeric">' + formatNumber(row.inactive) + '</td>' +
-            '<td class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
-            '<td class="numeric">' + formatNumber(row.organizationCount) + '</td>' + nominalCell(row, 'sector') +
+            '<td data-label="Sector"><span class="entity">' + escapeHTML(row.label) + '</span> ' + (row.assigned ? '' : '<span class="badge warn">Sin dato</span>') + '</td>' +
+            '<td data-label="Códigos" class="code-list">' + codes(row.sectorCodes) + '</td>' +
+            '<td data-label="Activos" class="numeric">' + formatNumber(row.active) + '</td>' +
+            '<td data-label="Inactivos" class="numeric">' + formatNumber(row.inactive) + '</td>' +
+            '<td data-label="Histórico" class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
+            '<td data-label="Organizaciones" class="numeric">' + formatNumber(row.organizationCount) + '</td>' + nominalCell(row, 'sector') +
           '</tr>';
         }).join('');
         byId('sectorEmpty').hidden = rows.length > 0;
@@ -684,19 +695,19 @@
         byId('jobRoleCount').textContent = '(' + formatNumber(jobRoles.length) + ' de ' + formatNumber(catalogs.jobRoles.length) + ')';
         byId('roleCoverageNote').textContent = formatNumber(state.payload.coverage.withRole) + ' legajos informan cargoName. El catálogo se conserva como fuente literal y no se usa para completar asignaciones vacías.';
         byId('jobRoleRows').innerHTML = jobRoles.length ? jobRoles.map(function (row) {
-          return '<tr><td class="entity">' + escapeHTML(row.label) + '</td><td class="code-list">' + escapeHTML(row.id) + '</td><td class="code-list">' + escapeHTML(row.parentId) + '</td><td>' + escapeHTML(row.reportsTo) + '</td></tr>';
+          return '<tr><td data-label="Cargo" class="entity">' + escapeHTML(row.label) + '</td><td data-label="ID" class="code-list">' + escapeHTML(row.id) + '</td><td data-label="Padre" class="code-list">' + escapeHTML(row.parentId) + '</td><td data-label="Reporta a">' + escapeHTML(row.reportsTo) + '</td></tr>';
         }).join('') : '<tr><td colspan="4" class="empty">Sin coincidencias.</td></tr>';
 
         var organizations = catalogs.organizations.filter(function (row) { return !query || includesSearch([row.label, row.id, row.code, row.abbreviation]); });
         byId('organizationCatalogCount').textContent = '(' + formatNumber(organizations.length) + ' de ' + formatNumber(catalogs.organizations.length) + ')';
         byId('organizationCatalogRows').innerHTML = organizations.length ? organizations.map(function (row) {
-          return '<tr><td class="entity">' + escapeHTML(row.label) + '</td><td class="code-list">' + escapeHTML(row.id) + '</td><td class="code-list">' + escapeHTML(row.code) + '</td><td>' + escapeHTML(row.abbreviation) + '</td><td class="code-list">' + escapeHTML(row.parentId) + '</td></tr>';
+          return '<tr><td data-label="Organización" class="entity">' + escapeHTML(row.label) + '</td><td data-label="ID" class="code-list">' + escapeHTML(row.id) + '</td><td data-label="Código" class="code-list">' + escapeHTML(row.code) + '</td><td data-label="Abreviatura">' + escapeHTML(row.abbreviation) + '</td><td data-label="Padre" class="code-list">' + escapeHTML(row.parentId) + '</td></tr>';
         }).join('') : '<tr><td colspan="5" class="empty">Sin coincidencias.</td></tr>';
 
         var sectors = catalogs.sectors.filter(function (row) { return !query || includesSearch([row.label, row.companyCode, row.sectorCode, row.abbreviation, row.budgetActivityId]); });
         byId('sectorCatalogCount').textContent = '(' + formatNumber(sectors.length) + ' de ' + formatNumber(catalogs.sectors.length) + ')';
         byId('sectorCatalogRows').innerHTML = sectors.length ? sectors.map(function (row) {
-          return '<tr><td class="entity">' + escapeHTML(row.label) + '</td><td class="code-list">' + escapeHTML(row.companyCode) + '</td><td class="code-list">' + escapeHTML(row.sectorCode) + '</td><td>' + escapeHTML(row.abbreviation) + '</td><td class="code-list">' + escapeHTML(row.budgetActivityId) + '</td></tr>';
+          return '<tr><td data-label="Sector" class="entity">' + escapeHTML(row.label) + '</td><td data-label="Empresa" class="code-list">' + escapeHTML(row.companyCode) + '</td><td data-label="Sector" class="code-list">' + escapeHTML(row.sectorCode) + '</td><td data-label="Abreviatura">' + escapeHTML(row.abbreviation) + '</td><td data-label="Actividad" class="code-list">' + escapeHTML(row.budgetActivityId) + '</td></tr>';
         }).join('') : '<tr><td colspan="5" class="empty">Sin coincidencias.</td></tr>';
       }
 
