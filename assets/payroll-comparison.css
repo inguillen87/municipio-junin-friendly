@@ -20,7 +20,7 @@
 .pc-table caption{text-align:left;font-size:12px;font-weight:650;padding:14px;background:#fff;color:#3b5868}
 .pc-table th:first-child{min-width:230px;max-width:300px}
 .pc-table tbody th{position:static;background:#fff;text-transform:none;font-size:12px;letter-spacing:0;vertical-align:top;border-bottom:1px solid #e5eef0}
-.pc-table tr[data-pc-review=true]>th{box-shadow:inset 4px 0 0 #c2410c}
+.pc-table tr[data-pc-row-review=true]>th{box-shadow:inset 4px 0 0 #c2410c}
 .pc-table tbody th strong{display:block;color:#163d4f;margin-bottom:4px;font-variant-numeric:tabular-nums}
 .pc-table tbody th span{display:block;line-height:1.6;font-weight:500;overflow-wrap:anywhere}
 .pc-table td{min-width:130px}
@@ -32,5 +32,5 @@
 .pc-trace dl{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,3fr);gap:10px 20px;font-size:11px;line-height:1.6}
 .pc-trace dt{font-weight:700}.pc-trace dd{margin:0;overflow-wrap:anywhere}
 .pc-workbench :is(button,select,input,summary,[tabindex]):focus-visible{outline:3px solid #ac6812;outline-offset:3px}
-@media(max-width:640px){.pc-sources{grid-template-columns:1fr}.pc-source-card{padding:16px}.pc-workbench [data-pc-query]>label{flex-basis:100%}.pc-workbench [data-pc-query]>button{width:100%}.pc-trace dl{grid-template-columns:1fr;gap:5px}.pc-trace dd{margin-bottom:12px}.pc-kpis strong{font-size:24px}.pc-table-wrap{max-height:none}.pc-table{min-width:0}.pc-table th:first-child,.pc-table td,.pc-table td:last-child{min-width:0;max-width:none}.pc-table tr[data-pc-review=true]{border-left:4px solid #c2410c}.pc-table tr[data-pc-review=true]>th{box-shadow:none}}
+@media(max-width:640px){.pc-sources{grid-template-columns:1fr}.pc-source-card{padding:16px}.pc-workbench [data-pc-query]>label{flex-basis:100%}.pc-workbench [data-pc-query]>button{width:100%}.pc-trace dl{grid-template-columns:1fr;gap:5px}.pc-trace dd{margin-bottom:12px}.pc-kpis strong{font-size:24px}.pc-table-wrap{max-height:none}.pc-table{min-width:0}.pc-table th:first-child,.pc-table td,.pc-table td:last-child{min-width:0;max-width:none}.pc-table tr[data-pc-row-review=true]{border-left:4px solid #c2410c}.pc-table tr[data-pc-row-review=true]>th{box-shadow:none}}
 @media print{.pc-workbench [data-pc-catalog],.pc-workbench [data-pc-cancel],.pc-workbench [data-pc-login]{display:none!important}}

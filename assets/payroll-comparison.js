@@ -147,7 +147,7 @@ export function mountPayrollComparison(host) {
     $('[data-pc-review]').textContent = view.review;
     $('[data-pc-empty]').hidden = view.count !== 0;
     const rows = view.rows.map(row => {
-      const tr = node('tr'); tr.dataset.pcCode = row.code; tr.dataset.pcReview = String(row.review); tr.dataset.pcStatus = row.status;
+      const tr = node('tr'); tr.dataset.pcCode = row.code; tr.dataset.pcRowReview = String(row.review); tr.dataset.pcRowStatus = row.status;
       const name = node('th'); name.scope = 'row'; name.dataset.label = 'Código / concepto'; name.append(node('strong', row.code), node('span', row.description));
       if (row.totalizer) name.append(node('small', 'Totalizador de origen', 'pc-tag'));
       tr.append(name);
