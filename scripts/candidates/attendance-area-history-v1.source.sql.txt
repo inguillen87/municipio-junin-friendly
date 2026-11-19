@@ -132,7 +132,7 @@ BEGIN
  OR initial_snapshot->>'source_system' IS DISTINCT FROM 'MUNICONTROL'
  OR initial_snapshot->'source_batch_id' IS DISTINCT FROM 'null'::jsonb
  OR initial_snapshot->>'start_date' IS DISTINCT FROM to_char(c.start_date,'YYYY-MM-DD')
- OR initial_snapshot->>'end_date' IS DISTINCT FROM CASE WHEN c.end_date IS NULL THEN NULL ELSE to_char(c.end_date,'YYYY-MM-DD') END
+ OR initial_snapshot->>'end_date' IS DISTINCT FROM (CASE WHEN c.end_date IS NULL THEN NULL ELSE to_char(c.end_date,'YYYY-MM-DD') END)
  THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_REGISTRATION_UNPROVEN'));END IF;
  revision_value:=0;
  FOR change_row IN SELECT r.* FROM public.native_employment_change_review r WHERE r.contract_id=target AND r.decision='approve' ORDER BY r.revision LOOP

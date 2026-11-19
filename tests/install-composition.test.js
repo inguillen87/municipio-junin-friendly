@@ -234,3 +234,29 @@ test('Codex (6996579811): la composición concede EXECUTE sólo a las fachadas q
    assert.ok(!new RegExp('^\\s*GRANT\\b[^;]*\\b'+helper.name+'\\(','m').test(sql),name+': '+helper.name+' sigue revocada');
  }
 });
+
+// Ensayo en PostgreSQL 17 (rama de ensayo, 18/11): dentro de la condición de un IF de PL/pgSQL, un CASE sin paréntesis
+// corta la condición en su primer THEN y la función no se crea («syntax error at end of input»). Ninguna fuente,
+// ni la 240/241/242, puede tener un CASE a profundidad 0 entre IF/ELSIF y su THEN.
+test('ensayo PG17: ningún IF de PL/pgSQL tiene un CASE sin paréntesis en su condición',()=>{
+ const blank=src=>src.replace(/--[^\n]*|'(?:''|[^'])*'/g,m=>m.replace(/[^\n]/g,' '));
+ const offenders=file=>{
+  const src=readFileSync(file,'utf8'),tokens=[...blank(src).matchAll(/[A-Za-z_][A-Za-z_0-9]*|\(|\)|;/g)].map(m=>({text:m[0],upper:m[0].toUpperCase(),index:m.index})),found=[];
+  tokens.forEach((token,i)=>{
+   if(!['IF','ELSIF'].includes(token.upper)||tokens[i-1]?.upper==='END'||tokens[i+1]?.upper==='EXISTS'||(tokens[i+1]?.upper==='NOT'&&tokens[i+2]?.upper==='EXISTS'))return;
+   let depth=0,sawCase=false;
+   for(let j=i+1;j<tokens.length;j++){const t=tokens[j];
+    if(t.text==='(')depth++;else if(t.text===')')depth--;else if(t.text===';')break;
+    else if(depth===0&&t.upper==='CASE')sawCase=true;
+    else if(depth===0&&t.upper==='THEN'){if(sawCase)found.push(file+':'+(src.slice(0,token.index).split('\n').length));break;}
+   }
+  });
+  return found;
+ };
+ const files=[...COMPOSITION_ORDER.map(name=>compositionPaths(name).source),'scripts/migrations/240-attendance-daily-source.sql','scripts/migrations/241-attendance-daily-scopes.sql','scripts/migrations/242-own-grh-statement-lines.sql'];
+ assert.deepEqual(files.flatMap(offenders),[]);
+ // La regla detecta el caso real que falló en el ensayo.
+ const probe=join(mkdtempSync(join(tmpdir(),'mc-if-case-')),'probe.sql');
+ writeFileSync(probe,"BEGIN\n IF a IS DISTINCT FROM CASE WHEN b IS NULL THEN NULL ELSE c END\n THEN RETURN 1;END IF;\n IF a IS DISTINCT FROM (CASE WHEN b IS NULL THEN NULL ELSE c END) THEN RETURN 2;END IF;\nEND");
+ assert.deepEqual(offenders(probe),[probe+':2']);rmSync(dirname(probe),{recursive:true,force:true});
+});

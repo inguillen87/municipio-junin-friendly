@@ -7,12 +7,12 @@
   "requiresCodexReviewedCommit": true,
   "source": {
     "path": "scripts/candidates/attendance-area-history-v1.source.sql.txt",
-    "bytes": 20632,
-    "sha256": "07c55ae591f88606f33b1ca41c8261eda7ab44aee01c8582da86fb50d5fb82fb"
+    "bytes": 20634,
+    "sha256": "99bdb9594d9cd5809a4a72e128ad0a218d6b235852824d62774b41834ffcfe7c"
   },
   "sourceManifest": {
     "path": "scripts/candidates/attendance-area-history-v1.source.manifest.json",
-    "sha256": "31711dbb221362cdfd2ca17edf34585ff0e36652345e56b3b886057903f2b201"
+    "sha256": "c8365c5557f940290ca88b0d6f82c1239c6e350d0d80ae5d7b3daeb2144772fe"
   },
   "attestation": {
     "path": "scripts/candidates/install-composition-attestation-v1.json",
@@ -25,7 +25,7 @@
   },
   "preserved": {
     "prefixSha256": "2cbd236dbc4bec27ccbac492b7031038292c2cf113458a45e37019aa8381932b",
-    "bodySha256": "0d8fb529fa8484692e2916be328c01729089e3fba6df59b7ee8d8b2e0d1eb085",
+    "bodySha256": "04b6189ce81e3675e762dd5eb2b46f9e26514b5e349d252efb782cf7a0fe71ea",
     "originalStatementsBytePreserved": true
   },
   "preimages": {
@@ -199,7 +199,7 @@
   "runtimeGrants": [],
   "output": {
     "path": "scripts/candidates/attendance-area-history-v1.derived.sql.txt",
-    "bytes": 28816,
-    "sha256": "be249eca2d94c49be73de88427d8c82186f32116eaa4d75e17e921c3797e471e"
+    "bytes": 28818,
+    "sha256": "172bb6669eff3e2e97871f2c375441a7893b6bfb77bf894e98c8f755213c4ed0"
   }
 }
