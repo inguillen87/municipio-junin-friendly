@@ -1,0 +1,62 @@
+// «Aprobar todo»: la persona que revisa ve en una sola lista lo que espera su decisión en el mes y lo aprueba con un clic.
+// Cubre lotes de novedades propias enviados y propuestas de participación del período. Cada aprobación sigue siendo una
+// decisión registrada por propuesta, con el mismo control independiente del servidor: lo que preparó esta misma cuenta
+// se muestra como «lo preparaste vos» y no se intenta aprobar.
+import {participationPending, decideParticipation} from './own-period-participation-model.js';
+import {lastClosedMonth, periodLabel, patientRead} from './approvals-inbox-model.js';
+
+const el=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
+const key=()=>crypto.randomUUID();
+async function getJson(url){const r=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});const j=await r.json().catch(()=>null);if(!r.ok||j?.ok!==true)throw Object.assign(new Error(j?.error||'No se pudo consultar.'),{status:r.status,code:j?.code});return j.data;}
+async function post(url,body){const k=key();let last;
+ for(let attempt=0;attempt<5;attempt++){const r=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json',Accept:'application/json','idempotency-key':k},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>null);if(r.ok&&j?.ok===true)return j.data;last=Object.assign(new Error(j?.error||'No se registró.'),{status:r.status,code:j?.code});
+  if(!/BUSY/.test(j?.code||''))break;await new Promise(s=>setTimeout(s,1500*(attempt+1)));}
+ throw last;}
+
+/** Lista unificada de lo que espera decisión en el período. */
+export async function loadQuickApprovals(period){
+ const items=[];const errors=[];
+ try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
+  for(const x of b.batches??[])if(x.status==='submitted'&&x.periodMonth===period+'-01')items.push({kind:'novelty',id:x.id,revision:x.revision,label:'Lote de novedades · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
+ catch(e){if(e.status!==403)errors.push('Novedades: '+e.message);}
+ try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
+  for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,label:'Participación del período · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
+ catch(e){if(e.status!==403)errors.push('Participación: '+e.message);}
+ return {items,errors};
+}
+
+async function approveOne(item,period){
+ if(item.kind==='novelty'){
+  return post('/api/internal-own-payroll-novelties',{operation:'command',payload:{command:'approve',batchId:item.id,expectedRevision:item.revision,reasonReference:null,reviewConfirmed:true}});
+ }
+ const boot=await getJson('/api/internal-own-period-participation?resource=bootstrap&contractId='+item.contractId+'&period='+period);
+ const detail=await getJson('/api/internal-own-period-participation?resource=detail&id='+item.id);
+ const payload=decideParticipation(boot,detail,'approve','Aprobado desde «Aprobar todo» después de revisar la lista del período.');
+ return post('/api/internal-own-period-participation',{operation:'command',payload});
+}
+
+export function mountQuickApprovals(host,{onDone}={}){
+ if(!host||host.dataset.quickMounted)return null;host.dataset.quickMounted='';
+ const href=new URL('approvals-inbox.css',import.meta.url).href;if(![...document.querySelectorAll('link[rel=stylesheet]')].some(l=>l.href===href)){const link=document.createElement('link');link.rel='stylesheet';link.href=href;document.head.append(link);}
+host.className='mc-quick-approvals';
+ host.innerHTML='<header><h3>Aprobar todo lo del mes</h3><p>Revisá la lista y aprobá todo junto. Lo que preparaste vos lo aprueba otra persona.</p></header>'
+  +'<div class="mc-quick-row"><label>Mes <input type="month" data-quick-period></label><button type="button" class="button secondary" data-quick-load>Ver pendientes</button></div>'
+  +'<p role="status" aria-live="polite" data-quick-status></p><ul class="mc-quick-list" data-quick-list></ul>'
+  +'<button type="button" class="button" data-quick-approve hidden></button>';
+ const $=s=>host.querySelector('[data-quick-'+s+']');let items=[];let busy=false;
+ $('period').value=lastClosedMonth();
+ const render=()=>{const list=$('list');list.replaceChildren(...items.map(x=>{const li=el('li',x.state==='ok'?'is-ok':x.state==='error'?'is-error':'');li.append(el('span',null,x.label));
+   li.append(el('small',null,x.state==='ok'?' · aprobado':x.state==='error'?' · '+x.message:!x.canApprove?' · lo preparaste vos o no podés decidirlo':''));return li;}));
+  const can=items.filter(x=>x.canApprove&&x.state!=='ok');const b=$('approve');b.hidden=!can.length;b.textContent='Aprobar todo ('+can.length+')';b.disabled=busy;};
+ async function load(){if(busy)return;busy=true;$('status').textContent='Consultando…';items=[];render();
+  try{const r=await loadQuickApprovals($('period').value);items=r.items;
+   $('status').textContent=(items.length?items.length+' pendiente'+(items.length===1?'':'s')+' en '+periodLabel($('period').value)+'.':'No hay nada pendiente en '+periodLabel($('period').value)+'.')+(r.errors.length?' '+r.errors.join(' '):'');}
+  catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
+ async function approveAll(){if(busy)return;busy=true;render();const period=$('period').value;const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
+  for(const [i,x] of todo.entries()){$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+'…';
+   try{await approveOne(x,period);x.state='ok';ok++;}catch(e){x.state='error';x.message=e.message||'No se aprobó.';}render();}
+  busy=false;$('status').textContent=ok+' de '+todo.length+' aprobados.'+(ok<todo.length?' Revisá los que quedaron marcados.':'');render();onDone?.();}
+ $('load').addEventListener('click',load);$('period').addEventListener('change',load);$('approve').addEventListener('click',approveAll);
+ load();return {load};
+}

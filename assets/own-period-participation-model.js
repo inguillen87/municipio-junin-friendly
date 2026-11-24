@@ -40,6 +40,17 @@ export function participationConfiguration(v, period) {
  if (v.definition !== null) participationDefinition(v.definition, period);
  return v;
 }
+export const PARTICIPATION_PENDING_VERSION = 'own-period-participation-pending.v1';
+// Propuestas sin decisión de un período, para revisarlas todas juntas. Sólo identifica; la decisión sigue siendo por propuesta.
+export function participationPending(v, period) {
+ need(salaryExact(v, ['version', 'period', 'complete', 'proposals']) && v.version === PARTICIPATION_PENDING_VERSION && v.period === period && v.complete === true && Array.isArray(v.proposals) && v.proposals.length <= 2000, 'No se verificó la lista completa de propuestas pendientes.', 'CONTRACT_INVALID');
+ const ids = new Set();
+ for (const p of v.proposals) {
+  need(salaryExact(p, ['proposalId', 'contractId', 'legajo', 'createdAt', 'authorLabel', 'canReview']) && salaryUuid(p.proposalId) && salaryUuid(p.contractId) && (p.legajo === null || typeof p.legajo === 'string' && /^[0-9A-Za-z-]{1,20}$/.test(p.legajo)) && instant(p.createdAt) && text(p.authorLabel, 1, 200) && typeof p.canReview === 'boolean' && !ids.has(p.proposalId.toLowerCase()), 'Una propuesta pendiente no tiene el formato esperado.', 'CONTRACT_INVALID');
+  ids.add(p.proposalId.toLowerCase());
+ }
+ return v;
+}
 export function participationSummary(v) {
  need(salaryExact(v, ['id', 'requestSha256', 'baseVersion', 'sourceVersion', 'reason', 'createdAt', 'authorLabel', 'canReview', 'status', 'decision']) && salaryUuid(v.id) && [v.requestSha256, v.baseVersion, v.sourceVersion].every(salaryHash) && text(v.reason, 10, 1000) && text(v.authorLabel, 1, 160) && instant(v.createdAt) && typeof v.canReview === 'boolean' && ['pending', 'approved', 'rejected'].includes(v.status), 'No se verificó una propuesta de participación.', 'CONTRACT_INVALID');
  need(v.status === 'pending' ? v.decision === null : salaryExact(v.decision, ['command', 'reason', 'actorLabel', 'recordedAt', 'revision']) && v.decision.command === (v.status === 'approved' ? 'approve' : 'reject') && text(v.decision.reason, 10, 1000) && text(v.decision.actorLabel, 1, 160) && instant(v.decision.recordedAt) && Number.isInteger(v.decision.revision) && v.decision.revision >= 0 && v.decision.revision <= 1000, 'La decisión no coincide con su propuesta.', 'CONTRACT_INVALID');

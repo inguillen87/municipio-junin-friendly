@@ -20,6 +20,7 @@ import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
 import {mountMonthlyCorrection} from './payroll-monthly-correction.js';
 import {mountOwnPayrollNovelties} from './own-payroll-novelties-panel.js';
+import {mountQuickApprovals} from './approvals-quick.js';
 import {attachConceptHelp,attachCostCenterHelp} from './code-name-help.js';
 
 const API_URL = '/api/internal-payroll-novelties';
@@ -1429,6 +1430,7 @@ function initialize() {
     if (encodingChanged) { byId('bulkSource').value='';byId('bulkFile').value='';showMessage('info','Codificación cambiada','Cargá nuevamente el archivo para decodificar sus bytes con la opción elegida.'); }
   });
   fixedNovelties = mountFixedNovelties(byId('fixedNovelties'), locked => {fixedLocked=locked;applyMonthlyLocks();});
+  {const host=byId('ownNativeBulkNovelties');if(host){const quick=document.createElement('section');host.before(quick);mountQuickApprovals(quick);}}
   ownBulkNovelties = mountOwnPayrollNovelties(byId('ownNativeBulkNovelties'), locked => {if(ownBulkLocked!==locked){ownBulkLocked=locked;applyMonthlyLocks();}});
   employeePicker = createEmployeePicker({
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),

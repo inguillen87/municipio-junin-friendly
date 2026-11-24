@@ -35,3 +35,11 @@
 @media(prefers-reduced-motion:reduce){.mc-approval-card,.mc-approval-card.is-loading .mc-approval-count{animation:none!important;animation-delay:0ms!important}}
 @media print{.mc-approvals{display:none}}
 .mc-approvals-others>.mc-approvals-grid{margin-top:10px}
+
+.mc-quick-approvals{border:1px solid var(--line,#d8dee6);border-radius:12px;padding:16px 18px;margin:0 0 16px;background:var(--surface,#fff)}
+.mc-quick-approvals header h3{margin:0 0 4px}.mc-quick-approvals header p{margin:0 0 10px;color:var(--muted,#5b6673)}
+.mc-quick-row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:8px}
+.mc-quick-list{list-style:none;padding:0;margin:8px 0 12px;display:grid;gap:4px}
+.mc-quick-list li{padding:6px 10px;border-radius:8px;background:var(--soft,#f4f6f8)}
+.mc-quick-list li.is-ok{background:#e8f6ee}.mc-quick-list li.is-error{background:#fdecec}
+.mc-quick-list small{color:var(--muted,#5b6673)}
