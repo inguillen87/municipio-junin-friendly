@@ -34,3 +34,16 @@ test('las políticas con vigencia declaran sucesora y las de un solo período pa
   // Repetirlo no duplica sucesoras.
   assert.equal(rollProgramToNextMonth(program, '2026-10').program.quantityOnlyInputPolicies.length, 2);
 });
+
+test('es idempotente, no pisa vigencias posteriores y deja forzados y cobertura por un mes', () => {
+  const base = def();
+  base.rules.push({code: '3', agreementCode: '1', validFrom: '2026-10', validUntil: '2026-10', liquidationTypes: ['monthly'], expression: {op: 'literal'}},
+    {code: '3', agreementCode: '1', validFrom: '2026-11', validUntil: null, liquidationTypes: ['monthly'], expression: {op: 'literal', v: 2}});
+  base.monthlyForcedAmountPolicies = [{agreementCode: '1', period: '2026-10', liquidationType: 'monthly', sourceCode: '1'}];
+  const once = rollProgramToNextMonth(base, '2026-10').program, twice = rollProgramToNextMonth(once, '2026-10').program;
+  assert.deepEqual(twice, once);
+  assert.equal(once.rules.find(r => r.code === '3' && r.validFrom === '2026-10').validUntil, '2026-10', 'ya tenía sucesora declarada');
+  assert.equal(once.rules.filter(r => r.code === '1').length, 2, 'regla de un forzado: se copia, no se extiende');
+  assert.equal(once.monthlyForcedAmountPolicies.at(-1).validUntil, '2026-11');
+  assert.equal(once.monthlyForcedAmountsVersion, 'own-monthly-forced-passthrough.v2');
+});
