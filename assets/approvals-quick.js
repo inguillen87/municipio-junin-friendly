@@ -72,7 +72,7 @@ host.className='mc-quick-approvals';
   catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
  async function approveAll(){if(busy)return;busy=true;render();const period=$('period').value;const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
   for(const [i,x] of todo.entries()){$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+'…';
-   try{await approveOne(x,period);x.state='ok';ok++;}catch(e){x.state='error';x.message=e.message||'No se aprobó.';}render();}
+   try{await approveOne(x,period);x.state='ok';ok++;}catch(e){x.state='error';x.message=/INDEPENDENT_REQUIRED/.test(e.code||'')?'lo preparaste vos: lo aprueba otra persona':(e.message||'No se aprobó.');}render();}
   busy=false;$('status').textContent=ok+' de '+todo.length+' aprobados.'+(ok<todo.length?' Revisá los que quedaron marcados.':'');render();onDone?.();}
  $('load').addEventListener('click',load);$('period').addEventListener('change',load);$('approve').addEventListener('click',approveAll);
  load();return {load};

@@ -40,3 +40,8 @@ test('la API admite la consulta de pendientes por período y la base la expone s
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /\b(INSERT|UPDATE|DELETE|DROP|ALTER)\b/);
   assert.match(readFileSync('.vercelignore', 'utf8'), /^!scripts\/migrations\/250-own-participation-pending\.sql$/m);
 });
+
+test('la lectura de pendientes de participación se recupera como las demás lecturas del período', async () => {
+  const {recoverOwnPeriodRead} = await import('../lib/own-period-read-recovery.js');
+  assert.equal(await recoverOwnPeriodRead({method: 'GET', operation: 'pending', busyCode: 'PARTICIPATION_BUSY', read: async () => 'ok', reauthorize: async () => true}), 'ok');
+});
