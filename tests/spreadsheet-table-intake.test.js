@@ -89,3 +89,11 @@ test('readSpreadsheetInput reads a browser File whose bytes() is a method (Chrom
   assert.equal(table.rows.length, 2);
   assert.deepEqual(table.rows[1].slice(0, 3), ['300', '56', '1']);
 });
+
+test('monthly own-novelty panel offers Excel/CSV/TXT upload that feeds the same paste review', () => {
+  const panel = fs.readFileSync(new URL('../assets/own-payroll-novelties-panel.js', import.meta.url), 'utf8');
+  assert.match(panel, /import \{readSpreadsheetInput\} from '\.\/spreadsheet-table-intake\.js'/);
+  assert.match(panel, /type="file" accept="\.xlsx,\.csv,\.txt" data-n-paste-file/);
+  assert.match(panel, /\$\('paste-file'\)\.addEventListener\('change'/);
+  assert.match(panel, /pasteColumns\(\)/);
+});

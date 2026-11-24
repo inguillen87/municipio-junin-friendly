@@ -4,6 +4,7 @@ import {salarySerialized} from './native-salary-catalog-model.js';
 import {GRH_CONCEPTS,searchConcepts,conceptInfo,conceptLabel,CONCEPT_GROUPS} from './grh-concept-dictionary.js';
 import {GRH_ENTITY_FORMATS,readEntityTxt,resolveEntityRows,entityFormat,entityFormatNeedsScale,entityConceptSuggestion,entityFormatsForLength,entityFormatsForFile,lowestLegajoChoices,pastedSheetCells,pastedSheetSuggestion,pastedSheetValues,readPastedSheet} from './grh-entity-formats.js';
 import {countWords} from './count-words.js';
+import {readSpreadsheetInput} from './spreadsheet-table-intake.js';
 import {OWN_NOVELTY_MOVEMENT_OTHER,ownNoveltyMovementValue,ownNoveltyRowExtras} from './own-payroll-novelties-extra.js';
 import {GRH_COST_CENTERS,costCenterCode,costCenterHint} from './grh-cost-centers.js';
 import {ownNoveltyImportPage,ownNoveltyImportResolution} from './own-payroll-novelty-import-review.js';
@@ -41,7 +42,8 @@ export function mountOwnPayrollNovelties(container,onLock=()=>{}){
  <button type="button" data-n-import-read>Leer el archivo y ubicar cada legajo</button>
  <details class="own-novelties-paste" data-n-paste-box><summary>¿Te mandaron una planilla de Excel en lugar de un TXT? Pegá las filas acá</summary>
  <p>Copiá en Excel las filas con sus títulos (por ejemplo legajo e importe) y pegalas. Elegís de las listas qué columna es cada cosa; no hace falta armar un TXT. Valen las mismas opciones de arriba para repetidos y ceros.</p>
- <label>Filas copiadas de la planilla<textarea data-n-paste rows="4" spellcheck="false" autocomplete="off" placeholder="Hacé clic acá y pegá (Ctrl+V)"></textarea></label>
+ <label>Subí el archivo Excel, CSV o TXT de la planilla <input type="file" accept=".xlsx,.csv,.txt" data-n-paste-file></label>
+ <label>O pegá las filas copiadas de la planilla<textarea data-n-paste rows="4" spellcheck="false" autocomplete="off" placeholder="Hacé clic acá y pegá (Ctrl+V)"></textarea></label>
  <div class="own-novelties-grid" data-n-paste-columns hidden><label>Columna que identifica a la persona<select data-n-paste-identity></select></label><label>Esa columna trae<select data-n-paste-kind><option value="legajo">Legajo</option><option value="dni">DNI</option></select></label><label>Columna del importe<select data-n-paste-amount></select></label><label>Columna de la cantidad<select data-n-paste-quantity></select></label><label>Columna del concepto, si la planilla trae varios<select data-n-paste-concept-column></select></label><label>Concepto de la planilla<input data-n-paste-concept list="ownNoveltyConcepts" autocomplete="off" placeholder="Ej.: 678"></label><label>Dejar filas afuera según una columna<select data-n-paste-filter></select></label></div>
  <fieldset class="own-novelties-paste-values" data-n-paste-values hidden><legend>Destildá lo que no se descuenta</legend><div data-n-paste-value-list></div></fieldset>
  <p data-n-paste-hint class="own-novelties-muted" role="status" aria-live="polite"></p>
@@ -270,7 +272,7 @@ export function mountOwnPayrollNovelties(container,onLock=()=>{}){
   if(!values){$('paste-hint').textContent='Esa columna tiene demasiados valores distintos para usarla de filtro. Elegí otra o copiá sólo las filas que van.';$('paste-filter').value='';return;}
   for(const {value,rows:count} of values){const label=node('label'),tick=document.createElement('input');tick.type='checkbox';tick.checked=true;tick.dataset.nPasteValue=value;tick.addEventListener('change',invalidateEntity);label.className='own-novelties-check';label.append(tick,`${value||'(vacío)'} · ${countWords(count,'fila','filas')}`);list.append(label);}box.hidden=false;}
  $('paste-filter').addEventListener('change',()=>{invalidateEntity();pasteValues();});
- $('paste').addEventListener('input',pasteColumns);for(const key of ['paste-identity','paste-kind','paste-amount','paste-quantity','paste-concept-column'])$(key).addEventListener('change',()=>{invalidateEntity();entityChoices=new Map();if(key==='paste-concept-column')pasteConcept();});
+ $('paste').addEventListener('input',pasteColumns);$('paste-file').addEventListener('change',async()=>{const input=$('paste-file'),file=input.files?.[0];if(!file)return;try{const table=await readSpreadsheetInput(file);const text=table.rows.map(r=>r.map(c=>String(c??'').replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');$('paste').value=text;$('paste-box').open=true;pasteColumns();$('paste-hint').textContent=`Archivo leído: ${countWords(Math.max(0,table.rows.length-1),'fila','filas')} con sus títulos. Revisá qué columna es cada cosa y presioná Leer la planilla.`;}catch(e){$('paste-hint').textContent=e.message||'No se pudo leer el archivo.';}finally{input.value='';}});for(const key of ['paste-identity','paste-kind','paste-amount','paste-quantity','paste-concept-column'])$(key).addEventListener('change',()=>{invalidateEntity();entityChoices=new Map();if(key==='paste-concept-column')pasteConcept();});
  $('paste-concept').addEventListener('input',invalidateEntity);
  $('paste-read').addEventListener('click',async()=>{
   if(busy||external||attempt||!can('prepare'))return;if(entityInput!=='paste')entityChoices=new Map();entityInput='paste';invalidateEntity();const out=$('import-result'),text=$('paste').value,generation=entityGeneration,view=sequence,sourceBoot=boot,sourceAccess=access.key;
