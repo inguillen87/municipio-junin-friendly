@@ -18,14 +18,14 @@ async function post(url,body){const k=key();let last;
  throw last;}
 
 /** Lista unificada de lo que espera decisión en el período. */
-export async function loadQuickApprovals(period){
- const items=[];const errors=[];
+export async function loadQuickApprovals(periods){
+ periods=[].concat(periods);const items=[];const errors=[];
  try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
-  for(const x of b.batches??[])if(x.status==='submitted'&&x.periodMonth===period+'-01')items.push({kind:'novelty',id:x.id,revision:x.revision,label:'Lote de novedades · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
+  for(const x of b.batches??[])if(x.status==='submitted'&&periods.some(period=>x.periodMonth===period+'-01'))items.push({kind:'novelty',id:x.id,revision:x.revision,period:x.periodMonth.slice(0,7),label:'Lote de novedades de '+periodLabel(x.periodMonth)+' · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
  catch(e){if(e.status!==403)errors.push('Novedades: '+e.message);}
- try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
-  for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,label:'Participación del período · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
- catch(e){if(e.status!==403)errors.push('Participación: '+e.message);}
+ for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
+  for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,period,label:'Participación de '+periodLabel(period)+' · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
+ catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
  try{const sal=await readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});
   for(const x of sal.proposals??[])if(x.status==='pending')items.push({kind:'salary',proposal:x,scopeVersion:sal.scopeVersion,label:'Maestro salarial · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
@@ -38,7 +38,7 @@ export async function loadQuickApprovals(period){
  return {items,errors};
 }
 
-async function approveOne(item,period){
+async function approveOne(item){const period=item.period;
  if(item.kind==='novelty'){
   return post('/api/internal-own-payroll-novelties',{operation:'command',payload:{command:'approve',batchId:item.id,expectedRevision:item.revision,reasonReference:null,reviewConfirmed:true}});
  }
@@ -67,12 +67,13 @@ host.className='mc-quick-approvals';
    li.append(el('small',null,x.state==='ok'?' · aprobado':x.state==='error'?' · '+x.message:!x.canApprove?' · lo preparaste vos o no podés decidirlo':''));return li;}));
   const can=items.filter(x=>x.canApprove&&x.state!=='ok');const b=$('approve');b.hidden=!can.length;b.textContent='Aprobar todo ('+can.length+')';b.disabled=busy;};
  async function load(){if(busy)return;busy=true;$('status').textContent='Consultando…';items=[];render();
-  try{const r=await loadQuickApprovals($('period').value);items=r.items;
-   $('status').textContent=(items.length?items.length+' pendiente'+(items.length===1?'':'s')+' en '+periodLabel($('period').value)+'.':'No hay nada pendiente en '+periodLabel($('period').value)+'.')+(r.errors.length?' '+r.errors.join(' '):'');}
+  const picked=$('period').value,[y,m]=picked.split('-').map(Number),following=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
+  try{const r=await loadQuickApprovals([picked,following]);items=r.items;
+   $('status').textContent=(items.length?items.length+' pendiente'+(items.length===1?'':'s')+' entre '+periodLabel(picked)+' y '+periodLabel(following)+'.':'No hay nada pendiente en '+periodLabel(picked)+' ni en '+periodLabel(following)+'.')+(r.errors.length?' '+r.errors.join(' '):'');}
   catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
- async function approveAll(){if(busy)return;busy=true;render();const period=$('period').value;const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
+ async function approveAll(){if(busy)return;busy=true;render();const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
   for(const [i,x] of todo.entries()){$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+'…';
-   try{await approveOne(x,period);x.state='ok';ok++;}catch(e){x.state='error';x.message=/INDEPENDENT_REQUIRED/.test(e.code||'')?'lo preparaste vos: lo aprueba otra persona':(e.message||'No se aprobó.');}render();}
+   try{await approveOne(x);x.state='ok';ok++;}catch(e){x.state='error';x.message=/INDEPENDENT_REQUIRED/.test(e.code||'')?'lo preparaste vos: lo aprueba otra persona':(e.message||'No se aprobó.');}render();}
   busy=false;$('status').textContent=ok+' de '+todo.length+' aprobados.'+(ok<todo.length?' Revisá los que quedaron marcados.':'');render();onDone?.();}
  $('load').addEventListener('click',load);$('period').addEventListener('change',load);$('approve').addEventListener('click',approveAll);
  load();return {load};
