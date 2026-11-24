@@ -72,3 +72,20 @@ test('readSpreadsheetInput rejects legacy .xls binary with actionable error and 
   const files = unzipSync(fixedBulkTemplateXlsx());
   assert.match(strFromU8(files['xl/worksheets/sheet1.xml']), /Novedades fijas|Legajo/);
 });
+
+test('readSpreadsheetInput reads a browser File whose bytes() is a method (Chrome) instead of treating it as data', async () => {
+  const csv = 'Legajo;Concepto;Unidades;Importe;Fecha de alta;Vencimiento;Instrumento\n300;56;1;;2025-05-01;2050-12-31;Sintético\n';
+  const raw = new TextEncoder().encode(csv);
+  const fileLike = {
+    name: 'fijas.csv',
+    type: 'text/csv',
+    size: raw.byteLength,
+    bytes: async () => raw,
+    text: async () => csv,
+    arrayBuffer: async () => raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength),
+  };
+  const table = await readSpreadsheetInput(fileLike);
+  assert.equal(table.format, 'csv');
+  assert.equal(table.rows.length, 2);
+  assert.deepEqual(table.rows[1].slice(0, 3), ['300', '56', '1']);
+});

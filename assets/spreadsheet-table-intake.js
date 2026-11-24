@@ -367,7 +367,7 @@ export async function readSpreadsheetInput(input, { unzip = null, readXlsxFileIm
     name = String(input.name || input.file?.name || '').trim();
     if (typeof input.text === 'string') {
       text = input.text;
-    } else if (input.bytes !== undefined) {
+    } else if (input.bytes !== undefined && typeof input.bytes !== 'function') {
       rawBytes = input.bytes instanceof Uint8Array ? input.bytes : new Uint8Array(input.bytes);
     } else if (typeof input.arrayBuffer === 'function') {
       rawBytes = new Uint8Array(await input.arrayBuffer());
