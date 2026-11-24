@@ -1,7 +1,8 @@
 import { civilDate } from './civil-date.js';
 import { payrollOperatorIdentity } from './payroll-operator-identity.js';
 
-export const FIXED_MAX_ROWS = 500;
+export const FIXED_MAX_ROWS = 5000;
+const canonNum = value => typeof value === 'string' && /^[0-9]+$/.test(value) ? value.replace(/^0+/, '') || '0' : null;
 export const FIXED_TYPES = Object.freeze({ monthly: 'Mensual', first_fortnight: 'Primera quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Liquidación final', other: 'Otra' });
 export function fixedCapability(bootstrap, outerCapabilities, capability) {
   const effective = new Set(bootstrap?.principal?.capabilities || []);
@@ -14,7 +15,8 @@ const fail = () => { throw Error('No se pudo verificar el registro de novedades 
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const ownLegajo = value => typeof value === 'string' && [...value].length >= 1 && [...value].length <= 64 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
-const object = value => value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+const plainProto = proto => proto === Object.prototype || proto === null || (Object.getPrototypeOf(proto) === null && proto?.constructor?.name === 'Object');
+const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value) && plainProto(Object.getPrototypeOf(value));
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
 const safeText = (value, max, min = 1) => typeof value === 'string' && value.length >= min && value.length <= max && value === value.trim() && value === value.normalize('NFC') && !/[<>\x00-\x1f\x7f]/.test(value);
 const integer = (value, min = 0) => Number.isSafeInteger(value) && value >= min;
@@ -140,7 +142,7 @@ export function fixedBootstrap(payload) {
   const d=envelope(payload,version,['principal','limits','payrollTypes','effects']),p=d.principal,operatorVersion=version==='payroll-fixed-bootstrap.v2';
   if (!exact(p,['tenantId','membershipId','certifiedBindingId','capabilities','employmentLinked',...(operatorVersion?['actorIdentityVerified','actorIdentityBasis']:[])])||!uuid(p.tenantId)||!uuid(p.membershipId)||!uuid(p.certifiedBindingId)
     ||!Array.isArray(p.capabilities)||p.capabilities.some(c=>!safeText(c,100))||new Set(p.capabilities).size!==p.capabilities.length||typeof p.employmentLinked!=='boolean'
-    ||!exact(d.limits,['maxRecords','maxHistory'])||d.limits.maxRecords!==500||d.limits.maxHistory!==100
+    ||!exact(d.limits,['maxRecords','maxHistory'])||d.limits.maxRecords!==FIXED_MAX_ROWS||d.limits.maxHistory!==100
     ||!Array.isArray(d.payrollTypes)||d.payrollTypes.length!==Object.keys(FIXED_TYPES).length||new Set(d.payrollTypes).size!==d.payrollTypes.length||d.payrollTypes.some(t=>!Object.hasOwn(FIXED_TYPES,t))) fail();
   try{payrollOperatorIdentity(p,{required:operatorVersion});}catch{fail();}
   return freeze({...d,principal:{...p,capabilities:[...p.capabilities]},limits:{...d.limits},payrollTypes:[...d.payrollTypes],effects:effects(d.effects)});
@@ -151,8 +153,22 @@ export function fixedActorReady(bootstrap){
 }
 export function fixedEmployee(payload, expected) {
   const d=envelope(payload,'payroll-fixed-employee.v1',['subject']),next=subject(d.subject);
-  if(typeof expected==='string'){if(next.legajo!==expected||next.origin==='MUNICONTROL')fail();}
-  else if(!exact(expected,['contractId'])||!uuid(expected.contractId)||next.contractId!==expected.contractId)fail();return freeze(next);
+  if(typeof expected==='string'){
+    const same=next.legajo===expected||(next.origin==='MUNICONTROL'&&canonNum(next.legajo)!==null&&canonNum(next.legajo)===canonNum(expected));
+    if(!same)fail();
+  }else if(!exact(expected,['contractId'])||!uuid(expected.contractId)||next.contractId!==expected.contractId)fail();
+  return freeze(next);
+}
+export function fixedEmployeesBatch(payload, contracts) {
+  const d=envelope(payload,'payroll-fixed-employees.v1',['rows','total']);
+  if(!Array.isArray(contracts)||!Array.isArray(d.rows)||d.rows.length<1||d.rows.length>100||d.total!==d.rows.length||d.rows.length!==contracts.length)fail();
+  const rows=d.rows.map((row,i)=>{
+    if(!object(row)||typeof row.ok!=='boolean'||row.contractId!==contracts[i])fail();
+    if(row.ok){if(!exact(row,['contractId','ok','subject']))fail();const next=subject(row.subject);if(next.contractId!==row.contractId)fail();return {contractId:row.contractId,ok:true,subject:next};}
+    if(typeof row.error!=='string'||!safeText(row.error,500))fail();
+    return {contractId:row.contractId,ok:false,code:typeof row.code==='string'?row.code:'PAYROLL_FIXED_UNAVAILABLE',error:row.error};
+  });
+  return freeze({version:d.version,rows,total:d.total});
 }
 export function fixedList(payload, periodMonth=null) {
   const d=envelope(payload,'payroll-fixed-list.v1',['periodMonth','rows','total','snapshotToken','effects']);
@@ -202,7 +218,7 @@ export function fixedView(data,{search='',status='all'}={}) {
 }
 export function fixedExportData(payload,list) {
   const d=envelope(payload,'payroll-fixed-export.v1',['periodMonth','snapshotToken','rows','total','effects']);
-  if(!list.periodMonth||d.periodMonth!==list.periodMonth||d.snapshotToken!==list.snapshotToken||!Array.isArray(d.rows)||d.rows.length>500||d.total!==d.rows.length)fail();
+  if(!list.periodMonth||d.periodMonth!==list.periodMonth||d.snapshotToken!==list.snapshotToken||!Array.isArray(d.rows)||d.rows.length>FIXED_MAX_ROWS||d.total!==d.rows.length)fail();
   const expected=list.rows.filter(r=>r.approved?.operation==='set'&&fixedCoverage(r.approved.values,list.periodMonth).intersects);
   if(d.rows.length!==expected.length||new Set(d.rows.map(r=>r.recordId)).size!==d.rows.length)fail();
   const rows=d.rows.map(r=>{
@@ -228,7 +244,7 @@ export function fixedComparison(row,operation,nextValues){
 export function fixedJunin638Data(payload,list){
   const d=envelope(payload,'payroll-fixed-junin638.v1',['periodMonth','snapshotToken','concept','receiver','sourceFormat','format','rows','total','effects']);
   if(!list.periodMonth||d.periodMonth!==list.periodMonth||d.snapshotToken!==list.snapshotToken||d.concept!=='638'||d.receiver!=='AMARU')fail();
-  if(!exact(d.sourceFormat,['id','name','filename','dniStart','dniLength','amountStart','amountLength'])||d.sourceFormat.id!==1||d.sourceFormat.name!=='Formato Junin'||d.sourceFormat.filename!=='amaru.txt'||d.sourceFormat.dniStart!==5||d.sourceFormat.dniLength!==8||d.sourceFormat.amountStart!==44||d.sourceFormat.amountLength!==11||!exact(d.format,['recordBytes','lineEnding','trailingLineEnding'])||d.format.recordBytes!==55||d.format.lineEnding!=='CRLF'||d.format.trailingLineEnding!==false||!Array.isArray(d.rows)||d.rows.length>500||d.total!==d.rows.length)fail();
+  if(!exact(d.sourceFormat,['id','name','filename','dniStart','dniLength','amountStart','amountLength'])||d.sourceFormat.id!==1||d.sourceFormat.name!=='Formato Junin'||d.sourceFormat.filename!=='amaru.txt'||d.sourceFormat.dniStart!==5||d.sourceFormat.dniLength!==8||d.sourceFormat.amountStart!==44||d.sourceFormat.amountLength!==11||!exact(d.format,['recordBytes','lineEnding','trailingLineEnding'])||d.format.recordBytes!==55||d.format.lineEnding!=='CRLF'||d.format.trailingLineEnding!==false||!Array.isArray(d.rows)||d.rows.length>FIXED_MAX_ROWS||d.total!==d.rows.length)fail();
   const expected=list.rows.filter(item=>item.approved?.operation==='set'&&item.approved.values.conceptSourceId==='638'&&fixedCoverage(item.approved.values,list.periodMonth).intersects);
   if(d.rows.length!==expected.length)fail();
   const seen=new Set();

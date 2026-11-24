@@ -27,13 +27,30 @@ test('native source metadata is a closed shape and can never masquerade as a GRH
  for(const patch of [{origin:'GRH'},{origin:undefined},{registrationId:null},{registrationId:'00000000-0000-0000-0000-000000000000'},{registeredAt:null},{sourceCutoff:'2026-09-01T12:00:00Z'},{extra:'x'},{contractId:uuid(999)}]){
   const data={...good,subject:{...native,...patch}};assert.throws(()=>validateFixedResponse(data,'employee',{contractId:native.contractId}));assert.throws(()=>fixedEmployee(wrap(data),{contractId:native.contractId}));
  }
- assert.throws(()=>validateFixedResponse(good,'employee',{legajo:native.legajo}));assert.throws(()=>fixedEmployee(wrap(good),native.legajo));
+ assert.deepEqual(validateFixedResponse(good,'employee',{legajo:native.legajo}),good);
+ assert.deepEqual(fixedEmployee(wrap(good),native.legajo),native);
+ assert.throws(()=>fixedEmployee(wrap({version:'payroll-fixed-employee.v1',subject:{...native,legajo:'009001'}}),'9002'));
+ assert.deepEqual(fixedEmployee(wrap({version:'payroll-fixed-employee.v1',subject:{...native,legajo:'009001'}}),'9001').legajo,'009001');
 });
 test('legacy GRH lookup and exact historical snapshot remain compatible',async()=>{
  const subject=fixedSubject(),data={version:'payroll-fixed-employee.v1',subject},{handler:run,calls}=handler(data),res=response();
- await run({method:'GET',query:{resource:'employee',legajo:subject.legajo}},res);assert.equal(res.statusCode,200);assert.match(calls[0].text,/payroll_fixed_registry_employee_v1/);
+ await run({method:'GET',query:{resource:'employee',legajo:subject.legajo}},res);assert.equal(res.statusCode,200);assert.match(calls[0].text,/payroll_fixed_registry_employee_v2/);
  assert.deepEqual(fixedEmployee(res.body,subject.legajo),subject);assert.equal(fixedOriginLabel(subject),'Fuente GRH');
  assert.deepEqual(fixedEmployee(res.body,{contractId:subject.contractId}),subject);
+});
+test('native and adopted legajo lookup and batch contract verification work cleanly and fail closed on ambiguity',async()=>{
+ const calls=[];
+ const runAmbiguous=createInternalPayrollFixedNoveltiesHandler({env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireCompatibleInternalAccess:async()=>({mode:'managed',principal}),actionMutationSession:()=>session,getInternalSql:async()=>({query:async()=>{throw new Error('PAYROLL_FIXED_LEGAJO_AMBIGUOUS');}})});
+ const rAmb=response();await runAmbiguous({method:'GET',query:{resource:'employee',legajo:'9001'}},rAmb);
+ assert.equal(rAmb.statusCode,409);assert.equal(rAmb.body.code,'PAYROLL_FIXED_LEGAJO_AMBIGUOUS');assert.match(rAmb.body.error,/más de un contrato activo/);
+
+ const runFallback=createInternalPayrollFixedNoveltiesHandler({env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireCompatibleInternalAccess:async()=>({mode:'managed',principal}),actionMutationSession:()=>session,getInternalSql:async()=>({query:async text=>{calls.push(text);if(text.includes('employee_v2'))throw Object.assign(new Error('missing v2'),{code:'42883'});return[{result:{version:'payroll-fixed-employee.v1',subject:fixedSubject('1001')}}];}})});
+ const rFb=response();await runFallback({method:'GET',query:{resource:'employee',legajo:'1001'}},rFb);
+ assert.equal(rFb.statusCode,200);assert.equal(calls.length,2);assert.match(calls[0],/employee_v2/);assert.match(calls[1],/employee_v1/);
+
+ const batchHandler=createInternalPayrollFixedNoveltiesHandler({env:{INTERNAL_APP_ORIGIN:'https://municipio.example'},requireCompatibleInternalAccess:async()=>({mode:'managed',principal}),actionMutationSession:()=>session,getInternalSql:async()=>({query:async()=>[{result:{version:'payroll-fixed-employees.v1',rows:[{contractId:native.contractId,ok:true,subject:native},{contractId:uuid(999),ok:false,error:'NATIVE_EMPLOYMENT_VOID_WITHDRAWN'}],total:2}}]})});
+ const rBatch=response();await batchHandler({method:'GET',query:{resource:'employees',contracts:`${native.contractId},${uuid(999)}`}},rBatch);
+ assert.equal(rBatch.statusCode,200);assert.equal(rBatch.body.data.rows[0].ok,true);assert.equal(rBatch.body.data.rows[1].ok,false);assert.equal(rBatch.body.data.rows[1].code,'PAYROLL_FIXED_WITHDRAWN');
 });
 test('a foreign or withdrawn native contract never becomes an empty success',async()=>{
  for(const code of ['PAYROLL_FIXED_NOT_FOUND','PAYROLL_FIXED_IDENTITY_CHANGED','PAYROLL_FIXED_CAPABILITY_REQUIRED']){

@@ -1,9 +1,9 @@
 import { storedZip } from './clock-dashboard-zip.js';
-import { FIXED_TYPES,fixedCoverage,fixedMoney,fixedOriginLabel } from './payroll-fixed-novelties-model.js';
+import { FIXED_MAX_ROWS, FIXED_TYPES,fixedCoverage,fixedMoney,fixedOriginLabel } from './payroll-fixed-novelties-model.js';
 
 const headings=['Período de consulta','Legajo','Agente','Concepto declarado','Centro de costo','Tipo de liquidación','Unidades completas','Importe completo ARS','Importe exacto centavos','Modo forzado','Fundamento forzado','Instrumento','Alta','Vencimiento','Alcance de vigencia','Corte de identidad','Revisión del registro','Origen del vínculo','Fecha de registro propio'];
 function report(snapshot,options={}){
-  if(snapshot?.version!=='payroll-fixed-export.v1'||!/^\d{4}-\d{2}-01$/.test(snapshot.periodMonth)||!Array.isArray(snapshot.rows)||snapshot.rows.length>500
+  if(snapshot?.version!=='payroll-fixed-export.v1'||!/^\d{4}-\d{2}-01$/.test(snapshot.periodMonth)||!Array.isArray(snapshot.rows)||snapshot.rows.length>FIXED_MAX_ROWS
     ||snapshot.total!==snapshot.rows.length||snapshot.effects?.approvalEffect!=='control_export_only'||snapshot.effects.grhMutation!==false||snapshot.effects.payrollCalculated!==false||snapshot.effects.payrollPosted!==false
     ||new Set(snapshot.rows.map(r=>r.recordId)).size!==snapshot.rows.length)throw Error('El control no corresponde a una exportación verificada.');
   const rows=snapshot.rows.map(r=>{const v=r.values,s=r.subject;if(!v||!s||!fixedCoverage(v,snapshot.periodMonth).intersects)throw Error('La vigencia no corresponde al período de exportación.');

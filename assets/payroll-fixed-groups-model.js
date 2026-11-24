@@ -40,3 +40,10 @@ export function fixedGroupUnchanged(original,fresh,review=false){
  const current=new Map(fresh.rows.map(row=>[row.id,row]));
  return original.every(row=>(review?fixedReviewGroupEligible:fixedGroupEligible)(current.get(row.id))&&JSON.stringify(row)===JSON.stringify(current.get(row.id)));
 }
+export const FIXED_GROUP_CHUNK_SIZE=250;
+export function fixedGroupChunks(rows,buildDraft,size=FIXED_GROUP_CHUNK_SIZE){
+ if(!Array.isArray(rows)||!rows.length||typeof buildDraft!=='function'||!Number.isSafeInteger(size)||size<1||size>500)fail();
+ const chunks=[];
+ for(let start=0;start<rows.length;start+=size)chunks.push(buildDraft(rows.slice(start,start+size)));
+ return Object.freeze(chunks);
+}

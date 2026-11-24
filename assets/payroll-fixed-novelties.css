@@ -65,5 +65,12 @@
 .fn-txt638-review{margin:16px 0;padding:18px;border:1px solid #b7d7d1;border-top:3px solid #087f79;border-radius:10px;background:#f8fbfa;min-width:0}
 .fn-txt638-review[hidden]{display:none!important}.fn-txt638-review h3{margin:0 0 14px;line-height:1.4}
 .fn-txt638-review dd{overflow-wrap:anywhere;word-break:normal}.fn-txt638-review .fn-facts>div{min-width:0}
+.fixed-novelties .fn-dropzone{display:grid;gap:10px;padding:18px;border:2px dashed var(--line-strong,#afc1ba);border-radius:8px;background:#fff;transition:border-color .15s,background-color .15s}
+.fixed-novelties .fn-dropzone.is-dragover{border-color:var(--green,#127d70);background:#e9f5f2}
+.fixed-novelties .fn-bulk-summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:10px 0}
+.fixed-novelties progress.fn-progress{width:100%;height:12px;accent-color:var(--green,#127d70)}
+.fixed-novelties .fn-row-error{background:#fff5f4}
+.fixed-novelties .fn-inline-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px}
+.fixed-novelties .fn-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media(max-width:700px){.fixed-novelties .fn-change-table table{min-width:0}.fixed-novelties .fn-change-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.fixed-novelties .fn-change-table tbody,.fixed-novelties .fn-change-table tr,.fixed-novelties .fn-change-table tbody th,.fixed-novelties .fn-change-table td{display:block}.fixed-novelties .fn-change-table tbody th,.fixed-novelties .fn-change-table td{border:0}.fixed-novelties .fn-change-table tr{border-bottom:1px solid #d5e4e1;padding-bottom:10px}.fixed-novelties .fn-change-table td{padding:5px 12px}.fixed-novelties .fn-change-table td:before{content:attr(data-label);display:block;font-size:.75rem;font-weight:700;color:#45606b}.fixed-novelties .fn-change-table caption{white-space:normal}}
 @media(max-width:600px){.fn-txt638-review{padding:14px}.fn-txt638-review h3{font-size:1rem}.fn-txt638-review .fn-facts{grid-template-columns:1fr}}

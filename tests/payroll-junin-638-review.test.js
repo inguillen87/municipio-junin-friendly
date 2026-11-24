@@ -13,7 +13,7 @@ test('summary matches the exact downloadable TXT, including sum, byte size and S
  assert.deepEqual(Object.keys(r).sort(),['version','filename','periodMonth','records','totalCents','byteLength','sha256','recordBytes','lineEnding','trailingLineEnding','receiverAcceptance'].sort());
  assert.doesNotMatch(JSON.stringify(r),/12345000|dni|recordId|proposalId|contractId|snapshotToken|employeeName/);
 });
-for(const amounts of [['0'],['1'],['9999999999'],Array(500).fill('9999999999')])test('summary uses integer cents without rounding for '+amounts.length+' records',async()=>{
+for(const amounts of [['0'],['1'],['9999999999'],Array(500).fill('9999999999'),Array(5000).fill('1')])test('summary uses integer cents without rounding for '+amounts.length+' records',async()=>{
  const {snapshot}=fixture(amounts),bytes=junin638Txt(snapshot),r=await junin638FileReview(snapshot,bytes);
  assert.equal(r.totalCents,String(amounts.reduce((sum,n)=>sum+BigInt(n),0n)));assert.equal(r.byteLength,amounts.length*55+(amounts.length-1)*2);
 });
@@ -23,7 +23,7 @@ for(const mutate of [b=>{b[5]=57;return b;},b=>b.slice(0,-1),b=>new Uint8Array([
 for(const value of [null,'text',new ArrayBuffer(112),new Uint8Array()])test('invalid bytes cannot create a successful summary',async()=>{
  const {snapshot}=fixture();await assert.rejects(junin638FileReview(snapshot,value));
 });
-for(const count of [0,501])test('empty or excessive export cannot create summary '+count,async()=>{const {snapshot}=fixture(Array(count).fill('1'));await assert.rejects(junin638FileReview(snapshot,junin638Txt(snapshot)));});
+for(const count of [0,5001])test('empty or excessive export cannot create summary '+count,async()=>{const {snapshot}=fixture(Array(count).fill('1'));await assert.rejects(junin638FileReview(snapshot,junin638Txt(snapshot)));});
 for(const periodMonth of ['2026-13-01','2026-02-30','2026-09-02'])test('invalid period is not displayed as a verified file '+periodMonth,async()=>{
  const {snapshot}=fixture(),bytes=junin638Txt(snapshot);snapshot.periodMonth=periodMonth;await assert.rejects(junin638FileReview(snapshot,bytes));
 });

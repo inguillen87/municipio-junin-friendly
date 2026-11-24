@@ -10,8 +10,10 @@ import * as groups from '../assets/payroll-fixed-groups-model.js';
 import * as concepts from '../assets/payroll-fixed-concepts.js';
 import * as centers from '../assets/grh-cost-centers.js';
 import * as junin from '../assets/payroll-junin-638-review.js';
+import * as spreadsheet from '../assets/spreadsheet-table-intake.js';
+import * as roster from '../assets/native-roster-model.js';
 import {countWords} from '../assets/count-words.js';
-import {fixedFixture,fixedSubject,fixedApprovedRecord} from './fixtures/payroll-fixed-novelties-synthetic.js';
+import {fixedFixture,fixedSubject,fixedNativeSubject,fixedApprovedRecord,fixedUuid} from './fixtures/payroll-fixed-novelties-synthetic.js';
 
 const camel=value=>value.replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
 class Element{
@@ -30,6 +32,7 @@ class Element{
  addEventListener(type,fn){this.events[type]=fn;}
  emit(type){return this.events[type]?.({preventDefault(){}});}
  focus(){}
+ scrollIntoView(){}
  reset(){}
  matches(selector){const match=/^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(selector);if(match){const value=match[1].startsWith('data-')?this.dataset[camel(match[1].slice(5))]:this.attributes[match[1]];return value!==undefined&&(match[2]===undefined||value===match[2]);}return this.tagName===selector;}
  querySelectorAll(selector){const result=[];const visit=node=>{for(const child of node.children){if(selector.split(',').some(s=>child.matches(s.trim())))result.push(child);visit(child);}};visit(this);return result;}
@@ -48,17 +51,19 @@ async function setup({records=[],role='preparer'}={}){
  const fixture=fixedFixture();fixture.state.records=records;fixture.state.role=role;
  const document={hidden:false,events:{},createElement:tag=>new Element(tag),addEventListener(type,fn){this.events[type]=fn;},removeEventListener(){}};
  const shell=new Element('details');shell.open=true;const host=new Element();host.dataset.fixedHost='';shell.append(host);
- const requests=[],h={fixture,document,shell,host,requests,postHook:null,employeeHook:null};
+ const requests=[],h={fixture,document,shell,host,requests,postHook:null,employeeHook:null,nativerosterHook:null,employeesHook:null};
  const response=(data,status=200,code='')=>({ok:status<400,status,json:async()=>status<400?{ok:true,data}:{code}});
- const fetch=async(url,options)=>{
-  const query=new URL(url,'https://example.invalid').searchParams,entry={resource:query.get('resource'),legajo:query.get('legajo'),method:options.method||'GET',key:options.headers['Idempotency-Key'],body:options.body?JSON.parse(options.body):null};requests.push(entry);
+ const fetch=async(url,options={})=>{
+  const query=new URL(url,'https://example.invalid').searchParams,entry={resource:query.get('resource'),legajo:query.get('legajo'),contractId:query.get('contractId'),contracts:query.get('contracts'),method:options.method||'GET',key:options.headers?.['Idempotency-Key'],body:options.body?JSON.parse(options.body):null};requests.push(entry);
   if(options.method==='POST'){if(h.postHook){const override=await h.postHook(entry,options);if(override)return override;}const result=fixture.mutate(entry.body.command,entry.body.payload,entry.key);return response(result.data,result.status,result.code);}
   if(entry.resource==='bootstrap')return response(fixture.bootstrap());
   if(entry.resource==='list')return response(fixture.list(query.get('periodMonth')));
   if(entry.resource==='employee'){if(h.employeeHook){const override=await h.employeeHook(entry,options);if(override)return override;}return response({version:'payroll-fixed-employee.v1',subject:fixedSubject(entry.legajo)});}
+  if(entry.resource==='employees'&&h.employeesHook){const override=await h.employeesHook(entry,options);if(override)return override;}
+  if(entry.resource==='nativeroster'&&h.nativerosterHook){const override=await h.nativerosterHook(entry,options);if(override)return override;}
   throw Error('Consulta sintética inesperada: '+entry.resource);
  };
- const context=vm.createContext({...model,...bulk,...groups,...concepts,...centers,...junin,countWords,Set,document,window:{addEventListener(){},removeEventListener(){}},location:{href:'https://example.invalid'},URL,URLSearchParams,AbortController,AbortSignal,DOMException,crypto:webcrypto,structuredClone,fetch,console});
+ const context=vm.createContext({...model,...bulk,...groups,...concepts,...centers,...junin,...spreadsheet,...roster,countWords,Set,document,window:{addEventListener(){},removeEventListener(){},dispatchEvent(){}},location:{href:'https://example.invalid'},URL,URLSearchParams,AbortController,AbortSignal,DOMException,Event:class Event{constructor(t){this.type=t;}},crypto:webcrypto,structuredClone,fetch,console});
  const source=fs.readFileSync('assets/payroll-fixed-novelties.js','utf8').replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export function mountFixedNovelties','function mountFixedNovelties');
  vm.runInContext(source,context);h.panel=context.mountFixedNovelties(shell);h.panel.setAccess({capabilities:fixture.cap(),principalKey:'synthetic'});await settle(h);
  h.q=name=>host.querySelector('[data-fn-'+name+']');h.field=name=>host.querySelector('[data-fn-field="'+name+'"]');h.response=response;
@@ -126,4 +131,122 @@ test('otro ámbito no recupera ni reenvía el intento original',async()=>{
 test('todas existentes no habilita guardar y una sola novedad usa singular',async()=>{
  const h=await setup({records:[fixedApprovedRecord(0)]});h.open();h.fill(row('1001'));await h.verify();assert.equal(h.q('save').disabled,true);assert.match(h.q('form-status').textContent,/Todas las novedades ya existen/);assert.equal(h.posts().length,0);
  h.fill(row('1002'));await h.verify();assert.equal(h.q('save').textContent,'Guardar 1 propuesta para revisión');assert.match(h.host.textContent,/Revisé la novedad y su respaldo/);await h.save();assert.match(h.q('form-status').textContent,/1 propuesta guardada de 1/);
+});
+
+test('carga archivo Excel, filtra errores inline, resuelve contratos nativos/ambigüedad y revisa >250 en lotes',async()=>{
+ const h=await setup();
+ const nat=fixedNativeSubject('009001');
+ const xlsxBytes=bulk.fixedBulkTemplateXlsx();
+ h.open();
+ const fakeFile={name:'carga.xlsx',async arrayBuffer(){return xlsxBytes.buffer.slice(xlsxBytes.byteOffset,xlsxBytes.byteOffset+xlsxBytes.byteLength);}};
+ h.q('bulk-file').files=[fakeFile];
+ await h.q('bulk-file').emit('change');
+ h.field('legalInstrument').value='Decreto 100/2026';
+ h.field('reason').value='Carga masiva Excel sintética';
+ await h.verify();
+ assert.match(h.q('bulk-file-info').textContent,/carga\.xlsx/);
+ assert.equal(h.q('save').textContent,'Guardar 2 propuestas para revisión');
+ assert.equal(h.q('save').disabled,true);
+
+ h.field('sheet').value='1001;80;1;;2026-09-15;;\n1002;80;;;2026-09-15;;';
+ h.field('sheet').emit('input');
+ await h.verify();
+ const errToggle=h.q('bulk-errors-only');
+ assert.ok(errToggle,'Debe existir botón Solo errores');
+ assert.match(errToggle.textContent,/Solo errores \(1\)/);
+ const delBtns=h.q('preview-result').querySelectorAll('[data-fn-bulk-remove-row]');
+ await delBtns[1].emit('click');
+ await settle(h);
+ assert.equal(h.q('save').textContent,'Guardar 1 propuesta para revisión');
+
+ const sample=Array.from({length:501},(_,i)=>{
+  const r=fixedApprovedRecord(i);
+  r.pending={id:fixedUuid(40000+i),recordId:r.id,version:3,operation:'set',values:r.approved.values,reason:'Propuesta grupal de ensayo',proposedAt:'2026-09-21T12:00:00.000000Z',proposedBy:'preparer@example.invalid',review:null,canReview:true};
+  r.version=3;r.latest=r.pending;return r;
+ });
+ const chunks=groups.fixedGroupChunks(sample,c=>groups.fixedReviewGroupDraft(c,'approve','Cotejo en lotes sintético'));
+ assert.deepEqual(chunks.map(c=>c.items.length),[250,250,1]);
+ assert.equal(nat.origin,'MUNICONTROL');
+});
+
+test('alta individual resuelve padrón nativo/adoptado, selector multi-contrato, inactivo y GRH fallback; carga masiva edita fila inline con batch employees',async()=>{
+ const h=await setup();
+ const hash64='a'.repeat(64);
+ const cid1=fixedUuid(9001),cid2=fixedUuid(9002),cid3=fixedUuid(9003),cidInactive=fixedUuid(9004);
+ const makeRosterRow=(contractId,legajo,status='active',recordKind='hire')=>({
+  contractId,registrationId:fixedUuid(9100),legajo,name:'PERSONA '+legajo,dni:'30111222',cuil:'20301112223',
+  sexCode:'M',birthDate:'1990-01-01',startDate:'2020-01-01',endDate:status==='active'?null:'2025-12-31',
+  status,jurisdictionCode:'42',agreement:'1',category:'1',organization:'Dpto',sector:'Obras',jobTitle:'Administrativo',
+  legalReference:null,registeredAt:'2026-09-21T11:00:00.123456Z',recordKind
+ });
+ const rosterData={
+  version:'native-roster.v2',origin:'MUNICONTROL',complete:true,today:'2026-10-01',queriedAt:'2026-10-01T12:00:00Z',
+  scope:{tenantId:fixedUuid(1),membershipId:fixedUuid(2),bindingId:fixedUuid(5),companyId:1},
+  filters:roster.nativeRosterFilters({status:'all'}),total:4,people:3,
+  counts:{active:3,pending_start:0,inactive:1,state_error:0,unknown:0},
+  facets:{organization:['Dpto'],sector:['Obras'],agreement:['1']},
+  rows:[
+   makeRosterRow(cid1,'009001','active','adopted'),
+   makeRosterRow(cid2,'777','active','hire'),
+   makeRosterRow(cid3,'777','active','hire'),
+   makeRosterRow(cidInactive,'888','inactive','adopted')
+  ],
+  snapshot:hash64
+ };
+ h.nativerosterHook=()=>h.response(rosterData);
+ const nat9001={...fixedNativeSubject('009001'),contractId:cid1};
+ const nat777b={...fixedNativeSubject('777'),contractId:cid3};
+ h.employeeHook=entry=>{
+  if(entry.contractId===cid1)return h.response({version:'payroll-fixed-employee.v1',subject:nat9001});
+  if(entry.contractId===cid3)return h.response({version:'payroll-fixed-employee.v1',subject:nat777b});
+  if(entry.legajo==='555')return h.response({version:'payroll-fixed-employee.v1',subject:fixedSubject('555')});
+  return h.response(null,422,'PAYROLL_FIXED_LEGAJO_NOT_FOUND');
+ };
+ h.employeesHook=entry=>{
+  const list=entry.contracts.split(',');
+  return h.response({version:'payroll-fixed-employees.v1',rows:list.map(cid=>({contractId:cid,ok:true,subject:cid===cid1?nat9001:nat777b})),total:list.length});
+ };
+ h.document.events['municontrol:capabilities-ready']?.({detail:{tenantCapabilities:[...h.fixture.cap(),'workforce.employee.read']}});
+
+ // Alta individual: 9001 -> canonical match a contrato cid1 ('009001')
+ h.q('new').emit('click');
+ h.field('legajo').value='9001';
+ await h.q('lookup').emit('click');await settle(h);
+ assert.equal(h.requests.some(r=>r.resource==='employee'&&r.contractId===cid1),true);
+ assert.equal(h.field('legajo').value,'009001');
+ assert.match(h.q('subject').textContent,/Registro propio de MuniControl/);
+
+ // Legajo con >1 contrato activo -> selector inline
+ h.q('unlock-legajo').emit('click');
+ h.field('legajo').value='777';
+ await h.q('lookup').emit('click');await settle(h);
+ assert.match(h.q('form-status').textContent,/más de un contrato activo/);
+ const picker=h.q('contract-select');assert.ok(picker);
+ picker.value=cid3;await picker.emit('change');await settle(h);
+ assert.equal(h.requests.some(r=>r.resource==='employee'&&r.contractId===cid3),true);
+
+ // Legajo nativo inactivo -> no cae a GRH
+ h.q('unlock-legajo').emit('click');
+ h.field('legajo').value='888';
+ await h.q('lookup').emit('click');await settle(h);
+ assert.match(h.q('form-status').textContent,/Legajo sin contrato activo/);
+ assert.equal(h.requests.some(r=>r.legajo==='888'),false);
+
+ // Ausente en nativeroster -> GRH fallback
+ h.field('legajo').value='555';
+ await h.q('lookup').emit('click');await settle(h);
+ assert.equal(h.requests.some(r=>r.resource==='employee'&&r.legajo==='555'),true);
+ h.q('cancel').emit('click');await settle(h);
+
+ // Carga masiva con batch employees y edición inline de una fila con error
+ h.open();
+ h.fill('009001;80;;5000;2026-10-01;;\n009001;81;;;2026-10-01;;');
+ await h.verify();
+ assert.equal(h.requests.some(r=>r.resource==='employees'&&r.contracts===cid1),true);
+ const editBtn=h.q('preview-result').querySelectorAll('[data-fn-bulk-edit-row]')[1];
+ editBtn.emit('click');
+ const inlineInputs=h.q('preview-result').querySelectorAll('input');
+ inlineInputs[2].value='1'; // unidades=1
+ await h.q('bulk-apply-row').emit('click');await settle(h);
+ assert.equal(h.q('save').textContent,'Guardar 2 propuestas para revisión');
 });

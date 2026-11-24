@@ -34,9 +34,20 @@ for(const [label,index,value,pattern]of [
 test('rechaza todas las repeticiones normalizadas, sin omitirlas',()=>{
  const rows=fixedBulkDraft(line.join(';')+'\n'+line.join(';'),options);assert.equal(rows.length,2);assert.ok(rows.every(row=>/repiten/.test(row.error)));
 });
-test('200 filas se aceptan; 201 bloquean la carga completa',()=>{
- const source=Array.from({length:200},(_,i)=>[String(i+1),...line.slice(1)].join(';'));assert.equal(fixedBulkDraft(source.join('\n'),options).length,200);
- assert.throws(()=>fixedBulkDraft([...source,'201;80;1;;2026-09-15'].join('\n'),options),/hasta 200/);
+test('2000 filas se aceptan; 2001 bloquean la carga completa',()=>{
+ const source=Array.from({length:2000},(_,i)=>[String(i+1),...line.slice(1)].join(';'));assert.equal(fixedBulkDraft(source.join('\n'),options).length,2000);
+ assert.throws(()=>fixedBulkDraft([...source,'2001;80;1;;2026-09-15'].join('\n'),options),/hasta 2000/);
+});
+test('acepta encabezados en distinto orden, alias y tabla ya parseada (Excel)',()=>{
+ const reordered='Alta;Cod.;Agente/Nro;Instrumento;Importe;Hasta;Unidades'.replace('Agente/Nro','Nro de legajo');
+ const body='2026-10-01;80;1001;Resolución 99/2026;1250,50;2026-12-31;2';
+ const [r1]=fixedBulkDraft(reordered+'\n'+body,options);
+ assert.equal(r1.error,null);assert.equal(r1.draft.legajo,'1001');assert.equal(r1.draft.values.conceptSourceId,'80');
+ assert.equal(r1.draft.values.amountCents,'125050');assert.equal(r1.draft.values.quantityDecimal,'2');assert.equal(r1.draft.values.validFrom,'2026-10-01');assert.equal(r1.draft.values.validTo,'2026-12-31');assert.equal(r1.draft.values.legalInstrument,'Resolución 99/2026');
+ const table={lineNumbers:[1,2],rows:[['Importe','Concepto','Desde','Legajo','Instrumento'],['5000,00','901000617','2026-10-01','009001','Res. 5/2026']]};
+ const [r2]=fixedBulkDraft(table,{...options,allowNativeLegajo:v=>v==='009001'});
+ assert.equal(r2.error,null);assert.equal(r2.draft.legajo,'009001');assert.equal(r2.draft.values.amountCents,'500000');
+ assert.equal(fixedBulkPayload(r2.draft,{contractId:'00000000-0000-4000-8000-000000000099',legajo:'009001',origin:'MUNICONTROL',identityToken:'a'.repeat(64)}).legajo,'009001');
 });
 test('encabezado solo, planilla vacía y motivo o instrumento ausentes no se guardan',()=>{
  assert.throws(()=>fixedBulkDraft(' \n',options),/al menos/);assert.throws(()=>fixedBulkDraft(header.join(';'),options),/no tiene novedades/);
