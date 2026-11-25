@@ -32,7 +32,9 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
  catch(e){if(e.status!==403)errors.push('Datos familiares de '+periodLabel(period)+': '+e.message);}
  onPartial?.([...items]);
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
- try{const sal=await readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});
+ try{const sal=await patientRead(()=>getJson('/api/internal-native-salary?resource=pending')).catch(async e=>{if(e.status!==400&&e.status!==503)throw e;
+   // Antes de instalar la lectura liviana se usa la lectura completa por bloques.
+   return readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});});
   for(const x of sal.proposals??[])if(x.status==='pending')items.push({kind:'salary',proposal:x,scopeVersion:sal.scopeVersion,label:'Maestro salarial · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Maestro salarial: '+e.message);}
  try{const pr=await patientRead(()=>getJson('/api/internal-own-payroll-program?resource=bootstrap'));

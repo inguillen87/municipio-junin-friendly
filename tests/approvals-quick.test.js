@@ -46,3 +46,13 @@ test('la lectura de pendientes de participación se recupera como las demás lec
   const {recoverOwnPeriodRead} = await import('../lib/own-period-read-recovery.js');
   assert.equal(await recoverOwnPeriodRead({method: 'GET', operation: 'pending', busyCode: 'PARTICIPATION_BUSY', read: async () => 'ok', reauthorize: async () => true}), 'ok');
 });
+
+test('el maestro salarial se consulta con la lectura liviana de pendientes', () => {
+  const ui = readFileSync('assets/approvals-quick.js', 'utf8');
+  assert.match(ui, /internal-native-salary\?resource=pending/);
+  const sql = readFileSync('scripts/migrations/251-native-salary-pending.sql', 'utf8');
+  assert.match(sql, /native_salary_proposal_v1\(ctx,e\)-'items'-'baseItems'/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.native_salary_pending_v1\(jsonb\) TO municontrol_actions_runtime_app;/);
+  assert.match(readFileSync('api/internal-native-salary.js', 'utf8'), /q\.resource==='pending'/);
+  assert.match(readFileSync('.vercelignore', 'utf8'), /^!scripts\/migrations\/251-native-salary-pending\.sql$/m);
+});
