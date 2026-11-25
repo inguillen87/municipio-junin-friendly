@@ -19,7 +19,7 @@ export function mountOwnContractSalaryNative(container){
  if(!container||container.dataset.salaryNativeMounted)return;container.dataset.salaryNativeMounted='true';
  if(!document.querySelector('link[data-salary-native-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-salary-conditions-native-panel.css',import.meta.url).href;link.dataset.salaryNativeStyle='';document.head.append(link);}
  const host=node('section');host.className='own-salary-native salary-native';host.setAttribute('aria-label','Condiciones salariales nativas por selección');
- host.innerHTML=`<header><p class="salary-native-eyebrow">PERSONAS · CONDICIONES SALARIALES</p><h2>Docencia, vivienda y base de días</h2><p>Seleccioná los contratos de este período, completá sus datos y constancias, y enviá la propuesta a otra persona habilitada.</p></header>
+ host.innerHTML=`<header><p class="salary-native-eyebrow">PERSONAS · CONDICIONES SALARIALES</p><h2>Docencia, vivienda y base de días</h2><p>Para los contratos que elijas: docencia, vivienda y días base del mes. Más abajo está la otra tarjeta, la de antigüedad, título e insalubridad, que vale para todos los contratos.</p></header>
  <p data-salary-native-status role="status" aria-live="polite">Abrí Condiciones salariales para verificar tu acceso.</p>
  <button type="button" data-salary-native-access>Verificar acceso</button><button type="button" data-salary-native-login hidden>Ingresar de nuevo</button>
  <fieldset data-salary-native-target><legend>1. Elegir el período</legend><label>Período de liquidación<input type="month" data-salary-native-period></label><button type="button" data-salary-native-refresh>Consultar contratos y propuestas</button></fieldset>

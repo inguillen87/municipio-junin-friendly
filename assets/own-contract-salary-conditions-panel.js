@@ -10,7 +10,7 @@ export function mountOwnContractSalaryConditions(container){
  if(!container||container.dataset.salaryConditionsCombinedMounted)return;container.dataset.salaryConditionsCombinedMounted='true';
  const current=node('div'),legacy=node('details'),legacyContent=node('div');
  legacy.className='salary-native-legacy';legacy.dataset.salaryConditionsLegacy='';
- legacy.append(node('summary','Antigüedad, título e insalubridad: propuestas e historial'),legacyContent);
+ legacy.append(node('summary','Antigüedad, título e insalubridad (todos los contratos) · abrir'),legacyContent);
  container.append(current,legacy);mountOwnContractSalaryNative(current);mountOwnContractSalaryConditionsLegacy(legacyContent);
 }
 export function mountOwnContractSalaryConditionsLegacy(container){

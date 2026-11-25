@@ -37,3 +37,4 @@
 .working-time-collective section>button+button,.working-time-collective section>div>button+button{margin-left:.5rem}
 @media (max-width:640px){.working-time-collective .collective-table td[data-label="Estado"],.working-time-collective .collective-table td:first-child{white-space:normal}}
 @media (prefers-reduced-motion:reduce){.working-time-collective progress::-webkit-progress-value{transition:none}}
+.mc-shortcut-tip{background:#eef7f3;border-left:4px solid #1f7a5c;padding:8px 12px;border-radius:6px;margin:8px 0}
