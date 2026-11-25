@@ -463,6 +463,7 @@ const shellFiles = [
   'assets/work-area-model.js',
   'assets/work-area-menu.js',
   'assets/work-area-usage.js',
+  'assets/reason-defaults.js',
   'assets/work-area-menu.css',
   'assets/internal-work-today.js',
   'assets/internal-work-today-sections.css',

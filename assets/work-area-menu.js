@@ -1,6 +1,7 @@
 import { WORK_AREAS, classifyWorkItem, matchesMenuQuery } from './work-area-model.js';
 import { mountLiquidacionesMenu } from './liquidaciones-menu.js';
 import { readWorkUsage, countWorkUse } from './work-area-usage.js';
+import './reason-defaults.js';
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n;};
 const attr=(n,key,value)=>{if(n.getAttribute(key)!==String(value))n.setAttribute(key,String(value));};
 const hidden=(n,value)=>{if(n.hidden!==value)n.hidden=value;};
