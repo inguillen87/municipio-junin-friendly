@@ -59,7 +59,7 @@
 .mc-ring[data-done="true"] .mc-ring-fg{stroke:#1f9d63}
 .mc-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.1}
 .mc-ring-label strong{font-size:1.9rem;font-weight:700;color:#23423a;font-variant-numeric:tabular-nums}
-.mc-ring-label span{font-size:.62rem;color:#6a7a74;letter-spacing:.02em}
+.mc-ring-label span{font-size:.72rem;font-weight:600;color:#6a7a74;letter-spacing:.02em}
 .mc-status-list li{animation:mcFadeRow .4s ease both;animation-delay:var(--mc-delay,0ms)}
 @keyframes mcFadeRow{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.mc-ring-fg{transition:none}.mc-status-list li{animation:none}}

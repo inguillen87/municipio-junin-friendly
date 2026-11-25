@@ -3,7 +3,7 @@
 // decisión registrada por propuesta, con el mismo control independiente del servidor: lo que preparó esta misma cuenta
 // se muestra como «lo preparaste vos» y no se intenta aprobar.
 import {participationPending, decideParticipation} from './own-period-participation-model.js';
-import {lastClosedMonth, periodLabel, patientRead} from './approvals-inbox-model.js';
+import {periodLabel, patientRead} from './approvals-inbox-model.js';
 import {readSalaryBootstrap} from './native-salary-stream-model.js';
 import {salaryCommand} from './native-salary-catalog-model.js';
 import {ownProgramCommand} from './own-payroll-program-model.js';
@@ -116,7 +116,8 @@ host.className='mc-quick-approvals';
   +'<p role="status" aria-live="polite" data-quick-status></p><ul class="mc-quick-list" data-quick-list></ul>'
   +'<button type="button" class="button" data-quick-approve hidden></button>';
  const $=s=>host.querySelector('[data-quick-'+s+']');let items=[];let busy=false;
- $('period').value=lastClosedMonth();
+ // Mismo mes que el tablero y «Preparar»: el mes en curso (también revisa el siguiente).
+ {const now=new Date();$('period').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
  const render=()=>{const list=$('list');list.replaceChildren(...items.map(x=>{const li=el('li',x.state==='ok'?'is-ok':x.state==='error'?'is-error':'');li.append(el('span',null,x.label));
    li.append(el('small',null,x.state==='ok'?' · aprobado':x.state==='error'?' · '+x.message:!x.canApprove?' · lo preparaste vos o no podés decidirlo':''));return li;}));
   const can=items.filter(x=>x.canApprove&&x.state!=='ok');const b=$('approve');b.hidden=!can.length;b.textContent='Aprobar todo ('+can.length+')';b.disabled=busy;};
