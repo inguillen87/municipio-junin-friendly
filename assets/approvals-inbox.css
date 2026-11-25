@@ -63,3 +63,11 @@
 .mc-status-list li{animation:mcFadeRow .4s ease both;animation-delay:var(--mc-delay,0ms)}
 @keyframes mcFadeRow{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.mc-ring-fg{transition:none}.mc-status-list li{animation:none}}
+
+/* Acabado unificado de la zona de Resumen */
+.mc-quick-list li{border-left:4px solid transparent;padding-left:10px;border-radius:0 6px 6px 0;transition:background .2s ease}
+.mc-quick-list li.is-ok{border-left-color:#1f9d63}
+.mc-quick-list li.is-warn{border-left-color:#e0a73a}
+.mc-quick-list li.is-error{border-left-color:#d05a5a}
+.mc-quick-approvals header h3{letter-spacing:-.01em}
+.mc-quick-approvals,.mc-month-status,.mc-month-prepare{border:1px solid #e4ece9;border-radius:12px;padding:16px;background:#fff}
