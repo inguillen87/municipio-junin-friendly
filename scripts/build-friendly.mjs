@@ -462,6 +462,7 @@ const shellFiles = [
   'assets/legal-registry-entry-card.css',
   'assets/work-area-model.js',
   'assets/work-area-menu.js',
+  'assets/work-area-usage.js',
   'assets/work-area-menu.css',
   'assets/internal-work-today.js',
   'assets/internal-work-today-sections.css',

@@ -36,3 +36,9 @@
 .mc-work-sidebar [data-work-area=sistema] .mc-work-icon{--mc-ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7'/%3E%3Cpath d='M4 10V3'/%3E%3Cpath d='M12 21v-9'/%3E%3Cpath d='M12 8V3'/%3E%3Cpath d='M20 21v-5'/%3E%3Cpath d='M20 12V3'/%3E%3Cpath d='M2 14h4'/%3E%3Cpath d='M10 8h4'/%3E%3Cpath d='M18 16h4'/%3E%3C/svg%3E")}
 .mc-work-sidebar [data-work-area=liquidaciones] :is(.mc-work-icon,.mc-liquidaciones-icon){--mc-ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z'/%3E%3Cpath d='M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8'/%3E%3Cpath d='M12 17.5v-11'/%3E%3C/svg%3E")}
 @media (forced-colors:active){.mc-work-sidebar :is(.mc-work-icon,.mc-liquidaciones-icon)::before,.mc-work-sidebar .mc-work-home>:is(a,button)>:is(.nav-code,.nav-index)::before{background:CanvasText}}
+/* Lo que más usás: accesos directos según el uso de cada persona. */
+.mc-work-frequent{margin:10px 0 14px}
+.mc-work-frequent-title{margin:0 0 6px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.mc-work-frequent-list{display:grid;gap:6px}
+.mc-work-frequent-item{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:inherit;font-weight:700;font-size:.9rem;cursor:pointer}
+.mc-work-frequent-item:hover,.mc-work-frequent-item:focus-visible{background:rgba(255,255,255,.18);outline:2px solid rgba(255,255,255,.5);outline-offset:1px}
