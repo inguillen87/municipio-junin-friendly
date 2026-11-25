@@ -69,7 +69,7 @@ export function monthCalc(sites, { period, baseHours = MONTH_CALC_DEFAULTS.baseH
     },
   };
 }
-function pick(t) { return { totalLateMinutes: t.totalLateMinutes, lateDays: t.lateDays, percent: t.percent, units: t.units }; }
+function pick(t) { return { totalLateMinutes: t.totalLateMinutes, lateDays: t.lateDays, percent: t.percent, units: t.units, days: t.days.map(d => ({ date: d.date, arrival: d.arrival, lateMinutes: d.lateMinutes })) }; }
 
 /** CSV para revisar fuera del sistema. Celdas protegidas contra fórmulas. */
 export function monthCalcCsv(calc) {

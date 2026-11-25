@@ -141,6 +141,13 @@ export function mountAttendanceMonthCalc(host) {
       else late.append(el('span', 'amc-muted', r.tardiness ? 'sin descuento' : '—'));
       const nm = el('td', 'amc-num', String(r.daysWithoutMark));
       tr.append(who, comp, hpd, ex, ded, late, nm); body.append(tr);
+      if (r.tardiness?.days?.length) { tr.tabIndex = 0; tr.className = 'amc-row'; tr.setAttribute('aria-expanded', 'false'); tr.title = 'Ver sus entradas día por día';
+        const toggle = () => { const open = tr.nextElementSibling?.classList.contains('amc-detail'); if (open) { tr.nextElementSibling.remove(); tr.setAttribute('aria-expanded', 'false'); return; }
+          tr.setAttribute('aria-expanded', 'true'); const d = el('tr', 'amc-detail'), td = el('td'); td.colSpan = 7; const grid = el('div', 'amc-days');
+          for (const day of r.tardiness.days) { const b = el('div', 'amc-day'); b.dataset.late = String(day.lateMinutes > 0);
+            b.append(el('strong', null, new Date(day.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })), el('span', null, 'Entrada ' + day.arrival.slice(0, 5)), el('small', null, day.lateMinutes > 0 ? day.lateMinutes + ' min tarde' : 'a horario')); grid.append(b); }
+          td.append(el('p', 'amc-muted', 'Entrada de cada día con marca. Referencia ' + r.tardiness.start + ' (estimada por sus marcas; Personal la confirma).'), grid); d.append(td); tr.after(d); };
+        tr.addEventListener('click', toggle); tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); }
     }
     if (!list.length) { const tr = el('tr'), td = el('td', 'amc-muted', 'No hay personas con ese filtro.'); td.colSpan = 7; tr.append(td); body.append(tr); }
     for (const th of host.querySelectorAll('th[data-s]')) th.setAttribute('aria-sort', th.dataset.s === state.sort ? (state.dir > 0 ? 'ascending' : 'descending') : 'none');
