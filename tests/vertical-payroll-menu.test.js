@@ -109,10 +109,10 @@ for(const order of ['workspace-first','sidebar-first'])test('orden de montaje '+
  // work-area search indexes the adopted tabs, not the hidden duplicates
  for(const b of tabs)assert.equal(b.dataset.workAreaItem,'');
  search(s,'antig');assert.equal(s.nav.querySelector('[data-task="antiguedad"]').getAttribute('data-work-filtered'),'false');assert.equal(s.nav.querySelector('[data-task="calculo"]').getAttribute('data-work-filtered'),'true');
- assert.equal(s.workNav.querySelector('.mc-work-status').textContent,'1 accesos encontrados');
+ assert.equal(s.workNav.querySelector('.mc-work-status').textContent,'1 acceso encontrado · Enter para abrir');
  search(s,'');assert.equal(s.nav.querySelector('[data-task="calculo"]').getAttribute('data-work-filtered'),'false');
  // the hidden duplicate link "Calcular" is not an entry any more: only the adopted tab counts
- search(s,'calcular');assert.equal(s.workNav.querySelector('.mc-work-status').textContent,'1 accesos encontrados');search(s,'');
+ search(s,'calcular');assert.equal(s.workNav.querySelector('.mc-work-status').textContent,'1 acceso encontrado · Enter para abrir');search(s,'');
 });
 
 test('un cambio de destino activa el workspace existente sin recargar ni recrear nodos, y el deep link por hash sigue vigente',async()=>{

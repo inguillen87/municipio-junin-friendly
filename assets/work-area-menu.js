@@ -110,7 +110,7 @@ export async function mountWorkAreaMenu(){
     for(const [id,g]of groups){const visible=entries.some(e=>e.area===id&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'));hidden(g.group,!visible);attr(g.group,'data-active',id===active);if(query&&visible)g.group.open=true;else if(active!==lastActive)g.group.open=id===active;}
     hidden(homeList,!entries.some(e=>e.area==='inicio'&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden));
     const currentLabel=groups.get(active)?.label||'Inicio';if(mobileCurrent.textContent!==currentLabel)mobileCurrent.textContent=currentLabel;
-    const statusText=query?(count?count+' accesos encontrados':'No hay accesos habilitados con ese nombre.'):'Abrí un área para ver sus tareas.';
+    const statusText=query?(count?count+(count===1?' acceso encontrado · Enter para abrir':' accesos encontrados · Enter abre el primero'):'No hay accesos habilitados con ese nombre.'):'Abrí un área para ver sus tareas.';
     if(status.textContent!==statusText)status.textContent=statusText;hidden(clear,!query);lastActive=active;mobileState();renderFrequent();
   }
   const schedule=()=>{if(!scheduled&&!suspended){scheduled=true;queueMicrotask(render);}};
