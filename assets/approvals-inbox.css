@@ -48,3 +48,18 @@
 .mc-month-status,.mc-month-prepare{margin-top:16px}
 .mc-month-prepare progress{width:100%;height:8px;margin:8px 0}
 .mc-shortcut-tip{background:#eef7f3;border-left:4px solid #1f7a5c;padding:8px 12px;border-radius:6px;margin:8px 0}
+
+/* Tablero del mes: anillo de progreso y aparición suave */
+.mc-status-top{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.mc-status-side{flex:1;min-width:220px}
+.mc-ring{position:relative;width:104px;height:104px;flex:0 0 auto}
+.mc-ring svg{width:104px;height:104px;transform:rotate(-90deg)}
+.mc-ring-bg{fill:none;stroke:#e4ece9;stroke-width:9}
+.mc-ring-fg{fill:none;stroke:#e0a73a;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1),stroke .4s ease}
+.mc-ring[data-done="true"] .mc-ring-fg{stroke:#1f9d63}
+.mc-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.1}
+.mc-ring-label strong{font-size:1.9rem;font-weight:700;color:#23423a;font-variant-numeric:tabular-nums}
+.mc-ring-label span{font-size:.62rem;color:#6a7a74;letter-spacing:.02em}
+.mc-status-list li{animation:mcFadeRow .4s ease both;animation-delay:var(--mc-delay,0ms)}
+@keyframes mcFadeRow{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mc-ring-fg{transition:none}.mc-status-list li{animation:none}}

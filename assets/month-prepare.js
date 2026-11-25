@@ -136,13 +136,19 @@ export function mountMonthStatus(host){
  if(!host||host.dataset.monthStatusMounted)return null;host.dataset.monthStatusMounted='';
  host.className='mc-quick-approvals mc-month-status';
  host.innerHTML='<header><h3>¿Está listo el mes para calcular?</h3><p>Lo que el cálculo necesita aprobado. Verde: listo. Amarillo: falta un paso.</p></header>'
-  +'<div class="mc-quick-row"><label>Mes <input type="month" data-ms-period></label><button type="button" class="button secondary" data-ms-go>Revisar</button></div>'
-  +'<p role="status" aria-live="polite" data-ms-status></p><ul class="mc-quick-list mc-status-list" data-ms-list></ul>';
+  +'<div class="mc-status-top">'
+  +'<div class="mc-ring" data-ms-ring aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="mc-ring-bg" cx="60" cy="60" r="52"/><circle class="mc-ring-fg" cx="60" cy="60" r="52" data-ms-ringfg/></svg><div class="mc-ring-label"><strong data-ms-ringnum>–</strong><span>de 6 listos</span></div></div>'
+  +'<div class="mc-status-side"><div class="mc-quick-row"><label>Mes <input type="month" data-ms-period></label><button type="button" class="button secondary" data-ms-go>Revisar</button></div>'
+  +'<p role="status" aria-live="polite" data-ms-status></p></div></div>'
+  +'<ul class="mc-quick-list mc-status-list" data-ms-list></ul>';
  const $=s=>host.querySelector('[data-ms-'+s+']');const now=new Date();$('period').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
  let busy=false;
  async function run(){if(busy)return;busy=true;$('status').textContent='Revisando…';$('list').replaceChildren();
   try{const rows=await monthStatus($('period').value);
-   $('list').replaceChildren(...rows.map(r=>{const li=document.createElement('li');li.className=r.state==='ok'?'is-ok':'is-warn';const b=document.createElement('strong');b.textContent=(r.state==='ok'?'✓ ':'• ')+r.label;const sm=document.createElement('small');sm.textContent=' · '+STATE_TEXT[r.state]+(r.detail?' ('+r.detail+')':'');li.append(b,sm);return li;}));
+   $('list').replaceChildren(...rows.map((r,i)=>{const li=document.createElement('li');li.className=r.state==='ok'?'is-ok':'is-warn';li.style.setProperty('--mc-delay',(i*55)+'ms');const b=document.createElement('strong');b.textContent=(r.state==='ok'?'✓ ':'• ')+r.label;const sm=document.createElement('small');sm.textContent=' · '+STATE_TEXT[r.state]+(r.detail?' ('+r.detail+')':'');li.append(b,sm);return li;}));
+   const ready=rows.filter(r=>r.state==='ok').length,total=rows.length||6,circ=2*Math.PI*52;
+   const fg=$('ringfg');if(fg){fg.style.strokeDasharray=circ;fg.style.strokeDashoffset=circ*(1-ready/total);}
+   $('ringnum').textContent=ready;$('ring').dataset.done=String(ready===total);
    const left=rows.filter(r=>r.state!=='ok');
    $('status').textContent=!left.length?'Todo listo: ya se puede calcular '+periodLabel($('period').value)+'.':left.some(r=>r.state==='prepare')?'Falta preparar: usá «Preparar el mes siguiente» y después «Aprobar todo».':'Sólo falta aprobar: otra persona entra a «Aprobar todo».';}
   catch(e){$('status').textContent=e.message;}finally{busy=false;}}
