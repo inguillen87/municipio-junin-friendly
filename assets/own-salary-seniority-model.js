@@ -90,3 +90,12 @@ export function seniorityCapture(v, employees, period) {
  }
  return v;
 }
+
+// Lectura liviana de propuestas pendientes del mes (migración 252), para «Aprobar todo».
+export const SENIORITY_PENDING_VERSION = 'own-salary-seniority-pending.v1';
+export function seniorityPending(v, period) {
+ need(salaryExact(v, ['version', 'period', 'complete', 'proposals']) && v.version === SENIORITY_PENDING_VERSION && v.period === period && v.complete === true && Array.isArray(v.proposals) && v.proposals.length <= 10000, 'No se verificó la lista de pendientes del período.', 'CONTRACT_INVALID');
+ const ids = new Set();
+ for (const x of v.proposals) { need(salaryExact(x, ['proposalId', 'contractId', 'createdAt', 'authorLabel', 'canReview']) && salaryUuid(x.proposalId) && salaryUuid(x.contractId) && typeof x.canReview === 'boolean' && !ids.has(x.proposalId), 'Una propuesta pendiente no cumple el contrato de consulta.', 'CONTRACT_INVALID'); ids.add(x.proposalId); }
+ return v;
+}
