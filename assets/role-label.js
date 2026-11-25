@@ -7,6 +7,7 @@
     PLATFORM_OWNER: 'Responsable de la plataforma',
     PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Responsable de la plataforma · operación completa',
     HUGO_APROBADOR_INTEGRAL: 'Aprobación institucional',
+    JUNIN_ASISTENCIA_INTEGRAL: 'Asistencia, relojes y fichajes',
     CONSULTA_INTEGRAL: 'Consulta institucional',
     TENANT_RRHH_ADMIN_OPERATIVO: 'Administración de Recursos Humanos',
     TENANT_ADMIN: 'Administración del municipio',
