@@ -4,9 +4,28 @@
 // preparación reciben un texto neutro que la persona puede cambiar. Nunca pisa lo que la persona escribió.
 const APPROVE='Revisado: los datos coinciden con la documentación del período. Se aprueba.';
 const PREPARE='Carga del período según la documentación recibida por Recursos Humanos.';
+const labelOf=field=>field.closest('label')||(field.id&&document.querySelector('label[for="'+CSS.escape(field.id)+'"]'))||null;
+// El campo completado con el texto estándar no se muestra: aprobar no pide escribir nada. Queda un enlace discreto para
+// quien quiera dejar un comentario, y vuelve a mostrarse si la decisión pasa a rechazo.
+function hideField(field){
+  if(field.dataset.mcReasonHidden==='1')return;
+  const label=labelOf(field);const parts=[field];if(label&&!label.contains(field))parts.push(label);else if(label)parts[0]=label;
+  for(const el of parts){el.dataset.mcReasonPrev=el.style.display||'';el.style.display='none';}
+  field.dataset.mcReasonHidden='1';
+  const link=document.createElement('button');link.type='button';link.className='mc-reason-optional';link.textContent='Agregar un comentario (opcional)';
+  link.style.cssText='background:none;border:0;padding:4px 0;color:inherit;opacity:.7;text-decoration:underline;cursor:pointer;font-size:.9em;align-self:flex-start';
+  link.addEventListener('click',()=>{field._mcReasonShown=true;showField(field);field.focus();});
+  (parts.at(-1)===field?field:parts[0]).after(link);field._mcReasonLink=link;
+}
+function showField(field){
+  if(field.dataset.mcReasonHidden!=='1')return;
+  const label=labelOf(field);for(const el of new Set([field,label].filter(Boolean))){el.style.display=el.dataset.mcReasonPrev||'';}
+  field.dataset.mcReasonHidden='';field._mcReasonLink?.remove();field._mcReasonLink=null;
+}
 const labelText=field=>{const l=field.closest('label')||(field.id&&document.querySelector('label[for="'+CSS.escape(field.id)+'"]'));return (l?.textContent||field.getAttribute('aria-label')||field.placeholder||'').toLowerCase();};
 const decisionOf=field=>{const box=field.closest('fieldset,section,form,div');const select=box?.querySelector('select');const v=(select?.value||select?.selectedOptions?.[0]?.textContent||'').toLowerCase();return /reject|rechaz/.test(v)?'reject':'approve';};
 function fill(field){
+  if(field.dataset.mcReasonDefault==='filled'&&field.value.trim()&&field.dataset.mcReasonHidden!=='1'&&!field._mcReasonShown){hideField(field);return;}
   if(field.dataset.mcReasonDefault==='off'||field.value.trim()||field.disabled||field.readOnly)return;
   const text=labelText(field);let value=null;
   if(/fundamento de la decisi|motivo de la decisi|fundamento de la aprobaci/.test(text))value=decisionOf(field)==='reject'?null:APPROVE;
@@ -14,13 +33,14 @@ function fill(field){
   if(!value)return;
   field.value=value;field.dataset.mcReasonDefault='filled';
   field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));
+  hideField(field);
 }
 function scan(root=document){for(const f of root.querySelectorAll?.('textarea,input[type="text"]')??[])fill(f);}
 function watchDecision(event){
   const select=event.target;if(!(select instanceof HTMLSelectElement))return;
   const box=select.closest('fieldset,section,form,div');if(!box)return;
   for(const f of box.querySelectorAll('textarea,input[type="text"]')){
-    if(f.dataset.mcReasonDefault==='filled'&&/reject|rechaz/.test(select.value.toLowerCase())){f.value='';f.dataset.mcReasonDefault='';f.dispatchEvent(new Event('input',{bubbles:true}));}
+    if(f.dataset.mcReasonDefault==='filled'&&/reject|rechaz/.test(select.value.toLowerCase())){f.value='';f.dataset.mcReasonDefault='';showField(f);f.dispatchEvent(new Event('input',{bubbles:true}));}
     else fill(f);
   }
 }
