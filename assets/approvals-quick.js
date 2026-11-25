@@ -115,17 +115,19 @@ host.className='mc-quick-approvals';
   +'<div class="mc-quick-row"><label>Mes <input type="month" data-quick-period></label><button type="button" class="button secondary" data-quick-load>Ver pendientes</button></div>'
   +'<p role="status" aria-live="polite" data-quick-status></p><ul class="mc-quick-list" data-quick-list></ul>'
   +'<button type="button" class="button" data-quick-approve hidden></button>';
- const $=s=>host.querySelector('[data-quick-'+s+']');let items=[];let busy=false;
+ const $=s=>host.querySelector('[data-quick-'+s+']');let items=[];let busy=false;let again=false;
  // Mismo mes que el tablero y «Preparar»: el mes en curso (también revisa el siguiente).
  {const now=new Date();$('period').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
  const render=()=>{const list=$('list');list.replaceChildren(...items.map(x=>{const li=el('li',x.state==='ok'?'is-ok':x.state==='error'?'is-error':'');li.append(el('span',null,x.label));
    li.append(el('small',null,x.state==='ok'?' · aprobado':x.state==='error'?' · '+x.message:!x.canApprove?' · lo preparaste vos o no podés decidirlo':''));return li;}));
   const can=items.filter(x=>x.canApprove&&x.state!=='ok');const b=$('approve');b.hidden=!can.length;b.textContent='Aprobar todo ('+can.length+')';b.disabled=busy;};
- async function load(){if(busy)return;busy=true;$('status').textContent='Consultando…';items=[];render();
+ // Si cambian el mes mientras se consulta, al terminar se vuelve a consultar el mes elegido: el resultado nunca
+ // queda mostrando otro mes.
+ async function load(){if(busy){again=true;$('status').textContent='Cambiaste el mes: consulto '+periodLabel($('period').value)+' en cuanto termine…';return;}busy=true;again=false;$('status').textContent='Consultando…';items=[];render();
   const picked=$('period').value,[y,m]=picked.split('-').map(Number),following=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
   try{const r=await loadQuickApprovals([picked,following],{onPartial:partial=>{items=partial;$('status').textContent='Ya aparecen las novedades. Sigo buscando en el maestro salarial y las reglas (puede tardar unos segundos)…';render();}});items=r.items;
    $('status').textContent=(items.length?items.length+' pendiente'+(items.length===1?'':'s')+' entre '+periodLabel(picked)+' y '+periodLabel(following)+'.':'No hay nada pendiente en '+periodLabel(picked)+' ni en '+periodLabel(following)+'.')+(r.errors.length?' '+r.errors.join(' '):'');}
-  catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
+  catch(e){$('status').textContent=e.message;}finally{busy=false;render();if(again){again=false;load();}}}
  async function approveAll(){if(busy)return;busy=true;render();const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
   for(const [i,x] of todo.entries()){$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+'…';
    x.onProgress=()=>{$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+' · '+x.label+': '+x.progress+'…';};
