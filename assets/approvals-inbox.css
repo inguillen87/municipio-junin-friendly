@@ -55,7 +55,7 @@
 .mc-ring{position:relative;width:104px;height:104px;flex:0 0 auto}
 .mc-ring svg{width:104px;height:104px;transform:rotate(-90deg)}
 .mc-ring-bg{fill:none;stroke:#e4ece9;stroke-width:9}
-.mc-ring-fg{fill:none;stroke:#e0a73a;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1),stroke .4s ease}
+.mc-ring-fg{fill:none;stroke:#e0a73a;stroke-width:9;stroke-linecap:round;stroke-dasharray:326.73;stroke-dashoffset:326.73;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1),stroke .4s ease}
 .mc-ring[data-done="true"] .mc-ring-fg{stroke:#1f9d63}
 .mc-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.1}
 .mc-ring-label strong{font-size:1.9rem;font-weight:700;color:#23423a;font-variant-numeric:tabular-nums}
