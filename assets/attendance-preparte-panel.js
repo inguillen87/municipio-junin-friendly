@@ -110,16 +110,13 @@ export function mountAttendancePreparte(host,{ canUse, unavailableReason=()=>nul
     $('[data-ap-corrections]').hidden=false;controls();
   }
   function refreshCorrections(){if(reviewActive&&current()&&canUse())showCorrections(selectionReview());}
-  // Detalle diario de una persona: agrupa sus marcas por día (entrada/salida) para que quien revisa vea el horario trabajado.
+  // Detalle diario de una persona: la hora de entrada de cada día con marcas, para que quien revisa vea el horario.
   // Sólo muestra lo que el preparte ya trajo; no calcula ni propone nada.
   function dayDetailRow(source){
     const tr=node('tr','','ap-day-detail');tr.dataset.apDetailFor=source.key;const cell=node('td');cell.colSpan=7;tr.append(cell);
-    const byDay=new Map();for(const e of source.entries){const day=e.slice(0,2),time=e.slice(3,8);if(!byDay.has(day))byDay.set(day,[]);byDay.get(day).push(time);}
     const wrap=node('div',null,'ap-day-grid');
-    cell.append(node('p','Días y marcas registradas en el mes. Las marcas en orden son entrada y salida; un número impar señala una marca faltante que Personal revisa.','ap-day-note'),wrap);
-    for(const [day,times]of byDay){const box=node('div',null,'ap-day-box');box.append(node('strong','Día '+day));
-      const pairs=node('div',null,'ap-day-marks');for(let i=0;i<times.length;i+=2){const inT=times[i],outT=times[i+1];pairs.append(node('span',inT+(outT?' → '+outT:' → (sin salida)'),outT?'ap-day-pair':'ap-day-pair is-open'));}
-      if(times.length%2)box.classList.add('is-incomplete');box.append(pairs);wrap.append(box);}
+    cell.append(node('p','Hora de entrada de cada día con marcas en el mes ('+source.entries.length+(source.entries.length===1?' día':' días')+'). Es la referencia de las tardanzas; los días sin marca no se muestran ni se presumen ausencias.','ap-day-note'),wrap);
+    for(const e of source.entries){const box=node('div',null,'ap-day-box');box.append(node('strong','Día '+e.slice(0,2)),node('span','Entrada '+e.slice(3,8),'ap-day-pair'));wrap.append(box);}
     return tr;
   }
   function render(){const rows=visible();page=Math.min(page,Math.max(1,Math.ceil(rows.length/25)));const body=$('[data-ap-rows]');body.replaceChildren();
@@ -128,7 +125,7 @@ export function mountAttendancePreparte(host,{ canUse, unavailableReason=()=>nul
       const td=(label)=>{const cell=node('td');cell.dataset.label=label;tr.append(cell);return cell;};
       const include=node('input');include.type='checkbox';include.dataset.apField='selected';include.checked=value.selected;include.setAttribute('aria-label','Incluir legajo '+(source.legajo||'sin vínculo'));if(!source.canPropose)include.dataset.blocked='true';td('Incluir').append(include);
       const person=td('Persona / legajo');person.append(node('strong',source.name),node('small',source.legajo?'Legajo '+source.legajo:'Sin vínculo laboral'));
-      if(source.entries.length){const seeDays=node('button','Ver días y marcas','ap-see-days');seeDays.type='button';seeDays.setAttribute('aria-expanded','false');
+      if(source.entries.length){const seeDays=node('button','Ver entradas por día','ap-see-days');seeDays.type='button';seeDays.setAttribute('aria-expanded','false');
         seeDays.addEventListener('click',()=>{const open=tr.nextElementSibling?.dataset.apDetailFor===source.key;if(open){tr.nextElementSibling.remove();seeDays.setAttribute('aria-expanded','false');return;}
           seeDays.setAttribute('aria-expanded','true');tr.after(dayDetailRow(source));});
         person.append(seeDays);}
