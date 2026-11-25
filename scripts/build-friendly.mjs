@@ -569,6 +569,7 @@ const shellFiles = [
   'assets/approvals-inbox-model.js',
   'assets/approvals-inbox.js',
   'assets/approvals-quick.js',
+  'assets/month-prepare.js',
   'assets/approvals-inbox.css',
   'assets/own-payroll-novelties-panel.css',
   'assets/payroll-monthly-decisions.js',
