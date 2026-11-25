@@ -10,6 +10,8 @@ import {OWN_RUN_MAX_BODY} from '../assets/own-payroll-run-model.js';
 import {OWN_ANNUL_ACCESS,ownAnnulCommand} from '../assets/own-payroll-annulment-model.js';
 import {liquidationFail,liquidationError} from '../lib/internal-own-payroll-liquidation.js';
 import {ownAnnulOperation} from '../lib/internal-own-payroll-annulment.js';
+import {OWN_RUN_FULL_JSON} from '../assets/own-payroll-response.js';
+import {supportsOwnPayrollStream,sendOwnPayrollStream} from '../lib/own-payroll-response.js';
 export const config={api:{bodyParser:false}};
 export function createOwnAnnulHandler(deps={}){
  const env=deps.env??process.env,authorize=deps.requireAccess??requireCompatibleInternalAccess,getSql=deps.getSql??getActionCenterSql,sessionFor=deps.sessionFor??actionMutationSession;
@@ -32,7 +34,9 @@ export function createOwnAnnulHandler(deps={}){
    if(!salaryExact(body,['operation','payload'])||body.operation!=='command')liquidationFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');
    let payload;try{payload=ownAnnulCommand(body.payload);}catch{liquidationFail('INPUT_INVALID',422,'Revisá período, tipo, alcance y motivo.');}input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
   }
-  const data=await ownAnnulOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
+  const fullJson=operation==='detail'&&schoolCertificateHttp.header(req,'accept').trim().toLowerCase()===OWN_RUN_FULL_JSON;
+  if(fullJson&&!supportsOwnPayrollStream(res))liquidationFail('UNAVAILABLE',503,'No está disponible la lectura completa. Volvé a consultar.');
+  const data=await ownAnnulOperation(await getSql(env),access.principal,session,operation,input,{fullJson});if(fullJson)return await sendOwnPayrollStream(res,200,data);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.replayed?201:200).json({ok:true,data});
  }catch(e){const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):liquidationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};
 }
 export default createOwnAnnulHandler();
