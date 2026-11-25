@@ -21,7 +21,7 @@ const sha=async v=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new T
 export function mountOwnPayrollNovelties(container,onLock=()=>{}){
  if(!container)return null;
  const style=node('link');style.rel='stylesheet';style.href=new URL('./own-payroll-novelties-panel.css',import.meta.url).href;document.head.append(style);
- container.className='own-novelties';container.innerHTML=`<header><p class="eyebrow">NOVEDADES DEL MES</p><h2>Para uno o varios legajos</h2><p>Elegí a quién y qué novedad, y revisá todas las filas antes de guardar. Después la aprueba otra persona.</p></header>
+ container.className='own-novelties';container.innerHTML=`<header><p class="eyebrow">NOVEDADES DEL MES</p><h2>Para uno o varios legajos</h2><p>Elegí a quién y qué novedad, y revisá todas las filas antes de guardar. Después la aprueba otra persona.</p></header><ol class="own-novelties-progress" data-n-progress aria-label="Pasos para cargar novedades"><li data-step="1"><b>1</b><span>Elegí las personas</span></li><li data-step="2"><b>2</b><span>Concepto e importe</span></li><li data-step="3"><b>3</b><span>Revisá y guardá</span></li><li data-step="4"><b>4</b><span>Lo aprueba otra persona</span></li></ol>
  <button type="button" data-n-refresh aria-label="Volver a consultar legajos y lotes">Actualizar</button><p role="status" aria-live="polite" data-n-status>Consultando legajos y lotes…</p>
  <div data-n-content hidden><fieldset data-n-fields><legend>1. Armar el lote</legend><div class="own-novelties-grid"><label>Período<input type="month" data-n-period></label><label>Tipo de liquidación<select data-n-type></select></label></div>
  <div class="own-novelties-step"><span class="own-novelties-step-n" aria-hidden="true">1</span><div><strong>¿A quién?</strong><span>Escribí un legajo o un apellido. Podés pegar varios legajos separados por coma o espacio.</span></div></div>
@@ -67,7 +67,8 @@ export function mountOwnPayrollNovelties(container,onLock=()=>{}){
  const can=command=>live()&&OWN_NOVELTY_READ.every(c=>access?.caps.has(c))&&(!command||access.caps.has(OWN_NOVELTY_CAPS[command]));
  const status=text=>{$('status').textContent=text;};
  const lock=()=>onLock(busy||!!attempt&&!receipt);
- function controls(){
+ function progress(){const host=$('progress');if(!host)return;const done=[selected.size>0||rows.length>0,rows.length>0,!!receipt,receipt?.snapshot?.status==='submitted'||receipt?.snapshot?.status==='approved'];const current=done.findIndex(x=>!x);host.querySelectorAll('li').forEach((li,i)=>{li.classList.toggle('is-done',done[i]&&i!==current);li.classList.toggle('is-current',i===(current<0?3:current));});}
+ function controls(){progress();
   $('fields').disabled=busy||external||!!attempt||!can('prepare')||!boot?.permissions.canPrepare;
   for(const input of $('rows').querySelectorAll('input,button'))input.disabled=$('fields').disabled;
   for(const key of ['review','open','batch','row-previous','row-next'])$(key).disabled=busy||external||!!attempt||!can();

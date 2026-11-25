@@ -18,7 +18,7 @@ async function post(url,body){const k=key();let last;
  throw last;}
 
 /** Lista unificada de lo que espera decisión en el período. */
-export async function loadQuickApprovals(periods){
+export async function loadQuickApprovals(periods,{onPartial}={}){
  periods=[].concat(periods);const items=[];const errors=[];
  try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
   for(const x of b.batches??[])if(x.status==='submitted'&&periods.some(period=>x.periodMonth===period+'-01'))items.push({kind:'novelty',id:x.id,revision:x.revision,period:x.periodMonth.slice(0,7),label:'Lote de novedades de '+periodLabel(x.periodMonth)+' · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
@@ -26,6 +26,7 @@ export async function loadQuickApprovals(periods){
  for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
   for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,period,label:'Participación de '+periodLabel(period)+' · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
  catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}
+ onPartial?.([...items]);
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
  try{const sal=await readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});
   for(const x of sal.proposals??[])if(x.status==='pending')items.push({kind:'salary',proposal:x,scopeVersion:sal.scopeVersion,label:'Maestro salarial · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
@@ -68,7 +69,7 @@ host.className='mc-quick-approvals';
   const can=items.filter(x=>x.canApprove&&x.state!=='ok');const b=$('approve');b.hidden=!can.length;b.textContent='Aprobar todo ('+can.length+')';b.disabled=busy;};
  async function load(){if(busy)return;busy=true;$('status').textContent='Consultando…';items=[];render();
   const picked=$('period').value,[y,m]=picked.split('-').map(Number),following=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
-  try{const r=await loadQuickApprovals([picked,following]);items=r.items;
+  try{const r=await loadQuickApprovals([picked,following],{onPartial:partial=>{items=partial;$('status').textContent='Ya aparecen las novedades. Sigo buscando en el maestro salarial y las reglas (puede tardar unos segundos)…';render();}});items=r.items;
    $('status').textContent=(items.length?items.length+' pendiente'+(items.length===1?'':'s')+' entre '+periodLabel(picked)+' y '+periodLabel(following)+'.':'No hay nada pendiente en '+periodLabel(picked)+' ni en '+periodLabel(following)+'.')+(r.errors.length?' '+r.errors.join(' '):'');}
   catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
  async function approveAll(){if(busy)return;busy=true;render();const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
