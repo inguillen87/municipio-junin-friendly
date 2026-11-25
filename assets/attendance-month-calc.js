@@ -126,7 +126,7 @@ export function mountAttendanceMonthCalc(host) {
       kpi('Días completos', nf(s.completeness * 100) + ' %', 'con entrada y salida', s.completeness < 0.7 ? 'warn' : 'good'),
       kpi('Con mayor dedicación', nf(s.withDedication), 'propuesta desde las horas', 'accent'),
       kpi('Horas extra del mes', nf(s.projectedExcessHours), 'sobre ' + nf(c.baseHours, 1) + ' h diarias × ' + c.workDays + ' días'),
-      kpi('Con descuento por tardanza', nf(s.withTardiness), 'tabla de Junín, sumado en el mes', s.withTardiness ? 'warn' : null),
+      kpi('Con tardanzas en el mes', nf(s.withTardiness), 'hora de entrada estimada: confirmar con Personal', s.withTardiness ? 'warn' : null),
       kpi('Para revisar', nf(s.lowCompleteness), 'menos de la mitad de días completos', s.lowCompleteness ? 'warn' : null));
     const body = $('rows'), list = visible(); body.replaceChildren();
     for (const r of list) {
@@ -137,7 +137,7 @@ export function mountAttendanceMonthCalc(host) {
       const hpd = el('td', 'amc-num', r.hoursPerDay === null ? '—' : nf(r.hoursPerDay, 1) + ' h');
       const ex = el('td', 'amc-num', r.projectedExcessHours === null ? (r.closedDays ? 'pocos días' : '—') : nf(r.projectedExcessHours) + ' h');
       const ded = el('td'); if (r.dedication > 0) ded.append(el('span', 'amc-pill', r.dedication + ' %')); else ded.append(el('span', 'amc-muted', r.enough ? 'no corresponde' : 'sin datos suficientes'));
-      const late = el('td'); if (r.tardiness?.percent > 0) late.append(el('span', 'amc-pill warn', fractionLabel(r.tardiness.percent)), el('small', null, r.tardiness.totalLateMinutes + ' min · ref. ' + r.tardiness.start));
+      const late = el('td'); if (r.tardiness?.percent > 0) late.append(el('span', 'amc-pill warn', fractionLabel(r.tardiness.percent)), el('small', null, r.tardiness.totalLateMinutes + ' min · ref. estimada ' + r.tardiness.start));
       else late.append(el('span', 'amc-muted', r.tardiness ? 'sin descuento' : '—'));
       const nm = el('td', 'amc-num', String(r.daysWithoutMark));
       tr.append(who, comp, hpd, ex, ded, late, nm); body.append(tr);
