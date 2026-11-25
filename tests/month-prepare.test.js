@@ -22,3 +22,10 @@ test('el botón se monta en el resumen de liquidaciones junto a Aprobar todo', (
   assert.match(nav, /mountMonthPrepare\(prep\)/);
   assert.match(readFileSync('scripts/build-friendly.mjs', 'utf8'), /'assets\/month-prepare\.js'/);
 });
+
+test('el tablero del mes sólo lee y se muestra antes de Aprobar todo', () => {
+  const src = readFileSync('assets/month-prepare.js', 'utf8');
+  const board = src.slice(src.indexOf('export async function monthStatus'));
+  assert.doesNotMatch(board.slice(0, board.indexOf('export function mountMonthStatus')), /propose\(|method:'POST'/);
+  assert.match(readFileSync('assets/payroll-navigation.js', 'utf8'), /quick\.before\(stat\);mountMonthStatus\(stat\)/);
+});

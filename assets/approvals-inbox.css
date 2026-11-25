@@ -43,3 +43,7 @@
 .mc-quick-list li{padding:6px 10px;border-radius:8px;background:var(--soft,#f4f6f8)}
 .mc-quick-list li.is-ok{background:#e8f6ee}.mc-quick-list li.is-error{background:#fdecec}
 .mc-quick-list small{color:var(--muted,#5b6673)}
+.mc-quick-list li.is-warn{background:#fff6e0}
+.mc-status-list li strong{font-weight:600}
+.mc-month-status,.mc-month-prepare{margin-top:16px}
+.mc-month-prepare progress{width:100%;height:8px;margin:8px 0}

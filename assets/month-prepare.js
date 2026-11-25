@@ -7,8 +7,8 @@ import {salaryConditionsBootstrap,prepareSalaryConditions} from './own-contract-
 import {salaryNativeHistory,salaryNativeDetail,salaryNativeBootstrap,prepareSalaryNative} from './own-contract-salary-conditions-native-model.js';
 import {familySelectedHistory,familySelectedDetail,familySelectedBootstrap,prepareFamilySelected} from './own-contract-family-payroll-facts-selection.js';
 import {agreementWorkingTimeBootstrap,prepareAgreementWorkingTime} from './own-agreement-working-time-model.js';
-import {seniorityBootstrap,prepareSeniority} from './own-salary-seniority-model.js';
-import {workingTimeBootstrap,prepareWorkingTime} from './own-contract-working-time-model.js';
+import {seniorityBootstrap,prepareSeniority,seniorityPending} from './own-salary-seniority-model.js';
+import {workingTimeBootstrap,prepareWorkingTime,workingTimePending} from './own-contract-working-time-model.js';
 import {periodLabel,patientRead} from './approvals-inbox-model.js';
 
 export function previousMonth(period){const [y,m]=period.split('-').map(Number);return m===1?(y-1)+'-12':y+'-'+String(m-1).padStart(2,'0');}
@@ -110,4 +110,41 @@ export function mountMonthPrepare(host){
   catch(e){$('status').textContent=e.message;}
   finally{busy=false;$('go').disabled=false;$('bar').value=6;}});
  return {};
+}
+
+// «¿Está listo el mes?»: lista corta de lo que el cálculo exige aprobado para el período, en lenguaje simple.
+// Sólo lee. Cada renglón dice «listo», «falta aprobar» o «falta preparar».
+export async function monthStatus(period){
+ const out=[];const add=(label,state,detail='')=>out.push({label,state,detail});
+ const safe=async(label,fn)=>{try{await fn();}catch(e){add(label,'unknown',e.message);}};
+ await safe('Antigüedad, título e insalubridad',async()=>{const b=salaryConditionsBootstrap(await read('/api/internal-own-contract-salary-conditions?'+qs({resource:'bootstrap',period})));
+  add('Antigüedad, título e insalubridad',b.configuration.revision>0?'ok':b.proposals.some(p=>p.status==='pending')?'toApprove':'prepare');});
+ await safe('Docencia, vivienda y base de días',async()=>{const h=salaryNativeHistory(await read('/api/internal-own-contract-salary-conditions-native?'+qs({resource:'history',period})));
+  add('Docencia, vivienda y base de días',h.proposals.some(p=>p.status==='pending')?'toApprove':h.proposals.some(p=>p.status==='approved')?'ok':'prepare');});
+ await safe('Datos familiares',async()=>{const h=familySelectedHistory(await read('/api/internal-own-contract-family-payroll-facts-selection?'+qs({resource:'history',period})));
+  add('Datos familiares',h.proposals.some(p=>p.status==='pending')?'toApprove':h.proposals.some(p=>p.status==='approved')?'ok':'prepare');});
+ await safe('Horas por convenio',async()=>{const b=agreementWorkingTimeBootstrap(await read('/api/internal-own-agreement-working-time?'+qs({resource:'bootstrap',period})));
+  add('Horas por convenio',b.configuration.revision>0?'ok':b.proposals.some(p=>p.status==='pending')?'toApprove':'prepare');});
+ await safe('Antigüedad reconocida',async()=>{const p=seniorityPending(await read('/api/internal-own-salary-seniority?'+qs({resource:'pending',period})),period);
+  add('Antigüedad reconocida',p.proposals.length?'toApprove':'ok',p.proposals.length?p.proposals.length+' contratos esperan aprobación':'sin pendientes');});
+ await safe('Jornada contractual',async()=>{const p=workingTimePending(await read('/api/internal-own-contract-working-time?'+qs({resource:'pending',period})),period);
+  add('Jornada contractual',p.proposals.length?'toApprove':'ok',p.proposals.length?p.proposals.length+' contratos esperan aprobación':'sin pendientes');});
+ return out;
+}
+const STATE_TEXT={ok:'Listo',toApprove:'Falta aprobar',prepare:'Falta preparar',unknown:'No se pudo consultar'};
+export function mountMonthStatus(host){
+ if(!host||host.dataset.monthStatusMounted)return null;host.dataset.monthStatusMounted='';
+ host.className='mc-quick-approvals mc-month-status';
+ host.innerHTML='<header><h3>¿Está listo el mes para calcular?</h3><p>Lo que el cálculo necesita aprobado. Verde: listo. Amarillo: falta un paso.</p></header>'
+  +'<div class="mc-quick-row"><label>Mes <input type="month" data-ms-period></label><button type="button" class="button secondary" data-ms-go>Revisar</button></div>'
+  +'<p role="status" aria-live="polite" data-ms-status></p><ul class="mc-quick-list mc-status-list" data-ms-list></ul>';
+ const $=s=>host.querySelector('[data-ms-'+s+']');const now=new Date();$('period').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ let busy=false;
+ async function run(){if(busy)return;busy=true;$('status').textContent='Revisando…';$('list').replaceChildren();
+  try{const rows=await monthStatus($('period').value);
+   $('list').replaceChildren(...rows.map(r=>{const li=document.createElement('li');li.className=r.state==='ok'?'is-ok':'is-warn';const b=document.createElement('strong');b.textContent=(r.state==='ok'?'✓ ':'• ')+r.label;const sm=document.createElement('small');sm.textContent=' · '+STATE_TEXT[r.state]+(r.detail?' ('+r.detail+')':'');li.append(b,sm);return li;}));
+   const left=rows.filter(r=>r.state!=='ok');
+   $('status').textContent=!left.length?'Todo listo: ya se puede calcular '+periodLabel($('period').value)+'.':left.some(r=>r.state==='prepare')?'Falta preparar: usá «Preparar el mes siguiente» y después «Aprobar todo».':'Sólo falta aprobar: otra persona entra a «Aprobar todo».';}
+  catch(e){$('status').textContent=e.message;}finally{busy=false;}}
+ $('go').addEventListener('click',run);$('period').addEventListener('change',run);run();return {run};
 }
