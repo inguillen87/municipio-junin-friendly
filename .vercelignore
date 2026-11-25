@@ -455,6 +455,7 @@ local-agents/
 !scripts/migrations/257-hugo-attendance-only.sql
 !scripts/migrations/258-own-single-operator.sql
 !scripts/migrations/259-own-single-operator-noelia.sql
+!scripts/migrations/260-own-single-operator-records.sql
 !scripts/candidates/attendance-area-authority-v1.source.sql.txt
 !scripts/candidates/attendance-area-authority-v1.derived.sql.txt
 !scripts/candidates/attendance-area-history-v1.source.sql.txt
