@@ -116,6 +116,10 @@ export async function mountWorkAreaMenu(){
   const schedule=()=>{if(!scheduled&&!suspended){scheduled=true;queueMicrotask(render);}};
   function search(){if(input.value&&!searchOpenState)searchOpenState=new Map([...nav.querySelectorAll('details')].map(d=>[d,d.open]));if(!input.value&&searchOpenState){for(const [d,opened]of searchOpenState)d.open=opened;searchOpenState=null;}render();}
   input.addEventListener('input',search);clear.addEventListener('click',()=>{input.value='';search();input.focus();});
+  // Enter desde la búsqueda va directo al primer acceso encontrado: escribir el nombre y Enter, sin abrir menús a mano.
+  input.addEventListener('keydown',event=>{if(event.key!=='Enter'||!input.value.trim())return;event.preventDefault();
+    const first=entries.find(e=>e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'));
+    if(first){countUse(first.item);first.item.click();if(mobileMedia.matches){mobileOpen=false;mobileState();}}});
   mobile.addEventListener('click',()=>{mobileOpen=!mobileOpen;mobileState();if(mobileOpen)input.focus();});mobileMedia.addEventListener('change',mobileState);
   for(const [id,g]of groups)g.group.addEventListener('toggle',()=>{if(suspended||!g.group.open||input.value.trim())return;for(const [other,group]of groups)if(other!==id)group.group.open=false;});
   nav.addEventListener('keydown',event=>{
