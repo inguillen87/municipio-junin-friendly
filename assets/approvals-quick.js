@@ -1,5 +1,5 @@
 // «Aprobar todo»: la persona que revisa ve en una sola lista lo que espera su decisión en el mes y lo aprueba con un clic.
-// Cubre lotes de novedades propias enviados y propuestas de participación del período. Cada aprobación sigue siendo una
+// Cubre lotes de novedades propias enviados, novedades fijas pendientes y propuestas de participación del período. Cada aprobación sigue siendo una
 // decisión registrada por propuesta, con el mismo control independiente del servidor: lo que preparó esta misma cuenta
 // se muestra como «lo preparaste vos» y no se intenta aprobar.
 import {participationPending, decideParticipation} from './own-period-participation-model.js';
@@ -29,6 +29,11 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
  try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
   for(const x of b.batches??[])if(x.status==='submitted'&&periods.some(period=>x.periodMonth===period+'-01'))items.push({kind:'novelty',id:x.id,revision:x.revision,period:x.periodMonth.slice(0,7),label:'Lote de novedades de '+periodLabel(x.periodMonth)+' · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
  catch(e){if(e.status!==403)errors.push('Novedades: '+e.message);}
+ // Novedades fijas con propuesta pendiente que ya rigen en el mes elegido (o antes): se aprueban con la misma lista.
+ try{const f=await patientRead(()=>getJson('/api/internal-payroll-fixed-novelties?resource=list'));const last=[...periods].sort().at(-1);
+  for(const r of f.rows??[]){const p=r.pending;if(!p)continue;const from=String(p.values?.validFrom??'').slice(0,7);if(from&&from>last)continue;
+   items.push({kind:'fixed',id:r.id,proposalId:p.id,version:r.version,period:from||last,label:'Novedad fija · legajo '+(r.subject?.legajo??'')+' · concepto '+(p.values?.conceptSourceId??'')+(from?' · desde '+periodLabel(from):''),canApprove:p.canReview===true});}}
+ catch(e){if(e.status!==403)errors.push('Novedades fijas: '+e.message);}
  for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
   for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,period,label:'Participación de '+periodLabel(period)+' · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
  catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}
@@ -68,7 +73,7 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
   for(const x of pr.proposals??[])if(x.status==='pending')items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}
  // El maestro va antes que las reglas: una propuesta de reglas puede depender del maestro nuevo.
- const order={novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
+ const order={fixed:0,novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
  return {items,errors};
 }
 
@@ -77,6 +82,7 @@ async function approveOne(item){const period=item.period;
   return post('/api/internal-own-payroll-novelties',{operation:'command',payload:{command:'approve',batchId:item.id,expectedRevision:item.revision,reasonReference:null,reviewConfirmed:true}});
  }
  const reason='Aprobado desde «Aprobar todo» después de revisar la lista del período.';
+ if(item.kind==='fixed')return post('/api/internal-payroll-fixed-novelties',{command:'review',payload:{recordId:item.id,proposalId:item.proposalId,expectedVersion:item.version,decision:'approve',reason}});
  if(item.kind==='conditions'){const detail=await getJson('/api/internal-own-contract-salary-conditions-native?'+new URLSearchParams({resource:'detail',id:item.id}));
   return post('/api/internal-own-contract-salary-conditions-native',{operation:'command',payload:await decideSalaryNative(detail,'approve',reason)});}
  if(item.kind==='workingTime'){

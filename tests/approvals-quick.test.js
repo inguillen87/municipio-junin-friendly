@@ -27,7 +27,8 @@ test('el panel aprueba sólo lo que esta cuenta puede decidir y usa los mismos c
   assert.match(ui, /decideFamilySelected\(detail,'approve',reason\)/);
   assert.match(ui, /decideSalaryNative\(detail,'approve',reason\)/);
   assert.match(ui, /ownProgramCommand\(\{command:'approve'/);
-  assert.match(ui, /const order=\{novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5\}/);
+  assert.match(ui, /const order=\{fixed:0,novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5\}/);
+  assert.match(ui, /internal-payroll-fixed-novelties',{command:'review',payload:{recordId:item.id,proposalId:item.proposalId,expectedVersion:item.version,decision:'approve',reason}}/);
 });
 
 test('la API admite la consulta de pendientes por período y la base la expone sólo al rol de la aplicación', () => {
