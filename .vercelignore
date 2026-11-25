@@ -449,6 +449,7 @@ local-agents/
 !scripts/migrations/251-native-salary-pending.sql
 !scripts/migrations/252-own-seniority-pending.sql
 !scripts/migrations/253-own-working-time-pending.sql
+!scripts/migrations/254-attendance-native-contracts.sql
 !scripts/candidates/attendance-area-authority-v1.source.sql.txt
 !scripts/candidates/attendance-area-authority-v1.derived.sql.txt
 !scripts/candidates/attendance-area-history-v1.source.sql.txt
