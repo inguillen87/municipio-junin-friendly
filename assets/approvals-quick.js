@@ -47,12 +47,12 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
   const mine=p.proposals.filter(x=>x.canReview),others=p.proposals.filter(x=>!x.canReview);
   if(mine.length)items.push({kind:'seniorityYears',period,proposals:mine,label:'Antigüedad reconocida de '+periodLabel(period)+' · '+mine.length+(mine.length===1?' contrato':' contratos'),canApprove:true});
   if(others.length)items.push({kind:'seniorityYears',period,proposals:others,label:'Antigüedad reconocida de '+periodLabel(period)+' · '+others.length+(others.length===1?' contrato':' contratos'),canApprove:false});}
- catch(e){if(e.status!==403&&e.status!==503)errors.push('Antigüedad reconocida de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Antigüedad reconocida de '+periodLabel(period)+': '+e.message);}
  // Jornada contractual: una propuesta por contrato, agrupada en un renglón por mes.
  for(const period of periods)try{const p=workingTimePending(await patientRead(()=>getJson('/api/internal-own-contract-working-time?'+new URLSearchParams({resource:'pending',period}))),period);
   const mine=p.proposals.filter(x=>x.canReview),others=p.proposals.filter(x=>!x.canReview);
   for(const [list,can] of [[mine,true],[others,false]])if(list.length)items.push({kind:'workingTime',period,proposals:list,label:'Jornada contractual de '+periodLabel(period)+' · '+list.length+(list.length===1?' contrato':' contratos'),canApprove:can});}
- catch(e){if(e.status!==403&&e.status!==503)errors.push('Jornada contractual de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Jornada contractual de '+periodLabel(period)+': '+e.message);}
  // Jornada del convenio: una propuesta por mes para todos los convenios.
  for(const period of periods)try{const b=agreementWorkingTimeBootstrap(await patientRead(()=>getJson('/api/internal-own-agreement-working-time?'+new URLSearchParams({resource:'bootstrap',period}))));
   for(const x of b.proposals)if(x.status==='pending')items.push({kind:'agreementTime',id:x.id,period,label:'Jornada por convenio de '+periodLabel(period),canApprove:x.canReview===true&&b.permissions.canReview===true});}
@@ -83,7 +83,7 @@ async function approveOne(item){const period=item.period;
   for(const x of item.proposals){const boot=await patientRead(()=>getJson('/api/internal-own-contract-working-time?'+new URLSearchParams({resource:'bootstrap',contractId:x.contractId,period})));
    if(!boot.proposals.some(r=>r.id===x.proposalId&&r.status==='pending'))continue;
    const detail=await patientRead(()=>getJson('/api/internal-own-contract-working-time?'+new URLSearchParams({resource:'detail',id:x.proposalId})));
-   await post('/api/internal-own-contract-working-time',{operation:'command',payload:decideWorkingTime(boot,detail,'approve',reason)});}
+   await post('/api/internal-own-contract-working-time',{operation:'command',payload:decideWorkingTime(boot,detail,'approve',reason)});item.progress=(item.proposals.indexOf(x)+1)+' de '+item.proposals.length;item.onProgress?.();}
   return {};}
  if(item.kind==='agreementTime'){const boot=await getJson('/api/internal-own-agreement-working-time?'+new URLSearchParams({resource:'bootstrap',period}));const detail=await getJson('/api/internal-own-agreement-working-time?'+new URLSearchParams({resource:'detail',id:item.id}));
   return post('/api/internal-own-agreement-working-time',{operation:'command',payload:await decideAgreementWorkingTime(boot,detail,'approve',reason)});}
@@ -91,7 +91,7 @@ async function approveOne(item){const period=item.period;
   for(const x of item.proposals){const boot=await patientRead(()=>getJson('/api/internal-own-salary-seniority?'+new URLSearchParams({resource:'bootstrap',contractId:x.contractId,period})));
    if(!boot.proposals.some(r=>r.id===x.proposalId&&r.status==='pending')){done++;continue;}
    const detail=await patientRead(()=>getJson('/api/internal-own-salary-seniority?'+new URLSearchParams({resource:'detail',id:x.proposalId})));
-   await post('/api/internal-own-salary-seniority',{operation:'command',payload:decideSeniority(boot,detail,'approve',reason)});done++;item.progress=done+' de '+item.proposals.length;}
+   await post('/api/internal-own-salary-seniority',{operation:'command',payload:decideSeniority(boot,detail,'approve',reason)});done++;item.progress=done+' de '+item.proposals.length;item.onProgress?.();}
   return {done};}
  if(item.kind==='seniority'){const boot=await getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'bootstrap',period}));const detail=await getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'detail',id:item.id}));
   return post('/api/internal-own-contract-salary-conditions',{operation:'command',payload:await decideSalaryConditions(boot,detail,'approve',reason)});}
@@ -127,6 +127,7 @@ host.className='mc-quick-approvals';
   catch(e){$('status').textContent=e.message;}finally{busy=false;render();}}
  async function approveAll(){if(busy)return;busy=true;render();const todo=items.filter(x=>x.canApprove&&x.state!=='ok');let ok=0;
   for(const [i,x] of todo.entries()){$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+'…';
+   x.onProgress=()=>{$('status').textContent='Aprobando '+(i+1)+' de '+todo.length+' · '+x.label+': '+x.progress+'…';};
    try{await approveOne(x);x.state='ok';ok++;}catch(e){x.state='error';x.message=/INDEPENDENT_REQUIRED/.test(e.code||'')?'lo preparaste vos: lo aprueba otra persona':(e.message||'No se aprobó.');}render();}
   busy=false;$('status').textContent=ok+' de '+todo.length+' aprobados.'+(ok<todo.length?' Revisá los que quedaron marcados.':'');render();onDone?.();}
  $('load').addEventListener('click',load);$('period').addEventListener('change',load);$('approve').addEventListener('click',approveAll);
