@@ -519,7 +519,17 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     // Keep its original key and body until recovery verifies that attempt's state: a 422 consults the same key at
     // once; a registered capture is shown, and only a verified «not registered» frees the form (same values) to fix it.
     let response;
-    try{response=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});}
+    // Un cálculo grande puede tardar varios minutos y la conexión puede cortarse aunque la base lo termine y lo guarde.
+    // Pasado un minuto se consulta el mismo intento cada 15 segundos: apenas aparece guardado se muestra, sin esperar.
+    const running=attempt,started=Date.now();let watching=true;
+    const watch=new Promise(resolve=>{(async()=>{await new Promise(r=>setTimeout(r,60000));
+      while(watching&&valid()&&attempt===running){
+        status('Calculando… lleva '+Math.round((Date.now()-started)/60000)+' min. Es normal en meses con muchos legajos: podés seguir con otra cosa y volver.','neutral');
+        try{const data=(await request(endpoint+'?resource=attempt&key='+encodeURIComponent(running.key))).data;if(data?.saved){resolve({data});return;}}catch(e){if(e.name==='AbortError')return;}
+        await new Promise(r=>setTimeout(r,15000));}})();});
+    const posting=request(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:JSON.stringify({operation:'calculate',payload:attempt.body})});
+    posting.catch(()=>{});
+    try{response=await Promise.race([posting,watch]);}
     catch(error){
       if(error.status!==422||!valid()||!can(OWN_RUN_NOMINAL))throw error;
       const rejected=attempt;let registered=null,missing=false;
@@ -532,6 +542,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
       const hint=rejected.body.selection.kind==='all'&&departmentPlan?.unsectored.length?' Hay legajos activos sin repartición ('+departmentPlan.unsectored.slice(0,8).join(', ')+'): calculá por reparticiones; su repartición la indica RR. HH. con la documentación del mes.':'';
       throw Object.assign(Error(error.message+' No quedó registrado ningún cálculo: corregí el alcance o el mes y calculá de nuevo.'+hint),{status:422,code:error.code});
     }
+    finally{watching=false;}
     const value=await verifiedRunCapture(response.data,attempt);
     if(valid())showCapture(value);
   });}
