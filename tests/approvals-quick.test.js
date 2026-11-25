@@ -24,8 +24,9 @@ test('el panel aprueba sólo lo que esta cuenta puede decidir y usa los mismos c
   assert.match(ui, /resource=pending&period=/);
   assert.doesNotMatch(ui, /command:'reject'|command:'cancel'/);
   assert.match(ui, /salaryCommand\(\{command:'approve'/);
+  assert.match(ui, /decideFamilySelected\(detail,'approve',reason\)/);
   assert.match(ui, /ownProgramCommand\(\{command:'approve'/);
-  assert.match(ui, /const order=\{novelty:0,participation:1,salary:2,program:3\}/);
+  assert.match(ui, /const order=\{novelty:0,participation:1,family:2,salary:3,program:4\}/);
 });
 
 test('la API admite la consulta de pendientes por período y la base la expone sólo al rol de la aplicación', () => {

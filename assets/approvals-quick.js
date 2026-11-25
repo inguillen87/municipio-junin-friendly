@@ -7,6 +7,7 @@ import {lastClosedMonth, periodLabel, patientRead} from './approvals-inbox-model
 import {readSalaryBootstrap} from './native-salary-stream-model.js';
 import {salaryCommand} from './native-salary-catalog-model.js';
 import {ownProgramCommand} from './own-payroll-program-model.js';
+import {familySelectedHistory,decideFamilySelected} from './own-contract-family-payroll-facts-selection.js';
 
 const el=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
 const key=()=>crypto.randomUUID();
@@ -26,6 +27,9 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
  for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
   for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,period,label:'Participación de '+periodLabel(period)+' · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
  catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}
+ for(const period of periods)try{const h=familySelectedHistory(await patientRead(()=>getJson('/api/internal-own-contract-family-payroll-facts-selection?'+new URLSearchParams({resource:'history',period}))));
+  for(const x of h.proposals)if(x.status==='pending')items.push({kind:'family',id:x.id,period,label:'Datos familiares de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true});}
+ catch(e){if(e.status!==403)errors.push('Datos familiares de '+periodLabel(period)+': '+e.message);}
  onPartial?.([...items]);
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
  try{const sal=await readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});
@@ -35,7 +39,7 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
   for(const x of pr.proposals??[])if(x.status==='pending')items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}
  // El maestro va antes que las reglas: una propuesta de reglas puede depender del maestro nuevo.
- const order={novelty:0,participation:1,salary:2,program:3};items.sort((a,b)=>order[a.kind]-order[b.kind]);
+ const order={novelty:0,participation:1,family:2,salary:3,program:4};items.sort((a,b)=>order[a.kind]-order[b.kind]);
  return {items,errors};
 }
 
@@ -44,6 +48,8 @@ async function approveOne(item){const period=item.period;
   return post('/api/internal-own-payroll-novelties',{operation:'command',payload:{command:'approve',batchId:item.id,expectedRevision:item.revision,reasonReference:null,reviewConfirmed:true}});
  }
  const reason='Aprobado desde «Aprobar todo» después de revisar la lista del período.';
+ if(item.kind==='family'){const detail=await getJson('/api/internal-own-contract-family-payroll-facts-selection?'+new URLSearchParams({resource:'detail',id:item.id}));
+  return post('/api/internal-own-contract-family-payroll-facts-selection',{operation:'command',payload:await decideFamilySelected(detail,'approve',reason)});}
  if(item.kind==='salary'){const x=item.proposal;
   return post('/api/internal-native-salary',{operation:'command',payload:salaryCommand({command:'approve',scopeVersion:item.scopeVersion,baseVersion:x.baseVersion,classificationVersion:x.classificationVersion,proposalId:x.id,proposalSha256:x.requestSha256,items:null,reason,reviewConfirmed:true})});}
  if(item.kind==='program'){const x=item.proposal;
