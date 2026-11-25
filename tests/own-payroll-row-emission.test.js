@@ -149,3 +149,9 @@ test('selection and audit cover the complete37-person synthetic set and reject l
  const last=s.input.employees.at(-1);assert.equal(s.result.rowEmissions.filter(d=>d.contractId===last.contractId).length,2);assert.equal(projectOwnPayrollRowEmissionReceipt(s,sources.programState,last.contractId).omittedRowCount,2);
  sources.familyPayrollFacts.records.pop();assert.throws(()=>prepareOwnPayrollRowEmissionSnapshot(sources),e=>/^FAMILY_PAYROLL_FACTS_/.test(e.code));
 });
+test('la evidencia admite resultados del tamaño de un convenio completo (más de un millón de nodos) y conserva un tope',async()=>{
+ const {copyRowEmissionData,OWN_ROW_EMISSION_MAX_NODES}=await import('../assets/own-payroll-row-emission.js');
+ const big={rows:Array.from({length:400000},(_,i)=>({k:'c'+i,a:'1.00'}))};
+ assert.equal(copyRowEmissionData(big).rows.length,400000);
+ assert.ok(OWN_ROW_EMISSION_MAX_NODES>=1600000&&OWN_ROW_EMISSION_MAX_NODES<=32*1024*1024);
+});

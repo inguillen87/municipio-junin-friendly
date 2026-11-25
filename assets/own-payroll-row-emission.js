@@ -19,8 +19,11 @@ const sha=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const active=(r,p)=>r.agreementCode===p.agreementCode&&r.validFrom<=p.period&&(r.validUntil===null||r.validUntil>=p.period)&&r.liquidationTypes.includes(p.liquidationType);
 const zero=decimal('0');
+export const OWN_ROW_EMISSION_MAX_NODES=16000000;
 export function copyRowEmissionData(value,depth=0,parents=new Set(),budget={nodes:0}){
- require(depth<=64&&++budget.nodes<=1000000,'ROW_EMISSION_CONTRACT_INVALID','La evidencia supera su capacidad íntegra.');
+ // Tope de nodos alineado con la lectura completa (32 MB): un convenio de 76 personas ya supera el millón de nodos
+ // y con toda la municipalidad cierre, confirmación y recibos no podían abrirse.
+ require(depth<=64&&++budget.nodes<=OWN_ROW_EMISSION_MAX_NODES,'ROW_EMISSION_CONTRACT_INVALID','La evidencia supera su capacidad íntegra.');
  if(value===null||typeof value==='string'||typeof value==='boolean')return value;
  if(typeof value==='number'){require(Number.isSafeInteger(value),'ROW_EMISSION_CONTRACT_INVALID','La evidencia numérica requiere enteros o decimales exactos como texto.');return value;}
  require(value&&typeof value==='object'&&!parents.has(value),'ROW_EMISSION_CONTRACT_INVALID','La evidencia no admite ciclos ni valores ejecutables.');
