@@ -9,6 +9,7 @@ import {salaryCommand} from './native-salary-catalog-model.js';
 import {ownProgramCommand} from './own-payroll-program-model.js';
 import {familySelectedHistory,decideFamilySelected} from './own-contract-family-payroll-facts-selection.js';
 import {salaryNativeHistory,decideSalaryNative} from './own-contract-salary-conditions-native-model.js';
+import {salaryConditionsBootstrap,decideSalaryConditions} from './own-contract-salary-conditions-model.js';
 
 const el=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
 const key=()=>crypto.randomUUID();
@@ -34,6 +35,10 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
  for(const period of periods)try{const h=salaryNativeHistory(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions-native?'+new URLSearchParams({resource:'history',period}))));
   for(const x of h.proposals)if(x.status==='pending')items.push({kind:'conditions',id:x.id,period,label:'Condiciones salariales de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Condiciones salariales de '+periodLabel(period)+': '+e.message);}
+ // Antigüedad, título e insalubridad: también se aprueba por mes.
+ for(const period of periods)try{const b=salaryConditionsBootstrap(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'bootstrap',period}))));
+  for(const x of b.proposals)if(x.status==='pending')items.push({kind:'seniority',id:x.id,period,label:'Antigüedad, título e insalubridad de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true&&b.permissions.canReview===true});}
+ catch(e){if(e.status!==403)errors.push('Antigüedad, título e insalubridad de '+periodLabel(period)+': '+e.message);}
  onPartial?.([...items]);
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
  try{const sal=await patientRead(()=>getJson('/api/internal-native-salary?resource=pending')).catch(async e=>{if(e.status!==400&&e.status!==503)throw e;
@@ -45,7 +50,7 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
   for(const x of pr.proposals??[])if(x.status==='pending')items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}
  // El maestro va antes que las reglas: una propuesta de reglas puede depender del maestro nuevo.
- const order={novelty:0,participation:1,family:2,conditions:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
+ const order={novelty:0,participation:1,family:2,conditions:3,seniority:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
  return {items,errors};
 }
 
@@ -56,6 +61,8 @@ async function approveOne(item){const period=item.period;
  const reason='Aprobado desde «Aprobar todo» después de revisar la lista del período.';
  if(item.kind==='conditions'){const detail=await getJson('/api/internal-own-contract-salary-conditions-native?'+new URLSearchParams({resource:'detail',id:item.id}));
   return post('/api/internal-own-contract-salary-conditions-native',{operation:'command',payload:await decideSalaryNative(detail,'approve',reason)});}
+ if(item.kind==='seniority'){const boot=await getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'bootstrap',period}));const detail=await getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'detail',id:item.id}));
+  return post('/api/internal-own-contract-salary-conditions',{operation:'command',payload:await decideSalaryConditions(boot,detail,'approve',reason)});}
  if(item.kind==='family'){const detail=await getJson('/api/internal-own-contract-family-payroll-facts-selection?'+new URLSearchParams({resource:'detail',id:item.id}));
   return post('/api/internal-own-contract-family-payroll-facts-selection',{operation:'command',payload:await decideFamilySelected(detail,'approve',reason)});}
  if(item.kind==='salary'){const x=item.proposal;
