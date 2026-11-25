@@ -25,3 +25,15 @@
 .ap-panel .ap-tardiness [data-ap-td-status][data-error="true"]{color:#8a3b12}
 .ap-panel .ap-tardiness table{min-width:760px}
 .ap-panel .ap-tardiness input[data-ap-td-field="td-start"]{width:6.5em}
+
+/* Detalle diario por empleado en el preparte (solo lectura) */
+.ap-see-days{display:inline-block;margin-top:4px;background:none;border:0;padding:2px 0;color:#1f7a5c;text-decoration:underline;cursor:pointer;font-size:.85em}
+.ap-day-detail>td{background:#f3f8f6;padding:10px 14px}
+.ap-day-note{margin:0 0 8px;font-size:.85em;color:#4a5a54}
+.ap-day-grid{display:flex;flex-wrap:wrap;gap:8px}
+.ap-day-box{background:#fff;border:1px solid #d8e6e0;border-radius:8px;padding:6px 10px;min-width:150px}
+.ap-day-box.is-incomplete{border-color:#e0b85a;background:#fffaf0}
+.ap-day-box strong{display:block;font-size:.8em;color:#2b3b35;margin-bottom:4px}
+.ap-day-marks{display:flex;flex-direction:column;gap:2px}
+.ap-day-pair{font-variant-numeric:tabular-nums;font-size:.85em}
+.ap-day-pair.is-open{color:#b06a00}
