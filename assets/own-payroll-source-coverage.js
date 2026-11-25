@@ -3,6 +3,9 @@
 import {salaryExact,salaryHash,salarySerialized} from './native-salary-catalog-model.js';
 import {payrollRequire as require} from './own-payroll-exact.js';
 import {POLICY_LIQUIDATION_TYPES,policyCode,policyCanonicalText,policySha256,requirePolicyDeclaration,requirePolicyScope,resolvePolicySuccession,resolvedPolicyAppliesTo,policyBoundaryMonths} from './own-payroll-policy-validity.js';
+// Convenios cuyo codliq de GRH (28/10/2026) condiciona 311 y 312 exactamente con L[101] == 2, como el convenio 1.
+// 5 y 14 usan L[101] == 3 y 9, 11, 12, 13 y 14 admiten además L[101] == 0 en 312: quedan fuera hasta tener su propia guarda.
+export const SCHOOL_CONDITION_AGREEMENTS=Object.freeze(['1','2','3','4','6','7','8']);
 
 export const OWN_PAYROLL_SOURCE_COVERAGE_VERSION='own-payroll-source-coverage.v1';
 export const ownProgramSourceCoverage=p=>Object.getOwnPropertyDescriptor(p??{},'sourceCoverageVersion')?.value===OWN_PAYROLL_SOURCE_COVERAGE_VERSION;
@@ -32,11 +35,11 @@ function exclusionBasis(raw,policy,sourceRow){
     // A finite single month prevents annual recurrence from hiding inside an interval.
     require(salaryExact(raw,['kind','condition','authority','decisionSha256','dispatchScope','quantityTreatment','nonAmountEffects','phaseReviewSha256','evidenceSha256'])
       &&salaryExact(raw.condition,['reference','operator','value'])&&raw.condition.reference==='L[101]'&&raw.condition.operator==='eq'&&raw.condition.value===2
-      &&policy.agreementCode==='1'&&policy.liquidationType==='monthly'&&['311','312'].includes(sourceRow.code)
+      &&SCHOOL_CONDITION_AGREEMENTS.includes(policy.agreementCode)&&policy.liquidationType==='monthly'&&['311','312'].includes(sourceRow.code)
       &&policy.validUntil===policy.validFrom&&policy.validFrom.slice(5)!=='02'
       &&raw.authority==='own_programme_decision'&&raw.dispatchScope==='whole_definition'&&raw.quantityTreatment==='suppressed_by_own_decision'&&raw.nonAmountEffects==='empty_source_pre_post'
       &&[raw.decisionSha256,raw.phaseReviewSha256,raw.evidenceSha256].every(salaryHash),
-      'SOURCE_COVERAGE_EXCLUSION_UNRESOLVED','La ayuda escolar C1 requiere decisión propia expresa, condición L101=2, revisión de cantidad y fases, y un solo mes distinto de febrero.');
+      'SOURCE_COVERAGE_EXCLUSION_UNRESOLVED','La ayuda escolar requiere un convenio con la misma condición de GRH (L101=2 en 311 y 312), decisión propia expresa, condición L101=2, revisión de cantidad y fases, y un solo mes distinto de febrero.');
   }else if(raw.kind==='documented_retirement'){
     require(salaryExact(raw,['kind','decisionSha256','evidenceSha256'])&&[raw.decisionSha256,raw.evidenceSha256].every(salaryHash),'SOURCE_COVERAGE_EXCLUSION_UNRESOLVED','El retiro propio conserva la decisión y su respaldo; una condición pendiente no equivale a un retiro.');
   }else require(false,'SOURCE_COVERAGE_EXCLUSION_UNRESOLVED','La exclusión conserva una condición o efecto sin resolver; necesita una regla completa o una guarda tipada compatible.');

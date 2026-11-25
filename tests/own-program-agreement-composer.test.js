@@ -172,10 +172,13 @@ test('unsupported replacement basis is rejected by the real coverage validator',
   fails(() => compose(syntheticDefinition({school: true}), {coverageDecisions: decisions}), 'COMPOSER_COVERAGE_INVALID');
 });
 
-test('an explicit decision cannot retain the C1-only school exclusion', () => {
-  const p = syntheticDefinition({school: true}), decisions = schoolDecisions();
-  decisions[0].disposition.basis = p.sourceCoveragePolicies[0].inventory.find(r => r.code === '311').basis;
-  fails(() => compose(p, {coverageDecisions: decisions}), 'COMPOSER_COVERAGE_INVALID');
+test('the school exclusion is kept only for agreements with the same GRH condition (L101 = 2): 6 yes, 5 no', () => {
+  const p6 = syntheticDefinition({school: true}), d6 = schoolDecisions();
+  d6[0].disposition.basis = p6.sourceCoveragePolicies[0].inventory.find(r => r.code === '311').basis;
+  assert.doesNotThrow(() => compose(p6, {coverageDecisions: d6}));
+  const p5 = syntheticDefinition({school: true}), d5 = schoolDecisions('5');
+  d5[0].disposition.basis = p5.sourceCoveragePolicies[0].inventory.find(r => r.code === '311').basis;
+  fails(() => compose(p5, {target: '5', coverageDecisions: d5}), 'COMPOSER_COVERAGE_INVALID');
 });
 
 test('a coverage decision cannot invent a payable school rule that the destination lacks', () => {

@@ -146,7 +146,7 @@ function applyCoverage(definition, decisions, target, report) {
   require(pending.every(r => policyCode(r.code) && policyId(r.policyId)), 'COMPOSER_COVERAGE_INVALID', 'Las exclusiones pendientes deben tener código e identidad de política válidos.');
   const missing = pending.filter(r => !decisions.some(d => d.policyId === r.policyId && d.code === r.code));
   require(missing.length === 0, 'COMPOSER_COVERAGE_DECISION_REQUIRED',
-    `Las filas ${[...new Set(missing.map(r => r.code))].sort(order).join(', ')} requieren una decisión explícita en coverageDecisions; la exclusión escolar sólo admite el convenio 1.`, {rows: missing});
+    `Las filas ${[...new Set(missing.map(r => r.code))].sort(order).join(', ')} requieren una decisión explícita en coverageDecisions; la exclusión escolar sólo admite convenios con la misma condición de GRH (1, 2, 3, 4, 6, 7 y 8).`, {rows: missing});
   const seen = new Set();
   for (const decision of decisions) {
     fields(decision, ['policyId', 'code', 'reference', 'disposition']);
