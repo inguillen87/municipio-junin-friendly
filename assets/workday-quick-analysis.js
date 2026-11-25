@@ -18,7 +18,7 @@ export function compareWorkdayReference(row,reference){
 }
 export function clockCodeSummary(data){
  if(!data?.dashboard||!Array.isArray(data.dashboard.codes)||!Number.isSafeInteger(data.summary?.marks))return null;
- const supported=/^K20(?:\/|$)/i.test(data.dashboard.device?.model||'');
+ const supported=/^(?:K20(?: Pro)?|SF300)(?:\/|$)/i.test(data.dashboard.device?.model||'');
  const groups={entries:0,exits:0,pauses:0,extra:0,unknown:0};let seen=new Set(),total=0;
  for(const item of data.dashboard.codes){
   if(!Number.isInteger(item.code)||seen.has(item.code)||!Number.isSafeInteger(item.marks)||item.marks<0)return null;

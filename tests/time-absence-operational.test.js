@@ -40,7 +40,7 @@ test('incomplete, unlinked or inconsistent workdays cannot produce a reference v
 });
 test('clock graphs reconcile code counts and do not interpret a different device profile',()=>{
  const d=clockDashboardFixture(new URLSearchParams({source:'continuous'}));assert.deepEqual(clockCodeSummary(d),{entries:102,exits:51,pauses:0,extra:0,unknown:0,profileSupported:true,total:153});
- d.dashboard.device.model='SF300/ID';assert.equal(clockCodeSummary(d).unknown,153);assert.equal(clockCodeSummary(d).entries,0);assert.equal(clockCodeSummary(d).profileSupported,false);
+ d.dashboard.device.model='Modelo no informado por el equipo';assert.equal(clockCodeSummary(d).unknown,153);assert.equal(clockCodeSummary(d).entries,0);assert.equal(clockCodeSummary(d).profileSupported,false);
  d.dashboard.codes[0].marks++;assert.equal(clockCodeSummary(d),null);
 });
 test('absence inline script remains valid and paginated detail does not reload the analytics',()=>{
