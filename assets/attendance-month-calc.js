@@ -16,7 +16,7 @@ const monthName = p => new Date(Date.UTC(Number(p.slice(0, 4)), Number(p.slice(5
 const ago = h => h === null ? 'sin datos' : h < 1 ? 'hace minutos' : h < 48 ? 'hace ' + Math.round(h) + ' h' : 'hace ' + Math.round(h / 24) + ' días';
 
 async function getJson(url) {
-  const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
+  const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(45000) });
   let j = null; try { j = await r.json(); } catch {}
   if (!r.ok || !j || j.ok === false) throw Object.assign(Error(j?.error || 'No se pudo consultar.'), { status: r.status });
   return j;
@@ -94,11 +94,15 @@ export function mountAttendanceMonthCalc(host) {
     const period = $('period').value, baseHours = Number($('base').value), workDays = Number($('days').value);
     $('progress').hidden = false; $('bar').style.width = '4%'; $('status').textContent = 'Leyendo los relojes de ' + monthName(period) + '…';
     let done = 0; const failed = [];
-    const results = await Promise.all(SITES.map(site => readSite(site, period).then(r => ({ site: { key: site.key, label: site.label }, rows: r.rows }))
-      .catch(e => { failed.push(site.label + ' (' + e.message + ')'); return null; })
-      .finally(() => { done++; $('bar').style.width = Math.round(done / SITES.length * 100) + '%'; $('status').textContent = `Leídos ${done} de ${SITES.length} relojes…`; })));
+    // De a dos relojes: el preparte de un punto grande tarda ~15 s y seis a la vez saturan la base.
+    const results = []; let next = 0;
+    const worker = async () => { while (next < SITES.length) { const site = SITES.at(next++);
+      try { const r = await readSite(site, period); results.push({ site: { key: site.key, label: site.label }, rows: r.rows }); }
+      catch (e) { failed.push(site.label + ' (' + e.message + ')'); }
+      done++; $('bar').style.width = Math.round(done / SITES.length * 100) + '%'; $('status').textContent = `Leídos ${done} de ${SITES.length} relojes (${site.label})…`; } };
+    await Promise.all([worker(), worker()]);
     try {
-      state.sites = results.filter(Boolean);
+      state.sites = results;
       state.calc = monthCalc(state.sites, { period, baseHours, workDays: Number.isInteger(workDays) ? workDays : undefined });
       render();
       $('status').textContent = failed.length ? 'Calculado con ' + state.sites.length + ' de ' + SITES.length + ' relojes. Sin datos: ' + failed.join(', ') + '.' : 'Calculado ' + monthName(period) + ' con los ' + SITES.length + ' relojes.';
@@ -140,7 +144,7 @@ export function mountAttendanceMonthCalc(host) {
     }
     if (!list.length) { const tr = el('tr'), td = el('td', 'amc-muted', 'No hay personas con ese filtro.'); td.colSpan = 7; tr.append(td); body.append(tr); }
     for (const th of host.querySelectorAll('th[data-s]')) th.setAttribute('aria-sort', th.dataset.s === state.sort ? (state.dir > 0 ? 'ascending' : 'descending') : 'none');
-    $('foot').textContent = `${list.length} de ${c.rows.length} personas. Reglas: jornada base ${nf(c.baseHours, 1)} h por día hábil; mayor dedicación 5 % cada 6 h de excedente mensual (Acta Paritaria 20), proyectado desde los días completos y solo con ${MONTH_CALC_DEFAULTS.minCompleteDays} días completos o más; tardanzas según la tabla de Junín (Ley 5.811 art. 65) con entrada de referencia estimada. Un día sin marca no se presume ausencia: Personal lo califica.`;
+    $('foot').textContent = `${list.length} de ${c.rows.length} personas. Reglas: jornada base ${nf(c.baseHours, 1)} h por día hábil; mayor dedicación 5 % cada 6 h de excedente mensual (Acta Paritaria 20), proyectado desde los días completos y solo con ${MONTH_CALC_DEFAULTS.minCompleteDays} días completos o más; tardanzas según la tabla de Junín (Ley 5.811 art. 65) con entrada de referencia estimada. Un día sin marca no se presume ausencia: Personal lo califica. Pendiente de definir con Personal: la jornada base de quien cobra full time (concepto 95), que hoy trabaja unas 9 h por día.`;
   }
 
   $('go').addEventListener('click', run);
