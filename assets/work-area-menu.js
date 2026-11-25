@@ -2,6 +2,8 @@ import { WORK_AREAS, classifyWorkItem, matchesMenuQuery } from './work-area-mode
 import { mountLiquidacionesMenu } from './liquidaciones-menu.js';
 import { readWorkUsage, countWorkUse } from './work-area-usage.js';
 import './reason-defaults.js';
+// Texto visible de un acceso, sin las siglas decorativas (aria-hidden) que acompañan al ícono: «Personas», no «PEPersonas».
+const visibleLabel=item=>{const text=n=>n.nodeType===3?n.nodeValue:n.nodeType===1&&n.getAttribute?.('aria-hidden')!=='true'?[...n.childNodes].map(text).join(''):'';return text(item).trim().replace(/\s+/g,' ');};
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n;};
 const attr=(n,key,value)=>{if(n.getAttribute(key)!==String(value))n.setAttribute(key,String(value));};
 const hidden=(n,value)=>{if(n.hidden!==value)n.hidden=value;};
@@ -99,7 +101,7 @@ export async function mountWorkAreaMenu(){
     const u=readUsage(),seen=new Set();
     const top=entries.filter(e=>e.area!=='inicio'&&permitted(e)&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied')&&u[entryKey(e)]>0)
      .sort((a,b)=>u[entryKey(b)]-u[entryKey(a)]).filter(e=>{const k=entryKey(e);if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
-    frequentList.replaceChildren(...top.map(e=>{const b=make('button',e.item.textContent.trim().replace(/\s+/g,' '),'mc-work-frequent-item');b.type='button';b.title=(groups.get(e.area)?.label||'')+' · '+b.textContent;b.addEventListener('click',()=>{countUse(e.item);e.item.click();});return b;}));
+    frequentList.replaceChildren(...top.map(e=>{const b=make('button',visibleLabel(e.item),'mc-work-frequent-item');b.type='button';b.title=(groups.get(e.area)?.label||'')+' · '+b.textContent;b.addEventListener('click',()=>{countUse(e.item);e.item.click();});return b;}));
     hidden(frequent,!top.length||!!input.value.trim());
   }
   function mobileState(){hidden(body,mobileMedia.matches&&!mobileOpen);attr(mobile,'aria-expanded',!body.hidden);}
