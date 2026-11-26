@@ -30,7 +30,7 @@ export function mountEmployeeBulk(anchor){
  const draw=()=>{
   table.replaceChildren();if(!rows.length)return;
   const head=node('tr');for(const label of ['Legajo','Apellido y nombres','DNI','Ingreso','Convenio y categoría','Sector y repartición','Estado'])head.append(node('th',label));
-  table.append(node('thead')).append(head);const body=table.appendChild(node('tbody'));
+  table.appendChild(node('thead')).append(head);const body=table.appendChild(node('tbody'));
   for(const row of rows){const tr=node('tr');const d=row.draft;
    for(const text of d?[d.legajo||'Automático',d.fullName,d.dni,d.startDate.split('-').reverse().join('/'),row.labels.agreement+' · '+row.labels.category,row.labels.organization+' · '+row.labels.sector]:[row.legajo||'—',row.name||'Fila '+(row.index+1),'—','—','—','—'])tr.append(node('td',text));
    const state=node('td',row.state||(row.error?'No se puede crear: '+row.error:'Listo para crear'));state.dataset.state=row.result||(row.error?'error':'ready');tr.append(state);body.append(tr);}

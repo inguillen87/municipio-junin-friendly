@@ -44,3 +44,4 @@ test('the bulk screen keeps nothing in browser storage, creates through the indi
  assert.match(fs.readFileSync(new URL('../internal-dashboard.html',import.meta.url),'utf8'),/assets\/native-employee-bulk\.js/);
 });
 test('bulk registration files are part of the published build',()=>{const b=fs.readFileSync('scripts/build-friendly.mjs','utf8');assert.match(b,/'assets\/native-employee-bulk-model\.js'/);assert.match(b,/'assets\/native-employee-bulk\.js'/);});
+test('review table is built with calls that return the created node',()=>{const s=fs.readFileSync('assets/native-employee-bulk.js','utf8');assert.doesNotMatch(s,/\.append\([^;]*\)\.append\(/);});
