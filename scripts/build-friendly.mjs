@@ -413,6 +413,8 @@ const shellFiles = [
   'assets/native-roster-ui.js',
   'assets/native-roster.css',
   'assets/native-employee-create.js',
+  'assets/native-employee-bulk-model.js',
+  'assets/native-employee-bulk.js',
   'assets/native-employee-create.css',
   'assets/native-employment-catalog.js',
   'assets/native-employment-catalog.css',
