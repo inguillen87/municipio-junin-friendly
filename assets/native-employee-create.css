@@ -58,3 +58,11 @@
 }
 @media(prefers-reduced-motion:reduce){.native-employee-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 .native-employee-dialog [data-ne-access-panel]{padding:18px;margin-bottom:18px;border:1px solid #b9d2ce;border-radius:10px;background:#edf5f4;line-height:1.65}.native-employee-dialog [data-ne-access-panel][hidden]{display:none}.native-employee-dialog [data-ne-access]{min-height:44px}.native-employee-dialog .ne-close{min-width:44px;min-height:44px}
+
+/* Altas desde archivo: tabla de revisión dentro del mismo diálogo. */
+.native-employee-bulk input[type=file]{width:100%;padding:12px;border:1px dashed #9fbcc1;border-radius:10px;background:#fff}
+.native-employee-bulk .neb-table{width:100%;border-collapse:collapse;margin:18px 0 0;background:#fff;border:1px solid #cbdcde;border-radius:10px;font-size:13px}
+.native-employee-bulk .neb-table:empty{display:none}
+.native-employee-bulk .neb-table th,.native-employee-bulk .neb-table td{padding:9px 10px;text-align:left;vertical-align:top;border-bottom:1px solid #e3ecec}
+.native-employee-bulk .neb-table td[data-state=error]{color:#8a4b00;font-weight:650}.native-employee-bulk .neb-table td[data-state=done]{color:#0b6b5c;font-weight:650}
+@media(max-width:700px){.native-employee-bulk .neb-table{display:block;overflow-x:auto}}
