@@ -222,3 +222,85 @@ main.content {
     transform: none;
   }
 }
+
+/* ── Pulido de interfaz: letra, controles, menú y movimiento con sentido ── */
+
+/* Navegar entre pantallas: fundido breve en lugar del salto en blanco. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: mc-page-out .12s ease-in both; }
+::view-transition-new(root) { animation: mc-page-in .2s var(--mc-ease-out) both; }
+@keyframes mc-page-out { to { opacity: 0; } }
+@keyframes mc-page-in { from { opacity: 0; } }
+
+/* Controles: la misma letra y la misma caja en todo el sistema (el mes ya no sale en tipografía de máquina). */
+:is(input, select, textarea, button) { font-family: inherit; }
+main :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]), select, textarea) {
+  font-size: .9375rem;
+  min-height: 2.5rem;
+  padding: .4rem .7rem;
+  color: var(--mc-brand-ink);
+  background-color: #fff;
+  border: 1px solid #b9c7c9;
+  border-radius: var(--mc-radius);
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+main :is(input, select, textarea):hover:not(:disabled, :focus-visible) { border-color: #7f9aa0; }
+main :is(input:not([type="checkbox"], [type="radio"]), select, textarea):focus-visible {
+  outline: 0;
+  border-color: var(--mc-brand-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-accent) 45%, transparent);
+}
+main :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--mc-brand-teal); inline-size: 1.05rem; block-size: 1.05rem; }
+main :is(input, select, textarea):disabled { background-color: #eef2f1; color: #6b7f86; }
+
+/* Rótulos: en minúscula normal, sin gritar. Se conserva el texto para lectores de pantalla. */
+html .sidebar :is(.mc-work-frequent-title, .mc-work-search label),
+html .sidebar .mc-liquidaciones-tasks .task-section > summary,
+html .report-index .rc-side-nav .task-section > summary {
+  text-transform: none;
+  letter-spacing: .01em;
+}
+html .sidebar :is(.mc-work-frequent-title, .mc-work-search label) { font-size: .78rem; font-weight: 600; opacity: .72; }
+html .sidebar .mc-liquidaciones-tasks .task-section > summary,
+html .report-index .rc-side-nav .task-section > summary { font-size: .8rem; font-weight: 650; }
+html .sidebar :is(.task-section > summary, .mc-work-frequent-title, .mc-work-search label)::first-letter { text-transform: uppercase; }
+:is(.eyebrow, [class$="-eyebrow"], [class*="-eyebrow "]) { letter-spacing: .04em; font-weight: 650; }
+
+/* Menú lateral: barra de desplazamiento fina y del color del menú. */
+.sidebar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
+html { scrollbar-color: #b3c2c4 transparent; }
+
+/* Abrir y cerrar secciones: la sección se despliega, no aparece de golpe. */
+@supports (interpolate-size: allow-keywords) {
+  :root { interpolate-size: allow-keywords; }
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size .22s var(--mc-ease-out), content-visibility .22s allow-discrete;
+  }
+  details[open]::details-content { block-size: auto; }
+}
+details > summary { cursor: pointer; }
+
+/* Pasos del ciclo: el paso activo se distingue por una regla superior, los demás acompañan sin competir. */
+.own-payroll-summary li > button { transition: border-color .16s ease, background-color .16s ease, opacity .16s ease; }
+.own-payroll-summary li > button:hover:not(:disabled) { opacity: 1; border-color: var(--mc-brand-teal); box-shadow: none; }
+
+/* Estado del mes: al revisar, cada renglón entra en orden. Es la respuesta a «Revisar», no un adorno de carga. */
+.mc-month-status :is(ul, ol) > li { animation: mc-row-in .28s var(--mc-ease-out) both; }
+.mc-month-status :is(ul, ol) > li:nth-child(2) { animation-delay: .04s; }
+.mc-month-status :is(ul, ol) > li:nth-child(3) { animation-delay: .08s; }
+.mc-month-status :is(ul, ol) > li:nth-child(4) { animation-delay: .12s; }
+.mc-month-status :is(ul, ol) > li:nth-child(5) { animation-delay: .16s; }
+.mc-month-status :is(ul, ol) > li:nth-child(n+6) { animation-delay: .2s; }
+@keyframes mc-row-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Los botones dejan de levantarse con sombra al pasar el mouse: el cambio de color alcanza. */
+:is(.button, .btn, button):hover:not(:disabled) { box-shadow: none; }
+:is(.nav-link, .nav button, .nav-product-link):hover { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+  details::details-content { transition: none; }
+  .mc-month-status :is(ul, ol) > li { animation: none; }
+}
