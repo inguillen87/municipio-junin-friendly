@@ -29,7 +29,7 @@ function message(e) {
 export function mountMonthlySummary(host) {
   if (!host || host.dataset.monthlyMounted) return;
   host.dataset.monthlyMounted = 'true'; host.classList.add('monthly-summary');
-  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">FUENTE PROPIA · CONTROL INTERNO</p><h2>Resumen mensual</h2><p>Elegí el período de imputación y las liquidaciones que querés reunir. Consultá conceptos, cantidades e importes sin preparar archivos de entrada.</p></header>
+  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">Fuente propia · control interno</p><h2>Resumen mensual</h2><p>Elegí el período de imputación y las liquidaciones que querés reunir. Consultá conceptos, cantidades e importes sin preparar archivos de entrada.</p></header>
     <p class="ms-note">El resumen reúne sólo las liquidaciones que selecciones. No certifica que estén todas las del mes, ni constituye un cierre o un pago.</p>
     <div class="rc-filter"><label>Acotar liquidaciones a un período (opcional)<input type="month" min="1900-01" max="2100-12" data-ms-catalog-period></label><button type="button" class="rc-button" data-ms-catalog>Consultar liquidaciones disponibles</button></div>
     <p role="status" aria-live="polite" class="ms-status" data-ms-status>Consultá las fuentes disponibles para empezar.</p>

@@ -21,7 +21,7 @@ export function mountOwnGrhComparisonPanel(host){
   const link=node('link');link.rel='stylesheet';link.href=style;document.head.append(link);
  }
  host.className='own-comparison';
- host.innerHTML=`<header><p class="own-comparison-eyebrow">NÓMINA · CONCILIACIÓN CON GRH</p><h2>MuniControl contra GRH</h2>
+ host.innerHTML=`<header><p class="own-comparison-eyebrow">Nómina · conciliación con GRH</p><h2>MuniControl contra GRH</h2>
  <p>Comparación de una corrida propia guardada con una liquidación incorporada del sistema anterior. La unión es declarada por número de legajo como texto exacto; no se presumen identidades, importes ni equivalencias.</p></header>
  <button class="button primary" data-ogc-catalog type="button">Consultar cálculos y liquidaciones GRH</button>
  <p data-ogc-state role="status" aria-live="polite">Elegí consultar las fuentes disponibles para tu sesión.</p>

@@ -7,7 +7,7 @@ export function mountOwnArtReport(container){
  if(!container||container.dataset.ownArtMounted)return;container.dataset.ownArtMounted='true';
  if(!document.querySelector('link[data-own-art-css]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-art-report-panel.css',import.meta.url).href;link.dataset.ownArtCss='true';document.head.append(link);}
  const host=node('section');host.className='own-art';host.setAttribute('aria-label','ART Provincia desde nómina propia');
- host.innerHTML=`<header><p class="art-eyebrow">REPORTES · NÓMINA PROPIA CERRADA</p><h2>ART Provincia</h2><p>Todos los agentes de las liquidaciones propias cerradas del período elegido, con DNI, CUIL, sexo, días trabajados documentados y sueldo exacto de 993 + 995.</p></header>
+ host.innerHTML=`<header><p class="art-eyebrow">Reportes · nómina propia cerrada</p><h2>ART Provincia</h2><p>Todos los agentes de las liquidaciones propias cerradas del período elegido, con DNI, CUIL, sexo, días trabajados documentados y sueldo exacto de 993 + 995.</p></header>
  <p data-own-art-status role="status" aria-live="polite">Abrí ART Provincia para verificar tu acceso.</p>
  <fieldset data-own-art-target><legend>1. Elegir las liquidaciones</legend><label>Período<input type="month" data-own-art-period></label><fieldset data-own-art-types><legend>Tipos de liquidación que se incluirán completos</legend></fieldset><button type="button" data-own-art-consult>Revisar ART completo</button></fieldset>
  <button type="button" data-own-art-access>Verificar acceso</button><button type="button" data-own-art-login hidden>Ingresar de nuevo</button>

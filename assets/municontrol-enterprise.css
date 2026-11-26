@@ -304,3 +304,29 @@ details > summary { cursor: pointer; }
   details::details-content { transition: none; }
   .mc-month-status :is(ul, ol) > li { animation: none; }
 }
+
+/* Sobretítulos y encabezados de tabla: mayúscula inicial, sin versalitas forzadas ni letras separadas. */
+html :is(.eyebrow, [class*="-eyebrow"], [class*="-kicker"]):not(.section-kicker-number),
+html :is(table th, .pill, .mc-quick-label, .mc-quickmenu-head, .mc-approval-area, .mc-bell-panel h3, .own-liq-kpi dt, .own-close-kpi dt, .identity-summary dt, .tx-kpi span) {
+  text-transform: none;
+  letter-spacing: .01em;
+}
+html :is(.eyebrow, [class*="-eyebrow"], [class*="-kicker"]):not(.section-kicker-number) { font-size: .8rem; font-weight: 600; }
+html :is(.eyebrow, [class*="-eyebrow"], [class*="-kicker"], table th, .mc-quick-label, .mc-quickmenu-head, .mc-approval-area, .mc-bell-panel h3, .own-liq-kpi dt, .own-close-kpi dt, .identity-summary dt)::first-letter { text-transform: uppercase; }
+html table th { font-weight: 650; }
+
+/* Botonera: un enlace con forma de botón no lleva subrayado; lo deshabilitado se ve apagado, no «casi activo». */
+:is(a.button, a.btn, a.rc-button, .rc-downloads a, .page-actions a) { text-decoration: none; }
+:is(.button, .btn, .rc-button, button):disabled { opacity: .55; cursor: not-allowed; }
+
+/* Diálogos y paneles emergentes: aparecen desde su lugar con el fondo atenuándose. */
+dialog[open] { animation: mc-dialog-in .18s var(--mc-ease-out) both; }
+dialog::backdrop { background: rgba(8, 40, 58, .42); animation: mc-page-in .18s ease-out both; }
+@keyframes mc-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+
+/* Mensajes de estado: cuando cambia el texto (consultando, listo, error) el cambio se nota sin saltar. */
+:is([role="status"], [aria-live="polite"], output):not(:empty) { animation: mc-page-in .2s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[open], dialog::backdrop, :is([role="status"], [aria-live="polite"], output):not(:empty) { animation: none; }
+}

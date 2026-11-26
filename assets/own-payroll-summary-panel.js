@@ -11,7 +11,7 @@ const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)
 export function mountOwnPayrollSummary(host,{onReview,onTask}={}){
  const href=new URL('own-payroll-summary.css',import.meta.url).href;
  if(![...document.querySelectorAll('link[rel=stylesheet]')].some(l=>l.href===href)){const link=node('link');link.rel='stylesheet';link.href=href;document.head.append(link);}
- host.className='own-payroll-summary';host.innerHTML=`<header class="own-summary-head"><div><p class="own-summary-eyebrow">LIQUIDACIONES</p><h2>Ciclo del mes</h2><p>Seguí los pasos en orden. Cada uno abre su pantalla con lo justo para hacerlo.</p></div><button class="button" type="button" data-own-summary-consult aria-label="Consultar corridas propias">Actualizar</button></header>
+ host.className='own-payroll-summary';host.innerHTML=`<header class="own-summary-head"><div><p class="own-summary-eyebrow">Liquidaciones</p><h2>Ciclo del mes</h2><p>Seguí los pasos en orden. Cada uno abre su pantalla con lo justo para hacerlo.</p></div><button class="button" type="button" data-own-summary-consult aria-label="Consultar corridas propias">Actualizar</button></header>
  <nav aria-labelledby="ownSummarySteps"><h3 id="ownSummarySteps" class="own-summary-sr">Pasos del ciclo</h3><ol class="own-summary-cycle">
  <li><a href="novedades-nomina.html"><span class="own-cycle-n" aria-hidden="true">1</span><strong>Novedades</strong><span>Horas, adicionales, descuentos y licencias del mes.</span></a></li>
  <li><button type="button" data-own-summary-task="calculo"><span class="own-cycle-n" aria-hidden="true">2</span><strong>Calcular</strong><span>Elegí mes, tipo y a quiénes. El resultado queda guardado.</span></button></li>

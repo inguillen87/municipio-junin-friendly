@@ -9,7 +9,7 @@ export function mountOwnAgreementWorkingTime(container){
  if(!container||container.dataset.agreementTimeMounted)return;container.dataset.agreementTimeMounted='true';
  if(!document.querySelector('link[data-agreement-time-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-agreement-working-time-panel.css',import.meta.url).href;link.dataset.agreementTimeStyle='';document.head.append(link);}
  const host=node('section');host.className='own-agreement-time';host.setAttribute('aria-label','Horas mensuales por convenio');
- host.innerHTML=`<header><p class="agreement-time-eyebrow">PARÁMETROS · NÓMINA PROPIA</p><h2>Horas mensuales por convenio</h2><p>Consultá todos los convenios y declarales sus horas mensuales con respaldo municipal. Otra persona revisa el conjunto antes de aprobarlo.</p></header>
+ host.innerHTML=`<header><p class="agreement-time-eyebrow">Parámetros · nómina propia</p><h2>Horas mensuales por convenio</h2><p>Consultá todos los convenios y declarales sus horas mensuales con respaldo municipal. Otra persona revisa el conjunto antes de aprobarlo.</p></header>
  <p data-agreement-time-status role="status" aria-live="polite">Abrí Horas por convenio para verificar tu acceso.</p>
  <fieldset data-agreement-time-target><legend>1. Consultar el período</legend><label>Período de liquidación<input type="month" data-agreement-time-period></label><button type="button" data-agreement-time-refresh>Consultar todos los convenios</button></fieldset>
  <button type="button" data-agreement-time-access>Verificar acceso</button><button type="button" data-agreement-time-login hidden>Ingresar de nuevo</button>

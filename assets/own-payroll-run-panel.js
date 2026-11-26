@@ -67,7 +67,7 @@ export function mountOwnPayrollRun(host,{onReview}={}) {
     if(![...document.querySelectorAll('link[rel=stylesheet]')].some(l=>l.href===href)){const link=node('link');link.rel='stylesheet';link.href=href;document.head.append(link);}
   }
   host.className='own-run';
-  host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">LIQUIDACIÓN</p><h2>Calcular nómina</h2><p>Elegí el período, la fecha, el tipo y a quiénes liquidar.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
+  host.innerHTML=`<header class="own-run-head"><div><p class="own-run-eyebrow">Liquidación</p><h2>Calcular nómina</h2><p>Elegí el período, la fecha, el tipo y a quiénes liquidar.</p></div><button class="button" type="button" data-own-refresh>Actualizar</button></header>
   <p class="own-run-status" role="status" aria-live="polite" data-own-status>Abrí Calcular para consultar.</p>
   <section class="own-run-notice" data-own-recapture hidden aria-labelledby="ownRunRecaptureTitle"><h3 id="ownRunRecaptureTitle">Alcance recuperado de una anulación</h3><p data-own-recapture-summary></p><p>Se conserva el alcance completo del evento de esta corrida. Al confirmar Calcular se capturan las fuentes vigentes y se guarda un nuevo resultado para otra revisión.</p><button class="button" type="button" data-own-recapture-clear>Preparar un alcance diferente</button></section>
   <form data-own-form><fieldset data-own-fields disabled><legend>1 · Preparar el cálculo</legend><div class="own-run-grid">

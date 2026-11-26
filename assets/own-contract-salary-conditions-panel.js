@@ -17,7 +17,7 @@ export function mountOwnContractSalaryConditionsLegacy(container){
  if(!container||container.dataset.salaryConditionsMounted)return;container.dataset.salaryConditionsMounted='true';
  if(!document.querySelector('link[data-salary-conditions-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-salary-conditions-panel.css',import.meta.url).href;link.dataset.salaryConditionsStyle='';document.head.append(link);}
  const host=node('section');host.className='own-salary-conditions';host.setAttribute('aria-label','Condiciones salariales propias');
- host.innerHTML=`<header><p class="conditions-eyebrow">PERSONAS · NÓMINA PROPIA</p><h2>Condiciones salariales del período</h2><p>Prepará antigüedad parcial, título e insalubridad para el conjunto completo. Otra persona habilitada revisa y decide. Este registro no liquida ni paga haberes.</p></header>
+ host.innerHTML=`<header><p class="conditions-eyebrow">Personas · nómina propia</p><h2>Condiciones salariales del período</h2><p>Prepará antigüedad parcial, título e insalubridad para el conjunto completo. Otra persona habilitada revisa y decide. Este registro no liquida ni paga haberes.</p></header>
  <p data-conditions-status role="status" aria-live="polite">Abrí Condiciones salariales para verificar tu acceso.</p>
  <fieldset data-conditions-target><legend>1. Consultar el período</legend><label>Período de liquidación<input type="month" data-conditions-period></label><button type="button" data-conditions-refresh>Consultar conjunto completo</button></fieldset>
  <button type="button" data-conditions-access>Verificar acceso</button><button type="button" data-conditions-login hidden>Ingresar de nuevo</button>

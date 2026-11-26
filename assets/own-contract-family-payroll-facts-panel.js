@@ -20,7 +20,7 @@ export function mountOwnContractFamilyPayrollFactsV1(container){
  if(!container||container.dataset.familyFactsMounted)return;container.dataset.familyFactsMounted='true';
  if(!document.querySelector('link[data-family-facts-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-family-payroll-facts-panel.css',import.meta.url).href;link.dataset.familyFactsStyle='';document.head.append(link);}
  const host=node('section');host.className='own-family-facts';host.setAttribute('aria-label','Asignaciones familiares del período');
- host.innerHTML=`<header><p class="family-facts-eyebrow">PERSONAS · NÓMINA PROPIA</p><h2>Asignaciones familiares del período</h2><p>Declarales a todas las personas cuántos familiares corresponden a cada asignación en este mes. Otra persona habilitada revisa y decide. Este registro no liquida ni paga haberes.</p></header>
+ host.innerHTML=`<header><p class="family-facts-eyebrow">Personas · nómina propia</p><h2>Asignaciones familiares del período</h2><p>Declarales a todas las personas cuántos familiares corresponden a cada asignación en este mes. Otra persona habilitada revisa y decide. Este registro no liquida ni paga haberes.</p></header>
  <p data-family-facts-status role="status" aria-live="polite">Abrí Asignaciones familiares para verificar tu acceso.</p>
  <fieldset data-family-facts-target><legend>1. Consultar el período</legend><label>Período de liquidación<input type="month" data-family-facts-period></label><button type="button" data-family-facts-refresh>Consultar conjunto completo</button></fieldset>
  <button type="button" data-family-facts-access>Verificar acceso</button><button type="button" data-family-facts-login hidden>Ingresar de nuevo</button>

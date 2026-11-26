@@ -23,7 +23,7 @@ function errorText(error) {
 export function mountPayrollBankGenerator(host) {
   if (!host || host.dataset.bankGeneratorMounted) return;
   host.dataset.bankGeneratorMounted = 'true'; host.classList.add('payroll-bank-generator');
-  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">LIQUIDACIONES INCORPORADAS · CONTROL INTERNO</p><h2>Planilla bancaria</h2><p>Elegí una liquidación, revisá sus cuentas e importes y descargá la planilla desde los datos disponibles en MuniControl.</p></header>
+  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">Liquidaciones incorporadas · control interno</p><h2>Planilla bancaria</h2><p>Elegí una liquidación, revisá sus cuentas e importes y descargá la planilla desde los datos disponibles en MuniControl.</p></header>
     <form class="rc-filter pbg-selection" data-pbg-query><label>Liquidación<select data-pbg-dataset required><option value="">Consultando liquidaciones disponibles…</option></select></label><button class="rc-button" type="submit" data-pbg-consult disabled>Generar planilla</button><button class="rc-button secondary" type="button" data-pbg-catalog>Actualizar liquidaciones</button></form>
     <p role="status" aria-live="polite" class="pbg-status" data-pbg-status>Consultá las liquidaciones incorporadas para empezar.</p><a data-pbg-login href="login.html?next=reportes-rrhh.html%23planilla-bancaria" hidden>Ingresar al portal interno</a>
     <p class="pbg-note">Excel y PDF son documentos de control. No ordenan transferencias ni acreditan pagos. El archivo de pago para el banco requiere un formato homologado.</p>

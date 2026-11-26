@@ -8,7 +8,7 @@ export function mountOwnPeriodArtDays(container){
  if(!container||container.dataset.artDaysMounted)return;container.dataset.artDaysMounted='true';
  for(const file of['own-art-days-panel.css','employee-picker.css'])if(!document.querySelector('link[data-art-days-file="'+file+'"]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./'+file,import.meta.url).href;link.dataset.artDaysFile=file;document.head.append(link);}
  const host=node('section');host.className='own-art-days';host.setAttribute('aria-label','Días trabajados para ART propia');
- host.innerHTML=`<header><p class="art-days-eyebrow">PERSONAS · NÓMINA PROPIA</p><h2>Días trabajados para ART</h2><p>Declaración documentada por legajo y período. Otra persona revisa y decide; el reporte ART usa únicamente los días aprobados para este período.</p></header>
+ host.innerHTML=`<header><p class="art-days-eyebrow">Personas · nómina propia</p><h2>Días trabajados para ART</h2><p>Declaración documentada por legajo y período. Otra persona revisa y decide; el reporte ART usa únicamente los días aprobados para este período.</p></header>
  <p data-art-days-status role="status" aria-live="polite">Abrí Días trabajados para ART para comprobar tu acceso.</p>
  <fieldset data-art-days-target><legend>1. Elegir legajo y período</legend><button type="button" data-art-days-picker>Buscar legajo propio</button><p data-art-days-subject>No hay un legajo seleccionado.</p><label>Período de liquidación<input type="month" data-art-days-period></label><button type="button" data-art-days-refresh>Consultar días ART</button></fieldset>
  <button type="button" data-art-days-access>Verificar acceso</button><button type="button" data-art-days-login hidden>Ingresar de nuevo</button>

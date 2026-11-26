@@ -19,7 +19,7 @@ export function mountOwnContractFamilySelection(container){
  if(!container||container.dataset.familySelectedMounted)return;container.dataset.familySelectedMounted='true';
  if(!document.querySelector('link[data-family-facts-style]')){const link=node('link');link.rel='stylesheet';link.href=new URL('./own-contract-family-payroll-facts-panel.css',import.meta.url).href;link.dataset.familyFactsStyle='';document.head.append(link);}
  const host=node('section');host.className='own-family-facts family-selected';host.setAttribute('aria-label','Declaraciones familiares por selección');
- host.innerHTML=`<header><p class="family-facts-eyebrow">PERSONAS · ASIGNACIONES FAMILIARES</p><h2>Declarar para quienes elegís</h2><p>Seleccioná los contratos de este período, completá sus cantidades y constancias, y enviá la propuesta a otra persona habilitada.</p></header>
+ host.innerHTML=`<header><p class="family-facts-eyebrow">Personas · asignaciones familiares</p><h2>Declarar para quienes elegís</h2><p>Seleccioná los contratos de este período, completá sus cantidades y constancias, y enviá la propuesta a otra persona habilitada.</p></header>
  <p data-family-selected-status role="status" aria-live="polite">Abrí Asignaciones familiares para verificar tu acceso.</p>
  <button type="button" data-family-selected-access>Verificar acceso</button><button type="button" data-family-selected-login hidden>Ingresar de nuevo</button>
  <fieldset data-family-selected-target><legend>1. Elegir el período</legend><label>Período de liquidación<input type="month" data-family-selected-period></label><button type="button" data-family-selected-refresh>Consultar contratos y propuestas</button></fieldset>

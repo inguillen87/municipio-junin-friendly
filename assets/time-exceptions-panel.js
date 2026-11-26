@@ -28,7 +28,7 @@ export function validateExceptionForm(form) {
 export function mountTimeExceptions(section) {
   if (!section || section.dataset.bound === 'true') return null;
   section.dataset.bound = 'true';
-  section.innerHTML = `<header class="tx-head"><div><p class="tx-eyebrow">PERSONAL · ASISTENCIA</p><h2 id="txTitle">Excepciones horarias por legajo</h2>
+  section.innerHTML = `<header class="tx-head"><div><p class="tx-eyebrow">Personal · asistencia</p><h2 id="txTitle">Excepciones horarias por legajo</h2>
   <p>Para casos humanos y documentados: una persona que sale a llevar a su hijo al colegio, lactancia, estudio, tratamientos. Indicá días, horario y vigencia; el preparte de relojes no cuenta esas ventanas como tardanza.</p></div>
   <span class="tx-badge">Historial completo · sin efecto salarial directo</span></header>
   <div class="tx-kpis" data-tx="kpis" hidden></div>

@@ -30,7 +30,7 @@
       <a id="qa-tenant" href="/inicio" hidden>Volver a la operación municipal</a>
     </div>
     <section class="card" id="qa-intro" aria-labelledby="qa-intro-title" hidden>
-      <div class="eyebrow">ANTES DE EMPEZAR</div><h2 id="qa-intro-title" tabindex="-1">Abrir una jornada de pruebas</h2>
+      <div class="eyebrow">Antes de empezar</div><h2 id="qa-intro-title" tabindex="-1">Abrir una jornada de pruebas</h2>
       <p>La jornada dura hasta 24 horas y podés terminarla antes. Elegir un rol cambia el control que vas a probar; tu identidad sigue siendo la misma.</p>
       <label class="ack"><input id="qa-reviewed" type="checkbox"> Entiendo que estos resultados son de prueba y que no representan decisiones municipales.</label>
       <button id="qa-start" class="primary" type="button" disabled>Iniciar jornada</button>
@@ -40,7 +40,7 @@
         <a href="#qa-manual-novelty">Ejercicio guiado</a><a href="#qa-cases-title">Controles por función</a><a href="#qa-read-title">Período municipal</a><a href="#qa-history-title">Informe</a>
       </nav>
       <section class="progress-panel" aria-labelledby="qa-progress-heading">
-        <div class="eyebrow">ACTIVIDAD DE ESTA VISITA</div>
+        <div class="eyebrow">Actividad de esta visita</div>
         <h2 id="qa-progress-heading">Tu avance en los controles</h2>
         <p id="qa-progress-copy"></p><progress id="qa-progress" aria-label="Controles ejecutados durante esta visita" value="0" max="1"></progress>
         <div id="qa-next"></div>
@@ -50,7 +50,7 @@
       </section>
       <section id="qa-manual-novelty" class="card" aria-label="Ejercicio manual de novedad" hidden></section>
       <section class="card" aria-labelledby="qa-cases-title">
-        <div class="eyebrow">1 · CONTROLES DEL CIRCUITO</div><h2 id="qa-cases-title" tabindex="-1">¿Qué rol querés probar?</h2>
+        <div class="eyebrow">1 · Controles del circuito</div><h2 id="qa-cases-title" tabindex="-1">¿Qué rol querés probar?</h2>
         <p>Usamos ejemplos preparados con las reglas del módulo. Un control puede pasar aunque todavía falten datos para liquidar el mes.</p>
         <div class="filters"><div><label for="qa-role">Perfil a evaluar</label>
         <select id="qa-role"><option value="all">Todos los perfiles</option><option value="preparation">Preparación</option><option value="review">Revisión</option><option value="control">Control</option></select></div>
@@ -58,13 +58,13 @@
         <div id="qa-list" class="cases"></div>
       </section>
       <section class="card" aria-labelledby="qa-read-title">
-        <div class="eyebrow">2 · DATOS DEL SISTEMA</div><h2 id="qa-read-title">Consultar un período</h2>
+        <div class="eyebrow">2 · Datos del sistema</div><h2 id="qa-read-title">Consultar un período</h2>
         <p>Se muestran cantidades y versiones registradas en tu ámbito. Esta consulta no calcula ni certifica una liquidación.</p>
         <form id="qa-period-form"><label for="qa-month">Mes y año</label><div class="row"><input type="month" id="qa-month" required><button type="submit" id="qa-read">Consultar período</button></div></form>
         <div id="qa-readiness"></div>
       </section>
       <section class="card" aria-labelledby="qa-history-title">
-        <div class="eyebrow">3 · INFORME</div><h2 id="qa-history-title" tabindex="-1">Resultados de esta visita</h2>
+        <div class="eyebrow">3 · Informe</div><h2 id="qa-history-title" tabindex="-1">Resultados de esta visita</h2>
         <p>El informe guarda hasta los últimos 100 controles de esta visita. Descargalo antes de cambiar de pestaña o terminar la jornada; luego esta vista se despeja.</p>
         <div id="qa-history"></div><div class="row end-tools">
           <button type="button" id="qa-export" disabled>Descargar informe JSON</button>
