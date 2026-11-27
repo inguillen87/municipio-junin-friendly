@@ -17,7 +17,7 @@ export function mountEmployeeBulk(anchor){
  if(!anchor||anchor.dataset.employeeBulkMounted)return;anchor.dataset.employeeBulkMounted='true';
  const open=node('button','Altas desde archivo','button');open.type='button';open.hidden=anchor.hidden;anchor.after(' ',open);
  new MutationObserver(()=>{open.hidden=anchor.hidden;}).observe(anchor,{attributes:true,attributeFilter:['hidden']});
- const dialog=node('dialog',null,'native-employee-dialog native-employee-bulk');dialog.setAttribute('aria-labelledby','neb-title');
+ const dialog=node('dialog',null,'native-employee-bulk-dialog native-employee-bulk');dialog.setAttribute('aria-labelledby','neb-title');
  const heading=node('header',null,'ne-heading'),title=node('h2','Altas desde archivo');title.id='neb-title';
  heading.append(node('p','Personas · varias altas'),title,node('span','Elegí el archivo de altas preparado para MuniControl. Vas a ver cada legajo antes de crear nada; después se crean todos con un solo botón.'));
  const feedback=node('div','Elegí el archivo.','ne-feedback');feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');

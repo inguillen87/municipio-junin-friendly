@@ -152,5 +152,6 @@ export function mountMonthStatus(host){
    const left=rows.filter(r=>r.state!=='ok');
    $('status').textContent=!left.length?'Todo listo: ya se puede calcular '+periodLabel($('period').value)+'.':left.some(r=>r.state==='prepare')?'Falta preparar: usá «Preparar el mes siguiente» y después «Aprobar todo».':'Sólo falta aprobar: otra persona entra a «Aprobar todo».';}
   catch(e){$('status').textContent=e.message;}finally{busy=false;}}
- $('go').addEventListener('click',run);$('period').addEventListener('change',run);run();return {run};
+ // No consulta sola al abrir la pantalla: varias lecturas a la vez chocaban con lo que la persona estaba haciendo (503).
+ $('go').addEventListener('click',run);$('period').addEventListener('change',run);$('status').textContent='Tocá «Revisar» para ver el estado del mes.';return {run};
 }

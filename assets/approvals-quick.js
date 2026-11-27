@@ -140,5 +140,6 @@ host.className='mc-quick-approvals';
    try{await approveOne(x);x.state='ok';ok++;}catch(e){x.state='error';x.message=/INDEPENDENT_REQUIRED/.test(e.code||'')?'lo preparaste vos: lo aprueba otra persona':(e.message||'No se aprobó.');}render();}
   busy=false;$('status').textContent=ok+' de '+todo.length+' aprobados.'+(ok<todo.length?' Revisá los que quedaron marcados.':'');render();onDone?.();}
  $('load').addEventListener('click',load);$('period').addEventListener('change',load);$('approve').addEventListener('click',approveAll);
- load();return {load};
+ // No consulta sola al abrir la pantalla: sus lecturas chocaban con lo que la persona estaba haciendo (503).
+ $('status').textContent='Tocá «Ver pendientes» para traer lo que espera tu aprobación.';return {load};
 }
