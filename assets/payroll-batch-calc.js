@@ -3,7 +3,7 @@
 // referencia de intento, igual que una corrida hecha desde «Calcular».
 import { OWN_RUN_COMMAND_VERSION, ownRunCommand } from './own-payroll-run-model.js';
 import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
-import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals } from './payroll-batch-calc-model.js';
+import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcUndoRuns, batchCalcUndoScan } from './payroll-batch-calc-model.js';
 import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
 
@@ -46,12 +46,30 @@ async function confirmRun(item, reason) {
   if (!read.ok || read.payload?.ok !== true) throw Object.assign(Error(read.status === 401 ? 'La sesión venció. Volvé a ingresar.' : read.status === 403 ? 'Tu cuenta no permite confirmar liquidaciones.' : read.payload?.error || 'No se pudo leer la corrida para confirmarla.'), { status: read.status });
   const detail = read.payload.data, employees = Array.isArray(detail?.employees) ? detail.employees : [];
   if (employees.length && employees.every(e => e.state === 'confirmed')) return 'already';
-  if (!employees.length || employees.some(e => !Array.isArray(e.allowedCommands) || !e.allowedCommands.includes('confirm'))) throw Error('Esta tanda tiene legajos que no admiten confirmación (otra liquidación activa o un estado distinto). Revisala en «Calcular».');
+  if (!employees.length || employees.some(e => !Array.isArray(e.allowedCommands) || !e.allowedCommands.includes('confirm'))) throw Error(employees.every(e => e.state === 'calculated' && e.blockedBy == null) ? 'La calculaste vos y la tiene que confirmar otra persona. Esa persona entra acá, elige el mismo mes y convenio y usa «Confirmar o anular lo ya calculado».' : 'Esta tanda tiene legajos que no admiten confirmación (otra liquidación activa o un estado distinto).');
   const payload = ownLiquidationCommand({ runId: item.totals.runId, resultSha256: item.totals.resultSha256, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, command: 'confirm', selection: item.totals.selection, reason, reviewConfirmed: true });
   const response = await fetch(OWN_LIQ_DETAIL_ENDPOINT, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': item.confirmKey }, body: JSON.stringify({ operation: 'command', payload }) });
   let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
   if (!response.ok || value?.ok !== true) throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite confirmar liquidaciones.' : value?.error || 'No se confirmó la tanda.'), { status: response.status });
   return 'confirmed';
+}
+
+// Lee el detalle vigente de una corrida (para decidir sobre ella).
+async function readRun(runId) {
+  const read = await fetchOwnLiquidationDetail(runId);
+  if (!read.ok || read.payload?.ok !== true) throw Object.assign(Error(read.status === 401 ? 'La sesión venció. Volvé a ingresar.' : read.status === 403 ? 'Tu cuenta no permite consultar liquidaciones.' : read.payload?.error || 'No se pudo leer una corrida del mes.'), { status: read.status });
+  return read.payload.data;
+}
+// Anula (confirmadas) o descarta (calculadas sin confirmar) a las personas indicadas de una corrida.
+async function undoRun(run, command, contractIds, reason) {
+  const detail = await readRun(run.id);
+  const still = new Set((detail.employees ?? []).filter(e => Array.isArray(e.allowedCommands) && e.allowedCommands.includes(command)).map(e => e.contractId));
+  const values = contractIds.filter(id => still.has(id)).sort(); if (!values.length) return 0;
+  const payload = ownLiquidationCommand({ runId: run.id, resultSha256: run.resultSha256, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, command, selection: { kind: 'contracts', values }, reason, reviewConfirmed: true });
+  const response = await fetch(OWN_LIQ_DETAIL_ENDPOINT, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ operation: 'command', payload }) });
+  let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
+  if (!response.ok || value?.ok !== true) throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite anular liquidaciones.' : value?.error || 'No se registró la anulación.'), { status: response.status });
+  return values.length;
 }
 
 export function mountBatchCalc(host) {
@@ -63,28 +81,40 @@ export function mountBatchCalc(host) {
     + '<div class="mc-batch-form"><label>Mes <input type="month" data-bc-period></label>'
     + '<label>Convenio <select data-bc-agreement disabled><option value="">Tocá «Traer convenios»</option></select></label>'
     + '<div class="mc-batch-actions" style="margin:0"><button type="button" class="button secondary" data-bc-load>Traer convenios</button></div>'
-    + '<label class="mc-batch-wide">No liquidar este mes <small>Legajos separados por coma o renglón. Quedan fuera de todas las tandas.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label></div>'
+    + '<label class="mc-batch-wide">No liquidar este mes <small>Legajos separados por coma o renglón. Quedan fuera de todas las tandas.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label>'
+    + '<label class="mc-batch-wide">Solo estos legajos (opcional) <small>Para corregir a pocas personas sin tocar al resto del convenio. Vacío: todo el convenio.</small><textarea data-bc-only rows="2" inputmode="numeric" placeholder="Ejemplo: 1017, 1922, 2083"></textarea></label></div>'
     + '<div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-plan disabled>Armar tandas</button><button type="button" class="button primary" data-bc-run hidden></button></div>'
     + '<p class="mc-batch-status" role="status" aria-live="polite" data-bc-status></p><ul class="mc-batch-notes" data-bc-notes></ul>'
     + '<div data-bc-progress hidden><div class="mc-batch-bar" data-bc-bar role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance del cálculo"><span></span></div><p class="mc-batch-count" data-bc-count></p></div>'
     + '<ol class="mc-batch-list" data-bc-list></ol><dl class="mc-batch-total" data-bc-total hidden></dl>'
+    + '<details class="mc-batch-undo" data-bc-undo hidden><summary>Confirmar o anular lo ya calculado de este convenio</summary><p>Busca lo que está calculado en el mes para estas personas, lo haya calculado quien sea, y lo confirma o lo anula todo junto. No borra nada: queda registrado quién decidió y por qué.</p>'
+    + '<div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-undo-find>Buscar lo calculado</button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-undo-status></p>'
+    + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Escribí el motivo de la decisión (mínimo 10 letras)"></textarea></label>'
+    + '<label class="mc-batch-check"><input type="checkbox" data-bc-undo-reviewed> Revisé a quiénes alcanza</label>'
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button></div></div></details>'
     + '<div class="mc-batch-confirm" data-bc-confirm hidden><h4>Confirmar el convenio</h4><p>Confirma todas las tandas con un mismo motivo. Queda registrado quién confirmó y cuándo; se puede anular después.</p>'
     + '<label>Motivo de la confirmación <textarea data-bc-reason rows="2" maxlength="500"></textarea></label>'
     + '<label class="mc-batch-check"><input type="checkbox" data-bc-reviewed> Revisé las personas y los totales del convenio</label>'
     + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-confirm-go disabled></button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-confirm-status></p></div>';
   const $ = name => host.querySelector('[data-bc-' + name + ']');
   const now = new Date(); $('period').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  let rows = null, plan = null, state = [], busy = false, boot = null;
+  let rows = null, plan = null, state = [], busy = false, boot = null, undo = null;
   const status = text => { $('status').textContent = text; };
   const controls = () => {
-    $('load').disabled = busy; $('agreement').disabled = busy || !rows; $('period').disabled = busy; $('excluded').disabled = busy;
+    $('load').disabled = busy; $('agreement').disabled = busy || !rows; $('period').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
+    $('undo').hidden = !rows || !$('agreement').value; $('undo-find').disabled = busy;
+    const count = kind => (undo ? undo.targets.filter(t => kind === 'confirm' ? t.command === 'confirm' : t.command !== 'confirm').reduce((n, t) => n + t.contractIds.length, 0) : 0), people = count('undo'), toConfirm = count('confirm'), ready = !busy && $('undo-reviewed').checked && $('undo-reason').value.trim().length >= 10;
+    $('undo-form').hidden = !people && !toConfirm; $('undo-go').hidden = !people; $('undo-confirm').hidden = !toConfirm;
+    $('undo-go').textContent = 'Anular ' + people + (people === 1 ? ' persona' : ' personas'); $('undo-confirm').textContent = 'Confirmar ' + toConfirm + (toConfirm === 1 ? ' persona' : ' personas');
+    $('undo-go').disabled = !ready || !people; $('undo-confirm').disabled = !ready || !toConfirm; $('undo-reason').disabled = busy; $('undo-reviewed').disabled = busy;
     $('plan').disabled = busy || !rows || !$('agreement').value;
     const pending = state.filter(s => s.state !== 'done').length;
     $('run').hidden = !plan || !plan.batches.length || !pending;
     $('run').disabled = busy;
     $('run').textContent = state.some(s => s.state === 'done' || s.state === 'failed') ? 'Seguir con ' + pending + (pending === 1 ? ' tanda' : ' tandas') : 'Calcular ' + pending + (pending === 1 ? ' tanda' : ' tandas');
   };
-  const forget = () => { plan = null; state = []; $('list').replaceChildren(); $('notes').replaceChildren(); $('progress').hidden = true; $('total').hidden = true; $('confirm').hidden = true; $('reason').value = ''; delete $('reason').dataset.proposed; $('reviewed').checked = false; $('confirm-status').textContent = ''; controls(); };
+  const forgetUndo = () => { undo = null; $('undo-status').textContent = ''; $('undo-reason').value = ''; $('undo-reviewed').checked = false; };
+  const forget = () => { plan = null; state = []; forgetUndo(); $('list').replaceChildren(); $('notes').replaceChildren(); $('progress').hidden = true; $('total').hidden = true; $('confirm').hidden = true; $('reason').value = ''; delete $('reason').dataset.proposed; $('reviewed').checked = false; $('confirm-status').textContent = ''; controls(); };
   function paint() {
     const done = state.filter(s => s.state === 'done'), people = done.reduce((n, s) => n + s.batch.people, 0), failed = state.some(s => s.state === 'failed');
     const share = plan?.people ? people / plan.people : 0;
@@ -122,7 +152,7 @@ export function mountBatchCalc(host) {
       for (const item of state.filter(s => s.state === 'done' && !s.confirmed)) {
         $('confirm-status').textContent = 'Confirmando la tanda ' + item.batch.index + ' de ' + plan.batches.length + '…';
         try { await confirmRun(item, reason); item.confirmed = true; }
-        catch (e) { item.confirmKey = crypto.randomUUID(); $('confirm-status').textContent = 'La tanda ' + item.batch.index + ' no se confirmó: ' + e.message + ' Las anteriores quedaron confirmadas.'; return; }
+        catch (e) { item.confirmKey = crypto.randomUUID(); $('confirm-status').textContent = 'La tanda ' + item.batch.index + ' no se confirmó: ' + e.message + ' ' + (state.some(s => s.confirmed) ? 'Las anteriores quedaron confirmadas.' : ''); return; }
         paint();
       }
       $('confirm-status').textContent = 'Convenio confirmado: ' + plan.people + ' personas en ' + plan.batches.length + (plan.batches.length === 1 ? ' tanda.' : ' tandas.');
@@ -143,9 +173,13 @@ export function mountBatchCalc(host) {
     if (busy || !rows) return;
     try {
       const typed = batchCalcLegajos($('excluded').value);
-      plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: typed.valid });
+      const just = batchCalcLegajos($('only').value);
+      plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: typed.valid, only: just.valid });
       state = plan.batches.map(batch => ({ batch, state: 'queued', key: crypto.randomUUID(), confirmKey: crypto.randomUUID(), confirmed: false, totals: null, seconds: 0, error: '' })); boot = null;
       const notes = [];
+      if (plan.only.length) notes.push('Solo se calculan: ' + plan.only.join(', ') + '.');
+      if (plan.onlyNotFound.length) notes.push('No están activos en este convenio (revisá el número): ' + plan.onlyNotFound.join(', ') + '.');
+      if (just.invalid.length) notes.push('No son legajos y se ignoraron: ' + just.invalid.join(', ') + '.');
       if (plan.excluded.length) notes.push('No se liquidan este mes: ' + plan.excluded.join(', ') + '.');
       if (plan.excludedNotFound.length) notes.push('No están activos en este convenio (revisá el número): ' + plan.excludedNotFound.join(', ') + '.');
       if (typed.invalid.length) notes.push('No son legajos y se ignoraron: ' + typed.invalid.join(', ') + '.');
@@ -172,9 +206,46 @@ export function mountBatchCalc(host) {
       if (!left) document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
     } catch (e) { status(e.message); } finally { busy = false; paint(); }
   }
+  // Busca, de la corrida más nueva a la más vieja, el estado vigente de cada persona pedida.
+  async function findUndo() {
+    if (busy || !rows) return; busy = true; forgetUndo(); controls();
+    try {
+      const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: batchCalcLegajos($('excluded').value).valid, only: batchCalcLegajos($('only').value).valid });
+      const wanted = new Set(wantedPlan.batches.flatMap(b => b.contractIds)), seen = new Set(), targets = []; let blocked = 0, confirmed = 0, calculated = 0, own = 0;
+      if (!wanted.size) { $('undo-status').textContent = 'No hay personas de ese convenio para buscar.'; return; }
+      const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period);
+      for (const [index, run] of runs.entries()) {
+        if (seen.size === wanted.size) break;
+        $('undo-status').textContent = 'Leyendo las corridas del mes: ' + (index + 1) + ' de ' + runs.length + '. Encontradas ' + seen.size + ' de ' + wanted.size + ' personas…';
+        const found = batchCalcUndoScan((await readRun(run.id)).employees, wanted, seen);
+        for (const command of ['confirm', 'annul', 'cancel']) if (found[command].length) targets.push({ run, command, contractIds: found[command] });
+        blocked += found.blocked.length; confirmed += found.confirmed; calculated += found.calculated; own += found.cancel.filter(id => !found.confirm.includes(id)).length;
+      }
+      undo = { targets };
+      $('undo-status').textContent = (confirmed + calculated ? 'En ' + wantedPlan.period + ': ' + confirmed + ' confirmadas y ' + calculated + ' calculadas sin confirmar.' : 'No hay nada calculado vigente para esas personas en ' + wantedPlan.period + '.')
+        + (own ? ' ' + own + ' las calculaste vos: las confirma otra persona, o las podés anular.' : '') + (blocked ? ' ' + blocked + ' no admiten cambios con tu cuenta o ya están cerradas.' : '');
+    } catch (e) { undo = null; $('undo-status').textContent = e.message; } finally { busy = false; controls(); }
+  }
+  async function undoAll(kind) {
+    if (busy || !undo) return; const mine = undo.targets.filter(t => kind === 'confirm' ? t.command === 'confirm' : t.command !== 'confirm'), verb = kind === 'confirm' ? ['Confirmando', 'confirmaron', 'confirmada', 'confirmadas'] : ['Anulando', 'anularon', 'anulada', 'anuladas']; const reason = $('undo-reason').value.trim(); if (reason.length < 10 || !$('undo-reviewed').checked) return;
+    busy = true; controls(); let people = 0;
+    try {
+      for (const [index, target] of mine.entries()) {
+        $('undo-status').textContent = verb[0] + ': corrida ' + (index + 1) + ' de ' + mine.length + '. No cierres ni cambies de pantalla.';
+        try { people += await undoRun(target.run, target.command, target.contractIds, reason); }
+        catch (e) { const done = new Set(mine.slice(0, index)); undo = { targets: undo.targets.filter(t => !done.has(t)) }; $('undo-status').textContent = 'Se ' + verb[1] + ' ' + people + ' personas y después falló: ' + e.message + ' Tocá el botón otra vez para seguir.'; return; }
+      }
+      undo = null; $('undo-reason').value = ''; $('undo-reviewed').checked = false;
+      $('undo-status').textContent = 'Listo: ' + people + ' ' + (people === 1 ? 'persona ' + verb[2] : 'personas ' + verb[3]) + '.' + (kind === 'confirm' ? '' : ' Ya se pueden volver a calcular con «Armar tandas».');
+      document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
+    } finally { busy = false; controls(); }
+  }
+  $('undo-find').addEventListener('click', findUndo); $('undo-go').addEventListener('click', () => undoAll('undo')); $('undo-confirm').addEventListener('click', () => undoAll('confirm')); $('undo-reviewed').addEventListener('change', controls); $('undo-reason').addEventListener('input', controls);
   $('confirm-go').addEventListener('click', confirmAll); $('reviewed').addEventListener('change', paint); $('reason').addEventListener('input', paint);
   $('load').addEventListener('click', load); $('plan').addEventListener('click', arrange); $('run').addEventListener('click', () => run());
-  for (const name of ['agreement', 'period', 'excluded']) $(name).addEventListener('input', () => { if (plan && !busy) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
+  for (const name of ['agreement', 'period', 'excluded', 'only']) $(name).addEventListener('input', () => { if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
+  // Una decisión en curso no se corta por cerrar la pestaña sin querer.
+  addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   status('Tocá «Traer convenios» para empezar.'); controls();
   return { load, arrange, run };
 }

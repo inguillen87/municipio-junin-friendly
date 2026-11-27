@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { BATCH_CALC_SIZE, batchCalcAgreements, batchCalcLegajos, batchCalcLiquidationDate, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals } from '../assets/payroll-batch-calc-model.js';
+import { BATCH_CALC_SIZE, batchCalcAgreements, batchCalcLegajos, batchCalcLiquidationDate, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcUndoRuns, batchCalcUndoScan } from '../assets/payroll-batch-calc-model.js';
 
 const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const roster = (n, extra = {}) => Array.from({ length: n }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'PERSONAL INTERINO', status: 'active', startDate: '2020-01-01', ...extra }));
@@ -60,4 +60,37 @@ test('totals add exactly in cents', () => {
 test('batch calculation files are part of the published build', () => {
   const build = fs.readFileSync('scripts/build-friendly.mjs', 'utf8');
   for (const file of ['assets/payroll-batch-calc-model.js', 'assets/payroll-batch-calc.js', 'assets/payroll-batch-calc.css']) assert.ok(build.includes("'" + file + "'"), file);
+});
+
+test('only the listed legajos are planned when a short list is given', () => {
+  const plan = batchCalcPlan(roster(200), { agreement: 'PERSONAL INTERINO', period: '2026-11', only: ['1003', '1001', '9999'], excluded: ['1001'] });
+  assert.equal(plan.people, 1); assert.deepEqual(plan.only, ['1001', '1003']); assert.deepEqual(plan.onlyNotFound, ['9999']);
+  assert.deepEqual(plan.excluded, ['1001']); assert.deepEqual(plan.excludedNotFound, []); assert.deepEqual(plan.batches[0].contractIds, [id(4)]);
+  assert.equal(batchCalcPlan(roster(200), { agreement: 'PERSONAL INTERINO', period: '2026-11' }).people, 200);
+});
+
+test('the newest run that holds a person decides what can be done with them', () => {
+  const runs = batchCalcUndoRuns([
+    { id: 'a', period: '2026-11', liquidationType: 'monthly', createdAt: '2026-11-27T10:00:00Z' },
+    { id: 'b', period: '2026-11', liquidationType: 'monthly', createdAt: '2026-11-27T12:00:00Z' },
+    { id: 'c', period: '2026-10', liquidationType: 'monthly', createdAt: '2026-11-27T13:00:00Z' },
+    { id: 'd', period: '2026-11', liquidationType: 'sac', createdAt: '2026-11-27T14:00:00Z' },
+  ], '2026-11');
+  assert.deepEqual(runs.map(r => r.id), ['b', 'a']);
+  const wanted = new Set([id(1), id(2), id(3), id(4), id(5)]), seen = new Set();
+  const newest = batchCalcUndoScan([
+    { contractId: id(1), state: 'confirmed', allowedCommands: ['annul'] },
+    { contractId: id(2), state: 'calculated', allowedCommands: ['confirm'] },
+    { contractId: id(3), state: 'calculated', allowedCommands: ['cancel'] },
+    { contractId: id(4), state: 'annulled', allowedCommands: [] },
+    { contractId: id(9), state: 'confirmed', allowedCommands: ['annul'] },
+  ], wanted, seen);
+  assert.deepEqual(newest, { confirm: [id(2)], annul: [id(1)], cancel: [id(3)], blocked: [], confirmed: 1, calculated: 2 });
+  const older = batchCalcUndoScan([
+    { contractId: id(1), state: 'calculated', allowedCommands: ['confirm'] },
+    { contractId: id(4), state: 'calculated', allowedCommands: ['confirm'] },
+    { contractId: id(5), state: 'confirmed', allowedCommands: [] },
+  ], wanted, seen);
+  assert.deepEqual(older, { confirm: [], annul: [], cancel: [], blocked: [id(5)], confirmed: 1, calculated: 0 });
+  assert.equal(seen.size, 5);
 });

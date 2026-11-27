@@ -15,7 +15,8 @@ const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
   .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
-const posts = [], decisions = [], runs = new Map(); let failNext = 2, failDecision = 3;
+const posts = [], decisions = [], runs = new Map(); let failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
+const allowed = (run, state) => state === 'confirmed' ? (selfConfirm || run.by !== viewer ? ['annul'] : []) : state === 'calculated' ? [...(selfConfirm || run.by !== viewer ? ['confirm'] : []), ...(run.by === viewer ? ['cancel'] : [])] : [];
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const send = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
   if (url.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;font:16px system-ui"><main style="padding:16px"><section id="host"></section></main><script type="module">import {mountBatchCalc} from "/assets/payroll-batch-calc.js";window.api=mountBatchCalc(document.getElementById("host"));</script></body></html>'); }
@@ -25,17 +26,20 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/internal-own-payroll-run' && req.method === 'POST') {
     let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw); posts.push({ key: req.headers['idempotency-key'], accept: req.headers.accept, body });
     if (posts.length === failNext) return send(422, { ok: false, error: 'Falta la declaración familiar aprobada del contrato y período.' });
-    const runId = id(7000 + posts.length), resultSha256 = String(posts.length % 10).repeat(64); runs.set(runId, { resultSha256, selection: body.payload.selection, confirmed: false });
+    const runId = id(7000 + posts.length), resultSha256 = String(posts.length % 10).repeat(64); runs.set(runId, { resultSha256, selection: body.payload.selection, by: viewer, createdAt: new Date(clock += 60000).toISOString(), states: new Map(body.payload.selection.values.map(c => [c, 'calculated'])) });
     return send(201, { ok: true, data: { id: runId, saved: { id: runId, resultSha256, result: { employeeTotals: body.payload.selection.values.map(contractId => ({ contractId, gross: '1000.10', deduction: '200.05', net: '800.05' })) } } } });
   }
+  if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'bootstrap') return send(200, { ok: true, data: { version: 'own-liquidation-bootstrap.v1', scopeVersion: 'c'.repeat(64), complete: true, runs: [...runs].map(([runId, run]) => ({ id: runId, period: '2026-11', liquidationType: 'monthly', createdAt: run.createdAt, employeeCount: run.states.size, resultSha256: run.resultSha256, canConsult: true })) } });
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'detail') {
     const run = runs.get(url.searchParams.get('id')); if (!run) return send(404, { ok: false, error: 'No se encontró la corrida.' });
-    return send(200, { ok: true, data: { id: url.searchParams.get('id'), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), employees: run.selection.values.map(contractId => ({ contractId, state: run.confirmed ? 'confirmed' : 'calculated', allowedCommands: run.confirmed ? ['annul'] : ['confirm', 'cancel'] })) } });
+    return send(200, { ok: true, data: { id: url.searchParams.get('id'), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), employees: [...run.states].map(([contractId, state]) => ({ contractId, state, blockedBy: null, allowedCommands: allowed(run, state) })) } });
   }
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'POST') {
     let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw); decisions.push({ key: req.headers['idempotency-key'], body });
     if (decisions.length === failDecision) return send(409, { ok: false, error: 'Cambió el alcance o una decisión del período. Actualizá y revisá antes de otro envío.' });
-    runs.get(body.payload.runId).confirmed = true; return send(201, { ok: true, data: { runId: body.payload.runId } });
+    const run = runs.get(body.payload.runId), next = { confirm: 'confirmed', annul: 'annulled', cancel: 'cancelled' }[body.payload.command];
+    if (body.payload.selection.values.some(c => !allowed(run, run.states.get(c)).includes(body.payload.command))) return send(409, { ok: false, error: 'La decisión no está disponible para ese alcance.' });
+    for (const c of body.payload.selection.values) run.states.set(c, next); return send(201, { ok: true, data: { runId: body.payload.runId } });
   }
   send(404, { ok: false });
 });
@@ -70,6 +74,25 @@ try {
   assert.equal(new Set(good.flatMap(d => d.body.payload.selection.values)).size, 290); assert.equal(new Set(decisions.map(d => d.key)).size, 5);
   assert.ok(decisions.every(d => d.body.operation === 'command' && d.body.payload.command === 'confirm' && d.body.payload.reviewConfirmed === true && d.body.payload.reason.length >= 10 && runs.get(d.body.payload.runId).resultSha256 === d.body.payload.resultSha256 && JSON.stringify(runs.get(d.body.payload.runId).selection) === JSON.stringify(d.body.payload.selection)));
   assert.ok(await $('confirm-go').isDisabled()); assert.equal(await page.locator('.mc-batch-item small', { hasText: 'Confirmada' }).count(), 4); checks.push('every batch is confirmed once, with its own result fingerprint and the same reason');
+  // Corregir a dos personas: anular solo a ellas, recalcularlas y que las confirme otra persona.
+  await $('only').fill('1010, 1020'); assert.equal(await page.locator('.mc-batch-item').count(), 0);
+  await page.locator('[data-bc-undo] > summary').click(); await $('undo-find').click(); await page.waitForFunction(() => /2 confirmadas y 0 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  assert.ok(await $('undo-go').isDisabled()); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(await $('undo-reason').inputValue(), ''); assert.equal(decisions.length, 5);
+  checks.push('searching what is already calculated reads the newest runs first, decides nothing and never proposes an annulment reason');
+  await $('undo-reason').fill('Se corrige el presentismo de dos personas'); await $('undo-reviewed').check(); assert.match(await $('undo-go').innerText(), /Anular 2 personas/); await $('undo-go').click();
+  await page.waitForFunction(() => /2 personas anuladas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  const annulled = decisions.slice(5); assert.ok(annulled.length >= 1 && annulled.every(d => d.body.payload.command === 'annul' && d.body.payload.selection.kind === 'contracts'));
+  assert.deepEqual(annulled.flatMap(d => d.body.payload.selection.values).sort(), [id(11), id(21)]); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 288);
+  checks.push('only the two listed people are annulled; the other 288 stay confirmed');
+  selfConfirm = false; await $('plan').click(); assert.match(await $('status').innerText(), /2 personas en 1 tanda/); await $('run').click(); await $('confirm').waitFor();
+  assert.deepEqual(posts.at(-1).body.payload.selection.values, [id(11), id(21)]); await $('reviewed').check(); const before = decisions.length; await $('confirm-go').click();
+  await page.waitForFunction(() => /la tiene que confirmar otra persona/.test(document.querySelector('[data-bc-confirm-status]').textContent)); assert.equal(decisions.length, before);
+  checks.push('whoever calculated is told up front that another person confirms, and nothing is sent');
+  viewer = 'beto'; await $('undo-find').click(); await page.waitForFunction(() => /0 confirmadas y 2 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  await $('undo-reason').fill('Totales revisados contra la planilla'); await $('undo-reviewed').check(); assert.match(await $('undo-confirm').innerText(), /Confirmar 2 personas/); assert.equal(await $('undo-go').isHidden(), true); await $('undo-confirm').click();
+  await page.waitForFunction(() => /2 personas confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  assert.equal(decisions.at(-1).body.payload.command, 'confirm'); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 290);
+  checks.push('a second person confirms an agreement calculated by someone else with one button');
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? null : [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(e => e.tagName + '.' + e.className).join(' | '));
@@ -79,7 +102,7 @@ try {
   }
   checks.push('fits 1440, 390 and 320 px with 44 px controls');
   assert.deepEqual(await page.evaluate(() => [Object.keys(localStorage).length, Object.keys(sessionStorage).length]), [0, 0]); assert.deepEqual(errors, []); checks.push('no browser storage and no page errors');
-  await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); checks.push('changing the request discards the previous plan; a small agreement is a single batch');
+  await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); checks.push('changing the request discards the previous plan; a small agreement is a single batch');
   fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
   console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
 } finally { await browser.close(); server.close(); }

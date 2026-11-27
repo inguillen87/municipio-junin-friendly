@@ -33,14 +33,16 @@ export function batchCalcAgreements(rows) {
 
 // Arma las tandas: contratos activos del convenio que ya habían ingresado al cierre del mes, sin los legajos que este
 // mes no se liquidan. Las tandas quedan parejas (292 personas → 4 de 73, no 3 de 90 y una de 22).
-export function batchCalcPlan(rows, { agreement, period, excluded = [], size = BATCH_CALC_SIZE } = {}) {
+export function batchCalcPlan(rows, { agreement, period, excluded = [], only = [], size = BATCH_CALC_SIZE } = {}) {
   if (!batchCalcPeriod(period)) throw Error('Elegí el mes a calcular.');
   if (typeof agreement !== 'string' || !agreement) throw Error('Elegí el convenio.');
   if (!Number.isSafeInteger(size) || size < 1 || size > 150) throw Error('El tamaño de tanda no es válido.');
   const closing = lastDay(period), out = new Set(excluded.map(canon)), found = new Set(), people = [], notStarted = [];
+  const just = new Set(only.map(canon)), justFound = new Set();
   for (const row of Array.isArray(rows) ? rows : []) {
     if (row?.agreement !== agreement || row.status !== 'active' || !row.contractId) continue;
     const legajo = canon(row.legajo);
+    if (just.size) { if (!just.has(legajo)) continue; justFound.add(legajo); }
     if (out.has(legajo)) { found.add(legajo); continue; }
     if (typeof row.startDate === 'string' && row.startDate > closing) { notStarted.push(legajo); continue; }
     people.push({ contractId: row.contractId, legajo });
@@ -55,7 +57,9 @@ export function batchCalcPlan(rows, { agreement, period, excluded = [], size = B
   return {
     agreement, period, liquidationDate: closing, people: people.length, batches,
     excluded: [...found].sort((a, b) => Number(a) - Number(b)),
-    excludedNotFound: [...out].filter(l => !found.has(l)).sort((a, b) => Number(a) - Number(b)),
+    excludedNotFound: just.size ? [] : [...out].filter(l => !found.has(l)).sort((a, b) => Number(a) - Number(b)),
+    only: [...justFound].sort((a, b) => Number(a) - Number(b)),
+    onlyNotFound: [...just].filter(l => !justFound.has(l)).sort((a, b) => Number(a) - Number(b)),
     notStarted: notStarted.sort((a, b) => Number(a) - Number(b)),
   };
 }
@@ -79,3 +83,28 @@ export function batchCalcSum(parts) {
   return { people, gross: money(gross), deduction: money(deduction), net: money(net) };
 }
 export const batchCalcMoney = value => { const [whole, decimals] = String(value).split('.'); return '$\u00a0' + whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + (decimals ?? '00'); };
+
+// Deshacer lo calculado. Las corridas del mes se leen de la más nueva a la más vieja: la corrida más nueva que
+// contiene a una persona es la que dice su estado vigente (para volver a calcularla hubo que anular la anterior).
+export function batchCalcUndoRuns(runs, period) {
+  return (Array.isArray(runs) ? runs : []).filter(r => r?.period === period && r.liquidationType === 'monthly' && r.canConsult !== false)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || String(b.id).localeCompare(String(a.id)));
+}
+// De una corrida leída, qué personas buscadas aparecen por primera vez y qué admite cada una con la cuenta que
+// consulta: «confirm» (calculada por otra persona), «cancel» (calculada por quien consulta), «annul» (confirmada).
+// `seen` se actualiza.
+export function batchCalcUndoScan(employees, wanted, seen) {
+  const confirm = [], annul = [], cancel = [], blocked = []; let confirmed = 0, calculated = 0;
+  for (const e of Array.isArray(employees) ? employees : []) {
+    if (!e || !wanted.has(e.contractId) || seen.has(e.contractId)) continue;
+    seen.add(e.contractId);
+    if (e.state !== 'calculated' && e.state !== 'confirmed') continue;
+    const allowed = Array.isArray(e.allowedCommands) ? e.allowedCommands : [];
+    if (e.state === 'confirmed') { confirmed += 1; (allowed.includes('annul') ? annul : blocked).push(e.contractId); continue; }
+    calculated += 1;
+    if (allowed.includes('confirm')) confirm.push(e.contractId);
+    if (allowed.includes('cancel')) cancel.push(e.contractId);
+    if (!allowed.includes('confirm') && !allowed.includes('cancel')) blocked.push(e.contractId);
+  }
+  return { confirm: confirm.sort(), annul: annul.sort(), cancel: cancel.sort(), blocked: blocked.sort(), confirmed, calculated };
+}
