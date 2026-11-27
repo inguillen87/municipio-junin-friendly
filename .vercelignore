@@ -458,6 +458,7 @@ local-agents/
 !scripts/migrations/260-own-single-operator-records.sql
 !scripts/migrations/261-school-condition-agreements.sql
 !scripts/migrations/262-own-run-storage-capacity.sql
+!scripts/migrations/263-own-single-operator-decisions.sql
 !scripts/candidates/attendance-area-authority-v1.source.sql.txt
 !scripts/candidates/attendance-area-authority-v1.derived.sql.txt
 !scripts/candidates/attendance-area-history-v1.source.sql.txt
