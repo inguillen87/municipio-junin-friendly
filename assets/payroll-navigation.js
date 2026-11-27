@@ -34,6 +34,7 @@ import {mountOwnPayrollSummary} from './own-payroll-summary-panel.js';
 import {mountApprovalsInbox} from './approvals-inbox.js';
 import {mountQuickApprovals} from './approvals-quick.js';
 import {mountMonthPrepare,mountMonthStatus} from './month-prepare.js';
+import {mountBatchCalc} from './payroll-batch-calc.js';
 // Sidebar menu (liquidaciones-menu.js adopts the workspace navigation): one accordion per process, a null label is a
 // standalone task, and the order inside each section is the visual order. Anular período precedes Confirmar y anular;
 // confirmation and annulment rules are untouched. Every task id below must be a workspace group.
@@ -51,7 +52,7 @@ function start(){const host=document.getElementById('mainContent');if(!host||hos
  const approvals=document.createElement('section');mountApprovalsInbox(approvals);
  const summary=document.createElement('div');mountOwnPayrollSummary(summary,{onReview:context=>decisionsPanel.queueConsult(context)&&workspace.activate('decisiones',true),onTask:id=>workspace.activate(id,true)});
  // The cycle comes first; the approvals bandeja sits right under it, before the list of calculated runs.
- const quick=document.createElement('section');summary.querySelector('[data-own-summary-slot]')?.append(quick);mountQuickApprovals(quick);const stat=document.createElement('section');quick.before(stat);mountMonthStatus(stat);const prep=document.createElement('section');quick.after(prep);mountMonthPrepare(prep);
+ const quick=document.createElement('section');summary.querySelector('[data-own-summary-slot]')?.append(quick);mountQuickApprovals(quick);const stat=document.createElement('section');quick.before(stat);mountMonthStatus(stat);const prep=document.createElement('section');quick.after(prep);mountMonthPrepare(prep);const batch=document.createElement('section');prep.after(batch);mountBatchCalc(batch);
  summary.querySelector('[data-own-summary-slot]')?.append(approvals);
  const annulment=document.createElement('div');mountOwnPayrollAnnulment(annulment,{onCalculate:context=>calculationPanel.queuePreparation(context)&&workspace.activate('calculo',true)});
  const close=document.createElement('div');mountOwnPayrollClose(close);

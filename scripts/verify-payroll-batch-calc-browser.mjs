@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// Laboratorio de «Calcular un convenio completo»: el módulo real en un navegador, con un servidor simulado.
+// Comprueba el reparto en tandas, las personas que no se liquidan, el avance, una tanda que falla y se repite,
+// el total exacto y que la pantalla entra en escritorio y celular sin guardar nada en el navegador.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = process.argv.find(a => a.startsWith('--output='))?.slice(9) ?? path.join(root, 'verification', 'payroll-batch-calc-browser.json');
+const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
+const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
+  .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
+const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
+const posts = []; let failNext = 2;
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x'); const send = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
+  if (url.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;font:16px system-ui"><main style="padding:16px"><section id="host"></section></main><script type="module">import {mountBatchCalc} from "/assets/payroll-batch-calc.js";window.api=mountBatchCalc(document.getElementById("host"));</script></body></html>'); }
+  if (url.pathname.startsWith('/assets/')) { const file = path.join(root, url.pathname); if (!file.startsWith(path.join(root, 'assets')) || !fs.existsSync(file)) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': types[path.extname(file)] ?? 'application/octet-stream' }); return res.end(fs.readFileSync(file)); }
+  if (url.pathname === '/api/internal-data') return send(200, { ok: true, data: { rows } });
+  if (url.pathname === '/api/internal-own-payroll-run' && req.method === 'GET') return send(200, { ok: true, data: { scopeVersion: 'a'.repeat(64), programVersion: 'b'.repeat(64), runs: [] } });
+  if (url.pathname === '/api/internal-own-payroll-run' && req.method === 'POST') {
+    let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw); posts.push({ key: req.headers['idempotency-key'], accept: req.headers.accept, body });
+    if (posts.length === failNext) return send(422, { ok: false, error: 'Falta la declaración familiar aprobada del contrato y período.' });
+    return send(201, { ok: true, data: { saved: { result: { employeeTotals: body.payload.selection.values.map(contractId => ({ contractId, gross: '1000.10', deduction: '200.05', net: '800.05' })) } } } });
+  }
+  send(404, { ok: false });
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r)); const origin = 'http://127.0.0.1:' + server.address().port;
+const browser = await chromium.launch({ ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) }); const checks = [];
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(origin + '/'); const $ = n => page.locator('[data-bc-' + n + ']');
+  assert.equal(posts.length, 0); assert.ok(await $('plan').isDisabled()); checks.push('opening the screen reads and calculates nothing');
+  await $('period').fill('2026-11'); await $('load').click(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').options.length === 3);
+  await $('agreement').selectOption('CONVENIO SINTÉTICO GRANDE'); await $('excluded').fill('1001, 1005\n7777 x9'); await $('plan').click();
+  assert.equal(await page.locator('.mc-batch-item').count(), 4); assert.match(await $('status').innerText(), /290 personas en 4 tandas/);
+  const notes = await $('notes').innerText(); assert.match(notes, /No se liquidan este mes: 1001, 1005/); assert.match(notes, /7777/); assert.match(notes, /x9/); assert.equal(posts.length, 0);
+  checks.push('292 people minus two left out become four even batches before anything is calculated');
+  await $('run').click(); await page.locator('.mc-batch-item[data-state=failed]').waitFor();
+  assert.equal(posts.length, 2); assert.equal(await page.locator('.mc-batch-item[data-state=done]').count(), 1); assert.match(await page.locator('.mc-batch-item[data-state=failed]').innerText(), /declaración familiar/);
+  assert.equal(await $('total').isHidden(), true); checks.push('a failed batch stops the queue, shows the reason and keeps what was already calculated');
+  failNext = -1; await page.locator('.mc-batch-item[data-state=failed] button').click(); await page.locator('.mc-batch-item[data-state=done]').nth(1).waitFor();
+  assert.equal(posts.length, 3); assert.notEqual(posts[2].key, posts[1].key); assert.deepEqual(posts[2].body.payload.selection, posts[1].body.payload.selection); checks.push('repeating a refused batch sends the same people under a new attempt');
+  await $('run').click(); await $('total').waitFor(); assert.equal(posts.length, 5);
+  const sent = posts.filter((_, i) => i !== 1).flatMap(p => p.body.payload.selection.values); assert.equal(new Set(sent).size, 290); assert.ok(!sent.includes(id(2)) && !sent.includes(id(6)));
+  assert.ok(posts.every(p => p.body.operation === 'calculate' && p.body.payload.selection.kind === 'contracts' && p.body.payload.period === '2026-11' && p.body.payload.liquidationDate === '2026-11-30' && p.body.payload.selection.values.length <= 90 && /payroll-full/.test(p.accept)));
+  const total = await $('total').innerText(); assert.match(total, /290/); assert.match(total, /\$\s290\.029,00/); assert.match(total, /\$\s58\.014,50/); assert.match(total, /\$\s232\.014,50/);
+  assert.equal(await $('bar').getAttribute('aria-valuenow'), '100'); checks.push('every person is calculated exactly once and the agreement total is exact to the cent');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? null : [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(e => e.tagName + '.' + e.className).join(' | '));
+    assert.equal(wide, null, 'overflow at ' + width + ': ' + wide);
+    assert.ok(await page.evaluate(() => [...document.querySelectorAll('.mc-batch-calc :is(button,input,select,textarea)')].filter(e => e.offsetParent).every(e => e.getBoundingClientRect().height >= 44)), 'controls under 44px at ' + width);
+    await page.screenshot({ path: out.replace(/\.json$/, '-' + width + '.png'), fullPage: true });
+  }
+  checks.push('fits 1440, 390 and 320 px with 44 px controls');
+  assert.deepEqual(await page.evaluate(() => [Object.keys(localStorage).length, Object.keys(sessionStorage).length]), [0, 0]); assert.deepEqual(errors, []); checks.push('no browser storage and no page errors');
+  await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); checks.push('changing the request discards the previous plan; a small agreement is a single batch');
+  fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
+  console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
+} finally { await browser.close(); server.close(); }
