@@ -70,7 +70,9 @@ export async function loadQuickApprovals(periods,{onPartial}={}){
   for(const x of sal.proposals??[])if(x.status==='pending')items.push({kind:'salary',proposal:x,scopeVersion:sal.scopeVersion,label:'Maestro salarial · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Maestro salarial: '+e.message);}
  try{const pr=await patientRead(()=>getJson('/api/internal-own-payroll-program?resource=bootstrap'));
-  for(const x of pr.proposals??[])if(x.status==='pending')items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
+  // Una propuesta preparada sobre reglas o maestro que ya cambiaron no se puede aprobar (la reemplazó otra): no se lista.
+  const current=x=>(!pr.program?.version||x.baseVersion===pr.program.version)&&(!pr.salaryCatalog?.version||!x.salaryVersion||x.salaryVersion===pr.salaryCatalog.version);
+  for(const x of pr.proposals??[])if(x.status==='pending'&&current(x))items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
  catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}
  // El maestro va antes que las reglas: una propuesta de reglas puede depender del maestro nuevo.
  const order={fixed:0,novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
