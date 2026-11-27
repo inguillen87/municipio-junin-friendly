@@ -45,7 +45,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Candidate full regression and build
         if: github.ref != 'refs/heads/master'
-        run: npm run build
+        run: npm run build:lab
       - name: Reproduce promoted build
         if: github.ref == 'refs/heads/master'
         run: node scripts/build-friendly.mjs

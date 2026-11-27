@@ -18,7 +18,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - name: Full task, downloads, cancellation, keyboard and back navigation
         run: node scripts/verify-payroll-comparison-056.mjs

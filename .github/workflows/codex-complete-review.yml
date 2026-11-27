@@ -41,7 +41,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-grh-import-browser.mjs
       - run: node scripts/verify-grh-import-login-recovery-browser.mjs

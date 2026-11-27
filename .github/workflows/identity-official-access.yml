@@ -23,7 +23,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx --no-install playwright install-deps chromium
       - name: Use the existing project browser admitted for release verification
         run: node scripts/install-project-chromium.mjs --purpose=release-verification

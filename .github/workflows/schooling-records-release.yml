@@ -48,7 +48,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify offline source extractor with synthetic records
         run: python3 -B -m unittest discover -s tests -p test_extract_schooling_source.py
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-family-schooling-browser.mjs
       - uses: actions/upload-artifact@v4

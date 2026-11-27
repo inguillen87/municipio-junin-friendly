@@ -20,6 +20,6 @@ jobs:
       - run: npm ci
       - run: mkdir -p verification
       - run: node --test tests/clock-full-park.test.js tests/clock-workspace.test.js tests/clock-source-api.test.js tests/clock-source-model.test.js tests/attendance-inventory-contract.test.js
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-clock-workspace-browser.mjs

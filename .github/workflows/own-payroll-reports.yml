@@ -39,7 +39,7 @@ jobs:
       - run: mkdir -p verification
       - run: psql -h 127.0.0.1 -p "${{ job.services.postgres.ports[5432] }}" -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: node --test tests/own-payroll-report*.test.js tests/own-payroll-close*.test.js tests/source-report-catalog.test.js tests/payroll-monthly-summary.test.js
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - name: Real HTTP and SQL, complete downloads, mobile and revocation
         env:

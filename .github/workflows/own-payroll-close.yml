@@ -43,7 +43,7 @@ jobs:
         run: node scripts/verify-own-payroll-close.mjs --major=${{ matrix.major }} --output=verification/own-close-sql.json
       - name: Exact installation COMMIT and independent preservation
         run: node scripts/verify-own-payroll-close-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-close-installation.json
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - name: Actual built product UI and HTTP handler, mobile, all pages and immutable retries
         run: node scripts/verify-own-payroll-close-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-close-ui.json
