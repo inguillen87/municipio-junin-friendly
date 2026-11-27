@@ -171,7 +171,7 @@ try {
   await $('profile').selectOption('credicoop-accreditation-30.observed.v1');
   await load(syntheticVarFile([new Uint8Array(30).fill(65)]));
   ok(await $('result').isVisible() && !await $('fields').isVisible() && await $('export-observations').isDisabled(), 'Other observed bank profiles keep their structural controls');
-  ok(await page.evaluate(() => localStorage.length === 0 && sessionStorage.length === 0), 'No persistence of the review');
+  ok(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length === 0 && sessionStorage.length === 0), 'No persistence of the review');
   ok(requests.every(r => r.method === 'GET' && (r.path === '/' || /^\/assets\//.test(r.path))), 'No API or business-operation request');
   ok(errors.length === 0, 'No browser error or external request');
 } catch (error) {

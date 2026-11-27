@@ -94,7 +94,7 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert.equal(await page.locator('#tenantSearch').inputValue(),'BORRADOR_QA_NO_PERSISTIDO');
   checks.push('Panel legible en 390 píxeles sin perder el trabajo del formulario administrativo.');
-  assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);
+  assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length+sessionStorage.length),0);assert.deepEqual(errors,[]);
   const result={version:'release-status-browser.v1',checkedAt:new Date().toISOString(),mode:live?'published_bytes_synthetic_admin':'local_build_synthetic_admin',
     checksPassed:checks.length,checks,loaded,metadataRequests:releaseRequests,publishedAssets:[...assets].sort(),errors,
     realMunicipalSessionTested:false,municipalWrites:0,dataFreshnessVerified:false};

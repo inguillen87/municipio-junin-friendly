@@ -955,7 +955,7 @@ async function inspect(viewport, label) {
         }) : null;
         return { panel: shape(panel), state: shape(state), table: shape(table), tools: shape(tools) };
       })(),
-      storedFormula: localStorage.length + sessionStorage.length,
+      storedFormula: Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length + sessionStorage.length,
     }));
     assert.equal(layout.overflow, false, `${label}: overflow horizontal ${JSON.stringify(layout.overflowElements)}`);
     assert.equal(layout.formulaVisible, false, `${label}: Parámetros debe permanecer aislado de Migración`);

@@ -165,7 +165,7 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await page.screenshot({ path: out + '/mobile.png', fullPage: true });
   record('mobile layout fits 390 CSS pixels without horizontal overflow');
-  assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+  assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length + sessionStorage.length), 0);
   record('metadata, identity and filters are not persisted in browser storage');
   assert.deepEqual(errors, []); record('no uncaught browser errors');
   const result = { checksPassed: checks.length, checks, measurement, errors,

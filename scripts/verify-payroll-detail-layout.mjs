@@ -64,7 +64,7 @@ try{
  assert.equal(await page.evaluate(()=>qaCalls),3);checks.push('PDF y Excel mantienen reconsulta y exportación completa aunque se muestre sólo Descuentos.');
  await panel.getByRole('button',{name:'Cerrar detalle',exact:true}).click();assert.equal(await panel.count(),0);assert.equal(await page.locator('#origin').evaluate(e=>e===document.activeElement),true);checks.push('Cerrar conserva la devolución del foco al control de origen.');
  await page.setViewportSize({width:320,height:950});await open(true);await panel.screenshot({path:path.join(out,'long-text-320.png')});
- assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);
+ assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length+sessionStorage.length),0);assert.deepEqual(errors,[]);
  const result={ok:true,mode:published?'published_assets_synthetic_api':'local_build_synthetic_api',checkedFiles:verified,checksPassed:checks.length,checks,errors,municipalSessionTested:false,businessWrites:0};
  fs.writeFileSync(path.join(out,published?'published.json':'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

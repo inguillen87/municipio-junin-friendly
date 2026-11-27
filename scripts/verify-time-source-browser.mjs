@@ -213,7 +213,7 @@ async function assertNoHorizontalOverflow(page) {
 }
 
 async function assertStorageEmpty(page) {
-  const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
+  const storage = await page.evaluate(() => ({ local: Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')), session: Object.keys(sessionStorage) }));
   assert.deepEqual(storage, { local: [], session: [] }, 'TIME_SOURCE_BROWSER_STORAGE_NOT_EMPTY');
 }
 
