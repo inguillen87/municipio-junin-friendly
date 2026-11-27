@@ -270,16 +270,7 @@ html .sidebar :is(.task-section > summary, .mc-work-frequent-title, .mc-work-sea
 .sidebar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
 html { scrollbar-color: #b3c2c4 transparent; }
 
-/* Abrir y cerrar secciones: la sección se despliega, no aparece de golpe. */
-@supports (interpolate-size: allow-keywords) {
-  :root { interpolate-size: allow-keywords; }
-  details::details-content {
-    block-size: 0;
-    overflow: clip;
-    transition: block-size .22s var(--mc-ease-out), content-visibility .22s allow-discrete;
-  }
-  details[open]::details-content { block-size: auto; }
-}
+/* Las secciones se abren al instante: animar su alto dejaba el contenido sin leer por un momento (fallaba la lectura de totales). */
 details > summary { cursor: pointer; }
 
 /* Pasos del ciclo: el paso activo se distingue por una regla superior, los demás acompañan sin competir. */

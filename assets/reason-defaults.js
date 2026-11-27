@@ -6,8 +6,9 @@ const APPROVE='Revisado: los datos coinciden con la documentación del período.
 const PREPARE='Carga del período según la documentación recibida por Recursos Humanos.';
 // Rechazar, anular o cancelar siempre piden un motivo escrito por la persona: nunca reciben el texto de aprobación.
 const NEEDS_OWN_REASON=/reject|rechaz|annul|anul|cancel/;
-// La decisión sobre una liquidación es un acto formal: el motivo propuesto queda a la vista para revisarlo o cambiarlo.
-const alwaysVisible=field=>field.matches('[data-liq-reason]');
+// El texto propuesto queda siempre a la vista: la persona ve qué se va a registrar y lo cambia si quiere. No se oculta
+// ningún motivo (antes se escondía y quedaba registrado un texto que nadie había leído).
+const alwaysVisible=()=>true;
 const labelOf=field=>field.closest('label')||(field.id&&document.querySelector('label[for="'+CSS.escape(field.id)+'"]'))||null;
 // El campo completado con el texto estándar no se muestra: aprobar no pide escribir nada. Queda un enlace discreto para
 // quien quiera dejar un comentario, y vuelve a mostrarse si la decisión pasa a rechazo.

@@ -39,7 +39,7 @@ export function mountAttendanceMonthCalc(host) {
     <p class="amc-lead">Horas, mayor dedicación y tardanzas de cada persona, calculadas con las reglas de Liquidación. Es una simulación: revisalo acá y enviá a novedades desde el preparte; nada cambia sueldos sin la aprobación de otra persona.</p></div>
     <span class="amc-badge">Simulación</span>
   </header>
-  <section class="amc-fleet" data-amc="fleet" aria-label="Estado de los relojes"><p class="amc-muted">Consultando relojes…</p></section>
+  <section class="amc-fleet" data-amc="fleet" aria-label="Estado de los relojes"><p class="amc-muted">El estado de los relojes se consulta al calcular el mes.</p></section>
   <div class="amc-controls">
     <label>Mes<input type="month" data-amc="period"></label>
     <label>Jornada base<span class="amc-suffix"><input type="number" min="1" max="12" step="0.5" data-amc="base"> h por día</span></label>
@@ -91,6 +91,7 @@ export function mountAttendanceMonthCalc(host) {
 
   async function run() {
     if (state.busy) return; state.busy = true; $('go').disabled = true;
+    if (!state.fleetAsked) { state.fleetAsked = true; $('fleet').replaceChildren(el('p', 'amc-muted', 'Consultando relojes…')); fleet(); }
     const period = $('period').value, baseHours = Number($('base').value), workDays = Number($('days').value);
     $('progress').hidden = false; $('bar').style.width = '4%'; $('status').textContent = 'Leyendo los relojes de ' + monthName(period) + '…';
     let done = 0; const failed = [];
@@ -159,7 +160,7 @@ export function mountAttendanceMonthCalc(host) {
   $('chips').addEventListener('click', e => { const b = e.target.closest('button[data-f]'); if (!b) return; state.filter = b.dataset.f; for (const x of $('chips').children) x.setAttribute('aria-pressed', String(x === b)); state.calc && render(); });
   host.querySelector('thead').addEventListener('click', e => { const th = e.target.closest('th[data-s]'); if (!th || !state.calc) return; if (state.sort === th.dataset.s) state.dir *= -1; else { state.sort = th.dataset.s; state.dir = th.dataset.s === 'name' ? 1 : -1; } render(); });
   $('csv').addEventListener('click', () => { if (!state.calc) return; const blob = new Blob(['﻿' + monthCalcCsv(state.calc)], { type: 'text/csv;charset=utf-8' }); const a = el('a'); a.href = URL.createObjectURL(blob); a.download = 'calculo-relojes-' + state.calc.period + '.csv'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 0); });
-  fleet();
+  // El estado de los relojes se consulta recién al calcular: abrir la pantalla no dispara lecturas del parque.
   return { run };
 }
 
