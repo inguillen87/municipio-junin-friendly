@@ -225,10 +225,6 @@ main.content {
 
 /* ── Pulido de interfaz: letra, controles, menú y movimiento con sentido ── */
 
-/* Navegar entre pantallas: fundido breve en lugar del salto en blanco. */
-@view-transition { navigation: auto; }
-::view-transition-old(root) { animation: mc-page-out .12s ease-in both; }
-::view-transition-new(root) { animation: mc-page-in .2s var(--mc-ease-out) both; }
 @keyframes mc-page-out { to { opacity: 0; } }
 @keyframes mc-page-in { from { opacity: 0; } }
 
@@ -291,7 +287,6 @@ details > summary { cursor: pointer; }
 :is(.nav-link, .nav button, .nav-product-link):hover { transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
   details::details-content { transition: none; }
   .mc-month-status :is(ul, ol) > li { animation: none; }
 }
