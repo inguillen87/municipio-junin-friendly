@@ -1,4 +1,5 @@
 import { getInternalSql } from '../lib/internal-neon.js';
+import { installSqlBusyRetry } from '../lib/sql-busy-retry.js';
 import {ACTION_RUNTIME_IDENTITY_SQL,recordActionRuntimeIdentity,assertActionRuntimeDestination} from '../lib/action-runtime-identity.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
@@ -274,7 +275,7 @@ export async function getActionCenterSql(env = process.env, {expectedDestination
         const roles = await sql.query(ACTION_RUNTIME_IDENTITY_SQL);
         assertActionCenterRuntimeIdentity(roles[0]);
         recordActionRuntimeIdentity(sql,roles[0]);
-        return sql;
+        return installSqlBusyRetry(sql);
       })
       .catch((error) => {
         cachedActionsDatabaseUrl = null;

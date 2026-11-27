@@ -29,7 +29,11 @@ export async function verifySalaryConditionsBrowser({handlers,env,actors,setActo
   const idle=()=>page.waitForFunction(()=>document.querySelector('.own-salary-conditions')?.getAttribute('aria-busy')==='false');
   const fresh=async()=>{await page.goto('about:blank');await page.goto(origin+'/nomina#condiciones');await page.locator('[data-salary-conditions-legacy]>summary').click();await page.waitForFunction(()=>document.querySelector('[data-conditions-period]')?.closest('fieldset')?.disabled===false);await idle();};
   const consult=async()=>{await s('period').fill(period);await s('refresh').click();await idle();await s('content').waitFor({state:'visible'});};
-  const complete=await bootstrap(),count=complete.source.subjects.length;assert.ok(count>855);await fresh();await consult();assert.equal(writes.length,0);
+  const complete=await bootstrap(),count=complete.source.subjects.length;assert.ok(count>855);await fresh();
+  // Varias personas consultando a la vez: todas reciben el conjunto completo; ninguna recibe «No se confirmó la operación».
+  {const together=await page.evaluate(async url=>Promise.all(Array.from({length:4},()=>fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}}).then(async r=>[r.status,(await r.text()).length]))),'/api/internal-own-contract-salary-conditions?resource=bootstrap&period='+period);
+   assert.deepEqual(together.map(r=>r[0]),[200,200,200,200],'simultaneous complete reads: '+JSON.stringify(together));assert.equal(new Set(together.map(r=>r[1])).size,1);}
+  await consult();assert.equal(writes.length,0);
   check((await s('count').innerText()).includes(count+' contratos')&&await s('rows').locator('article').count()===25,'built UI opens the entire actual native-only SQL source while displaying25 editable rows');
   for(const width of[390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'salary conditions have no page overflow at '+width+'px');check(await s('refresh').evaluate(e=>e.getBoundingClientRect().height>=44),'complete-query mobile control has a44px target at '+width+'px');await panel.screenshot({path:path.join(output,'salary-conditions-mobile-'+width+'.png')});}
   await page.setViewportSize({width:1440,height:1100});await panel.getByText('Usar una constancia común para todas las filas',{exact:true}).click();await s('common-date').fill(period+'-01');await s('common-reference').fill('Constancia común exclusivamente sintética de navegador QA');await s('evidence').click();
