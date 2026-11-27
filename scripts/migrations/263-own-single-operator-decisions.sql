@@ -3,7 +3,7 @@
 -- registrada por la migración 260 (legajos, entradas, liquidación, cierre, recibos y pagos; autoriza y controla después
 -- Hugo Leucrini). Esta migración no registra ni cambia autorizaciones: sólo hace que dos pantallas las respeten.
 --  · own_liquidation_rows_v1: «confirmar» y «anular» aceptan que decida quien calculó cuando tiene autorización vigente.
---  · own_close_detail_v1: «cerrar» acepta lo mismo.
+--  · El detalle del cierre (own_close_detail_capacity_core_v2 u own_close_detail_v1): «cerrar» acepta lo mismo.
 -- Sin autorización vigente nada cambia: sigue haciendo falta otra persona. Las demás condiciones (permiso de aprobar o
 -- cerrar, versión, bloqueos, estado) quedan igual, y cada decisión sigue registrada con persona, fecha y motivo.
 -- Archivo sin BEGIN/COMMIT: se instala dentro de una única transacción revisada.
@@ -11,10 +11,15 @@ DO $m263$
 DECLARE
  same constant text := 'independent:=c.actor_person_id IS DISTINCT FROM(ctx->>''actorPersonId'')::uuid AND c.actor_membership_id IS DISTINCT FROM(ctx->>''membershipId'')::uuid AND c.actor_email IS DISTINCT FROM ctx->>''actorEmail'';';
  same_new constant text := 'independent:=(c.actor_person_id IS DISTINCT FROM(ctx->>''actorPersonId'')::uuid AND c.actor_membership_id IS DISTINCT FROM(ctx->>''membershipId'')::uuid AND c.actor_email IS DISTINCT FROM ctx->>''actorEmail'') OR public.own_single_operator_v1(ctx,c.actor_membership_id);';
- fns constant text[] := ARRAY['public.own_liquidation_rows_v1(jsonb,own_payroll_run_capture)','public.own_close_detail_v1(jsonb,text,text)'];
+ -- El cierre vive en own_close_detail_capacity_core_v2 donde está instalada la lectura por capacidad (producción);
+ -- si no existe, en own_close_detail_v1.
+ fns text[] := ARRAY['public.own_liquidation_rows_v1(jsonb,own_payroll_run_capture)'];
  fn text; def text; before text; after text; changed jsonb := '{}'::jsonb; f record; k text; pass int := 0; touched int; cnt int;
 BEGIN
  IF to_regprocedure('public.own_single_operator_v1(jsonb,uuid)') IS NULL THEN RAISE EXCEPTION 'M263_REQUIRES_258';END IF;
+ IF to_regprocedure('public.own_close_detail_capacity_core_v2(jsonb,text,text,integer)') IS NOT NULL THEN fns:=fns||'public.own_close_detail_capacity_core_v2(jsonb,text,text,integer)'::text;
+ ELSIF to_regprocedure('public.own_close_detail_v1(jsonb,text,text)') IS NOT NULL THEN fns:=fns||'public.own_close_detail_v1(jsonb,text,text)'::text;
+ ELSE RAISE EXCEPTION 'M263_CLOSE_FUNCTION_MISSING';END IF;
  FOREACH fn IN ARRAY fns LOOP
   SELECT pg_get_functiondef(p.oid),encode(sha256(convert_to(p.prosrc,'UTF8')),'hex') INTO def,before FROM pg_proc p WHERE p.oid=to_regprocedure(fn);
   IF def IS NULL THEN RAISE EXCEPTION 'M263_FUNCTION_MISSING: %',fn;END IF;
