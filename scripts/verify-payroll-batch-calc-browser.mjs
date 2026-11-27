@@ -15,7 +15,7 @@ const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
   .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
-const posts = []; let failNext = 2;
+const posts = [], decisions = [], runs = new Map(); let failNext = 2, failDecision = 3;
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const send = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
   if (url.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;font:16px system-ui"><main style="padding:16px"><section id="host"></section></main><script type="module">import {mountBatchCalc} from "/assets/payroll-batch-calc.js";window.api=mountBatchCalc(document.getElementById("host"));</script></body></html>'); }
@@ -25,7 +25,17 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/internal-own-payroll-run' && req.method === 'POST') {
     let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw); posts.push({ key: req.headers['idempotency-key'], accept: req.headers.accept, body });
     if (posts.length === failNext) return send(422, { ok: false, error: 'Falta la declaración familiar aprobada del contrato y período.' });
-    return send(201, { ok: true, data: { saved: { result: { employeeTotals: body.payload.selection.values.map(contractId => ({ contractId, gross: '1000.10', deduction: '200.05', net: '800.05' })) } } } });
+    const runId = id(7000 + posts.length), resultSha256 = String(posts.length % 10).repeat(64); runs.set(runId, { resultSha256, selection: body.payload.selection, confirmed: false });
+    return send(201, { ok: true, data: { id: runId, saved: { id: runId, resultSha256, result: { employeeTotals: body.payload.selection.values.map(contractId => ({ contractId, gross: '1000.10', deduction: '200.05', net: '800.05' })) } } } });
+  }
+  if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'detail') {
+    const run = runs.get(url.searchParams.get('id')); if (!run) return send(404, { ok: false, error: 'No se encontró la corrida.' });
+    return send(200, { ok: true, data: { id: url.searchParams.get('id'), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), employees: run.selection.values.map(contractId => ({ contractId, state: run.confirmed ? 'confirmed' : 'calculated', allowedCommands: run.confirmed ? ['annul'] : ['confirm', 'cancel'] })) } });
+  }
+  if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'POST') {
+    let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw); decisions.push({ key: req.headers['idempotency-key'], body });
+    if (decisions.length === failDecision) return send(409, { ok: false, error: 'Cambió el alcance o una decisión del período. Actualizá y revisá antes de otro envío.' });
+    runs.get(body.payload.runId).confirmed = true; return send(201, { ok: true, data: { runId: body.payload.runId } });
   }
   send(404, { ok: false });
 });
@@ -50,11 +60,21 @@ try {
   assert.ok(posts.every(p => p.body.operation === 'calculate' && p.body.payload.selection.kind === 'contracts' && p.body.payload.period === '2026-11' && p.body.payload.liquidationDate === '2026-11-30' && p.body.payload.selection.values.length <= 90 && /payroll-full/.test(p.accept)));
   const total = await $('total').innerText(); assert.match(total, /290/); assert.match(total, /\$\s290\.029,00/); assert.match(total, /\$\s58\.014,50/); assert.match(total, /\$\s232\.014,50/);
   assert.equal(await $('bar').getAttribute('aria-valuenow'), '100'); checks.push('every person is calculated exactly once and the agreement total is exact to the cent');
+  // Confirmar todo el convenio con un botón.
+  await $('confirm').waitFor(); assert.ok(await $('confirm-go').isDisabled()); assert.match(await $('reason').inputValue(), /290 personas/); assert.equal(decisions.length, 0);
+  await $('reviewed').check(); assert.match(await $('confirm-go').innerText(), /Confirmar 4 tandas/); checks.push('confirmation is offered only after every batch is calculated and needs an explicit review');
+  await $('confirm-go').click(); await page.waitForFunction(() => /no se confirmó/.test(document.querySelector('[data-bc-confirm-status]').textContent));
+  assert.equal(decisions.length, 3); assert.match(await $('confirm-go').innerText(), /Confirmar 2 tandas/); checks.push('a refused confirmation stops there and says which batches are already confirmed');
+  failDecision = -1; await $('confirm-go').click(); await page.waitForFunction(() => /Convenio confirmado: 290 personas/.test(document.querySelector('[data-bc-confirm-status]').textContent));
+  assert.equal(decisions.length, 5); const good = decisions.filter((_, i) => i !== 2);
+  assert.equal(new Set(good.flatMap(d => d.body.payload.selection.values)).size, 290); assert.equal(new Set(decisions.map(d => d.key)).size, 5);
+  assert.ok(decisions.every(d => d.body.operation === 'command' && d.body.payload.command === 'confirm' && d.body.payload.reviewConfirmed === true && d.body.payload.reason.length >= 10 && runs.get(d.body.payload.runId).resultSha256 === d.body.payload.resultSha256 && JSON.stringify(runs.get(d.body.payload.runId).selection) === JSON.stringify(d.body.payload.selection)));
+  assert.ok(await $('confirm-go').isDisabled()); assert.equal(await page.locator('.mc-batch-item small', { hasText: 'Confirmada' }).count(), 4); checks.push('every batch is confirmed once, with its own result fingerprint and the same reason');
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? null : [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(e => e.tagName + '.' + e.className).join(' | '));
     assert.equal(wide, null, 'overflow at ' + width + ': ' + wide);
-    assert.ok(await page.evaluate(() => [...document.querySelectorAll('.mc-batch-calc :is(button,input,select,textarea)')].filter(e => e.offsetParent).every(e => e.getBoundingClientRect().height >= 44)), 'controls under 44px at ' + width);
+    assert.ok(await page.evaluate(() => [...document.querySelectorAll('.mc-batch-calc :is(button,input,select,textarea)')].filter(e => e.offsetParent).every(e => (e.type === 'checkbox' ? e.closest('label') : e).getBoundingClientRect().height >= 44)), 'controls under 44px at ' + width);
     await page.screenshot({ path: out.replace(/\.json$/, '-' + width + '.png'), fullPage: true });
   }
   checks.push('fits 1440, 390 and 320 px with 44 px controls');

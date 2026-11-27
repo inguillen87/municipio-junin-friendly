@@ -4,6 +4,8 @@
 import { OWN_RUN_COMMAND_VERSION, ownRunCommand } from './own-payroll-run-model.js';
 import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
 import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals } from './payroll-batch-calc-model.js';
+import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
+import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
 
 const RUN = '/api/internal-own-payroll-run', ROSTER = '/api/internal-data?resource=nativeroster&schema=2&status=all';
 const node = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
@@ -23,7 +25,8 @@ async function calculate(batch, plan, boot, key) {
     if (response.ok && value?.ok === true) {
       const result = (value.data?.saved ?? value.data)?.result;
       if (!result || !Array.isArray(result.employeeTotals)) throw Object.assign(Error('La corrida quedó registrada pero su resultado todavía no está disponible. Consultala en «Calcular».'), { uncertain: true });
-      return batchCalcTotals(result.employeeTotals);
+      const saved = value.data?.saved ?? null, runId = value.data?.id ?? saved?.id ?? null, resultSha256 = saved?.resultSha256 ?? null;
+      return { ...batchCalcTotals(result.employeeTotals), runId, resultSha256, selection: body.selection };
     }
     throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite calcular.' : value?.error || 'No se confirmó la corrida.'), { status: response.status });
   };
@@ -34,6 +37,21 @@ async function calculate(batch, plan, boot, key) {
   const recovered = await fetch(RUN + '?' + new URLSearchParams({ resource: 'attempt', key }), { credentials: 'same-origin', cache: 'no-store', headers: { Accept: OWN_RUN_FULL_JSON } }).catch(() => null);
   if (recovered?.ok) return read(recovered);
   throw Object.assign(Error('Se cortó la conexión y no se pudo confirmar la corrida. Repetí esta tanda: usa la misma referencia y no se calcula dos veces.'), { uncertain: true });
+}
+
+// Confirma una corrida completa: lee su estado vigente y registra la decisión sobre todo su alcance, igual que la
+// pantalla «Calcular». Una corrida ya confirmada se da por hecha.
+async function confirmRun(item, reason) {
+  const read = await fetchOwnLiquidationDetail(item.totals.runId);
+  if (!read.ok || read.payload?.ok !== true) throw Object.assign(Error(read.status === 401 ? 'La sesión venció. Volvé a ingresar.' : read.status === 403 ? 'Tu cuenta no permite confirmar liquidaciones.' : read.payload?.error || 'No se pudo leer la corrida para confirmarla.'), { status: read.status });
+  const detail = read.payload.data, employees = Array.isArray(detail?.employees) ? detail.employees : [];
+  if (employees.length && employees.every(e => e.state === 'confirmed')) return 'already';
+  if (!employees.length || employees.some(e => !Array.isArray(e.allowedCommands) || !e.allowedCommands.includes('confirm'))) throw Error('Esta tanda tiene legajos que no admiten confirmación (otra liquidación activa o un estado distinto). Revisala en «Calcular».');
+  const payload = ownLiquidationCommand({ runId: item.totals.runId, resultSha256: item.totals.resultSha256, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, command: 'confirm', selection: item.totals.selection, reason, reviewConfirmed: true });
+  const response = await fetch(OWN_LIQ_DETAIL_ENDPOINT, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': item.confirmKey }, body: JSON.stringify({ operation: 'command', payload }) });
+  let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
+  if (!response.ok || value?.ok !== true) throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite confirmar liquidaciones.' : value?.error || 'No se confirmó la tanda.'), { status: response.status });
+  return 'confirmed';
 }
 
 export function mountBatchCalc(host) {
@@ -49,7 +67,11 @@ export function mountBatchCalc(host) {
     + '<div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-plan disabled>Armar tandas</button><button type="button" class="button primary" data-bc-run hidden></button></div>'
     + '<p class="mc-batch-status" role="status" aria-live="polite" data-bc-status></p><ul class="mc-batch-notes" data-bc-notes></ul>'
     + '<div data-bc-progress hidden><div class="mc-batch-bar" data-bc-bar role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance del cálculo"><span></span></div><p class="mc-batch-count" data-bc-count></p></div>'
-    + '<ol class="mc-batch-list" data-bc-list></ol><dl class="mc-batch-total" data-bc-total hidden></dl>';
+    + '<ol class="mc-batch-list" data-bc-list></ol><dl class="mc-batch-total" data-bc-total hidden></dl>'
+    + '<div class="mc-batch-confirm" data-bc-confirm hidden><h4>Confirmar el convenio</h4><p>Confirma todas las tandas con un mismo motivo. Queda registrado quién confirmó y cuándo; se puede anular después.</p>'
+    + '<label>Motivo de la confirmación <textarea data-bc-reason rows="2" maxlength="500"></textarea></label>'
+    + '<label class="mc-batch-check"><input type="checkbox" data-bc-reviewed> Revisé las personas y los totales del convenio</label>'
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-confirm-go disabled></button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-confirm-status></p></div>';
   const $ = name => host.querySelector('[data-bc-' + name + ']');
   const now = new Date(); $('period').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   let rows = null, plan = null, state = [], busy = false, boot = null;
@@ -62,7 +84,7 @@ export function mountBatchCalc(host) {
     $('run').disabled = busy;
     $('run').textContent = state.some(s => s.state === 'done' || s.state === 'failed') ? 'Seguir con ' + pending + (pending === 1 ? ' tanda' : ' tandas') : 'Calcular ' + pending + (pending === 1 ? ' tanda' : ' tandas');
   };
-  const forget = () => { plan = null; state = []; $('list').replaceChildren(); $('notes').replaceChildren(); $('progress').hidden = true; $('total').hidden = true; controls(); };
+  const forget = () => { plan = null; state = []; $('list').replaceChildren(); $('notes').replaceChildren(); $('progress').hidden = true; $('total').hidden = true; $('confirm').hidden = true; $('reason').value = ''; delete $('reason').dataset.proposed; $('reviewed').checked = false; $('confirm-status').textContent = ''; controls(); };
   function paint() {
     const done = state.filter(s => s.state === 'done'), people = done.reduce((n, s) => n + s.batch.people, 0), failed = state.some(s => s.state === 'failed');
     const share = plan?.people ? people / plan.people : 0;
@@ -72,7 +94,7 @@ export function mountBatchCalc(host) {
     $('list').replaceChildren(...state.map(s => {
       const li = node('li', null, 'mc-batch-item'), text = node('p'); li.dataset.state = s.state;
       text.append(node('span', 'Tanda ' + s.batch.index + ' · ' + s.batch.people + ' personas · legajos ' + s.batch.firstLegajo + ' a ' + s.batch.lastLegajo));
-      text.append(node('small', s.state === 'done' ? 'Lista en ' + s.seconds + ' s · neto ' + batchCalcMoney(s.totals.net) : s.state === 'running' ? 'Calculando…' : s.state === 'failed' ? s.error : 'En cola'));
+      text.append(node('small', s.state === 'done' ? (s.confirmed ? 'Confirmada · neto ' : 'Lista en ' + s.seconds + ' s · neto ') + batchCalcMoney(s.totals.net) : s.state === 'running' ? 'Calculando…' : s.state === 'failed' ? s.error : 'En cola'));
       li.append(node('b', String(s.batch.index)), text);
       if (s.state === 'failed') { const again = node('button', 'Repetir esta tanda', 'button secondary'); again.type = 'button'; again.disabled = busy; again.addEventListener('click', () => run(s)); li.append(again); }
       return li;
@@ -82,7 +104,30 @@ export function mountBatchCalc(host) {
       $('total').replaceChildren(...[['Personas', String(sum.people)], ['Bruto', batchCalcMoney(sum.gross)], ['Descuentos', batchCalcMoney(sum.deduction)], ['Neto', batchCalcMoney(sum.net)]].map(([k, v]) => { const d = node('div'); d.append(node('dt', k), node('dd', v)); return d; }));
       $('total').hidden = false;
     } else $('total').hidden = true;
+    const allDone = !!plan && done.length === plan.batches.length && done.length > 0, left = done.filter(s => !s.confirmed).length;
+    const canConfirm = allDone && done.every(s => s.totals.runId && s.totals.resultSha256);
+    $('confirm').hidden = !canConfirm;
+    if (canConfirm) {
+      if (!$('reason').dataset.proposed) { const sum = batchCalcSum(done.map(s => s.totals)); $('reason').value = 'Liquidación mensual ' + plan.period + ' de ' + plan.agreement + ': ' + sum.people + ' personas, neto ' + batchCalcMoney(sum.net).replace('\u00a0', ' ') + '. Totales revisados.'; $('reason').dataset.proposed = '1'; }
+      $('confirm-go').textContent = left ? 'Confirmar ' + left + (left === 1 ? ' tanda' : ' tandas') : 'Convenio confirmado';
+      $('confirm-go').disabled = busy || !left || !$('reviewed').checked || $('reason').value.trim().length < 10;
+      $('reason').disabled = busy || !left; $('reviewed').disabled = busy || !left;
+    }
     controls();
+  }
+  async function confirmAll() {
+    if (busy || !plan) return; const reason = $('reason').value.trim(); if (reason.length < 10 || !$('reviewed').checked) return;
+    busy = true; paint();
+    try {
+      for (const item of state.filter(s => s.state === 'done' && !s.confirmed)) {
+        $('confirm-status').textContent = 'Confirmando la tanda ' + item.batch.index + ' de ' + plan.batches.length + '…';
+        try { await confirmRun(item, reason); item.confirmed = true; }
+        catch (e) { item.confirmKey = crypto.randomUUID(); $('confirm-status').textContent = 'La tanda ' + item.batch.index + ' no se confirmó: ' + e.message + ' Las anteriores quedaron confirmadas.'; return; }
+        paint();
+      }
+      $('confirm-status').textContent = 'Convenio confirmado: ' + plan.people + ' personas en ' + plan.batches.length + (plan.batches.length === 1 ? ' tanda.' : ' tandas.');
+      document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
+    } finally { busy = false; paint(); }
   }
   async function load() {
     if (busy) return; busy = true; forget(); status('Trayendo el padrón propio…');
@@ -99,7 +144,7 @@ export function mountBatchCalc(host) {
     try {
       const typed = batchCalcLegajos($('excluded').value);
       plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: typed.valid });
-      state = plan.batches.map(batch => ({ batch, state: 'queued', key: crypto.randomUUID(), totals: null, seconds: 0, error: '' })); boot = null;
+      state = plan.batches.map(batch => ({ batch, state: 'queued', key: crypto.randomUUID(), confirmKey: crypto.randomUUID(), confirmed: false, totals: null, seconds: 0, error: '' })); boot = null;
       const notes = [];
       if (plan.excluded.length) notes.push('No se liquidan este mes: ' + plan.excluded.join(', ') + '.');
       if (plan.excludedNotFound.length) notes.push('No están activos en este convenio (revisá el número): ' + plan.excludedNotFound.join(', ') + '.');
@@ -123,10 +168,11 @@ export function mountBatchCalc(host) {
         paint();
       }
       const left = state.filter(s => s.state !== 'done').length;
-      status(left ? 'Quedan ' + left + (left === 1 ? ' tanda' : ' tandas') + ' por calcular.' : 'Convenio calculado. Cada tanda quedó guardada como una corrida: revisalas y confirmalas en «Calcular».');
+      status(left ? 'Quedan ' + left + (left === 1 ? ' tanda' : ' tandas') + ' por calcular.' : 'Convenio calculado. Revisá los totales y confirmalo acá abajo, o tanda por tanda en «Calcular».');
       if (!left) document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
     } catch (e) { status(e.message); } finally { busy = false; paint(); }
   }
+  $('confirm-go').addEventListener('click', confirmAll); $('reviewed').addEventListener('change', paint); $('reason').addEventListener('input', paint);
   $('load').addEventListener('click', load); $('plan').addEventListener('click', arrange); $('run').addEventListener('click', () => run());
   for (const name of ['agreement', 'period', 'excluded']) $(name).addEventListener('input', () => { if (plan && !busy) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
   status('Tocá «Traer convenios» para empezar.'); controls();
