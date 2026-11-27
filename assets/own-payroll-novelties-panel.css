@@ -49,7 +49,7 @@
 .own-novelties [data-n-review],.own-novelties [data-n-send]{background:#14766d;color:#fff;border-color:#14766d;font-weight:700;min-height:44px;padding:10px 20px}
 
 /* Pasos visibles arriba del formulario: dónde estoy y qué sigue. */
-.own-novelties-progress{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 20px;padding:0}
+.own-novelties-progress{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 20px;padding:0}
 .own-novelties-progress li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:#f4f7f6;color:#5b6673;font-weight:600;border:1px solid #e2ebe9}
 .own-novelties-progress b{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#dfe8e6;color:#14524c;font-size:.9rem;flex:none}
 .own-novelties-progress li.is-current{background:#e6f4f1;border-color:#14766d;color:#0f3f3a}
@@ -57,4 +57,6 @@
 .own-novelties-progress li.is-done{color:#14524c}
 .own-novelties-progress li.is-done b{background:#bfe3da;color:#0f3f3a}
 .own-novelties-progress li.is-done b{font-size:0}.own-novelties-progress li.is-done b::after{content:"✓";font-size:.95rem}
-@media (max-width:720px){.own-novelties-progress{grid-template-columns:1fr 1fr}}
+.own-novelties-progress li{min-width:0}.own-novelties-progress li span{min-width:0;overflow-wrap:anywhere}
+@media (max-width:720px){.own-novelties-progress{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:420px){.own-novelties-progress{grid-template-columns:minmax(0,1fr)}}
