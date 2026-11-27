@@ -4,11 +4,15 @@
 // preparación reciben un texto neutro que la persona puede cambiar. Nunca pisa lo que la persona escribió.
 const APPROVE='Revisado: los datos coinciden con la documentación del período. Se aprueba.';
 const PREPARE='Carga del período según la documentación recibida por Recursos Humanos.';
+// Rechazar, anular o cancelar siempre piden un motivo escrito por la persona: nunca reciben el texto de aprobación.
+const NEEDS_OWN_REASON=/reject|rechaz|annul|anul|cancel/;
+// La decisión sobre una liquidación es un acto formal: el motivo propuesto queda a la vista para revisarlo o cambiarlo.
+const alwaysVisible=field=>field.matches('[data-liq-reason]');
 const labelOf=field=>field.closest('label')||(field.id&&document.querySelector('label[for="'+CSS.escape(field.id)+'"]'))||null;
 // El campo completado con el texto estándar no se muestra: aprobar no pide escribir nada. Queda un enlace discreto para
 // quien quiera dejar un comentario, y vuelve a mostrarse si la decisión pasa a rechazo.
 function hideField(field){
-  if(field.dataset.mcReasonHidden==='1')return;
+  if(field.dataset.mcReasonHidden==='1'||alwaysVisible(field))return;
   const label=labelOf(field);const parts=[field];if(label&&!label.contains(field))parts.push(label);else if(label)parts[0]=label;
   for(const el of parts){el.dataset.mcReasonPrev=el.style.display||'';el.style.display='none';}
   field.dataset.mcReasonHidden='1';
@@ -23,7 +27,7 @@ function showField(field){
   field.dataset.mcReasonHidden='';field._mcReasonLink?.remove();field._mcReasonLink=null;
 }
 const labelText=field=>{const l=field.closest('label')||(field.id&&document.querySelector('label[for="'+CSS.escape(field.id)+'"]'));return (l?.textContent||field.getAttribute('aria-label')||field.placeholder||'').toLowerCase();};
-const decisionOf=field=>{const box=field.closest('fieldset,section,form,div');const select=box?.querySelector('select');const v=(select?.value||select?.selectedOptions?.[0]?.textContent||'').toLowerCase();return /reject|rechaz/.test(v)?'reject':'approve';};
+const decisionOf=field=>{const box=field.closest('fieldset,section,form,div');const select=box?.querySelector('select');const v=(select?.value||select?.selectedOptions?.[0]?.textContent||'').toLowerCase();return NEEDS_OWN_REASON.test(v)?'reject':'approve';};
 function fill(field){
   if(field.dataset.mcReasonDefault==='filled'&&field.value.trim()&&field.dataset.mcReasonHidden!=='1'&&!field._mcReasonShown){hideField(field);return;}
   if(field.dataset.mcReasonDefault==='off'||field.value.trim()||field.disabled||field.readOnly)return;
@@ -40,7 +44,7 @@ function watchDecision(event){
   const select=event.target;if(!(select instanceof HTMLSelectElement))return;
   const box=select.closest('fieldset,section,form,div');if(!box)return;
   for(const f of box.querySelectorAll('textarea,input[type="text"]')){
-    if(f.dataset.mcReasonDefault==='filled'&&/reject|rechaz/.test(select.value.toLowerCase())){f.value='';f.dataset.mcReasonDefault='';showField(f);f.dispatchEvent(new Event('input',{bubbles:true}));}
+    if(f.dataset.mcReasonDefault==='filled'&&NEEDS_OWN_REASON.test(select.value.toLowerCase())){f.value='';f.dataset.mcReasonDefault='';showField(f);f.dispatchEvent(new Event('input',{bubbles:true}));}
     else fill(f);
   }
 }
