@@ -64,7 +64,8 @@
  .mc-quickdock,.mc-quickdock[data-tucked=true]{opacity:1;pointer-events:auto}.mc-quickdock[data-tucked=true]{transform:none}.mc-quickdock{top:auto;bottom:0;left:0;right:0;transform:none;max-width:none;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));border-width:1px 0 0;border-radius:16px 16px 0 0;animation-name:mc-dock-up}
  .mc-quickdock .mc-quick-tabs{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr))}
  .mc-quickdock-top{width:44px;height:52px}
- body.mc-quickdock-on{padding-bottom:76px}
+ body.mc-quickdock-on{padding-bottom:calc(max(76px,var(--mc-quickdock-h,76px)) + 16px)}
+ html:has(body.mc-quickdock-on){scroll-padding-bottom:calc(max(76px,var(--mc-quickdock-h,76px)) + 16px)}
  .mc-quickmenu{top:auto;left:8px;right:8px;bottom:var(--mc-menu-bottom,12px);width:auto;border-radius:18px;animation-name:mc-sheet-in}
  .mc-quickmenu-item{min-height:48px;font-size:15px}
 }
@@ -74,3 +75,6 @@
  body.mc-print-scope .mc-print-target,body.mc-print-scope .mc-print-target *{visibility:visible}
  body.mc-print-scope .mc-print-target{position:absolute;inset:0 auto auto 0;width:100%}
  body.mc-print-scope .mc-print-target :is(button,.nr-pages){display:none!important}}
+
+/* El menú pegado arriba (pantallas angostas) no tapa el destino de un salto ni el campo que recibe el foco. */
+@media (max-width:860px){html{scroll-padding-top:calc(var(--mc-sticky-top-h,0px) + 8px)}}

@@ -281,6 +281,17 @@ export function mountQuickbar(host, config = QUICKBARS[host?.dataset?.quickbar])
     new IntersectionObserver(([entry]) => { above = !entry.isIntersecting && entry.boundingClientRect.bottom < 0; place(); }).observe(host);
   }
   addEventListener('resize', place);
+  // Phone: the dock sits fixed at the bottom and the menu sticks to the top. Their real heights reserve the page's
+  // bottom space and the scroll margins, so the last button of a screen never ends up underneath them.
+  const reserve = () => {
+    const root = document.documentElement, phone = matchMedia('(max-width:760px)').matches;
+    const side = document.querySelector('aside.sidebar');
+    const sticky = side && getComputedStyle(side).position === 'sticky' && matchMedia('(max-width:860px)').matches ? Math.ceil(side.getBoundingClientRect().height) : 0;
+    root.style.setProperty('--mc-quickdock-h', (phone && !dock.hidden ? Math.ceil(dock.getBoundingClientRect().height) : 0) + 'px');
+    root.style.setProperty('--mc-sticky-top-h', sticky + 'px');
+  };
+  if (typeof ResizeObserver === 'function') { const watch = new ResizeObserver(reserve); watch.observe(dock); const side = document.querySelector('aside.sidebar'); if (side) watch.observe(side); }
+  addEventListener('resize', reserve); reserve();
   // Desktop: the floating dock tucks away while the person scrolls down reading (it used to cover the text under it)
   // and comes back on the first scroll up, near the top, or when focus or an open menu is inside it.
   let lastY = scrollY;
