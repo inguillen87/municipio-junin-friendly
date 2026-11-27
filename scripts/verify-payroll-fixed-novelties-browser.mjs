@@ -1,4 +1,5 @@
 import {openFixedNovelties} from './lib/novelty-reference-browser.mjs';
+import {roster as syntheticRoster} from '../tests/fixtures/native-roster-synthetic.js';
 /** Actual compiled UI. Every private API and POST is synthetic and intercepted. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -85,6 +86,13 @@ try{
       if(!directoryAllowed)return route.fulfill({status:403,json:{ok:false,error:'Sin permiso de consulta de personal'}});
       const rows=[...state.subjects.values()].map(s=>({contractId:s.contractId,legajo:s.legajo,nombre:s.employeeName,sector:'Sector sintético',convenio:'Convenio sintético',activo:true,statusSnapshotDate:null}));
       return route.fulfill({json:{ok:true,version:'employee-picker.v1',data:rows,pagination:{page:1,limit:20,total:rows.length,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}}});
+    }
+    if(u.pathname==='/api/internal-data'&&u.searchParams.get('resource')==='nativeroster'){
+      // Padrón propio sintético: el buscador de legajos de novedades fijas lo consulta antes de pedir el contrato.
+      if(!directoryAllowed)return route.fulfill({status:403,json:{ok:false,error:'Sin permiso de consulta de personal'}});
+      const base=syntheticRoster(),template=base.rows[0];
+      const rows=[...state.subjects.values()].map(s=>({...template,contractId:s.contractId,registrationId:s.contractId,legajo:s.legajo,name:s.employeeName,status:'active',recordKind:'hire'}));
+      return route.fulfill({json:{ok:true,data:{...base,version:'native-roster.v2',filters:{...base.filters,status:'all'},rows,total:rows.length,people:rows.length,counts:{active:rows.length,pending_start:0,inactive:0,state_error:0,unknown:0}}}});
     }
     return route.fulfill({status:200,json:{ok:true,data:[]}});
   });
