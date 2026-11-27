@@ -236,7 +236,7 @@ main.content {
 :is(input, select, textarea, button) { font-family: inherit; }
 main :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"]), select, textarea) {
   font-size: .9375rem;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: .4rem .7rem;
   color: var(--mc-brand-ink);
   background-color: #fff;
