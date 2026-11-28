@@ -353,9 +353,14 @@ export function mountBatchCalc(host) {
       const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, only: batchCalcLegajos($('only').value).valid });
       const wanted = new Set(wantedPlan.batches.flatMap(b => b.contractIds)), seen = new Set(), targets = []; let blocked = 0, confirmed = 0, calculated = 0, own = 0;
       if (!wanted.size) { $('undo-status').textContent = 'No hay personas de ese convenio para buscar.'; return; }
-      const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period, wantedPlan.liquidationType);
+      // Quiénes están en cada corrida no cambia nunca: se recuerda en este navegador y sólo se leen las corridas que
+      // tienen a alguien de este convenio (o que todavía no se conocen). La primera búsqueda lee todo; las demás, poco.
+      const known = recall(localStorage, 'runs') ?? {};
+      const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period, wantedPlan.liquidationType)
+        .filter(run => !Array.isArray(known[run.id]) || known[run.id].some(id => wanted.has(id)));
       $('undo-status').textContent = 'Leyendo las corridas del mes: 0 de ' + runs.length + '…';
       await readRunsInOrder(runs, (run, detail, index) => {
+        if (!Array.isArray(known[run.id])) { known[run.id] = detail.employees.map(e => e.contractId); const ids = Object.keys(known); for (const old of ids.slice(0, Math.max(0, ids.length - 400))) delete known[old]; remember(localStorage, 'runs', known); }
         if (seen.size === wanted.size) return false;
         const found = batchCalcUndoScan(detail.employees, wanted, seen);
         for (const command of ['confirm', 'annul', 'cancel']) if (found[command].length) targets.push({ run, command, contractIds: found[command] });
