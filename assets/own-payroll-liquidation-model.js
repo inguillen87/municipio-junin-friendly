@@ -44,6 +44,18 @@ export function ownLiquidationDetail(v){
   if(e.state!==prior||e.liquidationVersion!==number||e.allowedCommands.some(c=>c==='confirm'?e.state!=='calculated'||e.blockedBy!==null:c==='annul'?e.state!=='confirmed':e.state!=='calculated'))fail();ids.add(e.contractId);
  }return v;
 }
+// Lectura liviana (265): lo mismo que el detalle, sin el resultado técnico. Sirve para buscar qué está calculado o
+// confirmado y armar el comando; no sirve para revisar importes, que siguen en el detalle completo.
+export function ownLiquidationStates(v){
+ exact(v,['version','id','scopeVersion','stateVersion','employees','effects','reviewAccessRequired']);
+ if(v.version!=='own-liquidation-states.v1'||!salaryUuid(v.id)||![v.scopeVersion,v.stateVersion].every(salaryHash)||!Array.isArray(v.employees)||v.employees.length>10000||typeof v.reviewAccessRequired!=='boolean')fail();
+ exact(v.effects,['paymentExecuted','accountingPosted','periodClosed']);if(Object.values(v.effects).some(e=>e!==false))fail();
+ const ids=new Set();
+ for(const e of v.employees){exact(e,['contractId','state','version','liquidationVersion','blockedBy','allowedCommands','events']);
+  if(!salaryUuid(e.contractId)||ids.has(e.contractId)||!states.includes(e.state)||!Number.isSafeInteger(e.version)||e.version<0||!(e.blockedBy===null||salaryUuid(e.blockedBy))||!Array.isArray(e.allowedCommands)||new Set(e.allowedCommands).size!==e.allowedCommands.length||e.allowedCommands.some(c=>!commands.includes(c))||!Array.isArray(e.events)||e.events.length!==e.version)fail();
+  if(e.allowedCommands.some(c=>c==='confirm'?e.state!=='calculated'||e.blockedBy!==null:c==='annul'?e.state!=='confirmed':e.state!=='calculated'))fail();ids.add(e.contractId);
+ }return v;
+}
 // Historical results keep their route and their object. A V4/V5 detail is validated on a private copy taken before the first
 // await, and that copy is what comes back: a change to the caller's object while the hashes are computed cannot reach it.
 export async function verifiedOwnLiquidationDetail(v){

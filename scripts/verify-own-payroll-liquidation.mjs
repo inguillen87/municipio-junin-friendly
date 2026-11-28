@@ -29,6 +29,16 @@ try{
  let detail=await liq(reviewer,'detail',{id:c.id});check(detail.employees.every(e=>e.allowedCommands.join('|')==='confirm'),'independent reviewer can confirm all calculated own employees');
  const command=(d,command,selection={kind:'all',values:[]})=>({runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command,selection,reason:'Decisión exclusivamente sintética QA',reviewConfirmed:true});
  const makerDetail=await liq(maker,'detail',{id:c.id});check(makerDetail.employees.every(e=>e.allowedCommands.join('|')==='cancel'),'maker cannot confirm or annul own calculation');
+ // 265: la lectura liviana devuelve exactamente lo del detalle, sin el resultado técnico, para quien calculó y para quien revisa.
+ {
+  const m265=fs.readFileSync(path.join(root,'scripts/migrations/265-own-liquidation-states.sql'),'utf8').replaceAll('\r\n','\n').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replaceAll('public.',qa.schema+'.');
+  const file265=prefix+'-265.sql';fs.writeFileSync(file265,'BEGIN;\n'+m265+'\nCOMMIT;\n');
+  const installed265=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M265 estados livianos de corrida: 1 funciones/.test(installed265.stdout+installed265.stderr),'265 installs the light run states read');
+  await assert.rejects(execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000}),/M265_ALREADY_INSTALLED/);checks++;
+  const plain=v=>JSON.stringify(Object.fromEntries(Object.entries(v).filter(([k])=>!['version','capture'].includes(k)).sort()));
+  for(const [actor,full] of [[reviewer,detail],[maker,makerDetail]]){const light=await liq(actor,'states',{id:c.id});check(light.version==='own-liquidation-states.v1'&&!('capture' in light)&&plain(light)===plain(full),'the light read equals the detail without the technical result');}
+  await assert.rejects(liq(identity(qa.actors.checker,[]),'states',{id:c.id}),()=>true);checks++;
+ }
  const firstId=detail.employees[0].contractId,key=randomUUID(),firstBody=command(detail,'confirm',{kind:'contracts',values:[firstId]});
  const samePerson=identity(qa.actors.samePerson,OWN_LIQ_REVIEW),aliasDetail=await liq(samePerson,'detail',{id:c.id});check(aliasDetail.employees.every(e=>e.allowedCommands.length===0),'another membership/email of the maker person cannot self-confirm');await assert.rejects(liq(samePerson,'command',{key:randomUUID(),body:command(aliasDetail,'confirm')}),e=>e.code==='OWN_LIQ_DECISION_INVALID');checks++;
  for(const actor of [qa.actors.unlinked,qa.actors.outsider]){await assert.rejects(liq(identity(actor,OWN_LIQ_REVIEW),'detail',{id:c.id}),e=>[403,404].includes(e.status));checks++;}

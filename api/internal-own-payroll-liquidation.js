@@ -32,6 +32,7 @@ export function createOwnLiquidationHandler(deps={}){
     if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')liquidationFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,OWN_RUN_MAX_BODY);operation='command';
    }else if(q.resource==='bootstrap'&&Object.keys(q).join('|')==='resource'){operation='bootstrap';input={};}
    else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='id|resource'){operation='detail';input={id:q.id};}
+   else if(q.resource==='states'&&Object.keys(q).sort().join('|')==='id|resource'){operation='states';input={id:q.id};}
    else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
    else liquidationFail('QUERY_INVALID',400,'Consulta inválida.');
    const required=operation==='bootstrap'?OWN_LIQ_READ:OWN_LIQ_NOMINAL;

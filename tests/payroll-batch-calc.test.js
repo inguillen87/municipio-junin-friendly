@@ -121,3 +121,13 @@ test('the legajo finder lists the active people of the agreement and searches by
   assert.deepEqual(batchCalcSearch(people, ''), []);
   assert.equal(batchCalcSearch(people, 'zz').length, 0);
 });
+
+test('the light run states read keeps only states and commands, and rejects an inconsistent command', async () => {
+  const { ownLiquidationStates } = await import('../assets/own-payroll-liquidation-model.js');
+  const base = { version: 'own-liquidation-states.v1', id: id(1), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), reviewAccessRequired: false, effects: { paymentExecuted: false, accountingPosted: false, periodClosed: false },
+    employees: [{ contractId: id(2), state: 'calculated', version: 0, liquidationVersion: null, blockedBy: null, allowedCommands: ['confirm'], events: [] }] };
+  assert.equal(ownLiquidationStates(structuredClone(base)).employees.length, 1);
+  assert.throws(() => ownLiquidationStates({ ...base, capture: {} }));
+  assert.throws(() => ownLiquidationStates({ ...base, employees: [{ ...base.employees[0], allowedCommands: ['annul'] }] }));
+  assert.throws(() => ownLiquidationStates({ ...base, effects: { ...base.effects, periodClosed: true } }));
+});

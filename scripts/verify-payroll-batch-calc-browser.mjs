@@ -15,7 +15,7 @@ const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), name: i === 5 ? 'PÉREZ LUCÍA' : 'PERSONA SINTÉTICA ' + (1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
   .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
-const posts = [], decisions = [], runs = new Map(), closed = new Set(), closes = [], closeReads = []; let failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
+const posts = [], decisions = [], runs = new Map(), closed = new Set(), closes = [], closeReads = []; let lightReads = 0, failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
 const allowed = (run, state) => state === 'confirmed' ? (selfConfirm || run.by !== viewer ? ['annul'] : []) : state === 'calculated' ? [...(selfConfirm || run.by !== viewer ? ['confirm'] : []), ...(run.by === viewer ? ['cancel'] : [])] : [];
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const send = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
@@ -41,6 +41,11 @@ const server = http.createServer(async (req, res) => {
     return send(201, { ok: true, data: { snapshot: { employeeCount: open.length } } });
   }
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'bootstrap') return send(200, { ok: true, data: { version: 'own-liquidation-bootstrap.v1', scopeVersion: 'c'.repeat(64), complete: true, runs: [...runs].map(([runId, run]) => ({ id: runId, period: '2026-11', liquidationType: 'monthly', createdAt: run.createdAt, employeeCount: run.states.size, resultSha256: run.resultSha256, canConsult: true })) } });
+  if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'states') {
+    const run = runs.get(url.searchParams.get('id')); if (!run) return send(404, { ok: false, error: 'No se encontró la corrida.' }); lightReads++;
+    return send(200, { ok: true, data: { version: 'own-liquidation-states.v1', id: url.searchParams.get('id'), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), reviewAccessRequired: false, effects: { paymentExecuted: false, accountingPosted: false, periodClosed: false },
+      employees: [...run.states].map(([contractId, state]) => ({ contractId, state, version: 0, liquidationVersion: null, events: [], blockedBy: null, allowedCommands: allowed(run, state) })) } });
+  }
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'detail') {
     const run = runs.get(url.searchParams.get('id')); if (!run) return send(404, { ok: false, error: 'No se encontró la corrida.' });
     return send(200, { ok: true, data: { id: url.searchParams.get('id'), scopeVersion: 'c'.repeat(64), stateVersion: 'd'.repeat(64), employees: [...run.states].map(([contractId, state]) => ({ contractId, state, blockedBy: null, allowedCommands: allowed(run, state) })) } });
@@ -138,6 +143,7 @@ try {
   await page.reload(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').value === 'CONVENIO SINTÉTICO GRANDE');
   assert.equal(await $('period').inputValue(), '2026-11'); assert.equal(await $('type').inputValue(), 'vacation'); assert.equal(await $('excluded').inputValue(), '1001, 1005'); assert.match(await $('status').innerText(), /Se recuperó/);
   assert.equal(await $('excluded-chips').locator('li').count(), 2); checks.push('reloading the page brings the card back with the same month, type, agreement and legajos');
+  assert.ok(lightReads > 0, 'confirm and annul searches use the light states read'); checks.push('searching what is calculated or confirmed reads only the states per person, several runs at a time');
   fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
   console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
 } finally { await browser.close(); server.close(); }

@@ -460,6 +460,7 @@ local-agents/
 !scripts/migrations/262-own-run-storage-capacity.sql
 !scripts/migrations/263-own-single-operator-decisions.sql
 !scripts/migrations/264-own-close-by-run.sql
+!scripts/migrations/265-own-liquidation-states.sql
 !scripts/candidates/attendance-area-authority-v1.source.sql.txt
 !scripts/candidates/attendance-area-authority-v1.derived.sql.txt
 !scripts/candidates/attendance-area-history-v1.source.sql.txt

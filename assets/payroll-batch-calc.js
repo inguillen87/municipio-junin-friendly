@@ -4,7 +4,7 @@
 import { OWN_RUN_COMMAND_VERSION, ownRunCommand } from './own-payroll-run-model.js';
 import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
 import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPeople, batchCalcPlan, batchCalcSearch, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
-import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
+import { ownLiquidationCommand, ownLiquidationStates } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
 import { fetchOwnClose, OWN_CLOSE_ENDPOINT } from './own-payroll-close-read.js';
 import { ownCloseCommand } from './own-payroll-close-model.js';
@@ -62,9 +62,31 @@ async function readRun(runId) {
   if (!read.ok || read.payload?.ok !== true) throw Object.assign(Error(read.status === 401 ? 'La sesión venció. Volvé a ingresar.' : read.status === 403 ? 'Tu cuenta no permite consultar liquidaciones.' : read.payload?.error || 'No se pudo leer una corrida del mes.'), { status: read.status });
   return read.payload.data;
 }
+// Para buscar qué está calculado o confirmado alcanza con los estados por persona (265): pocos KB por corrida en vez de
+// varios MB. Si el servidor todavía no tiene esa lectura, se usa el detalle completo, como antes.
+let statesReady = true;
+async function readRunStates(runId) {
+  if (statesReady) {
+    try {
+      const response = await fetch(OWN_LIQ_DETAIL_ENDPOINT + '?resource=states&id=' + encodeURIComponent(runId), { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (response.status === 401) throw Object.assign(Error('La sesión venció. Volvé a ingresar.'), { status: 401 });
+      if (response.ok) { const value = await response.json(); if (value?.ok === true) return ownLiquidationStates(value.data); }
+      else if (response.status === 403) throw Object.assign(Error('Tu cuenta no permite consultar liquidaciones.'), { status: 403 });
+      statesReady = false;
+    } catch (e) { if (e.status === 401 || e.status === 403) throw e; statesReady = false; }
+  }
+  return readRun(runId);
+}
+// Lee varias corridas a la vez sin cambiar el orden en que se aplican: la más nueva decide por cada persona.
+async function readRunsInOrder(runs, onEach, width = 4) {
+  for (let start = 0; start < runs.length; start += width) {
+    const slice = runs.slice(start, start + width), read = await Promise.all(slice.map(run => readRunStates(run.id)));
+    for (const [offset, detail] of read.entries()) if ((await onEach(slice[offset], detail, start + offset)) === false) return;
+  }
+}
 // Anula (confirmadas) o descarta (calculadas sin confirmar) a las personas indicadas de una corrida.
 async function undoRun(run, command, contractIds, reason) {
-  const detail = await readRun(run.id);
+  const detail = await readRunStates(run.id);
   const still = new Set((detail.employees ?? []).filter(e => Array.isArray(e.allowedCommands) && e.allowedCommands.includes(command)).map(e => e.contractId));
   const values = contractIds.filter(id => still.has(id)).sort(); if (!values.length) return 0;
   const payload = ownLiquidationCommand({ runId: run.id, resultSha256: run.resultSha256, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, command, selection: { kind: 'contracts', values }, reason, reviewConfirmed: true });
@@ -332,13 +354,14 @@ export function mountBatchCalc(host) {
       const wanted = new Set(wantedPlan.batches.flatMap(b => b.contractIds)), seen = new Set(), targets = []; let blocked = 0, confirmed = 0, calculated = 0, own = 0;
       if (!wanted.size) { $('undo-status').textContent = 'No hay personas de ese convenio para buscar.'; return; }
       const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period, wantedPlan.liquidationType);
-      for (const [index, run] of runs.entries()) {
-        if (seen.size === wanted.size) break;
-        $('undo-status').textContent = 'Leyendo las corridas del mes: ' + (index + 1) + ' de ' + runs.length + '. Encontradas ' + seen.size + ' de ' + wanted.size + ' personas…';
-        const found = batchCalcUndoScan((await readRun(run.id)).employees, wanted, seen);
+      $('undo-status').textContent = 'Leyendo las corridas del mes: 0 de ' + runs.length + '…';
+      await readRunsInOrder(runs, (run, detail, index) => {
+        if (seen.size === wanted.size) return false;
+        const found = batchCalcUndoScan(detail.employees, wanted, seen);
         for (const command of ['confirm', 'annul', 'cancel']) if (found[command].length) targets.push({ run, command, contractIds: found[command] });
         blocked += found.blocked.length; confirmed += found.confirmed; calculated += found.calculated; own += found.cancel.filter(id => !found.confirm.includes(id)).length;
-      }
+        $('undo-status').textContent = 'Leyendo las corridas del mes: ' + (index + 1) + ' de ' + runs.length + '. Encontradas ' + seen.size + ' de ' + wanted.size + ' personas…';
+      });
       undo = { targets };
       $('undo-status').textContent = (confirmed + calculated ? 'En ' + wantedPlan.period + ': ' + confirmed + ' confirmadas y ' + calculated + ' calculadas sin confirmar.' : 'No hay nada calculado vigente para esas personas en ' + wantedPlan.period + '.')
         + (own ? ' ' + own + ' las calculaste vos: las confirma otra persona, o las podés anular.' : '') + (blocked ? ' ' + blocked + ' no admiten cambios con tu cuenta o ya están cerradas.' : '');

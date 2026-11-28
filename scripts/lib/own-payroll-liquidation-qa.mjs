@@ -21,7 +21,7 @@ export function buildOwnLiquidationQa(major,{employees=2,declaredDate=false}={})
 export function createOwnLiquidationPsqlQa(options){
  const db=createOwnPayrollPsqlQa(options);return {...db,query:async(query,values)=>{
   if(/^SELECT public\.own_run_/.test(query))return db.query(query,values);
-  assert.match(query,/^SELECT public\.own_liquidation_(?:bootstrap|detail|attempt|command)_v1\([\s\S]+\) AS result$/);
+  assert.match(query,/^SELECT public\.own_liquidation_(?:bootstrap|detail|states|attempt|command)_v1\([\s\S]+\) AS result$/);
   const rendered=query.replaceAll('public.own_liquidation_',options.schema+'.own_liquidation_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});return [{result:await db.run(rendered,true)}];
  }};
 }
