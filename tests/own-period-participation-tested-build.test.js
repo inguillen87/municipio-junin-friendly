@@ -61,7 +61,7 @@ const workflow=()=>fs.readFileSync(new URL('../.github/workflows/own-period-part
 test('single producer completes the original full build and publishes an immutable same-run envelope',()=>{
  const source=workflow(),producer=source.split('\n  tested_build:\n')[1].split('\n  verify:\n')[0];
  assert.equal((source.match(/npm run build/g)||[]).length,1);
- for(const fragment of ['set -euo pipefail','preflight','npm run build 2>&1 | tee','mjs create',
+ for(const fragment of ['set -euo pipefail','preflight','npm run build:lab 2>&1 | tee','mjs create',
   'include-hidden-files: true','if-no-files-found: error','steps.custody.outputs','steps.shared_upload.outputs',
   'own-period-tested-public-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}',
   '[[ "$PERIOD_UPLOADED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]'])assert.ok(source.includes(fragment),fragment);
