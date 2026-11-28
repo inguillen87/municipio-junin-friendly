@@ -3,7 +3,9 @@ import { mountLiquidacionesMenu } from './liquidaciones-menu.js';
 import { readWorkUsage, countWorkUse } from './work-area-usage.js';
 import './reason-defaults.js';
 // Texto visible de un acceso, sin las siglas decorativas (aria-hidden) que acompañan al ícono: «Personas», no «PEPersonas».
-const visibleLabel=item=>{const text=n=>n.nodeType===3?n.nodeValue:n.nodeType===1&&n.getAttribute?.('aria-hidden')!=='true'?[...n.childNodes].map(text).join(''):'';return text(item).trim().replace(/\s+/g,' ');};
+// Las siglas de los íconos («LI», «PE») son decorativas aunque alguna página vieja no las marque como ocultas.
+const decorative=n=>n.getAttribute?.('aria-hidden')==='true'||n.classList?.contains('nav-code')||n.classList?.contains('card-code');
+const visibleLabel=item=>{const text=n=>n.nodeType===3?n.nodeValue:n.nodeType===1&&!decorative(n)?[...n.childNodes].map(text).join(''):'';return text(item).trim().replace(/\s+/g,' ');};
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n;};
 const attr=(n,key,value)=>{if(n.getAttribute(key)!==String(value))n.setAttribute(key,String(value));};
 const hidden=(n,value)=>{if(n.hidden!==value)n.hidden=value;};
